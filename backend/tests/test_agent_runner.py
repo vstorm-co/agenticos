@@ -420,7 +420,7 @@ class TestPrepare:
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
+            ) as create_run,
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
                 new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
@@ -431,6 +431,54 @@ class TestPrepare:
 
         assert toolsets.await_args.kwargs["sender_user_id"] is None
         assert prepared.admitted_as.subject_is_publisher_fallback is True
+        # The same fact, carried onto the row itself - a run-finished
+        # notification reading `user_id` back later has no other way to
+        # tell a real initiator from the publisher standing in for one
+        # (#1598's own run-flood regression).
+        assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is True
+
+    @pytest.mark.anyio
+    async def test_a_scheduled_runs_creator_is_notified_despite_the_mcp_gate(self):
+        """`AgentTriggerService._creator_context` sets `subject_is_publisher_fallback=True`
+        on a real, known creator - purely to keep an unattended fire from
+        reaching their personal MCP connections (#1469) - not a publisher
+        standing in for an anonymous visitor. `initiated_by_publisher_fallback`
+        must not inherit that flag verbatim on `RunSurface.SCHEDULE`, or the
+        creator's own `run_completed`/`run_failed` notification is silently
+        skipped despite `AgentRun.user_id` naming them, not a stand-in."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.SCHEDULE)
+
+        assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is False
 
     @pytest.mark.anyio
     async def test_a_resumed_run_gets_its_servers_back(self):

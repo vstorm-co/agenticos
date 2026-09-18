@@ -247,7 +247,9 @@ class TestWhatTheWorkerWritesToTheRow:
             patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
             pytest.raises(AuthenticationError),
         ):
-            await _run_ingestion(str(uuid.uuid4()), "kb_ops", "/srv/uploads/f.pdf", "f.pdf", False)
+            await _run_ingestion(
+                str(uuid.uuid4()), "kb_ops", "/srv/uploads/f.pdf", "f.pdf", False, 1
+            )
 
         stored = documents.return_value.fail_ingestion.await_args.kwargs["error_message"]
         _assert_leaks_nothing(stored)
@@ -272,7 +274,7 @@ class TestWhatTheWorkerWritesToTheRow:
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
         ):
-            await _fail_document(str(uuid.uuid4()), error_message="the vague one")
+            await _fail_document(str(uuid.uuid4()), error_message="the vague one", attempt=1)
 
         documents.return_value.fail_ingestion.assert_not_awaited()
 
@@ -288,7 +290,7 @@ class TestWhatTheWorkerWritesToTheRow:
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
         ):
-            await _fail_document(str(uuid.uuid4()), error_message="the specific one")
+            await _fail_document(str(uuid.uuid4()), error_message="the specific one", attempt=1)
 
         assert (
             documents.return_value.fail_ingestion.await_args.kwargs["error_message"]

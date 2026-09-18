@@ -7,6 +7,7 @@ import logging
 import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
+from app.db.models.sync_source import SyncSource
 from app.db.session import get_worker_db_context
 from app.repositories import (
     collection_teardown_repo,
@@ -41,6 +43,7 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     deployment_defaults,
 )
+from app.services.notifications import NotificationService
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.documents import DocumentProcessor
@@ -264,6 +267,7 @@ async def ingest_document_flow(
     filepath: str,
     source_path: str,
     replace: bool = False,
+    attempt: int = 1,
 ) -> dict[str, Any]:
     """Process a document: parse, chunk, embed, store in vector DB.
 
@@ -271,6 +275,14 @@ async def ingest_document_flow(
     there is a summary rather than the exception's own text (#423). The text
     itself is in this flow's log twice over - the line below, and the traceback
     Prefect records because the failure is re-raised.
+
+    `attempt` is which dispatch this run is (#1598) - `1` for an upload,
+    whatever `retry_ingestion` bumped it to for a retry - carried through to
+    every settlement so a stale one (superseded by a later retry) is ignored
+    rather than notifying under the wrong attempt's dedup key. Defaulted for a
+    Prefect deployment run started with an older parameter set, not because a
+    caller may reasonably omit it - `RAGDocumentService._queue_parse`, the one
+    caller this codebase has, always passes it explicitly.
     """
     # `serve()` runs each flow in its own subprocess, which imports this module but
     # never ran the redaction setup `prefect_app.main` does - so without this the
@@ -279,13 +291,14 @@ async def ingest_document_flow(
     logger.info("Starting ingestion: %s -> %s", source_path, collection_name)
     try:
         return await _run_ingestion(
-            rag_document_id, collection_name, filepath, source_path, replace
+            rag_document_id, collection_name, filepath, source_path, replace, attempt
         )
     except Exception as exc:
         logger.exception("Ingestion failed for %s", source_path)
         await _fail_document(
             rag_document_id,
             error_message=failure_summary(exc, stage=IngestionStage.INGEST),
+            attempt=attempt,
         )
         raise
 
@@ -338,7 +351,12 @@ async def check_scheduled_syncs_flow() -> None:
 
 
 async def _run_ingestion(
-    rag_document_id: str, collection_name: str, filepath: str, source_path: str, replace: bool
+    rag_document_id: str,
+    collection_name: str,
+    filepath: str,
+    source_path: str,
+    replace: bool,
+    attempt: int,
 ) -> dict[str, Any]:
     """Parse and index one uploaded document, exactly as its record says to.
 
@@ -400,6 +418,7 @@ async def _run_ingestion(
             await _fail_document(
                 rag_document_id,
                 error_message=failure_summary(exc, stage=IngestionStage.INGEST),
+                attempt=attempt,
             )
             raise
         finally:
@@ -417,7 +436,7 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
-        await _fail_document(rag_document_id, error_message=reason)
+        await _fail_document(rag_document_id, error_message=reason, attempt=attempt)
         raise RuntimeError(f"Ingestion failed for {source_path}: {reason}")
 
     # `ingest_file` only sets `document_id` on the branch that returns `DONE` -
@@ -431,12 +450,14 @@ async def _run_ingestion(
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
                 replaced_document_id=result.replaced_document_id,
+                attempt=attempt,
             )
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
         await _fail_document(
             rag_document_id,
             error_message=failure_summary(exc, stage=IngestionStage.RECORD),
+            attempt=attempt,
         )
         raise
 
@@ -657,7 +678,7 @@ async def _run_sync(
         }
 
 
-async def _fail_document(rag_document_id: str, *, error_message: str | None) -> None:
+async def _fail_document(rag_document_id: str, *, error_message: str | None, attempt: int) -> None:
     """Put a failure on the document row, and let the first one keep it.
 
     One collapse is reported by up to three handlers here: the stage that
@@ -666,7 +687,11 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None) -> 
     one ("could not be indexed, check the collection's embedding credential");
     the outermost only knows the ingest failed. Overwriting therefore replaces
     the useful sentence with the vague one, which mattered from the moment the
-    column stopped holding the same `str(exc)` at every level (#423).
+    column stopped holding the same `str(exc)` at every level (#423). This
+    holds within one attempt - the `status == ERROR` check below is what makes
+    it true - and is unaffected by `attempt` (#1598): a retry resets the row to
+    `PROCESSING` before dispatching again, so the guard cannot mistake a
+    previous attempt's already-recorded failure for this one's.
 
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
@@ -680,7 +705,7 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None) -> 
             if (await doc_svc.get_document(rag_document_id)).status == DocumentStatus.ERROR:
                 return
             await doc_svc.fail_ingestion(
-                rag_document_id, error_message=error_message or "Unknown error"
+                rag_document_id, error_message=error_message or "Unknown error", attempt=attempt
             )
     except Exception as e:
         logger.warning("Failed to record the ingestion failure: %s", e)
@@ -798,15 +823,82 @@ async def _settle_document_row(row_id: str, result: IngestionResult) -> None:
 
     async with get_worker_db_context() as db:
         documents = RAGDocumentService(db)
+        # A sync's row is opened fresh per file, every run (#992) - there is
+        # no `retry_ingestion` on this path, so `attempt` is always `1`, the
+        # column's own default; re-syncing the same source another night
+        # opens another row rather than resubmitting this one.
         if result.status is IngestionStatus.DONE and result.document_id:
             await documents.complete_ingestion(
                 row_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
                 replaced_document_id=result.replaced_document_id,
+                attempt=1,
             )
         else:
-            await documents.fail_ingestion(row_id, result.error_message or "Ingestion failed")
+            await documents.fail_ingestion(
+                row_id, result.error_message or "Ingestion failed", attempt=1
+            )
+
+
+async def _notify_sync_start_failure(
+    db: AsyncSession,
+    *,
+    source: SyncSource,
+    sync_log_id: str | None,
+    started_at: datetime,
+    message: str,
+) -> None:
+    """The whole-attempt notification for a sync that failed before a single
+    file could be opened - an unknown connector, or a source with no
+    collection assigned (#1598).
+
+    Neither of these two call sites is in the design doc's own enumeration of
+    "exactly three points" (`docs/design/notification-center-plan.md`,
+    Decision 1) - it names only the unknown-connector branch, but the
+    no-collection branch immediately below it in `_run_source_sync` is
+    structurally identical: the same conditional `complete_sync` before an
+    unconditional `update_after_sync`, and the same "no per-document event
+    will ever exist for this sync" reasoning the doc gives for hooking the
+    first one. Both get the same treatment here.
+
+    Keyed on `(log.id, log.started_at)` when a log is available, the same
+    stable pair the budget-exceeded branch below keys on - `complete_sync`
+    fetches the row this call already has an id for, so there is no reason to
+    prefer the fresh `started_at` this call was handed instead. Falls back to
+    `(source_id, started_at)` only when there is no log to read one off: the
+    scheduler's own dispatch reaches here with no `sync_log_id` at all
+    (Decision 1's "whichever the firing call site actually has"), and that
+    fallback pair is what a manual-trigger retry with a lost log id would
+    otherwise fall back to as well.
+    """
+    from app.services.rag_sync import RAGSyncService
+
+    initiator_user_id = None
+    occurrence_id = f"{source.id}:{started_at.isoformat()}"
+    if sync_log_id:
+        log = await RAGSyncService(db).complete_sync(
+            sync_log_id, status="error", error_message=message
+        )
+        if log is not None:
+            initiator_user_id = log.triggered_by_user_id
+            occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
+    kb = await _knowledge_base_for(db, source.collection_name, source.organization_id)
+    await NotificationService(db).sync_failed(
+        organization_id=source.organization_id,
+        initiator_user_id=initiator_user_id,
+        occurrence_id=occurrence_id,
+        # The gate's own marker, not a readable stand-in: an empty
+        # `collection_name` beside an empty `collection_id` is what tells
+        # `_collections_visible` a source was never assigned a collection
+        # from one whose collection was deleted mid-sync, and the two are
+        # shown to different people. `source.name` here made every
+        # unassigned source look like the second, hiding the failure from
+        # the very person who triggered it.
+        collection_name=source.collection_name or "",
+        collection_id=kb.id if kb else None,
+        error=message,
+    )
 
 
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
@@ -821,6 +913,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         source_svc = SyncSourceService(db)
 
         source = await source_svc.get_source(source_id)
+        attempt_started_at = datetime.now(UTC)
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
             message = f"Unknown connector: {source.connector_type}"
@@ -828,10 +921,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             # before dispatching - refusing here without completing it left a
             # sync stuck `running` forever, with nothing left to ever finish
             # it. A scheduler dispatch carries no id yet: nothing to complete.
-            if sync_log_id:
-                await RAGSyncService(db).complete_sync(
-                    sync_log_id, status="error", error_message=message
-                )
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=message,
+            )
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
 
@@ -845,10 +941,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             # source can be edited between `trigger_sync`'s check and this
             # flow actually running, the same stuck-log risk as above applies.
             message = "Source has no assigned collection."
-            if sync_log_id:
-                await RAGSyncService(db).complete_sync(
-                    sync_log_id, status="error", error_message=message
-                )
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=message,
+            )
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
         collection_name = source.collection_name
@@ -881,8 +980,24 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 # are ours, they are the organization's own, and they are what
                 # the person reading a stopped sync needs (#423).
                 reason = failure_summary(exc, stage=IngestionStage.SYNC)
-                await RAGSyncService(db).complete_sync(log_id, status="error", error_message=reason)
+                log = await RAGSyncService(db).complete_sync(
+                    log_id, status="error", error_message=reason
+                )
                 await source_svc.update_after_sync(source_id, status="error", error=reason)
+                if log is not None:
+                    # The write attaches to this `complete_sync` call, not to
+                    # `update_after_sync` above: both report the same outcome,
+                    # and hooking both would double-fire the notification
+                    # (#1598, Decision 1).
+                    kb = await _knowledge_base_for(db, collection_name, organization_id)
+                    await NotificationService(db).sync_failed(
+                        organization_id=organization_id,
+                        initiator_user_id=log.triggered_by_user_id,
+                        occurrence_id=f"{log.id}:{log.started_at.isoformat()}",
+                        collection_name=collection_name,
+                        collection_id=kb.id if kb else None,
+                        error=reason,
+                    )
                 return {"status": "error", "message": reason}
 
         # One lookup for both answers, in the session that is already open: the
@@ -929,6 +1044,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 for remote_file in files:
+                    row_id: str | None = None
                     try:
                         # `sync_mode` used to reach one argument here and nothing
                         # else, so a scheduled source re-embedded every file every
@@ -1024,6 +1140,26 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                     except Exception as e:
                         logger.warning("Failed to sync %s: %s", remote_file.name, e)
                         failed += 1
+                        if row_id is not None:
+                            # A row `_open_document_row` already opened, left
+                            # `PROCESSING` for ever with no per-file
+                            # `INGESTION_FAILED` if `ingest_file` (or anything
+                            # after the open) raised rather than returned a
+                            # failure `IngestionResult` - `_settle_document_row`
+                            # is what this same loop's success path already
+                            # calls for exactly that settlement.
+                            await _settle_document_row(
+                                row_id,
+                                # Through `failure_summary`, not `str(e)`: this
+                                # is stored in `rag_documents.error_message` and
+                                # copied into the failure notification, and a
+                                # connector's own exception carries endpoints,
+                                # bucket names and query strings (#423).
+                                IngestionResult(
+                                    status=IngestionStatus.ERROR,
+                                    error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                                ),
+                            )
         except Exception as e:
             logger.error("Source sync failed for %s: %s", source_id, e)
             failed = max(failed, 1)
@@ -1034,9 +1170,10 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         sync_svc = RAGSyncService(db)
         source_svc = SyncSourceService(db)
         try:
-            await sync_svc.complete_sync(
+            status = "done" if not failed else "error"
+            log = await sync_svc.complete_sync(
                 log_id,
-                status="done" if not failed else "error",
+                status=status,
                 total_files=total,
                 ingested=ingested,
                 updated=updated,
@@ -1045,9 +1182,51 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             )
             await source_svc.update_after_sync(
                 source_id,
-                status="done" if not failed else "error",
+                status=status,
                 error=f"{failed} files failed" if failed else None,
             )
+            if log is not None:
+                # Attached to `complete_sync` above, not to `update_after_sync`:
+                # both report the same outcome, and hooking both would
+                # double-fire the notification (#1598, Decision 1). Fires
+                # whichever way the sync actually went - the aggregate summary
+                # a large sync's per-document events, fired once per file, do
+                # not give on their own.
+                #
+                # Best-effort, in a boundary of its own: the two settlements
+                # above are what a reader and the next scheduled run depend
+                # on, and a failure to *address* a notification (an unknown
+                # connector, a collection that lost its rows) must not be
+                # reported as a failure to record the sync's own outcome.
+                try:
+                    kb = await _knowledge_base_for(db, collection_name, organization_id)
+                    notifications = NotificationService(db)
+                    occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
+                    if status == "done":
+                        await notifications.sync_completed(
+                            organization_id=organization_id,
+                            initiator_user_id=log.triggered_by_user_id,
+                            occurrence_id=occurrence_id,
+                            collection_name=collection_name,
+                            collection_id=kb.id if kb else None,
+                            ingested=ingested,
+                            updated=updated,
+                            skipped=skipped,
+                            failed=failed,
+                        )
+                    else:
+                        await notifications.sync_failed(
+                            organization_id=organization_id,
+                            initiator_user_id=log.triggered_by_user_id,
+                            occurrence_id=occurrence_id,
+                            collection_name=collection_name,
+                            collection_id=kb.id if kb else None,
+                            error=f"{failed} files failed",
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed to notify about the sync outcome for source %s", source_id
+                    )
         except Exception:
             logger.error("Failed to update sync status for source %s", source_id)
 

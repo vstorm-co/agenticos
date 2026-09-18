@@ -41,6 +41,47 @@ Two things are versioned separately from this file and worth knowing about:
   returning a full top-k (requires pgvector ≥ 0.8; a raised `ef_search` is the
   fallback). Semantic document typing (`document_category`) is deferred, and the
   shared-table write-path tenant fix shipped separately (#1684).
+- **A notification center: every unattended alert in one inbox, in the console
+  as well as in the mail.** A bell beside search carries the unread count and
+  the list itself, a dashboard card carries the five most recent, and both read
+  the same rows. Every alert writes two things now - the in-app row, which *is*
+  the delivery and needs nothing further to succeed, and an email queued as an
+  independently retried second channel off the same write, so a bounced address
+  or a down relay cannot take the console's own copy with it. Nine event types
+  produce one: a budget exceeded, an approval parked, a run finishing or failing
+  unattended, a document's ingestion completing or failing, a source sync's own
+  outcome, a security event, a configuration change, a usage report and an app
+  admin's broadcast. Four routes read it - a cursor-paged inbox, an unread
+  count, mark-one-read and mark-all-read - and every one of them rechecks, row
+  by row against the caller's *current* standing, what the audience check
+  decided when the row was written: a collection they can no longer see, an
+  approval they can no longer decide, an organization they have left. An
+  approval nobody may decide degrades to a sentence without its link rather
+  than vanishing. (#1598)
+- **Per-event, per-channel notification preferences, at Settings →
+  Notifications.** In-app and email switch independently for every event a
+  person may turn off, and the three legacy `notify_*` columns keep governing
+  the three events they already governed - exactly one authoritative lookup per
+  event type, never two vocabularies for one switch. A security event and a
+  configuration change cannot be turned off on either channel. (#1598)
+- **App-admin announcements.** `POST /admin/announcements` addresses every
+  organization or a named list, optionally narrowed to a role, and optionally
+  restricted to one channel. The audience resolves at send time from current
+  membership rather than a stored list, an `"admin"` audience includes owners at
+  both ends of the send, a send reaching nobody is refused rather than recorded,
+  and the audit entry keeps the count and the description - never the resolved
+  recipient list. (#1598)
+- **Notification retention, on its own schedule.** A daily sweep drops a *read*
+  row ninety days after it was written and any row after a year, both counted
+  from the write. `announcements` are excluded, so what was sent stays
+  answerable from the audit trail after its deliveries age out. Migrations
+  `0088_notification_center_schema`, `0089_run_publisher_fallback` and
+  `0090_notification_created_idx`. (#1598)
+- **Notifications and their preferences are part of a personal-data export.**
+  `GET /me/data/export` now returns every notification addressed to the person -
+  including a row a channel opt-out hid, which is still a row the deployment
+  holds about them - and their per-event channel choices, which
+  `docs/data-protection.md` classifies as personal data. (#1598)
 
 ### Changed
 
@@ -53,6 +94,56 @@ Two things are versioned separately from this file and worth knowing about:
   and `filters.parent_doc_id` is a 400 conflict. Programmatic callers sending any
   other filter string — which did nothing before — must move to `filters`.
 
+### Fixed
+
+- **A notification's audience and its read gate agreed about owners.** An
+  `"admin"` announcement resolved its recipients by exact role while the
+  read-time gate admitted owners too, so an owner could be shown nothing
+  because no row was ever written for them - and an audience of owners with no
+  admin was refused as empty. One rule now decides both ends. (#1598)
+- **A failed preference read can no longer poison its caller's transaction.**
+  The batched preference lookups ran before the per-recipient savepoints, so a
+  statement error there aborted the whole PostgreSQL transaction - including the
+  terminal run update the best-effort contract exists to protect. They get a
+  savepoint of their own, and the write is abandoned rather than sent on
+  preferences nobody read. (#1598)
+- **A failure to notify can no longer undo a failed ingestion.** `fail_ingestion`
+  is now best-effort past the status write, the way `complete_ingestion` already
+  was: a worker runs it inside its own session, so an exception escaping it
+  rolled back the `ERROR` transition and left the document in `PROCESSING` for
+  ever. A source sync's own outcome notification takes the same boundary. (#1598)
+- **A connector's own exception no longer reaches a stored failure whole.** The
+  sync loop's settlement after a raised ingest passed `str(e)` into
+  `rag_documents.error_message`, which is rendered to everyone who can see the
+  collection - endpoints, bucket names and query strings included. It goes
+  through `failure_summary` like every other stored ingestion failure. (#423,
+  #1598)
+- **An app admin can see the ingestion notifications they were sent.** An
+  outcome with no initiator is addressed to every app admin, who hold no
+  membership row - so the collection gate refused it on the organization
+  mismatch alone and hid a row they were deliberately written. (#1598)
+- **A settings change made under impersonation is metered on the real
+  administrator.** `configuration_changed` keyed its write limit on the
+  impersonated account, giving one person a fresh allowance per account they
+  can act as; it uses the same real-administrator key `security_event` already
+  did. (#1598)
+- **A notification past its retention window is no longer emailed on its way
+  out.** Nothing orders the delivery sweep against the retention sweep, so a
+  worker recovering from a long outage ran both and whichever went first
+  decided whether a row past its declared window was sent. The claim applies
+  the retention sweep's own cutoffs. (#1598)
+- **A sync of a source with no collection reaches the person who triggered
+  it.** The producer passed the source's name where the read gate expects an
+  empty marker, so an unassigned source read as a collection deleted
+  mid-sync - visible only to administrators. (#1598)
+- **A scheduled report's window end bounds its purged spend too.** Live runs
+  and ingestion honoured `until`; purged run spend did not, so a report
+  delayed into a later month reported spend its own breakdown never
+  described. (#1420, #1598)
+- **"Mark all read" no longer claims an inbox it only partly cleared.** Both the
+  count and the sweep cap at five hundred candidates, so subtracting one from
+  the other zeroed the badge while older rows were still unread. The count is
+  refetched instead. (#1598)
 
 ## [0.0.468] - 2026-09-18
 

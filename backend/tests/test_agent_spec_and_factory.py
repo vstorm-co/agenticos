@@ -704,7 +704,7 @@ class TestWhoHearsAboutAnAgent:
         as YAML into a client's git repository would carry their staff's addresses
         with it, and a spec imported into another organization would mail people
         who have nothing to do with it. Ids at least resolve to nobody outside the
-        tenant, which is what `list_emails_for_members` enforces.
+        tenant, which is what the membership-scoped recipient resolver enforces.
         """
         fields = set(AlertSpec.model_fields)
 

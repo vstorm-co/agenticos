@@ -141,10 +141,20 @@ class RAGSyncService:
         skipped: int = 0,
         failed: int = 0,
         error_message: str | None = None,
-    ) -> None:
-        """Mark a sync operation as completed (done or error)."""
+    ) -> SyncLog | None:
+        """Mark a sync operation as completed (done or error).
+
+        Returns the updated row rather than `None`, so a caller in
+        `rag_tasks.py` that needs `started_at` or `triggered_by_user_id` for
+        the whole-attempt notification write (#1598) reads them off what this
+        already computed, instead of a second fetch. `RAGSyncService` itself
+        stays what it always was - it writes no notification of its own; the
+        design doc's own rule is that hooking this service (and
+        `SyncSourceService`) as an independent producer double-fires, since
+        both are called for the same outcome at some call sites.
+        """
         log = await self.get_sync_log(sync_id)
-        await sync_log_repo.update_status(
+        return await sync_log_repo.update_status(
             self.db,
             log.id,
             status=status,

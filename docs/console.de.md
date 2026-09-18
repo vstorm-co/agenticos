@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd981f9b3ad"
+source_sha: "fffeb5145a26"
 ---
 
 # Die Konsole { #the-console }
@@ -17,10 +17,12 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt fünfunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt sechsunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
-Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt.
-Eine leere Gruppe verschwindet samt ihrer Überschrift, statt leer dazustehen.
+Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
+außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
+angemeldet sind. Eine leere Gruppe verschwindet samt ihrer Überschrift, statt
+leer dazustehen.
 
 Sie kommen in Gruppen an:
 
@@ -28,7 +30,7 @@ Sie kommen in Gruppen an:
 |---|---|
 | *(ohne Titel, ganz oben)* | Die Zusammenfassung, deren Details der Rest der Seite ist |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
-| **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, MCP-Health, veraltetes Wissen |
+| **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, MCP-Health, veraltetes Wissen, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, Modellmix, Versionsvergleich |
 | **People** | Mitglieder, aktive Nutzer, Bewertungen, wer was tut |
 | **Sandboxes** | [Kapazität, laufende Sessions, Policy](sandbox.md) |
@@ -51,6 +53,39 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     nichts sichtbar machen. Die Berechtigungsprüfung läuft, nachdem das Layout
     aufgelöst wurde, ganz gleich ob es aus der Voreinstellung oder aus Ihrer
     eigenen gespeicherten Anordnung stammt.
+
+## Die Glocke { #the-bell }
+
+Neben der Suche, in der Seitenleiste: eine laufende Zählung dessen, was Sie
+noch nicht gelesen haben, und ein Klick öffnet die Liste selbst. Anders als
+das Widget oben holt das Öffnen die Seite, auf der Sie gerade stehen, keine
+Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
+Organisation, in der Sie gerade sind, plus alles, was an das gesamte
+Deployment adressiert ist, bis es erreicht, was aus dem Aufbewahrungsfenster
+gefallen ist.
+
+Wechseln Sie die Organisation, gehört die Glocke dieser: eine
+Benachrichtigung aus der verlassenen Organisation ist nicht weg, sie liegt
+hinter dem Umschalter. Ein Deployment-Administrator ist die eine Ausnahme -
+seine Glocke wird nicht durch die Organisation verengt, in der er gerade
+handelt, denn ein „admins"-Publikum erreicht ihn ohne eine Mitgliedschaft,
+nach der sich eingrenzen ließe.
+
+Eine Zeile mit einem Ziel ist ein Link; eine ohne - meist die eigene
+Ankündigung eines Admins - lässt sich immer nur als gelesen markieren. Eine
+Zeile als gelesen zu markieren, oder alle auf einmal, aktualisiert die
+Zählung sofort; nichts hier wartet auf ein Neuladen der Seite. **Mark all
+read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf und fragt
+dann die Zählung erneut ab - bei einem größeren Rückstau zeigt das Badge
+also weiter, was noch ungelesen ist, und ein weiterer Klick beendet den Rest,
+statt dass das Badge einen Posteingang behauptet, den es nur teilweise
+abgearbeitet hat.
+
+Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
+[Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,
+an denen Sie es lesen: die Glocke für das, was gerade passiert ist, die
+Dashboard-Karte für eine Handvoll der neuesten, beim nächsten Öffnen der
+Seite.
 
 ## Chat { #chat }
 
@@ -118,10 +153,15 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **fünfunddreißig berechtigungsgeprüften Widgets**,
-  die Sie selbst anordnen, gespeichert pro Person und pro Organisation.
+- Das Dashboard besteht aus **sechsunddreißig Widgets**, die Sie selbst
+  anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
+  eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
+  verlangen.
 - Eine gespeicherte Anordnung **kann ausblenden und umsortieren, aber niemals
   etwas sichtbar machen** — das Tor läuft zuletzt.
+- **Die Glocke** ist eine laufende Zählung ungelesener Einträge mit der
+  vollständigen Liste einen Klick entfernt, unabhängig davon, auf welcher
+  Seite Sie gerade sind.
 - **Chat, Slack und die API sind derselbe Runner**, also ist das, was Sie in der
   Konsole sehen, das, was ein Kunde bekommt.
 - **Slash commands gehören Ihnen**, die eingebauten eingeschlossen, und Sie

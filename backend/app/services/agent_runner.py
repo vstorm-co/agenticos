@@ -2178,6 +2178,21 @@ class AgentRunnerService:
             if restored_publisher_fallback is not None
             else ctx.subject_is_publisher_fallback
         )
+        # Not the same question as `subject_is_publisher_fallback` above, even
+        # though a schedule or event trigger sets both from one call
+        # (`AgentTriggerService._creator_context`). That flag exists to keep an
+        # unattended fire from reaching a personal MCP connection or store on
+        # its creator's behalf (#1469) - it says nothing about whether
+        # `ctx.user_id` is a real, notifiable person. For `RunSurface.SCHEDULE`
+        # it is: the trigger's own creator, who wants to hear a run they set up
+        # finished or failed. Everywhere else `subject_is_publisher_fallback`
+        # is true, `ctx.user_id` is a publisher standing in for a visitor
+        # nobody can name (`app.services.access.publisher_context`) - not a
+        # person to notify. Conflating the two left every scheduled and
+        # event-triggered run silently unnotified regardless of who made it.
+        initiated_by_publisher_fallback = (
+            subject_is_publisher_fallback and surface is not RunSurface.SCHEDULE
+        )
         personal_mcp_user_id = (
             (owner_user_id or ctx.user_id)
             if acts_for_sender and not subject_is_publisher_fallback
@@ -2216,6 +2231,7 @@ class AgentRunnerService:
                 agent_id=agent.id,
                 agent_version_id=version_id or agent.current_version_id,
                 user_id=ctx.user_id,
+                initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
@@ -3505,12 +3521,16 @@ class AgentRunnerService:
             approvals = await agent_run_repo.list_approvals_for_run(
                 self.db, run_id=run.id, organization_id=run.organization_id
             )
-            pending = [
-                approval.tool_id
-                for approval in approvals
-                if approval.status == ApprovalStatus.PENDING.value
-            ]
-            await notifications.approval_requested(run, agent=agent, spec=spec, tools=pending)
+            pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
+            await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
+        elif RunSurface(run.surface) is not RunSurface.WEB:
+            # A chat user watching `WEB` already sees a completion or a
+            # failure on screen; every other surface is exactly the "stops
+            # silently" gap this module's own docstring names.
+            if status is RunStatus.COMPLETED:
+                await notifications.run_completed(run, agent=agent)
+            elif status is RunStatus.FAILED:
+                await notifications.run_failed(run, agent=agent, error=error)
 
     async def execute(
         self,

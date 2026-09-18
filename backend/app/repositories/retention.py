@@ -191,21 +191,38 @@ async def record_purged_spend(
     )
 
 
+def _month_of(moment: datetime) -> datetime:
+    """The first instant of the month `moment` falls in - the grain
+    `purged_run_spend` records at."""
+    return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
 async def sum_purged_cost_since(
-    db: AsyncSession, *, organization_id: UUID, since: datetime
+    db: AsyncSession, *, organization_id: UUID, since: datetime, until: datetime | None = None
 ) -> Decimal:
-    """What purged runs spent in months at or after `since`.
+    """What purged runs spent in months at or after `since`, up to `until`.
 
     The grain is a month, so a window starting mid-month counts the whole month
     it starts in. That is the honest answer available: the runs are gone, and
     under-reporting a cap's baseline is the worse error of the two.
+
+    `until` bounds the other end, and for the opposite reason: a scheduled
+    report passes a fixed window end so a delayed run computes the figure its
+    dedup key was keyed on, and without a bound here a report delayed past its
+    own window picks up months of purged spend it never described. A month
+    that *begins* at or after the end is entirely outside the window and is
+    excluded; a month the end falls inside is counted whole, the same
+    concession the lower bound already makes. A budget leaves `until` open -
+    its question is always "up to now" - and is unaffected.
     """
+    conditions = [
+        PurgedRunSpend.organization_id == organization_id,
+        PurgedRunSpend.period_start >= _month_of(since),
+    ]
+    if until is not None:
+        conditions.append(PurgedRunSpend.period_start < until)
     total = await db.scalar(
-        select(func.coalesce(func.sum(PurgedRunSpend.cost_usd), 0)).where(
-            PurgedRunSpend.organization_id == organization_id,
-            PurgedRunSpend.period_start
-            >= since.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
-        )
+        select(func.coalesce(func.sum(PurgedRunSpend.cost_usd), 0)).where(*conditions)
     )
     return Decimal(total or 0)
 

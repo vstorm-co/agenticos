@@ -1793,6 +1793,14 @@
           "title": "Nothing ran in this period",
           "description": "The rhythm appears once there are runs to place on it."
         }
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Your most recent notifications.",
+        "empty": {
+          "title": "Nothing here yet",
+          "description": "Notifications will show up here."
+        }
       }
     },
     "edit": {
@@ -3096,6 +3104,10 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
+      "notification-bell": {
+        "title": "Stay in the loop",
+        "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
+      },
       "org-members": {
         "title": "Who's in it",
         "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
@@ -4098,24 +4110,28 @@
       "disconnectAccount": "Disconnect {account}",
       "displayName": "Display name",
       "email": "Email",
+      "emailChannel": "Email",
       "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
       "failedDeleteAccount": "Failed to delete account",
+      "failedLoadPreferences": "Failed to load notification preferences",
       "failedSavePreference": "Failed to save preference",
       "failedSignOutEverywhere": "Failed to sign out everywhere",
       "failedUpdatePassword": "Failed to update password",
       "failedUpdateProfile": "Failed to update profile",
       "failedUploadAvatar2": "Failed to upload avatar",
       "howShouldWeCall": "How should we call you?",
+      "inAppChannel": "In-app",
       "irreversible": "This is irreversible",
       "manageYourAccountIntegrations": "Manage your account, integrations, notifications, and slash commands.",
       "memberSince": "Member since {date}",
       "newPassword": "New password",
       "newPasswordMustBe": "New password must be at least 8 characters",
-      "noAppNotifications": "No in-app notifications.",
       "noBillingEmail": "No billing email.",
       "noChatAccountsYet": "None connected. Message one of your organization's bots and it will send you a link.",
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
+      "notificationPreferences": "Notification preferences",
+      "notificationPreferencesDescription": "More granular than the emails above - in-app and email, per event, for the moments your agents run somewhere nobody is watching live. An unset switch defaults to on.",
       "nothingChanged": "Nothing changed",
       "nothingHereChargesYou": "Nothing here charges you, so there are no renewals, payment failures or credit warnings.",
       "optionalApprovals": "Approval requests",
@@ -4128,6 +4144,18 @@
       "optionalUsageAudience": "The organization's report goes to owners and admins. An agent can also ask for a report of its own. A period with zero runs sends nothing.",
       "optionalUsageTrigger": "Weekly and monthly, when your organization's agents ran anything at all.",
       "passwordUpdated": "Password updated",
+      "prefAgentUsageReport": "Per-agent usage report",
+      "prefAgentUsageReportTrigger": "One agent's own weekly or monthly spend, if it has asked for its own report under Limits.",
+      "prefAnnouncement": "Announcements",
+      "prefAnnouncementTrigger": "An app admin sends a message to a chosen audience across the deployment.",
+      "prefIngestionCompleted": "Document ingested",
+      "prefIngestionCompletedTrigger": "A file finishes parsing and indexing into a knowledge base.",
+      "prefIngestionFailed": "Ingestion failed",
+      "prefIngestionFailedTrigger": "A file fails to parse or index, or a sync fails before a single file could be opened.",
+      "prefRunCompleted": "Run completed",
+      "prefRunCompletedTrigger": "A run finishes on a surface nobody is watching live - a schedule, a channel mention, an API call.",
+      "prefRunFailed": "Run failed",
+      "prefRunFailedTrigger": "The same run, when it does not finish cleanly.",
       "passwordsDoNotMatch": "Passwords do not match",
       "permanentlyRemoveYourAccount": "Permanently remove your account, conversations, and uploaded data. This can't be undone.",
       "personalInfo": "Personal info",
@@ -4157,7 +4185,6 @@
       "signedOutFromAll": "Signed out from all devices",
       "slashCommands": "Slash commands",
       "squareImagesLookBest": "Square images look best. Up to 2MB. JPG, PNG, WEBP, or GIF.",
-      "thereNoNotificationFeed": "There is no notification feed to route anything to; activity lives on the pages that own it.",
       "transactionalEmailsWhatTriggers": "The transactional emails, what triggers each, and why none of them is optional.",
       "updatePassword": "Update password",
       "uploadAvatar3": "Upload avatar",
@@ -5226,6 +5253,18 @@
       "public-sector": "Public sector and utilities",
       "legal": "Legal and professional services",
       "manufacturing": "Manufacturing and logistics"
+    }
+  },
+  "notifications": {
+    "markAllRead": "Mark all read",
+    "loadMore": "Load more",
+    "failedLoad": "Failed to load notifications",
+    "unreadCount": "{count, plural, =1 {1 unread notification} other {# unread notifications}}",
+    "rowUnread": "Unread",
+    "rowRead": "Read",
+    "empty": {
+      "title": "No notifications yet",
+      "description": "Budget alerts, approvals, run failures and more will show up here."
     }
   }
 }

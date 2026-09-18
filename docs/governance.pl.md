@@ -1,5 +1,5 @@
 ---
-source_sha: "0f9f49369789"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1226,6 +1226,63 @@ Każdy alert tutaj dotyczy runa, na którego nikt nie patrzy. Run czatu, który
 zatrzymuje się na swoim budżecie, mówi o tym na ekranie; ten sam run uruchomiony
 wzmianką na Slacku, harmonogramem albo wywołaniem API zatrzymuje się po cichu, a
 pierwsze, co ktokolwiek o tym słyszy, to czyjeś pytanie, dlaczego agent zamilkł.
+
+### W aplikacji, obok e-maila { #in-app-alongside-email }
+
+Każdy alert w tej sekcji zapisuje dwie rzeczy: e-mail opisany niżej oraz wiersz
+przy **dzwonku** w [Konsoli](console.md#the-bell) — jej własnej skrzynce, a nie
+kopii maila. Wiersz *jest* dostarczeniem w aplikacji; nic dodatkowego nie musi
+się powieść, żeby się pojawił. E-mail to drugi, niezależnie ponawiany kanał z
+tego samego zapisu, dlatego jeden może zawieść — odbity adres, padły przekaźnik
+SMTP — a drugi nigdy się o tym nie dowie.
+
+Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
+**Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
+zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
+każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
+błąd runa, zakończenie albo błąd ingestii dokumentu oraz własne ogłoszenie
+administratora aplikacji - `POST /admin/announcements`, jeszcze bez strony w
+konsoli - adresowane do organizacji i, opcjonalnie, do roli, oraz ograniczone
+do jednego albo obu kanałów.
+
+Jedyny wyjątek to tygodniowe i miesięczne raporty użycia konfigurowane na
+agencie, opisane niżej: oba dzielą jedno, starsze ustawienie e-maila, więc
+wyłączenie e-maila jednego raportu wyłącza też e-mail drugiego — wiersz w
+aplikacji dla każdego z nich nadal przełącza się osobno.
+
+W przeciwieństwie do wszystkiego powyżej, zdarzenia bezpieczeństwa i zmiany
+konfiguracji nie da się wyłączyć na żadnym z kanałów. Trafiają do właścicieli i
+administratorów tej konkretnej organizacji — nie do szerszej grupy odbiorców
+`admins` powyżej, i nigdy do administratorów aplikacji wdrożenia, chyba że sama
+akcja nie ma organizacji, której można by ją przypisać — wtedy trafia zamiast
+tego do każdego administratora aplikacji. Nic z tego nie poszerza tego, co
+dokumentuje ta strona: to ta sama skrzynka, do której trafiają alerty
+konfigurowane na agencie powyżej, a reguła rezygnacji poniżej wciąż dotyczy
+wszystkiego, co można wyłączyć.
+
+Nie jest to jednak nieograniczone: każde jest ograniczone do dwudziestu
+zapisów na minutę na aktora i typ zdarzenia, więc jedno konto wprowadzające
+szybkie zmiany ma resztę po cichu odrzucaną, zamiast zalewać każdego
+administratora — wpis audytowy stojący za każdym z nich i tak zostaje
+zapisany, na samym śladzie ([Audyt](#audit)), niezależnie od tego, czy
+powiadomienie przetrwało limit.
+
+Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
+jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
+otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
+otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
+wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek — a zamiatanie
+mailowe nie wyśle wiersza, który już przekroczył tę granicę, więc worker
+wracający po długiej przerwie nie rozśle powiadomień w drodze do ich usunięcia.
+
+To, co przetrwa dłużej, zależy od tego, czego powiadomienie dotyczyło. Zdarzenie
+bezpieczeństwa, zmiana konfiguracji i własne ogłoszenie administratora zaczynają
+się od wpisu audytowego i ten wpis przeżywa wiersz, który pokazała skrzynka
+([Audyt](#audit)). Wynik runu, rezultat ingestii i raport użycia nie piszą
+własnego wpisu audytowego: zapisem są run, dokument i wydatek, które opisują, a
+powiadomienie to tylko sposób, w jaki ktoś się o nich dowiedział — własne
+wyliczone liczby raportu okresowego, które nie żyją nigdzie poza powiadomieniem,
+są jedyną rzeczą, jaką wygasły wiersz zabiera ze sobą.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }
 

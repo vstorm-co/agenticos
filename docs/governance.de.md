@@ -1,5 +1,5 @@
 ---
-source_sha: "0f9f49369789"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1308,6 +1308,69 @@ an seinem Budget stoppt, sagt das auf dem Bildschirm; derselbe Run, von einer
 Slack-Erwähnung, einem Zeitplan oder einem API-Aufruf gestartet, stoppt lautlos,
 und das Erste, was irgendwer davon hört, ist jemand, der fragt, warum der Agent
 still geworden ist.
+
+### In-App, neben E-Mail { #in-app-alongside-email }
+
+Jeder Alert in diesem Abschnitt schreibt zwei Dinge: die unten beschriebene
+E-Mail, und eine Zeile an **der Glocke** in der [Konsole](console.md#the-bell)
+- dem eigenen Postfach der Konsole, keine Kopie der Mail. Die Zeile *ist* die
+In-App-Zustellung; nichts weiter muss gelingen, damit sie erscheint. E-Mail
+ist ein zweiter, unabhängig wiederholter Kanal desselben Schreibvorgangs,
+weshalb der eine fehlschlagen kann - eine unzustellbare Adresse, ein
+ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
+
+Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
+**Settings → Notifications** - eine Person kann die In-App-Zeile für
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
+trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments,
+die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins -
+`POST /admin/announcements`, noch keine Console-Seite - adressiert nach
+Organisation und, optional, nach Rolle, und beschränkt auf einen oder beide
+Kanäle.
+
+Die eine Ausnahme sind die weiter unten beschriebenen wöchentlichen und
+monatlichen Usage-Reports, die auf dem Agent konfiguriert werden: Beide
+teilen sich eine einzige, veraltete E-Mail-Einstellung, sodass das Abschalten
+der E-Mail des einen Reports auch die des anderen abschaltet - die
+In-App-Zeile jedes Reports schaltet sich weiterhin einzeln.
+
+Anders als alles oben lässt sich ein Sicherheitsereignis oder eine
+Konfigurationsänderung auf keinem der beiden Kanäle abschalten. Es erreicht
+die eigenen Owner und Admins dieser Organisation - nicht das breitere
+`admins`-Publikum von oben - und nie die App-Admins des Deployments, außer
+die Aktion selbst hat keine Organisation, der sie zuzuordnen wäre; in diesem
+Fall bekommt sie stattdessen jeder App-Admin. Nichts davon weitet aus, was
+diese Seite dokumentiert: Es ist dasselbe Postfach, in dem die oben auf dem
+Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
+weiterhin für alles, was sich abschalten lässt.
+
+Aber nicht unbegrenzt: Jedes ist auf zwanzig Schreibvorgänge pro Minute je
+Akteur und Ereignistyp begrenzt, sodass bei einem Konto mit schnellen
+Änderungen der Rest still verworfen wird, statt jeden Admin zu überfluten -
+der Audit-Eintrag dahinter wird trotzdem aufgezeichnet, auf dem Trail selbst
+([Audit](#audit)), unabhängig davon, ob die Benachrichtigung das Limit
+überstanden hat.
+
+Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
+*gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
+wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
+vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst - und der
+E-Mail-Sweep versendet keine Zeile, die diese Grenze bereits überschritten hat,
+sodass ein nach langem Ausfall wiederanlaufender Worker keine Benachrichtigung
+auf ihrem Weg in die Löschung verschicken kann.
+
+Was das übersteht, hängt davon ab, worum es in der Benachrichtigung ging. Ein
+Sicherheitsereignis, eine Konfigurationsänderung und die eigene Ankündigung
+eines Admins beginnen als Audit-Eintrag, und dieser Eintrag überlebt die Zeile,
+die das Postfach gezeigt hat ([Audit](#audit)). Der Ausgang eines Runs, ein
+Ingestion-Ergebnis und ein Nutzungsbericht schreiben keinen eigenen
+Audit-Eintrag: Der Run, das Dokument und die Ausgaben, die sie beschreiben,
+sind der Datensatz, und die Benachrichtigung ist nur, wie jemand davon erfahren
+hat - die berechneten Zahlen eines periodischen Berichts, die nirgends außer in
+der Benachrichtigung leben, sind das Einzige, was eine abgelaufene Zeile
+mitnimmt.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

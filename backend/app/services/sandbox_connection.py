@@ -54,6 +54,7 @@ from app.schemas.sandbox_connection import (
     SandboxSessionRead,
     SandboxSessionUsage,
 )
+from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_runtimes import CATALOG
 
@@ -180,7 +181,7 @@ class SandboxConnectionService:
             await sandbox_connection_repo.clear_default(
                 self.db, organization_id=ctx.organization_id, except_id=row.id
             )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -189,6 +190,7 @@ class SandboxConnectionService:
             target_id=str(row.id),
             details={"name": row.name, "kind": row.kind},
         )
+        await NotificationService(self.db).security_event(entry)
         return to_read(row)
 
     async def update(
@@ -224,7 +226,7 @@ class SandboxConnectionService:
         """
         row = await self.get(ctx, connection_id)
         await sandbox_connection_repo.delete(self.db, connection=row)
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -233,6 +235,7 @@ class SandboxConnectionService:
             target_id=str(connection_id),
             details={"name": row.name},
         )
+        await NotificationService(self.db).security_event(entry)
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:

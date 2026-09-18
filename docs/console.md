@@ -13,9 +13,10 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-five cards exist. You will not see all of them: **a card is gated on the
+Thirty-six cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
-its queries are never issued. An empty band disappears with its heading rather
+its queries are never issued — except your own notifications, below, which need
+only that you are signed in. An empty band disappears with its heading rather
 than sitting there empty.
 
 They arrive grouped into bands:
@@ -24,7 +25,7 @@ They arrive grouped into bands:
 |---|---|
 | *(untitled, at the top)* | The summary the rest of the page is the detail of |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
-| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, MCP health, stale knowledge |
+| **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, MCP health, stale knowledge, your most recent [notifications](#the-bell) |
 | **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
 | **People** | Members, active users, ratings, who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
@@ -45,6 +46,33 @@ snapshot you meant to keep.
     A saved arrangement can reorder and hide, but it cannot reveal. Permission
     filtering runs after the layout is resolved, whether the layout came from
     the default or from your own saved one.
+
+## The bell
+
+Next to search, in the sidebar: a running count of what you have not read yet,
+and a click opens the list itself. Unlike the widget above, opening it fetches
+the page you are looking at, not a five-card preview - **Load more** keeps
+paging back through the organization you are currently in, plus anything
+addressed to the deployment as a whole, until it reaches what has aged out.
+
+Switch organizations and the bell is that one's: a notification from the
+organization you left is not gone, it is behind the switcher. A deployment
+administrator is the one exception - theirs is not narrowed by the organization
+they happen to be acting in, because an "admins" audience reaches them without
+a membership to scope by.
+
+A row with a destination is a link; one without - an admin's own broadcast, most
+often - is only ever something to mark read. Marking one read, or everything at
+once, updates the count immediately; nothing here waits on a page reload. "Mark
+all read" sweeps up to five hundred unread rows at once and then asks for the
+count again, so a backlog larger than that leaves the badge showing what is
+still unread and a further click finishes it, rather than the badge claiming an
+inbox it only partly worked through.
+
+What lands here and what can be turned off is [Governance's](governance.md#alerts)
+to explain — this page is only the two places you read it: the bell for what
+just happened, the dashboard card for a handful of the most recent, the next
+time you open the page.
 
 ## Chat
 
@@ -107,10 +135,13 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-five permission-gated widgets** you arrange
-  yourself, saved per person and per organization.
+- The dashboard is **thirty-six widgets** you arrange yourself, saved per
+  person and per organization — all but your own notifications gated on the
+  permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
   last.
+- **The bell** is a running unread count with the full list one click away,
+  independent of whichever page you are on.
 - **Chat, Slack and the API are the same runner**, so what you see in the
   console is what a customer gets.
 - **Slash commands are yours**, built-in ones included, and you can hide the

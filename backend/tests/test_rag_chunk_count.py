@@ -214,22 +214,26 @@ class TestWhatTheUploadPathRecords:
             patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
             patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
         ):
-            await _run_ingestion(document_id, "docs", "queued/handbook.md", "handbook.md", False)
+            await _run_ingestion(document_id, "docs", "queued/handbook.md", "handbook.md", False, 1)
 
         documents.complete_ingestion.assert_awaited_once_with(
             document_id,
             vector_document_id="vector-doc",
             chunk_count=42,
             replaced_document_id=None,
+            attempt=1,
         )
 
-    @pytest.mark.parametrize("name", ["chunk_count", "replaced_document_id"])
+    @pytest.mark.parametrize("name", ["chunk_count", "replaced_document_id", "attempt"])
     def test_recording_an_ingest_cannot_omit_what_it_must_report(self, name):
         """The signature is the guard. Four call sites took a `chunk_count=0`
         default and nothing anywhere failed, so the number is keyword-only and
         required - a fifth caller does not compile rather than reporting zero.
         `replaced_document_id` is the same trap: omitting it leaves the replaced
         document's row behind and the collection over-reports by its size.
+        `attempt` (#1598) is the same trap one layer up: read back from
+        `doc.ingestion_attempt` instead of carried from dispatch, a slow
+        settlement could steal a later retry's notification dedup key.
         """
         parameter = inspect.signature(RAGDocumentService.complete_ingestion).parameters[name]
 
@@ -281,7 +285,12 @@ class TestRetiringWhatAReplacementDeleted:
     async def test_completing_a_replacement_deletes_the_row_it_superseded(self, monkeypatch):
         stale_id = uuid.uuid4()
         stale = MagicMock(id=stale_id, storage_path="rag/docs/handbook.md")
-        current = MagicMock(id=uuid.uuid4(), collection_name="docs")
+        # `organization_id=None` keeps this test scoped to retirement, not the
+        # notification write `complete_ingestion` also makes (#1598) - covered
+        # separately in `tests/test_notifications.py`.
+        current = MagicMock(
+            id=uuid.uuid4(), collection_name="docs", organization_id=None, ingestion_attempt=1
+        )
         deleted: list[uuid.UUID] = []
 
         monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
@@ -301,6 +310,7 @@ class TestRetiringWhatAReplacementDeleted:
             vector_document_id="new-vector-doc",
             chunk_count=9,
             replaced_document_id="old-vector-doc",
+            attempt=1,
         )
 
         # The row goes in the transaction; the file's unlink is handed to a durable
@@ -332,13 +342,21 @@ class TestRetiringWhatAReplacementDeleted:
         monkeypatch.setattr(
             service,
             "get_document",
-            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
+            AsyncMock(
+                return_value=MagicMock(
+                    id=uuid.uuid4(),
+                    collection_name="docs",
+                    organization_id=None,
+                    ingestion_attempt=1,
+                )
+            ),
         )
         await service.complete_ingestion(
             "doc",
             vector_document_id="new-vector-doc",
             chunk_count=9,
             replaced_document_id="old-vector-doc",
+            attempt=1,
         )
         await _run_deferred(db)
 
@@ -355,13 +373,21 @@ class TestRetiringWhatAReplacementDeleted:
         monkeypatch.setattr(
             service,
             "get_document",
-            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
+            AsyncMock(
+                return_value=MagicMock(
+                    id=uuid.uuid4(),
+                    collection_name="docs",
+                    organization_id=None,
+                    ingestion_attempt=1,
+                )
+            ),
         )
         await service.complete_ingestion(
             "doc",
             vector_document_id="new-vector-doc",
             chunk_count=9,
             replaced_document_id=None,
+            attempt=1,
         )
 
         superseded.assert_not_awaited()

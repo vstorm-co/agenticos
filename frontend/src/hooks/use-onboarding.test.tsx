@@ -160,6 +160,7 @@ describe("useOnboardingTour", () => {
       "dashboard-actions",
       "dashboard-filters",
       "dashboard-customize",
+      "notification-bell",
     ]);
   });
 

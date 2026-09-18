@@ -459,6 +459,53 @@ class TestWhatASyncedDocumentLeavesBehind:
         assert "page 4" in documents.fail_ingestion.await_args.args[1]
         documents.complete_ingestion.assert_not_awaited()
 
+    async def test_an_exception_after_opening_the_row_still_fails_it(self):
+        """`ingest_file` returning a failure and `ingest_file` *raising* are
+        different code paths, and only the first used to settle the row - an
+        exception (a connector timeout, an out-of-memory parse) left it
+        `PROCESSING` for ever, with no per-file `INGESTION_FAILED` and no
+        `fail_ingestion` call for the retry endpoint's own status check to
+        find."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError("the connector timed out mid-transfer")
+            answer = await rag_tasks._run_source_sync(
+                str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
+            )
+
+        assert answer["failed"] == 1 and answer["ingested"] == 0
+        documents.create_document.assert_awaited_once()
+        documents.fail_ingestion.assert_awaited_once_with(
+            str(ROW_ID),
+            "The document could not be ingested (RuntimeError) - retry the upload. "
+            "The worker log has the full error.",
+            attempt=1,
+        )
+        documents.complete_ingestion.assert_not_awaited()
+
+    async def test_the_raised_reason_is_summarized_rather_than_stored_whole(self):
+        """`rag_documents.error_message` is rendered to everyone who can see
+        the collection, and a connector's own exception carries the endpoint
+        it was talking to - with whatever its query string holds (#423). This
+        settlement was the one stored failure still passing `str(e)`."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError(
+                "GET https://files.example.com/v1/download?token=s3cr3t failed: 403"
+            )
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+
+        stored = documents.fail_ingestion.await_args.args[1]
+        assert "s3cr3t" not in stored
+        assert "files.example.com" not in stored
+        assert stored.startswith("The document could not be ingested (RuntimeError)")
+
 
 class TestAStoredDocumentWithNoHash:
     async def test_it_is_re_ingested_rather_than_assumed_current(self):
@@ -741,6 +788,14 @@ class TestASyncLogPassedInIsNotLeftRunning:
             patch.object(rag_tasks, "get_worker_db_context", new=_db),
             patch.object(rag_tasks, "SyncSourceService", return_value=sources),
             patch("app.services.rag_sync.RAGSyncService", return_value=sync_svc),
+            # This class is about `complete_sync`/`update_after_sync`, not the
+            # whole-attempt notification write the same branch also makes
+            # (#1598) - covered separately in `tests/test_notifications.py`
+            # and `tests/test_coverage_edges.py`. Left real, `sync_failed`
+            # would resolve `_knowledge_base_for` and an audience against this
+            # fixture's plain `MagicMock` database.
+            patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+            patch.object(rag_tasks, "NotificationService", return_value=AsyncMock()),
         ):
             yield sources, sync_svc
 

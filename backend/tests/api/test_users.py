@@ -235,8 +235,17 @@ async def test_update_user_by_id(
     superuser_client: AsyncClient,
     mock_user: MockUser,
     mock_user_service: MagicMock,
+    monkeypatch,
 ):
     """Test updating user by ID as superuser."""
+    # This legacy route now delegates to `admin_users.update_user` (#1598),
+    # which also records an audit entry and sends a `security_event`
+    # notification - resolving its audience against `mock_db_session` here
+    # the same way `test_an_admin_password_change_is_audited_by_field_not_by_value`
+    # avoids doing against `/admin/users/{id}` directly.
+    monkeypatch.setattr(
+        "app.api.routes.v1.admin_users.NotificationService", MagicMock(return_value=AsyncMock())
+    )
     response = await superuser_client.patch(
         f"{settings.API_V1_STR}/users/{mock_user.id}",
         json={"full_name": "Admin Updated"},
@@ -251,11 +260,39 @@ async def test_delete_user_by_id(
     superuser_client: AsyncClient,
     mock_user: MockUser,
     mock_user_service: MagicMock,
+    monkeypatch,
 ):
     """Test deleting user by ID as superuser."""
+    monkeypatch.setattr(
+        "app.api.routes.v1.admin_users.NotificationService", MagicMock(return_value=AsyncMock())
+    )
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{mock_user.id}")
     assert response.status_code == 204
     mock_user_service.admin_delete.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_the_legacy_route_audits_and_notifies_like_the_admin_one(
+    superuser_client: AsyncClient,
+    mock_user: MockUser,
+    mock_db_session,
+    monkeypatch,
+):
+    """`PATCH/DELETE /users/{id}` used to reach `admin_update`/`admin_delete`
+    directly, with no `record_audit` or `security_event` call at all - a live,
+    unaudited bypass of everything `/admin/users/{id}` records for the exact
+    same action. Both routes now go through one place."""
+    notify = MagicMock(return_value=AsyncMock())
+    monkeypatch.setattr("app.api.routes.v1.admin_users.NotificationService", notify)
+
+    response = await superuser_client.patch(
+        f"{settings.API_V1_STR}/users/{mock_user.id}", json={"full_name": "Renamed"}
+    )
+
+    assert response.status_code == 200
+    entry = mock_db_session.add.call_args.args[0]
+    assert entry.action == "admin.user.update"
+    notify.return_value.security_event.assert_awaited_once_with(entry)
 
 
 @pytest.mark.anyio
@@ -278,6 +315,7 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     superuser_client: AsyncClient,
     mock_user: MockUser,
     mock_db_session,
+    monkeypatch,
 ):
     """The trail records what an administrator changed, never what they typed.
 
@@ -286,6 +324,13 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     plaintext into `app_admin_audit_logs.details`, a JSONB column that outlives
     the session and is readable by anything that can read the trail (#342).
     """
+    # This test is about the audit entry's own fields (#1598), not the
+    # `security_event` notification the route now also sends - covered
+    # separately in `tests/test_notifications.py`. Left real, it would
+    # resolve an app-admin audience against `mock_db_session`.
+    monkeypatch.setattr(
+        "app.api.routes.v1.admin_users.NotificationService", MagicMock(return_value=AsyncMock())
+    )
     response = await superuser_client.patch(
         f"{settings.API_V1_STR}/admin/users/{mock_user.id}",
         json={"password": "correct-horse-battery", "full_name": "Renamed"},

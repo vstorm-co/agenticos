@@ -46,12 +46,14 @@ async def create_run(
     parent_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
+    initiated_by_publisher_fallback: bool = False,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         user_id=user_id,
+        initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
         channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,
@@ -574,6 +576,7 @@ async def sum_cost_since(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
     agent_id: UUID | None = None,
     include_delegations: bool = False,
     exclude_run_id: UUID | None = None,
@@ -627,6 +630,8 @@ async def sum_cost_since(
         AgentRun.organization_id == organization_id,
         AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
     if not include_delegations:
@@ -642,6 +647,7 @@ async def cost_breakdown(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
     include_delegations: bool = False,
 ) -> list[tuple[UUID, str | None, Decimal, int]]:
     """Spend grouped by agent - the cost dashboard's main query.
@@ -672,6 +678,8 @@ async def cost_breakdown(
         .group_by(AgentRun.agent_id, AgentRun.model_label)
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
     if not include_delegations:
         query = query.where(AgentRun.parent_run_id.is_(None))
     result = await db.execute(query)

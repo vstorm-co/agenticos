@@ -40,6 +40,7 @@ from app.repositories import member_repo, organization_secret_repo, resource_gra
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretRead, SecretUsage
 from app.services.access import SECRET, resolve_access, visible_resource_ids
+from app.services.notifications import NotificationService
 
 # The two credentials a connect flow spends: identical fields, separate kinds,
 # because a kind names what a credential is for.
@@ -217,7 +218,7 @@ class OrganizationSecretService:
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
         )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -227,6 +228,7 @@ class OrganizationSecretService:
             # The value never reaches the audit log; the hint is what identifies it.
             details={"name": name, "kind": value.kind.value, "hint": sealed.hint},
         )
+        await NotificationService(self.db).security_event(entry)
         return secret
 
     async def update(
@@ -271,7 +273,7 @@ class OrganizationSecretService:
         secret = await organization_secret_repo.update(
             self.db, secret=secret, update_data=update_data
         )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -280,6 +282,7 @@ class OrganizationSecretService:
             target_id=str(secret.id),
             details={"name": secret.name, "kind": secret.kind, "hint": secret.hint},
         )
+        await NotificationService(self.db).security_event(entry)
         return secret
 
     async def delete(self, ctx: AuthContext, secret_id: UUID) -> None:
@@ -294,7 +297,7 @@ class OrganizationSecretService:
         await organization_secret_repo.delete(
             self.db, secret_id, organization_id=ctx.organization_id
         )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -303,6 +306,7 @@ class OrganizationSecretService:
             target_id=str(secret_id),
             details={"name": secret.name, "kind": secret.kind},
         )
+        await NotificationService(self.db).security_event(entry)
 
     async def resolve_for_bindings(
         self, ctx: AuthContext, secret_ids: list[UUID]

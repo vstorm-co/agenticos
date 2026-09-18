@@ -72,6 +72,7 @@ from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.memory import MemoryNoteUpdate
+from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
@@ -85,9 +86,12 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
 # a service, three call frames from either end. `None` is a claim as much as a
-# model is - `AgentDraftUpdate` writes a JSONB spec, and `VisibilityUpdate` writes
-# a column plus grant rows - so a schema whose fields *are* columns must not be
-# parked there to silence the gate.
+# model is - `AgentDraftUpdate` writes a JSONB spec, `VisibilityUpdate` writes
+# a column plus grant rows, and `NotificationPreferenceUpdate` writes one exact
+# `(user_id, event_type, channel)` upsert whose three fields are all required
+# (#1598, Decision 4) rather than an optional-field partial patch through
+# `writable` - so a schema whose fields *are* columns must not be parked there
+# to silence the gate.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ChannelBotUpdate: ChannelBot,
@@ -102,10 +106,11 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
-    RetentionUpdate: Organization,
+    NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,
     SkillResourceUpdate: SkillResource,
@@ -185,11 +190,12 @@ class TestEveryUpdateSchemaIsAccountedFor:
         says "this writes no single row", and nothing here can prove it. What can be
         checked is the weaker thing - that such a schema has no field which is a
         column on a model of the same-ish name - and it is not worth the guesswork.
-        So this test only pins the two that exist today, so a third has to be
-        argued for in a diff rather than added quietly.
+        So this test only pins the ones that exist today, so a next one has to
+        be argued for in a diff rather than added quietly.
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "NotificationPreferenceUpdate",
             "VisibilityUpdate",
         }
 

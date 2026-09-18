@@ -1,5 +1,5 @@
 ---
-source_sha: "0f9f49369789"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1197,6 +1197,65 @@ Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que
 detiene por su budget lo dice en pantalla; el mismo run iniciado por una mención de
 Slack, por un horario o por una llamada a la API se detiene en silencio, y lo primero
 que alguien sabe de ello es cuando pregunta por qué el agent se ha callado.
+
+### En la aplicación, junto con el correo { #in-app-alongside-email }
+
+Cada alerta de esta sección escribe dos cosas: el correo que se describe más
+abajo, y una fila en **la campana** de [la consola](console.md#the-bell) — el
+propio buzón de la consola, no una copia del correo. La fila *es* la entrega
+en la aplicación; no hace falta que nada más tenga éxito para que aparezca. El
+correo es un segundo canal, reintentado de forma independiente a partir de la
+misma escritura, que es por lo que uno puede fallar — una dirección rebotada,
+un relay SMTP caído — sin que el otro se entere jamás.
+
+Los dos canales se activan por separado, evento a evento, en **Settings →
+Notifications** — una persona puede conservar la fila en la aplicación para
+las aprobaciones y apagar su correo, o al revés. La misma página lleva además
+cada uno de los demás eventos que entrega el buzón: un run que termina o falla
+desatendido, la ingesta de un documento que se completa o falla, y el propio
+anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
+la consola - dirigido por organización y, opcionalmente, por rol, y
+restringido a uno o ambos canales.
+
+La única excepción son los informes de uso semanales y mensuales configurados
+en el agent, más abajo: ambos comparten una única preferencia de correo
+heredada, así que apagar el correo de un informe apaga también el del otro —
+la fila en la aplicación de cada uno se sigue activando por separado.
+
+A diferencia de todo lo de arriba, un evento de seguridad o un cambio de
+configuración no se puede apagar en ninguno de los dos canales. Llega a los
+owners y admins de esa misma organización — no a la audiencia `admins` más
+amplia de arriba, y nunca a los app admins del deployment, salvo que la propia
+acción no tenga organización a la que atribuirla, en cuyo caso la recibe cada
+app admin. Nada de esto ensancha lo que documenta esta página: es
+el mismo buzón donde aterrizan las alertas configuradas en el agent de
+arriba, y la regla de exclusión de abajo se sigue aplicando a todo lo que se
+puede apagar.
+
+Pero no sin límite: cada uno está limitado a veinte escrituras por minuto por
+actor y tipo de evento, así que una cuenta que hace cambios rápidos ve el
+resto descartado en silencio, en lugar de inundar a cada admin — la entrada
+de audit detrás de cada uno se registra de todos modos, en el propio trail
+([Audit](#audit)), sin importar si la notificación sobrevivió al límite.
+
+Una fila se retira del buzón noventa días después de escribirse si está
+*leída*, y un año después sin importar si llegó a abrirse — contando siempre
+desde que se escribió, nunca desde que se leyó, así que una fila abierta el
+día antes de su límite superior desaparece junto con cualquier otra de esa
+edad. Un barrido en segundo plano, no algo que dispare una persona — y el
+barrido de correo no envía una fila que ya lo haya superado, así que un worker
+que se recupera de una caída larga no puede mandar una notificación camino de
+su borrado.
+
+Lo que sobrevive a eso depende de sobre qué era el aviso. Un evento de
+seguridad, un cambio de configuración y el anuncio propio de un admin empiezan
+como una entrada de auditoría, y esa entrada sobrevive a la fila que mostró el
+buzón ([Auditoría](#audit)). El desenlace de un run, un resultado de ingestión
+y un informe de uso no escriben entrada de auditoría propia: el run, el
+documento y el gasto que describen son el registro, y el aviso solo es cómo se
+enteró alguien — las cifras calculadas de un informe periódico, que no viven en
+ningún sitio salvo en la notificación, son lo único que una fila caducada se
+lleva consigo.
 
 ### Configurado en el agent { #configured-on-the-agent }
 

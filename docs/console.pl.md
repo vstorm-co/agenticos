@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd981f9b3ad"
+source_sha: "fffeb5145a26"
 ---
 
 # Konsola { #the-console }
@@ -17,10 +17,12 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści pięć kart. Nie zobaczysz wszystkich: **karta jest bramkowana
-uprawnieniem, którego wymagają jej dane**, więc widget, którego nie możesz
-odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą. Pusty pas
-znika razem ze swoim nagłówkiem, zamiast stać tam pusty.
+Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
+możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
+poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
+był zalogowany. Pusty pas znika razem ze swoim nagłówkiem, zamiast stać tam
+pusty.
 
 Karty przychodzą pogrupowane w pasy:
 
@@ -28,7 +30,7 @@ Karty przychodzą pogrupowane w pasy:
 |---|---|
 | *(bez tytułu, na górze)* | Podsumowanie, którego szczegółem jest reszta strony |
 | **Deployment** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
-| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, kondycja MCP, nieaktualna wiedza |
+| **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
 | **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
@@ -49,6 +51,35 @@ migawkę, którą chciałeś zachować.
     Zapisany układ może zmieniać kolejność i ukrywać, ale nie może odsłaniać.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
+
+## Dzwonek { #the-bell }
+
+Obok wyszukiwania, w pasku bocznym: bieżący licznik tego, czego jeszcze nie
+przeczytałeś, a kliknięcie otwiera samą listę. W przeciwieństwie do widgetu
+powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciokartowy
+podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
+której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
+do tego, co wypadło z zasięgu.
+
+Przełącz organizację, a dzwonek jest jej:
+powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
+przełącznikiem. Administrator wdrożenia to jedyny wyjątek — jego dzwonka nie
+zawęża organizacja, w której akurat działa, bo audytorium „admins” sięga go bez
+członkostwa, po którym można by zawęzić.
+
+Wiersz z celem jest linkiem; ten bez celu — najczęściej własne ogłoszenie
+administratora aplikacji — służy tylko do oznaczenia jako przeczytany.
+Oznaczenie jednego wiersza jako przeczytanego albo wszystkich naraz od razu
+aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony. **Mark all
+read** zbiera naraz do pięciuset nieprzeczytanych wierszy, a potem pyta o
+licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
+to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zamiast
+żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
+
+To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#alerts)
+— ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co
+się właśnie wydarzyło, karta na dashboardzie dla kilku najnowszych, przy
+następnym otwarciu strony.
 
 ## Chat { #chat }
 
@@ -112,10 +143,13 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści pięć widgetów bramkowanych uprawnieniami**, które
-  układasz sam, zapisywanych per osoba i per organizacja.
+- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+  per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
+  bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —
   bramka działa na końcu.
+- **Dzwonek** to bieżący licznik nieprzeczytanych, z pełną listą o jedno
+  kliknięcie, niezależnie od tego, na której stronie akurat jesteś.
 - **Chat, Slack i API to ten sam runner**, więc to, co widzisz w konsoli, jest
   tym, co dostaje klient.
 - **Slash commands są twoje**, łącznie z wbudowanymi, a te, z których nie

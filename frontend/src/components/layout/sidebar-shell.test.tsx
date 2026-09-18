@@ -14,6 +14,9 @@ vi.mock("@/components/teams", () => ({ OrgSwitcher: () => <button>the org switch
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));
+vi.mock("@/components/layout/notification-bell", () => ({
+  NotificationBell: () => <button>the bell</button>,
+}));
 vi.mock("@/components/layout/sidebar-user", () => ({
   SidebarUser: () => <button>the account menu</button>,
 }));
@@ -50,7 +53,7 @@ describe("SidebarShell", () => {
     renderShell();
 
     const account = screen.getByRole("button", { name: "the account menu" });
-    for (const before of ["the org switcher", "the search row", "the theme toggle"]) {
+    for (const before of ["the org switcher", "the search row", "the bell", "the theme toggle"]) {
       expect(follows(screen.getByRole("button", { name: before }), account)).toBe(true);
     }
   });
@@ -66,13 +69,19 @@ describe("SidebarShell", () => {
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
   });
 
-  it("keeps search and the two settings out of the destination list", () => {
-    // Search is an action and the settings are preferences; neither is a place
-    // to be, so neither belongs among the links that say where you are.
+  it("keeps search, the bell and the two settings out of the destination list", () => {
+    // Search is an action, the bell is a notice and the settings are
+    // preferences; none of them is a place to be, so none belongs among the
+    // links that say where you are.
     renderShell();
 
     const nav = screen.getByRole("navigation");
-    for (const outside of ["the search row", "the language switcher", "the theme toggle"]) {
+    for (const outside of [
+      "the search row",
+      "the bell",
+      "the language switcher",
+      "the theme toggle",
+    ]) {
       expect(nav).not.toContainElement(screen.getByRole("button", { name: outside }));
     }
   });

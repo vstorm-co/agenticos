@@ -1187,3 +1187,34 @@ def get_audit_service(db: DBSession) -> AuditService:
 
 
 AuditSvc = Annotated[AuditService, Depends(get_audit_service)]
+from app.services.notification_center import NotificationCenterService
+
+
+def get_notification_center_service(db: DBSession) -> NotificationCenterService:
+    """Create NotificationCenterService instance with database session."""
+    return NotificationCenterService(db)
+
+
+NotificationCenterSvc = Annotated[
+    NotificationCenterService, Depends(get_notification_center_service)
+]
+from app.services.notification_delivery import NotificationDeliveryService
+
+
+def get_notification_delivery_service(db: DBSession) -> NotificationDeliveryService:
+    """Create NotificationDeliveryService instance with database session."""
+    return NotificationDeliveryService(db)
+
+
+NotificationDeliverySvc = Annotated[
+    NotificationDeliveryService, Depends(get_notification_delivery_service)
+]
+from app.services.announcement import AnnouncementService
+
+
+def get_announcement_service(db: DBSession) -> AnnouncementService:
+    """Create AnnouncementService instance with database session."""
+    return AnnouncementService(db)
+
+
+AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]

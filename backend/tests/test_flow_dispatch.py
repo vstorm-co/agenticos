@@ -232,6 +232,7 @@ def _failed_document() -> SimpleNamespace:
         storage_path="rag/handbooks/policy.txt",
         collection_name="handbooks",
         filename="policy.txt",
+        ingestion_attempt=1,
     )
 
 
@@ -269,6 +270,30 @@ async def test_retrying_a_failed_document_parses_it_again(
         "that half-succeeded is represented twice in the collection"
     )
     storage.load.assert_awaited_once_with("rag/handbooks/policy.txt")
+
+
+async def test_retrying_a_document_conditions_the_write_on_the_attempt_it_read(
+    session, monkeypatch, tmp_path: Path
+) -> None:
+    """Two concurrent retries reading the same `ingestion_attempt` must not
+    both win - the same "still current, not just read-then-write" guarantee
+    `complete_ingestion`/`fail_ingestion` already condition their own writes
+    on. An unconditional write here let two racing retries both compute
+    `new_attempt=2` and dispatch two parses under one occurrence id."""
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing"})
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    update = AsyncMock(return_value=retried)
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+    monkeypatch.setattr(rag_tasks, "ingest_document_flow", AsyncMock())
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    assert update.call_args.kwargs["expected_attempt"] == document.ingestion_attempt
 
 
 async def test_retrying_a_document_with_no_stored_file_is_refused(session, monkeypatch) -> None:

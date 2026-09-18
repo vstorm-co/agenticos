@@ -1,0 +1,7 @@
+Subject: Update from [[app_name]]
+
+[[summary]]
+
+[[context_url]]
+
+- The [[app_name]] Team

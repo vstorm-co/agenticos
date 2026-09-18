@@ -49,6 +49,17 @@ _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
+_NOTIFICATION_FIELDS = (
+    "id",
+    "event_type",
+    "summary",
+    "context_url",
+    "organization_id",
+    "in_app_visible",
+    "read_at",
+    "created_at",
+)
+_NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
 
 #: The account's own values, as an export hands them over.
 #:
@@ -139,6 +150,13 @@ class PersonalDataService:
             ),
             dashboard_layouts=personal_data_repo.as_rows(
                 await personal_data_repo.dashboard_layouts_of(self.db, user_id), _LAYOUT_FIELDS
+            ),
+            notifications=personal_data_repo.as_rows(
+                await personal_data_repo.notifications_of(self.db, user_id), _NOTIFICATION_FIELDS
+            ),
+            notification_preferences=personal_data_repo.as_rows(
+                await personal_data_repo.notification_preferences_of(self.db, user_id),
+                _NOTIFICATION_PREFERENCE_FIELDS,
             ),
         )
 

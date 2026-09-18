@@ -76,7 +76,6 @@ from app.repositories import (
     credential_repo,
     ingestion_spend_repo,
     mcp_connection_repo,
-    member_repo,
     organization_secret_repo,
     rag_document_repo,
 )
@@ -1851,6 +1850,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=doc.vector_document_id,
             chunk_count=4,
             replaced_document_id=None,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(
@@ -1860,6 +1860,112 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].documents == 1
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 4
+
+    async def test_a_settlement_for_an_attempt_a_retry_already_superseded_is_ignored(
+        self, db
+    ) -> None:
+        """`complete_ingestion`'s attempt guard is a conditional `UPDATE`, not
+        a read-then-write (#1598): this proves the `WHERE` clause itself
+        rejects a stale settlement, the same way `send_and_settle`'s
+        `claimed_at` mismatch does for the delivery sweep."""
+        tenant = await _tenant(db, name="Superseded")
+        collection = await _collection_with(db, tenant, name="superseded", config=IngestionConfig())
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        doc.ingestion_attempt = 2
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.PROCESSING
+        assert refreshed.chunk_count != 4
+
+    async def test_a_notification_failure_does_not_undo_a_completed_ingestion(
+        self, db, monkeypatch
+    ) -> None:
+        """The recipient-resolution half of `ingestion_completed` runs
+        *before* `_center.write`'s own best-effort savepoint - a failure
+        there must not propagate out of a settlement that already recorded a
+        successfully vectorized document, or `_run_ingestion`'s own
+        `except Exception` marks it `ERROR` for a notification that has
+        nothing to do with whether ingestion succeeded."""
+        from app.services import notifications as notifications_module
+
+        tenant = await _tenant(db, name="NotifyFails")
+        collection = await _collection_with(
+            db, tenant, name="notify_fails", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        async def _boom(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("audience resolution blew up")
+
+        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_completed", _boom)
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.DONE
+        assert refreshed.chunk_count == 4
+
+    async def test_a_notification_failure_does_not_undo_a_failed_ingestion(
+        self, db, monkeypatch
+    ) -> None:
+        """The same boundary on the failure side, where it matters more.
+
+        A worker caller runs `fail_ingestion` inside `get_worker_db_context`,
+        so an exception escaping it rolls back the `ERROR` transition just
+        recorded - and `_fail_document` swallows that exception, leaving a
+        document that failed to ingest sitting in `PROCESSING` for ever
+        because its failure notification could not be addressed.
+        """
+        from app.services import notifications as notifications_module
+
+        tenant = await _tenant(db, name="NotifyFailsOnFailure")
+        collection = await _collection_with(
+            db, tenant, name="notify_fails_failure", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        async def _boom(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("audience resolution blew up")
+
+        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_failed", _boom)
+
+        await RAGDocumentService(db).fail_ingestion(
+            str(doc.id), "The file could not be read (ValueError)", attempt=1
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        await db.refresh(refreshed)
+        assert refreshed.status == DocumentStatus.ERROR
+        assert refreshed.error_message == "The file could not be read (ValueError)"
 
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
@@ -1887,6 +1993,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=second.vector_document_id,
             chunk_count=12,
             replaced_document_id=first.vector_document_id,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(
@@ -4177,73 +4284,6 @@ class TestWhichSkillsAMemberSees:
 
         assert {skill.name for skill in items} == {"members-private"}
         assert total == 1
-
-
-class TestWhoStillHearsAboutRuns:
-    """The notification opt-outs, against real rows.
-
-    `/settings/notifications` writes three booleans; the recipient query
-    filters on one of them in SQL. A unit test can only assert which column
-    was asked for - whether the WHERE clause actually drops the member who
-    switched it off is a question for the database.
-    """
-
-    @pytest.mark.anyio
-    async def test_a_member_who_opted_out_is_dropped_from_the_recipient_query(self, db) -> None:
-        tenant = await _tenant(db, name="Optout")
-        admin_ctx = await _join(db, tenant, OrgRoleName.ADMIN)
-        admin = await db.get(User, admin_ctx.user_id)
-        assert admin is not None
-        admin.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value],
-            preference="notify_usage_reports",
-        )
-
-        assert recipients == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_an_opt_out_silences_one_kind_of_email_not_the_others(self, db) -> None:
-        """The columns are independent: declining the usage report must not
-        also silence the budget alert that stops a runaway agent."""
-        tenant = await _tenant(db, name="OneKind")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        reports = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_usage_reports",
-        )
-        budget = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_budget_alerts",
-        )
-
-        assert reports == []
-        assert budget == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_a_query_without_a_preference_still_lists_everyone(self, db) -> None:
-        """Callers that are not sending optional mail see the full roster."""
-        tenant = await _tenant(db, name="NoPref")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-        )
-
-        assert recipients == [tenant.user.email]
 
 
 class TestSharedWithMeIsWhatWasDeliberatelyShared:

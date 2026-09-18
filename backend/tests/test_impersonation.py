@@ -51,6 +51,16 @@ def _clean_context() -> Iterator[None]:
     module._active.set(None)
 
 
+@pytest.fixture(autouse=True)
+def _no_security_event_notification(monkeypatch) -> None:
+    """This file is about the session and the audit entry `record_audit`
+    writes for real (#1598), not the `security_event` notification that now
+    follows it - covered separately in `tests/test_notifications.py`. Left
+    real, it would resolve `member_repo.list_app_admin_ids` against `_db()`'s
+    `execute` mock, wired only for the audit chain's own head-read shape."""
+    monkeypatch.setattr(module, "NotificationService", MagicMock(return_value=AsyncMock()))
+
+
 def _user(*, email: str, is_active: bool = True) -> MagicMock:
     user = MagicMock()
     user.id = uuid.uuid4()

@@ -1068,6 +1068,14 @@
           "description": "Rytm pojawi się, gdy będą runy do rozłożenia."
         }
       },
+      "notifications": {
+        "title": "Powiadomienia",
+        "description": "Twoje najnowsze powiadomienia.",
+        "empty": {
+          "title": "Jeszcze nic tu nie ma",
+          "description": "Powiadomienia pojawią się tutaj."
+        }
+      },
       "routines": {
         "title": "Rutyny",
         "description": "Co działa, gdy nikogo nie ma przy klawiaturze - najbliższe najpierw - i jak poszło ostatnie uruchomienie.",
@@ -1726,6 +1734,10 @@
       "mcp-filter": {
         "title": "Znajdź serwer",
         "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
+      },
+      "notification-bell": {
+        "title": "Bądź na bieżąco",
+        "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla rodzajów, które można wyłączyć w Ustawieniach."
       },
       "org-members": {
         "title": "Kto w niej jest",
@@ -2915,6 +2927,18 @@
       "public-sector": "Sektor publiczny i utilities",
       "legal": "Prawo i doradztwo",
       "manufacturing": "Produkcja i logistyka"
+    }
+  },
+  "notifications": {
+    "markAllRead": "Oznacz wszystkie jako przeczytane",
+    "loadMore": "Wczytaj więcej",
+    "failedLoad": "Nie udało się wczytać powiadomień",
+    "unreadCount": "{count, plural, one {1 nieprzeczytane powiadomienie} few {# nieprzeczytane powiadomienia} many {# nieprzeczytanych powiadomień} other {# nieprzeczytanych powiadomień}}",
+    "rowUnread": "Nieprzeczytane",
+    "rowRead": "Przeczytane",
+    "empty": {
+      "title": "Jeszcze brak powiadomień",
+      "description": "Alerty o budżecie, zatwierdzenia, nieudane runy i więcej pojawią się tutaj."
     }
   }
 }

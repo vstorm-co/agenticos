@@ -48,6 +48,10 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
+from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
+from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.announcement import Announcement
 
 __all__ = [
     "User",
@@ -115,4 +119,11 @@ __all__ = [
     "ResourceGrant",
     "GrantLevel",
     "Visibility",
+    "Notification",
+    "NotificationChannel",
+    "NotificationEventType",
+    "NotificationDelivery",
+    "DeliveryStatus",
+    "NotificationChannelPreference",
+    "Announcement",
 ]

@@ -1,5 +1,5 @@
 ---
-source_sha: "f7f1f1d75aa0"
+source_sha: "9792d48fbbe0"
 ---
 
 # Permisos { #permissions }
@@ -58,7 +58,12 @@ efectos:
 
 1. **Una puerta en las rutas del despliegue.** `CurrentAppAdmin` protege
    `/admin/users`, `/admin/stats`, `/admin/conversations` (un listado, nunca una
-   transcripción), `/admin/ratings` y los endpoints masivos de `/rag`.
+   transcripción), `/admin/ratings`, `/admin/announcements`,
+   `/admin/notifications/deliveries` y los endpoints masivos de `/rag`. Los
+   anuncios están aquí y no detrás de un `Perm` porque
+   cada entrada del catálogo de permisos se resuelve contra una sola
+   organización, y ninguna puede expresar "cada organización"
+   ([Governance](governance.md#alerts)).
 2. **Un bypass en `AuthContext.permissions`**, que devuelve todos los permisos
    con `Scope.ALL` - en todas las organizaciones, incluidas aquellas en las que
    no tiene membresía alguna.

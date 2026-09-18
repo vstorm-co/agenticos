@@ -21,6 +21,7 @@ from app.schemas.user import (
     UserRead,
     UserUpdate,
 )
+from app.services.notifications import NotificationService
 
 router = APIRouter()
 
@@ -85,7 +86,7 @@ async def update_user(
     # are what the trail is for; the values are on the row. `model_fields_set`
     # rather than `model_dump`, so the plaintext is not even built to be thrown
     # away.
-    await record_audit(
+    entry = await record_audit(
         db,
         actor_user_id=admin.id,
         action="admin.user.update",
@@ -94,6 +95,7 @@ async def update_user(
         details={"fields": sorted(user_in.model_fields_set)},
         ip_address=request.client.host if request.client else None,
     )
+    await NotificationService(db).security_event(entry)
     return user
 
 
@@ -163,7 +165,7 @@ async def delete_user(
     details: dict[str, Any] = {"email": target.email}
     if reason is not None:
         details["reason"] = reason
-    await record_audit(
+    entry = await record_audit(
         db,
         actor_user_id=admin.id,
         action="admin.user.delete",
@@ -172,6 +174,7 @@ async def delete_user(
         details=details,
         ip_address=request.client.host if request.client else None,
     )
+    await NotificationService(db).security_event(entry)
 
 
 @router.post("/{user_id}/impersonate", response_model=ImpersonateResponse)

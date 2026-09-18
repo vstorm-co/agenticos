@@ -1,5 +1,5 @@
 ---
-source_sha: "f7f1f1d75aa0"
+source_sha: "9792d48fbbe0"
 ---
 
 # Berechtigungen { #permissions }
@@ -59,7 +59,12 @@ Ein Boolean am Nutzer, gänzlich außerhalb von Organisationen. Zwei Wirkungen:
 
 1. **Ein Tor vor den Deployment-Routen.** `CurrentAppAdmin` sichert
    `/admin/users`, `/admin/stats`, `/admin/conversations` (eine Auflistung, nie
-   ein Transkript), `/admin/ratings` und die Massen-Endpunkte unter `/rag`.
+   ein Transkript), `/admin/ratings`, `/admin/announcements`,
+   `/admin/notifications/deliveries` und die Massen-Endpunkte unter `/rag`.
+   Announcements sitzen hier statt hinter einer
+   `Perm`, weil jeder Eintrag im Berechtigungskatalog sich gegen eine
+   Organisation auflöst und keiner von ihnen "jede Organisation" ausdrücken
+   kann ([Governance](governance.md#alerts)).
 2. **Eine Umgehung in `AuthContext.permissions`**, die jede Berechtigung auf
    `Scope.ALL` zurückgibt - in jeder Organisation, auch in solchen, in denen die
    Person keine Mitgliedschaft hat.

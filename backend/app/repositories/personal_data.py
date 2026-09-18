@@ -29,6 +29,8 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
+from app.db.models.notification import Notification
+from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.user_slash_command import UserSlashCommand
@@ -153,6 +155,33 @@ async def slash_commands_of(db: AsyncSession, user_id: UUID) -> list[UserSlashCo
 
 async def dashboard_layouts_of(db: AsyncSession, user_id: UUID) -> list[DashboardLayout]:
     result = await db.execute(select(DashboardLayout).where(DashboardLayout.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def notifications_of(db: AsyncSession, user_id: UUID) -> list[Notification]:
+    """Every notification addressed to them, whether the inbox still shows it.
+
+    A row hidden by a channel opt-out (`in_app_visible=false`) is still a row
+    this deployment holds about them, and an art. 15 answer that returned only
+    what the bell happens to render would be a partial answer that does not
+    say so.
+    """
+    result = await db.execute(
+        select(Notification)
+        .where(Notification.recipient_user_id == user_id)
+        .order_by(Notification.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def notification_preferences_of(
+    db: AsyncSession, user_id: UUID
+) -> list[NotificationChannelPreference]:
+    result = await db.execute(
+        select(NotificationChannelPreference).where(
+            NotificationChannelPreference.user_id == user_id
+        )
+    )
     return list(result.scalars().all())
 
 

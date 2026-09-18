@@ -1,0 +1,1878 @@
+"""The notification write path and the four gate-aware reads, against a real
+database (#1598, phase 2 of `docs/design/notification-center-plan.md`).
+
+Decisions 2-4's write-side guarantees (dedup, preference resolution, mandatory
+bypass, the savepoint) and Decision 7's read-side gate - the one predicate the
+inbox, the unread count, mark-one-read and mark-all-read all share - are both
+built on real SQL (`ON CONFLICT`, a forced `IntegrityError`, `resolve_access`
+against a real grant-less row) that a mocked repository cannot exercise.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+
+import pytest
+from sqlalchemy import select, text
+
+from app.core.permissions import AuthContext
+from app.db.models.announcement import Announcement
+from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
+from app.db.models.notification_delivery import NotificationDelivery
+from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
+from app.repositories import notification as notification_repo
+from app.services import notification_center
+from app.services.notification_center import NotificationCenterService
+
+pytestmark = pytest.mark.anyio
+
+
+async def _user(db, *, is_app_admin: bool = False, **overrides) -> User:
+    fields = {
+        "id": uuid.uuid4(),
+        "email": f"{uuid.uuid4().hex}@example.com",
+        "hashed_password": "x",
+        "is_active": True,
+        "is_app_admin": is_app_admin,
+    }
+    fields.update(overrides)
+    user = User(**fields)
+    db.add(user)
+    await db.flush()
+    return user
+
+
+async def _org(db, owner: User) -> Organization:
+    org = Organization(
+        id=uuid.uuid4(),
+        name="Acme",
+        slug=f"acme-{uuid.uuid4().hex[:8]}",
+        created_by_user_id=owner.id,
+    )
+    db.add(org)
+    await db.flush()
+    db.add(
+        OrganizationMember(id=uuid.uuid4(), organization_id=org.id, user_id=owner.id, role="owner")
+    )
+    await db.flush()
+    return org
+
+
+async def _member(db, org: Organization, *, role: str) -> User:
+    user = await _user(db)
+    db.add(OrganizationMember(id=uuid.uuid4(), organization_id=org.id, user_id=user.id, role=role))
+    await db.flush()
+    return user
+
+
+def _ctx(user: User, org: Organization, *, role: str) -> AuthContext:
+    return AuthContext(
+        user_id=user.id, organization_id=org.id, role=role, is_app_admin=user.is_app_admin
+    )
+
+
+class TestWriteDedup:
+    async def test_a_duplicate_occurrence_writes_nothing_the_second_time(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        first = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="run-1",
+            summary="Budget exceeded",
+            organization_id=org.id,
+        )
+        second = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="run-1",
+            summary="Budget exceeded",
+            organization_id=org.id,
+        )
+        assert len(first) == 1
+        assert second == []
+        rows = (
+            (
+                await db.execute(
+                    select(Notification).where(Notification.recipient_user_id == recipient.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+
+    async def test_a_written_row_gets_an_email_delivery_by_default(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-2",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [d.channel for d in deliveries] == ["email"]
+
+
+class TestOrganizationScoping:
+    @pytest.mark.security
+    async def test_a_tenant_scoped_event_refuses_a_null_organization(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        with pytest.raises(AssertionError):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id="run-null-org",
+                summary="Run completed",
+                organization_id=None,
+            )
+
+    async def test_a_deployment_wide_event_type_accepts_a_null_organization(self, db):
+        owner = await _user(db, is_app_admin=True)
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="security-null-org",
+            summary="A vault secret was created.",
+            organization_id=None,
+        )
+
+        assert len(written) == 1
+
+
+class TestPreferenceResolution:
+    async def test_in_app_off_still_writes_the_row_but_hides_it_from_the_inbox(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_FAILED.value,
+                channel="in_app",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id="run-3",
+            summary="Run failed",
+            organization_id=org.id,
+        )
+        assert notification.in_app_visible is False
+        # Still the dedup anchor, and still gets its email delivery.
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(deliveries) == 1
+
+    async def test_email_off_writes_no_delivery_row(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_FAILED.value,
+                channel="email",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id="run-4",
+            summary="Run failed",
+            organization_id=org.id,
+        )
+        assert notification.in_app_visible is True
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert deliveries == []
+
+    async def test_the_legacy_column_governs_email_for_a_lifecycle_event(self, db):
+        """`budget_exceeded`'s email channel reads `notify_budget_alerts`, not the
+        new preference table (Decision 4) - switching only the legacy column off
+        is enough to suppress the delivery row, with no `notification_preferences`
+        row involved at all."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        recipient.notify_budget_alerts = False
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="run-5",
+            summary="Budget exceeded",
+            organization_id=org.id,
+        )
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert deliveries == []
+
+    async def test_several_recipients_get_their_own_preference_not_each_others(self, db):
+        """`_write_rows` batches its preference reads across the whole
+        fan-out (one query per channel, not one per recipient) - proving that
+        does not collapse several recipients' different preferences into one
+        shared answer."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        default_recipient = await _member(db, org, role="member")
+        in_app_off_recipient = await _member(db, org, role="member")
+        email_off_recipient = await _member(db, org, role="member")
+        db.add_all(
+            [
+                NotificationChannelPreference(
+                    id=uuid.uuid4(),
+                    user_id=in_app_off_recipient.id,
+                    event_type=NotificationEventType.RUN_FAILED.value,
+                    channel="in_app",
+                    enabled=False,
+                ),
+                NotificationChannelPreference(
+                    id=uuid.uuid4(),
+                    user_id=email_off_recipient.id,
+                    event_type=NotificationEventType.RUN_FAILED.value,
+                    channel="email",
+                    enabled=False,
+                ),
+            ]
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[default_recipient.id, in_app_off_recipient.id, email_off_recipient.id],
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id="run-batched-prefs",
+            summary="Run failed",
+            organization_id=org.id,
+        )
+        by_recipient = {n.recipient_user_id: n for n in written}
+        assert by_recipient[default_recipient.id].in_app_visible is True
+        assert by_recipient[in_app_off_recipient.id].in_app_visible is False
+        assert by_recipient[email_off_recipient.id].in_app_visible is True
+
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id.in_([n.id for n in written])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        delivered_notification_ids = {d.notification_id for d in deliveries}
+        delivered_to = {n.recipient_user_id for n in written if n.id in delivered_notification_ids}
+        assert delivered_to == {default_recipient.id, in_app_off_recipient.id}
+
+    async def test_the_legacy_column_batches_correctly_across_several_recipients(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        opted_out = await _member(db, org, role="member")
+        opted_out.notify_budget_alerts = False
+        default_recipient = await _member(db, org, role="member")
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[opted_out.id, default_recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="run-batched-legacy",
+            summary="Budget exceeded",
+            organization_id=org.id,
+        )
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id.in_([n.id for n in written])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        by_notification_id = {n.id: n.recipient_user_id for n in written}
+        delivered_to = {by_notification_id[d.notification_id] for d in deliveries}
+        assert delivered_to == {default_recipient.id}
+
+    async def test_no_recipients_answers_empty_without_a_query(self, db):
+        """`_write_rows` calls the batched reads before its per-recipient
+        loop, unconditionally when the event is not mandatory - an empty
+        `recipients` list (nothing this service's own callers produce, since
+        each narrows its audience and returns early on empty, but a contract
+        this repository layer still owes) must not turn into a query with an
+        empty `IN ()`."""
+        assert (
+            await notification_repo.get_channel_preferences(
+                db, user_ids=[], event_type=NotificationEventType.RUN_FAILED.value, channel="in_app"
+            )
+            == {}
+        )
+        assert (
+            await notification_repo.get_legacy_email_preferences(
+                db, user_ids=[], column="notify_budget_alerts"
+            )
+            == {}
+        )
+
+
+class TestChannelRestriction:
+    """`write(channels=...)` - the announcement composer's own "pick
+    channels" (Decision 5). It only narrows: a channel outside the
+    restriction never fires, and a channel inside it still answers to the
+    recipient's own preference."""
+
+    async def test_a_restriction_narrows_a_channel_the_recipient_never_disabled(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-6",
+            summary="Run completed",
+            organization_id=org.id,
+            channels={NotificationChannel.EMAIL},
+        )
+
+        assert notification.in_app_visible is False
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [d.channel for d in deliveries] == ["email"]
+
+    async def test_a_restriction_does_not_override_the_recipients_own_opt_out(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_COMPLETED.value,
+                channel="email",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-7",
+            summary="Run completed",
+            organization_id=org.id,
+            channels={NotificationChannel.IN_APP, NotificationChannel.EMAIL},
+        )
+
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert deliveries == []
+
+
+class TestMandatoryEvents:
+    async def test_a_mandatory_event_ignores_preferences_on_both_channels(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=admin.id,
+                event_type=NotificationEventType.SECURITY_EVENT.value,
+                channel="in_app",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-1",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        assert notification.in_app_visible is True
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(deliveries) == 1
+
+    async def test_a_metered_mandatory_write_within_budget_still_writes(self, db, monkeypatch):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+
+        async def _allowed(**_kwargs):
+            return notification_center.rate_limit.Decision(allowed=True, retry_after_seconds=0)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _allowed)
+
+        written = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-2b",
+            summary="A secret was rotated",
+            organization_id=org.id,
+            actor_user_id=owner.id,
+        )
+        assert len(written) == 1
+
+    async def test_a_rate_limited_mandatory_write_writes_nothing(self, db, monkeypatch):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+
+        async def _blocked(**_kwargs):
+            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _blocked)
+
+        written = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-2",
+            summary="A secret was rotated",
+            organization_id=org.id,
+            actor_user_id=owner.id,
+        )
+        assert written == []
+        rows = (
+            (
+                await db.execute(
+                    select(Notification).where(Notification.recipient_user_id == admin.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert rows == []
+
+    async def test_a_rate_limited_mandatory_write_with_no_actor_still_writes_nothing(
+        self, db, monkeypatch
+    ):
+        """A system-triggered audit entry has no human actor
+        (`AppAdminAuditLog.actor_user_id` is nullable), and that must still be
+        bounded, not exempted - the gap this guard exists to close."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+
+        calls: list[str] = []
+
+        async def _blocked(*, caller: str, **_kwargs):
+            calls.append(caller)
+            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _blocked)
+
+        written = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-no-actor",
+            summary="A secret was rotated",
+            organization_id=org.id,
+            actor_user_id=None,
+        )
+        assert written == []
+        assert calls == ["user:system:security_event"]
+
+
+class TestSavepointSafety:
+    async def test_a_successful_write_under_a_savepoint_still_writes(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        written = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-savepoint-ok",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert len(written) == 1
+
+    async def test_a_duplicate_under_a_savepoint_writes_nothing_without_raising(self, db):
+        """`_write_one` returning `None` (an occurrence already recorded) is
+        not an exception - the savepoint commits normally and the recipient
+        is simply not in `written`, distinct from the FK-failure case above
+        where the savepoint rolls back."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        first = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-savepoint-dup",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        second = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-savepoint-dup",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert len(first) == 1
+        assert second == []
+
+    async def test_a_failed_write_under_a_savepoint_does_not_poison_the_session(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[uuid.uuid4()],  # no such user - FK violation
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-6",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert written == []
+        # The caller's own transaction is still usable - a real write goes through.
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_one_bad_recipient_does_not_discard_the_others(self, db):
+        """The savepoint is nested per recipient, not once around the whole
+        fan-out - a recipient a write cannot reach (deleted mid-flight, here
+        simulated with a bare random id) must not roll back rows already
+        written for the recipients ahead of it in the same call."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        good_recipient = await _member(db, org, role="member")
+        missing_recipient = uuid.uuid4()  # no such user - FK violation
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[good_recipient.id, missing_recipient],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-partial-fk",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert [n.recipient_user_id for n in written] == [good_recipient.id]
+        # The caller's own transaction is still usable after the failed one.
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_a_failed_preference_read_under_a_savepoint_leaves_the_session_usable(
+        self, db, monkeypatch
+    ):
+        """The preference reads run before any per-recipient savepoint, so a
+        statement that fails there - a timeout, a cancellation - would abort
+        the caller's whole PostgreSQL transaction and take the terminal run
+        update with it. They get a savepoint of their own instead, and the
+        write is abandoned rather than sent on preferences nobody read."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            # A statement error, not a Python one: what PostgreSQL leaves
+            # behind is the failed-transaction state a savepoint is what
+            # recovers from.
+            await db.execute(text("SELECT 1 FROM no_such_table"))
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-pref-read-fails",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+
+        assert written == []
+        # The caller's own transaction survived it, which is the whole contract.
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_a_preference_read_that_raises_outright_is_logged_and_abandoned(
+        self, db, monkeypatch
+    ):
+        """The same boundary as above, reached by a plain Python failure rather
+        than a statement error - the branch is the same one either way, and this
+        is the shape a `coverage.py` tracer can still follow across
+        SQLAlchemy's greenlet bridge."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("preference read failed")
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+
+        written = await NotificationCenterService(db).write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-pref-read-raises-savepoint",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+
+        assert written == []
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_a_failed_preference_read_without_a_savepoint_propagates(self, db, monkeypatch):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("preference read failed")
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+
+        with pytest.raises(RuntimeError):
+            await NotificationCenterService(db).write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id="run-pref-read-raises",
+                summary="Run completed",
+                organization_id=org.id,
+            )
+
+    async def test_a_failed_write_without_a_savepoint_propagates(self, db):
+        service = NotificationCenterService(db)
+        with pytest.raises(Exception):  # noqa: B017 - an IntegrityError from asyncpg, not ours to name
+            await service.write(
+                recipients=[uuid.uuid4()],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id="run-7",
+                summary="Run completed",
+            )
+        await db.rollback()
+
+
+class TestReadGateNone:
+    async def test_an_ungated_event_is_always_visible(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="viewer")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-8",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        rows, gates, _ = await service.list_inbox(
+            _ctx(recipient, org, role="viewer"), after=None, limit=10
+        )
+        assert len(rows) == 1
+        assert gates[rows[0].id].strip_context_url is False
+
+
+class TestReadGateApprovalDegrade:
+    async def test_a_decider_keeps_the_link_a_non_decider_loses_it(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        decider = await _member(db, org, role="operator")  # APPROVALS_DECIDE: ALL
+        non_decider = await _member(db, org, role="member")  # no APPROVALS_DECIDE
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[decider.id, non_decider.id],
+            event_type=NotificationEventType.APPROVAL_REQUESTED,
+            occurrence_id="approval-1",
+            summary="jarvis is waiting on your approval",
+            context_url="https://app.example.com/approvals/1",
+            render_context={"agent_name": "jarvis"},
+            organization_id=org.id,
+        )
+
+        decider_rows, decider_gates, _ = await service.list_inbox(
+            _ctx(decider, org, role="operator"), after=None, limit=10
+        )
+        decider_gate = decider_gates[decider_rows[0].id]
+        assert decider_gate.strip_context_url is False
+        assert decider_gate.summary_override is None
+
+        non_decider_rows, non_decider_gates, _ = await service.list_inbox(
+            _ctx(non_decider, org, role="member"), after=None, limit=10
+        )
+        non_decider_gate = non_decider_gates[non_decider_rows[0].id]
+        assert non_decider_gate.strip_context_url is True
+        # The same fact the email channel already sends this reader
+        # (`notification_delivery.py`'s `APPROVAL_PENDING` key) - never the
+        # stored, decider-flavoured summary asking them to act.
+        assert non_decider_gate.summary_override == "jarvis's run is held, waiting on an approval"
+
+
+class TestReadGateOrgAdminOrAppAdmin:
+    async def test_an_org_scoped_security_event_excludes_a_plain_member(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[admin.id, member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-3",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+
+        admin_rows, _, _ = await service.list_inbox(
+            _ctx(admin, org, role="admin"), after=None, limit=10
+        )
+        assert len(admin_rows) == 1
+        member_rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert member_rows == []
+
+    async def test_a_deployment_wide_security_event_needs_is_app_admin(self, db):
+        app_admin = await _user(db, is_app_admin=True)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        ordinary = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[app_admin.id, ordinary.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-4",
+            summary="Impersonation started",
+            organization_id=None,
+        )
+
+        admin_ctx = AuthContext(
+            user_id=app_admin.id, organization_id=org.id, role="member", is_app_admin=True
+        )
+        admin_rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
+        assert len(admin_rows) == 1
+
+        ordinary_rows, _, _ = await service.list_inbox(
+            _ctx(ordinary, org, role="admin"), after=None, limit=10
+        )
+        assert ordinary_rows == []
+
+
+class TestReadGateAppAdmin:
+    async def test_configuration_changed_needs_is_app_admin(self, db):
+        app_admin = await _user(db, is_app_admin=True)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        ordinary = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[app_admin.id, ordinary.id],
+            event_type=NotificationEventType.CONFIGURATION_CHANGED,
+            occurrence_id="settings-1",
+            summary="Deployment settings changed",
+        )
+        admin_ctx = AuthContext(
+            user_id=app_admin.id, organization_id=org.id, role="member", is_app_admin=True
+        )
+        rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
+        assert len(rows) == 1
+        ordinary_rows, _, _ = await service.list_inbox(
+            _ctx(ordinary, org, role="admin"), after=None, limit=10
+        )
+        assert ordinary_rows == []
+
+    async def test_an_org_scoped_row_reaches_an_app_admin_with_no_membership_there(self, db):
+        """`_audience_ids`'s "admins" audience deliberately includes app
+        admins with no membership of their own (`notifications.py`), so an
+        org-scoped alert can be addressed to one - but `get_active_organization`
+        never lets them select that organization as active, and the inbox
+        used to filter by the active organization before the gate ever ran.
+        Proven across all three reads that share the predicate: list, count,
+        mark-one-read."""
+        app_admin = await _user(db, is_app_admin=True)
+        elsewhere_owner = await _user(db)
+        elsewhere = await _org(db, elsewhere_owner)  # the app admin's own "active" org
+        owner = await _user(db)
+        org = await _org(db, owner)  # where the alert happened - app admin has no membership here
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[app_admin.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="budget-cross-org",
+            summary="Agent exceeded its budget",
+            organization_id=org.id,
+        )
+        admin_ctx = AuthContext(
+            user_id=app_admin.id, organization_id=elsewhere.id, role="member", is_app_admin=True
+        )
+
+        rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
+        assert len(rows) == 1
+        assert await service.unread_count(admin_ctx) == 1
+        notification, _ = await service.mark_one_read(admin_ctx, rows[0].id)
+        assert notification.read_at is not None
+
+    async def test_the_same_shape_stays_hidden_from_an_ordinary_member_elsewhere(self, db):
+        elsewhere_owner = await _user(db)
+        elsewhere = await _org(db, elsewhere_owner)
+        recipient = await _member(db, elsewhere, role="member")
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="budget-cross-org-ordinary",
+            summary="Agent exceeded its budget",
+            organization_id=org.id,
+        )
+        ctx = AuthContext(
+            user_id=recipient.id, organization_id=elsewhere.id, role="member", is_app_admin=False
+        )
+
+        rows, _, _ = await service.list_inbox(ctx, after=None, limit=10)
+        assert rows == []
+        assert await service.unread_count(ctx) == 0
+
+
+class TestReadGateRunsView:
+    async def test_a_report_needs_current_runs_view(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        can_view = await _member(db, org, role="operator")
+        cannot_view = await _member(db, org, role="viewer")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[can_view.id, cannot_view.id],
+            event_type=NotificationEventType.USAGE_REPORT,
+            occurrence_id="report-1",
+            summary="Weekly usage report",
+            organization_id=org.id,
+        )
+        visible_rows, _, _ = await service.list_inbox(
+            _ctx(can_view, org, role="operator"), after=None, limit=10
+        )
+        assert len(visible_rows) == 1
+        hidden_rows, _, _ = await service.list_inbox(
+            _ctx(cannot_view, org, role="viewer"), after=None, limit=10
+        )
+        assert hidden_rows == []
+
+
+class TestReadGateCollectionsView:
+    async def _kb(self, db, org: Organization, owner: User) -> KnowledgeBase:
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="Docs",
+            collection_name=f"kb-{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            scope="org",
+            visibility="private",
+            owner_user_id=owner.id,
+            organization_id=org.id,
+        )
+        db.add(kb)
+        await db.flush()
+        return kb
+
+    async def test_an_owner_sees_it_a_member_without_a_grant_does_not(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb = await self._kb(db, org, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id, member.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-1:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(kb.id)},
+            organization_id=org.id,
+        )
+        owner_rows, _, _ = await service.list_inbox(
+            _ctx(owner, org, role="owner"), after=None, limit=10
+        )
+        assert len(owner_rows) == 1
+        member_rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert member_rows == []
+
+    async def test_an_app_admin_sees_the_ingestion_notice_they_were_addressed(self, db):
+        """`_administrator_ids` includes every app admin when an ingestion has
+        no initiator, and an app admin holds no membership row anywhere - so
+        `readable_kb`'s `resolve_access` refused the collection on the
+        organization mismatch alone and hid a row they were deliberately
+        written. Every other gate in `gate_for` already admits them."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb = await self._kb(db, org, owner)
+        elsewhere_owner = await _user(db)
+        elsewhere = await _org(db, elsewhere_owner)
+        app_admin = await _user(db, is_app_admin=True)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[app_admin.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-app-admin:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(kb.id)},
+            organization_id=org.id,
+        )
+
+        rows, _, _ = await service.list_inbox(
+            AuthContext(
+                user_id=app_admin.id,
+                organization_id=elsewhere.id,
+                role="member",
+                is_app_admin=True,
+            ),
+            after=None,
+            limit=10,
+        )
+
+        assert len(rows) == 1
+
+    async def test_an_org_admin_cannot_see_a_colleagues_personal_collection_notice(self, db):
+        """A personal knowledge base is owner-only by construction
+        (`collection_access.readable_kb`) - the generic `collections:view`
+        grant an org admin's role carries must not widen that, or an
+        ingestion notification (a filename, an outcome) leaks that the
+        collection exists at all to somebody who is not its owner."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb_owner = await _member(db, org, role="member")
+        admin = await _member(db, org, role="admin")
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="My notes",
+            collection_name=f"kb-{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            scope="personal",
+            visibility="private",
+            owner_user_id=kb_owner.id,
+            organization_id=org.id,
+        )
+        db.add(kb)
+        await db.flush()
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[kb_owner.id, admin.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-personal-1:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(kb.id)},
+            organization_id=org.id,
+        )
+        owner_rows, _, _ = await service.list_inbox(
+            _ctx(kb_owner, org, role="member"), after=None, limit=10
+        )
+        assert len(owner_rows) == 1
+        admin_rows, _, _ = await service.list_inbox(
+            _ctx(admin, org, role="admin"), after=None, limit=10
+        )
+        assert admin_rows == []
+
+    async def test_a_row_with_no_collection_id_is_excluded(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-2:1",
+            summary="A document failed to ingest",
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_a_sync_that_never_reached_a_collection_stays_visible(self, db):
+        # `NotificationService.sync_failed` writes `collection_id: ""` for a
+        # source with no collection assigned - unlike the row above, this is
+        # a deliberate write, not an absent context, and has nothing to
+        # recheck access against.
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="source-1:1",
+            summary="Sync failed: source has no assigned collection",
+            render_context={"collection_id": ""},
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
+
+    async def test_a_collection_deleted_mid_ingestion_is_hidden_from_an_ordinary_member(self, db):
+        """`collection_id` reads back `""` the same way whether the source
+        never had a collection or its collection was deleted mid-ingestion -
+        the FK (`ondelete="SET NULL"`) already reads null by the time this
+        write happens either way. `collection_name`, a plain column
+        independent of that FK, is what tells the two apart: present here
+        means a collection existed and is gone, so unlike the row above
+        there is something to recheck, and an ordinary member fails it."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-deleted-mid-flight:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": "", "collection_name": "Docs"},
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert rows == []
+
+    async def test_a_collection_deleted_mid_ingestion_stays_visible_to_a_current_org_admin(
+        self, db
+    ):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-deleted-mid-flight:2",
+            summary="A document failed to ingest",
+            render_context={"collection_id": "", "collection_name": "Docs"},
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(admin, org, role="admin"), after=None, limit=10)
+        assert len(rows) == 1
+
+    async def test_a_row_naming_a_deleted_collection_is_excluded(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-3:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(uuid.uuid4())},
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_a_row_carrying_a_malformed_collection_id_is_excluded_not_500(self, db):
+        # Nothing this service writes produces one - `render_context` is a
+        # JSONB blob with no schema enforcement, so this stands in for a
+        # producer bug rather than anything reachable through the write path
+        # this test file otherwise exercises.
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-4:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": "not-a-uuid"},
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_several_rows_sharing_one_collection_gate_independently(self, db):
+        """`_build_gate_cache` resolves one collection once for the whole
+        page - proving that does not collapse two different rows sharing it
+        into one shared answer, in either direction."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb = await self._kb(db, org, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for occurrence, event_type in (
+            ("doc-shared-1:1", NotificationEventType.INGESTION_FAILED),
+            ("doc-shared-2:1", NotificationEventType.INGESTION_COMPLETED),
+        ):
+            await service.write(
+                recipients=[owner.id, member.id],
+                event_type=event_type,
+                occurrence_id=occurrence,
+                summary="A document's ingestion settled",
+                render_context={"collection_id": str(kb.id)},
+                organization_id=org.id,
+            )
+
+        owner_rows, _, _ = await service.list_inbox(
+            _ctx(owner, org, role="owner"), after=None, limit=10
+        )
+        assert len(owner_rows) == 2
+        member_rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert member_rows == []
+
+
+class TestReadGateAnnouncementAudience:
+    async def _announcement(self, db, *, actor: User, audience_spec: dict) -> Announcement:
+        announcement = Announcement(
+            id=uuid.uuid4(),
+            actor_user_id=actor.id,
+            body="Scheduled maintenance",
+            audience_spec=audience_spec,
+            audience_description="an audience",
+        )
+        db.add(announcement)
+        await db.flush()
+        return announcement
+
+    async def test_all_organizations_reaches_any_current_member(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": "all", "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert len(rows) == 1
+
+    async def test_a_named_organization_excludes_someone_from_a_different_one(self, db):
+        owner_a = await _user(db)
+        org_a = await _org(db, owner_a)
+        owner_b = await _user(db)
+        org_b = await _org(db, owner_b)
+        outsider = await _member(db, org_b, role="member")
+        announcement = await self._announcement(
+            db, actor=owner_a, audience_spec={"organizations": [str(org_a.id)], "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[outsider.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(
+            _ctx(outsider, org_b, role="member"), after=None, limit=10
+        )
+        assert rows == []
+
+    async def test_a_role_narrowed_announcement_excludes_a_plain_member(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": [str(org.id)], "role": "admin"}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert rows == []
+
+    async def test_an_admin_narrowed_announcement_reaches_an_owner_too(self, db):
+        """An owner outranks an admin - the same escalation-role convention
+        `security_event`'s `org_admins` audience already uses - so an "admin"
+        audience must not silently exclude the organization's owner."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": [str(org.id)], "role": "admin"}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
+
+    async def test_a_malformed_organization_id_in_the_audience_is_skipped(self, db):
+        """`audience_spec` is a JSONB blob with no schema enforcement - a
+        malformed entry must not 500 the rest of a reader's inbox."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db,
+            actor=owner,
+            audience_spec={"organizations": ["not-a-uuid", str(org.id)], "role": None},
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
+
+    async def test_an_audience_that_is_not_a_collection_at_all_is_skipped(self, db):
+        """One level up from the malformed *entry* above: the collection
+        itself can be any JSON value, and iterating a number raises a
+        `TypeError` that takes down every inbox read touching this row."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": 1, "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+
+        assert rows == []
+
+    async def test_a_row_with_no_announcement_id_is_excluded(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id="malformed-1",
+            summary="Scheduled maintenance",
+            organization_id=org.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_a_row_naming_a_deleted_announcement_is_excluded(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": "all", "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        await db.delete(announcement)
+        await db.flush()
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_a_row_naming_an_announcement_that_never_existed_is_excluded(self, db):
+        """`announcement_id` is `SET NULL` when the row it points at is deleted
+        (Decision 8's own FK direction), so a live row referencing a truly
+        missing announcement cannot arise through this service's own write
+        path - exercised directly against a hand-built row instead."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        phantom = Notification(
+            id=uuid.uuid4(),
+            organization_id=None,
+            recipient_user_id=owner.id,
+            event_type=NotificationEventType.ANNOUNCEMENT.value,
+            occurrence_id="phantom-1",
+            summary="Scheduled maintenance",
+            in_app_visible=True,
+            announcement_id=uuid.uuid4(),
+        )
+        ctx = _ctx(owner, org, role="owner")
+        cache = await service._build_gate_cache(ctx, [phantom])
+        visible = service._announcement_visible(phantom, cache)
+        assert visible is False
+
+    async def test_an_announcement_naming_no_organizations_reaches_nobody(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": [], "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
+    async def test_two_different_announcements_in_one_page_gate_independently(self, db):
+        """`_build_gate_cache` resolves each distinct announcement's audience
+        once for the whole page - proving two different announcements batched
+        together do not get conflated into one shared answer."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        reachable = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": "all", "role": None}
+        )
+        elsewhere_owner = await _user(db)
+        elsewhere = await _org(db, elsewhere_owner)
+        unreachable = await self._announcement(
+            db,
+            actor=elsewhere_owner,
+            audience_spec={"organizations": [str(elsewhere.id)], "role": None},
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(reachable.id),
+            summary="Scheduled maintenance",
+            announcement_id=reachable.id,
+        )
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(unreachable.id),
+            summary="A different organization's maintenance",
+            announcement_id=unreachable.id,
+        )
+
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
+        assert [row.announcement_id for row in rows] == [reachable.id]
+
+
+class TestListInboxPagination:
+    async def test_a_second_page_starts_after_the_cursor(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(3):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-page-{index}",
+                summary=f"Run {index} completed",
+                organization_id=org.id,
+            )
+        ctx = _ctx(recipient, org, role="member")
+        first_page, _, resume = await service.list_inbox(ctx, after=None, limit=2)
+        assert len(first_page) == 2
+        assert resume == (first_page[-1].created_at, first_page[-1].id)
+        second_page, _, second_resume = await service.list_inbox(ctx, after=resume, limit=2)
+        assert len(second_page) == 1
+        assert second_page[0].id not in {row.id for row in first_page}
+        # Genuinely exhausted - a short batch, not the round cap - so there is
+        # nothing left to resume from.
+        assert second_resume is None
+
+    async def test_a_fully_gated_backlog_exhausts_its_fetch_budget(self, db, monkeypatch):
+        """Every candidate row is excluded, so the loop must run to its bound
+        rather than looping forever - `_MAX_INBOX_FETCH_ROUNDS` lowered to 2 so
+        the scenario needs only two rows, not hundreds."""
+        monkeypatch.setattr(notification_center, "_MAX_INBOX_FETCH_ROUNDS", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(2):
+            await service.write(
+                recipients=[member.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-gated-{index}",
+                summary="A secret was rotated",
+                organization_id=org.id,
+            )
+        rows, _, resume = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=1
+        )
+        assert rows == []
+        # The round cap cut the scan short, not a short or empty batch - a
+        # resume cursor must still come back, or a caller inferring "no more"
+        # from an empty page would drop every row past the cap rather than
+        # page to it.
+        assert resume is not None
+
+
+class TestUnreadCountAndMarkRead:
+    async def test_unread_count_only_counts_gate_visible_rows(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[admin.id, member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-5",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        assert await service.unread_count(_ctx(admin, org, role="admin")) == 1
+        assert await service.unread_count(_ctx(member, org, role="member")) == 0
+
+    async def test_marking_one_row_read_is_idempotent(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-9",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        first, _ = await service.mark_one_read(ctx, notification.id)
+        assert first.read_at is not None
+        second, _ = await service.mark_one_read(ctx, notification.id)
+        assert second.read_at == first.read_at
+
+    async def test_marking_a_missing_row_is_refused(self, db):
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        with pytest.raises(NotFoundError):
+            await service.mark_one_read(_ctx(recipient, org, role="member"), uuid.uuid4())
+
+    async def test_marking_a_gate_excluded_row_reads_as_missing(self, db):
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-6",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        with pytest.raises(NotFoundError):
+            await service.mark_one_read(_ctx(member, org, role="member"), notification.id)
+
+    async def test_marking_an_email_only_row_reads_as_missing(self, db):
+        """`get_own` must filter on `in_app_visible` the same way `list_inbox`
+        and `unread_count` already do - otherwise a row a recipient opted out
+        of seeing in-app is still readable and markable by its id."""
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_FAILED.value,
+                channel="in_app",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id="run-email-only",
+            summary="Run failed",
+            organization_id=org.id,
+        )
+        assert notification.in_app_visible is False
+        with pytest.raises(NotFoundError):
+            await service.mark_one_read(_ctx(recipient, org, role="member"), notification.id)
+
+    async def test_mark_all_read_only_marks_gate_visible_rows(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-10",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-7",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        marked = await service.mark_all_read(_ctx(admin, org, role="admin"))
+        assert marked == 2  # admin holds both gates here
+
+    async def test_mark_all_read_marks_nothing_when_every_candidate_is_gated_out(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-8",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        marked = await service.mark_all_read(_ctx(member, org, role="member"))
+        assert marked == 0
+
+
+class TestRequireCaller:
+    async def test_a_context_with_no_subject_is_refused(self, db):
+        from app.core.exceptions import AuthorizationError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        anonymous = AuthContext(user_id=None, organization_id=org.id, role="member")
+        service = NotificationCenterService(db)
+        with pytest.raises(AuthorizationError):
+            await service.unread_count(anonymous)
+
+
+class TestCursorHelpers:
+    def test_a_cursor_round_trips(self):
+        created_at = datetime.now(UTC)
+        notification_id = uuid.uuid4()
+        raw = notification_center.encode_cursor(created_at, notification_id)
+        decoded_created_at, decoded_id = notification_center.decode_cursor(raw)
+        assert decoded_created_at == created_at
+        assert decoded_id == notification_id
+
+    def test_a_malformed_cursor_is_refused(self):
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            notification_center.decode_cursor("not-a-cursor")
+
+    def test_a_cursor_with_a_naive_timestamp_is_refused(self):
+        # `encode_cursor` never produces one - `created_at` comes off a
+        # `timestamptz` column - but nothing stops a client sending one by
+        # hand, and asyncpg refuses to compare it against the aware column
+        # with a raw `DataError` rather than the 400 this should be.
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            notification_center.decode_cursor(f"2026-01-01T00:00:00|{uuid.uuid4()}")
+
+
+class TestListInboxNoRows:
+    async def test_an_empty_inbox_returns_nothing(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        rows, gates, _ = await service.list_inbox(
+            _ctx(recipient, org, role="member"), after=None, limit=10
+        )
+        assert rows == []
+        assert gates == {}
+
+
+class TestPreferences:
+    """Decision 4's `(event_type, channel)` surface - every pair
+    `_TOGGLABLE_PAIRS` covers, and only those."""
+
+    async def test_an_untouched_pair_defaults_enabled(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        run_completed_in_app = next(
+            item
+            for item in items
+            if item.event_type is NotificationEventType.RUN_COMPLETED
+            and item.channel is NotificationChannel.IN_APP
+        )
+        assert run_completed_in_app.enabled is True
+
+    async def test_mandatory_event_types_are_never_listed(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        listed = {item.event_type for item in items}
+        assert NotificationEventType.SECURITY_EVENT not in listed
+        assert NotificationEventType.CONFIGURATION_CHANGED not in listed
+
+    async def test_the_legacy_email_pairs_are_never_listed_but_their_in_app_channel_is(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        listed = {(item.event_type, item.channel) for item in items}
+        for event_type in (
+            NotificationEventType.BUDGET_EXCEEDED,
+            NotificationEventType.APPROVAL_REQUESTED,
+            NotificationEventType.USAGE_REPORT,
+            NotificationEventType.AGENT_USAGE_REPORT,
+        ):
+            assert (event_type, NotificationChannel.EMAIL) not in listed
+            assert (event_type, NotificationChannel.IN_APP) in listed
+
+    async def test_updating_a_pair_upserts_one_row(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        ctx = _ctx(owner, org, role="owner")
+
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=False,
+        )
+
+        rows = (
+            (
+                await db.execute(
+                    select(NotificationChannelPreference).where(
+                        NotificationChannelPreference.user_id == owner.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].enabled is False
+
+    async def test_updating_a_pair_twice_leaves_one_row_with_the_latest_value(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        ctx = _ctx(owner, org, role="owner")
+
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=False,
+        )
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=True,
+        )
+
+        rows = (
+            (
+                await db.execute(
+                    select(NotificationChannelPreference).where(
+                        NotificationChannelPreference.user_id == owner.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].enabled is True
+
+    async def test_a_mandatory_event_type_is_refused(self, db):
+        from app.core.exceptions import BadRequestError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        with pytest.raises(BadRequestError):
+            await service.update_preference(
+                _ctx(owner, org, role="owner"),
+                event_type=NotificationEventType.SECURITY_EVENT,
+                channel=NotificationChannel.IN_APP,
+                enabled=False,
+            )
+
+    async def test_a_legacy_email_pair_is_refused(self, db):
+        """`PATCH /users/me` is still this pair's write path (Decision 4) -
+        accepting it here too would write a row `email_channel_enabled`
+        never reads, a silent no-op preference."""
+        from app.core.exceptions import BadRequestError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        with pytest.raises(BadRequestError):
+            await service.update_preference(
+                _ctx(owner, org, role="owner"),
+                event_type=NotificationEventType.BUDGET_EXCEEDED,
+                channel=NotificationChannel.EMAIL,
+                enabled=False,
+            )
+
+    async def test_an_updated_preference_is_honoured_by_the_write_path(self, db):
+        """Closes the loop: `update_preference`'s row is the same row
+        `_channel_enabled` reads at write time."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        await service.update_preference(
+            _ctx(recipient, org, role="member"),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            channel=NotificationChannel.IN_APP,
+            enabled=False,
+        )
+
+        written = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-off",
+            summary="A run finished",
+            organization_id=org.id,
+        )
+
+        assert len(written) == 1
+        assert written[0].in_app_visible is False

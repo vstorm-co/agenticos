@@ -53,6 +53,20 @@ async def get_by_slug(db: AsyncSession, slug: str) -> Organization | None:
     return result.scalar_one_or_none()
 
 
+async def list_by_ids(db: AsyncSession, org_ids: list[UUID]) -> list[Organization]:
+    """The rows named by `org_ids`, in no particular order.
+
+    For rendering a human-readable audience description (#1598, Decision 5)
+    against ids an app admin already chose - not an access check, and not
+    scoped to one tenant, since an announcement's whole point is addressing
+    more than one.
+    """
+    if not org_ids:
+        return []
+    result = await db.execute(select(Organization).where(Organization.id.in_(org_ids)))
+    return list(result.scalars().all())
+
+
 async def get_personal_for_user(db: AsyncSession, user_id: UUID) -> Organization | None:
     result = await db.execute(
         select(Organization).where(

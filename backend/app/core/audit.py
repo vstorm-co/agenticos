@@ -117,8 +117,16 @@ async def record_audit(
     target_id: str | None = None,
     details: dict[str, Any] | None = None,
     ip_address: str | None = None,
-) -> None:
+) -> AppAdminAuditLog:
     """Persist an audit log entry within the caller's transaction.
+
+    Returns the entry so the handful of call sites this plan (#1598) curates
+    as genuinely security-sensitive - impersonation, an organization's own
+    secrets and sandbox connections, an app admin's user management, and the
+    deployment's own settings - can follow it with a
+    `NotificationService.security_event`/`configuration_changed` write. Most
+    callers ignore the return value; nothing about recording the entry itself
+    changes for them.
 
     The write shares the request's session, so it commits or rolls back with the
     action it records: a failure to record propagates and rolls the mutation back
@@ -215,3 +223,4 @@ async def record_audit(
             },
         )
     )
+    return entry

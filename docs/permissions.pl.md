@@ -1,5 +1,5 @@
 ---
-source_sha: "f7f1f1d75aa0"
+source_sha: "9792d48fbbe0"
 ---
 
 # Uprawnienia { #permissions }
@@ -56,7 +56,11 @@ Boolean na użytkowniku, całkowicie poza organizacjami. Dwa skutki:
 
 1. **Bramka przed routami wdrożenia.** `CurrentAppAdmin` chroni `/admin/users`,
    `/admin/stats`, `/admin/conversations` (listowanie, nigdy transkrypt),
-   `/admin/ratings` oraz zbiorcze endpointy pod `/rag`.
+   `/admin/ratings`, `/admin/announcements`, `/admin/notifications/deliveries`
+   oraz zbiorcze endpointy pod `/rag`.
+   Announcements stoją tutaj, a nie za `Perm`, bo każdy wpis w katalogu
+   uprawnień rozwiązuje się względem jednej organizacji, a żaden z nich nie
+   umie wyrazić „każdej organizacji” ([Governance](governance.md#alerts)).
 2. **Obejście w `AuthContext.permissions`**, które zwraca każde uprawnienie na
    `Scope.ALL` — w każdej organizacji, także w tych, w których taka osoba nie ma
    żadnego członkostwa.
