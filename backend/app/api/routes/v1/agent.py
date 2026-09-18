@@ -43,5 +43,10 @@ async def agent_websocket(
                 break
             await session.handle_frame(data)
     finally:
-        await session.shutdown()
+        # Bookkeeping first, and `session.shutdown()` second, because that one
+        # now waits: a turn whose reader has gone is given time to finish and
+        # write its answer down (`AgentSession.shutdown`). The connection is
+        # already gone by then, so counting it as live for the length of the
+        # grace would only misreport it.
         manager.disconnect(websocket)
+        await session.shutdown()

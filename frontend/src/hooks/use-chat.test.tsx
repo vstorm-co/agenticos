@@ -33,6 +33,9 @@ const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
     onClose: null as (() => void) | null,
     url: "",
     protocols: undefined as string[] | undefined,
+    // The getter itself, kept so a test can ask what the *next* handshake would
+    // carry. `protocols` above is what this render's would.
+    getProtocols: null as (() => string[] | undefined) | null,
     isConnected: true,
   },
 }));
@@ -70,14 +73,18 @@ const decider = makeWrapper(["approvals:decide"]);
 vi.mock("./use-websocket", () => ({
   useWebSocket: (options: {
     url: string;
-    protocols?: string[];
+    protocols?: () => string[] | undefined;
     onMessage?: (event: MessageEvent) => void;
     onClose?: () => void;
   }) => {
     socket.onMessage = options.onMessage ?? null;
     socket.onClose = options.onClose ?? null;
     socket.url = options.url;
-    socket.protocols = options.protocols;
+    // Called, because the real hook calls it when it opens a socket rather than
+    // holding the value: that is what keeps a refreshed token from recycling a
+    // live connection.
+    socket.getProtocols = options.protocols ?? null;
+    socket.protocols = options.protocols?.();
     return {
       isConnected: socket.isConnected,
       connect,
@@ -126,6 +133,7 @@ function parkedTurn() {
 beforeEach(() => {
   vi.clearAllMocks();
   socket.isConnected = true;
+  socket.getProtocols = null;
   useAgentSelectionStore.setState({ selectedAgentId: null });
   useAuthStore.setState({ accessToken: "t-1" });
   useOrgStore.setState({ activeOrgId: null });
@@ -1969,6 +1977,87 @@ describe("useChat - what goes out with a turn", () => {
   });
 });
 
+describe("useChat - a socket that went away mid-answer", () => {
+  it("ends the turn on screen and asks for the transcript to be re-read", () => {
+    // Every frame that ends a turn arrives on the socket, so a drop ends nothing:
+    // `isProcessing` stayed true and the composer spun until somebody reloaded
+    // the page - which used to be the act that destroyed the answer, because the
+    // server cancelled the turn when the socket went.
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+    expect(result.current.isProcessing).toBe(true);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.interrupted).toBe(true);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing about a socket that came back with no turn in flight", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.interrupted).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("holds the queue while the turn it lost is still being written", async () => {
+    // The turn runs on under a socket this client no longer has. A queued
+    // message sent now would run a second turn against a history missing the
+    // first one's answer.
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("releases the queue when the reader asks something else instead", async () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    act(() => result.current.sendMessage("never mind, this instead"));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.interrupted).toBe(false);
+    expect(result.current.queuedMessages).toEqual([]);
+    vi.useRealTimers();
+  });
+});
+
 describe("useChat - the outbound queue", () => {
   it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
     vi.useFakeTimers();
@@ -2060,6 +2149,32 @@ describe("useChat - the socket it opens", () => {
 
     expect(socket.protocols).toBeUndefined();
     expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("does not touch the socket when the token is refreshed", () => {
+    // The refresh runs on a timer nobody asked for, roughly every twenty minutes
+    // per open tab. It used to close the socket an answer was streaming on - the
+    // server read that as the reader leaving and cancelled the run, and the
+    // client never got the frame that would have ended the turn on screen.
+    renderHook(() => useChat(), { wrapper });
+    expect(connect).toHaveBeenCalledTimes(1);
+
+    act(() => useAuthStore.setState({ accessToken: "t-2" }));
+
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(disconnect).not.toHaveBeenCalled();
+    // And the next handshake would present the new one, because the getter reads
+    // the store rather than closing over a value.
+    expect(socket.getProtocols?.()).toEqual(["access_token.t-2", "chat"]);
+  });
+
+  it("drops the socket when the token goes away", () => {
+    // A logout is a reason to close it. Which token it is, is not.
+    renderHook(() => useChat(), { wrapper });
+
+    act(() => useAuthStore.setState({ accessToken: null }));
+
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it("carries the active organization in the URL, because a handshake takes no headers", () => {

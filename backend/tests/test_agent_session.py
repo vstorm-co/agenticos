@@ -28,12 +28,13 @@ and renders `NaN`.
 
 `TestStoppingATurnMidDelegation` is here for the fourth, and it is the reason this
 module runs a real agent at all. Delegation puts work in an `asyncio.Task` the
-parent run does not await, and **this** is where a turn is cancelled: `stop` and
-`shutdown` both cancel `_turn_task`. A background delegation cancelled correctly
-in isolation says nothing about one cancelled under this teardown, where the
-cancellation arrives from outside, travels through `Agent.iter`, and every
-finalizer that has to run - the library's task cancellation, this platform's
-accounting sweep - runs while a `CancelledError` is already propagating.
+parent run does not await, and **this** is where a turn is cancelled: `stop`
+cancels `_turn_task`, and so does `shutdown` once a detached turn has outrun its
+grace. A background delegation cancelled correctly in isolation says nothing
+about one cancelled under this teardown, where the cancellation arrives from
+outside, travels through `Agent.iter`, and every finalizer that has to run - the
+library's task cancellation, this platform's accounting sweep - runs while a
+`CancelledError` is already propagating.
 """
 
 from __future__ import annotations
@@ -104,6 +105,7 @@ from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequ
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
+from app.services import agent_session as agent_session_module
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
@@ -2547,14 +2549,17 @@ class TestStoppingATurnMidDelegation:
         assert closed["status"] == "cancelled"
         assert closed["cost_usd"] == str(_DELEGATE_REQUEST.cost_usd)
 
-    async def test_shutting_the_socket_down_cancels_the_same_way(self):
+    async def test_a_turn_that_outruns_its_detached_grace_is_cancelled_the_same_way(self):
         """`shutdown` is the other caller, and it runs when nobody is watching -
-        a closed tab, a redeploy. It goes through the same cancellation, so a
-        delegation cannot be left running by the path with no client to notice."""
+        a closed tab, a dropped connection, a refreshed credential. It no longer
+        cancels on arrival (see `TestASocketThatWentAway`), but a turn still
+        running when the grace expires goes through this same cancellation, so a
+        delegation cannot be left running by the path with no client to notice.
+        """
         turn = _Turn()
         session = _session()
 
-        with turn.patched():
+        with turn.patched(), patch.object(agent_session_module, "DETACHED_TURN_GRACE_S", 0.05):
             await session.handle_frame({"message": "price this up", "agent_id": str(uuid4())})
             await turn.in_flight()
             await session.shutdown()
@@ -2562,6 +2567,99 @@ class TestStoppingATurnMidDelegation:
         assert turn.delegation.journal.tasks.list_active_tasks() == []
         assert [outcome.status for outcome in turn.outcomes] == ["cancelled"]
         assert [status for status, *_ in turn.finished] == [RunStatus.CANCELLED]
+
+
+class TestASocketThatWentAway:
+    """`shutdown` when the reader has gone, which is not the same act as `stop`.
+
+    A refreshed access token used to close the chat socket under a streaming
+    answer, and this method cancelled the turn on the spot: the run was written
+    `CANCELLED`, its half-finished reply was labelled *stopped* in the
+    transcript, and the client - already on a new socket - never received the
+    frame that would have ended the turn on screen. Nobody had asked for any of
+    it.
+
+    So the turn is now allowed to reach its own end. `send_event` already answers
+    a closed socket with `False` rather than raising, and `process_message` writes
+    the answer to the transcript rather than to the socket, so the only thing the
+    cancel was protecting against was a turn running for ever - which is what
+    `DETACHED_TURN_GRACE_S` bounds instead.
+    """
+
+    async def test_a_turn_is_given_time_to_finish_rather_than_cancelled(self):
+        session = _session()
+        finished = asyncio.Event()
+
+        async def turn() -> None:
+            await asyncio.sleep(0.01)
+            finished.set()
+
+        task = asyncio.create_task(turn())
+        session._turn_task = task
+
+        await session.shutdown()
+
+        assert finished.is_set()
+        assert not task.cancelled()
+
+    async def test_a_turn_still_running_when_the_grace_ends_is_stopped(self):
+        session = _session()
+        task = asyncio.create_task(asyncio.sleep(30))
+        session._turn_task = task
+
+        with patch.object(agent_session_module, "DETACHED_TURN_GRACE_S", 0.01):
+            await session.shutdown()
+
+        assert task.cancelled()
+
+    async def test_a_question_nobody_can_answer_no_longer_holds_the_turn_open(self):
+        """A run parked on `ask_user` cannot reach its own end: it is waiting for
+        somebody who has closed the tab. Left waiting it would spend the whole
+        grace doing nothing and be cancelled anyway, so the wait is ended with an
+        empty answer - which `_ask_one` already renders."""
+        session = _session()
+        answered: list[list[dict[str, Any]]] = []
+        asked = asyncio.Event()
+
+        async def turn() -> None:
+            asked.set()
+            answered.append(await session._ask_user([{"question": "which invoice?"}]))
+
+        task = asyncio.create_task(turn())
+        # `_ask_user` assigns the future before its first await, so the turn is
+        # parked on it by the time this returns.
+        await asked.wait()
+        assert session._ask_user_future is not None
+        session._turn_task = task
+
+        await session.shutdown()
+
+        assert answered == [[]]
+        assert not task.cancelled()
+
+    async def test_a_session_with_no_turn_in_flight_returns_at_once(self):
+        session = _session()
+
+        await session.shutdown()
+
+        assert session._turn_task is None
+
+    async def test_a_shutdown_cancelled_from_outside_stops_the_turn_and_unwinds(self):
+        """A redeploy: uvicorn drains, so the connection's own task tree is
+        cancelled while this is waiting. The turn must not be left running, and
+        the cancellation must not be swallowed - a `shutdown` that returned
+        normally here would report a clean drain over a turn still going."""
+        session = _session()
+        task = asyncio.create_task(asyncio.sleep(30))
+        session._turn_task = task
+
+        waiting = asyncio.create_task(session.shutdown())
+        await asyncio.sleep(0.01)
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+
+        assert task.cancelled()
 
 
 class TestTellingTheClientWhatThePersonCannotReach:
