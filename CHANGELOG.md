@@ -53,6 +53,26 @@ Two things are versioned separately from this file and worth knowing about:
   and `filters.parent_doc_id` is a 400 conflict. Programmatic callers sending any
   other filter string — which did nothing before — must move to `filters`.
 
+
+## [0.0.468] - 2026-09-18
+
+### Added
+
+- **An agent carries categories and tags, and the catalog filters by them.**
+  Anyone who may edit an agent can add, change and remove both through
+  `PATCH /agents/{id}/metadata`, and `GET /agents` narrows by repeatable
+  `category` and `tag` parameters - values OR within a facet, AND across them,
+  matched case-insensitively. They are metadata on the agent record rather than
+  part of the versioned spec, which is how the avatar already works: YAML export
+  and import are unchanged, no `SPEC_VERSION` moves, and nobody has to publish a
+  version to retag. Values are normalized once on the way in - trimmed,
+  whitespace-collapsed, case-folded, de-duplicated - and bounded at ten
+  categories and twenty tags of thirty-two characters each, a longer one
+  answering 422. The filter can only narrow what the caller could already see: it
+  adds a predicate to the listing query that already enforces the tenant and the
+  grants, so it cannot surface another organization's agent. Migration
+  `0087_agent_categories_tags`. (#1592)
+
 ## [0.0.467] - 2026-09-18
 
 ### Fixed

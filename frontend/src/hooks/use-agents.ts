@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
@@ -39,18 +40,30 @@ export interface PromoteSpecialist {
 export function useAgents({
   includeArchived = false,
   enabled = true,
-}: { includeArchived?: boolean; enabled?: boolean } = {}) {
+  categories = [],
+  tags = [],
+}: {
+  includeArchived?: boolean;
+  enabled?: boolean;
+  categories?: string[];
+  tags?: string[];
+} = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
+  // One canonicalization feeds both the key and the request, so a selection
+  // keys the cache exactly as it is sent. `canonicalFacet` sorts a copy - the
+  // arrays here are the caller's React state and must not be mutated.
+  const facetCategories = canonicalFacet(categories);
+  const facetTags = canonicalFacet(tags);
+
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.agents.list(includeArchived),
-    queryFn: () =>
-      apiClient.get<AgentList>(
-        "/agents",
-        includeArchived ? { params: { include_archived: "true" } } : undefined,
-      ),
+    queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
+    queryFn: () => {
+      const params = agentListParams(includeArchived, facetCategories, facetTags);
+      return apiClient.get<AgentList>("/agents", params ? { params } : undefined);
+    },
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -289,7 +302,33 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor };
+  /**
+   * Set the agent's discovery categories and tags.
+   *
+   * A command, not a spec edit: both facets are always meant and an empty list
+   * clears one, so it patches the row directly like the avatar. The raw typed
+   * values are sent and the server answers with the folded, de-duplicated,
+   * clamped `AgentRead` - the editor re-renders from that, so what the reader
+   * sees is exactly what was stored.
+   */
+  const setMetadata = useMutation({
+    mutationFn: ({ categories, tags }: { categories: string[]; tags: string[] }) =>
+      apiClient.patch<Agent>(`/agents/${agentId}/metadata`, { categories, tags }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return {
+    agent: data,
+    isLoading,
+    saveDraft,
+    validate,
+    publish,
+    rollback,
+    setAvatar,
+    setColor,
+    setMetadata,
+  };
 }
 
 /** What the history card shows at once - a page a reader can take in. */

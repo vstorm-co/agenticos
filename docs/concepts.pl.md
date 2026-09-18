@@ -1,5 +1,5 @@
 ---
-source_sha: "48d994ed75f4"
+source_sha: "e10c0995c043"
 ---
 
 # Koncepcje { #concepts }
@@ -53,6 +53,19 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
     instrukcje, capability i skille do zainstalowania. Nie nazywają żadnego
     modelu ani żadnej kolekcji, bo to są UUID-y, których nikt spoza twojego
     wdrożenia nie ma - i dlatego zainstalowany szablon jest draftem.
+
+!!! note "Categories i tagi są obok speca, a nie w nim"
+
+    Wiersz agenta niesie też edytowalne **categories** i **tagi** — lokalne dla
+    organizacji etykiety do wyszukiwania i filtrowania agentów. Podobnie jak
+    avatar, nie zmieniają ani tego, co agent uruchamia, ani znaczenia
+    eksportowanego YAML-a, więc otagowanie na nowo nie wymaga publikacji ani nowej
+    wersji; to metadane wiersza, a nie pole speca.
+
+    Pozostają poza przenośnym artefaktem, i o to właśnie chodzi w trzymaniu ich
+    poza specem: eksport speca nie emituje żadnych categories ani tagów, import
+    zostawia istniejące categories i tagi celu bez zmian (plik żadnych nie niesie,
+    więc ich nie czyści ani nie nadpisuje), a jedynie klon startuje bez tagów.
 
 ## Wersja { #version }
 

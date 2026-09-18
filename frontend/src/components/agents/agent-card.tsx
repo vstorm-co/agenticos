@@ -125,6 +125,24 @@ export function AgentCard({
                 {CHANNEL_LABEL[channel] ?? channel}
               </Badge>
             ))}
+            {(agent.categories ?? []).map((label) => (
+              <Badge
+                key={`c:${label}`}
+                variant="outline"
+                className="text-muted-foreground font-normal"
+              >
+                {label}
+              </Badge>
+            ))}
+            {(agent.tags ?? []).map((label) => (
+              <Badge
+                key={`t:${label}`}
+                variant="outline"
+                className="text-muted-foreground font-normal"
+              >
+                {label}
+              </Badge>
+            ))}
           </div>
         </div>
       </div>

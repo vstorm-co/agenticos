@@ -1,5 +1,5 @@
 ---
-source_sha: "bee20df52ff2"
+source_sha: "4af3be1ca985"
 ---
 
 # La API HTTP { #the-http-api }
@@ -77,6 +77,22 @@ La ruta lleva un **límite de frecuencia en lugar de una puerta de permisos**. E
 permiso se decide dentro del servicio, contra los grants de ese agent concreto —
 una puerta de rol en una ruta por recurso [no puede verlos](permissions.md).
 
+`PATCH /api/v1/agents/{id}/metadata` fija las **categories** y los **tags** de un
+agent con un cuerpo del estilo `{"categories": [...], "tags": [...]}`, donde una
+lista vacía borra esa faceta. Los valores se normalizan — recortados, con los
+espacios colapsados, plegados en mayúsculas/minúsculas y sin duplicados — y se
+acotan: como mucho 10 categories y 20 tags, cada uno de 32 caracteres como
+máximo, y un elemento más largo responde `422`. Igual que la ruta run, no lleva
+puerta de rol; decide la comprobación `agents:edit` con conciencia de grants
+dentro del servicio, así que un viewer con un grant de edición sobre un agent
+puede etiquetarlo.
+
+`GET /api/v1/agents` filtra ese catálogo con los parámetros de consulta
+repetibles `category` y `tag`: los valores se combinan con **OR dentro de una
+faceta** y **AND entre facetas**, con coincidencia sin distinguir
+mayúsculas/minúsculas (un valor de consulta se pliega como uno almacenado, y un
+valor en blanco se ignora). El filtro solo estrecha lo que ya podías ver — nunca
+cruza una frontera de tenant ni de grant.
 ## Los servicios de ML { #the-ml-services }
 
 Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin
