@@ -1491,8 +1491,9 @@ may lengthen it and never shorten it. **Nothing sweeps audit yet**: the period
 resolves and is reported and an organization is held to the floor, but no entry
 is deleted, because the hash chain and its append-only checkpoint are built on
 entries not going anywhere and a bare delete makes `audit-verify` report the
-retirement as tampering. Retiring a chain verifiably is
-[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+retirement as tampering. Retiring a chain and still being able to prove the rest
+intact is a mechanism nothing here has yet, so the floor holds and the sweep
+leaves audit alone.
 
 A ceiling still applies to audit where the two do not contradict each other. Where
 they do, the floor wins and the contradiction is reported. A trail an administrator can shorten is

@@ -1,5 +1,5 @@
 ---
-source_sha: "0666cb8070f1"
+source_sha: "d4f84c8f84f8"
 ---
 
 # Bezpieczeństwo { #security }
@@ -76,9 +76,13 @@ wprost, bo przegląd i tak to znajdzie:
   `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Przy domyślnym
   `local` jest to system plików kontenera API otwartym tekstem, chroniony
   wyłącznie szyfrowaniem wolumenu. Przy `s3` są obiektami w buckecie, który
-  nazywa wdrożenie, a każdy zapis prosi magazyn o ich zaszyfrowanie — SSE-S3 albo
-  SSE-KMS kluczem kontrolowanym przez klienta. `agenticos cmd doctor` wypisuje,
-  w którym z tych trzech stanów jest działające wdrożenie.
+  nazywa wdrożenie, a o co prosi każdy zapis, rozstrzyga
+  `FILE_STORAGE_S3_ENCRYPTION`: `sse-s3` domyślnie albo `sse-kms` kluczem
+  kontrolowanym przez klienta — albo `none`, które nie wysyła żadnego nagłówka
+  szyfrowania i istnieje dla magazynu zgodnego z S3 bez KMS za nim. Przy `none`
+  obiekty są zaszyfrowane dokładnie na tyle, na ile zrobi to ten magazyn, i ani
+  trochę bardziej. `agenticos cmd doctor` wypisuje, na którym backendzie stoi
+  działające wdrożenie.
 - **Treści wiadomości, `rag_documents` i ich wektory oraz workspace'y sandboksa**
   są przechowywane jako kolumny z tekstem jawnym, wiersze pgvector i pliki
   workspace'u. Vault pieczętuje poświadczenia, nie treść; ochrona tych rzeczy w

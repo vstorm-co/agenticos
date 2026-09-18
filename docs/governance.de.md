@@ -1,5 +1,5 @@
 ---
-source_sha: "85ef2c391a1b"
+source_sha: "9c8bdc69bd29"
 ---
 
 # Governance { #governance }
@@ -1697,8 +1697,9 @@ noch nicht weggeräumt**: die Frist wird aufgelöst und gemeldet und eine
 Organisation an die Untergrenze gehalten, aber kein Eintrag gelöscht - die
 Hash-Kette und ihr Append-only-Checkpoint stehen darauf, dass Einträge nirgendwo
 hingehen, und ein bloßes Löschen lässt `audit-verify` die Ausmusterung als
-Manipulation melden. Eine Kette nachprüfbar auszumustern ist
-[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+Manipulation melden. Eine Kette auszumustern und die Unversehrtheit der übrigen
+weiterhin beweisen zu können, ist ein Mechanismus, den es hier noch nicht gibt -
+also gilt die Untergrenze, und der Sweep lässt das Audit in Ruhe.
 
 Eine Obergrenze gilt für das Audit weiterhin, wo die beiden einander nicht
 widersprechen. Wo doch, gewinnt die Untergrenze, und der Widerspruch wird

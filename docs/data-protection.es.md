@@ -1,5 +1,5 @@
 ---
-source_sha: "e40b9a378fe0"
+source_sha: "45d48da31ced"
 ---
 
 # Protección de datos { #data-protection }
@@ -151,7 +151,7 @@ una laguna, y así queda dicho.
 | Acceso a una fila | Tres capas: administrador del deployment, rol en la organización, grant por recurso a través de `resolve_access`. Un control que quien llama no puede usar no se renderiza | Pruebas de rechazo en `tests/api/`; [Permisos](permissions.md#how-the-layers-combine) |
 | Leer el chat de otra persona | El propietario, una compartición explícita o el app admin del deployment — nunca un rol de la organización. Las conversaciones tienen su propia comprobación, `ConversationService._may_read`, en vez de la fórmula de grants | `admin_conversations.py` exige `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Credenciales en reposo | Cifrado de sobre por organización, claves maestras versionadas, rotación con ejecución en seco | [Secretos](secrets.md#what-never-happens), cuatro garantías fijadas por pruebas |
-| Contenido en reposo | **La aplicación no lo cifra.** Los datos de Postgres, `media_data` y la raíz de workspaces del sandbox dependen del cifrado de disco o volumen que tú aportes. La excepción son los ficheros subidos y de chat con `FILE_STORAGE_BACKEND=s3`: cada escritura pide al almacén que los cifre, SSE-S3 o SSE-KMS bajo una clave que tú tienes | Control del operador. [Configuración](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` indica en qué backend está un despliegue en marcha |
+| Contenido en reposo | **La aplicación no lo cifra.** Los datos de Postgres, `media_data` y la raíz de workspaces del sandbox dependen del cifrado de disco o volumen que tú aportes. La excepción son los ficheros subidos y de chat con `FILE_STORAGE_BACKEND=s3` y `FILE_STORAGE_S3_ENCRYPTION` en `sse-s3` (el valor por defecto) o `sse-kms` bajo una clave que tú tienes: cada escritura pide entonces al almacén que los cifre. Su tercer modo, `none`, no envía cabecera de cifrado y existe para un almacén compatible con S3 sin KMS | Control del operador. [Configuración](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` indica en qué backend está un despliegue en marcha |
 | En tránsito, entrante | HTTPS en tu proxy; `Strict-Transport-Security` cuando `ENVIRONMENT=production`; cookies de sesión `httpOnly`, y `secure` según el esquema de la petición al iniciar sesión y al refrescar. La ruta de cambio de contraseña pone `secure` solo en una build de producción | [Despliegue](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | En tránsito, hacia los almacenes | `POSTGRES_SSLMODE` y `REDIS_SSL`; `agenticos cmd doctor` informa de si la conexión que estableció iba cifrada | [Conexiones cifradas](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | En tránsito, hacia los providers | HTTPS a todo endpoint catalogado. Una `base_url` propia se rechaza sin host o con credenciales dentro, pero **`http://` se acepta**, para un Ollama o una pasarela en la propia red del deployment; un perfil en HTTP plano que apunte fuera de esa red envía los prompts y la clave en claro. El punto 4 de la lista de comprobación enumera todos esos perfiles | `refused_field("base_url", ...)` en el servicio de perfiles de modelo; el esquema es control del operador |
@@ -164,7 +164,7 @@ una laguna, y así queda dicho.
 | Prueba de no manipulación del rastro | Cada entrada se une a una cadena de hashes por organización, y cada cadena lleva un checkpoint en su marca más alta, de modo que una entrada reescrita, una cola cortada y una cadena borrada son todas detectables. `agenticos cmd audit-verify` las recorre y termina con código distinto de cero ante una rotura | [Gobernanza](governance.md#audit) (#1622, #1648). Detección, no prevención: quien tenga las credenciales de la propia base de datos puede volver a forjar una cadena o quitar el trigger que protege el checkpoint |
 | Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta, y un especialista de ese agent hereda el modo | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retención programada | Por organización y por clase —conversaciones y sus archivos, runs y manifiestos, workspaces, memoria de agentes, documentos subidos y auditoría— dentro de un valor por defecto, un techo y un suelo de auditoría de todo el despliegue. Un barrido diario borra de verdad y registra recuentos, nunca contenido. Las copias de seguridad y todo lo ya enviado a un colector externo quedan fuera. `notifications` no es una de esas clases: se barre con su propio calendario fijo en su lugar, una fila *leída* a los 90 días y cualquier fila al año sin importar el estado. Los propios `announcements` quedan excluidos, así que lo enviado sigue siendo consultable en el rastro de auditoría después de que sus entregas caduquen | [Retención](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; el barrido de notificaciones es `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
-| Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
+| Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía, desvincula los bytes de los adjuntos tras el commit y purga lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella, sus identidades de plataforma, sus workspaces. Borrar la memoria es también una llamada aparte, y alcanza a mem0 | [Qué alcanza un borrado](#what-deletion-reaches) para lo que se conserva a propósito; `test_personal_data.py` |
 | Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Todo lo demás que se guarda sobre ella vuelve de `GET /me/data/export`, acotado y auditado (#1421) |
 | Identidad corporativa | Inicio de sesión con Google, contraseñas y OIDC genérico contra el proveedor que ya tienes — configurado solo por discovery desde `OIDC_ISSUER`. Sin SAML ni SCIM | [Configuración](configuration.md); `OIDC_ISSUER` |
 | La matriz de controles que lee una revisión de seguridad | [Seguridad](security.md#controls-matrix) asigna a cada control su mecanismo y el test que lo sostiene, en el marco de HIPAA §164.312 y SOC 2 CC6–CC8; esta página y [Ponerlo en marcha](rollout.md#what-your-security-review-will-ask) son el resto | [Seguridad](security.md) (#1412) |
@@ -196,9 +196,9 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Acción | Elimina | Deja |
 |---|---|---|
-| `DELETE /conversations/{id}` (el propietario) | La conversación, sus mensajes, llamadas a herramientas, valoraciones, comparticiones y filas `chat_files`, en cascada; un workspace en contenedor se purga a través de `purge_for_conversation` | **Los bytes de los adjuntos bajo `MEDIA_DIR`.** Ninguna ruta borra un archivo de chat; el único camino de código que desenlaza uno descarta la subida huérfana de un bot de canal. Las filas de runs y los manifiestos que nombraban la conversación conservan su copia del prompt. Se sigue en [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| `DELETE /conversations/{id}` (el propietario) | La conversación, sus mensajes, llamadas a herramientas, valoraciones, comparticiones y filas `chat_files`, por cascada; los bytes de los adjuntos bajo `MEDIA_DIR`, recogidos antes del borrado y desvinculados tras su commit; los objetos de medios descargados de ese hilo, por prefijo; un workspace de contenedor mediante `purge_for_conversation` | Las filas de runs y los manifiestos que nombraron la conversación conservan su copia del prompt |
 | `DELETE /memory/person/{user_id}` (la persona, o `members:manage`) | Cada fila de `agent_memory_files` con clave en la persona a lo largo de todos los agents de la organización, y lo mismo en cada almacén mem0 vinculado | Las notas con clave en un chat de grupo en el que la persona habló |
-| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y archivos, por desmontaje explícito; conversaciones y archivos de chat en cascada | **La memoria de la persona** — `owner_key` es una cadena, no una clave ajena, así que las entradas de `agent_memory_files` y de mem0 sobreviven salvo que antes se haya ejecutado `DELETE /memory/person`. Las entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo; los mensajes en conversaciones compartidas; los bytes de adjuntos de arriba. El inventario de cada uno es el entregable de [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona |
 | Borrar un documento o una colección | Las filas, la tabla vectorial y el archivo almacenado, mediante un flow duradero tras el commit | Nada, una vez que el flow ha corrido; los recuentos de `sync_logs` permanecen |
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido | Las colecciones personales que solo llevaban el id |
 
@@ -234,8 +234,9 @@ pedirá la revisión, distinta de la capacidad técnica que la hace posible.
   por sí misma — y una regla de salida en el host de la sandbox si los agents
   pueden ejecutar comandos.
 - **Las páginas legales** a las que enlaza el deployment, y quién responde a una
-  solicitud de acceso o supresión mientras
-  [#1421](https://github.com/vstorm-co/agenticos/issues/1421) siga abierta.
+  solicitud de acceso o supresión. Los mecanismos están aquí — `GET
+  /me/data/export` y el borrado de la cuenta — pero quién recibe la solicitud y en
+  qué plazo es cosa del responsable.
 
 ## Verificar un deployment { #verifying-one-deployment }
 
@@ -276,14 +277,15 @@ definido en vez de imprimirse. `--older-than` es el periodo de retención que se
 está considerando, en días, y la última columna de su tabla de retención es lo
 que ese periodo ya habría eliminado.
 
-Su última sección es el recuento que predice
-[Qué alcanza el borrado](#what-deletion-reaches) en esta página: una fila de
-`chat_files` desaparece en cascada con su mensaje mientras los bytes se quedan,
-así que el número crece con cada conversación borrada hasta que
-[#1421](https://github.com/vstorm-co/agenticos/issues/1421) elimine ambos juntos.
-Las imágenes generadas y el directorio temporal de parseo quedan excluidos, ya
-que por diseño no tienen fila; todo lo demás que se cuenta ahí son bytes que el
-producto ya no encuentra y no puede borrar. Informa de un directorio y un
+Su última sección cuenta los bytes que ya no nombra ninguna fila. Borrar una
+conversación o una cuenta desvincula ahora sus adjuntos tras el commit, así que
+ese camino ya no suma; lo que todavía encuentra viene de antes de esos borrados,
+o de una desvinculación que un barrido best-effort no completó.
+
+Las imágenes
+generadas y el directorio temporal de parseo quedan excluidos, ya que por diseño
+no tienen fila; todo lo demás que se cuenta ahí son bytes que el producto ya no
+encuentra y no puede borrar. Informa de un directorio y un
 recuento en vez de un nombre de archivo, porque una ruta almacenada conserva el
 nombre con el que se subió el archivo.
 

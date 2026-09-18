@@ -1,5 +1,5 @@
 ---
-source_sha: "85ef2c391a1b"
+source_sha: "9c8bdc69bd29"
 ---
 
 # Governance { #governance }
@@ -1595,8 +1595,9 @@ i nigdy skrócić. **Audytu nic jeszcze nie zamiata**: okres się rozstrzyga i j
 raportowany, a organizacja jest trzymana przy podłodze, ale żaden wpis nie jest
 usuwany, bo łańcuch haszy i jego append-only checkpoint stoją na tym, że wpisy
 nigdzie nie idą, a gołe usunięcie sprawia, że `audit-verify` raportuje wycofanie
-jako manipulację. Weryfikowalne wycofywanie łańcucha to
-[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+jako manipulację. Wycofanie łańcucha z jednoczesnym udowodnieniem, że reszta jest
+nienaruszona, to mechanizm, którego tu jeszcze nie ma — więc podłoga obowiązuje, a
+sweep zostawia audyt w spokoju.
 
 Sufit dalej obowiązuje audyt tam, gdzie oba nie są sprzeczne. Tam, gdzie są,
 wygrywa podłoga, a sprzeczność jest raportowana. Ścieżka, którą administrator może skrócić, nie jest ścieżką,

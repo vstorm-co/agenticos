@@ -1,5 +1,5 @@
 ---
-source_sha: "e40b9a378fe0"
+source_sha: "45d48da31ced"
 ---
 
 # Datenschutz { #data-protection }
@@ -154,7 +154,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Zugriff auf eine Zeile | Drei Schichten: Deployment-Administrator, Rolle in der Organisation, Grant je Ressource über `resolve_access`. Ein Bedienelement, das der Aufrufer nicht nutzen darf, wird nicht gerendert | Ablehnungstests in `tests/api/`; [Berechtigungen](permissions.md#how-the-layers-combine) |
 | Den Chat einer anderen Person lesen | Besitzer, eine ausdrückliche Freigabe oder der App-Administrator des Deployments — nie eine Rolle in der Organisation. Conversations haben ihre eigene Prüfung, `ConversationService._may_read`, statt der Grant-Formel | `admin_conversations.py` verlangt `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Zugangsdaten im Ruhezustand | Envelope-Verschlüsselung je Organisation, versionierte Masterschlüssel, Rotation mit Trockenlauf | [Secrets](secrets.md#what-never-happens), vier durch Tests festgenagelte Garantien |
-| Inhalte im Ruhezustand | **Von der Anwendung nicht verschlüsselt.** Die Postgres-Daten, `media_data` und das Workspace-Wurzelverzeichnis der Sandbox verlassen sich auf die Platten- oder Volume-Verschlüsselung, die Sie bereitstellen. Ausnahme sind hochgeladene und Chat-Dateien bei `FILE_STORAGE_BACKEND=s3`: Jeder Schreibvorgang bittet den Store, sie zu verschlüsseln, SSE-S3 oder SSE-KMS unter einem Schlüssel, den Sie halten | Sache des Betreibers. [Konfiguration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` nennt das Backend, auf dem ein laufendes Deployment steht |
+| Inhalte im Ruhezustand | **Von der Anwendung nicht verschlüsselt.** Die Postgres-Daten, `media_data` und das Workspace-Wurzelverzeichnis der Sandbox verlassen sich auf die Platten- oder Volume-Verschlüsselung, die Sie bereitstellen. Ausnahme sind hochgeladene und Chat-Dateien bei `FILE_STORAGE_BACKEND=s3` und `FILE_STORAGE_S3_ENCRYPTION` auf `sse-s3` (der Voreinstellung) oder `sse-kms` unter einem Schlüssel, den Sie halten: Jeder Schreibvorgang bittet den Store dann, sie zu verschlüsseln. Der dritte Modus, `none`, sendet keinen Verschlüsselungs-Header und existiert für einen S3-kompatiblen Store ohne KMS | Sache des Betreibers. [Konfiguration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` nennt das Backend, auf dem ein laufendes Deployment steht |
 | Auf dem Transportweg, eingehend | HTTPS an Ihrem Proxy; `Strict-Transport-Security`, wenn `ENVIRONMENT=production`; Session-Cookies `httpOnly`, und `secure` aus dem Schema der Anfrage bei Anmeldung und Refresh. Die Route für den Passwortwechsel setzt `secure` nur in einem Produktions-Build | [Deploy](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | Auf dem Transportweg, zu den Speichern | `POSTGRES_SSLMODE` und `REDIS_SSL`; `agenticos cmd doctor` meldet, ob die hergestellte Verbindung verschlüsselt war | [Verschlüsselte Verbindungen](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | Auf dem Transportweg, zu den Providern | HTTPS zu jedem katalogisierten Endpunkt. Eine eigene `base_url` wird ohne Host oder mit Zugangsdaten darin abgelehnt, aber **`http://` wird akzeptiert**, für ein Ollama oder ein Gateway im Netz des Deployments selbst; ein Klartext-HTTP-Profil, das aus diesem Netz hinauszeigt, sendet Prompts und Schlüssel im Klartext. Punkt 4 der Checkliste listet jedes solche Profil | `refused_field("base_url", ...)` im Model-Profile-Service; das Schema ist Sache des Betreibers |
@@ -167,7 +167,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Manipulationsnachweis der Spur | Jeder Eintrag gehört zu einer Hash-Kette je Organisation, und jede Kette trägt einen Checkpoint auf ihrem höchsten Stand, damit ein umgeschriebener Eintrag, ein gekapptes Ende und eine gelöschte Kette allesamt erkennbar sind. `agenticos cmd audit-verify` läuft sie ab und endet bei einem Bruch mit einem Exit-Code ungleich null | [Governance](governance.md#audit) (#1622, #1648). Erkennung, keine Verhinderung: wer die Zugangsdaten der Datenbank selbst hat, schmiedet eine Kette neu oder entfernt den Trigger, der den Checkpoint schützt |
 | Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen, und ein Spezialist dieses Agents erbt den Modus | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Aufbewahrung nach Zeitplan | Je Organisation und je Klasse — Gespräche und ihre Dateien, Runs und Manifeste, Workspaces, das Gedächtnis von Agenten, hochgeladene Dokumente und Audit — innerhalb einer deploymentweiten Vorgabe, Obergrenze und Audit-Untergrenze. Ein täglicher Sweep löscht hart und hält Zähler fest, nie Inhalte. Backups und alles bereits an einen externen Collector Geschickte liegen außerhalb. `notifications` gehört nicht zu diesen Klassen: Es wird stattdessen nach einem eigenen festen Zeitplan geräumt — eine *gelesene* Zeile nach 90 Tagen, jede Zeile nach einem Jahr in jedem Fall. `announcements` selbst sind ausgenommen, sodass das Gesendete über die Audit-Spur beantwortbar bleibt, nachdem seine Zustellungen gealtert sind | [Aufbewahrung](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; der Notification-Sweep ist `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
-| Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
+| Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde, löst die Anhang-Bytes nach dem Commit und räumt weg, was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben, ihre Plattform-Identitäten, ihre Workspaces. Die Löschung des Gedächtnisses ist ebenfalls ein eigener Aufruf und erreicht mem0 | [Was eine Löschung erreicht](#what-deletion-reaches) für das bewusst Aufbewahrte; `test_personal_data.py` |
 | Zugang zu den eigenen Daten | Eine Person liest unter Einstellungen → Gedächtnis alles, was jeder Agent hier über sie aufgeschrieben hat, und kann eine Notiz stilllegen, wiederherstellen oder löschen. Den Speicher *einer anderen Person* zu lesen steht allein der Deployment-Administratorin zu - keiner Organisationsrolle - und wird mit Akteurin, Tenant, Person und Begründung auditiert, nie mit Inhalt. Externe Speicher (mem0) werden genannt statt gelistet | [Lesen und löschen](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Alles andere, was über sie gehalten wird, kommt aus `GET /me/data/export` zurück, begrenzt und auditiert (#1421) |
 | Unternehmensidentität | Google-Anmeldung, Passwörter und generisches OIDC gegen den Provider, den Sie ohnehin betreiben - allein per Discovery aus `OIDC_ISSUER` konfiguriert. Kein SAML, kein SCIM | [Konfiguration](configuration.md); `OIDC_ISSUER` |
 | Die Kontrollmatrix, die eine Sicherheitsprüfung liest | [Sicherheit](security.md#controls-matrix) ordnet jeder Kontrolle ihren Mechanismus und den Test zu, der ihn hält, im Rahmen von HIPAA §164.312 und SOC 2 CC6–CC8; diese Seite und [Einführen](rollout.md#what-your-security-review-will-ask) sind der Rest | [Sicherheit](security.md) (#1412) |
@@ -200,9 +200,9 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Aktion | Entfernt | Lässt zurück |
 |---|---|---|
-| `DELETE /conversations/{id}` (der Besitzer) | Die Conversation, ihre Nachrichten, Tool-Aufrufe, Bewertungen, Freigaben und `chat_files`-Zeilen, per Kaskade; ein Container-Workspace wird über `purge_for_conversation` gesäubert | **Die Bytes der Anhänge unter `MEDIA_DIR`.** Keine Route löscht eine Chat-Datei; der einzige Codepfad, der eine solche entfernt, verwirft den verwaisten Upload eines Kanal-Bots. Run-Zeilen und Manifeste, die die Conversation benannten, behalten ihre Prompt-Kopie. Verfolgt in [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| `DELETE /conversations/{id}` (der Besitzer) | Die Conversation, ihre Nachrichten, Tool-Aufrufe, Bewertungen, Freigaben und `chat_files`-Zeilen per Kaskade; die Anhang-Bytes unter `MEDIA_DIR`, vor dem Löschen eingesammelt und nach dessen Commit gelöst; die aus diesem Thread ausgelagerten Medienobjekte per Präfix; ein Container-Workspace über `purge_for_conversation` | Run-Zeilen und Manifeste, die die Conversation benannten, behalten ihre Prompt-Kopie |
 | `DELETE /memory/person/{user_id}` (die Person oder `members:manage`) | Jede `agent_memory_files`-Zeile, die auf die Person geschlüsselt ist, über alle Agents der Organisation hinweg, und dasselbe in jedem gebundenen mem0-Speicher | Notizen, die auf einen Gruppenchat geschlüsselt sind, in dem die Person gesprochen hat |
-| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönlichen Collections samt ihren Vektortabellen und Dateien, durch ausdrücklichen Abbau; Conversations und Chat-Dateien per Kaskade | **Das Memory der Person** — `owner_key` ist ein String und kein Fremdschlüssel, `agent_memory_files`- und mem0-Einträge überleben also, sofern nicht zuvor `DELETE /memory/person` lief. Audit-Einträge, die die Akteurs-Id und bei manchen Aktionen die E-Mail nennen; Nachrichten in geteilten Conversations; die Anhang-Bytes von oben. Die Inventur davon ist das Ergebnis von [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören |
 | Ein Dokument oder eine Collection löschen | Die Zeilen, die Vektortabelle und die gespeicherte Datei, über einen dauerhaften Flow nach dem Commit | Nichts, sobald der Flow gelaufen ist; die Zählstände in `sync_logs` bleiben |
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau | Persönliche Collections, die die Id lediglich mitführten |
 
@@ -240,8 +240,9 @@ macht.
   verschlüsselt — und eine Egress-Regel auf dem Sandbox-Host, wenn Agents
   Kommandos ausführen dürfen.
 - **Die Rechtsseiten**, auf die das Deployment verlinkt, und wer eine Auskunfts-
-  oder Löschanfrage beantwortet, solange
-  [#1421](https://github.com/vstorm-co/agenticos/issues/1421) offen ist.
+  oder Löschanfrage beantwortet. Die Mechanismen stehen hier - `GET
+  /me/data/export` und die Kontolöschung - aber wer die Anfrage entgegennimmt und
+  in welcher Frist, ist Sache des Verantwortlichen.
 
 ## Ein Deployment prüfen { #verifying-one-deployment }
 
@@ -283,12 +284,11 @@ gesetzt oder ungesetzt gemeldet statt ausgegeben. `--older-than` ist die
 betrachtete Aufbewahrungsfrist in Tagen, und die letzte Spalte seiner
 Aufbewahrungstabelle ist das, was diese Frist bereits entfernt hätte.
 
-Sein letzter Abschnitt ist die Zahl, die
-[Was das Löschen erreicht](#what-deletion-reaches) auf dieser Seite vorhersagt:
-eine `chat_files`-Zeile verschwindet mit ihrer Nachricht per Kaskade, während die
-Bytes bleiben, die Zahl wächst also mit jeder gelöschten Konversation, bis
-[#1421](https://github.com/vstorm-co/agenticos/issues/1421) beide zusammen
-entfernt. Generierte Bilder und das Parse-Arbeitsverzeichnis sind
+Sein letzter Abschnitt zählt die Bytes, die keine Zeile mehr benennt. Das Löschen
+einer Konversation oder eines Kontos löst deren Anhänge jetzt nach dem Commit, so
+dass dieser Weg nichts mehr hinzufügt; was er noch findet, stammt aus der Zeit vor
+diesen Löschungen oder aus einem Lösen, das ein Best-Effort-Sweep nicht zu Ende
+gebracht hat. Generierte Bilder und das Parse-Arbeitsverzeichnis sind
 ausgenommen - sie haben von vornherein keine Zeile; alles andere, was dort
 gezählt wird, sind Bytes, die das Produkt nicht mehr findet und nicht löschen
 kann. Er meldet ein Verzeichnis und eine Zahl statt eines Dateinamens, denn ein

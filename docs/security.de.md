@@ -1,5 +1,5 @@
 ---
-source_sha: "0666cb8070f1"
+source_sha: "d4f84c8f84f8"
 ---
 
 # Sicherheit { #security }
@@ -83,10 +83,13 @@ steht hier klar, weil eine Prüfung es findet:
   `FILE_STORAGE_BACKEND` sie legt (`app/services/file_storage.py`). Bei `local`,
   der Voreinstellung, ist das im Klartext das Dateisystem des API-Containers,
   geschützt nur durch Volume-Verschlüsselung. Bei `s3` sind es Objekte in einem
-  Bucket, den das Deployment benennt, und jeder Schreibvorgang bittet den
-  Speicher, sie zu verschlüsseln — SSE-S3 oder SSE-KMS unter einem Schlüssel, den
-  der Kunde kontrolliert. `agenticos cmd doctor` gibt aus, in welchem der drei
-  Zustände ein laufendes Deployment ist.
+  Bucket, den das Deployment benennt, und worum jeder Schreibvorgang bittet,
+  entscheidet `FILE_STORAGE_S3_ENCRYPTION`: `sse-s3` als Voreinstellung oder
+  `sse-kms` unter einem Schlüssel, den der Kunde kontrolliert — oder `none`, das
+  gar keinen Verschlüsselungs-Header sendet und für einen S3-kompatiblen Speicher
+  ohne KMS dahinter existiert. Bei `none` sind die Objekte genau so verschlüsselt,
+  wie dieser Speicher es tut, und nicht mehr. `agenticos cmd doctor` gibt aus, auf
+  welchem Backend ein laufendes Deployment steht.
 - **Nachrichteninhalte, `rag_documents` samt Vektoren und Sandbox-Workspaces**
   werden als Klartextspalten, pgvector-Zeilen und Workspace-Dateien gespeichert.
   Der Vault versiegelt Credentials, keine Inhalte; der Schutz im Ruhezustand ist

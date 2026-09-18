@@ -70,10 +70,13 @@ plainly because a review will find it:
 - **Uploaded and chat files** sit wherever `FILE_STORAGE_BACKEND` puts them
   (`app/services/file_storage.py`). On `local`, the default, that is the API
   container's filesystem in the clear, protected only by volume encryption. On
-  `s3` they are objects in a bucket the deployment names, and every write asks
-  the store to encrypt them — SSE-S3, or SSE-KMS under a key the client
-  controls. `agenticos cmd doctor` prints which of the three a running
-  deployment is in.
+  `s3` they are objects in a bucket the deployment names, and
+  `FILE_STORAGE_S3_ENCRYPTION` decides what each write asks for: `sse-s3`, the
+  default, or `sse-kms` under a key the client controls — or `none`, which sends
+  no encryption header at all and exists for an S3-compatible store with no KMS
+  behind it. On `none` the objects are as encrypted as that store makes them and
+  no more. `agenticos cmd doctor` prints which backend a running deployment is
+  in.
 - **Message bodies, `rag_documents` and their vectors, and sandbox workspaces**
   are stored as plaintext columns, pgvector rows and workspace files. The vault
   seals credentials, not content; at-rest protection for these is disk-level.

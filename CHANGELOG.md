@@ -29,9 +29,15 @@ Two things are versioned separately from this file and worth knowing about:
   by discovery; the erasure row described attachment bytes outliving their
   owner's deletion, which the paths-collected-then-unlinked purge fixed; and the
   at-rest row named the S3 backend with server-side encryption as an open issue
-  rather than a setting. A matrix that under-reports is as unusable to a
-  reviewer as one that overstates. All four rows, their three translations, and
-  the stale open-conditions list are corrected. (#1424)
+  rather than a setting - and overstated it, since that backend's third mode
+  sends no encryption header at all. A matrix that under-reports is as unusable
+  to a reviewer as one that overstates. All of it, the erasure inventory it
+  contradicted, the governance page that still called the shipped hash chain
+  future work, and every translation, are corrected. (#1424)
+- **The HIPAA sheet's `sso` control passed on an issuer alone.** `OIDC_ISSUER`
+  set without `OIDC_CLIENT_ID` builds no client and the sign-in route answers
+  404, so the sheet attested a sign-in nobody could perform. It now reads the
+  same pair the sign-in path does. (#1424)
 
 ## [0.0.471] - 2026-09-18
 

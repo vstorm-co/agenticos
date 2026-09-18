@@ -1,5 +1,5 @@
 ---
-source_sha: "85ef2c391a1b"
+source_sha: "9c8bdc69bd29"
 ---
 
 # Governance { #governance }
@@ -1561,8 +1561,11 @@ alargarlo y nunca acortarlo. **La auditoría todavía no se barre**: el periodo 
 resuelve y se informa, y una organización queda sujeta al suelo, pero no se borra
 ninguna entrada, porque la cadena de hashes y su checkpoint append-only se apoyan
 en que las entradas no se van a ninguna parte, y un borrado a secas hace que
-`audit-verify` informe la retirada como manipulación. Retirar una cadena de forma
-verificable es [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+`audit-verify` informe la retirada como manipulación.
+
+Retirar una cadena y poder seguir demostrando que el resto está intacto es un
+mecanismo que aquí todavía no existe, así que el suelo se mantiene y el barrido
+deja la auditoría en paz.
 
 Un techo sigue aplicándose a la auditoría donde ambos no se contradicen. Donde sí,
 gana el suelo y la contradicción se informa. Un rastro que una administradora puede acortar no es

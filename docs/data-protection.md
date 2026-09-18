@@ -144,7 +144,7 @@ one.
 | Access to a row | Three layers: deployment admin, organization role, per-resource grant through `resolve_access`. A control the caller may not use is not rendered | `tests/api/` refusal tests; [Permissions](permissions.md#how-the-layers-combine) |
 | Reading another person's chat | Owner, an explicit share, or the deployment's app admin - never an organization role. Conversations have their own check, `ConversationService._may_read`, rather than the grant formula | `admin_conversations.py` requires `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Credentials at rest | Envelope encryption per organization, versioned master keys, rotation with a dry run | [Secrets](secrets.md#what-never-happens), four guarantees pinned by tests |
-| Content at rest | **Not encrypted by the application.** Postgres data, `media_data` and the sandbox workspace root rely on disk or volume encryption you provide. Uploaded and chat files are the exception when `FILE_STORAGE_BACKEND=s3`: every write asks the store to encrypt them, SSE-S3 or SSE-KMS under a key you hold | Operator control. [Configuration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` prints which backend a running deployment is on |
+| Content at rest | **Not encrypted by the application.** Postgres data, `media_data` and the sandbox workspace root rely on disk or volume encryption you provide. Uploaded and chat files are the exception when `FILE_STORAGE_BACKEND=s3` and `FILE_STORAGE_S3_ENCRYPTION` is `sse-s3` (the default) or `sse-kms` under a key you hold: each write then asks the store to encrypt them. Its third mode, `none`, sends no encryption header and exists for an S3-compatible store with no KMS | Operator control. [Configuration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` prints which backend a running deployment is on |
 | In transit, inbound | HTTPS at your proxy; `Strict-Transport-Security` when `ENVIRONMENT=production`; session cookies `httpOnly`, and `secure` from the request scheme on sign-in and refresh. The password-change route sets `secure` only in a production build | [Deploy](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | In transit, to the stores | `POSTGRES_SSLMODE` and `REDIS_SSL`; `agenticos cmd doctor` reports whether the connection it made was encrypted | [Encrypted connections](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | In transit, to providers | HTTPS to every catalogued endpoint. A custom `base_url` is refused without a host or with credentials in it, but **`http://` is accepted**, for an Ollama or a gateway on the deployment's own network; a plain-HTTP profile pointing off that network sends prompts and the key in clear. Item 4 of the checklist lists every such profile | `refused_field("base_url", ...)` in the model profile service; operator control for the scheme |
@@ -157,7 +157,7 @@ one.
 | Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
 | Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
-| Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
+| Erasure of one person | Account deletion reconciles what would block it, unlinks the attachment bytes after the commit, and purges what no cascade reaches - the notes agents wrote about them, their platform identities, their user-scoped workspaces. Memory erasure is also a call of its own, and reaches mem0 | [What deletion reaches](#what-deletion-reaches) for what is deliberately retained; `test_personal_data.py` |
 | Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Everything else held about them comes back from `GET /me/data/export`, bounded and audited (#1421) |
 | Enterprise identity | Google sign-in, passwords, and generic OIDC against the provider you already run - configured by discovery from `OIDC_ISSUER` alone. No SAML or SCIM | [Configuration](configuration.md); `OIDC_ISSUER` |
 | The controls matrix a security review reads | [Security](security.md#controls-matrix) maps each control to its mechanism and the test holding it, framed against HIPAA §164.312 and SOC 2 CC6–CC8; this page and [Rolling it out](rollout.md#what-your-security-review-will-ask) are the rest | [Security](security.md) (#1412) |
@@ -187,9 +187,9 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Action | Removes | Leaves |
 |---|---|---|
-| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade; a container workspace is purged through `purge_for_conversation` | **The attachments' bytes under `MEDIA_DIR`.** No route deletes a chat file; the only code path that unlinks one discards a channel bot's orphaned upload. Run rows and manifests that named the conversation keep their prompt copy. Tracked in [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy |
 | `DELETE /memory/person/{user_id}` (the person, or `members:manage`) | Every `agent_memory_files` row keyed to the person across the organization's agents, and the same in each bound mem0 store | Notes keyed to a group chat the person spoke in |
-| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations and chat files by cascade | **The person's memory** - `owner_key` is a string, not a foreign key, so `agent_memory_files` and mem0 entries survive unless `DELETE /memory/person` ran first. Audit entries naming the actor id and, for some actions, the email; messages in shared conversations; the attachment bytes above. The inventory of each is [#1421](https://github.com/vstorm-co/agenticos/issues/1421)'s deliverable |
+| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations and chat files by cascade; their bytes, unlinked after the commit; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns |
 | Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
 | Deleting an organization | Everything scoped to it, with the same deferred teardown | Personal collections that merely carried the id |
 
@@ -222,8 +222,9 @@ ask for, distinct from the technical capability that makes it possible.
   sandbox host, since the application does not encrypt content itself - and an
   egress rule on the sandbox host if agents may run commands.
 - **The legal pages** the deployment links to, and who answers an access or
-  erasure request while [#1421](https://github.com/vstorm-co/agenticos/issues/1421)
-  is open.
+  erasure request. The mechanisms are here - `GET /me/data/export` and account
+  deletion - but who receives the request and within what deadline is the
+  controller's to state.
 
 ## Verifying one deployment
 
@@ -261,14 +262,12 @@ a setting holding a credential is reported as set or unset rather than printed.
 last column of its retention table is what that period would already have
 removed.
 
-Its last section is the count this page's
-[What deletion reaches](#what-deletion-reaches) predicts: a `chat_files` row
-cascades away with its message while the bytes stay, so the number grows with
-every deleted conversation until
-[#1421](https://github.com/vstorm-co/agenticos/issues/1421) removes the two
-together. Generated images and the parse scratch directory are excluded, having
-no row by design; everything else counted there is bytes the product can no
-longer find and cannot delete. It reports a directory and a count rather than a
+Its last section counts the bytes no row names any more. Deleting a conversation
+or an account now unlinks their attachments after the commit, so that path no
+longer adds to it; what it still finds is what predates those deletes, plus an
+unlink a best-effort sweep did not complete. Generated images and the parse
+scratch directory are excluded, having no row by design; everything else counted
+there is bytes the product can no longer find and cannot delete. It reports a directory and a count rather than a
 filename, because a stored path keeps the name the file was uploaded under.
 
 Two sections are read off what runs rather than off a table. **Capability

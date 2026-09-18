@@ -21,7 +21,7 @@ import pytest
 
 from app.core.config import settings
 from app.services import deployment_profile as MODULE
-from app.services.deployment_profile import AUDIT_FLOOR_DAYS, evaluate
+from app.services.deployment_profile import AUDIT_FLOOR_DAYS, evaluate, sso_issuer
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -62,15 +62,41 @@ async def _sheet(
 ) -> dict[str, tuple[str, str]]:
     """The sheet as a lookup, with settings and the issuer seam patched.
 
-    `issuer` goes through `sso_issuer` rather than the settings object: the
-    setting arrives with #1419, and a pydantic settings model refuses an
-    attribute it does not declare.
+    `issuer` goes through `sso_issuer` rather than the settings object, so a
+    test about a control's *outcome* does not restate which settings compose
+    into one; `TestWhatCountsAsConfiguredSso` covers that composition directly.
     """
     for name, value in overrides.items():
         monkeypatch.setattr(settings, name, value)
     if issuer is not None:
         monkeypatch.setattr(MODULE, "sso_issuer", lambda: issuer)
     return {row.key: (row.outcome, row.detail) for row in await evaluate(db, "hipaa")}
+
+
+class TestWhatCountsAsConfiguredSso:
+    """`sso_issuer` is the seam the sheet reads, and it answers for a sign-in
+    that can actually happen rather than for a setting that is merely present."""
+
+    def test_an_issuer_and_a_client_id_is_configured(self, monkeypatch) -> None:
+        monkeypatch.setattr(settings, "OIDC_ISSUER", "https://id.corp.example")
+        monkeypatch.setattr(settings, "OIDC_CLIENT_ID", "agenticos")
+
+        assert sso_issuer() == "https://id.corp.example"
+
+    def test_an_issuer_without_a_client_id_is_not(self, monkeypatch) -> None:
+        """`app.core.oauth._oidc` returns `None` without a client id and the
+        sign-in route answers 404, so a control reading "met" off the issuer
+        alone would attest a sign-in nobody can perform."""
+        monkeypatch.setattr(settings, "OIDC_ISSUER", "https://id.corp.example")
+        monkeypatch.setattr(settings, "OIDC_CLIENT_ID", "")
+
+        assert sso_issuer() == ""
+
+    def test_neither_is_not(self, monkeypatch) -> None:
+        monkeypatch.setattr(settings, "OIDC_ISSUER", "")
+        monkeypatch.setattr(settings, "OIDC_CLIENT_ID", "")
+
+        assert sso_issuer() == ""
 
 
 class TestInTransit:

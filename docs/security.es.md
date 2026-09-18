@@ -1,5 +1,5 @@
 ---
-source_sha: "0666cb8070f1"
+source_sha: "d4f84c8f84f8"
 ---
 
 # Seguridad { #security }
@@ -80,10 +80,12 @@ sin rodeos porque una revisión lo va a encontrar:
   `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Con `local`, el valor
   por defecto, eso es en claro en el sistema de archivos del contenedor de la
   API, protegido solo por el cifrado del volumen. Con `s3` son objetos en un
-  bucket que nombra el despliegue, y cada escritura pide al almacén que los
-  cifre — SSE-S3, o SSE-KMS bajo una clave que controla el cliente.
-  `agenticos cmd doctor` indica en cuál de los tres está un despliegue en
-  marcha.
+  bucket que nombra el despliegue, y lo que pide cada escritura lo decide
+  `FILE_STORAGE_S3_ENCRYPTION`: `sse-s3` por defecto o `sse-kms` bajo una
+  clave que controla el cliente — o `none`, que no envía ninguna cabecera de
+  cifrado y existe para un almacén compatible con S3 sin KMS detrás. Con `none`
+  los objetos están tan cifrados como los cifre ese almacén, y nada más.
+  `agenticos cmd doctor` indica en qué backend está un despliegue en marcha.
 - **Los cuerpos de los mensajes, `rag_documents` y sus vectores, y los workspaces
   del sandbox** se guardan como columnas en texto plano, filas de pgvector y
   archivos del workspace. El vault sella credenciales, no contenido; la

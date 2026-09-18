@@ -350,10 +350,16 @@ async def _agents_exporting_traces(db: AsyncSession) -> list[str]:
 def sso_issuer() -> str:
     """The identity provider this deployment signs people in through, if any.
 
-    Empty is the honest answer for a deployment that has configured none, and
-    what makes the control read unmet rather than unknown: generic OIDC sign-in
-    exists (#1419), so an unset issuer is a choice rather than a missing feature.
+    The same two settings `app.core.oauth._oidc` requires, and for the reason
+    the sheet exists: with an issuer but no client id that function returns
+    `None` and the sign-in route answers 404, so a control reading "met" off the
+    issuer alone would attest a sign-in nobody can perform. Empty is the honest
+    answer for a deployment that configured none, and what makes the control read
+    unmet rather than unknown: generic OIDC sign-in exists (#1419), so an unset
+    issuer is a choice rather than a missing feature.
     """
+    if not settings.OIDC_CLIENT_ID:
+        return ""
     return str(settings.OIDC_ISSUER or "")
 
 
