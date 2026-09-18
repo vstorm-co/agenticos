@@ -603,6 +603,7 @@ class TestTheSweep:
         assert repo["delete_documents"].await_args.kwargs["document_ids"] == [document_id]
         assert results[0].removed["knowledge_documents"] == 1
 
+    @pytest.mark.security
     async def test_the_collections_tenant_reaches_the_remover_not_the_sweeping_org(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
