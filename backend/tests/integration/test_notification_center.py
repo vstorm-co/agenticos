@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.permissions import AuthContext
 from app.db.models.announcement import Announcement
@@ -667,6 +667,89 @@ class TestSavepointSafety:
         db.add(await _user(db))
         await db.flush()
 
+    async def test_a_failed_preference_read_under_a_savepoint_leaves_the_session_usable(
+        self, db, monkeypatch
+    ):
+        """The preference reads run before any per-recipient savepoint, so a
+        statement that fails there - a timeout, a cancellation - would abort
+        the caller's whole PostgreSQL transaction and take the terminal run
+        update with it. They get a savepoint of their own instead, and the
+        write is abandoned rather than sent on preferences nobody read."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            # A statement error, not a Python one: what PostgreSQL leaves
+            # behind is the failed-transaction state a savepoint is what
+            # recovers from.
+            await db.execute(text("SELECT 1 FROM no_such_table"))
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-pref-read-fails",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+
+        assert written == []
+        # The caller's own transaction survived it, which is the whole contract.
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_a_preference_read_that_raises_outright_is_logged_and_abandoned(
+        self, db, monkeypatch
+    ):
+        """The same boundary as above, reached by a plain Python failure rather
+        than a statement error - the branch is the same one either way, and this
+        is the shape a `coverage.py` tracer can still follow across
+        SQLAlchemy's greenlet bridge."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("preference read failed")
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+
+        written = await NotificationCenterService(db).write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-pref-read-raises-savepoint",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+
+        assert written == []
+        db.add(await _user(db))
+        await db.flush()
+
+    async def test_a_failed_preference_read_without_a_savepoint_propagates(self, db, monkeypatch):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("preference read failed")
+
+        monkeypatch.setattr(notification_repo, "get_channel_preferences", boom)
+
+        with pytest.raises(RuntimeError):
+            await NotificationCenterService(db).write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id="run-pref-read-raises",
+                summary="Run completed",
+                organization_id=org.id,
+            )
+
     async def test_a_failed_write_without_a_savepoint_propagates(self, db):
         service = NotificationCenterService(db)
         with pytest.raises(Exception):  # noqa: B017 - an IntegrityError from asyncpg, not ours to name
@@ -924,6 +1007,41 @@ class TestReadGateCollectionsView:
             _ctx(member, org, role="member"), after=None, limit=10
         )
         assert member_rows == []
+
+    async def test_an_app_admin_sees_the_ingestion_notice_they_were_addressed(self, db):
+        """`_administrator_ids` includes every app admin when an ingestion has
+        no initiator, and an app admin holds no membership row anywhere - so
+        `readable_kb`'s `resolve_access` refused the collection on the
+        organization mismatch alone and hid a row they were deliberately
+        written. Every other gate in `gate_for` already admits them."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb = await self._kb(db, org, owner)
+        elsewhere_owner = await _user(db)
+        elsewhere = await _org(db, elsewhere_owner)
+        app_admin = await _user(db, is_app_admin=True)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[app_admin.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-app-admin:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(kb.id)},
+            organization_id=org.id,
+        )
+
+        rows, _, _ = await service.list_inbox(
+            AuthContext(
+                user_id=app_admin.id,
+                organization_id=elsewhere.id,
+                role="member",
+                is_app_admin=True,
+            ),
+            after=None,
+            limit=10,
+        )
+
+        assert len(rows) == 1
 
     async def test_an_org_admin_cannot_see_a_colleagues_personal_collection_notice(self, db):
         """A personal knowledge base is owner-only by construction
@@ -1223,6 +1341,28 @@ class TestReadGateAnnouncementAudience:
         )
         rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert len(rows) == 1
+
+    async def test_an_audience_that_is_not_a_collection_at_all_is_skipped(self, db):
+        """One level up from the malformed *entry* above: the collection
+        itself can be any JSON value, and iterating a number raises a
+        `TypeError` that takes down every inbox read touching this row."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": 1, "role": None}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+
+        assert rows == []
 
     async def test_a_row_with_no_announcement_id_is_excluded(self, db):
         owner = await _user(db)

@@ -1,5 +1,5 @@
 ---
-source_sha: "ba5e921f6c7c"
+source_sha: "de15667a3ec2"
 ---
 
 # Protección de datos { #data-protection }
@@ -86,7 +86,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota | Budgets, aprobaciones, historial de runs |
 | `agent_triggers` | Runs programados y disparados por eventos | El prompt y la configuración y el filtro del origen de eventos | Ejecutar un agent sin una persona |
 | `app_admin_audit_logs` | Quién cambió accesos o gastó dinero — el rastro de la organización y el del administrador del deployment comparten tabla | Actor, suplantador, dirección IP, la acción y un mapa `details`. El mapa nombra sobre todo campos, pero algunas entradas guardan valores: el correo de la cuenta suplantada, el correo de una cuenta que un administrador borró, una nota de publicación | Rendición de cuentas. Consulta [Gobernanza](governance.md#audit) |
-| `notifications`, `notification_deliveries` | Cada fila en la app y su envío por correo | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade su canal, estado, intentos y un motivo de fallo depurado — nunca el texto de error del provider | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
+| `notifications`, `notification_deliveries` | Cada notificación dirigida a alguien y su envío por correo. La fila se escribe incluso cuando el destinatario ha desactivado todos los canales para ese evento — es lo que impide escribir dos veces la misma ocurrencia — y simplemente no se muestra ni se envía nunca; solo la fila de envío es condicional | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade su canal, estado, intentos y un motivo de fallo depurado — nunca el texto de error del provider | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que solo se puede reconstruir a partir de `notifications` hasta que esa fila caduca en [el barrido de retención de notificaciones](governance.md#alerts) — después de lo cual la entrada de audit detrás de ella conserva solo un recuento, nunca los destinatarios | Exclusión voluntaria, y el registro propio de quien la escribió |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
@@ -311,7 +311,6 @@ cualquier deployment hasta que cada una se cierre.
   su propietario; no hay exportación de datos personales; el inventario de
   borrado — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Archivos solo en disco local, cifrados por el volumen o nada — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- No hay vista de autoservicio de la memoria propia — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No hay inicio de sesión OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 
 **Cerradas, y respondidas arriba en vez de aquí:** la prueba de no manipulación

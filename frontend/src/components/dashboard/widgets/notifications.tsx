@@ -19,6 +19,7 @@ const SHOWN = 5;
  */
 export function NotificationsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.notifications");
+  const tNotifications = useTranslations("notifications");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { notifications, isLoading, error, refetch, markRead } = useNotificationInbox(true);
@@ -47,6 +48,9 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
                   )}
                 />
                 <span className="min-w-0 flex-1">
+                  <span className="sr-only">
+                    {tNotifications(unread ? "rowUnread" : "rowRead")}
+                  </span>
                   <span
                     className={cn(
                       "block truncate text-sm",

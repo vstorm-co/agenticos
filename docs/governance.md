@@ -1179,9 +1179,16 @@ A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from
 when the row was written, never from when it was read, so a row opened the day
 before its outer bound ages out with every other row that old. A background
-sweep, not something a person triggers. What survives past that is the audit
-trail itself ([Audit](#audit)), which the inbox is a notice of, never the
-record of.
+sweep, not something a person triggers.
+
+What survives past that depends on what the notice was about. A security event,
+a configuration change and an admin's own broadcast begin as an audit entry, and
+that entry outlives the row the inbox showed ([Audit](#audit)). A run's outcome,
+an ingestion result and a usage report write no audit entry of their own: the
+run, the document and the spend they describe are the record, and the notice is
+only how somebody heard about it - a periodic report's own computed figures,
+which live nowhere but the notification, are the one thing an expired row takes
+with it.
 
 ### Configured on the agent
 

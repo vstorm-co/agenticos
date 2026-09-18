@@ -1120,7 +1120,15 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             # calls for exactly that settlement.
                             await _settle_document_row(
                                 row_id,
-                                IngestionResult(status=IngestionStatus.ERROR, error_message=str(e)),
+                                # Through `failure_summary`, not `str(e)`: this
+                                # is stored in `rag_documents.error_message` and
+                                # copied into the failure notification, and a
+                                # connector's own exception carries endpoints,
+                                # bucket names and query strings (#423).
+                                IngestionResult(
+                                    status=IngestionStatus.ERROR,
+                                    error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                                ),
                             )
         except Exception as e:
             logger.error("Source sync failed for %s: %s", source_id, e)
@@ -1154,29 +1162,40 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 # whichever way the sync actually went - the aggregate summary
                 # a large sync's per-document events, fired once per file, do
                 # not give on their own.
-                kb = await _knowledge_base_for(db, collection_name, organization_id)
-                notifications = NotificationService(db)
-                occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
-                if status == "done":
-                    await notifications.sync_completed(
-                        organization_id=organization_id,
-                        initiator_user_id=log.triggered_by_user_id,
-                        occurrence_id=occurrence_id,
-                        collection_name=collection_name,
-                        collection_id=kb.id if kb else None,
-                        ingested=ingested,
-                        updated=updated,
-                        skipped=skipped,
-                        failed=failed,
-                    )
-                else:
-                    await notifications.sync_failed(
-                        organization_id=organization_id,
-                        initiator_user_id=log.triggered_by_user_id,
-                        occurrence_id=occurrence_id,
-                        collection_name=collection_name,
-                        collection_id=kb.id if kb else None,
-                        error=f"{failed} files failed",
+                #
+                # Best-effort, in a boundary of its own: the two settlements
+                # above are what a reader and the next scheduled run depend
+                # on, and a failure to *address* a notification (an unknown
+                # connector, a collection that lost its rows) must not be
+                # reported as a failure to record the sync's own outcome.
+                try:
+                    kb = await _knowledge_base_for(db, collection_name, organization_id)
+                    notifications = NotificationService(db)
+                    occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
+                    if status == "done":
+                        await notifications.sync_completed(
+                            organization_id=organization_id,
+                            initiator_user_id=log.triggered_by_user_id,
+                            occurrence_id=occurrence_id,
+                            collection_name=collection_name,
+                            collection_id=kb.id if kb else None,
+                            ingested=ingested,
+                            updated=updated,
+                            skipped=skipped,
+                            failed=failed,
+                        )
+                    else:
+                        await notifications.sync_failed(
+                            organization_id=organization_id,
+                            initiator_user_id=log.triggered_by_user_id,
+                            occurrence_id=occurrence_id,
+                            collection_name=collection_name,
+                            collection_id=kb.id if kb else None,
+                            error=f"{failed} files failed",
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed to notify about the sync outcome for source %s", source_id
                     )
         except Exception:
             logger.error("Failed to update sync status for source %s", source_id)

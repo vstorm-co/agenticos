@@ -478,9 +478,18 @@ class RAGDocumentService:
                 attempt,
             )
             return
-        await NotificationService(self.db).ingestion_failed(
-            doc, attempt=attempt, error_message=error_message
-        )
+        try:
+            await NotificationService(self.db).ingestion_failed(
+                doc, attempt=attempt, error_message=error_message
+            )
+        except Exception:
+            # The same best-effort boundary `complete_ingestion` draws, and
+            # for a sharper reason: a worker caller runs this inside
+            # `get_worker_db_context`, so an exception escaping here rolls
+            # back the `ERROR` transition just recorded, and `_fail_document`
+            # swallows it - leaving a failed document in `PROCESSING` for
+            # ever because its failure notification could not be addressed.
+            logger.exception("Failed to notify about a failed ingestion for %s", doc_id)
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
         """Parse a failed document again, from the file it was uploaded with.

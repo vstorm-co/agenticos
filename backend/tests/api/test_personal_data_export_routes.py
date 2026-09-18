@@ -72,6 +72,8 @@ def _export() -> PersonalDataExport:
         channel_identities=[],
         slash_commands=[],
         dashboard_layouts=[],
+        notifications=[],
+        notification_preferences=[],
     )
 
 

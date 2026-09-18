@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b29b5b013c"
+source_sha: "fffeb5145a26"
 ---
 
 # Die Konsole { #the-console }
@@ -59,16 +59,27 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 Neben der Suche, in der Seitenleiste: eine laufende Zählung dessen, was Sie
 noch nicht gelesen haben, und ein Klick öffnet die Liste selbst. Anders als
 das Widget oben holt das Öffnen die Seite, auf der Sie gerade stehen, keine
-Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch
-alles, was noch nicht aus dem Aufbewahrungsfenster gefallen ist.
+Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
+Organisation, in der Sie gerade sind, plus alles, was an das gesamte
+Deployment adressiert ist, bis es erreicht, was aus dem Aufbewahrungsfenster
+gefallen ist.
+
+Wechseln Sie die Organisation, gehört die Glocke dieser: eine
+Benachrichtigung aus der verlassenen Organisation ist nicht weg, sie liegt
+hinter dem Umschalter. Ein Deployment-Administrator ist die eine Ausnahme -
+seine Glocke wird nicht durch die Organisation verengt, in der er gerade
+handelt, denn ein „admins"-Publikum erreicht ihn ohne eine Mitgliedschaft,
+nach der sich eingrenzen ließe.
 
 Eine Zeile mit einem Ziel ist ein Link; eine ohne - meist die eigene
 Ankündigung eines Admins - lässt sich immer nur als gelesen markieren. Eine
 Zeile als gelesen zu markieren, oder alle auf einmal, aktualisiert die
 Zählung sofort; nichts hier wartet auf ein Neuladen der Seite. **Mark all
-read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf - darüber
-hinaus landet die Zählung knapp über null, und ein weiterer Klick beendet den
-Rest, statt dass das Badge still zu wenig Ungelesenes anzeigt.
+read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf und fragt
+dann die Zählung erneut ab - bei einem größeren Rückstau zeigt das Badge
+also weiter, was noch ungelesen ist, und ein weiterer Klick beendet den Rest,
+statt dass das Badge einen Posteingang behauptet, den es nur teilweise
+abgearbeitet hat.
 
 Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 [Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,

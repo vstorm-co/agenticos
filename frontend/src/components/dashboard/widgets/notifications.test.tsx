@@ -124,6 +124,26 @@ describe("the notifications widget", () => {
     expect(markRead).toHaveBeenCalledWith("n1");
   });
 
+  it("says which rows are unread, not only by colour", async () => {
+    // A link row's accessible name is its summary either way, so the dot and
+    // the font weight are the only thing distinguishing read from unread -
+    // neither of which a screen reader announces.
+    renderWidget({
+      notifications: [
+        notification({ id: "n1", summary: "unread one", context_url: "/runs/1" }),
+        notification({
+          id: "n2",
+          summary: "read one",
+          context_url: "/runs/2",
+          read_at: "2026-09-01T00:00:00Z",
+        }),
+      ],
+    });
+
+    expect(screen.getByText("unread one").closest("a")).toHaveTextContent("Unread");
+    expect(screen.getByText("read one").closest("a")).toHaveTextContent("Read");
+  });
+
   it("does not re-mark an already-read row", async () => {
     const markRead = vi.fn().mockResolvedValue(undefined);
     renderWidget({

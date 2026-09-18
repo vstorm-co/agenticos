@@ -1,5 +1,5 @@
 ---
-source_sha: "f9fddc50824a"
+source_sha: "a25d7824053b"
 ---
 
 # Governance { #governance }
@@ -1271,9 +1271,16 @@ Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
 jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
 otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
 otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
-wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek. Tym, co przetrwa
-dłużej, jest sam ślad audytowy ([Audyt](#audit)), którego skrzynka jest tylko
-powiadomieniem, nigdy zapisem.
+wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek.
+
+To, co przetrwa dłużej, zależy od tego, czego powiadomienie dotyczyło. Zdarzenie
+bezpieczeństwa, zmiana konfiguracji i własne ogłoszenie administratora zaczynają
+się od wpisu audytowego i ten wpis przeżywa wiersz, który pokazała skrzynka
+([Audyt](#audit)). Wynik runu, rezultat ingestii i raport użycia nie piszą
+własnego wpisu audytowego: zapisem są run, dokument i wydatek, które opisują, a
+powiadomienie to tylko sposób, w jaki ktoś się o nich dowiedział — własne
+wyliczone liczby raportu okresowego, które nie żyją nigdzie poza powiadomieniem,
+są jedyną rzeczą, jaką wygasły wiersz zabiera ze sobą.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }
 

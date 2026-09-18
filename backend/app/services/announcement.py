@@ -34,7 +34,10 @@ from app.db.models.notification import NotificationChannel, NotificationEventTyp
 from app.repositories import announcement as announcement_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import (
+    NotificationCenterService,
+    announcement_audience_roles,
+)
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,7 @@ class AnnouncementService:
                 )
 
         recipients = await member_repo.list_member_ids_for_audience(
-            self.db, organization_ids=organizations, role=role
+            self.db, organization_ids=organizations, roles=announcement_audience_roles(role)
         )
         if not recipients:
             raise BadRequestError(

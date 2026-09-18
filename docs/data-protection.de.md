@@ -1,5 +1,5 @@
 ---
-source_sha: "ba5e921f6c7c"
+source_sha: "de15667a3ec2"
 ---
 
 # Datenschutz { #data-protection }
@@ -88,7 +88,7 @@ des Elternteils.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Was jeder Run gekostet und getan hat | Der System-Prompt und die letzte an das Model übergebene Anfrage, Tool-Argumente, die auf Freigabe warten, die entscheidende Person und ihre Notiz | Budgets, Freigaben, Run-Historie |
 | `agent_triggers` | Geplante und ereignisgesteuerte Runs | Der Prompt sowie Konfiguration und Filter der Ereignisquelle | Einen Agent ohne Menschen laufen lassen |
 | `app_admin_audit_logs` | Wer Zugriff geändert oder Geld ausgegeben hat — die Spur der Organisation und die des Deployment-Administrators teilen sich eine Tabelle | Akteur, Impersonator, IP-Adresse, die Aktion und eine `details`-Map. Die Map benennt meist Felder, aber manche Einträge halten Werte: die E-Mail des impersonierten Kontos, die E-Mail eines vom Administrator gelöschten Kontos, eine Veröffentlichungsnotiz | Rechenschaft. Siehe [Governance](governance.md#audit) |
-| `notifications`, `notification_deliveries` | Jede In-App-Zeile und ihre E-Mail-Zustellung | Der Empfänger, eine vorgerenderte Zusammenfassung (nie ein roher Kommentar oder Secret-Wert) und die typisierten Variablen, aus denen eine E-Mail neu rendert; eine Zustellungszeile fügt ihren Kanal, Status, die Versuche und einen bereinigten Fehlgrund hinzu — nie den Fehlertext des Providers | Warnungen, die eine Person einmal liest, unbeaufsichtigt. Siehe [Governance](governance.md#alerts) |
+| `notifications`, `notification_deliveries` | Jede an jemanden adressierte Benachrichtigung und ihre E-Mail-Zustellung. Eine Zeile wird auch dann geschrieben, wenn der Empfänger für dieses Ereignis jeden Kanal abgeschaltet hat - sie ist es, die verhindert, dass dasselbe Vorkommnis zweimal geschrieben wird - und wird dann einfach nie gezeigt oder gesendet; nur die Zustellungszeile ist bedingt | Der Empfänger, eine vorgerenderte Zusammenfassung (nie ein roher Kommentar oder Secret-Wert) und die typisierten Variablen, aus denen eine E-Mail neu rendert; eine Zustellungszeile fügt ihren Kanal, Status, die Versuche und einen bereinigten Fehlgrund hinzu — nie den Fehlertext des Providers | Warnungen, die eine Person einmal liest, unbeaufsichtigt. Siehe [Governance](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Kanal-Umschalter je Ereignis, und die eigenen Ankündigungen eines App-Administrators | Eine Benutzer-Id je Umschalter; der Absender einer Ankündigung, ihr Text sowie die Organisationen und die Rolle, an die sie adressiert war — nie die aufgelöste Empfängerliste, die aus `notifications` nur rekonstruierbar ist, solange diese Zeile nicht durch [den Retention-Sweep für Benachrichtigungen](governance.md#alerts) verfällt — danach hält der Audit-Eintrag dahinter nur noch eine Zahl, nie die Empfänger | Opt-out, und der eigene Nachweis des Verfassers |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
@@ -318,7 +318,6 @@ für jedes Deployment, bis jede von ihnen geschlossen ist.
   Besitzers; kein Export personenbezogener Daten; die Löschinventur —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Kein Selbstbedienungs-Einblick in das eigene Gedächtnis — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 
 **Geschlossen, und oben statt hier beantwortet:** der Manipulationsnachweis der

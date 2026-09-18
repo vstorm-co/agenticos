@@ -52,14 +52,22 @@ snapshot you meant to keep.
 Next to search, in the sidebar: a running count of what you have not read yet,
 and a click opens the list itself. Unlike the widget above, opening it fetches
 the page you are looking at, not a five-card preview - **Load more** keeps
-paging back through everything that has not aged out yet.
+paging back through the organization you are currently in, plus anything
+addressed to the deployment as a whole, until it reaches what has aged out.
+
+Switch organizations and the bell is that one's: a notification from the
+organization you left is not gone, it is behind the switcher. A deployment
+administrator is the one exception - theirs is not narrowed by the organization
+they happen to be acting in, because an "admins" audience reaches them without
+a membership to scope by.
 
 A row with a destination is a link; one without - an admin's own broadcast, most
 often - is only ever something to mark read. Marking one read, or everything at
 once, updates the count immediately; nothing here waits on a page reload. "Mark
-all read" sweeps up to five hundred unread rows at once - past that, the count
-lands just short of zero and a further click finishes it, rather than the badge
-silently understating what is still unread.
+all read" sweeps up to five hundred unread rows at once and then asks for the
+count again, so a backlog larger than that leaves the badge showing what is
+still unread and a further click finishes it, rather than the badge claiming an
+inbox it only partly worked through.
 
 What lands here and what can be turned off is [Governance's](governance.md#alerts)
 to explain — this page is only the two places you read it: the bell for what

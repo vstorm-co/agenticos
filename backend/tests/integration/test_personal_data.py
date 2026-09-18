@@ -32,6 +32,12 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.notification import (
+    Notification,
+    NotificationChannel,
+    NotificationEventType,
+)
+from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
 from app.repositories import conversation_repo, personal_data_repo, session_repo, user_repo
 from app.services.conversation import ConversationService
@@ -254,6 +260,42 @@ class TestTheExport:
         export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
 
         assert [row["content"] for row in export.memory] == ["Prefers short answers."]
+
+    async def test_it_carries_the_notifications_addressed_to_them(self, db):
+        """`docs/data-protection.md` classifies these rows as personal data, and
+        the same page promises everything held about a person comes back from
+        this export - a row hidden from the bell by a channel opt-out included,
+        since it is still a row this deployment holds about them."""
+        user = await _person(db, "export-notifications@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        db.add(
+            Notification(
+                id=uuid4(),
+                recipient_user_id=user_id,
+                organization_id=organization.id,
+                event_type=NotificationEventType.RUN_COMPLETED.value,
+                occurrence_id="run-export-1",
+                summary="jarvis's run finished.",
+                in_app_visible=False,
+            )
+        )
+        db.add(
+            NotificationChannelPreference(
+                id=uuid4(),
+                user_id=user_id,
+                event_type=NotificationEventType.RUN_COMPLETED.value,
+                channel=NotificationChannel.EMAIL.value,
+                enabled=False,
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert [row["summary"] for row in export.notifications] == ["jarvis's run finished."]
+        assert export.notifications[0]["in_app_visible"] is False
+        assert [row["channel"] for row in export.notification_preferences] == ["email"]
 
     async def test_it_carries_no_credential_anywhere(self, db):
         """A session row holds a hash of a refresh token, and an export is a file

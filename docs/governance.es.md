@@ -1,5 +1,5 @@
 ---
-source_sha: "f9fddc50824a"
+source_sha: "a25d7824053b"
 ---
 
 # Governance { #governance }
@@ -1242,9 +1242,17 @@ Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre
 desde que se escribió, nunca desde que se leyó, así que una fila abierta el
 día antes de su límite superior desaparece junto con cualquier otra de esa
-edad. Un barrido en segundo plano, no algo que dispare una persona. Lo que
-sobrevive a eso es el propio rastro de auditoría ([Auditoría](#audit)), del
-que el buzón es un aviso, nunca el registro.
+edad. Un barrido en segundo plano, no algo que dispare una persona.
+
+Lo que sobrevive a eso depende de sobre qué era el aviso. Un evento de
+seguridad, un cambio de configuración y el anuncio propio de un admin empiezan
+como una entrada de auditoría, y esa entrada sobrevive a la fila que mostró el
+buzón ([Auditoría](#audit)). El desenlace de un run, un resultado de ingestión
+y un informe de uso no escriben entrada de auditoría propia: el run, el
+documento y el gasto que describen son el registro, y el aviso solo es cómo se
+enteró alguien — las cifras calculadas de un informe periódico, que no viven en
+ningún sitio salvo en la notificación, son lo único que una fila caducada se
+lleva consigo.
 
 ### Configurado en el agent { #configured-on-the-agent }
 

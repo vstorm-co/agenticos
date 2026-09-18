@@ -536,8 +536,8 @@ class NotificationService:
         "deployment.settings_updated"`. Always deployment-wide - a setting
         has no organization to attribute the change to - so the audience is
         always the deployment's own app admins, never `org_admins`. Rate
-        limited by `actor_user_id` the same way `security_event` is, under
-        its own event type's bucket - an actor's settings changes never eat
+        limited by the same real-administrator key `security_event` uses,
+        under its own event type's bucket - an actor's settings changes never eat
         into the allowance a security event from the same actor would need.
         """
         recipients = set(await member_repo.list_app_admin_ids(self.db))
@@ -556,7 +556,11 @@ class NotificationService:
                 "url": url,
             },
             organization_id=None,
-            actor_user_id=entry.actor_user_id,
+            # The real administrator, for the reason `security_event` above
+            # gives in full: an impersonated settings change records the
+            # impersonated account as the actor, so the bare actor gives one
+            # human a fresh allowance per account they can act as.
+            actor_user_id=entry.impersonator_user_id or entry.actor_user_id,
             use_savepoint=True,
         )
 

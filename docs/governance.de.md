@@ -1,5 +1,5 @@
 ---
-source_sha: "f9fddc50824a"
+source_sha: "a25d7824053b"
 ---
 
 # Governance { #governance }
@@ -1356,9 +1356,18 @@ Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
 wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
 vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
-zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst. Was das
-übersteht, ist der Audit-Trail selbst ([Audit](#audit)), von dem das
-Postfach eine Benachrichtigung ist, nie der Datensatz.
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst.
+
+Was das übersteht, hängt davon ab, worum es in der Benachrichtigung ging. Ein
+Sicherheitsereignis, eine Konfigurationsänderung und die eigene Ankündigung
+eines Admins beginnen als Audit-Eintrag, und dieser Eintrag überlebt die Zeile,
+die das Postfach gezeigt hat ([Audit](#audit)). Der Ausgang eines Runs, ein
+Ingestion-Ergebnis und ein Nutzungsbericht schreiben keinen eigenen
+Audit-Eintrag: Der Run, das Dokument und die Ausgaben, die sie beschreiben,
+sind der Datensatz, und die Benachrichtigung ist nur, wie jemand davon erfahren
+hat - die berechneten Zahlen eines periodischen Berichts, die nirgends außer in
+der Benachrichtigung leben, sind das Einzige, was eine abgelaufene Zeile
+mitnimmt.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

@@ -75,6 +75,45 @@ class TestAllOrganizations:
 
         assert result.recipient_count == 2
 
+    async def test_an_admin_audience_reaches_owners_too(self, db):
+        """The read-time gate admits an owner to an `"admin"` announcement, so
+        the fan-out has to write them a row - an owner excluded here could
+        never be shown an announcement their own gate says is theirs."""
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        owner = await _user(db)
+        admin = await _user(db)
+        plain = await _user(db)
+        await _member(db, acme, owner, role="owner")
+        await _member(db, acme, admin, role="admin")
+        await _member(db, acme, plain, role="member")
+
+        result = await AnnouncementService(db).send(
+            actor_user_id=sender.id, body="Admins, read this", organizations="all", role="admin"
+        )
+
+        assert result.recipient_count == 2
+        rows = (
+            await db.execute(
+                select(Notification.recipient_user_id).where(
+                    Notification.event_type == NotificationEventType.ANNOUNCEMENT.value
+                )
+            )
+        ).scalars()
+        assert set(rows) == {owner.id, admin.id}
+
+    async def test_an_admin_audience_of_owners_alone_is_not_an_empty_audience(self, db):
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        owner = await _user(db)
+        await _member(db, acme, owner, role="owner")
+
+        result = await AnnouncementService(db).send(
+            actor_user_id=sender.id, body="Admins, read this", organizations=[acme.id], role="admin"
+        )
+
+        assert result.recipient_count == 1
+
     async def test_a_role_narrows_within_all_organizations(self, db):
         sender = await _user(db, is_app_admin=True)
         acme = await _org(db, name="Acme")

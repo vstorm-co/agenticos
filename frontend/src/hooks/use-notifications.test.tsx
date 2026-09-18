@@ -152,7 +152,10 @@ describe("useNotificationInbox", () => {
       ]),
     );
     vi.mocked(api.markAllNotificationsRead).mockResolvedValue(1);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(1);
+    // The count the server reports before the call, then after it - the
+    // mutation refetches, and a constant mock would answer the refetch with
+    // the pre-write number.
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(1).mockResolvedValue(0);
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
@@ -176,21 +179,22 @@ describe("useNotificationInbox", () => {
     await waitFor(() => expect(countHook.result.current).toBe(0));
   });
 
-  it("subtracts what was actually marked, not a bare zero, when the sweep was capped", async () => {
-    // The write path caps how many rows one call marks - a backlog past that
-    // cap leaves some rows genuinely still unread, and zeroing the badge
-    // regardless would claim it cleared a queue it only partly worked
-    // through.
+  it("refetches the badge after a capped sweep rather than trusting the subtraction", async () => {
+    // Both endpoints cap at the same 500 candidates, so an inbox past that
+    // cap reads 500, marks 500 and subtracts to zero while older rows are
+    // still unread - which would hide the button that clears them until the
+    // next minute-long poll. Only asking again tells a truncated inbox from
+    // an emptied one; here the server still has 100 to report.
     vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
     vi.mocked(api.markAllNotificationsRead).mockResolvedValue(500);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(600);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(500).mockResolvedValue(100);
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(600));
+    await waitFor(() => expect(countHook.result.current).toBe(500));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 

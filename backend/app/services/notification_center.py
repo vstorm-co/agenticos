@@ -49,6 +49,23 @@ LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
 
 _ESCALATION_ROLES = {OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value}
 
+
+def announcement_audience_roles(role: str | None) -> list[str] | None:
+    """Which membership roles an announcement's `role` audience actually means.
+
+    An "admin" audience means the same escalation roles `org_admins` already
+    means for `security_event` - an owner outranks an admin, not a role an
+    "admin"-only match would silently exclude from their own audience. Read by
+    both ends of the send: `AnnouncementService` resolves who the rows are
+    written for, `_resolve_announcement_visible` rechecks who may read one, and
+    an owner excluded from the first but admitted by the second is an
+    announcement nobody can be shown because nobody was ever sent it.
+    """
+    if role == OrgRoleName.ADMIN.value:
+        return list(_ESCALATION_ROLES)
+    return [role] if role else None
+
+
 # Every caller of `write()` names a real organization but three: `ANNOUNCEMENT`
 # and `CONFIGURATION_CHANGED` are always deployment-wide (an announcement can
 # name several organizations at once, and a deployment setting has no single
@@ -300,29 +317,34 @@ class NotificationCenterService:
         in_app_by_recipient: dict[uuid.UUID, bool] = {}
         email_by_recipient: dict[uuid.UUID, bool] = {}
         if not mandatory:
-            in_app_by_recipient = await notification_repo.get_channel_preferences(
-                self.db,
-                user_ids=recipients,
-                event_type=event_type.value,
-                channel=NotificationChannel.IN_APP.value,
-            )
-            legacy_column = LEGACY_EMAIL_COLUMN.get(event_type)
-            # Exactly one authoritative lookup per event type (Decision 4):
-            # the legacy column for the three events it already governs, the
-            # preference table for every other event type - the two
-            # vocabularies never overlap.
-            email_by_recipient = (
-                await notification_repo.get_legacy_email_preferences(
-                    self.db, user_ids=recipients, column=legacy_column
+            if not use_savepoint:
+                in_app_by_recipient, email_by_recipient = await self._read_preferences(
+                    recipients=recipients, event_type=event_type
                 )
-                if legacy_column is not None
-                else await notification_repo.get_channel_preferences(
-                    self.db,
-                    user_ids=recipients,
-                    event_type=event_type.value,
-                    channel=NotificationChannel.EMAIL.value,
-                )
-            )
+            else:
+                # Inside a savepoint of its own, for the same reason the
+                # inserts below have theirs. A failed statement - a timeout,
+                # a cancellation - aborts the whole PostgreSQL transaction,
+                # not just itself, so a preference read that raised outside
+                # any savepoint would leave the caller unable to commit the
+                # terminal run update this contract exists to protect
+                # (Decision 2). Nothing is assumed about the preferences
+                # that were not read: the write is abandoned rather than
+                # sent to somebody who may have turned the channel off.
+                try:
+                    async with self.db.begin_nested():
+                        in_app_by_recipient, email_by_recipient = await self._read_preferences(
+                            recipients=recipients, event_type=event_type
+                        )
+                except Exception:
+                    logger.exception(
+                        "notification_preferences_failed",
+                        extra={
+                            "event_type": event_type.value,
+                            "occurrence_id": occurrence_id,
+                        },
+                    )
+                    return []
 
         written: list[Notification] = []
         for recipient_id in recipients:
@@ -398,6 +420,35 @@ class NotificationCenterService:
             if notification is not None:
                 written.append(notification)
         return written
+
+    async def _read_preferences(
+        self, *, recipients: list[uuid.UUID], event_type: NotificationEventType
+    ) -> tuple[dict[uuid.UUID, bool], dict[uuid.UUID, bool]]:
+        """Both channels' preferences for the whole fan-out, one query each."""
+        in_app_by_recipient = await notification_repo.get_channel_preferences(
+            self.db,
+            user_ids=recipients,
+            event_type=event_type.value,
+            channel=NotificationChannel.IN_APP.value,
+        )
+        legacy_column = LEGACY_EMAIL_COLUMN.get(event_type)
+        # Exactly one authoritative lookup per event type (Decision 4): the
+        # legacy column for the three events it already governs, the
+        # preference table for every other event type - the two vocabularies
+        # never overlap.
+        email_by_recipient = (
+            await notification_repo.get_legacy_email_preferences(
+                self.db, user_ids=recipients, column=legacy_column
+            )
+            if legacy_column is not None
+            else await notification_repo.get_channel_preferences(
+                self.db,
+                user_ids=recipients,
+                event_type=event_type.value,
+                channel=NotificationChannel.EMAIL.value,
+            )
+        )
+        return in_app_by_recipient, email_by_recipient
 
     async def _write_one(
         self,
@@ -744,6 +795,15 @@ class NotificationCenterService:
         (Decision 1): the knowledge base an ingestion outcome is about, read
         back via `cache` (built by `_build_gate_cache`) rather than trusted
         from anywhere else."""
+        if ctx.is_app_admin:
+            # The same admission every other gate in `gate_for` gives an app
+            # admin, and the one this gate cannot reach through
+            # `readable_kb`: an ingestion outcome with no initiator is
+            # written to `_administrator_ids`, which includes every app
+            # admin - who hold no membership row, so `resolve_access`
+            # refuses the collection on the organization mismatch alone and
+            # hides a row they were deliberately sent.
+            return True
         render_context = notification.render_context or {}
         raw_collection_id = render_context.get("collection_id")
         if raw_collection_id is None:
@@ -807,17 +867,17 @@ class NotificationCenterService:
         # `gate_for` goes through `_require_caller` first.
         assert ctx.user_id is not None
         spec = announcement.audience_spec or {}
-        role = spec.get("role")
-        # An "admin" audience means the same escalation roles `org_admins`
-        # already means for `security_event` (`_security_audience`, in
-        # `notifications.py`) - an owner outranks an admin, not a role an
-        # "admin"-only match would silently exclude from their own audience.
-        roles = (
-            list(_ESCALATION_ROLES) if role == OrgRoleName.ADMIN.value else [role] if role else None
-        )
+        roles = announcement_audience_roles(spec.get("role"))
         organizations = spec.get("organizations")
         if organizations == "all":
             return await member_repo.has_any_membership(self.db, user_id=ctx.user_id, roles=roles)
+        if not isinstance(organizations, list):
+            # The same "a JSONB blob has no schema" rule the element-level
+            # `except ValueError` below already applies, one level up: the
+            # collection itself can be any JSON value, and iterating a
+            # number raises a `TypeError` that takes down every inbox read
+            # that touches this announcement.
+            return False
         org_ids = []
         for value in organizations or []:
             try:

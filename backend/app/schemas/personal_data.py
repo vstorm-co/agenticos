@@ -54,6 +54,15 @@ class PersonalDataExport(BaseModel):
     )
     slash_commands: list[dict[str, Any]] = Field(description="Shortcuts they saved.")
     dashboard_layouts: list[dict[str, Any]] = Field(description="How they arranged their console.")
+    notifications: list[dict[str, Any]] = Field(
+        description=(
+            "Every notification addressed to them, the ones a channel opt-out hid "
+            "included - a row hidden from the bell is still a row held about them."
+        )
+    )
+    notification_preferences: list[dict[str, Any]] = Field(
+        description="Which events they chose to hear about, per channel."
+    )
 
 
 class PersonalDataPurge(BaseModel):

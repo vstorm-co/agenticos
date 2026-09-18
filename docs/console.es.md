@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b29b5b013c"
+source_sha: "fffeb5145a26"
 ---
 
 # La consola { #the-console }
@@ -57,16 +57,23 @@ instantánea que querías conservar.
 Junto al buscador, en la barra lateral: un contador en marcha de lo que aún no
 has leído, y un clic abre la lista misma. A diferencia del widget de arriba,
 abrirla trae la página completa que estás mirando, no una vista previa de
-cinco tarjetas — **Load more** sigue paginando hacia atrás por todo lo que
-todavía no ha caducado.
+cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización
+en la que estás ahora, más lo dirigido al deployment entero, hasta llegar a lo
+que ya ha caducado.
+
+Cambia de organización y la campana es la de esa: una
+notificación de la organización que dejaste no ha desaparecido, está detrás del
+selector. El administrador del deployment es la única excepción — su campana no
+la estrecha la organización en la que esté actuando, porque una audiencia
+«admins» lo alcanza sin una membresía por la que acotar.
 
 Una fila con un destino es un enlace; una sin él — el anuncio propio de un
 admin, la mayoría de las veces — solo se puede marcar como leída. Marcar una
 como leída, o todas a la vez, actualiza el contador al instante; nada aquí
 espera a que se recargue la página. **Mark all read** barre hasta quinientas
-filas no leídas de una vez — a partir de ahí, el contador se queda justo por
-encima de cero y un clic más termina el resto, en lugar de que la insignia
-subestime en silencio lo que aún queda por leer.
+filas no leídas de una vez y luego vuelve a pedir el contador — así que con un
+atraso mayor la insignia sigue mostrando lo que queda por leer y un clic más
+termina el resto, en lugar de anunciar una bandeja que solo trabajó en parte.
 
 Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde

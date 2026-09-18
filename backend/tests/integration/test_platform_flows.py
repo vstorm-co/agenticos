@@ -1929,6 +1929,44 @@ class TestWhatACollectionReportsItHolds:
         assert refreshed.status == DocumentStatus.DONE
         assert refreshed.chunk_count == 4
 
+    async def test_a_notification_failure_does_not_undo_a_failed_ingestion(
+        self, db, monkeypatch
+    ) -> None:
+        """The same boundary on the failure side, where it matters more.
+
+        A worker caller runs `fail_ingestion` inside `get_worker_db_context`,
+        so an exception escaping it rolls back the `ERROR` transition just
+        recorded - and `_fail_document` swallows that exception, leaving a
+        document that failed to ingest sitting in `PROCESSING` for ever
+        because its failure notification could not be addressed.
+        """
+        from app.services import notifications as notifications_module
+
+        tenant = await _tenant(db, name="NotifyFailsOnFailure")
+        collection = await _collection_with(
+            db, tenant, name="notify_fails_failure", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        async def _boom(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("audience resolution blew up")
+
+        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_failed", _boom)
+
+        await RAGDocumentService(db).fail_ingestion(
+            str(doc.id), "The file could not be read (ValueError)", attempt=1
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        await db.refresh(refreshed)
+        assert refreshed.status == DocumentStatus.ERROR
+        assert refreshed.error_message == "The file could not be read (ValueError)"
+
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
 

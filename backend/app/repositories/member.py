@@ -275,15 +275,19 @@ async def list_member_ids_for_audience(
     db: AsyncSession,
     *,
     organization_ids: list[UUID] | Literal["all"],
-    role: str | None = None,
+    roles: list[str] | None = None,
 ) -> set[UUID]:
     """Every active member currently matching an announcement's audience
     spec (#1598, Decision 5) - resolved fresh at send time, the same
     membership `has_any_membership`/`has_membership_in_any` re-check at read
     time. `"all organizations"` means everybody who is currently a member of
     something, not a snapshot of who belonged when it was sent; a
-    role-narrowed spec matches only that role, in any of the named
-    organizations (or in any organization at all, for `"all"`).
+    role-narrowed spec matches only those roles, in any of the named
+    organizations (or in any organization at all, for `"all"`). `roles` is a
+    set of names rather than one, because an `"admin"` audience means owners
+    too - `announcement_audience_roles` is the single place that widening is
+    decided, read by the read-time gate as well, so the two ends of a send
+    cannot disagree about who was in the audience.
 
     Identity only, no preference filter - the same split every other
     audience resolver in this feature draws (Decision 4): a channel's
@@ -295,8 +299,8 @@ async def list_member_ids_for_audience(
     conditions = [User.is_active.is_(True)]
     if organization_ids != "all":
         conditions.append(OrganizationMember.organization_id.in_(organization_ids))
-    if role is not None:
-        conditions.append(OrganizationMember.role == role)
+    if roles is not None:
+        conditions.append(OrganizationMember.role.in_(roles))
     result = await db.execute(
         select(User.id)
         .join(OrganizationMember, OrganizationMember.user_id == User.id)

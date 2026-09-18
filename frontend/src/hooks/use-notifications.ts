@@ -150,13 +150,21 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
     await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
     patchItems(new Date().toISOString(), (item) => item.read_at === null);
-    // Not a bare `0`: the write path caps how many rows one call marks
+    // Optimistic first, so the badge moves with the click. Not a bare `0`:
+    // the write path caps how many rows one call marks
     // (`_UNREAD_CANDIDATE_CAP`), so a backlog past that cap leaves some rows
     // genuinely still unread - `marked` is what the server actually did,
     // where `0` would claim it cleared a badge it only partly worked through.
     queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
       Math.max(0, (prev ?? marked) - marked),
     );
+    // Then ask, because the subtraction cannot be right past the cap either:
+    // `unread_count` is capped at the same 500, so an inbox with more than
+    // that reads 500, marks 500 and subtracts to zero while older rows are
+    // still unread - hiding the button that would clear them until the next
+    // minute-long poll. The refetch is what distinguishes an emptied inbox
+    // from a truncated one.
+    await queryClient.invalidateQueries({ queryKey: qk.notifications.unreadCount() });
   };
 
   return {

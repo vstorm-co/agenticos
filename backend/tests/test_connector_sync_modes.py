@@ -479,9 +479,32 @@ class TestWhatASyncedDocumentLeavesBehind:
         assert answer["failed"] == 1 and answer["ingested"] == 0
         documents.create_document.assert_awaited_once()
         documents.fail_ingestion.assert_awaited_once_with(
-            str(ROW_ID), "the connector timed out mid-transfer", attempt=1
+            str(ROW_ID),
+            "The document could not be ingested (RuntimeError) - retry the upload. "
+            "The worker log has the full error.",
+            attempt=1,
         )
         documents.complete_ingestion.assert_not_awaited()
+
+    async def test_the_raised_reason_is_summarized_rather_than_stored_whole(self):
+        """`rag_documents.error_message` is rendered to everyone who can see
+        the collection, and a connector's own exception carries the endpoint
+        it was talking to - with whatever its query string holds (#423). This
+        settlement was the one stored failure still passing `str(e)`."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError(
+                "GET https://files.example.com/v1/download?token=s3cr3t failed: 403"
+            )
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+
+        stored = documents.fail_ingestion.await_args.args[1]
+        assert "s3cr3t" not in stored
+        assert "files.example.com" not in stored
+        assert stored.startswith("The document could not be ingested (RuntimeError)")
 
 
 class TestAStoredDocumentWithNoHash:

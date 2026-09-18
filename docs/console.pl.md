@@ -1,5 +1,5 @@
 ---
-source_sha: "d9b29b5b013c"
+source_sha: "fffeb5145a26"
 ---
 
 # Konsola { #the-console }
@@ -57,16 +57,24 @@ migawkę, którą chciałeś zachować.
 Obok wyszukiwania, w pasku bocznym: bieżący licznik tego, czego jeszcze nie
 przeczytałeś, a kliknięcie otwiera samą listę. W przeciwieństwie do widgetu
 powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciokartowy
-podgląd — **Load more** cofa cię, stronę po stronie, przez wszystko, co jeszcze
-nie wypadło z zasięgu.
+podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
+której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
+do tego, co wypadło z zasięgu.
+
+Przełącz organizację, a dzwonek jest jej:
+powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
+przełącznikiem. Administrator wdrożenia to jedyny wyjątek — jego dzwonka nie
+zawęża organizacja, w której akurat działa, bo audytorium „admins” sięga go bez
+członkostwa, po którym można by zawęzić.
 
 Wiersz z celem jest linkiem; ten bez celu — najczęściej własne ogłoszenie
 administratora aplikacji — służy tylko do oznaczenia jako przeczytany.
 Oznaczenie jednego wiersza jako przeczytanego albo wszystkich naraz od razu
 aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony. **Mark all
-read** zbiera naraz do pięciuset nieprzeczytanych wierszy — powyżej tego
-licznik zatrzymuje się tuż przed zerem, a kolejne kliknięcie dokańcza resztę,
-zamiast żeby plakietka po cichu zaniżała to, co wciąż jest nieprzeczytane.
+read** zbiera naraz do pięciuset nieprzeczytanych wierszy, a potem pyta o
+licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
+to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zamiast
+żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
 
 To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#alerts)
 — ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co

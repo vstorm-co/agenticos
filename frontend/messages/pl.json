@@ -2934,6 +2934,8 @@
     "loadMore": "Wczytaj więcej",
     "failedLoad": "Nie udało się wczytać powiadomień",
     "unreadCount": "{count, plural, one {1 nieprzeczytane powiadomienie} few {# nieprzeczytane powiadomienia} many {# nieprzeczytanych powiadomień} other {# nieprzeczytanych powiadomień}}",
+    "rowUnread": "Nieprzeczytane",
+    "rowRead": "Przeczytane",
     "empty": {
       "title": "Jeszcze brak powiadomień",
       "description": "Alerty o budżecie, zatwierdzenia, nieudane runy i więcej pojawią się tutaj."
