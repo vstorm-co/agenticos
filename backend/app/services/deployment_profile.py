@@ -350,11 +350,11 @@ async def _agents_exporting_traces(db: AsyncSession) -> list[str]:
 def sso_issuer() -> str:
     """The identity provider this deployment signs people in through, if any.
 
-    Read through a function rather than inline because the setting arrives with
-    generic OIDC sign-in (#1419) and this profile does not depend on that having
-    landed: until it has, there is no issuer and the control is honestly unmet.
+    Empty is the honest answer for a deployment that has configured none, and
+    what makes the control read unmet rather than unknown: generic OIDC sign-in
+    exists (#1419), so an unset issuer is a choice rather than a missing feature.
     """
-    return str(getattr(settings, "OIDC_ISSUER", "") or "")
+    return str(settings.OIDC_ISSUER or "")
 
 
 def _who_may_sign_in(row: DeploymentSettings | None) -> ControlResult:

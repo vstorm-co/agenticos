@@ -1,5 +1,5 @@
 ---
-source_sha: "de15667a3ec2"
+source_sha: "e40b9a378fe0"
 ---
 
 # Datenschutz { #data-protection }
@@ -154,7 +154,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Zugriff auf eine Zeile | Drei Schichten: Deployment-Administrator, Rolle in der Organisation, Grant je Ressource über `resolve_access`. Ein Bedienelement, das der Aufrufer nicht nutzen darf, wird nicht gerendert | Ablehnungstests in `tests/api/`; [Berechtigungen](permissions.md#how-the-layers-combine) |
 | Den Chat einer anderen Person lesen | Besitzer, eine ausdrückliche Freigabe oder der App-Administrator des Deployments — nie eine Rolle in der Organisation. Conversations haben ihre eigene Prüfung, `ConversationService._may_read`, statt der Grant-Formel | `admin_conversations.py` verlangt `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Zugangsdaten im Ruhezustand | Envelope-Verschlüsselung je Organisation, versionierte Masterschlüssel, Rotation mit Trockenlauf | [Secrets](secrets.md#what-never-happens), vier durch Tests festgenagelte Garantien |
-| Inhalte im Ruhezustand | **Von der Anwendung nicht verschlüsselt.** Die Postgres-Daten, `media_data` und das Workspace-Wurzelverzeichnis der Sandbox verlassen sich auf Platten- oder Volume-Verschlüsselung, die Sie bereitstellen | Kontrolle des Betreibers. Ein S3-Backend mit serverseitiger Verschlüsselung für Dateien ist [#1423](https://github.com/vstorm-co/agenticos/issues/1423) |
+| Inhalte im Ruhezustand | **Von der Anwendung nicht verschlüsselt.** Die Postgres-Daten, `media_data` und das Workspace-Wurzelverzeichnis der Sandbox verlassen sich auf die Platten- oder Volume-Verschlüsselung, die Sie bereitstellen. Ausnahme sind hochgeladene und Chat-Dateien bei `FILE_STORAGE_BACKEND=s3`: Jeder Schreibvorgang bittet den Store, sie zu verschlüsseln, SSE-S3 oder SSE-KMS unter einem Schlüssel, den Sie halten | Sache des Betreibers. [Konfiguration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` nennt das Backend, auf dem ein laufendes Deployment steht |
 | Auf dem Transportweg, eingehend | HTTPS an Ihrem Proxy; `Strict-Transport-Security`, wenn `ENVIRONMENT=production`; Session-Cookies `httpOnly`, und `secure` aus dem Schema der Anfrage bei Anmeldung und Refresh. Die Route für den Passwortwechsel setzt `secure` nur in einem Produktions-Build | [Deploy](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | Auf dem Transportweg, zu den Speichern | `POSTGRES_SSLMODE` und `REDIS_SSL`; `agenticos cmd doctor` meldet, ob die hergestellte Verbindung verschlüsselt war | [Verschlüsselte Verbindungen](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | Auf dem Transportweg, zu den Providern | HTTPS zu jedem katalogisierten Endpunkt. Eine eigene `base_url` wird ohne Host oder mit Zugangsdaten darin abgelehnt, aber **`http://` wird akzeptiert**, für ein Ollama oder ein Gateway im Netz des Deployments selbst; ein Klartext-HTTP-Profil, das aus diesem Netz hinauszeigt, sendet Prompts und Schlüssel im Klartext. Punkt 4 der Checkliste listet jedes solche Profil | `refused_field("base_url", ...)` im Model-Profile-Service; das Schema ist Sache des Betreibers |
@@ -169,7 +169,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Aufbewahrung nach Zeitplan | Je Organisation und je Klasse — Gespräche und ihre Dateien, Runs und Manifeste, Workspaces, das Gedächtnis von Agenten, hochgeladene Dokumente und Audit — innerhalb einer deploymentweiten Vorgabe, Obergrenze und Audit-Untergrenze. Ein täglicher Sweep löscht hart und hält Zähler fest, nie Inhalte. Backups und alles bereits an einen externen Collector Geschickte liegen außerhalb. `notifications` gehört nicht zu diesen Klassen: Es wird stattdessen nach einem eigenen festen Zeitplan geräumt — eine *gelesene* Zeile nach 90 Tagen, jede Zeile nach einem Jahr in jedem Fall. `announcements` selbst sind ausgenommen, sodass das Gesendete über die Audit-Spur beantwortbar bleibt, nachdem seine Zustellungen gealtert sind | [Aufbewahrung](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; der Notification-Sweep ist `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Eine Person liest unter Einstellungen → Gedächtnis alles, was jeder Agent hier über sie aufgeschrieben hat, und kann eine Notiz stilllegen, wiederherstellen oder löschen. Den Speicher *einer anderen Person* zu lesen steht allein der Deployment-Administratorin zu - keiner Organisationsrolle - und wird mit Akteurin, Tenant, Person und Begründung auditiert, nie mit Inhalt. Externe Speicher (mem0) werden genannt statt gelistet | [Lesen und löschen](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Alles andere, was über sie gehalten wird, kommt aus `GET /me/data/export` zurück, begrenzt und auditiert (#1421) |
-| Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
+| Unternehmensidentität | Google-Anmeldung, Passwörter und generisches OIDC gegen den Provider, den Sie ohnehin betreiben - allein per Discovery aus `OIDC_ISSUER` konfiguriert. Kein SAML, kein SCIM | [Konfiguration](configuration.md); `OIDC_ISSUER` |
 | Die Kontrollmatrix, die eine Sicherheitsprüfung liest | [Sicherheit](security.md#controls-matrix) ordnet jeder Kontrolle ihren Mechanismus und den Test zu, der ihn hält, im Rahmen von HIPAA §164.312 und SOC 2 CC6–CC8; diese Seite und [Einführen](rollout.md#what-your-security-review-will-ask) sind der Rest | [Sicherheit](security.md) (#1412) |
 | Öffentliche Oberflächen | Der Besucherschlüssel einer gehosteten Seite ist zufällig, nie aus der Person abgeleitet; Einlass und Uploads sind je Adresse ratenbegrenzt, die Adresse liegt für die Dauer des Fensters in einem Redis-Schlüssel und sonst nirgends | [Kanäle](channels.md#a-hosted-page) |
 | Rechtliche Hinweise | Die eigenen AGB- und Datenschutz-URLs des Deployments ersetzen die eingebauten Seiten | [Das Deployment](deployment.md#identity) |
@@ -311,20 +311,26 @@ Hänge sie neben die Ausgabe.
 Festgehalten für das Deployment, für das diese Seite geschrieben wurde, und wahr
 für jedes Deployment, bis jede von ihnen geschlossen ist.
 
-**Im Code, nachverfolgt:**
+**Im Code, und bleibend:**
 
-- Traces tragen vollen Inhalt, sofern ein Agent `observability.content` nicht auf `none` setzt; ein gefiltertes Dazwischen gibt es nicht — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Anhang-Bytes und das Memory einer Person überleben die Löschung ihres
-  Besitzers; kein Export personenbezogener Daten; die Löschinventur —
-  [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
+- Traces tragen vollen Inhalt, sofern ein Agent `observability.content` nicht auf
+  `none` setzt. Ein gefiltertes Dazwischen gibt es nicht und wird es nicht geben:
+  ein teilweise bereinigter Export ist eine Zusage, die niemand prüfen kann
+  ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
+- **Inhalte im Ruhezustand gehören dem Betreiber.** Nachrichtentexte, Dokumente
+  und ihre Vektoren sowie Sandbox-Workspaces sind gewöhnliche Spalten und
+  Dateien; der Vault versiegelt Zugangsdaten, nicht Inhalte. Hochgeladene Dateien
+  können in einen S3-kompatiblen Store gehen, der sie serverseitig verschlüsselt,
+  aber Datenbank und Medien-Volume schützt die Platten- oder
+  Volume-Verschlüsselung - oder gar nichts.
 
 **Geschlossen, und oben statt hier beantwortet:** der Manipulationsnachweis der
 Audit-Spur (#1622, #1648), der Trace-Inhaltsmodus je Agent und sein Erben durch Spezialisten (#1413, #1699), das Tracing in dem Prozess, der einen
-gefeuerten Agent ausführt (#1700), und die
+gefeuerten Agent ausführt (#1700), die
 Kontrollmatrix für HIPAA und SOC 2 unter
-[Sicherheit](security.md#controls-matrix) (#1412). Traces haben kein gefiltertes
+[Sicherheit](security.md#controls-matrix) (#1412), Löschung und Export der Daten
+einer Person (#1421), das S3-Backend mit serverseitiger Verschlüsselung (#1423)
+und generisches OIDC-Sign-in (#1419). Traces haben kein gefiltertes
 Dazwischen und bekommen keines
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); für ein
 Deployment, das keinen Inhalt exportieren darf, ist `none` die Antwort.

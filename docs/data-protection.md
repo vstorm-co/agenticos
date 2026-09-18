@@ -144,7 +144,7 @@ one.
 | Access to a row | Three layers: deployment admin, organization role, per-resource grant through `resolve_access`. A control the caller may not use is not rendered | `tests/api/` refusal tests; [Permissions](permissions.md#how-the-layers-combine) |
 | Reading another person's chat | Owner, an explicit share, or the deployment's app admin - never an organization role. Conversations have their own check, `ConversationService._may_read`, rather than the grant formula | `admin_conversations.py` requires `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Credentials at rest | Envelope encryption per organization, versioned master keys, rotation with a dry run | [Secrets](secrets.md#what-never-happens), four guarantees pinned by tests |
-| Content at rest | **Not encrypted by the application.** Postgres data, `media_data` and the sandbox workspace root rely on disk or volume encryption you provide | Operator control. An S3 backend with server-side encryption for files is [#1423](https://github.com/vstorm-co/agenticos/issues/1423) |
+| Content at rest | **Not encrypted by the application.** Postgres data, `media_data` and the sandbox workspace root rely on disk or volume encryption you provide. Uploaded and chat files are the exception when `FILE_STORAGE_BACKEND=s3`: every write asks the store to encrypt them, SSE-S3 or SSE-KMS under a key you hold | Operator control. [Configuration](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` prints which backend a running deployment is on |
 | In transit, inbound | HTTPS at your proxy; `Strict-Transport-Security` when `ENVIRONMENT=production`; session cookies `httpOnly`, and `secure` from the request scheme on sign-in and refresh. The password-change route sets `secure` only in a production build | [Deploy](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | In transit, to the stores | `POSTGRES_SSLMODE` and `REDIS_SSL`; `agenticos cmd doctor` reports whether the connection it made was encrypted | [Encrypted connections](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | In transit, to providers | HTTPS to every catalogued endpoint. A custom `base_url` is refused without a host or with credentials in it, but **`http://` is accepted**, for an Ollama or a gateway on the deployment's own network; a plain-HTTP profile pointing off that network sends prompts and the key in clear. Item 4 of the checklist lists every such profile | `refused_field("base_url", ...)` in the model profile service; operator control for the scheme |
@@ -159,7 +159,7 @@ one.
 | Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Everything else held about them comes back from `GET /me/data/export`, bounded and audited (#1421) |
-| Enterprise identity | Google sign-in and passwords; no OIDC yet | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
+| Enterprise identity | Google sign-in, passwords, and generic OIDC against the provider you already run - configured by discovery from `OIDC_ISSUER` alone. No SAML or SCIM | [Configuration](configuration.md); `OIDC_ISSUER` |
 | The controls matrix a security review reads | [Security](security.md#controls-matrix) maps each control to its mechanism and the test holding it, framed against HIPAA §164.312 and SOC 2 CC6–CC8; this page and [Rolling it out](rollout.md#what-your-security-review-will-ask) are the rest | [Security](security.md) (#1412) |
 | Public surfaces | A hosted page's visitor key is random, never derived from the person; admission and uploads are rate-limited per address, the address held in a Redis key for the window and nowhere else | [Channels](channels.md#a-hosted-page) |
 | Legal notices | The deployment's own Terms and Privacy URLs replace the built-in pages | [The deployment](deployment.md#identity) |
@@ -288,19 +288,24 @@ the output.
 Stated for the deployment this page was written against, and true of any
 deployment until each closes.
 
-**In the code, tracked:**
+**In the code, and standing:**
 
-- Traces carry full content unless an agent sets `observability.content` to `none`; no filtered middle ground - [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Attachment bytes and a person's memory survive their owner's deletion; no
-  personal data export; the erasure inventory -
-  [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
+- Traces carry full content unless an agent sets `observability.content` to
+  `none`. There is no filtered middle ground and there will not be one: a
+  partly-scrubbed export is a guarantee nobody can audit
+  ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
+- **Content at rest is the operator's.** Message bodies, documents and their
+  vectors, and sandbox workspaces are plaintext columns and files; the vault
+  seals credentials, not content. Uploaded files can go to an S3-compatible
+  store that encrypts them server-side, but the database and the media volume
+  are protected by disk or volume encryption or not at all.
 
 **Closed, and answered above rather than here:** the audit trail's tamper
 evidence (#1622, #1648), the per-agent trace content mode and its inheritance by
 specialists (#1413, #1699), tracing in the process that runs a fired agent
-(#1700), and the HIPAA and SOC 2 controls matrix in [Security](security.md#controls-matrix) (#1412).
+(#1700), the HIPAA and SOC 2 controls matrix in [Security](security.md#controls-matrix)
+(#1412), erasure and export of one person's data (#1421), the S3 backend with
+server-side encryption (#1423), and generic OIDC sign-in (#1419).
 Traces have no filtered middle ground and will not get one
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); `none` is the
 answer for a deployment that may not export content.

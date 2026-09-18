@@ -1,5 +1,5 @@
 ---
-source_sha: "a16194cf5597"
+source_sha: "0666cb8070f1"
 ---
 
 # Bezpieczeństwo { #security }
@@ -104,7 +104,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 |---|---|---|---|
 | `users` | Usuwany | Profil, bez hasha hasła | Samo konto |
 | `conversations`, `messages`, `tool_calls` | Kaskada | Wątki, które zaczęli, z każdą turą | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic |
-| `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskadował, a plik nie — czyli dane zatrzymane po żądaniu usunięcia ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskaduje od wiadomości, a plik na dysku nie, więc ścieżki są zbierane przed usunięciem i odpinane po jego commicie — inaczej bajty przeżywają żądanie, które kazało im zniknąć: nieosiągalne dla niczego i nieusuwane przez nikogo. Transkrypt w eksporcie nazywa załącznik; bajty są do pobrania dopóki konto istnieje, a nie pakowane do środka |
 | `message_ratings` | Kaskada | Tak | Wyrażona opinia |
 | `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskada | Układy i skróty | Ustawienia osobiste, dla nikogo innego bez znaczenia |
@@ -192,9 +192,9 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Mutacje istotne dla governance zapisywane w transakcji żądania | `record_audit` (`app/core/audit.py`) w mutującym serwisie — rotacja sekretu, podpięcie skilla / synchronizacji / MCP, członkostwo, udostępnianie, zatwierdzenia, eksporty i więcej; zapisywane do `app_admin_audit_logs`. To nie jest pokrycie każdego zapisu (CRUD bazy wiedzy, choćby, nie jest audytowany) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Ślad jest czytelny dla audytora | `GET /audit`, bramkowane na `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Eksport śladu (CSV/JSONL) | `GET /audit/export` w oknie czasu, bramkowany na `audit:read`, zapisujący własny odczyt w śladzie; eksporty runów, zatwierdzeń i wydatków robią to samo (#1422) | `test_exporting.py` (eksport i jego własny wpis audytowy) |
-| Okres audytu, który organizacja może wydłużyć i nigdy skrócić | Podłoga na poziomie wdrożenia (domyślnie sześć lat, HIPAA §164.316(b)(2)); krótszy okres jest odrzucany, a nie podnoszony. Sweep **nie** usuwa wpisów audytowych — łańcuch haszy i jego checkpoint stoją na tym, że wpisy zostają, więc weryfikowalne wycofanie to [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Zobacz [Retencję](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| Okres audytu, który organizacja może wydłużyć i nigdy skrócić | Podłoga na poziomie wdrożenia (domyślnie sześć lat, HIPAA §164.316(b)(2)); krótszy okres jest odrzucany, a nie podnoszony. Sweep **nie** usuwa wpisów audytowych — łańcuch haszy i jego checkpoint stoją na tym, że wpisy zostają, więc wpisu nie da się wycofać, nie łamiąc dowodu, że reszta jest nienaruszona (`app/core/retention.py`). Zobacz [Retencję](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Osoba może odczytać i usunąć własne dane | `GET /me/data/export` (limit na godzinę, audytowany także przy własnym żądaniu) oraz `DELETE /conversations/{id}` w zakresie własności wywołującego; eksport administratora wymaga powodu (`app/services/personal_data.py`) | `test_personal_data.py` |
-| Dowód nienaruszalności (łańcuch haszy) | **Jeszcze nie** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
+| Dowód nienaruszalności (łańcuch haszy) | Każdy wpis wchodzi w łańcuch haszy swojej organizacji, a każdy łańcuch niesie checkpoint na swoim znaku najwyższej wody, więc przepisany wpis, urwany ogon i skasowany łańcuch są wykrywalne osobno; `agenticos cmd audit-verify` przechodzi je i kończy się kodem niezerowym na przerwaniu (`app/core/audit.py`, `app/commands/audit_verify.py`). Wykrycie, nie zapobieżenie: kto trzyma własne poświadczenia bazy, może przekuć łańcuch albo zrzucić trigger checkpointu | `test_audit_record.py`, `test_audit_chain_backfill.py`, `test_audit_verify_command.py`, `test_audit_checkpoint_migration.py` |
 
 ### Integralność · HIPAA §164.312(c) · SOC 2 CC8 (zarządzanie zmianą) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
 
@@ -268,7 +268,7 @@ Profil sugerujący inaczej byłby twierdzeniem, którego nikt nie obroni.
 | `content-at-rest` | §164.312(a)(2)(iv) | **Operatora.** Dane Postgresa, wolumen mediów i katalog workspace'ów sandboxa szyfruje wolumen albo dysk, nie ta aplikacja |
 | `local-model` | §164.312(e)(1) | Każdy profil modelu serwowany z twojej sieci. Parsowana jest **nazwa hosta** — adres prywatny, `localhost`, gołe `ollama`/`litellm`/`vllm` albo nazwa `.internal`/`.local`/`.svc` — więc `https://ollama.vendor.example` nie jest lokalny, a ten bez `base_url` to z definicji publiczne API dostawcy |
 | `traces-local` | §164.312(e)(1) | Nieustawiony `LOGFIRE_TOKEN` **i** żaden opublikowany agent ani nazwane środowisko nie niesie własnego tokenu tracingu — każdy podpina własny eksporter, a `observability.content` domyślnie to `full` |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. **Jeszcze niedostępne** — generyczne logowanie OIDC to [#1419](https://github.com/vstorm-co/agenticos/issues/1419), więc ta kontrola jest dziś niespełniona na każdym wdrożeniu, co jest prawdą o takim, gdzie ludzie logują się hasłami. MFA należy do dostawcy tożsamości, i arkusz to mówi, zamiast tego twierdzić |
+| `sso` | §164.312(d) | `OIDC_ISSUER`, konfigurowany samym discovery — issuer to jedyny URL, a endpointy autoryzacji, tokenu i JWKS biorą się z jego `.well-known/openid-configuration`. Nieustawiony — kontrola jest niespełniona i arkusz to mówi, co jest prawdą o wdrożeniu, gdzie ludzie logują się hasłami, które ono przechowuje. Uwierzytelnianie wieloskładnikowe należy do dostawcy tożsamości, a arkusz nie przypisuje go sobie w żadną stronę |
 | `signup` | §164.312(a)(1) | `invite_only` albo `closed` |
 | `audit-retention` | §164.312(b) | Podłoga audytu co najmniej 2190 dni — sześć lat z §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | Łańcuch haszy i jego checkpoint. Wykrywanie, nie zapobieganie — zobacz [Kontrole audytu](#audit-controls-hipaa-164312b-soc-2-cc7) |

@@ -1,5 +1,5 @@
 ---
-source_sha: "de15667a3ec2"
+source_sha: "e40b9a378fe0"
 ---
 
 # Ochrona danych { #data-protection }
@@ -148,7 +148,7 @@ jest luką — i tak jest nazwany.
 | Dostęp do wiersza | Trzy warstwy: administrator wdrożenia, rola w organizacji, grant per zasób przez `resolve_access`. Kontrolka, której wywołujący nie może użyć, nie jest renderowana | Testy odmów w `tests/api/`; [Uprawnienia](permissions.md#how-the-layers-combine) |
 | Czytanie cudzego czatu | Właściciel, jawne udostępnienie albo administrator aplikacji wdrożenia — nigdy rola w organizacji. Konwersacje mają własne sprawdzenie, `ConversationService._may_read`, a nie formułę grantów | `admin_conversations.py` wymaga `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Poświadczenia w spoczynku | Szyfrowanie kopertowe per organizacja, wersjonowane klucze główne, rotacja z suchym przebiegiem | [Sekrety](secrets.md#what-never-happens), cztery gwarancje przypięte testami |
-| Treść w spoczynku | **Nieszyfrowana przez aplikację.** Dane Postgresa, `media_data` i katalog główny workspace'ów sandboksa polegają na szyfrowaniu dysku albo wolumenu, które zapewniasz | Kontrola operatora. Backend S3 z szyfrowaniem po stronie serwera dla plików to [#1423](https://github.com/vstorm-co/agenticos/issues/1423) |
+| Treść w spoczynku | **Nieszyfrowana przez aplikację.** Dane Postgresa, `media_data` i katalog główny workspace'ów sandboksa polegają na szyfrowaniu dysku albo wolumenu, które zapewniasz. Wyjątkiem są pliki z uploadu i czatu przy `FILE_STORAGE_BACKEND=s3`: każdy zapis prosi magazyn o ich zaszyfrowanie, SSE-S3 albo SSE-KMS pod kluczem, który trzymasz | Kontrola operatora. [Konfiguracja](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` wypisuje, na którym backendzie stoi działające wdrożenie |
 | W tranzycie, przychodzące | HTTPS na Twoim proxy; `Strict-Transport-Security`, gdy `ENVIRONMENT=production`; ciasteczka sesji `httpOnly`, a `secure` ze schematu żądania przy logowaniu i odświeżeniu. Trasa zmiany hasła ustawia `secure` tylko w buildzie produkcyjnym | [Wdrożenie](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | W tranzycie, do magazynów | `POSTGRES_SSLMODE` i `REDIS_SSL`; `agenticos cmd doctor` raportuje, czy połączenie, które nawiązał, było szyfrowane | [Połączenia szyfrowane](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | W tranzycie, do providerów | HTTPS do każdego skatalogowanego endpointu. Własny `base_url` jest odrzucany bez hosta albo z poświadczeniami w środku, ale **`http://` jest przyjmowany**, dla Ollamy albo gatewaya w sieci samego wdrożenia; profil na zwykłym HTTP wskazujący poza tę sieć wysyła prompty i klucz jawnie. Punkt 4 listy kontrolnej wypisuje każdy taki profil | `refused_field("base_url", ...)` w serwisie profili modeli; schemat to kontrola operatora |
@@ -163,7 +163,7 @@ jest luką — i tak jest nazwany.
 | Retencja według harmonogramu | Na organizację i na klasę — rozmowy i ich pliki, runy i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i audyt — w ramach domyślnej wartości, sufitu i podłogi audytu na poziomie wdrożenia. Codzienny sweep usuwa twardo i zapisuje liczniki, nigdy treść. Backupy i cokolwiek już wysłane do zewnętrznego kolektora są poza tym. `notifications` nie jest jedną z tych klas: zamiast tego jest zamiatane według własnego, stałego harmonogramu — wiersz *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią | [Retencja](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; zamiatanie powiadomień to `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Osoba czyta w Ustawienia → Pamięć wszystko, co każdy agent tutaj o niej zapisał, i może notatkę wyłączyć, przywrócić albo usunąć. Czytanie *cudzego* magazynu należy wyłącznie do administratora wdrożenia — nie do roli w organizacji — i jest audytowane z aktorem, tenantem, podmiotem i powodem, nigdy z treścią. Magazyny zewnętrzne (mem0) są nazwane, a nie listowane | [Jak to czytać i jak wymazać](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Wszystko inne, co jest o niej trzymane, wraca z `GET /me/data/export`, ograniczone rozmiarem i audytowane (#1421) |
-| Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
+| Tożsamość korporacyjna | Logowanie Google, hasła i generyczne OIDC przeciwko dostawcy, którego już prowadzisz — konfigurowane samym discovery z `OIDC_ISSUER`. Bez SAML i SCIM | [Konfiguracja](configuration.md); `OIDC_ISSUER` |
 | Macierz kontroli, którą czyta przegląd bezpieczeństwa | [Bezpieczeństwo](security.md#controls-matrix) mapuje każdą kontrolę na jej mechanizm i test, który go trzyma, w ramach HIPAA §164.312 i SOC 2 CC6–CC8; ta strona i [Wdrażanie](rollout.md#what-your-security-review-will-ask) to reszta | [Bezpieczeństwo](security.md) (#1412) |
 | Powierzchnie publiczne | Klucz odwiedzającego hostowanej strony jest losowy, nigdy wyprowadzony z osoby; wpuszczanie i wgrywanie są rate-limitowane per adres, a adres leży w kluczu Redisa na czas okna i nigdzie indziej | [Kanały](channels.md#a-hosted-page) |
 | Noty prawne | Własne adresy Regulaminu i Polityki prywatności wdrożenia zastępują strony wbudowane | [Wdrożenie](deployment.md#identity) |
@@ -293,19 +293,24 @@ i wyłączenia z treningu z poprzedniej sekcji. Załącz je obok wyniku.
 Spisane dla wdrożenia, pod które powstała ta strona, i prawdziwe dla każdego
 wdrożenia, dopóki każdy z nich się nie zamknie.
 
-**W kodzie, śledzone:**
+**W kodzie, i trwałe:**
 
-- Trace'y niosą pełną treść, chyba że agent ustawi `observability.content` na `none`; nie ma stanu pośredniego — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Bajty załączników i pamięć osoby przeżywają usunięcie swojego właściciela; brak
-  eksportu danych osobowych; inwentarz usunięcia —
-  [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Pliki wyłącznie na dysku lokalnym, szyfrowane przez wolumen albo wcale — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Brak logowania OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
+- Trace'y niosą pełną treść, chyba że agent ustawi `observability.content` na
+  `none`. Nie ma stanu pośredniego z filtrem i nie będzie: częściowo wyczyszczony
+  eksport to gwarancja, której nikt nie zaudytuje
+  ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
+- **Treść w spoczynku należy do operatora.** Treści wiadomości, dokumenty i ich
+  wektory oraz workspace'y sandboksa to zwykłe kolumny i pliki; vault pieczętuje
+  poświadczenia, nie treść. Pliki z uploadu mogą trafić do magazynu zgodnego z S3,
+  który szyfruje je po swojej stronie, ale baza i wolumen mediów są chronione
+  szyfrowaniem dysku albo wolumenu — albo wcale.
 
 **Zamknięte i opisane wyżej, a nie tutaj:** dowód nienaruszalności śladu
 audytowego (#1622, #1648), tryb treści trace'u per agent i jego dziedziczenie przez specjalistów (#1413, #1699), trace'owanie w procesie wykonującym
-uruchomionego agenta (#1700) oraz macierz
-kontroli HIPAA i SOC 2 w [Bezpieczeństwie](security.md#controls-matrix) (#1412).
+uruchomionego agenta (#1700), macierz
+kontroli HIPAA i SOC 2 w [Bezpieczeństwie](security.md#controls-matrix) (#1412),
+usunięcie i eksport danych jednej osoby (#1421), backend S3 z szyfrowaniem po
+stronie serwera (#1423) oraz generyczne logowanie OIDC (#1419).
 Trace'y nie mają stanu pośredniego z filtrem i go nie dostaną
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); dla wdrożenia,
 które nie może eksportować treści, odpowiedzią jest `none`.

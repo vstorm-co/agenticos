@@ -1,5 +1,5 @@
 ---
-source_sha: "a16194cf5597"
+source_sha: "0666cb8070f1"
 ---
 
 # Sicherheit { #security }
@@ -114,7 +114,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 |---|---|---|---|
 | `users` | Gelöscht | Profil, ohne den Passwort-Hash | Das Konto selbst |
 | `conversations`, `messages`, `tool_calls` | Kaskade | Von ihnen begonnene Threads, mit jeder Runde darin | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts |
-| `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadierte, die Datei nicht — also Daten, die nach einer Löschanfrage geblieben sind ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadiert von der Nachricht, die Datei auf der Platte nicht - also werden die Pfade vor dem Löschen eingesammelt und nach dessen Commit gelöst, sonst überleben die Bytes die Anfrage, die sie entfernen sollte: für nichts erreichbar und von niemandem gelöscht. Das Transkript im Export nennt den Anhang; die Bytes sind herunterladbar, solange das Konto besteht, und werden nicht mit eingepackt |
 | `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
 | `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskade | Layouts und Kurzbefehle | Persönliche Einstellungen, für niemanden sonst bedeutsam |
@@ -206,9 +206,9 @@ SOC 2 CC6–CC8.
 | Governance-relevante Mutationen werden in der Transaktion der Anfrage festgehalten | `record_audit` (`app/core/audit.py`) im mutierenden Service — Secret-Rotation, Skill-/Sync-/MCP-Bindung, Mitgliedschaft, Freigabe, Freigaben, Exporte und mehr; geschrieben nach `app_admin_audit_logs`. Es ist keine flächendeckende Abdeckung jedes Schreibvorgangs (das CRUD der Wissensbasis etwa wird nicht auditiert) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Die Spur ist für einen Auditor lesbar | `GET /audit`, gegated auf `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Export der Spur (CSV/JSONL) | `GET /audit/export` über ein Fenster, auf `audit:read` gegated, hält den eigenen Abruf in der Spur fest; die Run-, Freigabe- und Spend-Exporte tun dasselbe (#1422) | `test_exporting.py` (der Export und sein eigener Audit-Eintrag) |
-| Eine Audit-Frist, die eine Organisation verlängern und nie verkürzen kann | Eine deploymentweite Untergrenze (standardmäßig sechs Jahre, HIPAA §164.316(b)(2)); eine kürzere Frist wird abgelehnt statt angehoben. Der Sweep löscht **keine** Audit-Einträge - die Hash-Kette und ihr Checkpoint stehen darauf, dass Einträge bleiben, eine nachprüfbare Ausmusterung ist [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Siehe [Aufbewahrung](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| Eine Audit-Frist, die eine Organisation verlängern und nie verkürzen kann | Eine deploymentweite Untergrenze (standardmäßig sechs Jahre, HIPAA §164.316(b)(2)); eine kürzere Frist wird abgelehnt statt angehoben. Der Sweep löscht **keine** Audit-Einträge - die Hash-Kette und ihr Checkpoint stehen darauf, dass Einträge bleiben, ein Eintrag lässt sich also nicht ausmustern, ohne den Nachweis zu brechen, dass die übrigen unversehrt sind (`app/core/retention.py`). Siehe [Aufbewahrung](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Eine Person kann ihre eigenen Daten auslesen und entfernen | `GET /me/data/export` (stündlich limitiert, auch bei der eigenen Anfrage protokolliert) und `DELETE /conversations/{id}` im Rahmen des eigenen Besitzes; der Export einer Administratorin verlangt eine Begründung (`app/services/personal_data.py`) | `test_personal_data.py` |
-| Manipulationsnachweis (eine Hash-Kette) | **Noch nicht** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
+| Manipulationsnachweis (eine Hash-Kette) | Jeder Eintrag reiht sich in die Hash-Kette seiner Organisation ein, und jede Kette trägt einen Checkpoint an ihrem Höchststand, sodass ein umgeschriebener Eintrag, ein abgeschnittenes Ende und eine gelöschte Kette je für sich erkennbar sind; `agenticos cmd audit-verify` läuft sie ab und endet bei einem Bruch mit einem Exit-Code ungleich null (`app/core/audit.py`, `app/commands/audit_verify.py`). Erkennung, nicht Verhinderung: wer die Zugangsdaten der Datenbank selbst hält, kann eine Kette neu schmieden oder den Trigger des Checkpoints entfernen | `test_audit_record.py`, `test_audit_chain_backfill.py`, `test_audit_verify_command.py`, `test_audit_checkpoint_migration.py` |
 
 ### Integrität · HIPAA §164.312(c) · SOC 2 CC8 (Change Management) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
 
@@ -285,7 +285,7 @@ niemand stützen kann.
 | `content-at-rest` | §164.312(a)(2)(iv) | **Der Betreiberin.** Postgres-Daten, das Medien-Volume und das Sandbox-Workspace-Verzeichnis verschlüsselt ein Volume oder eine Platte, nicht diese Anwendung |
 | `local-model` | §164.312(e)(1) | Jedes Modellprofil aus dem eigenen Netz. Geparst wird der **Hostname** - eine private Adresse, `localhost`, ein bloßes `ollama`/`litellm`/`vllm` oder ein `.internal`/`.local`/`.svc`-Name - `https://ollama.vendor.example` ist also nicht lokal, und eines ohne `base_url` ist per Definition die öffentliche API des Anbieters |
 | `traces-local` | §164.312(e)(1) | Nicht gesetztes `LOGFIRE_TOKEN` **und** kein veröffentlichter Agent und keine benannte Umgebung mit eigenem Tracing-Token - jedes hängt einen eigenen Exporter an, und `observability.content` ist standardmäßig `full` |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. **Noch nicht verfügbar** - generisches OIDC-Sign-in ist [#1419](https://github.com/vstorm-co/agenticos/issues/1419), diese Kontrolle ist heute also auf jedem Deployment unerfüllt, was der Wahrheit über eines entspricht, auf dem man sich mit Passwörtern anmeldet. Mehrfaktor-Authentifizierung ist Sache des Identitätsanbieters, und das Blatt sagt es, statt es zu behaupten |
+| `sso` | §164.312(d) | `OIDC_ISSUER`, allein per Discovery konfiguriert - der Issuer ist die einzige URL, und die Endpunkte für Autorisierung, Token und JWKS kommen aus dessen `.well-known/openid-configuration`. Ungesetzt ist die Kontrolle unerfüllt, und das Blatt sagt es - die Wahrheit über ein Deployment, in dem sich Menschen mit Passwörtern anmelden, die es selbst speichert. Multi-Faktor-Authentifizierung gehört dem Identity Provider, und das Blatt beansprucht sie in keine Richtung |
 | `signup` | §164.312(a)(1) | `invite_only` oder `closed` |
 | `audit-retention` | §164.312(b) | Eine Audit-Untergrenze von mindestens 2190 Tagen - die sechs Jahre aus §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | Die Hash-Kette und ihr Checkpoint. Erkennung, nicht Verhinderung - siehe [Audit-Kontrollen](#audit-controls-hipaa-164312b-soc-2-cc7) |

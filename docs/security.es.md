@@ -1,5 +1,5 @@
 ---
-source_sha: "a16194cf5597"
+source_sha: "0666cb8070f1"
 ---
 
 # Seguridad { #security }
@@ -111,7 +111,7 @@ agent del que depende el equipo.
 |---|---|---|---|
 | `users` | Se borra | El perfil, sin el hash de la contraseña | La cuenta misma |
 | `conversations`, `messages`, `tool_calls` | Cascada | Los hilos que iniciaron, con cada turno | Suyos, y una transcripción sin un turno de cada dos no responde a nada |
-| `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadeaba y el fichero no, es decir datos conservados tras una petición de borrado ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadea desde el mensaje y el fichero en disco no, así que las rutas se recogen antes del borrado y se desvinculan tras su commit; de otro modo los bytes sobreviven a la petición que pedía quitarlos: inalcanzables para nada y borrados por nadie. La transcripción del export nombra el adjunto; los bytes se descargan mientras la cuenta exista, no se empaquetan dentro |
 | `message_ratings` | Cascada | Sí | Una opinión que expresaron |
 | `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascada | Disposiciones y atajos | Ajustes personales, sin sentido para nadie más |
@@ -201,9 +201,9 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Las mutaciones relevantes para la governance quedan registradas, dentro de la transacción de la petición | `record_audit` (`app/core/audit.py`) en el servicio que muta — rotación de secretos, vinculación de skill / sincronización / MCP, membresía, compartición, aprobaciones, exportaciones y más; escrito en `app_admin_audit_logs`. No es cobertura general de toda escritura (el CRUD de la base de conocimiento, por ejemplo, no se audita) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | El rastro es legible por un auditor | `GET /audit`, gateado en `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exportar el rastro (CSV/JSONL) | `GET /audit/export` sobre una ventana, con puerta en `audit:read`, registrando su propia lectura en el rastro; las exportaciones de runs, aprobaciones y gasto hacen lo mismo (#1422) | `test_exporting.py` (la exportación y su propia entrada de auditoría) |
-| Un periodo de auditoría que una organización puede alargar y nunca acortar | Un suelo de todo el despliegue (seis años por defecto, HIPAA §164.316(b)(2)); un periodo más corto se rechaza en vez de subirse. El barrido **no** borra entradas de auditoría: la cadena de hashes y su checkpoint se apoyan en que las entradas se quedan, así que retirarlas de forma verificable es [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Véase [Retención](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| Un periodo de auditoría que una organización puede alargar y nunca acortar | Un suelo de todo el despliegue (seis años por defecto, HIPAA §164.316(b)(2)); un periodo más corto se rechaza en vez de subirse. El barrido **no** borra entradas de auditoría: la cadena de hashes y su checkpoint se apoyan en que las entradas se quedan, así que una entrada no se puede retirar sin romper la evidencia de que el resto está intacto (`app/core/retention.py`). Véase [Retención](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Una persona puede leer y borrar sus propios datos | `GET /me/data/export` (limitado por hora, auditado incluso cuando es la propia persona) y `DELETE /conversations/{id}` acotado a la propiedad de quien llama; la exportación de un administrador exige un motivo (`app/services/personal_data.py`) | `test_personal_data.py` |
-| Evidencia de manipulación (una cadena de hashes) | **Todavía no** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
+| Evidencia de manipulación (una cadena de hashes) | Cada entrada se suma a la cadena de hashes de su organización, y cada cadena lleva un checkpoint en su marca más alta, así que una entrada reescrita, una cola truncada y una cadena borrada se detectan por separado; `agenticos cmd audit-verify` las recorre y sale con código distinto de cero ante una rotura (`app/core/audit.py`, `app/commands/audit_verify.py`). Detección, no prevención: quien tenga las credenciales de la propia base de datos puede reforjar una cadena o quitar el trigger del checkpoint | `test_audit_record.py`, `test_audit_chain_backfill.py`, `test_audit_verify_command.py`, `test_audit_checkpoint_migration.py` |
 
 ### Integridad · HIPAA §164.312(c) · SOC 2 CC8 (gestión del cambio) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
 
@@ -279,7 +279,7 @@ una afirmación que nadie puede sostener.
 | `content-at-rest` | §164.312(a)(2)(iv) | **De la operadora.** Los datos de Postgres, el volumen de medios y la raíz de workspaces del sandbox los cifra un volumen o un disco, no esta aplicación |
 | `local-model` | §164.312(e)(1) | Todo perfil de modelo servido desde tu propia red. Se analiza el **nombre de host** —una dirección privada, `localhost`, un `ollama`/`litellm`/`vllm` a secas, o un nombre `.internal`/`.local`/`.svc`—, así que `https://ollama.vendor.example` no es local, y uno sin `base_url` es, por definición, la API pública del proveedor |
 | `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` sin definir **y** ningún agente publicado ni entorno con nombre que lleve su propio token de trazas: cada uno engancha su exportador, y `observability.content` es `full` por defecto |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. **Todavía no disponible**: el inicio de sesión OIDC genérico es [#1419](https://github.com/vstorm-co/agenticos/issues/1419), así que este control está hoy sin satisfacer en cualquier despliegue, que es la verdad sobre uno donde se entra con contraseñas. La autenticación multifactor es del proveedor de identidad, y la hoja lo dice en vez de atribuírsela |
+| `sso` | §164.312(d) | `OIDC_ISSUER`, configurado solo por discovery: el issuer es la única URL, y los endpoints de autorización, token y JWKS salen de su `.well-known/openid-configuration`. Sin configurar, el control está incumplido y la hoja lo dice, que es la verdad sobre un despliegue donde la gente entra con contraseñas que él mismo guarda. La autenticación multifactor es del proveedor de identidad, y la hoja no se la atribuye en ningún sentido |
 | `signup` | §164.312(a)(1) | `invite_only` o `closed` |
 | `audit-retention` | §164.312(b) | Un suelo de auditoría de al menos 2190 días — los seis años de §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | La cadena de hashes y su checkpoint. Detección, no prevención — véase [Controles de auditoría](#audit-controls-hipaa-164312b-soc-2-cc7) |

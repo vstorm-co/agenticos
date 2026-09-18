@@ -1,5 +1,5 @@
 ---
-source_sha: "de15667a3ec2"
+source_sha: "e40b9a378fe0"
 ---
 
 # Protección de datos { #data-protection }
@@ -151,7 +151,7 @@ una laguna, y así queda dicho.
 | Acceso a una fila | Tres capas: administrador del deployment, rol en la organización, grant por recurso a través de `resolve_access`. Un control que quien llama no puede usar no se renderiza | Pruebas de rechazo en `tests/api/`; [Permisos](permissions.md#how-the-layers-combine) |
 | Leer el chat de otra persona | El propietario, una compartición explícita o el app admin del deployment — nunca un rol de la organización. Las conversaciones tienen su propia comprobación, `ConversationService._may_read`, en vez de la fórmula de grants | `admin_conversations.py` exige `is_app_admin`; `tests/integration/test_conversation_tenant_isolation.py` |
 | Credenciales en reposo | Cifrado de sobre por organización, claves maestras versionadas, rotación con ejecución en seco | [Secretos](secrets.md#what-never-happens), cuatro garantías fijadas por pruebas |
-| Contenido en reposo | **La aplicación no lo cifra.** Los datos de Postgres, `media_data` y la raíz de workspaces de la sandbox dependen del cifrado de disco o de volumen que aportes tú | Control del operador. Un backend S3 con cifrado del lado del servidor para archivos es [#1423](https://github.com/vstorm-co/agenticos/issues/1423) |
+| Contenido en reposo | **La aplicación no lo cifra.** Los datos de Postgres, `media_data` y la raíz de workspaces del sandbox dependen del cifrado de disco o volumen que tú aportes. La excepción son los ficheros subidos y de chat con `FILE_STORAGE_BACKEND=s3`: cada escritura pide al almacén que los cifre, SSE-S3 o SSE-KMS bajo una clave que tú tienes | Control del operador. [Configuración](configuration.md#uploaded-files-at-rest); `agenticos cmd doctor` indica en qué backend está un despliegue en marcha |
 | En tránsito, entrante | HTTPS en tu proxy; `Strict-Transport-Security` cuando `ENVIRONMENT=production`; cookies de sesión `httpOnly`, y `secure` según el esquema de la petición al iniciar sesión y al refrescar. La ruta de cambio de contraseña pone `secure` solo en una build de producción | [Despliegue](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | En tránsito, hacia los almacenes | `POSTGRES_SSLMODE` y `REDIS_SSL`; `agenticos cmd doctor` informa de si la conexión que estableció iba cifrada | [Conexiones cifradas](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | En tránsito, hacia los providers | HTTPS a todo endpoint catalogado. Una `base_url` propia se rechaza sin host o con credenciales dentro, pero **`http://` se acepta**, para un Ollama o una pasarela en la propia red del deployment; un perfil en HTTP plano que apunte fuera de esa red envía los prompts y la clave en claro. El punto 4 de la lista de comprobación enumera todos esos perfiles | `refused_field("base_url", ...)` en el servicio de perfiles de modelo; el esquema es control del operador |
@@ -166,7 +166,7 @@ una laguna, y así queda dicho.
 | Retención programada | Por organización y por clase —conversaciones y sus archivos, runs y manifiestos, workspaces, memoria de agentes, documentos subidos y auditoría— dentro de un valor por defecto, un techo y un suelo de auditoría de todo el despliegue. Un barrido diario borra de verdad y registra recuentos, nunca contenido. Las copias de seguridad y todo lo ya enviado a un colector externo quedan fuera. `notifications` no es una de esas clases: se barre con su propio calendario fijo en su lugar, una fila *leída* a los 90 días y cualquier fila al año sin importar el estado. Los propios `announcements` quedan excluidos, así que lo enviado sigue siendo consultable en el rastro de auditoría después de que sus entregas caduquen | [Retención](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; el barrido de notificaciones es `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Todo lo demás que se guarda sobre ella vuelve de `GET /me/data/export`, acotado y auditado (#1421) |
-| Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
+| Identidad corporativa | Inicio de sesión con Google, contraseñas y OIDC genérico contra el proveedor que ya tienes — configurado solo por discovery desde `OIDC_ISSUER`. Sin SAML ni SCIM | [Configuración](configuration.md); `OIDC_ISSUER` |
 | La matriz de controles que lee una revisión de seguridad | [Seguridad](security.md#controls-matrix) asigna a cada control su mecanismo y el test que lo sostiene, en el marco de HIPAA §164.312 y SOC 2 CC6–CC8; esta página y [Ponerlo en marcha](rollout.md#what-your-security-review-will-ask) son el resto | [Seguridad](security.md) (#1412) |
 | Superficies públicas | La clave de visitante de una página alojada es aleatoria, nunca derivada de la persona; la admisión y las subidas se limitan por dirección, y la dirección vive en una clave de Redis durante la ventana y en ningún otro sitio | [Canales](channels.md#a-hosted-page) |
 | Avisos legales | Las URL de Términos y Privacidad propias del deployment sustituyen a las páginas incorporadas | [El deployment](deployment.md#identity) |
@@ -304,20 +304,26 @@ anterior. Adjúntalos junto a la salida.
 Enunciadas para el deployment para el que se escribió esta página, y ciertas para
 cualquier deployment hasta que cada una se cierre.
 
-**En el código, con seguimiento:**
+**En el código, y permanentes:**
 
-- Las trazas llevan contenido completo salvo que un agent ponga `observability.content` en `none`; no hay término medio filtrado — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Los bytes de los adjuntos y la memoria de una persona sobreviven al borrado de
-  su propietario; no hay exportación de datos personales; el inventario de
-  borrado — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Archivos solo en disco local, cifrados por el volumen o nada — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- No hay inicio de sesión OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
+- Las trazas llevan contenido completo salvo que un agent ponga
+  `observability.content` en `none`. No hay término medio filtrado ni lo habrá:
+  una exportación parcialmente depurada es una garantía que nadie puede auditar
+  ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
+- **El contenido en reposo es del operador.** Los cuerpos de los mensajes, los
+  documentos y sus vectores, y los workspaces del sandbox son columnas y ficheros
+  en claro; el vault sella credenciales, no contenido. Los ficheros subidos pueden
+  ir a un almacén compatible con S3 que los cifra en su lado, pero la base de
+  datos y el volumen de medios los protege el cifrado de disco o de volumen, o
+  nada.
 
 **Cerradas, y respondidas arriba en vez de aquí:** la prueba de no manipulación
 del rastro de auditoría (#1622, #1648), el modo de contenido de trazas por agent
 y su herencia por los especialistas (#1413, #1699), el trazado en el proceso
-que ejecuta un agent disparado (#1700) y la matriz de controles de HIPAA y SOC 2 en
-[Seguridad](security.md#controls-matrix) (#1412). Las trazas no tienen término
+que ejecuta un agent disparado (#1700), la matriz de controles de HIPAA y SOC 2 en
+[Seguridad](security.md#controls-matrix) (#1412), el borrado y la exportación de
+los datos de una persona (#1421), el backend S3 con cifrado en el servidor
+(#1423) y el inicio de sesión OIDC genérico (#1419). Las trazas no tienen término
 medio filtrado y no lo tendrán
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); para un deployment
 que no pueda exportar contenido, la respuesta es `none`.
