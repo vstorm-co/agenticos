@@ -19,7 +19,7 @@ resolves to, and the dispatch-time attempt counter its occurrence id needs to
 survive a retry without colliding with the attempt before it - nothing in the
 ingestion pipeline persisted either before this (Decision 1).
 
-Revision ID: 0085_notification_center_schema
+Revision ID: 0088_notification_center_schema
 Revises: 0085_refresh_reuse
 Create Date: 2026-09-15
 
@@ -49,8 +49,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0085_notification_center_schema"
-down_revision: str | None = "0085_refresh_reuse"
+revision: str = "0088_notification_center_schema"
+down_revision: str | None = "0087_agent_categories_tags"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
