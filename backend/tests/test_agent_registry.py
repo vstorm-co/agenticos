@@ -1715,6 +1715,28 @@ class TestSkillValidation:
         assert problems == [f"Skill not found: {skill_id}"]
 
     @pytest.mark.anyio
+    async def test_a_skill_named_after_a_capability_is_refused(self):
+        """Each skill is a deferred capability filed under its own name, in the
+        same namespace as the platform's own - so a skill called `planning` on an
+        agent that also has the planning capability is a duplicate id Pydantic AI
+        refuses before the first token. The agent would publish and never run
+        (#1704 review)."""
+        ctx = _ctx()
+        clashing = _skill(ctx)
+        clashing.name = "planning"
+
+        problems = await self._problems(
+            ctx,
+            _spec(skill_ids=[clashing.id], model_profile_id=uuid.uuid4()),
+            return_value={clashing.id: clashing},
+        )
+
+        assert problems == [
+            "Skill 'planning' has the name of a capability this platform offers, "
+            "and each skill is a capability now - rename the skill"
+        ]
+
+    @pytest.mark.anyio
     async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
         """The leak this check closes, reported as an absence.
 
@@ -1929,14 +1951,14 @@ class TestToolOverrideValidation:
             _spec(
                 capabilities=[
                     {
-                        "id": "skills",
-                        "tool_overrides": {"load_skill": {"name": "list_skills"}},
+                        "id": "context",
+                        "tool_overrides": {"read_context": {"name": "list_context"}},
                     }
                 ]
             )
         )
 
-        assert any("two tools called list_skills" in problem for problem in problems)
+        assert any("two tools called list_context" in problem for problem in problems)
 
     @pytest.mark.anyio
     async def test_a_rename_a_model_can_call_is_accepted(self):
@@ -1948,7 +1970,7 @@ class TestToolOverrideValidation:
                 {
                     "id": "skills",
                     "tool_overrides": {
-                        "load_skill": {
+                        "read_skill_resource": {
                             "name": "load-playbook_2",
                             "description": "Load one of the team's playbooks.",
                         }
@@ -2861,10 +2883,7 @@ class TestAvatar:
         """Same answer as having none. A caller cannot act on the difference, and
         the alternative is a 500 from a missing file."""
         ctx = _ctx()
-        storage = MagicMock()
-        missing = MagicMock()
-        missing.exists.return_value = False
-        storage.get_full_path.return_value = missing
+        storage = MagicMock(exists=AsyncMock(return_value=False))
 
         with (
             patch(
@@ -2877,13 +2896,11 @@ class TestAvatar:
             await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
     @pytest.mark.anyio
-    async def test_a_stored_avatar_is_answered_with_the_file_on_disk(self):
+    async def test_a_stored_avatar_is_answered_with_its_storage_path(self):
+        """The path the backend wrote, not a path on this host: the route resolves
+        it through the backend, which may be an object store (#1423)."""
         ctx = _ctx()
-        storage = MagicMock()
-        stored = MagicMock()
-        stored.exists.return_value = True
-        stored.__str__ = lambda _self: "/data/avatars/agents/x/logo.png"
-        storage.get_full_path.return_value = stored
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(
@@ -2894,8 +2911,8 @@ class TestAvatar:
         ):
             path = await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
-        assert path == "/data/avatars/agents/x/logo.png"
-        assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+        assert path == "avatars/agents/x/logo.png"
+        storage.exists.assert_awaited_once_with("avatars/agents/x/logo.png")
 
     @pytest.mark.anyio
     async def test_choosing_a_colour_writes_the_slot(self):

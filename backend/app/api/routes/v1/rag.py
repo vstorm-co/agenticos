@@ -38,7 +38,6 @@ listing, which is why the stream was not worth rebuilding.
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.api.deps import (
     Auth,
@@ -53,6 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
@@ -220,7 +220,9 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name, ctx.organization_id)
+    return await vector_store.get_collection_info(
+        collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
+    )
 
 
 @router.get(
@@ -236,7 +238,9 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(collection.collection_name)
+    return await vector_store.get_document_list(
+        collection.collection_name, collection.vector_tenant
+    )
 
 
 @router.post(
@@ -257,7 +261,12 @@ async def search_documents(
     from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
-    collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
+    # The authorized knowledge base for each name carries the tenant its rows are
+    # scoped by; threading it through means the search reads the base the caller was
+    # authorized for, not a same-named base in their organization the store would
+    # otherwise resolve without checking resource access (#1684).
+    kbs = await access.readable_all(ctx, names)
+    collections = [kb.collection_name for kb in kbs]
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
             query=request.query,
@@ -265,6 +274,7 @@ async def search_documents(
             limit=request.limit,
             min_score=request.min_score,
             organization_id=ctx.organization_id,
+            tenants={kb.collection_name: kb.vector_tenant for kb in kbs},
         )
     else:
         results = await retrieval_service.retrieve(
@@ -274,6 +284,7 @@ async def search_documents(
             min_score=request.min_score,
             filter=request.filter or "",
             organization_id=ctx.organization_id,
+            tenant=kbs[0].vector_tenant,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)
@@ -294,7 +305,9 @@ async def delete_document(
 ) -> None:
     """Delete a specific document by its ID from a collection."""
     collection = await access.writable(ctx, name)
-    success = await ingestion_service.remove_document(collection.collection_name, document_id)
+    success = await ingestion_service.remove_document(
+        collection.collection_name, document_id, tenant=collection.vector_tenant
+    )
     if not success:
         raise NotFoundError(
             message="Document not found",
@@ -385,16 +398,19 @@ async def download_rag_document(
 ) -> Any:
     """Download the original file for a tracked document."""
     doc = await access.readable_document(ctx, doc_id)
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.delete(
@@ -471,6 +487,10 @@ async def trigger_local_sync(
         collection_name=collection.collection_name,
         mode=request.mode,
         path=request.path,
+        # The base the caller was authorized to write, so the sync stamps its rows
+        # with that base's tenant instead of writing them untagged into an
+        # org-backed collection where normal reads would never see them (#1684).
+        knowledge_base_id=collection.id,
     )
     return RAGSyncResponse(
         id=str(sync_log.id),

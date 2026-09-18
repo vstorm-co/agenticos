@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
+.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -527,6 +527,51 @@ audit:
 	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
+# The frontend half of the same job. `make audit` reads `backend/uv.lock`; this
+# reads `frontend/bun.lock`, which nothing checked until #1415 - `bun audit` was
+# a line on the `SECURITY.md` checklist and in no job, so a console dependency
+# advisory was something somebody found by running it by hand.
+#
+# `bun audit` exits 1 on a finding and 0 on none, so unlike `audit` it needs no
+# verdict-line contract: make's own exit status carries the answer. The level is
+# `high`, which is the line this repository gates on - a `moderate` advisory in a
+# build-time dependency is worth knowing and is not worth a red required check.
+#
+# A finding here is fixed by raising the range in `package.json`, or - when the
+# vulnerable package is a transitive dependency whose parent has not moved yet -
+# by an entry in `overrides` there. Both are in the tree at the moment this
+# target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
+# forward through their parents.
+AUDIT_LEVEL ?= high
+
+audit-frontend:
+	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
+
+# A CycloneDX inventory of what the *source tree* declares, written to `sbom/`.
+#
+# **It is not the release SBOM and is named so it cannot be mistaken for one.**
+# The release documents come from `images.yml`, which scans the published
+# manifest per architecture: they carry the base image's Debian packages, the
+# built artifacts, and nothing from a development environment. A `dir:` scan
+# carries the opposite - the dev and docs dependency groups and
+# `devDependencies` if they are installed, and none of the layers underneath -
+# so the two answer different questions and only one of them answers "what is in
+# the image".
+#
+# What this is for: reading a dependency set without pulling two images, and
+# diffing one branch's declared components against another's.
+#
+# Not in `check`: it needs `syft`, which is not part of the documented setup,
+# and it gates nothing.
+SBOM_DIR ?= sbom
+
+sbom:
+	@command -v syft >/dev/null || { echo "syft not installed - https://github.com/anchore/syft"; exit 1; }
+	mkdir -p $(SBOM_DIR)
+	syft scan dir:backend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-api.cdx.json
+	syft scan dir:frontend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-frontend.cdx.json
+	@echo "SBOM: source-dependency inventories written to $(SBOM_DIR)/ - not the release documents"
+
 # The other half of the `security` job: what the two images ship and under which
 # licences. `licenses` regenerates THIRD_PARTY_NOTICES.md from the lockfiles;
 # `licenses-check` regenerates it in memory and fails when the committed file is
@@ -566,6 +611,36 @@ test-e2e:
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
 	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
 
+# The load and resilience suite (NFA-004). Not part of `make check` and never in
+# CI: a load result is a measurement of one machine, and a number produced on a
+# shared runner under whatever else it was doing is worse than no number.
+# `docs/load-testing.md` has the prerequisites and how to read the report.
+LOAD_STUB_PORT ?= 4020
+LOAD_DOCUMENTS ?= 40
+# Where the stub listens, and the address the *API* reaches it on. They differ
+# whenever the API is not on this host: `make dev` runs it in a container, where
+# loopback is the container itself, so that topology needs
+# `LOAD_STUB_BIND=0.0.0.0 LOAD_STUB_URL=http://host.docker.internal:4020`.
+# docs/load-testing.md states both, because seeding the wrong one fails preflight
+# with a message about an empty collection rather than about an address.
+LOAD_STUB_BIND ?= 127.0.0.1
+LOAD_STUB_URL ?= http://127.0.0.1:$(LOAD_STUB_PORT)
+
+load-stub-model:
+	uv run --directory backend python ../loadtest/stub_model.py \
+		--host $(LOAD_STUB_BIND) --port $(LOAD_STUB_PORT)
+
+load-seed:
+	uv run --directory backend python ../loadtest/seed.py \
+		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
+
+# `API_PID` and `DATABASE_URL` are optional; without them the run measures
+# requests and says which probes it could not take.
+load-test:
+	uv run --directory backend python ../loadtest/run.py \
+		$(if $(API_PID),--api-pid $(API_PID),) \
+		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
+
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
 # a command advertised as CI that runs less than CI prints "All checks passed"
@@ -597,7 +672,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit licenses-check
+check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -791,6 +866,12 @@ docker-db:
 docker-db-stop:
 	docker compose stop db
 
+docker-minio:
+	docker compose --profile objectstore up -d minio
+	@echo ""
+	@echo "✅ MinIO started on port 9000 (console :9001, minioadmin / minioadmin)"
+	@echo "   FILE_STORAGE_BACKEND=s3 needs a bucket; the integration suite makes its own."
+
 docker-redis:
 	docker compose up -d redis
 	@echo ""
@@ -859,6 +940,11 @@ help:
 	@echo "  make lint-precommit yamlfmt, zizmor and the pre-commit basics, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
+	@echo ""
+	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
+	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
+	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

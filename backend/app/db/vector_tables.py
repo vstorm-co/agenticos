@@ -60,8 +60,10 @@ truncation below.
 VECTOR_SOURCE_PATH_INDEX_SUFFIX = "_srcpath_idx"
 VECTOR_FILENAME_INDEX_SUFFIX = "_fname_idx"
 VECTOR_CONTENT_HASH_INDEX_SUFFIX = "_chash_idx"
+VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
 """The expression indexes the store builds on the metadata keys the existence
-check looks a document up by (`source_path`, `filename`, `content_hash`).
+check looks a document up by (`source_path`, `filename`, `content_hash`) and the
+tenant key every row-level op scopes by (`organization_id`, #1684).
 
 Kept no longer than :data:`VECTOR_INDEX_SUFFIX`, so the HNSW index stays the
 binding constraint on :data:`MAX_COLLECTION_NAME_LENGTH` and every one of these
@@ -75,6 +77,7 @@ _INDEX_SUFFIXES = (
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    VECTOR_ORG_INDEX_SUFFIX,
 )
 
 _MAX_IDENTIFIER_LENGTH = 63

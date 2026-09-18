@@ -1,5 +1,5 @@
 ---
-source_sha: "faee0acdbe9c"
+source_sha: "4af3be1ca985"
 ---
 
 # API HTTP { #the-http-api }
@@ -91,6 +91,20 @@ grantem edycji na jednym agencie może go otagować.
 między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
 zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
 to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
+## Usługi ML { #the-ml-services }
+
+Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za
+nimi: analiza dokumentu, OCR, zamiana mowy na tekst i wykrywanie danych
+osobowych. Bramkuje je `ml:invoke`, a nie `agents:run`; ich dokumentacją są
+[Usługi ML](ml-services.md).
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
 
 ## Streaming { #streaming }
 

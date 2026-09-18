@@ -1,5 +1,5 @@
 ---
-source_sha: "6fcf1f4dbc8e"
+source_sha: "c0c8a6cf4278"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -18,7 +18,7 @@ Cuando alguien sube un archivo en la interfaz de chat, se ejecuta esta pipeline:
 ```mermaid
 flowchart TD
     U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
-    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · document · presentation · email · text"]
     C --> P["Parse<br/>extract text — images skip this"]
     P --> S["Store<br/><code>media/{user_id}/</code>"]
     S --> R["Record<br/>a <code>ChatFile</code> row"]
@@ -103,10 +103,15 @@ archivo que puede abrir, y uno sin workspace recibe el texto en su prompt.
 | Categoría | Tipos MIME | Extensiones | Procesamiento |
 |----------|-----------|------------|------------|
 | **Imágenes** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Se guardan tal cual. Se envían al LLM como `BinaryContent` para análisis de visión. |
+| **TIFF** | image/tiff | .tiff, .tif | Se guarda tal cual; se convierte a página(s) PNG en el momento de mostrarlo al modelo, con el tope `CHAT_TIFF_MAX_INLINE_PAGES`. No se muestra en línea en el navegador — se sirve como descarga. |
 | **PDF** | application/pdf | .pdf | Texto extraído con el parser de PDF configurado. Se añade al prompt como contexto. |
-| **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Párrafos extraídos con `python-docx`. Se añaden al prompt como contexto. |
-| **Hoja de cálculo** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Cada hoja se lee con `openpyxl`, se nombra y sus filas se separan por tabuladores. Se añade al prompt como contexto. `.xls` se rechaza — es otro formato y necesita otro lector. |
-| **Texto** | text/plain, text/markdown | .txt, .md | Se decodifica directamente como UTF-8. Se añade al prompt como contexto. |
+| **DOCX** | …wordprocessingml.document | .docx | Párrafos extraídos con `python-docx`. Se añaden al prompt como contexto. |
+| **DOC** | application/msword | .doc | Convertido a texto mediante un subproceso gestionado de LibreOffice (`soffice`). Necesita LibreOffice en la imagen; si falta, el texto se informa como no disponible. |
+| **Hoja de cálculo** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12, application/vnd.ms-excel, …opendocument.spreadsheet | .xlsx, .xlsm, .xls, .ods | Cada hoja se lee, se nombra y sus filas se separan por tabuladores — `openpyxl` para OOXML, `xlrd` para el `.xls` heredado, `odfpy` para `.ods`. Se añade al prompt como contexto. |
+| **Presentación** | …presentationml.presentation, …opendocument.presentation | .pptx, .odp | Texto de las formas, celdas de tabla y notas de diapositiva con `python-pptx` (`.pptx`) u `odfpy` (`.odp`). Se añade al prompt como contexto. |
+| **Documento (OpenDocument)** | …opendocument.text | .odt | Párrafos con `odfpy`. Se añade al prompt como contexto. |
+| **Correo** | application/vnd.ms-outlook | .msg | Cabeceras y cuerpo leídos de los streams OLE/MAPI con `olefile` (BSD); los adjuntos incrustados se listan por nombre, no se extraen de forma recursiva. Se añade al prompt como contexto. |
+| **Texto** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Se decodifica directamente como UTF-8 (XML según su BOM/codificación declarada). Se añade al prompt como contexto. |
 
 ### Adónde va un adjunto depende del agent { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -121,9 +126,10 @@ recibe el archivo en lugar del texto:
 
 | Adjunto | Sin workspace | Con un workspace |
 |---|---|---|
-| text, csv, md, json | texto parseado pegado en línea | escrito en `uploads/`, el mensaje lleva una referencia y las 20 primeras líneas |
-| pdf, docx, hoja de cálculo | texto parseado pegado en línea | escrito en `uploads/`, con el texto extraído al lado salvo que el runtime pueda leerlo; referencia y 20 primeras líneas |
+| text, csv, md, json, xml | texto parseado pegado en línea | escrito en `uploads/`, el mensaje lleva una referencia y las 20 primeras líneas |
+| pdf, docx, spreadsheet, document, presentation, email | texto parseado pegado en línea | escrito en `uploads/`, con el texto extraído al lado salvo que el runtime pueda leerlo (`email` siempre lo recibe — `lit` no lee `.msg`); referencia y 20 primeras líneas |
 | imagen | `BinaryContent` | `BinaryContent` **y** escrita; la referencia nombra la ruta |
+| tiff | página(s) PNG como `BinaryContent`, con el tope de páginas indicado | `.tiff` original escrito; página(s) PNG mostradas, con el tope de páginas indicado |
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,
@@ -146,6 +152,16 @@ El parseo sigue ocurriendo en el servidor de todos modos, porque el *texto* es l
 que recibe un agent sin workspace y de donde salen las 20 líneas del mensaje.
 Aceptar la subida sin parsear llegaría a un agent con workspace como bytes
 ilegibles y a uno sin workspace como nada en absoluto.
+
+**Limitaciones.** Un PDF o TIFF escaneado produce una imagen, no texto OCR — la
+ruta de chat no tiene OCR (la base de conocimiento sí, mediante LiteParse). Las
+tablas de los formatos de oficina y DOCX se aplanan a texto separado por
+tabuladores o saltos de línea. DOC necesita LibreOffice en la imagen; sin él, el
+texto se informa como no disponible. Los adjuntos incrustados de un `.msg` se
+listan por nombre, no se extraen. Un TIFF de varias páginas muestra al modelo hasta
+`CHAT_TIFF_MAX_INLINE_PAGES` páginas; un agent con workspace abre el resto desde el
+original en disco. El texto extraído se limita a `CHAT_PARSED_TEXT_MAX_CHARS`, y los
+presupuestos por archivo y por turno acotan lo que se pega a un agent sin workspace.
 
 **Una escritura rechazada se dice una vez, sobre el workspace.** Un run cuyo
 workspace no admite un archivo es un run cuyo shell y herramientas de archivo
@@ -241,15 +257,47 @@ método `parse_async` que el binding no define.
 
 ### Almacenamiento { #storage }
 
-`FileStorageService` guarda los archivos en el directorio `media/`:
+Todo archivo subido — un adjunto del chat, un avatar, la marca del despliegue, el
+original de un documento de la base de conocimiento — pasa por un único backend de
+almacenamiento, elegido con `FILE_STORAGE_BACKEND` en el momento del despliegue y
+nunca por organización. Sea cual sea, una fila registra la misma **ruta de
+almacenamiento**: `{owner}/{uuid}_{filename}`.
+
+`local`, el valor por defecto, los escribe bajo `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` escribe esas mismas rutas como claves de objeto en un bucket compatible con
+S3, bajo `FILE_STORAGE_S3_PREFIX`, y pide al almacén que cifre cada una de ellas
+— SSE-S3 por defecto, SSE-KMS con una clave que nombra el despliegue. Los ajustes
+están en la [configuración](configuration.md#uploaded-files-at-rest).
+
+!!! info "Qué backend ejecutar, y qué le pide cada uno"
+
+    El local es la respuesta honesta para un solo host: cifre el volumen y los
+    archivos quedan tan protegidos como el disco. Deja de serlo en la segunda
+    réplica de la API — dos contenedores, dos discos, y un archivo subido a uno es
+    un 404 en el otro — y cuando un cliente quiere sus archivos bajo una clave que
+    él controla.
+
+    Cambiar de backend no mueve lo que el otro ya tiene, y aquí nada lo migra. Es
+    una decisión que se toma al montar el despliegue; un cambio posterior exige
+    copiar los archivos a mano, y las rutas son iguales en ambos lados, así que
+    basta con una copia.
+
+    Los workspaces de los agents no están en ninguno de los dos backends. Un
+    workspace `state` vive en esta base de datos y uno `docker` en el
+    almacenamiento del host de la sandbox, así que un almacén de objetos no cambia
+    dónde están — véase [la sandbox](sandbox.md).
+
+`agenticos cmd doctor` indica qué backend usa un despliegue en marcha y si el
+cifrado está activo.
 
 ### El modelo ChatFile { #chatfile-model }
 
@@ -260,10 +308,10 @@ El modelo de base de datos `ChatFile` registra los archivos subidos:
 | `id` | UUID | Clave primaria |
 | `user_id` | UUID/FK | Propietario (se usa para el control de acceso) |
 | `filename` | String | Nombre original del archivo |
-| `mime_type` | String | Tipo MIME (p. ej. `application/pdf`) |
+| `mime_type` | String | Tipo MIME resuelto (canónico) — un `.tiff` con `application/octet-stream` se guarda como `image/tiff`, de modo que la descarga y la conversión en línea leen un único campo fiable. Las filas subidas antes de FA-013 conservan su tipo declarado; los lectores toleran ambos. |
 | `size` | Integer | Tamaño del archivo en bytes |
 | `storage_path` | String | Ruta relativa en el almacenamiento |
-| `file_type` | String | Tipo clasificado: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
+| `file_type` | String | Tipo clasificado: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Texto extraído (NULL para imágenes) |
 | `message_id` | UUID/FK | Mensaje enlazado (se fija al enviar el mensaje) |
 | `created_at` | DateTime | Momento de la subida |

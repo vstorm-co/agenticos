@@ -7,6 +7,7 @@ import {
   Link2,
   Loader2,
   MailPlus,
+  Archive,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -100,6 +101,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   // Derived from the server's permission catalog rather than a role-name check,
   // so adding a role that may manage members needs no change here.
   const canManage = can(Perm.membersManage);
+  const canSettings = can(Perm.orgSettings);
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
   // Workspace profile state - name edits stay local until "Save" lands the
@@ -297,6 +299,17 @@ export default function OrgMembersPage({ params }: PageProps) {
                 {t("roles")}
               </Link>
             </Button>
+            {/* Only for the people who can change it - the page refuses anybody
+                else, and a button that leads to a refusal is a button that
+                teaches nothing (#1420). */}
+            {canSettings ? (
+              <Button variant="outline" asChild>
+                <Link href={ROUTES.ORG_RETENTION(id)}>
+                  <Archive className="h-4 w-4" />
+                  {t("retention")}
+                </Link>
+              </Button>
+            ) : null}
             {canManage ? (
               <>
                 {/* Two ways in, because onboarding a team and inviting one

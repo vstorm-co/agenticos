@@ -229,6 +229,14 @@ class TestARequestOnAnImpersonation:
                 new=AsyncMock(return_value=row),
             ),
             patch("app.repositories.session.update_last_used", new=AsyncMock()) as touched,
+            # The refusal path also asks whether this token is one some session
+            # rotated away, which is how a replay is told from a typo (#1519).
+            # An impersonation's credential never rotates, so there is nothing
+            # to find - and finding nothing is what keeps this a plain 401.
+            patch(
+                "app.repositories.session.get_by_previous_refresh_token_hash",
+                new=AsyncMock(return_value=None),
+            ) as reuse,
         ):
             response = await client.post(
                 f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": self.token}
@@ -236,6 +244,7 @@ class TestARequestOnAnImpersonation:
 
         assert response.status_code == 401
         touched.assert_not_awaited()
+        reuse.assert_awaited()
 
 
 class TestStartingOne:

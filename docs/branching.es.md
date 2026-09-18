@@ -1,5 +1,5 @@
 ---
-source_sha: "c8b11ff21e6a"
+source_sha: "66365d6bce1a"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -33,6 +33,7 @@ que se eliminó.
 |---|---|
 | Ningún push directo a `main` | Ruleset — se exige una pull request |
 | CI en verde antes del merge | Status checks obligatorios: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Ninguna alerta nueva de code scanning se mergea | Protección de merge por code scanning en el ruleset. **No** el estado de los propios jobs `analyze`, que está verde encuentre lo que encuentre el análisis — véase [CodeQL](#codeql-runs-on-the-pull-request) abajo |
 | Squash al hacer merge | Ruleset — el único método de merge permitido |
 | Conversaciones resueltas | Ruleset |
 | Aprobaciones caducadas descartadas al llegar un push nuevo | Ruleset |
@@ -145,13 +146,40 @@ dispara no produce prueba alguna de que no lo hizo, así que nada de una ejecuci
 puede revelar la regresión. El mismo fichero afirma la otra propiedad que ninguna
 ejecución puede mostrar — que cada job acota su propio tiempo de ejecución, abajo.
 
-Dos límites que conviene decir con claridad. **Una pull request apilada en verde
-se comprobó contra su madre, no contra `main`** — los checks pertenecen a un commit
-de cabecera, así que reapuntarla arrastra el resultado antiguo sin cambios; eso es
+Un límite que conviene decir con claridad: **una pull request apilada en verde se
+comprobó contra su madre, no contra `main`** — los checks pertenecen a un commit de
+cabecera, así que reapuntarla arrastra el resultado antiguo sin cambios; eso es
 inherente al apilado y no algo que un disparador pueda arreglar, y es una razón
-para mantener las pilas cortas. Y **CodeQL no está configurado aquí**: corre desde
-la configuración por defecto de GitHub, cuyos disparadores no están en este
-repositorio, así que si lee o no una pull request apilada no nos toca decidirlo.
+para mantener las pilas cortas.
+
+### CodeQL corre en la pull request { #codeql-runs-on-the-pull-request }
+
+CodeQL era aquí el segundo límite. Corría desde la configuración por defecto de GitHub con una
+periodicidad semanal, cuyos disparadores no están en este repositorio, así que un
+hallazgo llegaba a `main` después del merge que lo introdujo.
+
+`.github/workflows/codeql.yml` lo sustituye
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): el análisis corre en
+la pull request, con el mismo disparador que todo lo demás aquí, y la pasada
+completa semanal se conserva para los paquetes de consultas que se actualizan entre
+merges. Al workflow lo acompañan dos ajustes del repositorio, y no puede hacer ninguno de
+los dos. El primero: hay que apagar la configuración por defecto — GitHub rechaza la
+subida de una configuración avanzada mientras esté activa, así que las dos no pueden
+convivir:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
+
+El segundo es lo que de verdad rechaza un merge. **Un job `analyze` en verde
+significa que el análisis corrió, no que no encontró nada**:
+`codeql-action/analyze` sube sus resultados y termina con 0 sea cual sea su
+contenido. Lo que bloquea la pull request es la
+[protección de merge por code scanning](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+una regla en el ruleset de `main` junto a los seis status checks obligatorios,
+configurada con una herramienta y un umbral de severidad. Sin ella la alerta se ve
+en la pull request y en la pestaña Security, y nada detiene el merge — es decir,
+donde estaba este repositorio antes, solo que más despacio.
 
 ### Cada job acota su propio tiempo de ejecución { #every-job-bounds-its-own-runtime }
 

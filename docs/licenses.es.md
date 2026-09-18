@@ -1,5 +1,5 @@
 ---
-source_sha: "097a2caa4c8d"
+source_sha: "ed41ce8850a9"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -146,10 +146,10 @@ la obligación de código fuente de la GPL y la LGPL para una imagen redistribui
 
 La imagen del backend añade LibreOffice (MPL-2.0) y Tesseract (Apache-2.0) como
 paquetes Debian, usados sin modificar y como procesos separados. El SBOM por
-release previsto en
-[#1415](https://github.com/vstorm-co/agenticos/issues/1415) registrará el conjunto
-exacto de paquetes de cada imagen; hasta que llegue, los Dockerfiles y los digests
-de las imágenes base son el inventario de esa capa.
+release registra el conjunto exacto de paquetes de cada imagen:
+`sbom-api.cdx.json` y `sbom-frontend.cdx.json` se adjuntan a cada release,
+generados desde los manifiestos publicados, y [el inventario de
+componentes](reference/components.md) es su índice legible.
 
 ## El componente AGPL { #the-agpl-component }
 
@@ -316,8 +316,10 @@ Antes de cortar una release, y como evidencia adjunta a ella:
   compose que la release usa de verdad
 - [ ] Si se añadió una familia de modelos al catálogo o a la tabla de modelos de
   arriba, su licencia se leyó de la model card actual
-- [ ] Cuando exista el SBOM por release de #1415: está adjunto a la release y su
+- [ ] La release lleva `sbom-api.cdx.json` y `sbom-frontend.cdx.json`, y su
   conjunto de componentes coincide con los avisos de las dos imágenes
+- [ ] El [inventario de componentes](reference/components.md) sigue describiendo
+  los conjuntos que esta release distribuye
 
 ## Resumen { #recap }
 

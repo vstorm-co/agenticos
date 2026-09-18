@@ -1,5 +1,5 @@
 ---
-source_sha: "9377cdd546b3"
+source_sha: "cb93ec8bdf86"
 ---
 
 # Polecenia { #commands }
@@ -333,6 +333,14 @@ uv run agenticos cmd bootstrap --org "Acme"
 # holding the wrong token.
 uv run agenticos cmd doctor
 
+# To samo plus drugi arkusz: jeden wiersz na kontrolę profilu bezpieczeństwa,
+# nazywający ustawienie, które ją spełnia, albo to, które jej nie spełnia. `--`
+# oznacza kontrolę, która naprawdę należy do operatora — szyfrowanie wolumenu —
+# nazwaną, a nie po cichu zaliczoną, i niewywalającą komendy. Niezerowy exit przy
+# każdej niespełnionej kontroli, żeby CI klienta mogło na tym bramkować. Dowód, nie
+# certyfikacja: profil HIPAA odpowiada na §164.312 i na nic więcej.
+uv run agenticos cmd doctor --profile hipaa
+
 # Find published agents that lend a skill their publisher could not reach. The
 # publish-time check on skill_ids only guards new publishes; this is the offline
 # half, naming versions frozen before it that still hand a private skill to a run.
@@ -354,6 +362,19 @@ uv run agenticos cmd audit-skill-bindings
 # evidence, not proof. Exits non-zero when any chain fails, so a cron can gate on it.
 uv run agenticos cmd audit-verify
 uv run agenticos cmd audit-verify --org <org-id>
+
+# Wypisz konfigurację, o którą pyta przegląd ochrony danych tego wdrożenia:
+# ustawienia decydujące o tym, co wychodzi na zewnątrz, każdy provider i endpoint,
+# do którego może sięgnąć agent, trzymane poświadczenia według przeznaczenia,
+# kolekcje i to, kto liczy dla nich embeddingi, serwery we własnej sieci, serwery
+# MCP, źródła synchronizacji i boty kanałów, gdzie trafiają trace'y runów i ile
+# treści niesie span, ile w każdym magazynie objęłaby polityka retencji oraz pliki
+# pod MEDIA_DIR, na które nie wskazuje już żaden wiersz. Wyłącznie konfiguracja i
+# liczby - żadnej treści wiadomości, żadnego dokumentu, żadnej wartości sekretu ani
+# jej podpowiedzi - więc wynik można załączyć w takiej postaci, w jakiej jest.
+# --older-than to rozważany okres retencji, w dniach.
+uv run agenticos cmd data-protection-report
+uv run agenticos cmd data-protection-report --older-than 90
 
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in

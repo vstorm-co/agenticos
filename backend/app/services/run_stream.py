@@ -40,7 +40,7 @@ from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart, Thinki
 
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
-from app.services.transcript import tool_retry_notice
+from app.services.transcript import tool_result_text, tool_retry_notice
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ class RunFrames:
                     )
                     content = tool_retry_notice(tool_event.part)
                 else:
-                    content = str(tool_event.part.content)
+                    content = tool_result_text(tool_event.part.content)
                 call = pending.get(tool_event.tool_call_id)
                 if call is not None:
                     call["result"] = content

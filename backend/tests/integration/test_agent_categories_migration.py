@@ -31,7 +31,7 @@ pytestmark = pytest.mark.anyio
 MIGRATION_DATABASE = f"agenticos_agent_cats_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
 _BASE_REVISION = "0080_audit_checkpoints"
-_TARGET_REVISION = "0081_agent_categories_tags"
+_TARGET_REVISION = "0087_agent_categories_tags"
 
 
 def _url(database: str) -> str:

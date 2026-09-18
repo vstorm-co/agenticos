@@ -1,5 +1,5 @@
 ---
-source_sha: "faee0acdbe9c"
+source_sha: "4af3be1ca985"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -97,6 +97,20 @@ Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschr
 (ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
 ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
 überschreitet nie eine Tenant- oder Grant-Grenze.
+## Die ML-Dienste { #the-ml-services }
+
+Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne
+Agent dahinter: Dokumentanalyse, OCR, Spracherkennung und Erkennung
+personenbezogener Daten. Sie hängen an `ml:invoke` statt an `agents:run`, und
+[Die ML-Dienste](ml-services.md) ist ihre Referenz.
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
 
 ## Streaming { #streaming }
 

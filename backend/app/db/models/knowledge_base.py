@@ -99,6 +99,21 @@ class KnowledgeBase(TimestampMixin, Base):
         index=True,
     )
 
+    @property
+    def vector_tenant(self) -> uuid.UUID | None:
+        """The tenant this collection's runtime vector rows are stamped and scoped by.
+
+        A collection name is not unique across organizations, so two that pick the
+        same name share one physical `rag_<name>` table; this keeps each
+        organization's rows its own (#1684). An app-scoped base is deployment-wide,
+        readable by every organization, so its rows carry no tenant; every other
+        scope carries its organization (which is `None` for a personal base, whose
+        isolation is its owner check, not the row tag).
+        """
+        if self.scope == KBScope.APP.value:
+            return None
+        return self.organization_id
+
     def __repr__(self) -> str:
         return f"<KnowledgeBase(id={self.id}, name={self.name!r}, scope={self.scope})>"
 

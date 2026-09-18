@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
-import { codeLanguage, type FileKind } from "@/lib/file-kinds";
+import { codeLanguage, isRenderSafeImage, type FileKind } from "@/lib/file-kinds";
 import { parseDelimited } from "@/lib/delimited";
 
 /**
@@ -94,11 +94,15 @@ interface FileBytesViewProps {
 export function FileBytesView({ name, url, mediaType, onDownload }: FileBytesViewProps) {
   const t = useTranslations("files");
 
-  if (mediaType.startsWith("image/"))
+  if (isRenderSafeImage(mediaType))
     // A plain `img` and not `next/image`: the source is a blob URL made in this
     // browser from bytes fetched with the organization header, and the optimizer
     // would need a URL it could fetch server-side - which is exactly the request
     // that would arrive without that header.
+    //
+    // Gated on the render-safe allowlist, not `image/` alone: the server sends a
+    // TIFF with `media_type=image/tiff` (only its disposition forced to attachment),
+    // so `startsWith("image/")` would still draw a broken `<img>` for it (#1591).
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt={name} className="max-h-[70vh] w-full object-contain" />;
 

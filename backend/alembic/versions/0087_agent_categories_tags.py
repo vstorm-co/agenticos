@@ -25,8 +25,8 @@ holds tens of agents, not millions) and both indexes start empty, so the lock is
 negligible; `CONCURRENTLY` is deliberately not used, as it cannot run inside
 Alembic's per-revision transaction and no revision here does.
 
-Revision ID: 0081_agent_categories_tags
-Revises: 0080_audit_checkpoints
+Revision ID: 0087_agent_categories_tags
+Revises: 0086_scope_rag_rows_by_org
 Create Date: 2026-09-15
 
 """
@@ -37,8 +37,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0081_agent_categories_tags"
-down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
+revision: str = "0087_agent_categories_tags"
+down_revision: str | Sequence[str] | None = "0086_scope_rag_rows_by_org"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

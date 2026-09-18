@@ -18,7 +18,7 @@ from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import collection_teardown_repo, rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import (
     RAGIngestResponse,
     RAGParsedContent,
@@ -461,6 +461,21 @@ class RAGDocumentService:
         )
         return updated
 
+    async def _vector_tenant(self, doc: RAGDocument) -> UUID | None:
+        """The tenant this document's chunks are stamped and scoped by (#1684).
+
+        Off the knowledge base the document is tracked under, not `organization_id`
+        on the row: an app-scoped base's documents carry the uploader's
+        organization for billing, but their vectors are deployment-wide and carry
+        no tenant, so scoping a read or a delete by the row's organization would
+        miss them. A document with no base, or whose base is gone, is
+        deployment-wide (`None`).
+        """
+        if doc.knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
+        return kb.vector_tenant if kb is not None else None
+
     async def delete_document(
         self,
         doc_id: str,
@@ -496,6 +511,11 @@ class RAGDocumentService:
         collection_name = doc.collection_name
         vector_document_id = doc.vector_document_id
         storage_path = doc.storage_path
+        # The tenant the chunks were stamped with at ingest - the collection's
+        # own, off its knowledge base - so the vector delete is scoped to them and
+        # cannot reach another org's document in a collection whose name they
+        # share (#1684). Read now, before the row is deleted.
+        tenant = await self._vector_tenant(doc)
         await rag_document_repo.delete(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
@@ -503,7 +523,9 @@ class RAGDocumentService:
         if vector_document_id:
             spawn_after_commit(
                 self.db,
-                ingestion_service.remove_document(collection_name, vector_document_id),
+                ingestion_service.remove_document(
+                    collection_name, vector_document_id, tenant=tenant
+                ),
                 name="delete-document-vectors",
             )
         if storage_path:
@@ -562,7 +584,9 @@ class RAGDocumentService:
                 details={"doc_id": doc_id, "status": doc.status},
             )
 
-        chunks = await vector_store.get_document_chunks(doc.collection_name, doc.vector_document_id)
+        chunks = await vector_store.get_document_chunks(
+            doc.collection_name, doc.vector_document_id, await self._vector_tenant(doc)
+        )
 
         pages: list[RAGParsedPage] = []
         for chunk in chunks:
@@ -585,7 +609,10 @@ class RAGDocumentService:
         """Get file download information for a document.
 
         Returns:
-            Tuple of (file_path, filename, mime_type).
+            Tuple of (storage_path, filename, mime_type). The storage path the
+            backend wrote, not a path on this host: an object store has no
+            second kind, and the route hands this to the one place that knows how
+            to turn either into a response (#1423).
 
         Raises:
             NotFoundError: If document or its file does not exist.
@@ -594,9 +621,7 @@ class RAGDocumentService:
         if not doc.storage_path:
             raise NotFoundError(message="No file stored for this document")
 
-        storage = get_file_storage()
-        file_path = storage.get_full_path(doc.storage_path)
-        if not file_path:
+        if not await get_file_storage().exists(doc.storage_path):
             raise NotFoundError(message="File not found on disk")
 
         mime_map = {
@@ -606,4 +631,4 @@ class RAGDocumentService:
             "md": "text/markdown",
         }
         mime_type = mime_map.get(doc.filetype, "application/octet-stream")
-        return str(file_path), doc.filename, mime_type
+        return doc.storage_path, doc.filename, mime_type

@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
     collection_teardown_repo,
@@ -338,7 +339,10 @@ class OrganizationService:
         removed explicitly first: `knowledge_bases.organization_id` is
         `ON DELETE SET NULL`, and nulling an org-scoped row violates
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
-        merely carry this org's id are left to the `SET NULL`.
+        merely carry this org's id are left to the `SET NULL` - but that flips
+        their `vector_tenant` to `None` while their rows stay stamped with the
+        deleted org, so the deferred cleanup re-stamps those rows to untagged,
+        matching the `None` read scope again rather than stranding them (#1684).
 
         Two locks, in one order. Each doomed collection's `COLLECTION_TEARDOWN`
         lock is taken first, from a snapshot read without the row lock, and only
@@ -401,6 +405,19 @@ class OrganizationService:
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
             await knowledge_base_repo.delete(self.db, kb.id)
+
+        # A personal base carrying this org's id is left standing by the `SET NULL`,
+        # which flips its `vector_tenant` to `None` while its rows stay stamped with
+        # the org - stranding them behind the read side's `IS NULL` scope. Each is
+        # handed to the deferred cleanup, which untags that base's own rows so they
+        # match again. Identified here, under the org lock, before the `SET NULL`:
+        # the cleanup re-stamps by the base's own `parent_doc_id`s (resolved at run
+        # time), so it touches only its own documents even on a table it shares with
+        # this org's own torn-down collection, and never another tenant's rows (#1684).
+        restamp_orphans: list[KnowledgeBase] = []
+        if self._vector_store is not None:
+            restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
+
         await organization_repo.delete(self.db, org)
 
         # A store is wired only on the teardown path, and it is the signal to clean up
@@ -433,15 +450,30 @@ class OrganizationService:
                     continue
                 to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or to_drop:
+        restamps = [[kb.collection_name, str(org.id), str(kb.id)] for kb in restamp_orphans]
+        if storage_paths or to_drop or restamps:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
                 self.db,
-                dispatch_external_state_cleanup(storage_paths, to_drop),
+                dispatch_external_state_cleanup(storage_paths, to_drop, restamps),
                 name="org_purge_cleanup",
             )
+        # Whatever the `media` capability offloaded out of any of this tenant's
+        # compacted histories. Content-addressed objects record nothing about who
+        # still references them, so the tenant's prefix is the outer bound of
+        # their lifetime and this is where it ends (#55). Unconditional: it is
+        # one directory removal, and a tenant that offloaded nothing has none.
+        from app.agents.capabilities.media import organization_prefix_for
+        from app.core.background import spawn_after_commit as spawn
+        from app.services.file_storage import delete_prefix_best_effort
+
+        spawn(
+            self.db,
+            delete_prefix_best_effort(organization_prefix_for(org.id)),
+            name="org_purge_media",
+        )
 
     async def upload_avatar(
         self,
@@ -475,7 +507,3 @@ class OrganizationService:
             f"avatars/orgs/{org_id}", avatar_filename(content_type), file_data
         )
         return await organization_repo.update(self.db, org, avatar_url=storage_path)
-
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None

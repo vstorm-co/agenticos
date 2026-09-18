@@ -67,9 +67,9 @@ def _service(*, uploads: Any = None) -> ChannelAttachmentService:
     files reach it and which are turned away before they do.
     """
     service = ChannelAttachmentService(MagicMock())
-    real_validate = service.uploads.validate_upload
     service.uploads = MagicMock()
-    service.uploads.validate_upload = real_validate
+    service.uploads.validate_upload = FileUploadService.validate_upload
+    service.uploads.validate_bytes = FileUploadService.validate_bytes
     service.uploads.upload = AsyncMock(return_value=uploads or MagicMock(filename="report.csv"))
     return service
 
@@ -274,6 +274,47 @@ class TestReceivingWhatSomebodySent:
         )
 
         assert "cannot listen to recordings yet" in refused[0]
+
+    async def test_an_octet_stream_office_file_passes_preflight_on_its_extension(self):
+        """Platforms routinely send `application/octet-stream` for `.odt`/`.msg`; the
+        filename carries the extension the metadata phase accepts it on. A real ODT
+        is downloaded so the byte phase (a ZIP sniff) also passes."""
+        import io as _io
+        import zipfile as _zip
+
+        buffer = _io.BytesIO()
+        with _zip.ZipFile(buffer, "w") as archive:
+            archive.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        service = _service()
+        adapter = _adapter(downloads=buffer.getvalue())
+
+        stored, refused = await service.receive(
+            adapter,
+            "t",
+            [_attachment(filename="notes.odt", mime_type="application/octet-stream", size=64)],
+            user_id=uuid.uuid4(),
+        )
+
+        assert len(stored) == 1
+        assert refused == []
+
+    async def test_a_forged_signature_is_refused_after_download_not_attached(self):
+        """A file that clears the pre-download preflight but whose bytes contradict
+        its type/extension is refused at the post-download byte phase, with a message
+        distinct from the size one - and it is not attached to the turn."""
+        service = _service()
+        adapter = _adapter(downloads=b"month,total,not an OLE document")
+
+        stored, refused = await service.receive(
+            adapter,
+            "t",
+            [_attachment(filename="payload.doc", mime_type="application/msword", size=30)],
+            user_id=uuid.uuid4(),
+        )
+
+        assert stored == []
+        assert "contents do not match" in refused[0]
+        service.uploads.upload.assert_not_called()
 
     async def test_a_platform_this_build_cannot_fetch_from_says_so(self):
         """Rather than a bot that ignores an attachment, which looks exactly like

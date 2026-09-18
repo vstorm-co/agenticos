@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.messages import ModelMessage
 
-from app.agents.ask_user import QuestionItem, render_answer
+from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
@@ -34,7 +34,7 @@ from app.services.agent_chat import (
     requested_model_profile_id,
 )
 from app.services.agent_runner import PersonalServiceGap
-from app.services.attachments import load_attached_files
+from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
@@ -121,6 +121,11 @@ class AgentSession:
         # answered pair the moment it arrives - before a `stop` frame behind it
         # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
         self._pending_question: str | None = None
+        # Which delegate that question came from, read where the question is put
+        # rather than where its answer lands: the delegation's state is bound for
+        # the duration of the delegation, so it is bound inside `_ask_one` and
+        # gone by the time the answer arrives on the receive loop (#1042).
+        self._pending_asked_by: str | None = None
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -172,7 +177,9 @@ class AgentSession:
             # (#502).
             if self._pending_question is not None and self._current_timeline is not None:
                 self._current_timeline.add_ask_user(
-                    self._pending_question, render_answer(answers[0] if answers else None)
+                    self._pending_question,
+                    render_answer(answers[0] if answers else None),
+                    asked_by=self._pending_asked_by,
                 )
             return
 
@@ -345,7 +352,14 @@ class AgentSession:
             # The files, not a prompt built from them. Where an attachment goes
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
-            attachments = await self._attached_files(file_ids)
+            # `prompt.message_id` may be None when `persist_user_turn` swallowed a
+            # transient write failure so the turn could still run. The load path
+            # keeps the caller's still-unlinked uploads in that case (a None message
+            # matches unlinked rows), so a lost prompt row does not silently drop
+            # the files the user submitted and paid for (#1654 review).
+            attachments = (
+                await self._attached_files(prompt.message_id, file_ids) if file_ids else []
+            )
 
             frames = RunFrames(
                 emit=self._frame,
@@ -550,17 +564,31 @@ class AgentSession:
         calls. It adapts the one-question protocol to this surface's batch channel -
         a list of one - so the WebSocket keeps a single wire format for one question
         and several, and the delegate reads back the rendered answer.
+
+        **Which delegate asked is read here and nowhere else.** `ask_parent` hands
+        over the question and nothing else, but the delegation's state is bound for
+        the duration of the delegation - so it is bound in this call, made from
+        inside it, and unbound again by the time the answer comes back on the
+        receive loop. `None` is the main agent asking the question itself (#1042).
         """
         item = QuestionItem(question=question, options=options)
-        # The frame handler records the answered pair onto the turn's timeline the
-        # moment the answer arrives (#502), so this only marks which question is
-        # open and clears it however the wait ends - answered, unanswered, or the
-        # turn cancelled out from under it.
-        self._pending_question = question
-        try:
-            answers = await self._ask_user([item.model_dump()])
-        finally:
-            self._pending_question = None
+        asked_by = asking_delegate()
+        # **Under the lock, with the round it belongs to.** The frame handler
+        # records the answered pair onto the turn's timeline the moment the
+        # answer arrives (#502), reading whichever question is marked open - so
+        # marking one outside the lock let a second delegate reaching here while
+        # the first was still waiting overwrite both fields, and the first
+        # delegate's answer was then persisted as the second's question, asked by
+        # the second's name. The lock already held the wire round; it holds what
+        # names it now too.
+        async with self._ask_lock:
+            self._pending_question = question
+            self._pending_asked_by = asked_by
+            try:
+                answers = await self._send_and_wait([item.model_dump()])
+            finally:
+                self._pending_question = None
+                self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -574,14 +602,23 @@ class AgentSession:
         waits for this one's answer rather than overwriting its future.
         """
         async with self._ask_lock:
-            loop = asyncio.get_running_loop()
-            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-            self._ask_user_future = fut
-            try:
-                await send_event(self.websocket, "ask_user", {"questions": questions})
-                return await fut
-            finally:
-                self._ask_user_future = None
+            return await self._send_and_wait(questions)
+
+    async def _send_and_wait(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One round on the wire, with `_ask_lock` already held by the caller.
+
+        Split from `_ask_user` so `_ask_one` can take the lock itself and mark
+        which question is open *inside* it - the attribution has to be
+        serialized with the round it names, and a nested acquire would deadlock.
+        """
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+        self._ask_user_future = fut
+        try:
+            await send_event(self.websocket, "ask_user", {"questions": questions})
+            return await fut
+        finally:
+            self._ask_user_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
@@ -703,17 +740,21 @@ class AgentSession:
                 exclude_message_id=prompt_message_id,
             )
 
-    async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
-        """The rows for the files this frame attached.
+    async def _attached_files(self, message_id: UUID | None, file_ids: list[Any]) -> list[ChatFile]:
+        """The rows for the files this turn attached (#1756).
 
         Read on their own session: the turn's own session is opened later and
         held for the run, and this is a lookup rather than part of that unit of
-        work.
+        work. Read by id and kept where the row is linked to this turn's message
+        or still unlinked: `persist_user_turn` has already linked the frame's ids
+        (and enforced ownership, #706), so re-validating them as unlinked would
+        reject the turn's own just-linked files - while a file its best-effort
+        link left unlinked must still reach the model rather than be dropped.
         """
-        if not file_ids:
-            return []
         async with get_db_context() as file_db:
-            return await load_attached_files(file_db, file_ids, user_id=self.user.id)
+            return await load_turn_attachments(
+                file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+            )
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.

@@ -101,7 +101,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=uuid.uuid4(), ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
+                )
             ),
             complete_ingestion=AsyncMock(),
         )
@@ -122,7 +124,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
             fail_ingestion=AsyncMock(),
         )
@@ -142,7 +146,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
         )
 
@@ -167,7 +173,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
         )
 
@@ -203,7 +211,6 @@ class TestASyncsEngine:
             with (
                 patch("app.services.rag_sync.RAGSyncService", return_value=sync),
                 patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
             ):
                 await rag_tasks._run_sync(str(uuid.uuid4()), "local", "docs", "full", str(tmp_path))
 
@@ -232,10 +239,7 @@ class TestASyncsEngine:
         sync = MagicMock(get_sync_log=AsyncMock(return_value=MagicMock(status="cancelled")))
 
         async with _worker(ledger):
-            with (
-                patch("app.services.rag_sync.RAGSyncService", return_value=sync),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
-            ):
+            with patch("app.services.rag_sync.RAGSyncService", return_value=sync):
                 answer = await rag_tasks._run_sync(
                     str(uuid.uuid4()), "local", "docs", "full", str(tmp_path)
                 )

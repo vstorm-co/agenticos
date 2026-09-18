@@ -70,6 +70,7 @@ class TestSearchingSeveralCollections:
         held and nothing on any screen said so.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[
                 [SearchResult(content="from the healthy one", score=0.9)],
@@ -86,6 +87,7 @@ class TestSearchingSeveralCollections:
     async def test_an_empty_collection_is_not_a_failure(self):
         """The store reports an absent table as no results, so it merges as none."""
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
@@ -105,6 +107,7 @@ class TestSearchingSeveralCollections:
         silently dropped the attribution from every result.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
@@ -454,12 +457,14 @@ class TestCapabilityBuilderBranches:
         assert build([CapabilityBinding(capability_id="skills")]) == []
 
     def test_skills_is_attached_when_resolved(self):
-        skill = MagicMock(name="refunds", description="d", content="c", resources=[])
+        skill = MagicMock(description="d", content="c", resources=[])
+        skill.name = "refunds"
         built = build([CapabilityBinding(capability_id="skills")], resources={"skills": [skill]})
         assert isinstance(built[0], Skills)
 
-    def test_an_empty_skill_set_yields_no_toolset(self):
-        assert Skills(skills=[]).get_toolset() is None
+    def test_an_empty_skill_set_is_not_attached_at_all(self):
+        """The builder answers `None` rather than a catalog with nothing in it."""
+        assert build([CapabilityBinding(capability_id="skills")], resources={"skills": []}) == []
 
 
 class TestChartFailureModes:
@@ -669,6 +674,9 @@ class TestFinalBranches:
         assert "result:" in _format_result("", circular)
 
     def test_a_skills_toolset_is_built_once(self):
-        skill = MagicMock(name="refunds", description="d", content="c", resources=[])
+        resource = MagicMock(description="rd", content="rc")
+        resource.name = "r.md"
+        skill = MagicMock(description="d", content="c", resources=[resource])
+        skill.name = "refunds"
         capability = Skills(skills=[skill])
         assert capability.get_toolset() is capability.get_toolset()

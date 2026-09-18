@@ -22,7 +22,6 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
@@ -34,6 +33,7 @@ from app.api.deps import (
     limit_agent_run,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
@@ -66,8 +66,8 @@ from app.schemas.agent import (
     TemplateInstallResult,
 )
 from app.services import mcp_catalog, mcp_listing
+from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
-from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -484,22 +484,20 @@ async def set_agent_metadata(
 
 @router.get(
     "/{agent_id}/avatar",
-    response_class=FileResponse,
+    response_class=Response,
     response_model=None,
 )
-async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> FileResponse:
+async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Response:
     """Stream the agent's picture to someone entitled to see the agent."""
-    path = await service.avatar_path(ctx, agent_id)
+    stored = await service.avatar_path(ctx, agent_id)
     # The type comes from the file's own bytes, not its stored name, and it is
     # refused if the bytes are not an image: the avatar is served from the app's
     # own origin, so a file whose bytes are HTML must never be served as something
     # a browser runs, whatever it was named (#1035, same class as #702).
-    media_type = sniff_image_media_type(path)
-    if media_type is None:
+    response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
+    if response is None:
         raise NotFoundError(message="This agent has no avatar", details={"agent_id": str(agent_id)})
-    return FileResponse(
-        path=path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
-    )
+    return response
 
 
 @router.post(
@@ -542,6 +540,7 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    db: DBSession,
     ctx: Auth,
 ) -> Any:
     """Run a published agent and return its answer.
@@ -550,7 +549,23 @@ async def run_agent(
     surface, so the run is recorded, the budget applies, and the cost lands in
     the same dashboard - an API caller cannot route around governance by not
     using the UI.
+
+    **It can attach a file and it can say what it parked on** (#936). Both were
+    accidents rather than decisions: `execute` has taken attachments since the
+    widget grew them, and `parked_calls` has computed the parked list since the
+    resume needed it - this surface simply never passed the one or read the
+    other. The surface whose whole purpose is "run it from your own backend" was
+    the one that could not send a document, and a caller whose run stopped for an
+    approval got an empty string and a status.
     """
+    attachments = await load_attached_files(
+        db,
+        [str(file_id) for file_id in data.file_ids],
+        # Their own uploads and nobody else's. `POST /files/upload` attributes an
+        # upload to whoever made it, and this is the same scope the chat reads
+        # under - so a caller cannot attach a file by guessing its id.
+        user_id=ctx.subject_id,
+    )
     output, run = await service.execute(
         ctx,
         agent_id,
@@ -558,6 +573,7 @@ async def run_agent(
         surface=RunSurface.API,
         conversation_id=data.conversation_id,
         environment_id=data.environment_id,
+        attachments=attachments,
     )
     return AgentRunResult(
         run_id=run.id,
@@ -567,4 +583,5 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        parked=await service.parked_calls(ctx, run),
     )

@@ -54,6 +54,54 @@ class Settings(BaseSettings):
     # 20MB attachment passed the client, crossed the wire and was refused by a
     # limit no configuration produced (#498).
     CHAT_MAX_UPLOAD_SIZE_MB: int = 10
+
+    # Processing bounds for the extra chat attachment formats (FA-013). Each has a
+    # concrete default and `gt=0` so a misconfigured `0`/negative is refused at
+    # startup rather than producing an unbounded conversion or a zero-page cap.
+    #
+    # DOC (and other legacy office) conversion runs a managed `soffice` subprocess
+    # (`app/services/office_convert.py`); these bound it. The timeout is far below
+    # RAG's 600s because an interactive upload cannot wait that long, the
+    # concurrency semaphore caps how many LibreOffice processes run at once (the
+    # subprocess bypasses the `run_blocking` admission gate), the grace is the
+    # TERM->KILL window, and the output cap is checked before the converted file is
+    # read back.
+    CHAT_CONVERT_TIMEOUT_SECONDS: int = Field(default=60, gt=0)
+    CHAT_CONVERT_MAX_CONCURRENCY: int = Field(default=2, gt=0)
+    CHAT_CONVERT_KILL_GRACE_SECONDS: float = Field(default=5, gt=0)
+    CHAT_CONVERT_OUTPUT_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
+
+    # TIFF is converted to PNG at the point it is shown to the model; a multi-page
+    # scan can be many pages, so the page count is capped and each image is bounded
+    # by pixel count before decode (an explicit per-image check, never a mutation of
+    # the process-global `Image.MAX_IMAGE_PIXELS` the shared file pool would race).
+    CHAT_TIFF_MAX_INLINE_PAGES: int = Field(default=10, gt=0)
+    CHAT_IMAGE_MAX_PIXELS: int = Field(default=40_000_000, gt=0)
+
+    # ZIP-backed office formats (ODF, PPTX) are validated through `safe_unzip`
+    # before a third-party parser opens them, so a small upload cannot decompress
+    # to an unbounded amount of memory. Member sizes are measured by reading each
+    # member, never trusting the forgeable central-directory `file_size`.
+    CHAT_ARCHIVE_MEMBER_MAX_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
+    CHAT_ARCHIVE_TOTAL_MAX_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
+    CHAT_ARCHIVE_MAX_MEMBERS: int = Field(default=2000, gt=0)
+
+    # The layered text budget. Stored extracted text is capped so a ZIP/OLE
+    # expansion cannot bloat the row; the per-file and per-turn prompt caps bound
+    # what the no-workspace paste path puts in front of the model, the aggregate
+    # one across every attachment in a single turn.
+    CHAT_PARSED_TEXT_MAX_CHARS: int = Field(default=1_000_000, gt=0)
+    CHAT_PROMPT_TEXT_MAX_CHARS: int = Field(default=200_000, gt=0)
+    CHAT_TURN_TEXT_MAX_CHARS: int = Field(default=500_000, gt=0)
+    # How many bytes of inline image one turn may carry, across every attachment.
+    # `SANDBOX_INLINE_IMAGE_MAX_BYTES` bounds one image and
+    # `CHAT_TIFF_MAX_INLINE_PAGES` one TIFF, which multiply to fifty megabytes
+    # from a single file - and nothing bounded several files together, so a turn
+    # could hold hundreds of megabytes before the provider request was encoded.
+    # The chat takes no per-turn file count, and even a public embed takes three
+    # (#1591 review).
+    CHAT_TURN_INLINE_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
+
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
     # member uploading a fifty-megabyte export is somebody the organization
@@ -61,6 +109,21 @@ class Settings(BaseSettings):
     # from an address nobody knows. It is a ceiling on top of the allowlist and
     # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
+    # What one call to the standalone ML services may submit - a document to
+    # parse, a scan to recognise, a recording to transcribe. Its own number
+    # because the work is different in kind from storing a file: the bytes are
+    # parsed or sent to an engine inside one request rather than written down,
+    # so the ceiling is about what a single synchronous call may occupy. It sits
+    # at the transcription client's own 25 MB, which is the smallest engine
+    # ceiling behind this surface and so the first one a larger file would meet.
+    ML_MAX_UPLOAD_SIZE_MB: int = 25
+    # How many documents this worker parses at once for the ML services. The
+    # rate limit counts starts and cannot see what is still running, so without
+    # this a minute's allowance of OCR calls is that many recognitions in flight,
+    # each of them minutes of CPU. Over it, a caller is refused with a
+    # `Retry-After` rather than queued: a caller told to come back can, and one
+    # parked behind four minutes of other people's scans has already given up.
+    ML_MAX_CONCURRENT_PARSES: int = 4
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Size of the dedicated thread pool that runs blocking file work - parsing an
@@ -193,9 +256,39 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # The scheme the desktop shell registers for the sign-in return (#1532).
+    #
+    # Google's authorization endpoint refuses an embedded user-agent, and the
+    # handoff it asks for is the system browser with the result deep-linked back
+    # to the app. A setting rather than a query parameter, because the callback
+    # builds a redirect out of it: a scheme a caller could choose would be an open
+    # redirect into whatever URL handler that machine has registered.
+    DESKTOP_DEEP_LINK_SCHEME: str = "agenticos"
+
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
+
+    # A generic OpenID Connect provider - Entra ID, Okta, Keycloak, anything that
+    # publishes a discovery document. A company deploying this on its own
+    # infrastructure runs an identity provider and will not mint local passwords
+    # for its staff; without this, its MFA and its offboarding are solved twice
+    # (#1419). Configured by discovery alone: the issuer is the only URL, and the
+    # authorization, token and JWKS endpoints come from
+    # `<issuer>/.well-known/openid-configuration` rather than from three more
+    # settings a deployment can get subtly wrong.
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/oidc/callback"
+    # Beyond `openid email profile` a deployment may need its provider's own
+    # scope to get the claims back - Entra ID's `User.Read`, a Keycloak client
+    # scope. Space-separated, as the OAuth parameter itself is.
+    OIDC_SCOPES: str = "openid email profile"
+    # A provider's own name for "this address is confirmed", beyond the two
+    # recognised already (`email_verified`, and Entra ID's `xms_edov`). Empty
+    # unless a deployment's provider names it something else again.
+    OIDC_VERIFIED_CLAIM: str = ""
 
     VAULT_MASTER_KEY: str = ""
     # Every master key the vault may unwrap with, by version - the staged form
@@ -277,6 +370,22 @@ class Settings(BaseSettings):
     # caller rather than on their address: the endpoint is authenticated, and an
     # office behind one NAT is not one caller.
     RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one caller may ask for a personal-data export, per hour rather
+    # than per minute. It is the one route that assembles everything about a
+    # person into a single document, which is the shape of a data breach when
+    # the caller is not who they claim to be - and nobody legitimately needs it
+    # twice in a day. Low enough that a stolen session cannot quietly walk the
+    # deployment's people, high enough that a person retrying a failed download
+    # is not locked out (#1421).
+    RATE_LIMIT_EXPORT_PER_HOUR: int = 5
+    # How much conversation text one personal-data export may carry, in
+    # characters. The document is assembled and serialized whole, and a message
+    # has no length ceiling of its own, so without this the caller decides how
+    # much memory a worker spends and five concurrent exports of a thread
+    # somebody has been filling take the container with them. Roughly 16 MB of
+    # text, which is far more than any real transcript and far less than the
+    # 2560 MB the shipped container has (#1421).
+    PERSONAL_DATA_EXPORT_MAX_CHARS: int = 16_000_000
     # How often one address may ask to be admitted to a widget or a hosted page,
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.
@@ -301,6 +410,12 @@ class Settings(BaseSettings):
     # address bounds a brute force against one account. Low, because a person
     # signing in does it a handful of times and a script does it thousands.
     RATE_LIMIT_AUTH_PER_MINUTE: int = 10
+    # How many ML service calls one caller gets per minute. These are the
+    # heaviest synchronous endpoints on the API - an OCR pass is CPU-bound
+    # seconds on a thread, a transcription is a call to somebody else's engine -
+    # so the ceiling is about what one integration can do to a worker, not about
+    # what a stranger can reach: this surface is authenticated.
+    RATE_LIMIT_ML_PER_MINUTE: int = 30
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
@@ -353,6 +468,42 @@ class Settings(BaseSettings):
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
+    # Where uploaded files live: chat attachments, avatars, branding images and
+    # the original of every knowledge-base document. `local` is the default and
+    # writes under `MEDIA_DIR`, which is honest for a single host with an
+    # encrypted volume and stops being enough at the second API replica or the
+    # first client who wants their own KMS key (#1423).
+    #
+    # This is a deployment-time choice, not a per-organization one, and it does
+    # not migrate what the other backend already holds.
+    FILE_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    FILE_STORAGE_S3_BUCKET: str = ""
+    # Empty for AWS; the address of the service for MinIO or another
+    # S3-compatible store.
+    FILE_STORAGE_S3_ENDPOINT: str | None = None
+    FILE_STORAGE_S3_REGION: str = "us-east-1"
+    # Left empty, boto3's own credential chain answers - an instance profile, an
+    # IRSA role, `~/.aws/credentials` - which is what a deployment on AWS should
+    # be using rather than a key pair in an environment file.
+    FILE_STORAGE_S3_ACCESS_KEY: str = ""
+    FILE_STORAGE_S3_SECRET_KEY: str = ""
+    # MinIO and most compatible stores address a bucket by path rather than by
+    # subdomain, and a virtual-host request to one fails DNS rather than S3.
+    FILE_STORAGE_S3_PATH_STYLE: bool = False
+    # Every key this deployment writes sits under this prefix, so one bucket can
+    # hold more than one deployment without their keys meeting.
+    FILE_STORAGE_S3_PREFIX: str = ""
+    # Server-side encryption asked of the store on every write. `sse-s3` is the
+    # bucket's own key, `sse-kms` the key named below - the one a client brings.
+    # `none` exists because MinIO refuses SSE-S3 without a KES server behind it,
+    # so a compatible store with no KMS has somewhere to be; `doctor` reports it
+    # as unconfigured rather than healthy.
+    FILE_STORAGE_S3_ENCRYPTION: Literal["sse-s3", "sse-kms", "none"] = "sse-s3"
+    # Required when the mode is `sse-kms`, and refused empty there. An unnamed
+    # `aws:kms` is not the bucket's default key: S3 reads it as its own
+    # AWS-managed `aws/s3`, so a deployment that asked for a client-held key and
+    # named none would encrypt under a key nobody chose and be told nothing.
+    FILE_STORAGE_S3_KMS_KEY_ID: str | None = None
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
     S3_RAG_SECRET_KEY: str = ""

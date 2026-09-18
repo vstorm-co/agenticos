@@ -49,12 +49,15 @@ EXEMPT: dict[str, str] = {
     "tests/api/test_platform_routes.py::TestReadingWhatARunIsParkedOn::test_the_parked_calls_come_back_with_the_approval_to_decide": "reads parked approvals for an authorized caller, display/read",
     "tests/api/test_run_export_routes.py::TestTheFiltersReachTheService::test_approval_filters_arrive_as_named": "query filters reach the service, plumbing, no refusal",
     "tests/integration/test_agent_trigger_schema.py::TestTheEventShapeRejectsABadRow::test_a_polled_event_trigger_with_no_secret_is_accepted": "the valid polled shape is accepted, schema accept-complement",
+    "tests/integration/test_audit_hash_chain.py::TestTheDeploymentChain::test_a_tenant_less_write_chains_and_verifies": "a deployment-wide (tenant-less) audit chain verifies, functionality, keyword coincidental",
     "tests/integration/test_deletion_reconciliation.py::TestDeletingAUser::test_deleting_a_member_promotes_their_private_secret_to_the_org": "deleting a member promotes their private secret to the org, reconciliation, no refusal",
     "tests/integration/test_platform_flows.py::TestTheListingCarriesThePublishedCap::test_a_version_with_no_budget_block_answers_null": "a version with no budget block reports a null cap, listing, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_a_deleted_secret_is_gone_and_a_second_delete_says_so": "delete is idempotent (a second delete returns False), CRUD, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_deleting_the_organization_takes_its_secrets_with_it": "deleting the organization cascades its secrets, lifecycle, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_several_secrets_resolve_in_one_query": "batch resolves several secrets for a run, query feature, no refusal",
     "tests/integration/test_admin_org_owner.py::TestTheDetail::test_it_carries_the_members_owner_budget_and_size": "reads the budget onto an admin's page, display, no refusal",
+    "tests/test_media_offload.py::TestTheBytesHaveALifetime::test_the_tenant_s_media_is_removed_with_the_tenant": "a teardown removing a prefix, not a refusal - the isolation case beside it carries the marker",
+    "tests/test_codeql_workflow.py::test_the_upload_permission_is_scoped_to_the_analysing_job": "a GitHub Actions permission in a workflow file, not a runtime refusal",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_capability_needing_no_secret_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_conditional_secret_the_default_config_does_not_need_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_non_api_key_secret_gets_no_stand_in": "picks a stand-in value for a documentation stub, no runtime secret",
@@ -78,6 +81,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_channel_live_reply.py::TestAnEmptyAnswerTellsItsReasonsApart::test_an_answer_empty_for_any_other_reason_does_not_claim_approval": "an empty answer does not falsely claim approval or budget, message text, no enforcement",
     "tests/test_config.py::TestStoreTls::test_a_plaintext_redis_url_carries_no_tls_parameters": "a plaintext redis URL carries no TLS params, config, keyword coincidental",
     "tests/test_config.py::TestStoreTls::test_both_urls_are_plaintext_by_default": "store URLs are plaintext by default, config default, keyword coincidental",
+    "tests/test_attachments.py::TestThePerTurnTextBudget::test_text_past_the_turn_budget_is_truncated_and_said_once": "a per-turn character budget truncates pasted attachment text, text limit, not spend",
     "tests/test_conversation_search.py::TestWhatARenderedTranscriptCosts::test_the_first_turn_is_written_even_when_it_alone_blows_the_budget": "the first turn is written past the character budget, text limit, not spend",
     "tests/test_conversation_search.py::TestWhatARenderedTranscriptCosts::test_the_window_stops_at_the_budget_and_reports_where": "a character budget bounds transcript rendering, text limit, not a spend budget",
     "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_is_reported_with_the_reason_it_gave": "a budget-stop notification carries reason and scope, notification, no enforcement",
@@ -110,6 +114,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_a_secret_sealed_under_the_old_master_key_survives_a_real_rotation": "a secret survives a real master-key rotation, rotation correctness, no refusal",
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
+    "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
 }
 
 

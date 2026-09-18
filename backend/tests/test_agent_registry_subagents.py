@@ -391,8 +391,8 @@ class TestInlineSpecialists:
                         _specialist(
                             capabilities=[
                                 {
-                                    "id": "skills",
-                                    "tool_overrides": {"load_skill": {"name": "list_skills"}},
+                                    "id": "context",
+                                    "tool_overrides": {"read_context": {"name": "list_context"}},
                                 }
                             ]
                         )
@@ -402,7 +402,35 @@ class TestInlineSpecialists:
         )
 
         assert problems == [
-            "Specialist 'summariser': Capability 'skills' would offer two tools called list_skills"
+            "Specialist 'summariser': Capability 'context' would offer two tools called list_context"
+        ]
+
+    async def test_a_rename_onto_the_frameworks_own_tool_is_refused(self):
+        """Pydantic AI contributes `load_capability` to any run carrying a
+        deferred capability, and nothing here can rename or remove it - so a
+        binding renaming its own tool onto that name offers the model two tools
+        of one name and the library aborts the turn (#1704 review)."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "inline": [
+                        _specialist(
+                            capabilities=[
+                                {
+                                    "id": "context",
+                                    "tool_overrides": {"read_context": {"name": "load_capability"}},
+                                }
+                            ]
+                        )
+                    ]
+                }
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Capability 'context' renames a tool to load_capability, "
+            "which the framework provides itself - two tools of that name abort the turn"
         ]
 
     async def test_a_specialist_naming_a_model_profile_that_is_gone_is_refused(self, monkeypatch):

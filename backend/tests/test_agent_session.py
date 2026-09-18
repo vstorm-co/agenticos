@@ -75,7 +75,12 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
-from subagents_pydantic_ai import TaskStatus
+from subagents_pydantic_ai import SubAgentState, TaskStatus
+
+# The library binds this itself around every delegation and exports the reader
+# rather than the binder, so a test that wants to *be* inside a delegation
+# reaches for it here. Binding through a real delegation would mean running one.
+from subagents_pydantic_ai._state import bind_subagent_state
 
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
@@ -1292,6 +1297,90 @@ class TestAskingTheUser:
             ("ask_user", "Which region?", "eu")
         ]
 
+    async def test_a_delegated_question_records_which_delegate_asked(self):
+        """#1042. `ask_parent` hands the surface the question and nothing else,
+        so a stored question said that one was asked and not who asked it - and a
+        specialist asking reads differently in a transcript from the agent the
+        person is talking to asking.
+
+        The name is read where the question is *put*, inside the delegation, and
+        the delegation's state is bound only there: the answer arrives on the
+        receive loop, which is a different task with nothing bound.
+        """
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        state = SubAgentState(ask_timeout_seconds=300.0, name="researcher")
+        with bind_subagent_state(state):
+            asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+            await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.asked_by) for part in stored] == [
+            ("Which region?", "researcher")
+        ]
+
+    async def test_two_delegates_asking_at_once_each_keep_their_own_name(self):
+        """The attribution is serialized with the round it names.
+
+        `_ask_lock` already held the wire round, but which question was *open*
+        was marked outside it - so a second delegate reaching `_ask_one` while
+        the first was still waiting overwrote both fields, and the first
+        delegate's answer was persisted as the second's question under the
+        second's name. Both are set inside the lock now.
+        """
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        first_asked = _next_frame(session)
+
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0, name="researcher")):
+            first = asyncio.create_task(session._ask_one("Which region?", []))
+        await _wait(first_asked)
+
+        # The second delegate reaches `_ask_one` while the first is parked on its
+        # answer, which is the whole of the race.
+        second_asked = _next_frame(session)
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0, name="deployer")):
+            second = asyncio.create_task(session._ask_one("Which cluster?", []))
+        await asyncio.sleep(0)
+
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+        assert await first == "eu"
+        await _wait(second_asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "blue"}]})
+        assert await second == "blue"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.answer, part.asked_by) for part in stored] == [
+            ("Which region?", "eu", "researcher"),
+            ("Which cluster?", "blue", "deployer"),
+        ]
+
+    async def test_a_question_the_main_agent_asked_names_no_delegate(self):
+        """`None` rather than a placeholder: the main agent asking is the ordinary
+        case, and the transcript says nothing extra about it."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert stored[0].asked_by is None
+
     async def test_the_answer_is_recorded_when_the_frame_arrives_not_when_the_run_resumes(self):
         """A `stop` sent right behind the answer cancels the turn before `_ask_one`
         resumes past its await; recording in the frame handler is what keeps the
@@ -1380,13 +1469,14 @@ class TestAttachedFiles:
         session = _session()
         rows = [MagicMock(), MagicMock()]
         run = AsyncMock(return_value=_finished_turn())
+        prompt_message_id = uuid4()
 
         with (
-            _chat(run),
+            _chat(run, prompt_message_id=prompt_message_id),
             patch(
-                "app.services.agent_session.load_attached_files",
+                "app.services.agent_session.load_turn_attachments",
                 new=AsyncMock(return_value=rows),
-            ),
+            ) as load,
         ):
             await session.process_message(
                 {"message": "", "agent_id": str(uuid4()), "file_ids": ["f1", "f2"]}
@@ -1395,6 +1485,36 @@ class TestAttachedFiles:
         assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
         assert run.await_args is not None
         assert run.await_args.kwargs["attachments"] == rows
+        # Read against the message `persist_user_turn` just wrote and the caller's
+        # own ids - the ids are linked by then, and re-checking them as unlinked
+        # dropped every attachment before the model call (#1756).
+        assert load.await_args.args[1] == prompt_message_id
+        assert load.await_args.args[2] == ["f1", "f2"]
+
+    async def test_a_lost_prompt_row_still_loads_the_files(self):
+        """`persist_user_turn` swallows a transient write failure, leaving
+        `message_id` None; the files must still be loaded (the loader keeps the
+        caller's unlinked uploads for a None message) rather than dropped from a
+        billed turn (#1654 review)."""
+        session = _session()
+        rows = [MagicMock()]
+        run = AsyncMock(return_value=_finished_turn())
+
+        with (
+            _chat(run, prompt_message_id=None),
+            patch(
+                "app.services.agent_session.load_turn_attachments",
+                new=AsyncMock(return_value=rows),
+            ) as load,
+        ):
+            await session.process_message(
+                {"message": "look", "agent_id": str(uuid4()), "file_ids": ["f1"]}
+            )
+
+        assert run.await_args is not None
+        assert run.await_args.kwargs["attachments"] == rows
+        # Not short-circuited to []: the loader is called with a None message id.
+        assert load.await_args.args[1] is None
 
 
 class TestStreamingAModelResponse:
@@ -1830,8 +1950,10 @@ class TestForwardingToolEvents:
 
         await _frames(session, tool_calls=collected).tools(_events())
 
+        # JSON, not `str(list)`: a structured answer has to be readable on the
+        # other side, which a Python repr is not.
         assert collected == [
-            {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
+            {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": '["/a.txt"]'}
         ]
 
     async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):

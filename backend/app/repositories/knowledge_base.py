@@ -229,6 +229,30 @@ async def list_org_scoped(db: AsyncSession, organization_id: UUID) -> list[Knowl
     return list(result.scalars().all())
 
 
+async def list_personal_carrying_org(
+    db: AsyncSession, organization_id: UUID
+) -> list[KnowledgeBase]:
+    """Personal-scoped bases that carry this org's id - the ones a purge orphans.
+
+    A personal base created while its owner was in an organization records that
+    organization, so its vector rows are stamped with it
+    (`KnowledgeBase.vector_tenant` is the organization for any non-app scope).
+    `list_org_scoped` deletes only the org-scoped bases; these personal ones are
+    left to the `organization_id` `ON DELETE SET NULL`, which flips their
+    `vector_tenant` to `None` while their rows stay stamped with the now-deleted
+    organization - stranding them behind the read side's `IS NULL` scope (#1684).
+    The purge re-stamps their rows to untagged so they match again; this is how it
+    finds them, read before the org row (and the `SET NULL`) goes.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.organization_id == organization_id,
+            KnowledgeBase.scope == KBScope.PERSONAL.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[KnowledgeBase]:
     """The personal-scoped knowledge bases a user owns - the ones their deletion
     must remove.
