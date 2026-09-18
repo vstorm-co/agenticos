@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.465] - 2026-09-18
+
 ### Fixed
 
 - **RAG ingestion no longer crosses tenants on a shared collection name.** A
