@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.468] - 2026-09-18
+
 ### Added
 
 - **An agent carries categories and tags, and the catalog filters by them.**
