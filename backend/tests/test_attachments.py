@@ -144,6 +144,7 @@ class TestWithAWorkspace:
         assert isinstance(prompt, str)
         assert workspace_path(chat_file) in prompt
 
+    @pytest.mark.security
     async def test_a_turn_stops_inlining_images_once_its_budget_is_spent(
         self, storage, monkeypatch
     ):
