@@ -119,6 +119,25 @@ describe("CreateAgentDialog", () => {
     );
   });
 
+  it("sends the labels it was given, folded by the server afterwards", async () => {
+    // The catalog a new agent joins is the moment somebody knows what to call
+    // it; the detail page can still change these later without a publish.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
+    open();
+
+    await userEvent.type(name(), "Support");
+    await userEvent.type(screen.getByLabelText("Add a category"), "support{Enter}");
+    await userEvent.type(screen.getByLabelText("Add a tag"), "billing{Enter}");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({ categories: ["support"], tags: ["billing"] }),
+      ),
+    );
+  });
+
   it("marks the name and keeps the form when the handle is taken", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(HANDLE_TAKEN);
     const { onCreated } = open();

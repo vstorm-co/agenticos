@@ -74,6 +74,7 @@ async def list_workspaces(
             id=overview.row.id,
             agent_id=overview.row.agent_id,
             agent_name=overview.agent_name,
+            agent_slug=overview.agent_slug,
             agent_has_avatar=overview.agent_has_avatar,
             conversation_id=overview.row.conversation_id,
             conversation_is_mine=overview.conversation_is_callers,

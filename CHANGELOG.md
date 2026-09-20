@@ -51,6 +51,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **An agent's generated face is drawn from its handle, not its id.** So the
+  creation dialog can show the face while somebody is still typing their way to
+  a name - the handle is derived from the name on every keystroke and then
+  frozen, which keeps the old guarantee that renaming an agent does not hand it
+  somebody else's picture. Triggers, workspaces and the spend breakdown carry
+  the handle now, beside the name they already carried, so every surface draws
+  the same face. Existing agents change appearance once.
+- **Categories and tags can be set when an agent is created**, and read better
+  where they are edited: two half-width fields side by side instead of two
+  stacked empty boxes, each saying what it is for, with the cap visible before
+  somebody hits it. The creation preview shows them on the row they will appear
+  on.
 - **The Getting Started agent is a demonstration rather than a stub.** It had
   one capability - a clock - and a prompt that described the platform in three
   sentences. It now ships with fourteen: web search and fetch, Python, charts,

@@ -22,7 +22,10 @@ const org = vi.hoisted(() => ({ activeOrgId: "org-1" as string | null }));
 
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (p: string) => p !== "agents:view" || perm.agentsView }),
-  useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
+  useAgents: () => ({
+    agents: [{ id: "agent-1", slug: "support-agent", name: "Support agent" }],
+    isLoading: false,
+  }),
   useAgentVersions: () => ({ versions: [{ id: "ver-1", version: 1 }], isLoading: false }),
   useAllAgentVersions: () => ({ versions: [{ id: "ver-1", version: 1 }], isLoading: false }),
   useMembers: () => ({ members: [] }),

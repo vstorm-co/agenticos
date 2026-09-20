@@ -97,6 +97,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         {showAgent && trigger.agent_name && (
           <AgentAvatar
             agentId={trigger.agent_id}
+            slug={trigger.agent_slug ?? ""}
             hasAvatar={trigger.agent_has_avatar ?? false}
             colorSlot={trigger.agent_avatar_color}
             size="sm"

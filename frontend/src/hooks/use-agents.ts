@@ -85,8 +85,17 @@ export function useAgents({
     // Visibility is not part of the spec and never has been: a spec is what the
     // agent *is*, and who can find it is a fact about the row - the same reason
     // its avatar and its colour live beside the spec rather than in it.
-    mutationFn: ({ spec, visibility }: { spec: AgentSpec; visibility?: Visibility }) =>
-      apiClient.post<Agent>("/agents", { spec, visibility }),
+    mutationFn: ({
+      spec,
+      visibility,
+      categories,
+      tags,
+    }: {
+      spec: AgentSpec;
+      visibility?: Visibility;
+      categories?: string[];
+      tags?: string[];
+    }) => apiClient.post<Agent>("/agents", { spec, visibility, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));

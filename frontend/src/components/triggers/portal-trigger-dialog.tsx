@@ -280,6 +280,7 @@ export function PortalTriggerDialog({
                         <span className="flex items-center gap-2">
                           <AgentAvatar
                             agentId={agent.id}
+                            slug={agent.slug}
                             hasAvatar={agent.has_avatar}
                             colorSlot={agent.avatar_color}
                             size="sm"

@@ -55,7 +55,12 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                   {/* The agent's own face, the same one the catalog, the run
                       table and the chat picker draw - a list of agents told
                       apart by six lines of text is a list nobody scans. */}
-                  <AgentAvatar agentId={agent.id} hasAvatar={agent.has_avatar ?? false} size="sm" />
+                  <AgentAvatar
+                    agentId={agent.id}
+                    slug={agent.slug}
+                    hasAvatar={agent.has_avatar ?? false}
+                    size="sm"
+                  />
                   {/* The name reaches the agent. Every other card on this page
                       hands over to the page behind its number; this one named
                       six agents and offered no way to open any of them. */}

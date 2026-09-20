@@ -996,6 +996,8 @@ class AgentRegistryService:
         spec: AgentSpec,
         *,
         visibility: Visibility = Visibility.ORG,
+        categories: list[str] | None = None,
+        tags: list[str] | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1050,6 +1052,8 @@ class AgentRegistryService:
             owner_user_id=ctx.user_id,
             created_by_user_id=ctx.user_id,
             visibility=visibility.value,
+            categories=categories or [],
+            tags=tags or [],
         )
         await record_audit(
             self.db,

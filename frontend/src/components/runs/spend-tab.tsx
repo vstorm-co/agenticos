@@ -139,7 +139,12 @@ export function SpendTab({ period }: { period: Period }) {
       cell: (row) => (
         <span className="flex items-center gap-2">
           <span aria-hidden>
-            <AgentAvatar agentId={row.agent_id} size="sm" className="h-5 w-5" />
+            <AgentAvatar
+              agentId={row.agent_id}
+              slug={row.agent_slug}
+              size="sm"
+              className="h-5 w-5"
+            />
           </span>
           <span className={row.agent_name === null ? "text-muted-foreground italic" : ""}>
             {row.agent_name ?? t("deletedAgent")}

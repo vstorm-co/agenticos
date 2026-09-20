@@ -143,7 +143,12 @@ export function ChannelBotsTable({
             <div className={cn("flex flex-wrap items-center gap-2", paused(bot))}>
               {bot.agents.map((agent) => (
                 <span key={agent.id} className="flex items-center gap-1.5">
-                  <AgentAvatar agentId={agent.id} hasAvatar={agent.has_avatar} size="sm" />
+                  <AgentAvatar
+                    agentId={agent.id}
+                    slug={agent.slug}
+                    hasAvatar={agent.has_avatar}
+                    size="sm"
+                  />
                   <span className="truncate text-xs">@{agent.slug}</span>
                 </span>
               ))}

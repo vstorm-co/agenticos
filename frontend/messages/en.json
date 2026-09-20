@@ -3545,7 +3545,10 @@
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour",
       "knowledge": "Knowledge",
-      "skills": "Skills"
+      "skills": "Skills",
+      "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
+      "tagsHint": "Anything narrower you want to search by later.",
+      "labelCount": "{used} of {max}"
     },
     "auth": {
       "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",

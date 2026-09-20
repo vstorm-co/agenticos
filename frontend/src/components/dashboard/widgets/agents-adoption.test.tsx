@@ -41,8 +41,14 @@ function renderWidget() {
   });
   useAgentsMock.mockReturnValue({
     agents: [
-      { id: "a-1", name: "jarvis", status: "published", has_avatar: false },
-      { id: "a-2", name: "E2E Journey msq2wtqe", status: "published", has_avatar: false },
+      { id: "a-1", slug: "jarvis", name: "jarvis", status: "published", has_avatar: false },
+      {
+        id: "a-2",
+        slug: "e2e-journey-msq2wtqe",
+        name: "E2E Journey msq2wtqe",
+        status: "published",
+        has_avatar: false,
+      },
     ],
   });
   return render(

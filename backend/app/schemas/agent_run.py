@@ -301,6 +301,14 @@ class CostByAgent(BaseSchema):
     """
 
     agent_id: UUID
+    agent_slug: str = Field(
+        default="",
+        description=(
+            "The handle, which is what the generated face beside this row is drawn "
+            "from - so the spend table draws the same picture every other surface "
+            "does. Empty where the breakdown names no agent."
+        ),
+    )
     agent_name: str | None = Field(
         default=None,
         description=(

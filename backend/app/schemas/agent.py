@@ -229,6 +229,12 @@ class AgentCreate(BaseSchema):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
+    # They are not spec, and they are offered here because the catalog a new
+    # agent joins is the moment somebody knows what to call it - the detail page
+    # can still change them afterwards without a publish.
+    categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
     visibility: Visibility = Field(
         default=Visibility.ORG,
         description=(
@@ -238,6 +244,11 @@ class AgentCreate(BaseSchema):
             "what it does."
         ),
     )
+
+    @field_validator("categories", "tags", mode="after")
+    @classmethod
+    def _normalize(cls, v: list[str]) -> list[str]:
+        return normalize_labels_strict(v)
 
 
 class AgentDraftUpdate(BaseSchema):

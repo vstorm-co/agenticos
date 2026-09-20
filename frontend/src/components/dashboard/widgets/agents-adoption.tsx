@@ -38,6 +38,9 @@ export function AgentsAdoptionWidget({
           // catalog this card already loads for its idle half knows, so the
           // join is free and the card asks for nothing more.
           const hasAvatar = new Map(agents.map((agent) => [agent.id, agent.has_avatar ?? false]));
+          // The handle, because that is what the face is drawn from - the usage
+          // rows name an agent by id and this is where the id becomes a picture.
+          const handles = new Map(agents.map((agent) => [agent.id, agent.slug]));
           return (
             <div className="flex h-full flex-col justify-between gap-3">
               <BarList
@@ -48,6 +51,7 @@ export function AgentsAdoptionWidget({
                   icon: (
                     <AgentAvatar
                       agentId={row.agent_id}
+                      slug={handles.get(row.agent_id) ?? ""}
                       hasAvatar={hasAvatar.get(row.agent_id) ?? false}
                       size="sm"
                       className="h-5 w-5"

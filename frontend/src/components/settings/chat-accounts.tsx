@@ -113,7 +113,12 @@ export function ChatAccounts() {
                       <span className="text-muted-foreground">{t("chatAccountAnswersAs")}</span>
                       {place.agents.map((agent) => (
                         <span key={agent.id} className="flex items-center gap-1.5">
-                          <AgentAvatar agentId={agent.id} hasAvatar={agent.has_avatar} size="sm" />
+                          <AgentAvatar
+                            agentId={agent.id}
+                            slug={agent.slug}
+                            hasAvatar={agent.has_avatar}
+                            size="sm"
+                          />
                           <span className="truncate">@{agent.slug}</span>
                         </span>
                       ))}

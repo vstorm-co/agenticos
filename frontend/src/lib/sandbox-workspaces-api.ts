@@ -18,6 +18,8 @@ export interface WorkspaceSummary {
   agent_id: string;
   /** Resolved server-side, so a row names something readable rather than a UUID. */
   agent_name: string;
+  /** Its handle, which is what the generated face is drawn from. */
+  agent_slug: string;
   /** Resolved server-side too - this reader may not hold agents:view. */
   agent_has_avatar: boolean;
   conversation_id: string | null;

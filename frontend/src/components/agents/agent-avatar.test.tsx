@@ -17,22 +17,31 @@ describe("AgentAvatar", () => {
   /** The figure itself, for comparing one agent's face against another's. */
   const drawing = (container: HTMLElement) => face(container)!.innerHTML;
 
-  it("draws a face generated from the agent's id", () => {
-    const { container } = render(<AgentAvatar agentId="a1" />);
+  it("draws a face generated from the agent's handle", () => {
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" />);
 
     expect(face(container)).not.toBeNull();
   });
 
   it("draws two agents two different faces", () => {
-    const { container: a } = render(<AgentAvatar agentId="a1" />);
-    const { container: b } = render(<AgentAvatar agentId="a2" />);
+    const { container: a } = render(<AgentAvatar agentId="a1" slug="support" />);
+    const { container: b } = render(<AgentAvatar agentId="a2" slug="refunds" />);
 
     expect(drawing(a)).not.toBe(drawing(b));
   });
 
-  it("wears the chosen colour rather than the one the id hashes to", () => {
-    const { container: auto } = render(<AgentAvatar agentId="a1" />);
-    const { container: picked } = render(<AgentAvatar agentId="a1" colorSlot={4} />);
+  it("draws the handle rather than the id, so a moved row keeps its face", () => {
+    // The handle is what a name derives into and then never changes again, which
+    // is what lets the creation dialog show the face before the agent exists.
+    const { container: a } = render(<AgentAvatar agentId="a1" slug="support" />);
+    const { container: b } = render(<AgentAvatar agentId="somewhere-else" slug="support" />);
+
+    expect(drawing(a)).toBe(drawing(b));
+  });
+
+  it("wears the chosen colour rather than the one the handle hashes to", () => {
+    const { container: auto } = render(<AgentAvatar agentId="a1" slug="support" />);
+    const { container: picked } = render(<AgentAvatar agentId="a1" slug="support" colorSlot={4} />);
 
     expect(drawing(picked)).not.toBe(drawing(auto));
   });
@@ -40,7 +49,7 @@ describe("AgentAvatar", () => {
   it("stays out of the accessible tree", () => {
     // Every one of these is drawn beside the agent's name, so a name on the
     // picture too is the same words read twice.
-    const { container } = render(<AgentAvatar agentId="a1" />);
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" />);
 
     expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
@@ -50,7 +59,7 @@ describe("AgentAvatar", () => {
     // puts the picture in the DOM once it has loaded, which in jsdom is never.
     // The request itself goes through the API, so it carries the same access
     // check as reading the agent.
-    const { container } = render(<AgentAvatar agentId="a1" hasAvatar />);
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" hasAvatar />);
 
     expect(face(container)).not.toBeNull();
   });
@@ -58,7 +67,7 @@ describe("AgentAvatar", () => {
   it("takes a version, which is what defeats the cache after an upload", () => {
     // Without it a replaced picture keeps rendering as the old one until a hard
     // reload, because the URL did not change.
-    const { container } = render(<AgentAvatar agentId="a1" hasAvatar version={2} />);
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" hasAvatar version={2} />);
 
     expect(face(container)).not.toBeNull();
   });
@@ -66,15 +75,15 @@ describe("AgentAvatar", () => {
   it("draws the face mid-thought while the agent is answering", () => {
     // A change of pose on a face already blinking and breathing, which is what
     // makes it read as thought rather than as decoration.
-    const { container } = render(<AgentAvatar agentId="a1" thinking />);
-    const { container: idle } = render(<AgentAvatar agentId="a1" />);
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" thinking />);
+    const { container: idle } = render(<AgentAvatar agentId="a1" slug="support" />);
 
     expect(container.querySelector("g.mo-expr")).not.toBeNull();
     expect(idle.querySelector("g.mo-expr")).toBeNull();
   });
 
   it("renders at the size it was asked for", () => {
-    const { container } = render(<AgentAvatar agentId="a1" size="xl" />);
+    const { container } = render(<AgentAvatar agentId="a1" slug="support" size="xl" />);
 
     expect(container.firstElementChild).toHaveClass("h-20");
   });

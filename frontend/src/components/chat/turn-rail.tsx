@@ -18,6 +18,8 @@ export interface RailEntry {
   isUser: boolean;
   /** The agent that answered, when one did - for its picture. */
   agentId?: string;
+  /** Its handle, which is what that picture is drawn from. */
+  agentSlug?: string;
   /** Whether that agent has an uploaded picture, so the row can skip a 404. */
   hasAvatar?: boolean;
   /** What the person's generated face is drawn from. */
@@ -150,7 +152,12 @@ export function TurnRail({ entries, className }: TurnRailProps) {
               // only side with room for it.
               <span className="bg-popover/95 text-popover-foreground border-border/60 absolute left-6 z-10 flex w-72 items-start gap-2.5 rounded-2xl border p-2.5 shadow-xl backdrop-blur-sm">
                 {entry.agentId !== undefined ? (
-                  <AgentAvatar agentId={entry.agentId} hasAvatar={entry.hasAvatar} size="sm" />
+                  <AgentAvatar
+                    agentId={entry.agentId}
+                    slug={entry.agentSlug ?? ""}
+                    hasAvatar={entry.hasAvatar}
+                    size="sm"
+                  />
                 ) : (
                   <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full">
                     <AvatarFace seed={entry.seed} />

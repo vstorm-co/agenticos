@@ -4,6 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { ChipsInput } from "@/components/agents/chips-input";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import {
   Badge,
   Button,
@@ -33,6 +35,10 @@ import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 1000;
+/** The caps the server enforces, so a chip too many is refused before it is sent. */
+const MAX_CATEGORIES = 10;
+const MAX_TAGS = 20;
+const MAX_LABEL = 32;
 
 /**
  * The handle an agent will be addressed by, derived from its name.
@@ -71,6 +77,7 @@ interface CreateAgentDialogProps {
 export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgentDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
+  const tAgents = useTranslations("pages.agents");
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -78,6 +85,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   // nobody else can find is the exception - it used to be the rule, so every
   // agent was made invisible and then shared by hand.
   const [visibility, setVisibility] = useState<Visibility>("org");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   function edit(field: "name" | "description", value: string) {
@@ -106,10 +115,14 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           budget: null,
         },
         visibility,
+        categories,
+        tags,
       });
       setName("");
       setDescription("");
       setVisibility("org");
+      setCategories([]);
+      setTags([]);
       setErrors({});
       onOpenChange(false);
       onCreated(agent);
@@ -189,6 +202,37 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             </p>
           </div>
 
+          {/* Side by side, because they are two halves of one question - and the
+              preview below shows what they look like on the row, which is where
+              somebody will read them back. Optional: the detail page changes
+              them later without a publish. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>{tAgents("categories")}</Label>
+              <ChipsInput
+                values={categories}
+                onChange={setCategories}
+                inputLabel={tAgents("addCategory")}
+                removeLabel={(value) => tAgents("removeCategory", { value })}
+                placeholder={tAgents("addCategoryPlaceholder")}
+                maxItems={MAX_CATEGORIES}
+                maxLength={MAX_LABEL}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{tAgents("tags")}</Label>
+              <ChipsInput
+                values={tags}
+                onChange={setTags}
+                inputLabel={tAgents("addTag")}
+                removeLabel={(value) => tAgents("removeTag", { value })}
+                placeholder={tAgents("addTagPlaceholder")}
+                maxItems={MAX_TAGS}
+                maxLength={MAX_LABEL}
+              />
+            </div>
+          </div>
+
           {/* The row this is about to become, drawn from what has been typed.
               The handle and the description are what a colleague scanning the
               catalog reads, and they are easier to judge as a row than as three
@@ -198,7 +242,14 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             <Label>{t("preview")}</Label>
             <div className="border-border bg-card rounded-xl border p-3">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                {/* The real face, not a placeholder: an agent's is drawn from its
+                    handle, and the handle is derived from the name on every
+                    keystroke - so this is the picture the agent will actually
+                    wear, changing as somebody types their way to it. */}
+                <span className="mr-3 h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                  <AvatarFace seed={deriveHandle(name || t("handlePlaceholder"))} />
+                </span>
+                <div className="min-w-0 flex-1">
                   <p className="text-foreground truncate font-medium">
                     {name.trim() || t("supportCopilot")}
                   </p>
@@ -211,9 +262,21 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
                 {description.trim() || t("answersCustomerQuestionsFrom")}
               </p>
-              <Badge variant="outline" className="mt-1">
-                {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
-              </Badge>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline">
+                  {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
+                </Badge>
+                {categories.map((value) => (
+                  <Badge key={value} variant="secondary">
+                    {value}
+                  </Badge>
+                ))}
+                {tags.map((value) => (
+                  <span key={value} className="text-muted-foreground text-xs">
+                    #{value}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>

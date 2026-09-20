@@ -5,7 +5,7 @@ import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } fr
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
-  agents: [] as { id: string; name: string }[],
+  agents: [] as { id: string; slug: string; name: string }[],
   rendered: [] as {
     id: string;
     agent?: string;
@@ -107,7 +107,7 @@ describe("the transcript", () => {
   it("labels a turn with the agent's name as it is today", () => {
     // Not as it was when the turn was saved: the message carries an id, and the
     // name comes from the list.
-    state.agents = [{ id: "a-1", name: "Support (renamed)" }];
+    state.agents = [{ id: "a-1", slug: "support-(renamed)", name: "Support (renamed)" }];
 
     render(<MessageList messages={[message({ agentId: "a-1" })]} />);
 

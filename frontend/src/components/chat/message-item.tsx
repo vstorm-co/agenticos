@@ -202,6 +202,7 @@ export function MessageItem({
         ) : agent ? (
           <AgentAvatar
             agentId={agent.id}
+            slug={agent.slug}
             hasAvatar={agent.has_avatar}
             size="md"
             thinking={Boolean(message.isStreaming)}

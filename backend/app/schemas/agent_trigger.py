@@ -322,6 +322,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # agents - the avatar pair so the row can draw the same face every other
     # surface draws, not just the name.
     agent_name: str | None = None
+    # The handle, because it is what the generated face is drawn from: an
+    # agent's picture has to be the same picture here as on its own page, and
+    # the id this row already carries is not what draws it.
+    agent_slug: str | None = None
     agent_has_avatar: bool = False
     agent_avatar_color: int | None = None
     # Whether *this caller* may edit, delete or run-now this trigger - the same

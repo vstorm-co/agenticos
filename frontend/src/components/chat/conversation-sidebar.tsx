@@ -839,7 +839,12 @@ function CollapsedSidebar({
                       />
                     )}
                     {agent ? (
-                      <AgentAvatar agentId={agent.id} hasAvatar={agent.has_avatar} size="sm" />
+                      <AgentAvatar
+                        agentId={agent.id}
+                        slug={agent.slug}
+                        hasAvatar={agent.has_avatar}
+                        size="sm"
+                      />
                     ) : (
                       <MessageSquare className="h-4 w-4" aria-hidden />
                     )}

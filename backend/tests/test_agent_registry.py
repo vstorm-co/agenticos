@@ -1127,6 +1127,24 @@ class TestCreate:
         assert create.await_args.kwargs["visibility"] == "org"
 
     @pytest.mark.anyio
+    async def test_the_labels_it_was_created_with_are_written(self):
+        # Discovery metadata, not spec - the catalog a new agent joins is the
+        # moment somebody knows what to call it.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), categories=["support"], tags=["billing"]
+            )
+
+        assert create.await_args.kwargs["categories"] == ["support"]
+        assert create.await_args.kwargs["tags"] == ["billing"]
+
+    @pytest.mark.anyio
     async def test_an_agent_asked_for_privately_stays_private(self):
         # The exception is still available, and it is the caller's to ask for.
         ctx = _ctx()
