@@ -172,9 +172,8 @@ class OrganizationService:
         it - and gating that row behind a per-person Install button meant two
         lists on the skills page and a step with no decision in it. Seeded as
         the owner with organization visibility, the same shape `seed-skills`
-        and the listing's own top-up (`SkillService._ensure_bundled`) write -
-        the catalog is always present, and disabling a skill is how an
-        organization retires one.
+        writes. They are ordinary rows from that moment: an organization that
+        does not want one deletes it, and nothing puts it back.
         """
         service = SkillService(self.db)
         ctx = AuthContext(

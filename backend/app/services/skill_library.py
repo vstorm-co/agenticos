@@ -36,8 +36,9 @@ logger = logging.getLogger(__name__)
 LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "skills"
 
 # The gallery is a *second* root, and the separation is the whole point.
-# Everything under `LIBRARY_ROOT` is installed into every organization
-# automatically - at creation, and topped up on every listing (`_ensure_bundled`).
+# Everything under `LIBRARY_ROOT` is installed into every organization at
+# creation, and by `seed-skills` when a deployment wants an existing one topped
+# up. A copy the organization deletes stays deleted.
 # Seventy industry skills arriving that way would be seventy rows nobody asked
 # for, in every tenant, on the next deploy. So the gallery is opt-in: read by the
 # same parser, never seeded, installed only when somebody picks one.

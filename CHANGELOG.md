@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A generated face is the default avatar for people and agents.** Two initials
+  on a colour told a reader very little at 20px, and a run table is a column of
+  them. Every person and every agent who never uploaded a picture now wears a
+  deterministic face drawn from the row's id, so renaming an agent does not hand
+  it somebody else's. The stored `avatar_color` slot keeps its meaning: the ten
+  `--avatar-*` tokens' hues become the generator's hue, so the picker still
+  picks what the face wears. Organizations keep their initials — a company is
+  not somebody. Every face blinks and breathes, and `prefers-reduced-motion`
+  holds all of it still.
+- **Thought orbs where a turn is waiting.** The stretch between asking and the
+  first token, the reasoning line while pydantic-ai's thinking deltas arrive, a
+  tool call still in flight, and a delegation still out each carry a dotted orb
+  whose animation says what kind of work it is: a read scans, a write braids, a
+  delegation wires a constellation. `STEP_ORBS` maps every `StepKind` the way
+  `STEP_ICONS` maps it.
+- **A beam around the composer while the caret is in it.** Monochrome, and only
+  on focus: a border that glows permanently is decoration, one that lights when
+  the caret arrives is the box saying where the typing goes.
+- **A glow that rises with a voice.** The composer's edge answers the microphone
+  while it is open. It is a second capture, because the Web Speech API analyses
+  its own audio and exposes no stream, so stopping the glow stops no dictation.
+- **A rail down the edge of a conversation.** One tick per message, the tick for
+  what is on screen lit, a card on hover naming who spoke with the opening of
+  what they said, and chevrons that step a turn at a time. For the transcript
+  long enough that finding the message where a number was quoted means reading
+  every turn on the way.
+- **A mosaic that dissolves into an image.** The file viewer resolves a picture
+  out of a WebGL loader rather than swapping a spinner for it. Fetched on demand
+  and only where WebGL can run it, because it carries `three`.
+
+### Changed
+
+- **A built-in skill can be deleted, and stays deleted.** The skills listing used
+  to top itself up, copying in any bundled name the organization did not have
+  every time anyone opened the page. A deleted built-in came back on the next
+  visit, disabling was the only way to retire one, and reading a page wrote rows.
+  Organizations are still seeded at creation, `agenticos cmd seed-skills` still
+  pushes a new bundled skill out on purpose, and the gallery is where a skill is
+  chosen. What is gone is the page that put one back.
+- **Chunking defaults are 2500 characters with 200 of overlap**, up from 512 and
+  50. 512 characters is roughly three sentences: it splits a paragraph across
+  two embeddings and hands a model an answer with its own context missing.
+  Existing collections keep whatever they stored; this is what a new one starts
+  from, in the form at `/rag`, in the pipeline, and on the standalone parse
+  endpoint alike.
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed
