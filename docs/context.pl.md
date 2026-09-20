@@ -1,5 +1,5 @@
 ---
-source_sha: "f5fcd6aff7b4"
+source_sha: "14e5585228ca"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -7,6 +7,13 @@ source_sha: "f5fcd6aff7b4"
 **Plik kontekstowy** to kawałek stałej wiedzy napisany raz i podpięty do wielu
 agentów: słownik pojęć, opis tonu marki, macierz eskalacji, lista produktów,
 które naprawdę sprzedajesz.
+
+Jeśli pisałeś kiedyś `AGENTS.md` dla agenta kodującego, to jest ta sama idea w
+tym samym kształcie — plik w Markdownie mówiący, jak się tu robi rzeczy, trzymany
+obok pracy, a nie w środku jednego promptu. Różnica jest w tym, kto go czyta:
+`AGENTS.md` w repozytorium czyta cokolwiek akurat je otworzy, a plik kontekstowy
+tutaj jest podpięty do agentów, których wybierzesz, wersjonowany razem z nimi i
+edytowalny przez osobę, która naprawdę zna odpowiedź.
 
 To odpowiedź na problem, który każda firma napotyka przy swoim trzecim agencie —
 te same trzy akapity wklejone do trzech zestawów instrukcji, a potem poprawione

@@ -4258,7 +4258,7 @@
     },
     "context": {
       "context": "Context",
-      "contextStandingKnowledge": "Standing context every agent can draw on - a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it here.",
+      "contextStandingKnowledge": "An AGENTS.md for your agents. Standing knowledge every one of them can draw on - a glossary, a policy, a brand voice - written once here instead of pasted into each set of instructions. Injected into the prompt or read on demand, and current the moment you edit it.",
       "newContext": "New context file",
       "youCannotSeeOrganization": "You cannot see this organization's context files",
       "askAdministratorAccessContext": "Ask an administrator for access to context files.",

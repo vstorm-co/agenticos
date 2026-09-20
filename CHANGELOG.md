@@ -51,6 +51,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The context editor opens on the text, and the text has syntax.** A pane
+  somebody came to write in opened on a rendering of what they had not written
+  yet, and its source half was a plain textarea - so a long `AGENTS.md` was a
+  wall of identical grey where the headings that give it structure looked like
+  the sentences under them. Source is what `/context` opens on now, highlighted,
+  with gutters wide enough for the three columns of form above it. A file
+  browser still opens on the preview, which is what a reader wants.
+- **`/context` and its documentation lead with `AGENTS.md`.** It is the same
+  idea in the same shape, and naming it is faster than describing it.
 - **A built-in skill can be deleted, and stays deleted.** The skills listing used
   to top itself up, copying in any bundled name the organization did not have
   every time anyone opened the page. A deleted built-in came back on the next

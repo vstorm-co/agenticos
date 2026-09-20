@@ -25,7 +25,7 @@ names no author is in the evidence column below.
 |---|---:|---:|
 | MIT | 112 | 237 |
 | Apache-2.0 | 60 | 24 |
-| BSD-3-Clause | 33 | 4 |
+| BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
 | BSD-2-Clause | 10 | 0 |
 | LGPL-3.0-or-later | 1 | 2 |
@@ -299,7 +299,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-288 distributions.
+289 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -460,6 +460,7 @@ names no author is in the evidence column below.
 | hast-util-to-text | 4.0.2 | MIT | https://github.com/syntax-tree/hast-util-to-text | package.json license |
 | hast-util-whitespace | 3.0.0 | MIT | https://github.com/syntax-tree/hast-util-whitespace | package.json license |
 | highlight.js | 11.11.1 | BSD-3-Clause | https://github.com/highlightjs/highlight.js | package.json license |
+| highlight.js | 11.12.0 | BSD-3-Clause | https://github.com/highlightjs/highlight.js | package.json license |
 | html-url-attributes | 3.0.1 | MIT | https://github.com/rehypejs/rehype-minify/tree/main/packages/html-url-attributes | package.json license |
 | icu-minify | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | img-fx | 0.5.1 | MIT | https://github.com/Jakubantalik/img-fx | package.json license |

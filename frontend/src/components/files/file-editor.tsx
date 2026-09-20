@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 import { Code2, Eye, Trash2 } from "lucide-react";
 
 import { FileTextView } from "./file-render";
-import { Button, Textarea } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { CodeArea } from "@/components/ui/code-area";
 import { resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -34,6 +35,7 @@ export function FileEditor({
   onDelete,
   footer,
   header,
+  initialMode = "preview",
   className,
 }: {
   name: string;
@@ -47,6 +49,12 @@ export function FileEditor({
   /** Anything the owner wants above the content - the body's own fields. */
   header?: ReactNode;
   /**
+   * Which half opens first. A browser of files somebody else wrote opens on the
+   * preview; a pane somebody came to *write* in opens on the source, where a
+   * rendering of what they have not typed yet is a picture of an empty file.
+   */
+  initialMode?: "preview" | "source";
+  /**
    * For a floor, where the pane's parent has no height of its own to fill: it
    * grows into whatever it is given, and an empty draft inside a dialog sized by
    * its content is otherwise a strip between a header and a footer.
@@ -55,7 +63,7 @@ export function FileEditor({
 }) {
   const t = useTranslations("files");
   const tc = useTranslations("common");
-  const [mode, setMode] = useState<"preview" | "source">("preview");
+  const [mode, setMode] = useState<"preview" | "source">(initialMode);
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col rounded-md border", className)}>
@@ -95,12 +103,13 @@ export function FileEditor({
         ) : mode === "source" ? (
           // Fills the pane rather than sitting in it: a fixed-row box inside a
           // tall panel leaves the text in a letterbox with dead space under it.
-          <Textarea
+          <CodeArea
             value={content}
-            onChange={(event) => onChange?.(event.target.value)}
+            onChange={onChange}
             readOnly={!canEdit}
-            className="h-full min-h-[16rem] resize-none font-mono text-xs"
+            name={name}
             aria-label={t("namedSource", { name })}
+            className="min-h-[16rem]"
           />
         ) : (
           // The shared renderer, which is what makes a skill's `references/api.md`

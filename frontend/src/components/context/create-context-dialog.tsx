@@ -131,7 +131,10 @@ export function CreateContextDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+      {/* Wider gutters than the default 24px: this dialog is three columns of
+          form above a full editor, and at that width the content ran into the
+          edge of the sheet. */}
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE, "sm:px-8 sm:py-7")}>
         <DialogHeader>
           <DialogTitle>{t("newContext")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
@@ -201,6 +204,7 @@ export function CreateContextDialog({
               written in. Named from what has been typed so far, so the preview
               renders as the format the file is being given. */}
           <FileEditor
+            initialMode="source"
             // The placeholder until a name is typed, which is what the name
             // field itself shows: `.md` alone reads as a broken filename, and
             // the extension is what decides how the preview renders.
