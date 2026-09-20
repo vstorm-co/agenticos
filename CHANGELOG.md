@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The console speaks German.** `frontend/messages/de.json` translates all 4,486
+  keys of the English catalog, and `de` joins `locales` in `src/i18n.ts`, so the
+  language switcher offers it, `/de/...` serves it and every canonical, alternate
+  and Open Graph locale names it. The terminology is the one the documentation
+  already fixed in `docs/howto/translate.md`: the product's own nouns stay English
+  and keep the gender decided there — der Agent, die Capability, der Run, die
+  Sandbox — and everything around them is translated, formally (*Sie*), as the
+  German pages of the site are.
+
+  `/de/legal/*` is translated with the rest of the catalog and is a translation of
+  the placeholder template the deployment ships, not legal advice. A deployment
+  that relies on those pages points `admin.brandingTerms` and
+  `admin.brandingPrivacy` at its own.
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed
