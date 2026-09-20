@@ -1,5 +1,5 @@
 ---
-source_sha: "7dfb1219d808"
+source_sha: "236ecf2bb230"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -440,8 +440,8 @@ Per kolekcja, obok parsera:
 
 | Ustawienie | Domyślnie | Opis |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Maksymalna liczba znaków na chunk |
-| `chunk_overlap` | `50` | Liczba znaków zachodzenia; musi być mniejsza niż `chunk_size` |
+| `chunk_size` | `2500` | Maksymalna liczba znaków na chunk |
+| `chunk_overlap` | `200` | Liczba znaków zachodzenia; musi być mniejsza niż `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategia: `recursive`, `markdown`, `fixed` |
 
 **Porównanie strategii:**
@@ -497,7 +497,7 @@ wyrenderowany jako tekst — przy 3072 wymiarach to dziesiątki kilobajtów na w
 wartości.**
 
 Pole `ingestion` wysyłane per upload niesie wyłącznie to, co zmienia, więc
-`chunk_overlap: 4096` wysłane do kolekcji chunkującej po 512 to dwie z osobna
+`chunk_overlap: 4096` wysłane do kolekcji chunkującej po 2500 to dwie z osobna
 legalne liczby i jedna konfiguracja, która powtarza prawie wszystko, przez co
 przechodzi.
 

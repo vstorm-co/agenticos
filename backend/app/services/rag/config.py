@@ -221,8 +221,8 @@ class RAGSettings(BaseModel):
         default_factory=lambda: list(DocumentExtensions)
     )
 
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    chunk_size: int = 2500
+    chunk_overlap: int = 200
     chunking_strategy: str = "recursive"
     enable_hybrid_search: bool = False
     enable_ocr: bool = False

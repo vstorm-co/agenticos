@@ -1,5 +1,5 @@
 ---
-source_sha: "7dfb1219d808"
+source_sha: "236ecf2bb230"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -450,8 +450,8 @@ Por colección, junto al parser:
 
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Caracteres máximos por fragmento |
-| `chunk_overlap` | `50` | Caracteres de solapamiento; tiene que ser menor que `chunk_size` |
+| `chunk_size` | `2500` | Caracteres máximos por fragmento |
+| `chunk_overlap` | `200` | Caracteres de solapamiento; tiene que ser menor que `chunk_size` |
 | `chunking_strategy` | `recursive` | Estrategia: `recursive`, `markdown`, `fixed` |
 
 **Comparación de estrategias:**
@@ -506,7 +506,7 @@ renderizado como texto — con 3072 dimensiones, decenas de kilobytes por fila.
 valor.**
 
 Un campo `ingestion` por subida lleva solo lo que cambia, así que un
-`chunk_overlap: 4096` enviado a una colección que fragmenta a 512 son dos números
+`chunk_overlap: 4096` enviado a una colección que fragmenta a 2500 son dos números
 legales por separado y una configuración que repite casi todo lo que avanza.
 
 La combinación vuelve a validar, y la subida se rechaza con un **400** que nombra

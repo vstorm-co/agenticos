@@ -110,6 +110,11 @@ describe("CreateKBDialog", () => {
     // saves a round trip that would discard nothing but is still a round trip.
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");
     await openIngestion();
+    // Both typed, rather than one against whatever the default chunk happens to
+    // be: the pair is what is illegal, and a test that reads the default moves
+    // the day the default does.
+    await userEvent.clear(screen.getByLabelText("Chunk size"));
+    await userEvent.type(screen.getByLabelText("Chunk size"), "512");
     await userEvent.clear(screen.getByLabelText("Overlap"));
     await userEvent.type(screen.getByLabelText("Overlap"), "600");
 
