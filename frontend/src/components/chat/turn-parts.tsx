@@ -7,6 +7,7 @@ import { toolEntry } from "@/lib/tool-catalog";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
 
@@ -118,11 +119,15 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        {t("thoughtAboutIt")}
-        {isStreaming && (
-          <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
+        {/* While the reasoning is still arriving the orb stands for it, which is
+            what it is for. Once the turn is done there is nothing in progress
+            left to say, and the line goes back to its glyph. */}
+        {isStreaming ? (
+          <ThinkingOrb state="breathing" size={20} className="-my-2 h-6 w-6 opacity-80" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
         )}
+        {t("thoughtAboutIt")}
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
           models that expose it head each block with `**Analyzing attached files**`

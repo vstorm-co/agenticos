@@ -208,7 +208,7 @@ describe("DelegationPanels - the delegate's own work", () => {
 
     expect(screen.getByText("Knowledge Base Search")).toBeInTheDocument();
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getByLabelText("Failed")).toBeInTheDocument();
   });
 
