@@ -652,7 +652,11 @@
     "eachPersonsOwnAccount": "Each person's own account",
     "useEachPersonsOwnAccount": "Use each person's own account",
     "eachPersonsOwnAccountHint": "Whoever talks to this agent connects their own account and the agent speaks to the service as them - in the dashboard, in direct messages and in channels alike. Not available to API keys, the widget, schedules and triggers, where nobody is signed in.",
-    "everyToolThisServerOffers": "Every tool it offers"
+    "everyToolThisServerOffers": "Every tool it offers",
+    "whoCanFindIt": "Who can find it",
+    "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
+    "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
+    "preview": "Preview"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

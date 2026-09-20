@@ -249,7 +249,7 @@ async def list_agents(
 )
 async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """Create an agent in draft. It cannot run until published."""
-    return await service.create(ctx, data.spec)
+    return await service.create(ctx, data.spec, visibility=data.visibility)
 
 
 @router.post(

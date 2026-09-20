@@ -1107,6 +1107,41 @@ class TestCreate:
         assert "different handle" in refused.value.message
         assert create.await_count == 0
 
+    @pytest.mark.anyio
+    async def test_a_new_agent_is_visible_to_the_organization(self):
+        """An agent is a thing a company builds, so the company can find it.
+
+        Private was the default, which meant every agent was made invisible and
+        then shared by hand - and the second person to go looking for one was
+        told it did not exist.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(ctx, _spec("Support"))
+
+        assert create.await_args.kwargs["visibility"] == "org"
+
+    @pytest.mark.anyio
+    async def test_an_agent_asked_for_privately_stays_private(self):
+        # The exception is still available, and it is the caller's to ask for.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), visibility=Visibility.PRIVATE
+            )
+
+        assert create.await_args.kwargs["visibility"] == "private"
+
 
 class TestPromoteSpecialist:
     """The one exit a specialist has that keeps its provenance visible.

@@ -51,6 +51,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Getting Started agent is a demonstration rather than a stub.** It had
+  one capability - a clock - and a prompt that described the platform in three
+  sentences. It now ships with fourteen: web search and fetch, Python, charts,
+  a sandbox with files and a shell, planning, memory that outlives a
+  conversation, conversation search, context, the shipped skills, delegation to
+  sub-agents it can invent on the spot, context management and output limits.
+  All of it runs on the one key bootstrap already asked for - the sandbox uses
+  the run's own store and search defaults to DuckDuckGo, so there is no second
+  credential and no service to stand up. Bootstrap also writes an `AGENTS.md`
+  context file the agent reads before explaining the platform, which is the
+  same shape a client's own standing knowledge takes.
+- **A new agent is visible to the organization, and the dialog says so.** It
+  was private, so every agent was made invisible and then shared by hand - and
+  the second person to go looking for one was told it did not exist. Creating an
+  agent now asks who can find it, with the organization as the answer, and shows
+  the row it is about to become: name, handle, description and that choice.
+  Private is still there for the one somebody is still working out. A draft
+  cannot run either way, so this decides who sees it, not what it does.
 - **The context editor opens on the text, and the text has syntax.** A pane
   somebody came to write in opened on a rendering of what they had not written
   yet, and its source half was a plain textarea - so a long `AGENTS.md` was a

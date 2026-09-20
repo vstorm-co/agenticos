@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AgentStatusBadge } from "@/components/agents/status-badge";
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -13,11 +15,18 @@ import {
   DialogTitle,
   FormField,
   Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
+import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
@@ -65,6 +74,10 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  // Organization by default. An agent is a thing a company builds, and one
+  // nobody else can find is the exception - it used to be the rule, so every
+  // agent was made invisible and then shared by hand.
+  const [visibility, setVisibility] = useState<Visibility>("org");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   function edit(field: "name" | "description", value: string) {
@@ -79,20 +92,24 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   async function handleCreate() {
     try {
       const agent = await create.mutateAsync({
-        name,
-        description: description || null,
-        instructions: "",
-        model_profile_id: null,
-        model_settings: {},
-        capabilities: [],
-        collection_ids: [],
-        skill_ids: [],
-        context_ids: [],
-        mcp_servers: [],
-        budget: null,
+        spec: {
+          name,
+          description: description || null,
+          instructions: "",
+          model_profile_id: null,
+          model_settings: {},
+          capabilities: [],
+          collection_ids: [],
+          skill_ids: [],
+          context_ids: [],
+          mcp_servers: [],
+          budget: null,
+        },
+        visibility,
       });
       setName("");
       setDescription("");
+      setVisibility("org");
       setErrors({});
       onOpenChange(false);
       onCreated(agent);
@@ -153,6 +170,52 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               rows={2}
             />
           </FormField>
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-visibility">{t("whoCanFindIt")}</Label>
+            <Select
+              value={visibility}
+              onValueChange={(value) => setVisibility(value as Visibility)}
+            >
+              <SelectTrigger id="agent-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="org">{t("visibilityOrg")}</SelectItem>
+                <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {t(visibility === "org" ? "visibilityOrgHint" : "visibilityPrivateHint")}
+            </p>
+          </div>
+
+          {/* The row this is about to become, drawn from what has been typed.
+              The handle and the description are what a colleague scanning the
+              catalog reads, and they are easier to judge as a row than as three
+              fields - a name that looked fine in an input is the one that
+              truncates here. */}
+          <div className="space-y-1.5">
+            <Label>{t("preview")}</Label>
+            <div className="border-border bg-card rounded-xl border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-foreground truncate font-medium">
+                    {name.trim() || t("supportCopilot")}
+                  </p>
+                  <p className="text-muted-foreground truncate font-mono text-xs">
+                    @{deriveHandle(name || t("handlePlaceholder"))}
+                  </p>
+                </div>
+                <AgentStatusBadge status="draft" />
+              </div>
+              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
+                {description.trim() || t("answersCustomerQuestionsFrom")}
+              </p>
+              <Badge variant="outline" className="mt-1">
+                {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
+              </Badge>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

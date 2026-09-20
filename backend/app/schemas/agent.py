@@ -11,6 +11,7 @@ from pydantic import Field, field_validator
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 
 # The longest a single category/tag may be, matching the `String(32)` array
@@ -228,6 +229,15 @@ class AgentCreate(BaseSchema):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    visibility: Visibility = Field(
+        default=Visibility.ORG,
+        description=(
+            "Who can find this agent. `org` - the default - is everyone in the "
+            "organization; `private` is the owner and whoever they grant it to. "
+            "A draft cannot run either way, so this decides who sees it, not "
+            "what it does."
+        ),
+    )
 
 
 class AgentDraftUpdate(BaseSchema):

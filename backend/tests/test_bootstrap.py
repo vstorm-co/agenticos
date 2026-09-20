@@ -18,11 +18,13 @@ from app.agents.model_resolver import PROVIDERS
 from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
+    DEMO_CAPABILITIES,
     _resolve_demo_agent,
     _resolve_model,
     _resolve_organization,
 )
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.resource_grant import Visibility
 
 
 def _ctx() -> AuthContext:
@@ -185,6 +187,67 @@ class TestModel:
         assert create_profile.call_args.kwargs["model"] == "gpt-4o-mini"
 
 
+class TestTheAgentsFile:
+    """`AGENTS.md`, which the demo agent reads before explaining the platform.
+
+    Bootstrap is idempotent, and this is the part of it that writes a document
+    somebody may have edited - so a second run has to find the file rather than
+    collide with it or overwrite what is in it.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_second_run_keeps_the_file_the_operator_has_edited(self):
+        existing = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.context_repo.get_by_name",
+                new=AsyncMock(return_value=existing),
+            ),
+            patch("app.commands.bootstrap.ContextService.create", new=AsyncMock()) as create,
+        ):
+            found = await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx())
+
+        assert found == existing.id
+        create.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_first_run_writes_it_for_the_whole_organization(self):
+        # Private would make the file invisible to everyone but the bootstrapper,
+        # and it is the explanation every agent in the organization reads.
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.context_repo.get_by_name",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.commands.bootstrap.ContextService.create",
+                new=AsyncMock(return_value=created),
+            ) as create,
+        ):
+            assert await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx()) == created.id
+
+        assert create.await_args.kwargs["name"] == bootstrap_cmd.AGENTS_MD_NAME
+        assert create.await_args.kwargs["visibility"] == Visibility.ORG
+
+
+class TestBundledSkills:
+    @pytest.mark.anyio
+    async def test_a_skill_the_deployment_does_not_ship_is_simply_absent(self):
+        """Not a publish that fails. A catalog is allowed to change, and an agent
+        missing one shipped skill is a smaller problem than a bootstrap that
+        stops."""
+        one = MagicMock(id=uuid.uuid4())
+        answers = [one] + [None] * 20
+        with patch(
+            "app.commands.bootstrap.skill_repo.get_by_name",
+            new=AsyncMock(side_effect=answers),
+        ):
+            found = await bootstrap_cmd._bundled_skill_ids(MagicMock(), _ctx())
+
+        assert found == [one.id]
+
+
 class TestDemoAgent:
     @pytest.mark.anyio
     async def test_a_second_run_does_not_create_a_second_agent(self):
@@ -211,6 +274,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ) as create,
@@ -233,6 +301,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ),
@@ -254,6 +327,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ) as create,
@@ -263,7 +341,14 @@ class TestDemoAgent:
 
         spec = create.call_args.args[1]
         assert spec.model_profile_id == profile_id
-        assert [c.id for c in spec.capabilities] == ["clock"]
+        # The shipped set, not a hand-written copy of it: this test is about the
+        # spec carrying what bootstrap decided, and the decision lives there.
+        assert [c.id for c in spec.capabilities] == [
+            capability["id"] for capability in DEMO_CAPABILITIES
+        ]
+        # Everything in it runs on one API key: no sandbox service to stand up,
+        # no second credential for search. That is the claim bootstrap makes.
+        assert {c.id for c in spec.capabilities} >= {"web_research", "sandbox", "subagents"}
 
 
 class TestEndToEnd:

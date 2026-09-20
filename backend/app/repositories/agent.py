@@ -385,6 +385,7 @@ async def create(
     draft_spec: dict,
     owner_user_id: UUID | None,
     created_by_user_id: UUID | None,
+    visibility: str,
 ) -> Agent:
     agent = Agent(
         organization_id=organization_id,
@@ -394,6 +395,7 @@ async def create(
         draft_spec=draft_spec,
         owner_user_id=owner_user_id,
         created_by_user_id=created_by_user_id,
+        visibility=visibility,
     )
     db.add(agent)
     await db.flush()

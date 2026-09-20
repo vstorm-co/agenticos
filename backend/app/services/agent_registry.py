@@ -63,6 +63,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
+from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -989,8 +990,21 @@ class AgentRegistryService:
             suggested_mcp=list(template.mcp),
         )
 
-    async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
+    async def create(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        visibility: Visibility = Visibility.ORG,
+    ) -> Agent:
         """Create an agent in draft.
+
+        Visible to the organization unless the caller says otherwise. An agent is
+        a thing a company builds, and one nobody else can see is the exception -
+        it used to be the rule, so every agent was made invisible and then shared
+        by hand, which meant the second person to look for it was told it did not
+        exist. A draft cannot run and cannot be reached by an exposure either
+        way, so what this decides is who can find it, not what it can do.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -1035,6 +1049,7 @@ class AgentRegistryService:
             draft_spec=spec.model_dump(mode="json"),
             owner_user_id=ctx.user_id,
             created_by_user_id=ctx.user_id,
+            visibility=visibility.value,
         )
         await record_audit(
             self.db,
