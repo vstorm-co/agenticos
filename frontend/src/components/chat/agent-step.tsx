@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { STEP_ICONS } from "@/lib/step-icons";
 import { STEP_ORBS } from "@/lib/step-orbs";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
-import { Beam } from "@/components/ui/beam";
 import type { StepKind } from "@/lib/tool-catalog";
 
 interface AgentStepsProps {
@@ -130,7 +129,7 @@ export function AgentStep({
         // flight. A pulsing icon said "busy"; an orb that scans, braids or wires
         // itself says which kind of busy, which is the difference between waiting
         // and following along. The mark comes back the moment the call lands.
-        <ThinkingOrb state={STEP_ORBS[kind]} size={20} className="-my-2 -ml-1 h-6 w-6" />
+        <ThinkingOrb state={STEP_ORBS[kind]} size={20} className="-my-2 -ml-1 h-7 w-7" />
       ) : brand !== null ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={brand} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm" />
@@ -171,7 +170,7 @@ export function AgentStep({
     </>
   );
 
-  const row = (
+  return (
     <div className="group/step step-in relative py-1">
       {/* The icon sits on the rail rather than beside it, which is what makes a run
           of steps read as one thread instead of an indented list. */}
@@ -201,17 +200,6 @@ export function AgentStep({
 
       {expanded && children !== undefined && <div className="pt-2 pb-1">{children}</div>}
     </div>
-  );
-
-  // Wrapped only while the call is in flight, rather than mounted idle on every
-  // row: a finished run is a dozen of these, and none of them has anything left
-  // to say.
-  return state === "running" ? (
-    <Beam size="line" borderRadius={8}>
-      {row}
-    </Beam>
-  ) : (
-    row
   );
 }
 

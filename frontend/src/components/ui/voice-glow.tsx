@@ -71,6 +71,10 @@ export function VoiceGlow({
       // composer looks alive before anybody speaks into it.
       idle={0.45}
       glowSize={1.5}
+      // Same as `Beam`: the library clips its own wrapper, and the composer
+      // opens the slash palette above itself. Inline, to outrank the rule the
+      // library injects.
+      style={{ overflow: "visible" }}
       borderRadius={borderRadius}
       className={className}
     >

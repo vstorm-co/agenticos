@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircleQuestion, Sparkles } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { toolEntry } from "@/lib/tool-catalog";
@@ -80,7 +80,10 @@ export function TurnParts({
             key={run.part.id}
             text={run.content}
             open={isStreaming && run.isLast}
-            isStreaming={isStreaming}
+            // The block still taking deltas, not every block in a streaming
+            // turn: the orb marks where the thinking is arriving, and a turn
+            // that thought twice would otherwise show two of them.
+            isStreaming={isStreaming && run.isLast}
           />
         ) : run.part.type === "ask_user" ? (
           <AskUserBlock
@@ -119,14 +122,15 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        {/* While the reasoning is still arriving the orb stands for it, which is
-            what it is for. Once the turn is done there is nothing in progress
-            left to say, and the line goes back to its glyph. */}
-        {isStreaming ? (
-          <ThinkingOrb state="breathing" size={20} className="-my-2 h-6 w-6 opacity-80" />
-        ) : (
-          <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        )}
+        {/* The same mark either way: moving while the reasoning arrives, frozen
+            once it is done. Swapping it for a different glyph at the end drew
+            the eye to a change that meant nothing. */}
+        <ThinkingOrb
+          state="breathing"
+          size={20}
+          paused={!isStreaming}
+          className="-my-2 h-6 w-6 opacity-80"
+        />
         {t("thoughtAboutIt")}
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the

@@ -14,6 +14,7 @@ import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
+import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
 import { InterruptedNotice } from "./interrupted-notice";
@@ -39,6 +40,7 @@ import { latestUsage } from "@/lib/message-usage";
 import { planProgress } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
+  useAuthStore,
   useChatStore,
   useConversationStore,
   useFilePreviewStore,
@@ -455,6 +457,40 @@ function ChatUI({
   // its level. See `VoiceGlow` for why it is a second capture.
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
+
+  // The rail's ticks, built from the transcript already on screen rather than
+  // from a query of its own: one list, drawn twice.
+  const { agents: knownAgents } = useAgents({ includeArchived: true });
+  const { user: authUser } = useAuthStore();
+  const agentNames = useMemo(
+    () =>
+      new Map(
+        knownAgents.map(
+          (agent) => [agent.id, { name: agent.name, hasAvatar: agent.has_avatar }] as const,
+        ),
+      ),
+    [knownAgents],
+  );
+  const railEntries = useMemo(
+    () =>
+      messages.map((message) => ({
+        id: message.id,
+        author:
+          message.role === "user"
+            ? t("rail.you")
+            : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
+              t("rail.agent")),
+        preview: (message.content ?? "").trim(),
+        isUser: message.role === "user",
+        agentId: message.role === "user" ? undefined : (message.agentId ?? undefined),
+        hasAvatar: message.agentId ? agentNames.get(message.agentId)?.hasAvatar : false,
+        // A person's face is drawn from their id, an agent's from its own; the
+        // rail never has to know which, it just hands over the seed.
+        seed:
+          message.role === "user" ? (authUser?.id ?? message.id) : (message.agentId ?? message.id),
+      })),
+    [messages, agentNames, authUser, t],
+  );
   const tc = useTranslations("common");
   // The same query the file panel beside the transcript makes, so the fill under the
   // input costs nothing extra - and appears when a conversation is *opened* rather than
@@ -488,6 +524,7 @@ function ChatUI({
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
+        <TurnRail entries={railEntries} />
         <div
           ref={scrollContainerRef}
           className="flex-1 scrollbar-thin overflow-y-auto"
@@ -564,7 +601,10 @@ function ChatUI({
                 Always mounted and always lit - at rest it breathes, on a voice
                 it rises with the level, and while the answer is being thought
                 through it sweeps. */}
-            <VoiceGlow stream={mic.stream} active processing={isProcessing} borderRadius={16}>
+            {/* Lit only while the microphone is actually open. At rest it is a
+                glow with nothing to report, and during a turn the transcript
+                already says what is happening. */}
+            <VoiceGlow stream={mic.stream} active={mic.state === "live"} borderRadius={16}>
               {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where

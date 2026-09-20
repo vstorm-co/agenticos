@@ -75,6 +75,11 @@ export function Beam({
       strength={1.6}
       brightness={1.35}
       saturation={1.4}
+      // The library's own stylesheet sets `overflow: hidden` on this wrapper,
+      // which clips anything a child opens outside it - the slash palette opens
+      // above the composer and was cut off at the border. Inline, because that
+      // is what outranks an injected rule.
+      style={{ overflow: "visible" }}
       onMouseEnter={onHoverChange && (() => onHoverChange(true))}
       onMouseLeave={onHoverChange && (() => onHoverChange(false))}
       onFocusCapture={onFocusChange && (() => onFocusChange(true))}

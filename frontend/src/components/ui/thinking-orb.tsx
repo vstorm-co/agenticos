@@ -10,6 +10,13 @@ export interface ThinkingOrbProps {
   /** Which animation to show - what the work looks like, not what it is called. */
   state: OrbState;
   /**
+   * Freeze on the current frame. For a line that keeps its orb after the work
+   * is finished: swapping it for a different glyph moves the eye to a change
+   * that means nothing, and a still orb says "was" as plainly as a moving one
+   * says "is".
+   */
+  paused?: boolean;
+  /**
    * Tuned size in CSS pixels. Two ship, and they are separate designs rather
    * than a scale factor: 20 for a line of text, 64 for an avatar.
    */
@@ -26,6 +33,14 @@ export interface ThinkingOrbProps {
  * that scans, braids or wires itself says which kind of busy - which is the
  * difference between a reader waiting and a reader following along.
  */
-export function ThinkingOrb({ state, size = 64, className }: ThinkingOrbProps) {
-  return <Orb state={state} size={size} className={cn("shrink-0", className)} aria-hidden />;
+export function ThinkingOrb({ state, size = 64, paused, className }: ThinkingOrbProps) {
+  return (
+    <Orb
+      state={state}
+      size={size}
+      paused={paused}
+      className={cn("shrink-0", className)}
+      aria-hidden
+    />
+  );
 }

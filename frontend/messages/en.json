@@ -1198,7 +1198,16 @@
     "view": "View",
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "rail": {
+      "label": "Jump to a message",
+      "previous": "Previous message",
+      "next": "Next message",
+      "jumpTo": "Jump to the message from {author}",
+      "you": "You",
+      "agent": "Agent",
+      "empty": "No text in this message"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -4821,7 +4830,6 @@
     "role2": "Role",
     "roleFor": "Role for {email}",
     "rolesUnavailable": "The role list could not be loaded, so there is nothing to invite anybody as. Reload the page and try again.",
-    "selectOrg": "Select org",
     "sending2": "Sending...",
     "sendInvite": "Send invite",
     "spentNoLimit": "${spent} spent this month, against no limit.",
