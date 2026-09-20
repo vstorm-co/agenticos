@@ -4999,7 +4999,8 @@
     "droppedUnknownFormat": "{count, plural, =1 {One file has a format a context file cannot declare and was skipped} other {# files have a format a context file cannot declare and were skipped}}",
     "droppedNotText": "{count, plural, =1 {One file was not text and was skipped} other {# files were not text and were skipped}}",
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
-    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}"
+    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
+    "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n"
   },
   "memory": {
     "clearAction": "Clear memory",

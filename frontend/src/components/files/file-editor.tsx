@@ -36,6 +36,7 @@ export function FileEditor({
   footer,
   header,
   initialMode = "preview",
+  placeholder,
   className,
 }: {
   name: string;
@@ -54,6 +55,8 @@ export function FileEditor({
    * rendering of what they have not typed yet is a picture of an empty file.
    */
   initialMode?: "preview" | "source";
+  /** Shown in the source half while the file is empty. */
+  placeholder?: string;
   /**
    * For a floor, where the pane's parent has no height of its own to fill: it
    * grows into whatever it is given, and an empty draft inside a dialog sized by
@@ -97,7 +100,9 @@ export function FileEditor({
 
       {header && <div className="space-y-1.5 border-b px-3 py-2">{header}</div>}
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      {/* The source half brings its own padding, because both of its layers
+          have to carry the same one to stay in register. */}
+      <div className={cn("min-h-0 flex-1 overflow-auto", mode === "source" ? "p-0" : "p-3")}>
         {loading ? (
           <p className="text-muted-foreground text-xs">{tc("loading")}</p>
         ) : mode === "source" ? (
@@ -107,9 +112,10 @@ export function FileEditor({
             value={content}
             onChange={onChange}
             readOnly={!canEdit}
+            placeholder={placeholder}
             name={name}
             aria-label={t("namedSource", { name })}
-            className="min-h-[16rem]"
+            className="min-h-[14rem]"
           />
         ) : (
           // The shared renderer, which is what makes a skill's `references/api.md`

@@ -15,6 +15,8 @@ export interface CodeAreaProps {
   value: string;
   onChange?: (next: string) => void;
   readOnly?: boolean;
+  /** Shown while the file is empty, in place of a blank rectangle. */
+  placeholder?: string;
   /** The file being edited - its extension is what picks the language. */
   name: string;
   "aria-label": string;
@@ -46,6 +48,7 @@ export function CodeArea({
   value,
   onChange,
   readOnly,
+  placeholder,
   name,
   "aria-label": label,
   className,
@@ -78,7 +81,15 @@ export function CodeArea({
     // out normally, which made it as tall as its own two default rows while the
     // underlay showed the whole file - the text below the second line was a
     // picture you could not type into.
-    <div className={cn("bg-background relative h-full rounded-md border", className)}>
+    // The focus ring lives on the box rather than on the control: the textarea
+    // is transparent and edge to edge, so a ring of its own would trace the
+    // inside of the pane twice. Inset, because there is no gap to draw it in.
+    <div
+      className={cn(
+        "focus-within:ring-ring/60 relative h-full rounded-sm focus-within:ring-1 focus-within:ring-inset",
+        className,
+      )}
+    >
       <pre
         ref={underlay}
         aria-hidden
@@ -90,12 +101,15 @@ export function CodeArea({
         onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onChange?.(event.target.value)}
         onScroll={sync}
         readOnly={readOnly}
+        placeholder={placeholder}
         spellCheck={false}
         aria-label={label}
         className={cn(
           shared,
-          "caret-foreground text-foreground/0 absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent outline-none",
-          "focus-visible:ring-ring rounded-md focus-visible:ring-1",
+          // The text itself is invisible - the underlay is what you read - but
+          // the placeholder has to be its own colour, or an empty file is a
+          // blank rectangle with nothing to say what goes in it.
+          "caret-foreground text-foreground/0 placeholder:text-muted-foreground/70 absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent outline-none",
         )}
       />
     </div>

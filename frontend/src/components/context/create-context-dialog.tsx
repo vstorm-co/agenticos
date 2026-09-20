@@ -211,6 +211,7 @@ export function CreateContextDialog({
             name={displayName(name.trim() || t("namePlaceholder"), format)}
             content={content}
             canEdit
+            placeholder={t("bodyPlaceholder")}
             className="min-h-72"
             onChange={(next) => edit("content", next)}
             footer={
