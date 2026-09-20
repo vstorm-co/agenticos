@@ -84,12 +84,7 @@ export function AgentPicker() {
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex min-w-0 items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >
           {selected ? (
-            <AgentAvatar
-              agentId={selected.id}
-              name={selected.name}
-              hasAvatar={selected.has_avatar}
-              size="sm"
-            />
+            <AgentAvatar agentId={selected.id} hasAvatar={selected.has_avatar} size="sm" />
           ) : (
             <span className="bg-foreground/8 flex h-6 w-6 items-center justify-center rounded-full">
               <Bot className="h-3 w-3" />
@@ -174,7 +169,7 @@ function AgentOption({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
       >
-        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="sm" />
+        <AgentAvatar agentId={agent.id} hasAvatar={agent.has_avatar} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>

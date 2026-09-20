@@ -37,6 +37,7 @@ export {
   AlertDialogCancel,
 } from "./alert-dialog";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
+export { AvatarFace, type AvatarFaceProps } from "./avatar-face";
 export { EntityAvatar, type EntityAvatarProps } from "./entity-avatar";
 export { AvatarColorPicker, type AvatarColorPickerProps } from "./avatar-color-picker";
 export { Skeleton } from "./skeleton";

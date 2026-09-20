@@ -1,9 +1,7 @@
 "use client";
 
-import { Bot } from "lucide-react";
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
-import { avatarPalette } from "@/lib/avatar-color";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
@@ -13,16 +11,8 @@ const SIZES = {
   xl: "h-20 w-20 text-lg",
 } as const;
 
-const ICON_SIZES = {
-  sm: "h-3 w-3",
-  md: "h-4 w-4",
-  lg: "h-6 w-6",
-  xl: "h-8 w-8",
-} as const;
-
 export interface AgentAvatarProps {
   agentId: string;
-  name: string;
   /** False skips the request entirely and renders the fallback. */
   hasAvatar?: boolean;
   /** The chosen colour slot (1..10); null or absent derives it from the id. */
@@ -34,6 +24,11 @@ export interface AgentAvatarProps {
    * did not change.
    */
   version?: number;
+  /**
+   * Draws the face mid-thought while the agent is answering. Only worth setting
+   * where a turn is actually in flight - it costs inline SVG per face.
+   */
+  thinking?: boolean;
   className?: string;
 }
 
@@ -44,21 +39,21 @@ export interface AgentAvatarProps {
  * goes through the same access check as reading the agent, so an avatar cannot
  * be used to confirm that an agent id exists.
  *
- * Initials rather than a generic robot whenever there is a name to take them
- * from - a wall of identical robot glyphs tells the reader nothing, and telling
- * two agents apart at a glance is the whole point of having a picture.
+ * Without one, a face generated from the agent's id - not a generic robot glyph.
+ * A wall of identical robots tells the reader nothing, and telling two agents
+ * apart at a glance is the whole point of having a picture. The id rather than
+ * the name is what it is drawn from, so renaming an agent does not hand it
+ * somebody else's face.
  */
 export function AgentAvatar({
   agentId,
-  name,
   hasAvatar = false,
   colorSlot,
   size = "md",
   version,
+  thinking,
   className,
 }: AgentAvatarProps) {
-  const initials = agentInitials(name);
-  const { bg, fg } = avatarPalette(agentId, colorSlot);
   return (
     <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
       {hasAvatar && (
@@ -67,20 +62,11 @@ export function AgentAvatar({
           alt=""
         />
       )}
-      <AvatarFallback className={cn(bg, fg, "font-semibold")}>
-        {initials || <Bot className={ICON_SIZES[size]} aria-hidden />}
+      {/* No fill of its own: the face brings its own disc, and a colour behind
+          it would show as a ring wherever the two discs disagree. */}
+      <AvatarFallback className="bg-transparent">
+        <AvatarFace seed={agentId} colorSlot={colorSlot} thinking={thinking} />
       </AvatarFallback>
     </Avatar>
   );
-}
-
-/** Up to two initials from an agent's name, or nothing usable to show. */
-export function agentInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
 }

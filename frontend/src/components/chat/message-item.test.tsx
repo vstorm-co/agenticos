@@ -594,6 +594,26 @@ describe("what a person attached", () => {
 
     expect(container.querySelector("img")).toBeInTheDocument();
   });
+
+  it("draws a person who uploaded nothing the face generated from their id", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    const { container } = item({ role: "user", content: "x" });
+
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+  });
+
+  it("draws the agent's face mid-thought while the turn is still streaming", () => {
+    // The one picture in the product that says an agent is still working, which
+    // is why it is worth the inline SVG the motion costs.
+    const { container } = item(
+      { isStreaming: true },
+      { agent: { id: "a-1", name: "Support" } as Agent },
+    );
+
+    // The expression class, which is the half that only a turn in flight adds.
+    expect(container.querySelector("g.mo-expr")).toBeInTheDocument();
+  });
 });
 
 describe("the footer", () => {

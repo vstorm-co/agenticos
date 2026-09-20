@@ -150,7 +150,6 @@ export function WorkspaceBrowser() {
             <span aria-hidden>
               <AgentAvatar
                 agentId={workspace.agent_id}
-                name={workspace.agent_name}
                 hasAvatar={workspace.agent_has_avatar}
                 size="sm"
               />

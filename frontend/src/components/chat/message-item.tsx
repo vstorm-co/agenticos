@@ -1,6 +1,7 @@
 "use client";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
@@ -187,14 +188,18 @@ export function MessageItem({
             className="h-full w-full object-cover"
             unoptimized
           />
+        ) : isUser && authUser ? (
+          <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
         ) : isUser ? (
+          // A signed-out reader of a shared transcript: there is no id to draw a
+          // face from, and a face drawn from nothing would be somebody else's.
           <User className="h-4 w-4" />
         ) : agent ? (
           <AgentAvatar
             agentId={agent.id}
-            name={agent.name}
             hasAvatar={agent.has_avatar}
             size="md"
+            thinking={Boolean(message.isStreaming)}
             className="h-full w-full border-0"
           />
         ) : (

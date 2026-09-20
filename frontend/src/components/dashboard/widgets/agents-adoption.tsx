@@ -48,7 +48,6 @@ export function AgentsAdoptionWidget({
                   icon: (
                     <AgentAvatar
                       agentId={row.agent_id}
-                      name={row.name}
                       hasAvatar={hasAvatar.get(row.agent_id) ?? false}
                       size="sm"
                       className="h-5 w-5"

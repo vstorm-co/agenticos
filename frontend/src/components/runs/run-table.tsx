@@ -124,7 +124,6 @@ export function RunTable({
                   <span aria-hidden>
                     <AgentAvatar
                       agentId={run.agent_id}
-                      name={agent.name}
                       hasAvatar={agent.has_avatar ?? false}
                       size="sm"
                       className="h-5 w-5"

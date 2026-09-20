@@ -1,67 +1,81 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AgentAvatar, agentInitials } from "./agent-avatar";
+import { AgentAvatar } from "./agent-avatar";
 
 /**
  * The picture that stands in for an agent everywhere one is named.
  *
- * Initials rather than a generic robot whenever there is a name to take them
- * from: a wall of identical robot glyphs tells a reader nothing, and telling two
- * agents apart at a glance is the whole point of having a picture.
+ * A face generated from the agent's id rather than a generic robot: a wall of
+ * identical robot glyphs tells a reader nothing, and telling two agents apart at
+ * a glance is the whole point of having a picture. jsdom never loads an image,
+ * so Radix keeps the avatar in its fallback state - which is the state under
+ * test.
  */
-describe("agentInitials", () => {
-  it("takes the first letter of the first two words", () => {
-    expect(agentInitials("Customer Support Bot")).toBe("CS");
-  });
-
-  it("takes one letter from a one-word name", () => {
-    expect(agentInitials("Support")).toBe("S");
-  });
-
-  it("ignores the whitespace somebody left in a name", () => {
-    expect(agentInitials("  Customer   Support  ")).toBe("CS");
-  });
-
-  it("has nothing to show for a name that is only whitespace", () => {
-    // Which is what sends the avatar to the robot rather than to a blank circle.
-    expect(agentInitials("   ")).toBe("");
-  });
-});
-
 describe("AgentAvatar", () => {
-  it("shows the initials", () => {
-    render(<AgentAvatar agentId="a1" name="Customer Support" />);
+  const face = (container: HTMLElement) => container.querySelector("g.mo-root");
+  /** The figure itself, for comparing one agent's face against another's. */
+  const drawing = (container: HTMLElement) => face(container)!.innerHTML;
 
-    expect(screen.getByText("CS")).toBeInTheDocument();
+  it("draws a face generated from the agent's id", () => {
+    const { container } = render(<AgentAvatar agentId="a1" />);
+
+    expect(face(container)).not.toBeNull();
   });
 
-  it("falls back to a robot when the name yields no initials", () => {
-    const { container } = render(<AgentAvatar agentId="a1" name="" />);
+  it("draws two agents two different faces", () => {
+    const { container: a } = render(<AgentAvatar agentId="a1" />);
+    const { container: b } = render(<AgentAvatar agentId="a2" />);
 
-    expect(container.querySelector("svg")).not.toBeNull();
+    expect(drawing(a)).not.toBe(drawing(b));
   });
 
-  it("still shows the initials while a stored picture is being fetched", () => {
-    // The fallback is what a reader sees until the request answers, and the
-    // request goes through the API so it carries the same access check as
-    // reading the agent.
-    render(<AgentAvatar agentId="a1" name="Customer Support" hasAvatar />);
+  it("wears the chosen colour rather than the one the id hashes to", () => {
+    const { container: auto } = render(<AgentAvatar agentId="a1" />);
+    const { container: picked } = render(<AgentAvatar agentId="a1" colorSlot={4} />);
 
-    expect(screen.getByText("CS")).toBeInTheDocument();
+    expect(drawing(picked)).not.toBe(drawing(auto));
   });
 
-  it("renders at the size it was asked for", () => {
-    const { container } = render(<AgentAvatar agentId="a1" name="Support" size="xl" />);
+  it("stays out of the accessible tree", () => {
+    // Every one of these is drawn beside the agent's name, so a name on the
+    // picture too is the same words read twice.
+    const { container } = render(<AgentAvatar agentId="a1" />);
 
-    expect(container.firstElementChild).toHaveClass("h-20");
+    expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("still shows the face while a stored picture is being fetched", () => {
+    // The fallback is what a reader sees until the request answers - Radix only
+    // puts the picture in the DOM once it has loaded, which in jsdom is never.
+    // The request itself goes through the API, so it carries the same access
+    // check as reading the agent.
+    const { container } = render(<AgentAvatar agentId="a1" hasAvatar />);
+
+    expect(face(container)).not.toBeNull();
   });
 
   it("takes a version, which is what defeats the cache after an upload", () => {
     // Without it a replaced picture keeps rendering as the old one until a hard
     // reload, because the URL did not change.
-    render(<AgentAvatar agentId="a1" name="Support" hasAvatar version={2} />);
+    const { container } = render(<AgentAvatar agentId="a1" hasAvatar version={2} />);
 
-    expect(screen.getByText("S")).toBeInTheDocument();
+    expect(face(container)).not.toBeNull();
+  });
+
+  it("draws the face mid-thought while the agent is answering", () => {
+    // A change of pose on a face already blinking and breathing, which is what
+    // makes it read as thought rather than as decoration.
+    const { container } = render(<AgentAvatar agentId="a1" thinking />);
+    const { container: idle } = render(<AgentAvatar agentId="a1" />);
+
+    expect(container.querySelector("g.mo-expr")).not.toBeNull();
+    expect(idle.querySelector("g.mo-expr")).toBeNull();
+  });
+
+  it("renders at the size it was asked for", () => {
+    const { container } = render(<AgentAvatar agentId="a1" size="xl" />);
+
+    expect(container.firstElementChild).toHaveClass("h-20");
   });
 });

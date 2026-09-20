@@ -356,12 +356,7 @@ function AgentIdentity({ agentId }: { agentId: string }) {
       aria-label={t("openTheAgent")}
     >
       <span aria-hidden>
-        <AgentAvatar
-          agentId={agentId}
-          name={agent.name}
-          hasAvatar={agent.has_avatar ?? false}
-          size="sm"
-        />
+        <AgentAvatar agentId={agentId} hasAvatar={agent.has_avatar ?? false} size="sm" />
       </span>
       {agent.name}
     </Link>

@@ -85,6 +85,7 @@ export function OrgSwitcher() {
             imageSrc={`/api/orgs/${displayOrg.id}/avatar`}
             hasImage={!!displayOrg.avatar_url}
             colorSlot={displayOrg.avatar_color}
+            kind="org"
             className="h-5 w-5 shrink-0 text-[10px]"
             ariaHidden
           />
@@ -104,6 +105,7 @@ export function OrgSwitcher() {
               imageSrc={`/api/orgs/${org.id}/avatar`}
               hasImage={!!org.avatar_url}
               colorSlot={org.avatar_color}
+              kind="org"
               className="h-5 w-5 text-[10px]"
             />
             <span className="truncate">{org.name}</span>

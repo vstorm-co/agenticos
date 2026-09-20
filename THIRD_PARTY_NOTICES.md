@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 112 | 230 |
+| MIT | 112 | 232 |
 | Apache-2.0 | 60 | 24 |
 | BSD-3-Clause | 33 | 4 |
 | ISC | 6 | 16 |
@@ -299,10 +299,11 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-281 distributions.
+283 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
+| @blobatar/react | 2.7.0 | MIT | https://github.com/Alain00/blobatar | package.json license |
 | @eloqnt/config | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
 | @eloqnt/format-json | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
 | @eloqnt/format-po | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/formats/po | package.json license |
@@ -413,6 +414,7 @@ names no author is in the evidence column below.
 | aria-hidden | 1.2.6 | MIT | https://github.com/theKashey/aria-hidden | package.json license |
 | bail | 2.0.2 | MIT | https://github.com/wooorm/bail | package.json license |
 | baseline-browser-mapping | 2.11.10 | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping | package.json license |
+| blobatar | 2.7.0 | MIT | https://github.com/Alain00/blobatar | package.json license |
 | caniuse-lite | 1.0.30001806 | CC-BY-4.0 | https://github.com/browserslist/caniuse-lite | package.json license; review accepted |
 | ccount | 2.0.1 | MIT | https://github.com/wooorm/ccount | package.json license |
 | character-entities | 2.0.2 | MIT | https://github.com/wooorm/character-entities | package.json license |

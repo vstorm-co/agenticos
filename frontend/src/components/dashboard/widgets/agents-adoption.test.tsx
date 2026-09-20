@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -61,20 +61,21 @@ beforeEach(() => {
 
 describe("the agent adoption widget", () => {
   it("draws each agent's face at the size the run table draws it", () => {
-    renderWidget();
+    // jsdom loads no image, so Radix stays in its fallback state - the generated
+    // face, which is what an organization that uploaded nothing actually sees.
+    // 20px box, set on the avatar root two levels above the picture itself.
+    const { container } = renderWidget();
+    const face = container.querySelector("svg.h-full")!;
 
-    // jsdom loads no image, so Radix stays in its fallback state - the initials,
-    // which is what a seeded organization actually sees. 20px box, and the
-    // avatar's own 10px initials rather than a scale of their own.
-    const avatar = screen.getByText("EJ").parentElement;
-
-    expect(avatar).toHaveClass("h-5", "w-5", "text-[10px]");
+    expect(face.parentElement?.parentElement).toHaveClass("h-5", "w-5", "text-[10px]");
   });
 
   it("gives two agents two faces, where their labels both truncate", () => {
-    renderWidget();
+    const { container } = renderWidget();
 
-    expect(screen.getByText("J")).toBeInTheDocument();
-    expect(screen.getByText("EJ")).toBeInTheDocument();
+    const faces = [...container.querySelectorAll("g.mo-root")].map((face) => face.innerHTML);
+
+    expect(faces).toHaveLength(2);
+    expect(faces[0]).not.toBe(faces[1]);
   });
 });

@@ -102,7 +102,6 @@ export function AgentCard({
       <div className="pointer-events-none relative flex items-start gap-3">
         <AgentAvatar
           agentId={agent.id}
-          name={agent.name}
           hasAvatar={agent.has_avatar}
           colorSlot={agent.avatar_color}
           size="lg"
