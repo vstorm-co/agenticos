@@ -35,6 +35,11 @@ interface MountSpec {
   initialScope: WorkflowGraph;
 }
 
+const BaselineFlow = dynamic(() => import("./baseline-flow"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-full w-full" />,
+});
+
 const ORGS = ["acme", "globex"] as const;
 const WORKFLOWS = ["wf-a", "wf-b"] as const;
 
@@ -59,6 +64,7 @@ export function WorkflowSdkLab() {
   const [workflowId, setWorkflowId] = useState<(typeof WORKFLOWS)[number]>("wf-a");
   const [spec, setSpec] = useState<MountSpec | null>(null);
   const [mounted, setMounted] = useState(true);
+  const [baseline, setBaseline] = useState<number | null>(null);
   const [saveMode, setSaveMode] = useState<SaveMode>("guarded");
   const [outcome, setOutcome] = useState<SaveOutcome | null>(null);
   const [revision, setRevision] = useState(0);
@@ -205,6 +211,7 @@ export function WorkflowSdkLab() {
   };
 
   const loadSynthetic = (count: number) => {
+    setBaseline(null);
     mountEditor(syntheticGraph(count), []);
     log(`loaded a synthetic graph of ${count} nodes`);
   };
@@ -292,7 +299,9 @@ export function WorkflowSdkLab() {
           className="border-border relative min-h-[60vh] flex-1 overflow-hidden rounded-lg border"
           data-testid="editor-frame"
         >
-          {mounted && spec?.key === key ? (
+          {baseline !== null ? (
+            <BaselineFlow key={baseline} count={baseline} />
+          ) : mounted && spec?.key === key ? (
             <EditorHost
               key={spec.id}
               name={scopeName}
@@ -459,6 +468,16 @@ export function WorkflowSdkLab() {
             {[50, 200, 1000].map((count) => (
               <Button key={count} size="sm" variant="outline" onClick={() => loadSynthetic(count)}>
                 {count} nodes
+              </Button>
+            ))}
+          </Row>
+        </Group>
+
+        <Group title="Baseline: React Flow alone">
+          <Row>
+            {[50, 200, 1000].map((count) => (
+              <Button key={count} size="sm" variant="outline" onClick={() => setBaseline(count)}>
+                {count} nodes, no SDK
               </Button>
             ))}
           </Row>
