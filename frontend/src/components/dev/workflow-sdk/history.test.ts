@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { History } from "./history";
+import { History, Recorder } from "./history";
 
 describe("History", () => {
   it("has nothing to undo or redo until something is recorded", () => {
@@ -54,5 +54,81 @@ describe("History", () => {
     const h = new History<number>();
     h.record(1);
     expect(h.canUndo).toBe(false);
+  });
+});
+
+describe("Recorder", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function setup() {
+    const state = { value: 0 };
+    const history = new History<number>();
+    const recorder = new Recorder<number>(history, () => ({
+      key: String(state.value),
+      snapshot: state.value,
+    }));
+    recorder.baseline();
+    return { state, history, recorder };
+  }
+
+  it("records one entry once changes have been quiet", () => {
+    const { state, history, recorder } = setup();
+    state.value = 1;
+    recorder.schedule();
+    state.value = 2;
+    recorder.schedule();
+    vi.advanceTimersByTime(249);
+    expect(history.size).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(history.size).toBe(1);
+    expect(history.undo()).toBe(0);
+  });
+
+  it("does not record a change that leaves the state as it was", () => {
+    const { history, recorder } = setup();
+    recorder.schedule();
+    vi.advanceTimersByTime(250);
+    expect(history.size).toBe(0);
+  });
+
+  it("flushing before undo keeps a pending edit undoable and redoable", () => {
+    const { state, history, recorder } = setup();
+    state.value = 1;
+    recorder.schedule();
+    vi.advanceTimersByTime(250);
+    state.value = 2; // edit B, still inside the debounce window
+    recorder.schedule();
+    vi.advanceTimersByTime(100);
+
+    recorder.flush();
+    // One step back lands on A, not on the baseline.
+    expect(history.undo()).toBe(1);
+    recorder.restored("1");
+    vi.advanceTimersByTime(1000);
+    // The timer the flush cleared does not fire later and record a stale state.
+    expect(history.size).toBe(1);
+    expect(history.redo()).toBe(2);
+  });
+
+  it("does not record the state an undo restored", () => {
+    const { state, history, recorder } = setup();
+    state.value = 1;
+    recorder.schedule();
+    vi.advanceTimersByTime(250);
+    state.value = history.undo() ?? -1;
+    recorder.restored("0");
+    recorder.flush();
+    expect(history.size).toBe(0);
+    expect(history.canRedo).toBe(true);
+  });
+
+  it("cancels a pending record", () => {
+    const { state, history, recorder } = setup();
+    state.value = 1;
+    recorder.schedule();
+    recorder.cancel();
+    vi.advanceTimersByTime(1000);
+    expect(history.size).toBe(0);
   });
 });

@@ -19,7 +19,7 @@ import type {
 import { useEffect, useRef } from "react";
 
 import { copySelection, pasteClip, type Clip } from "./clipboard";
-import { History } from "./history";
+import { History, Recorder } from "./history";
 import { fromSdkScope, toSdkScope } from "./sdk-adapter";
 import type { WorkflowGraph } from "./typed-graph";
 
@@ -112,29 +112,21 @@ export function EditorController({ scopeRef, newId, onApi, onLog }: Props) {
 
   useEffect(() => {
     const history = new History<Snapshot>();
-    let lastKey = "";
+    const recorder = new Recorder<Snapshot>(history, () => ({
+      key: semanticKey(getStoreNodes(), getStoreEdges()),
+      snapshot: snapshot(),
+    }));
     let restoring = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
     // `loadData` runs in an ancestor's effect, after this one. A macrotask later the
     // store holds the loaded diagram, and that is the baseline, not an edit.
-    const baseline = setTimeout(() => {
-      history.reset(snapshot());
-      lastKey = semanticKey(getStoreNodes(), getStoreEdges());
-    }, 0);
+    const baseline = setTimeout(() => recorder.baseline(), 0);
 
     const unsubscribe = useStore.subscribe((state, previous) => {
       if (restoring) return;
       if (state.nodes === previous.nodes && state.edges === previous.edges) return;
-      clearTimeout(timer);
-      // A drag emits one change per frame. One entry per gesture is the unit a
-      // person undoes.
-      timer = setTimeout(() => {
-        const key = semanticKey(getStoreNodes(), getStoreEdges());
-        if (key === lastKey) return;
-        lastKey = key;
-        history.record(snapshot());
-      }, 250);
+      // One entry per gesture is the unit a person undoes.
+      recorder.schedule();
     });
 
     const restore = (target: Snapshot | null) => {
@@ -142,7 +134,7 @@ export function EditorController({ scopeRef, newId, onApi, onLog }: Props) {
       restoring = true;
       setStoreNodes(structuredClone(target.nodes));
       setStoreEdges(structuredClone(target.edges));
-      lastKey = semanticKey(target.nodes, target.edges);
+      recorder.restored(semanticKey(target.nodes, target.edges));
       trackFutureChange("undoRedo");
       // The store notifies synchronously; release on the next tick.
       setTimeout(() => {
@@ -194,8 +186,14 @@ export function EditorController({ scopeRef, newId, onApi, onLog }: Props) {
     };
 
     const api: EditorApi = {
-      undo: () => restore(history.undo()),
-      redo: () => restore(history.redo()),
+      undo: () => {
+        recorder.flush();
+        restore(history.undo());
+      },
+      redo: () => {
+        recorder.flush();
+        restore(history.redo());
+      },
       copy,
       cut,
       paste,
@@ -237,7 +235,7 @@ export function EditorController({ scopeRef, newId, onApi, onLog }: Props) {
       window.removeEventListener("keydown", onKeyDown);
       unsubscribe();
       clearTimeout(baseline);
-      clearTimeout(timer);
+      recorder.cancel();
       onApi(null);
     };
   }, [scopeRef, newId, onApi, onLog]);

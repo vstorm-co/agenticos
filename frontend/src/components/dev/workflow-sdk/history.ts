@@ -3,8 +3,8 @@
  *
  * The SDK has no history. It exposes a change tracker meant to feed one, and the
  * demo app's plugin is an Overflow premium feature outside the npm package, so
- * this is our own: a pure stack here, and a store subscription in
- * `use-editor-history.tsx`.
+ * this is our own: a pure stack and its debounced recorder here, and the store
+ * subscription that feeds them in `editor-controller.tsx`.
  */
 export class History<T> {
   private past: T[] = [];
@@ -54,5 +54,57 @@ export class History<T> {
 
   get size(): number {
     return this.past.length;
+  }
+}
+
+/**
+ * Turns a stream of store changes into history entries, one per gesture.
+ *
+ * A drag emits a change per frame, so a change is recorded only once it has been
+ * quiet for `delayMs`. Undo and redo must call `flush` first: a change still inside
+ * that window is not in the stack yet, and undoing past it would skip a step and
+ * leave the change impossible to redo.
+ */
+export class Recorder<T> {
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private lastKey = "";
+
+  constructor(
+    private readonly history: History<T>,
+    private readonly read: () => { key: string; snapshot: T },
+    private readonly delayMs = 250,
+  ) {}
+
+  /** The state as loaded, which is not an edit. */
+  baseline(): void {
+    const { key, snapshot } = this.read();
+    this.history.reset(snapshot);
+    this.lastKey = key;
+  }
+
+  /** A change happened; record it once things go quiet. */
+  schedule(): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.flush(), this.delayMs);
+  }
+
+  /** Record a pending change now, if it changed anything. */
+  flush(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    const { key, snapshot } = this.read();
+    if (key === this.lastKey) return;
+    this.lastKey = key;
+    this.history.record(snapshot);
+  }
+
+  /** The state was set by undo or redo, so it is already in the stack. */
+  restored(key: string): void {
+    this.lastKey = key;
+  }
+
+  cancel(): void {
+    clearTimeout(this.timer);
+    this.timer = undefined;
   }
 }
