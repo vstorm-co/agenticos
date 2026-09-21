@@ -35,6 +35,7 @@ from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
+from app.services.rag.models import ParentContextMode
 
 
 def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
@@ -124,6 +125,34 @@ class TestKnowledgeTool:
         assert "unavailable" in answered
 
     @pytest.mark.anyio
+    async def test_the_agents_parent_context_mode_reaches_the_backend(self):
+        """The small-to-big mode is the agent's, not the model's, decision (#1651)."""
+        toolset = build_knowledge_toolset(default_top_k=5, parent_context=ParentContextMode.WINDOW)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+
+    @pytest.mark.anyio
+    async def test_parent_context_defaults_to_off(self):
+        """An agent that configured nothing gets the unchanged, matched-chunk result."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.OFF
+
+    @pytest.mark.anyio
     async def test_business_filters_reach_the_backend(self):
         """The whitelisted filters are assembled and passed to the search."""
         toolset = build_knowledge_toolset(default_top_k=5)
@@ -207,7 +236,7 @@ class TestKnowledgeFormatting:
         assert "No relevant" in _format_results([])
 
     def test_results_carry_their_source(self):
-        result = MagicMock(score=0.9, content="Refunds within 30 days.")
+        result = MagicMock(score=0.9, content="Refunds within 30 days.", expanded_content=None)
         result.metadata = {"filename": "policy.pdf", "page_num": 3}
         formatted = _format_results([result])
         assert "policy.pdf" in formatted
@@ -216,9 +245,27 @@ class TestKnowledgeFormatting:
 
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""
-        result = MagicMock(score=0.9, content="text")
+        result = MagicMock(score=0.9, content="text", expanded_content=None)
         result.metadata = {"filename": "a.pdf"}
         assert "cite inline" in _format_results([result])
+
+    def test_the_expanded_passage_is_shown_when_present(self):
+        """Small-to-big: the model reads the surrounding context, not the chunk alone."""
+        result = MagicMock(
+            score=0.9,
+            content="the matched chunk",
+            expanded_content="before\n\nthe matched chunk\n\nafter",
+        )
+        result.metadata = {"filename": "a.pdf"}
+        formatted = _format_results([result])
+        assert "before" in formatted
+        assert "after" in formatted
+
+    def test_the_matched_chunk_is_shown_when_there_is_no_expansion(self):
+        """`off` (the default) leaves the formatted output exactly as before."""
+        result = MagicMock(score=0.9, content="just the chunk", expanded_content=None)
+        result.metadata = {"filename": "a.pdf"}
+        assert "just the chunk" in _format_results([result])
 
 
 class TestCodeExecutionTool:

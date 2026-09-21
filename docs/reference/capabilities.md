@@ -82,8 +82,26 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` applies only when the model does not ask for a number itself.
+
+`parent_context` turns on small-to-big retrieval. Matching and ranking always run
+on the precise small chunks; this only decides how much surrounding context each
+match is *returned* with, assembled on the return path:
+
+| Mode | What the model receives |
+|---|---|
+| `off` | The matched chunk alone — the default, unchanged behaviour |
+| `window` | The matched chunk plus its neighbours in the same document |
+| `parent` | The whole parent document's chunks, in order |
+
+The expansion never changes which chunks matched, their scores or their
+citations, and it stays inside the caller's own tenant and collection scope — it
+pulls siblings of an already-matched document, which carry the same tenant tag.
+Returned context is bounded per result and per turn (deployment settings), and
+overlapping windows are de-duplicated, so a wide document cannot flood the model's
+context.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search

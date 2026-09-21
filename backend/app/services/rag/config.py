@@ -244,6 +244,19 @@ class RAGSettings(BaseModel):
     hnsw_max_scan_tuples: int = 20000
     hnsw_ef_search: int = 100
 
+    # Parent-document (small-to-big) retrieval bounds (#1651). The per-agent
+    # `parent_context` mode decides *whether* a match is returned with its
+    # surrounding context; these deployment-level caps bound *how much*, so an
+    # agent author cannot expand a turn past the model's context budget.
+    #
+    # `window_size` is the number of neighbouring chunks pulled on each side of a
+    # match in `window` mode. The two char caps bound the assembled passage per
+    # result and across the whole turn; expansion stops once a cap is reached, so
+    # the returned payload is bounded regardless of document or corpus size.
+    parent_context_window_size: int = 1
+    parent_context_max_chars_per_result: int = 4000
+    parent_context_max_chars_per_turn: int = 16000
+
     embeddings_config: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
 
     document_parser: DocumentParser = Field(default_factory=DocumentParser)

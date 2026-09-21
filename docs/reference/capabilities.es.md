@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "cd3c52d358f5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -88,8 +88,27 @@ colección que nadie le conectó.
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` se aplica solo cuando el modelo no pide un número por su cuenta.
+
+`parent_context` activa la recuperación small-to-big. La coincidencia y el ranking
+siempre operan sobre los fragmentos pequeños y precisos; esta opción solo decide
+cuánto contexto circundante se *devuelve* con cada coincidencia, ensamblado en la
+ruta de retorno:
+
+| Modo | Lo que recibe el modelo |
+|---|---|
+| `off` | Solo el fragmento coincidente — el valor por defecto, sin cambios |
+| `window` | El fragmento coincidente más sus vecinos en el mismo documento |
+| `parent` | Todos los fragmentos del documento padre, en orden |
+
+La expansión nunca cambia qué fragmentos coincidieron, sus puntuaciones ni sus
+citas, y permanece dentro del propio ámbito de inquilino y colección de quien
+llama: extrae los hermanos de un documento ya coincidente, que llevan la misma
+etiqueta de inquilino. El contexto devuelto está acotado por resultado y por turno
+(ajustes del deployment), y las ventanas superpuestas se deduplican, de modo que
+un documento amplio no puede inundar el contexto del modelo.
 
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no

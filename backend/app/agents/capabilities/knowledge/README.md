@@ -12,6 +12,28 @@ Configuration covers defaults only:
 | Field | Why it exists |
 |---|---|
 | `default_top_k` | How many passages when the model does not say |
+| `parent_context` | Small-to-big retrieval: return each match with its surrounding context |
+
+## Small-to-big retrieval (`parent_context`)
+
+Small chunks retrieve precisely but read too narrowly; large chunks read well
+but retrieve imprecisely. `parent_context` decouples the two: matching and
+ranking always run on the precise small chunks, and only the text returned to
+the model grows.
+
+| Mode | What the model receives |
+|---|---|
+| `off` (default) | The matched chunk alone - identical to the pre-#1651 behaviour |
+| `window` | The matched chunk plus its neighbours in the same document |
+| `parent` | The whole parent document's chunks, in order |
+
+Expansion happens on the return path only - it never changes which chunks
+matched, their scores or their citations. It stays inside the caller's own
+retrieval scope (it pulls siblings of an already-matched `parent_doc_id`, which
+carries the same tenant tag), and it is bounded per result and per turn by the
+deployment-level `parent_context_*` settings in `RAGSettings`, so a wide
+document cannot blow the model's context budget. Overlapping windows are
+de-duplicated across results.
 
 The capability builds to `None` when no collection is bound: advertising a
 search tool that always returns empty is worse than not having one, because the

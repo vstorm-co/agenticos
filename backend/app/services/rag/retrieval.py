@@ -14,10 +14,11 @@ from app.services.rag.filters import (
     RetrievalFilters,
     RetrievalQuery,
     RetrievalScope,
+    TenantScope,
     compose,
     scope_for_tenant,
 )
-from app.services.rag.models import SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class BaseRetrievalService(ABC):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         pass
 
@@ -157,6 +159,7 @@ class RetrievalService(BaseRetrievalService):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         # Overfetch so min-score filtering and dedup still leave `limit` results.
         fetch_multiplier = 2
@@ -238,6 +241,13 @@ class RetrievalService(BaseRetrievalService):
         for r in final_results:
             r.metadata["collection"] = collection_name
 
+        # Return-path expansion only (#1651). Matching, ranking, min-score and
+        # dedup above are untouched and operate on the small chunks; this only
+        # attaches surrounding context to what was already selected, so `OFF`
+        # returns exactly what the pre-#1651 path did.
+        if parent_context is not ParentContextMode.OFF:
+            await self._expand_context(final_results, collection_name, scope, parent_context)
+
         total_time = time.time() - start_time
         logger.info(
             "[RETRIEVAL] Total retrieval time: %.3fs, returning %d results",
@@ -246,6 +256,104 @@ class RetrievalService(BaseRetrievalService):
         )
 
         return final_results
+
+    async def _expand_context(
+        self,
+        results: list[SearchResult],
+        collection_name: str,
+        scope: RetrievalScope,
+        mode: ParentContextMode,
+    ) -> None:
+        """Attach window/parent context to each result, in place and bounded.
+
+        Small-to-big: the results are the precise matched chunks, and this pulls
+        the larger surrounding context for the model without changing which
+        chunks matched or how they ranked.
+
+        Scope is preserved because the sibling fetch runs through the same
+        tenant-scoped `get_document_chunks` the rest of the store uses: it reads
+        only the resolved tenant's rows (`TenantScope`'s organization, `None` -
+        the untagged, deployment-wide rows - for an app-scoped or unscoped
+        search), so a collection name shared across tenants cannot expand into
+        another organization's chunks. Every sibling shares the matched chunk's
+        `parent_doc_id`, which already passed the scope's tenant and
+        authorization conjuncts, so no chunk outside scope is reachable here.
+
+        Bounded twice: `parent_context_max_chars_per_result` caps one result's
+        passage and `parent_context_max_chars_per_turn` caps the whole turn, so
+        expansion cannot blow the model's context budget. Overlapping windows are
+        de-duplicated across results - a neighbour already returned by an earlier
+        match is not repeated - while each result always keeps its own matched
+        chunk, so it stays independently citable.
+        """
+        # The resolved vector tenant this scope reads under: an org for a
+        # `TenantScope`, `None` (untagged rows) for an app-scoped or unscoped
+        # search. The same value `search` scopes by, so expansion and matching
+        # read the same rows.
+        tenant = scope.organization_id if isinstance(scope, TenantScope) else None
+        window_size = self.settings.parent_context_window_size
+        per_result_cap = self.settings.parent_context_max_chars_per_result
+        turn_cap = self.settings.parent_context_max_chars_per_turn
+
+        turn_used = 0
+        # (parent_doc_id, page_num, chunk_num) already returned this turn.
+        emitted: set[tuple[str, int, int]] = set()
+
+        for result in results:
+            if turn_used >= turn_cap:
+                break
+            parent_doc_id = result.parent_doc_id
+            # A result whose origin is unknown (the content-hash dedup fallback
+            # key) has no document to expand from.
+            if not parent_doc_id:
+                continue
+
+            doc_chunks = await self.store.get_document_chunks(
+                collection_name, parent_doc_id, tenant
+            )
+            if not doc_chunks:
+                continue
+
+            match_page = int(result.metadata.get("page_num", 0) or 0)
+            match_chunk = int(result.metadata.get("chunk_num", 0) or 0)
+            match_index = next(
+                (
+                    i
+                    for i, chunk in enumerate(doc_chunks)
+                    if chunk.page_num == match_page and chunk.chunk_num == match_chunk
+                ),
+                None,
+            )
+
+            if mode is ParentContextMode.WINDOW:
+                if match_index is None:
+                    continue
+                low = max(0, match_index - window_size)
+                high = min(len(doc_chunks), match_index + window_size + 1)
+                selected = doc_chunks[low:high]
+            else:  # PARENT: the whole parent document, in order.
+                selected = doc_chunks
+
+            pieces: list[str] = []
+            for chunk in selected:
+                is_match = chunk.page_num == match_page and chunk.chunk_num == match_chunk
+                identity = (parent_doc_id, chunk.page_num, chunk.chunk_num)
+                # The matched chunk is always kept so the result stays citable;
+                # a neighbour an earlier result already returned is dropped.
+                if identity in emitted and not is_match:
+                    continue
+                emitted.add(identity)
+                pieces.append(chunk.content)
+
+            if not pieces:
+                continue
+
+            passage = "\n\n".join(pieces)
+            cap = min(per_result_cap, turn_cap - turn_used)
+            if len(passage) > cap:
+                passage = passage[:cap]
+            turn_used += len(passage)
+            result.expanded_content = passage
 
     async def retrieve_multi(
         self,
@@ -256,6 +364,7 @@ class RetrievalService(BaseRetrievalService):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -300,6 +409,7 @@ class RetrievalService(BaseRetrievalService):
                     filters=filters,
                     limit=limit,
                     min_score=min_score,
+                    parent_context=parent_context,
                 )
             )
 

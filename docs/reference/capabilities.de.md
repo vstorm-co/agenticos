@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "cd3c52d358f5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -90,8 +90,28 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
+
+`parent_context` schaltet Small-to-Big-Retrieval ein. Treffer und Ranking laufen
+immer über die präzisen kleinen Chunks; diese Option entscheidet nur, wie viel
+umgebenden Kontext jeder Treffer *zurückgegeben* bekommt, zusammengesetzt auf dem
+Rückweg:
+
+| Modus | Was das Modell erhält |
+|---|---|
+| `off` | Nur der getroffene Chunk — der Standard, unverändertes Verhalten |
+| `window` | Der getroffene Chunk plus seine Nachbarn im selben Dokument |
+| `parent` | Alle Chunks des übergeordneten Dokuments, in Reihenfolge |
+
+Die Erweiterung ändert nie, welche Chunks getroffen wurden, deren Scores oder
+Zitate, und sie bleibt im eigenen Mandanten- und Collection-Scope des Aufrufers —
+sie holt Geschwister eines bereits getroffenen Dokuments, die denselben
+Mandanten-Tag tragen. Der zurückgegebene Kontext ist pro Ergebnis und pro Zug
+begrenzt (Deployment-Einstellungen), und überlappende Fenster werden
+dedupliziert, sodass ein breites Dokument den Kontext des Modells nicht fluten
+kann.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als

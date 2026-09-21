@@ -10,6 +10,7 @@ from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
+from app.services.rag.models import ParentContextMode
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
 
@@ -90,9 +91,13 @@ def _format_results(results: list[Any]) -> str:
         page_info = f", page {page}" if page else ""
         chunk_info = f", chunk {chunk}" if chunk else ""
         col_info = f" [{col}]" if col else ""
+        # The expanded passage when small-to-big retrieval added surrounding
+        # context, else the matched chunk itself (#1651). The score and citation
+        # stay the matched chunk's; only the text the model reads grows.
+        body = result.expanded_content or result.content
         formatted.append(
             f"[{i}] Source: {source}{page_info}{chunk_info}{col_info} (score: {result.score:.3f})\n"
-            f"{result.content}"
+            f"{body}"
         )
     return (
         "Search results (cite inline using [1], [2], etc. - do NOT list sources at the end):\n\n"
@@ -116,6 +121,7 @@ async def search_knowledge_base(
     top_k: int = 5,
     organization_id: UUID | None = None,
     filters: RetrievalFilters | None = None,
+    parent_context: ParentContextMode = ParentContextMode.OFF,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -132,6 +138,9 @@ async def search_knowledge_base(
         filters: Optional narrowing-only business filters (source, document type,
             organizational unit, date range). Never a tenant or authorization
             field - those are structurally inexpressible here.
+        parent_context: The agent's small-to-big return mode (#1651). Return-path
+            only - matching and ranking still run on the small chunks - so `OFF`
+            (the default) returns the matched chunks unchanged.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -160,6 +169,7 @@ async def search_knowledge_base(
                 scope=scope,
                 filters=filters,
                 limit=top_k,
+                parent_context=parent_context,
             )
         else:
             scopes = {name: await service.resolve_scope(name, organization_id) for name in resolved}
@@ -169,6 +179,7 @@ async def search_knowledge_base(
                 scopes=scopes,
                 filters=filters,
                 limit=top_k,
+                parent_context=parent_context,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an

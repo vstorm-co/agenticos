@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "cd3c52d358f5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -90,8 +90,27 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
+
+`parent_context` włącza wyszukiwanie small-to-big. Dopasowanie i ranking zawsze
+działają na precyzyjnych małych fragmentach; ta opcja decyduje jedynie o tym, ile
+otaczającego kontekstu jest *zwracane* wraz z każdym trafieniem, składanego na
+ścieżce zwrotnej:
+
+| Tryb | Co otrzymuje model |
+|---|---|
+| `off` | Sam dopasowany fragment — wartość domyślna, zachowanie bez zmian |
+| `window` | Dopasowany fragment plus jego sąsiedzi w tym samym dokumencie |
+| `parent` | Wszystkie fragmenty dokumentu nadrzędnego, w kolejności |
+
+Rozszerzenie nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
+wyników ani cytowań, i pozostaje w obrębie własnego zakresu najemcy i kolekcji
+wywołującego — pobiera rodzeństwo już dopasowanego dokumentu, które nosi ten sam
+znacznik najemcy. Zwracany kontekst jest ograniczony na wynik i na turę
+(ustawienia deploymentu), a nakładające się okna są deduplikowane, więc szeroki
+dokument nie zaleje kontekstu modelu.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze

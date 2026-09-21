@@ -105,13 +105,44 @@ class DocumentChunk(BaseModel):
     chunk_num: int = 0
 
 
+class ParentContextMode(StrEnum):
+    """How much surrounding context a retrieved chunk is returned with.
+
+    Small-to-big retrieval: matching and ranking always run on the precise small
+    chunks; this only decides what is *returned* to the model alongside a match.
+
+    - `OFF` returns the matched chunk exactly as it was indexed - the default,
+      and byte-for-byte the pre-#1651 behaviour.
+    - `WINDOW` returns the matched chunk plus its immediate neighbours in the
+      same document (by `page_num`/`chunk_num` order).
+    - `PARENT` returns the whole parent document's chunks in order.
+
+    Both expansions are assembled on the return path only, bounded in size, and
+    confined to the caller's own retrieval scope (they pull siblings of an
+    already-matched `parent_doc_id`, which carries the same tenant tag).
+    """
+
+    OFF = "off"
+    WINDOW = "window"
+    PARENT = "parent"
+
+
 class SearchResult(BaseModel):
-    """A schema of vector store query output."""
+    """A schema of vector store query output.
+
+    `content` and `score` are always the matched small chunk's, so ranking and
+    citation are unaffected by any parent-context expansion. `expanded_content`
+    is the larger surrounding passage assembled on the return path when a
+    `ParentContextMode` other than `OFF` is in effect, and stays `None`
+    otherwise - so a formatter that prefers it falls back to `content` for an
+    unexpanded result.
+    """
 
     content: str
     score: float
     metadata: dict[str, Any] = Field(default_factory=dict)
     parent_doc_id: str | None = None
+    expanded_content: str | None = None
 
 
 class IngestionStatus(StrEnum):

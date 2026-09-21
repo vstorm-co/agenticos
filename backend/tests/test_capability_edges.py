@@ -36,7 +36,7 @@ from app.core.secret_kinds import ApiKeySecret
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
 from app.services.rag.filters import RetrievalQuery, TenantScope
-from app.services.rag.models import SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -173,6 +173,43 @@ class TestKnowledgeSearchGuards:
                 query="x", kb_collection_names=["kb_a", "kb_b"], organization_id=uuid4()
             )
         service.retrieve_multi.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_parent_context_reaches_the_single_collection_retrieve(self):
+        """The agent's small-to-big mode is threaded through to the service (#1651)."""
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.PARENT,
+            )
+        assert service.retrieve.await_args.kwargs["parent_context"] is ParentContextMode.PARENT
+
+    @pytest.mark.anyio
+    async def test_parent_context_reaches_the_multi_collection_retrieve(self):
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve_multi = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a", "kb_b"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.WINDOW,
+            )
+        assert (
+            service.retrieve_multi.await_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+        )
 
     @pytest.mark.anyio
     async def test_a_retrieval_failure_surfaces_as_an_external_service_error(self):
