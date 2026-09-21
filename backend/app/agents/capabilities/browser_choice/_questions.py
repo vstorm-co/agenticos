@@ -63,7 +63,13 @@ def option_for(element: Element) -> str:
     pick-one over duplicate options has no answer.
     """
     option = f"{element.index}. {element.role}: {element.label}"
-    return option if not element.value else f"{option} [currently: {element.value}]"
+    if element.value:
+        return f"{option} [selected: {element.value}]"
+    # The same `[filled]` the table uses, and for the same reason: a pick-one's
+    # options are sent to the decision endpoint exactly as the table is, so a
+    # rule applied to one and not the other is not a rule. `Element.value` is a
+    # dropdown's selection and never a field's contents - see its docstring.
+    return f"{option} [filled]" if element.filled else option
 
 
 def index_of(option: str, elements: tuple[Element, ...]) -> int | None:
@@ -177,7 +183,9 @@ def value_prompt(goal: str, element: Element, history: tuple[str, ...]) -> str:
         f"FIELD: {element.role} labelled {element.label!r}",
     ]
     if element.value:
-        lines.append(f"CURRENT VALUE: {element.value}")
+        # A dropdown's current selection, which the model is being asked to
+        # change. Never a text field's contents: those do not leave the browser.
+        lines.append(f"CURRENTLY SELECTED: {element.value}")
     if history:
         lines += ["ALREADY DONE:", *(f"- {entry}" for entry in history)]
     if element.options:

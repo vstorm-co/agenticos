@@ -118,7 +118,12 @@ _COLLECT_JS = r"""
     if (style.visibility === 'hidden' || style.display === 'none') continue;
     if (el.disabled) continue;
     const isSelect = el.tagName === 'SELECT';
-    const isField = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA';
+    // A field that holds typed text, which a submit button does not: its
+    // `value` is its caption, so reporting it as "filled" told the model
+    // something that is not a fact about it.
+    const isField =
+      el.tagName === 'TEXTAREA' ||
+      (el.tagName === 'INPUT' && !CAPTIONED.has((el.type || '').toLowerCase()));
     out.push({
       role: roleOf(el),
       label: labelOf(el),
@@ -175,6 +180,8 @@ elements - and `DONE` would be a guess.
 """
 
 _NAMING_JS = r"""
+  // Input types whose `value` is what the control says rather than what it holds.
+  const CAPTIONED = new Set(['submit', 'button', 'reset']);
   const roleOf = (el) => {
     const explicit = el.getAttribute('role');
     if (explicit) return explicit;
@@ -218,7 +225,13 @@ _NAMING_JS = r"""
       el.getAttribute('title') ||
       el.getAttribute('alt') ||
       el.getAttribute('name') ||
-      el.value ||
+      // `el.value` is the caption of `<input type=submit value="Send">` and the
+      // *contents* of `<input type=password>`. Only the first is a name, and
+      // taking both made an unlabelled field's own value its label - which then
+      // travelled to the decision model as the element's name, through the
+      // table and through the pick-one's options, whatever the value rules
+      // below did.
+      (CAPTIONED.has((el.type || '').toLowerCase()) ? el.value : '') ||
       ''
     );
   };

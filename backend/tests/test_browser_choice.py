@@ -394,10 +394,28 @@ class TestTheTwoQuestions:
         assert "ALREADY DONE" in prompt
         assert "nothing else" in prompt
 
-    def test_the_value_prompt_shows_what_the_field_already_holds(self):
-        prompt = value_prompt("g", _element(0, role="textbox", label="From", value="Paris"), ())
-        assert "CURRENT VALUE: Paris" in prompt
+    def test_the_value_prompt_shows_a_dropdowns_current_selection(self):
+        # `Element.value` is a dropdown's selection and never a field's
+        # contents, so this is the only thing it can show.
+        prompt = value_prompt(
+            "g",
+            _element(0, role="dropdown", label="From", value="Paris", options=("Paris", "Rome")),
+            (),
+        )
+        assert "CURRENTLY SELECTED: Paris" in prompt
         assert "ALREADY DONE" not in prompt
+
+    def test_an_option_says_a_field_is_filled_and_never_with_what(self):
+        """A pick-one's options go to the decision endpoint exactly as the table
+        does, so a rule applied to one and not the other is not a rule."""
+        assert option_for(_element(0, role="password", label="Password", filled=True)) == (
+            "0. password: Password [filled]"
+        )
+
+    def test_an_option_shows_a_dropdowns_selection(self):
+        assert option_for(_element(0, role="dropdown", label="Country", value="Poland")) == (
+            "0. dropdown: Country [selected: Poland]"
+        )
 
 
 class TestParsingWhatABrowserAnswered:

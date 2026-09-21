@@ -82,8 +82,12 @@ Two things are versioned separately from this file and worth knowing about:
   contents left the browser: the history line stopped carrying a typed value and
   the next snapshot copied `el.value` straight back out, so the password the host
   model had just entered reached the decision endpoint one step after being
-  redacted - the table says `[filled]` now, and only a dropdown still reports its
-  selection. `domain_allowed` let an agent with no `allowed_domains` browse
+  redacted. Closing that left two more routes, both found by the security pass
+  that followed: a pick-one's *options* are built separately from the table and
+  carried the value too, and `labelOf` had `el.value` at the end of its fallback
+  chain, so an unlabelled field's own value became its *name*. The table and the
+  options both say `[filled]` now, a value is a name only where it is a caption
+  (`submit`, `button`, `reset`), and only a dropdown reports its selection. `domain_allowed` let an agent with no `allowed_domains` browse
   `file:///etc/passwd`, which `read()` would have returned as the answer; the
   scheme is checked first and always. A click used coordinates without asking
   what was *at* them, so an overlay took the press. `<div contenteditable>` was

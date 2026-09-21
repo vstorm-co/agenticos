@@ -113,14 +113,20 @@ the same agent arrives already authenticated as them. Closing the tab does not
 clear that; disposing the context does. There is deliberately no fallback if the
 browser refuses one, because falling back to the default context is the leak.
 
-**Send a field's contents anywhere.** Only whether it has any. Redacting the
-history line was half a fix and read like a whole one: the next snapshot copied
-`el.value` straight back out of every input, `render_table` printed it as
-`[currently: ...]`, and the password the host model had just typed reached the
-decision endpoint one step after being kept out of the history. The table says
-`[filled]` now. A dropdown is the exception rather than an inconsistency - its
-selected option is one of the options already listed beside it, and without it
-the loop cannot tell a chosen list from an unchosen one.
+**Send a field's contents anywhere.** Only whether it has any, and it took three
+passes to mean it. Redacting the history line was the first and read like a whole
+fix: the next snapshot copied `el.value` straight back out of every input and
+`render_table` printed it, so the password reached the decision endpoint one step
+after being kept out of the history. Stopping the snapshot was the second - and
+left two routes open, because a pick-one's *options* are built by `option_for`
+and sent exactly as the table is, and because `labelOf` had `el.value` at the end
+of its fallback chain, which made an unlabelled field's own value its *name*.
+
+All three are closed: the table and the options both say `[filled]`, and a value
+is a name only for the input types whose value is a caption (`submit`, `button`,
+`reset`). A dropdown is the one exception rather than an inconsistency - its
+selection is one of the options already listed beside it, and without it the loop
+cannot tell a chosen list from an unchosen one.
 
 **Let a browse off the web.** `domain_allowed` returns true for an agent with no
 `allowed_domains`, and "anywhere" used to include `file:///etc/passwd` - which
