@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.477] - 2026-09-21
+
+### Changed
+
+- **The monthly backend group, with the MCP SDK deliberately left behind.**
+  uvicorn 0.53.0, SQLAlchemy 2.0.54, boto3 1.43.97, mem0ai 2.1.0, and ruff 0.16.8
+  with ty 0.0.82 for the tooling. `mcp` stays below 2.0: 2.0 moves the whole SDK
+  from `httpx` to `httpx2`, and `PinnedAsyncClient` - where this platform's SSRF
+  pin and its `Host`/SNI substitution live - is an `httpx` client. It cannot send
+  the `httpx2.Request` the OAuth discovery helpers now build, and the catch that
+  turns a malformed endpoint into a refusal cannot see an `httpx2.InvalidURL`, so
+  that endpoint answers 500 with an empty body again. The streamable transport
+  also renamed itself and dropped the `headers` argument every private server is
+  reached with. Dependabot widened the cap twice; the cap is back both times, and
+  the migration - moving the pin itself to `httpx2`, rather than carrying two HTTP
+  libraries through the one flow where a remote server picks the next address we
+  dial - is its own change.
+
 ## [0.0.476] - 2026-09-21
 
 ### Changed
