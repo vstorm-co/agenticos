@@ -76,14 +76,14 @@ repos:
         # pre-commit hands it; the plain globs beside them - `*.pl.md`, `*.de.md`,
         # `*.es.md` - match either way, which is what covers every translated
         # page and the translated `README` and policy files in the repository
-        # root. What is listed below is therefore the message catalog, the one
+        # root. What is listed below is therefore the message catalogs, the one
         # English page whose glossary states each term in four languages, and the
         # MCP registry snapshot, which carries 5,703 publishers' own descriptions
         # - their typos are not ours to correct, and a `--fetch` would bring every
         # one of them back.
         exclude: |
           (?x)^(
-            frontend/messages/pl\.json|
+            frontend/messages/(pl|de)\.json|
             backend/app/core/catalog/mcp_registry\.json|
             docs/howto/translate\.md
           )$

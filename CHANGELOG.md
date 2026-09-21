@@ -155,6 +155,33 @@ Two things are versioned separately from this file and worth knowing about:
   from, in the form at `/rag`, in the pipeline, and on the standalone parse
   endpoint alike.
 
+## [0.0.473] - 2026-09-21
+
+### Added
+
+- **The console speaks German.** `frontend/messages/de.json` translates all 4,486
+  keys of the English catalog, and `de` joins `locales` in `src/i18n.ts`, so the
+  language switcher offers it, `/de/...` serves it and every canonical, alternate
+  and Open Graph locale names it. The terminology is the one the documentation
+  already fixed in `docs/howto/translate.md`: the product's own nouns stay English
+  and keep the gender decided there — der Agent, die Capability, der Run, die
+  Sandbox — and everything around them is translated, formally (*Sie*), as the
+  German pages of the site are.
+
+  `/de/legal/*` is translated with the rest of the catalog and is a translation of
+  the placeholder template the deployment ships, not legal advice. A deployment
+  that relies on those pages points `admin.brandingTerms` and
+  `admin.brandingPrivacy` at its own. Its dates are German too: the formatter now
+  takes a tag per locale rather than falling back to `en-US`, so a fourth locale
+  is a type error instead of a page that reads `May 8, 2026` in German.
+
+  The compatibility redirects follow the locale list rather than naming it. They
+  matched `en|pl` literally, so every German bookmark to a moved page - the old
+  `/de/settings/providers`, say - answered 404 while every other surface had been
+  translated. `locales` now lives in `frontend/src/lib/locales.ts`, which the
+  build config can read and `src/i18n.ts`, which drags in next-intl and the whole
+  English catalog, cannot.
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed
