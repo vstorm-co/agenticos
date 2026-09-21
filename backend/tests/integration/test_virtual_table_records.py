@@ -553,3 +553,17 @@ async def test_a_record_filled_from_a_whole_number_default_can_be_sorted_and_fil
 
     assert written.record.values == {str(n): 3}
     assert [item.id for item in listed.items] == [written.record.id]
+
+
+async def test_an_explicit_null_on_create_stays_empty_while_an_omitted_cell_takes_the_default(db):
+    service, ctx, _table, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Defaults", columns=[column("Country", "text", default="PL")])
+    )
+    country = str(table.columns[0].id)
+
+    omitted = await service.create_record(ctx, table.id, RecordCreate(values={}))
+    cleared = await service.create_record(ctx, table.id, RecordCreate(values={country: None}))
+
+    assert omitted.record.values == {country: "PL"}
+    assert cleared.record.values == {}

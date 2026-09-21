@@ -72,7 +72,7 @@ def _merge(
     """The values a record will hold after this write, or the refusal.
 
     `stored` is `None` on a create: every column with a default that was not
-    submitted takes it. On an update only the submitted cells change, and a
+    submitted takes it (one submitted as `null` stays empty). On an update only the submitted cells change, and a
     required column the record has never held takes its default, so a record
     written before a required column existed can still be edited. A cell sent as
     `null` is cleared, and cleared cells are not stored at all.
@@ -97,7 +97,9 @@ def _merge(
         else:
             merged[key] = cleaned
     for key, column in by_id.items():
-        if column.archived or key in merged:
+        if column.archived or key in merged or key in submitted:
+            # A cell the caller sent as `null` was decided: it stays empty rather
+            # than taking the default, the same as it does on an update.
             continue
         if column.default is not None and (stored is None or not column.nullable):
             merged[key] = column.default
