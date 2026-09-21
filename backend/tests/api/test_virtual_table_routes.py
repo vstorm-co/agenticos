@@ -529,7 +529,22 @@ _MUTATIONS = [
 
 
 @pytest.mark.security
-@pytest.mark.parametrize(("method", "url", "body"), _MUTATIONS)
+@pytest.mark.parametrize(
+    ("method", "url", "body"),
+    _MUTATIONS,
+    # Named, not derived from the values: the URLs carry ids minted at import, which differ
+    # per xdist worker and make each worker collect differently named tests.
+    ids=[
+        "create-table",
+        "rename-table",
+        "archive-table",
+        "change-schema",
+        "create-record",
+        "update-record",
+        "upsert-record",
+        "delete-record",
+    ],
+)
 async def test_every_table_write_is_limited_and_the_refusal_says_when_to_come_back(
     client, limiter, method, url, body
 ):
@@ -562,6 +577,7 @@ async def test_the_allowance_belongs_to_one_member_in_one_organization(client, l
     assert len(set(limiter.keys)) == 3
 
 
+@pytest.mark.security
 async def test_reads_are_not_counted_and_a_refused_permission_does_not_spend_the_allowance(
     client, limiter
 ):

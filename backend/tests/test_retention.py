@@ -310,6 +310,10 @@ class TestTheSweep:
             "expiring_documents": AsyncMock(return_value=[]),
             "record_purged_spend": AsyncMock(),
             "delete_documents": AsyncMock(return_value=0),
+            # Virtual Tables' three deletes ride the same sweep for every organization.
+            "delete_table_receipts": AsyncMock(return_value=counts.get("table_receipts", 0)),
+            "delete_table_outbox": AsyncMock(return_value=counts.get("table_outbox", 0)),
+            "delete_table_history": AsyncMock(return_value=counts.get("table_history", 0)),
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(f"{MODULE}.retention_repo.{name}", mock)
