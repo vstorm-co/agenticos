@@ -79,8 +79,8 @@ names no author is in the evidence column below.
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
-| boto3 | 1.43.95 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.95 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.97 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.98 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |

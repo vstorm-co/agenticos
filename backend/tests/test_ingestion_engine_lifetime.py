@@ -132,11 +132,13 @@ class TestAnUploadsEngine:
         )
 
         async with _worker(ledger, ingest=AsyncMock(side_effect=RuntimeError("provider refused"))):
-            with patch("app.services.rag_document.RAGDocumentService", return_value=documents):
-                with pytest.raises(RuntimeError):
-                    await rag_tasks._run_ingestion(
-                        str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
-                    )
+            with (
+                patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+                pytest.raises(RuntimeError),
+            ):
+                await rag_tasks._run_ingestion(
+                    str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
+                )
 
         assert ledger.leaked == 0
 
