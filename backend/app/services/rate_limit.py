@@ -173,6 +173,16 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+def table_write_limit() -> Limit:
+    """What one member may write to Virtual Tables in one organization, per minute.
+
+    Every write stores a history row and, with an idempotency key, a receipt, so the
+    thing rationed is how fast a tenant can grow the shared database with requests that
+    are each tiny (#1823).
+    """
+    return Limit(attempts=settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE)
+
+
 def export_limit() -> Limit:
     """What one caller may ask for a personal-data export, per hour.
 

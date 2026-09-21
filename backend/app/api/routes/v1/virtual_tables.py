@@ -27,6 +27,9 @@ is stable: a client branches on it, not on the message.
   value, filter or schema does not fit; `details.fields` names each field.
 - `IDEMPOTENCY_KEY_REUSED` (422): the `Idempotency-Key` was used for a different
   request.
+- `QUOTA_EXCEEDED` (402): the write would exceed a storage limit; `details` names the quota
+  (`tables`, `records` or `record_bytes`) and its ceiling.
+- `RATE_LIMIT_EXCEEDED` (429): too many writes in the last minute; see `Retry-After`.
 - `NOT_FOUND` (404): no such table or record - also what another organization's
   table, or one the caller may not reach, looks like.
 
@@ -42,7 +45,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
 
-from app.api.deps import Auth, VirtualTableSvc, require
+from app.api.deps import Auth, VirtualTableSvc, limit_table_write, require
 from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
@@ -104,6 +107,23 @@ _REFUSALS: dict[int | str, dict[str, Any]] = {
 # The collection routes carry a `require(...)` gate, which refuses with a 403 before the
 # handler runs. The per-table routes have no gate and answer 404 for a table the caller may
 # not reach, so they do not advertise it.
+_QUOTA: dict[int | str, dict[str, Any]] = {
+    402: {
+        "model": ErrorEnvelope,
+        "description": "`QUOTA_EXCEEDED`: the write would exceed a storage limit",
+    },
+}
+_LIMITED: dict[int | str, dict[str, Any]] = {
+    429: {
+        "model": ErrorEnvelope,
+        "description": "Too many table writes in the last minute; see `Retry-After`",
+    },
+}
+# A write that stores something can also hit a quota. One that only removes or renames
+# cannot, so it advertises the rate limit and not the quota.
+_WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {**_REFUSALS, **_LIMITED}
+_STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
+
 _GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
     403: {
         "model": ErrorEnvelope,
@@ -139,8 +159,8 @@ async def list_tables(
     "",
     response_model=TableRead,
     status_code=status.HTTP_201_CREATED,
-    responses=_GATED_REFUSALS,
-    dependencies=[Depends(require(Perm.TABLES_CREATE))],
+    responses={**_GATED_REFUSALS, **_STORING_REFUSALS},
+    dependencies=[Depends(require(Perm.TABLES_CREATE)), Depends(limit_table_write)],
 )
 async def create_table(data: TableCreate, service: VirtualTableSvc, ctx: Auth) -> Any:
     """Create a table with its first schema version."""
@@ -153,7 +173,12 @@ async def describe_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) ->
     return await service.describe_table(ctx, table_id)
 
 
-@router.patch("/{table_id}", response_model=TableRead, responses=_REFUSALS)
+@router.patch(
+    "/{table_id}",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
 async def update_table(
     table_id: UUID, data: TableUpdate, service: VirtualTableSvc, ctx: Auth
 ) -> Any:
@@ -161,13 +186,23 @@ async def update_table(
     return await service.update_table(ctx, table_id, data)
 
 
-@router.post("/{table_id}/archive", response_model=TableRead, responses=_REFUSALS)
+@router.post(
+    "/{table_id}/archive",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
 async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
     """Archive a table. Records stay readable; every write is refused."""
     return await service.archive_table(ctx, table_id)
 
 
-@router.put("/{table_id}/schema", response_model=TableRead, responses=_REFUSALS)
+@router.put(
+    "/{table_id}/schema",
+    response_model=TableRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
 async def change_schema(
     table_id: UUID, data: SchemaUpdate, service: VirtualTableSvc, ctx: Auth
 ) -> Any:
@@ -230,7 +265,8 @@ async def get_record_by_external_id(
 @router.put(
     f"/{{table_id}}/records/by-external-id/{{external_id:{ANYTEXT}}}",
     response_model=RecordRead,
-    responses={**_REFUSALS, 201: {"model": RecordRead, "description": "Created"}},
+    responses={**_STORING_REFUSALS, 201: {"model": RecordRead, "description": "Created"}},
+    dependencies=[Depends(limit_table_write)],
 )
 async def upsert_record(
     table_id: UUID,
@@ -256,7 +292,8 @@ async def upsert_record(
     "/{table_id}/records",
     response_model=RecordRead,
     status_code=status.HTTP_201_CREATED,
-    responses=_REFUSALS,
+    responses=_STORING_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
 )
 async def create_record(
     table_id: UUID,
@@ -277,7 +314,12 @@ async def get_record(table_id: UUID, record_id: UUID, service: VirtualTableSvc, 
     return await service.get_record(ctx, table_id, record_id)
 
 
-@router.patch("/{table_id}/records/{record_id}", response_model=RecordRead, responses=_REFUSALS)
+@router.patch(
+    "/{table_id}/records/{record_id}",
+    response_model=RecordRead,
+    responses=_STORING_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
 async def update_record(
     table_id: UUID,
     record_id: UUID,
@@ -302,7 +344,8 @@ async def update_record(
     "/{table_id}/records/{record_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    responses=_REFUSALS,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
 )
 async def delete_record(
     table_id: UUID,

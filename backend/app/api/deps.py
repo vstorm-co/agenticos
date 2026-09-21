@@ -718,6 +718,27 @@ async def limit_ml_call(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
+async def limit_table_write(ctx: Auth) -> None:
+    """Refuse a member writing to Virtual Tables faster than the deployment allows.
+
+    Keyed on the member and the organization, so one person's loop does not spend
+    another's allowance and the same person in two organizations has two. Unlike the
+    run and ML limits this one also covers the console: a table write from the browser
+    stores exactly what the same write from a script does, so metering only the script
+    would leave the cheap way in open.
+
+    Usage::
+
+        @router.post("/{table_id}/records", dependencies=[Depends(limit_table_write)])
+    """
+    decision = await rate_limit.consume(
+        surface="table_write",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.table_write_limit(),
+    )
+    _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 

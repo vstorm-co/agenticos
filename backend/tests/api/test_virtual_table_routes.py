@@ -484,3 +484,142 @@ async def test_a_lone_surrogate_in_a_values_key_or_a_name_is_a_422_not_an_encodi
     assert by_key.json()["error"]["code"] == "VALIDATION_ERROR"
     service.create_record.assert_not_awaited()
     service.create_table.assert_not_awaited()
+
+
+class _CountingLimiter:
+    """The shared Redis' fixed-window counter, per key, in memory."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        self.keys: list[str] = []
+
+    async def count_in_window(self, key: str, *, ttl: int) -> int:
+        self.keys.append(key)
+        self.counts[key] = self.counts.get(key, 0) + 1
+        return self.counts[key]
+
+
+@pytest.fixture
+def limiter(monkeypatch) -> Iterator[_CountingLimiter]:
+    from app.services import rate_limit
+
+    counter = _CountingLimiter()
+    monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 3)
+    rate_limit.configure(counter)
+    yield counter
+    rate_limit.configure(None)
+
+
+def _as(user_id: uuid.UUID, org_id: uuid.UUID = _ORG, role=OrgRoleName.OWNER) -> None:
+    app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+        user_id=user_id, organization_id=org_id, role=role
+    )
+
+
+_MUTATIONS = [
+    ("post", _url(), {"name": "Orders"}),
+    ("patch", _url(f"/{_TABLE}"), {"name": "Renamed"}),
+    ("post", _url(f"/{_TABLE}/archive"), None),
+    ("put", _url(f"/{_TABLE}/schema"), {"expected_version": 1, "columns": []}),
+    ("post", _records(), {"values": {}}),
+    ("patch", _records(f"/{_RECORD}"), {"expected_revision": 1, "values": {}}),
+    ("put", _records("/by-external-id/A-1"), {"values": {}}),
+    ("delete", _records(f"/{_RECORD}?expected_revision=1"), None),
+]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(("method", "url", "body"), _MUTATIONS)
+async def test_every_table_write_is_limited_and_the_refusal_says_when_to_come_back(
+    client, limiter, method, url, body
+):
+    async with client() as http:
+        answers = [await http.request(method, url, json=body) for _ in range(4)]
+
+    assert [a.status_code == 429 for a in answers] == [False, False, False, True]
+    refused = answers[-1]
+    assert refused.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert refused.json()["error"]["details"]["retry_after_seconds"] == 60
+    assert refused.headers["Retry-After"] == "60"
+
+
+@pytest.mark.security
+async def test_the_allowance_belongs_to_one_member_in_one_organization(client, limiter):
+    ada, grace, other_org = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    write = {"json": {"values": {}}}
+
+    async with client() as http:
+        _as(ada)
+        burst = [await http.post(_records(), **write) for _ in range(4)]
+        _as(grace)
+        another_member = await http.post(_records(), **write)
+        _as(ada, org_id=other_org)
+        the_same_member_elsewhere = await http.post(_records(), **write)
+
+    assert [r.status_code for r in burst] == [201, 201, 201, 429]
+    assert another_member.status_code == 201
+    assert the_same_member_elsewhere.status_code == 201
+    assert len(set(limiter.keys)) == 3
+
+
+async def test_reads_are_not_counted_and_a_refused_permission_does_not_spend_the_allowance(
+    client, limiter
+):
+    async with client() as http:
+        reads = [
+            await http.get(_url()),
+            await http.get(_url(f"/{_TABLE}")),
+            await http.get(_records()),
+            await http.post(_records("/query"), json={}),
+        ]
+        _as(uuid.uuid4(), role=OrgRoleName.VIEWER)
+        refused = [await http.post(_url(), json={"name": "Orders"}) for _ in range(4)]
+
+    assert all(r.status_code == 200 for r in reads)
+    assert [r.status_code for r in refused] == [403] * 4
+    assert limiter.keys == []
+
+
+async def test_a_quota_refusal_is_a_402_in_the_one_envelope_with_no_content(client, service):
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service.create_record.side_effect = QuotaExceededError(
+        quota="records", limit=100_000, message="A table may hold at most 100000 records"
+    )
+
+    async with client() as http:
+        response = await http.post(_records(), json={"values": {"c": "private text"}})
+
+    assert response.status_code == 402
+    assert response.json() == {
+        "error": {
+            "code": "QUOTA_EXCEEDED",
+            "message": "A table may hold at most 100000 records",
+            "details": {"quota": "records", "limit": 100000},
+        }
+    }
+    assert "private text" not in response.text
+
+
+def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_something_is_stored():
+    paths = app.openapi()["paths"]
+    prefix = f"{settings.API_V1_STR}/tables"
+    routes = {
+        (path, method): operation
+        for path, item in paths.items()
+        if path.startswith(prefix) and "/sharing" not in path
+        for method, operation in item.items()
+    }
+    writes = {key for key in routes if key[1] in {"post", "patch", "put", "delete"}} - {
+        (f"{prefix}/{{table_id}}/records/query", "post")
+    }
+    storing = {
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}/records", "post"),
+        (f"{prefix}/{{table_id}}/records/{{record_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/records/by-external-id/{{external_id}}", "put"),
+    }
+
+    assert {k for k, op in routes.items() if "429" in op["responses"]} == writes
+    assert {k for k, op in routes.items() if "402" in op["responses"]} == storing
+    assert storing <= writes
