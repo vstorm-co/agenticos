@@ -121,3 +121,46 @@ async def test_registered_checkers_are_all_asked_and_their_answers_joined(monkey
     )
 
     assert found == [Dependent("view", first), Dependent("workflow", second)]
+
+
+def _built(**column) -> ColumnDef:
+    (built,) = build_columns([ColumnInput(label="C", **column)], [])
+    return built
+
+
+def test_a_whole_number_default_is_stored_as_an_integer():
+    """3.0 would otherwise sit in every record as JSONB 3.0 and break the bigint cast."""
+    default = _built(type="integer", default=3.0).default
+
+    assert default == 3 and isinstance(default, int)
+
+
+def test_a_datetime_default_is_stored_in_utc():
+    default = _built(type="datetime", default="2026-01-05T10:00:00+02:00").default
+
+    assert default == "2026-01-05T08:00:00.000000+00:00"
+
+
+def test_a_select_default_is_stored_as_the_canonical_option_id():
+    option = uuid.uuid4()
+    old = ColumnDef(
+        id=uuid.uuid4(),
+        label="Pick",
+        type="single_select",
+        options=[OptionDef(id=option, label="a")],
+    )
+
+    (rebuilt,) = build_columns(
+        [
+            ColumnInput(
+                id=old.id,
+                label="Pick",
+                type="single_select",
+                options=[OptionInput(id=option, label="a")],
+                default=str(option).upper(),
+            )
+        ],
+        [old],
+    )
+
+    assert rebuilt.default == str(option)

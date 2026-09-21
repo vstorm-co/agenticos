@@ -88,7 +88,10 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         archived=submitted.archived,
     )
     try:
-        validate_default(column)
+        # Stored in its normalized form, exactly as a cell would be: a default of
+        # 3.0 on an integer column would otherwise put JSONB 3.0 in every record,
+        # and the bigint cast a sort or filter makes on it would fail.
+        column = column.model_copy(update={"default": validate_default(column)})
     except CellProblem as problem:
         raise InvalidSchemaError(f"{where}.default", str(problem)) from None
     if previous is None and not column.nullable and column.default is None:

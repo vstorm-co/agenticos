@@ -532,3 +532,24 @@ async def test_a_record_id_from_another_table_is_not_found_through_this_one(db):
         await service.get_record(ctx, other.id, written.record.id)
     with pytest.raises(NotFoundError):
         await service.delete_record(ctx, other.id, written.record.id, expected_revision=1)
+
+
+async def test_a_record_filled_from_a_whole_number_default_can_be_sorted_and_filtered(db):
+    service, ctx, _table, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Counts", columns=[column("N", "integer", default=3.0)])
+    )
+    n = table.columns[0].id
+    written = await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    listed = await service.list_records(
+        ctx,
+        table.id,
+        RecordQuery(
+            sort=RecordSort(by=str(n)),
+            filters=[RecordFilter(column_id=n, op="eq", value=3)],
+        ),
+    )
+
+    assert written.record.values == {str(n): 3}
+    assert [item.id for item in listed.items] == [written.record.id]
