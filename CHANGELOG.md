@@ -71,15 +71,17 @@ Two things are versioned separately from this file and worth knowing about:
   it in whole pixels - a sprite drawn on a 16-pixel grid and moved a third of a
   pixel is a sprite with soft edges. `scripts/gen_amigo_assets.py` cuts it from
   the same drawing as the mark, so there is still one Amigo.
-- **The social preview shows the product, and now has a source.** The card it
-  replaced was a finished PNG with nothing behind it: the mark changed, the card
-  kept showing the retired one, and nothing noticed. It also showed nothing of
-  the thing it was advertising. `docs/assets/social-preview.html` is the card
-  now, and the screen on it is a real one - a chat run where the agent read a
-  file, ran Python and drew the chart - cut straight from
-  `docs/assets/screens/dark/` rather than redrawn. Amigo paces the ledge beside
-  it. It renders to a GIF for anywhere that animates and a PNG for anywhere that
-  does not.
+- **The social preview is a desert at sundown, and now has a source.** The card
+  it replaced was a finished PNG with nothing behind it: the mark changed, the
+  card kept showing the retired one, and nothing noticed.
+  `scripts/gen_social_bg.py` draws the scene 160 pixels by 80 - one per eight on
+  the finished card - with an ordered dither rather than a blend, because Amigo
+  is a 16-pixel sprite and a smooth gradient behind a sprite reads as a drawing
+  pasted onto somebody else's artwork. `docs/assets/social-preview.html` is the
+  card over it: Amigo walks the dunes, two birds cross the sky, the first stars
+  come out, and the verb in the tagline lights in the colour of the sun. It
+  renders to a 330 KiB GIF for anywhere that animates and a PNG for anywhere
+  that does not.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
   header and hero, a lucide sparkle in the console sidebar, a lime dot in the
