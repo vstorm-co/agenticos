@@ -2313,7 +2313,6 @@
     "operateMaintainImproveService": "To operate, maintain, and improve the Service;",
     "pageviewFeatureUsageCounters": "- pageview and feature-usage counters.",
     "paidPlansRenewAutomatically": "Paid plans renew automatically until canceled. Fees are non-refundable except where required by law. You can cancel anytime - your plan stays active until the end of the current billing period.",
-    "period": "Period.",
     "pl": {
       "accountResponsibility": "Odpowiadasz za bezpieczeństwo swoich danych logowania oraz za działania wykonane na Twoim koncie. Powiadom nas na <mail>security@example.com</mail> jeśli podejrzewasz, że konto zostało skompromitowane.",
       "aiOutputDisclaimer": "Output AI może zawierać nieścisłości. <strong>Nie polegaj na Usłudze dla porad w dziedzinach, gdzie błędy mają realne konsekwencje</strong> (medyczne, prawne, finansowe) bez niezależnej weryfikacji.",
@@ -2475,7 +2474,6 @@
     "weAposLlNotify": "We'll notify you in-app or via email before any material change takes effect. Continued use after the effective date constitutes acceptance.",
     "weDonAposT": "We don't set advertising cookies. Some embedded content (videos, payment widgets) may set cookies - those are governed by their providers' policies.",
     "weDonAposT2": "We don't train any of our own models on your data.",
-    "weDonAposT3": "We don't train on your Customer Data.",
     "weHostPrimarilyEu": "We host primarily in the EU. Where data is processed outside your country, we rely on standard contractual clauses or equivalent safeguards.",
     "weKeepCustomerData": "We keep Customer Data for as long as your account is active. After deletion, backups are purged within 30 days. Logs and metrics are retained up to 90 days for security and operational analysis.",
     "weMayUpdateThese": "We may update these Terms when the Service evolves. Material changes will be announced via email or in-app at least 30 days before they take effect. Continued use after the effective date constitutes acceptance.",
@@ -2497,7 +2495,8 @@
     "yourChoices": "Your choices",
     "yourResponseCookieBanner": "- your response to the cookie banner.",
     "yourRightsDescription": "Depending on where you live, you may have rights to access, correct, delete, or export your personal data, and to object to or restrict certain processing. Email <mail>privacy@example.com</mail> to exercise them. We respond within 30 days.",
-    "yourSelectedLanguage": "- your selected language."
+    "yourSelectedLanguage": "- your selected language.",
+    "weDoNotTrainOnCustomerData": "<b>We don't train on your Customer Data.</b> Period."
   },
   "mcp": {
     "accessToken": "Access token",

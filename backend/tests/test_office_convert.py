@@ -232,10 +232,15 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
     monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
     child = _write_fake_soffice(
         tmp_path,
+        # The heartbeat is replaced rather than rewritten in place. `write_text`
+        # truncates first, so a SIGKILL landing inside it leaves the file empty
+        # for good - and the assertion below then reads '' against a '3' it
+        # sampled a moment earlier and calls a reaped group a survivor.
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
         "n = 0\n"
         "while True:\n"
-        "    (outdir / 'heartbeat.txt').write_text(str(n))\n"
+        "    (outdir / 'heartbeat.tmp').write_text(str(n))\n"
+        "    (outdir / 'heartbeat.tmp').replace(outdir / 'heartbeat.txt')\n"
         "    n += 1\n"
         "    time.sleep(0.02)\n",
         name="fake_soffice_child",
@@ -263,6 +268,10 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
 
     await office_convert._terminate_process_group(proc)
 
+    # Settle before sampling. `killpg` returns once the signal is queued, not
+    # once it lands, so on a loaded runner the helper can still be scheduled for
+    # one more tick after teardown returns - which is not a helper that survived.
+    await asyncio.sleep(0.3)
     ticked = heartbeat.read_text()
     await asyncio.sleep(0.5)
     assert heartbeat.read_text() == ticked, "a soffice helper kept running"
