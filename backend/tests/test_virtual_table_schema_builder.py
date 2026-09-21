@@ -4,7 +4,14 @@ import uuid
 
 import pytest
 
-from app.schemas.virtual_table import MAX_COLUMNS, ColumnDef, ColumnInput, OptionDef, OptionInput
+from app.schemas.virtual_table import (
+    MAX_COLUMNS,
+    MAX_OPTIONS,
+    ColumnDef,
+    ColumnInput,
+    OptionDef,
+    OptionInput,
+)
 from app.services.virtual_tables import dependencies
 from app.services.virtual_tables.dependencies import Dependent, find_dependents
 from app.services.virtual_tables.exceptions import InvalidSchemaError
@@ -200,3 +207,69 @@ def test_a_required_column_that_stays_archived_or_stays_live_is_not_flagged():
 
     assert diff([live], stays_live).required == frozenset()
     assert diff([archived], stays_archived).required == frozenset()
+
+
+def _select(options: list[OptionDef]) -> ColumnDef:
+    return ColumnDef(id=uuid.uuid4(), label="Pick", type="single_select", options=options)
+
+
+def _labelled(prefix: str, count: int) -> list[OptionDef]:
+    return [OptionDef(id=uuid.uuid4(), label=f"{prefix}{n}") for n in range(count)]
+
+
+def _submit(column: ColumnDef, options: list[OptionInput]) -> list[ColumnInput]:
+    return [ColumnInput(id=column.id, label="Pick", type="single_select", options=options)]
+
+
+def test_a_column_may_hold_exactly_the_option_limit_archived_ones_included():
+    live = _labelled("a", 60)
+    archived = [OptionDef(id=uuid.uuid4(), label=f"old{n}", archived=True) for n in range(40)]
+    column = _select([*live, *archived])
+
+    (rebuilt,) = build_columns(
+        _submit(column, [OptionInput(id=o.id, label=o.label) for o in live]), [column]
+    )
+
+    assert len(rebuilt.options) == MAX_OPTIONS
+    assert sum(o.archived for o in rebuilt.options) == 40
+
+
+def test_replacing_a_full_option_list_is_refused_rather_than_doubling_it():
+    column = _select(_labelled("a", MAX_OPTIONS))
+    replacement = [OptionInput(label=f"b{n}") for n in range(MAX_OPTIONS)]
+
+    with pytest.raises(InvalidSchemaError, match="archived ones included") as raised:
+        build_columns(_submit(column, replacement), [column])
+
+    assert raised.value.details["fields"][0]["field"] == "columns.0.options"
+
+
+def test_the_growth_stops_at_the_limit_however_many_times_it_is_tried():
+    column = _select(_labelled("a", 50))
+    previous = [column]
+    for round_ in range(4):
+        submitted = [OptionInput(label=f"r{round_}x{n}") for n in range(50)]
+        try:
+            (column,) = build_columns(_submit(column, submitted), previous)
+        except InvalidSchemaError:
+            break
+        previous = [column]
+
+    assert len(previous[0].options) <= MAX_OPTIONS
+    assert round_ >= 1
+
+
+def test_a_read_column_can_be_sent_back_as_a_change_at_the_limit():
+    """A `TableRead` must round-trip through `SchemaUpdate`, which caps each option list."""
+    column = _select(_labelled("a", MAX_OPTIONS))
+    as_read = ColumnDef.model_validate(column.model_dump(mode="json"))
+
+    resubmitted = ColumnInput.model_validate(
+        {
+            **as_read.model_dump(mode="json"),
+            "options": [o.model_dump(mode="json") for o in as_read.options],
+        }
+    )
+
+    (rebuilt,) = build_columns([resubmitted], [column])
+    assert rebuilt == column

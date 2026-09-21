@@ -645,3 +645,94 @@ async def test_a_schema_put_that_changes_anything_still_appends_a_version(db, ch
 
     assert result.schema_version == 2
     assert await _schema_state(db, service, ctx, table.id, org) == (2, 1)
+
+
+async def _select_table(service, ctx, options: int):
+    return await service.create_table(
+        ctx,
+        TableCreate(
+            name="Tickets",
+            columns=[
+                column(
+                    "Status",
+                    "single_select",
+                    options=[OptionInput(label=f"s{n}") for n in range(options)],
+                )
+            ],
+        ),
+    )
+
+
+async def test_a_table_read_at_the_option_limit_round_trips_through_a_schema_update(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await _select_table(service, ctx, 100)
+
+    as_sent = SchemaUpdate.model_validate(
+        {"expected_version": 1, "columns": table.model_dump(mode="json")["columns"]}
+    )
+    result = await service.update_schema(ctx, table.id, as_sent)
+
+    assert result == table
+
+
+@pytest.mark.security
+async def test_replacing_a_full_option_list_is_refused_and_appends_no_version(db):
+    """Each replacement used to add 100 archived options to every later snapshot."""
+    service, ctx, _owner, org = await _setup(db)
+    table = await _select_table(service, ctx, 100)
+    status = table.columns[0]
+    replacement = [column("Status", "single_select", id=status.id)]
+    replacement[0].options = [OptionInput(label=f"new{n}") for n in range(100)]
+    before = await _schema_state(db, service, ctx, table.id, org)
+
+    for _ in range(2):
+        with pytest.raises(InvalidSchemaError, match="archived ones included") as raised:
+            await service.update_schema(
+                ctx, table.id, SchemaUpdate(expected_version=1, columns=replacement)
+            )
+        assert raised.value.details["fields"][0]["field"] == "columns.0.options"
+
+    assert await _schema_state(db, service, ctx, table.id, org) == before
+    stored = await service.describe_table(ctx, table.id)
+    assert len(stored.columns[0].options) == 100
+
+
+async def test_options_can_still_be_replaced_while_the_merged_list_stays_within_the_limit(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await _select_table(service, ctx, 50)
+    status = table.columns[0]
+
+    changed = await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[
+                column(
+                    "Status",
+                    "single_select",
+                    id=status.id,
+                    options=[OptionInput(label=f"new{n}") for n in range(50)],
+                )
+            ],
+        ),
+    )
+
+    options = changed.columns[0].options
+    assert len(options) == 100 and sum(o.archived for o in options) == 50
+    with pytest.raises(InvalidSchemaError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=2,
+                columns=[
+                    column(
+                        "Status",
+                        "single_select",
+                        id=status.id,
+                        options=[OptionInput(label=f"again{n}") for n in range(50)],
+                    )
+                ],
+            ),
+        )

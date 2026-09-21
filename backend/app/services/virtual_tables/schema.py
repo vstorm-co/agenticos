@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 
 from app.schemas.virtual_table import (
     MAX_COLUMNS,
+    MAX_OPTIONS,
     ColumnDef,
     ColumnInput,
     OptionDef,
@@ -62,6 +63,13 @@ def _options(
         for old in previous
         if old.id not in seen
     )
+    if len(options) > MAX_OPTIONS:
+        # A left-out option is archived, never dropped, so without a ceiling on the merged list
+        # each change could add up to MAX_OPTIONS more, every version would carry them all, and
+        # a `TableRead` could no longer be sent back as a `SchemaUpdate`.
+        raise InvalidSchemaError(
+            field, f"A column holds at most {MAX_OPTIONS} options, archived ones included"
+        )
     labels = [option.label for option in options if not option.archived]
     if len(set(labels)) != len(labels):
         raise InvalidSchemaError(field, "Two live options have the same label")
