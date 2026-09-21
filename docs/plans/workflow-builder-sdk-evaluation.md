@@ -35,8 +35,11 @@ Three findings support it:
 - Half of what the editor needs is not in the package (undo/redo, copy/paste, nested
   scopes, a list-of-rows control), so that code is ours under either engine. The
   parts the SDK does provide are the canvas chrome, the palette and the property
-  panel. Building those on React Flow directly was not estimated here, and this record
-  does not give a figure for it.
+  panel. Building those on React Flow directly is estimated below at about 30, 48 and
+  80 engineer-days (best, likely, worst), of which about 18, 28 and 46 come from not
+  using the SDK's shell. That is a judgement, not a measurement. It does not settle
+  the choice by itself: against the SDK route the net difference is small and its sign
+  is uncertain (see [Cost of building on React Flow](#cost-of-building-on-react-flow)).
 
 The workflow milestone's 1-2 working day estimate for this evaluation is unchanged:
 nothing here cuts it, as acceptance criterion 3 of #1781 requires.
@@ -293,6 +296,108 @@ patches, whether its English and Polish chrome follows the console's language sw
 and real API and permission wiring. That is a judgement about risk, not a measured
 overrun of the bound.
 
+## Cost of building on React Flow
+
+This answers what the Decision left open: what the canvas chrome, the palette and the
+property panel would cost on `@xyflow/react` instead of the SDK. **It is a judgement,
+not a measurement.** Days were not tracked in the lab, so the figures are ranges for
+one experienced engineer who knows the repository. They are implementation only: the
+one test row included is the canvas test harness. They are a planning input for #1787
+and do not change this evaluation's own 1-2 day estimate.
+
+### Estimate, in engineer-days
+
+| Area | Item | Best | Likely | Worst | Needed with the SDK too |
+|---|---|---:|---:|---:|---|
+| Canvas chrome | Shell and chrome: provider, controls, minimap, toolbar, read-only | 2 | 3 | 5 | No |
+| Canvas chrome | Node rendering, ports, edges, connection rules | 3 | 4.5 | 7 | No |
+| Canvas chrome | Theming and dark mode | 1 | 2 | 3.5 | No |
+| Canvas chrome | Canvas accessibility: focus, a keyboard way to connect, names | 1.5 | 2.5 | 4 | No |
+| Canvas chrome | Canvas test harness (jsdom mocks, drag and connect in e2e) | 2 | 3.5 | 6 | No |
+| Palette | Node library, drag and click to add, keyboard, scope filtering | 3 | 4 | 6 | No |
+| Property panel | Shell: docked panel, header, edge panel, empty and multi-select states | 2 | 3 | 5 | No |
+| Property panel | Form renderer base: arrays of rows, nested objects, `$ref`, unions | 3 | 5 | 9 | No |
+| Property panel | Binding-aware fields and the typed binding picker | 5 | 8 | 14 | Yes |
+| Property panel | Dynamic choices, such as a table and then its columns | 2 | 3 | 5 | Yes |
+| Property panel | Resource pickers: agent and version, collection, table and column, secret | 3 | 5 | 8 | Yes |
+| Property panel | Validation display: node badges, field errors, problems list | 3 | 4 | 7 | Yes |
+| | **Total** | **30.5** | **47.5** | **79.5** | |
+| | of which specific to not using the SDK's shell | 17.5 | 27.5 | 45.5 | |
+| | of which content needed with either engine | 13 | 20 | 34 | |
+
+At five days a week that is roughly 6, 10 and 16 working weeks. The worst cases rarely
+coincide, so read the top of the range as a bound, not a forecast.
+
+Not in the table, although #1787 needs them under either engine: nested foreach scope
+editing, error ports and retry settings, autosave and the conflict banner, undo/redo
+and copy/paste, translations, accessibility of forms and pickers, unit and end-to-end
+tests, documentation, and the pages around the editor (list, publish, test runs,
+trigger and channel settings). Together they add about 24, 38 and 59 days.
+
+### What the estimate rests on
+
+- **What the SDK provided in the lab.** A top bar, a canvas with controls and
+  background, a node library and templates, and a properties panel driven by JSON
+  Forms. It has no minimap, and no undo/redo, copy/paste, nested scopes or list-of-rows
+  control. The lab already replaced its pickers and the rows control with our own.
+- **What React Flow 12.11.6 provides.** Controls, MiniMap, Background, NodeToolbar,
+  EdgeToolbar, NodeResizer, handles, `isValidConnection`, selection and key-code props.
+  Node and edge components, the palette, the panel, the forms and the validation
+  display are ours. The component props read show no keyboard-only way to create an
+  edge; that was not run to confirm.
+- **What the repository provides.** 54 files in `components/ui`, plus `cmdk` and
+  `sonner`. `schema-form.tsx` (523 lines) builds a form from a Pydantic schema, but
+  its one array kind is a list of strings, so arrays of rows, nested objects, `$ref`,
+  unions, dynamic choices and bindings are new. Pickers exist for agents
+  (`agent-picker.tsx`, 218 lines), collections (190) and secrets (243), and the lab has
+  an agent and version picker. There is no table or column picker, because the tables
+  list endpoint is not in the API yet. There is no react-hook-form, zod, d3 or dagre.
+  `agent-map` is a hand-built pan and zoom view, not built on `@xyflow/react`, so the
+  repository has no canvas precedent to reuse.
+- **Obligations that add work.** Every string goes through next-intl, permission-gated
+  controls are not rendered, the listed directories carry a 100% line-coverage gate,
+  and a new page owes an onboarding stop.
+
+### Against the SDK route
+
+Building on React Flow avoids some cost the SDK route would carry: a production adapter
+over the SDK document and JSON Forms (the lab's is about 1,000 lines), stylesheet
+containment, accessibility patches, and German chrome next to the console's
+language switch. Rough offsets are 6 to 14 days for the adapter, 1 to 12 for
+containment, 1.5 to 4 for the patches and 1 to 3 for German, about 10, 17 and 30 days
+in all. **These offsets are judgement and were not measured.**
+
+Paired best with best, likely with likely and worst with worst, choosing React Flow
+adds about 7, 10 and 16 days, roughly 12% of the total. Mixed at the extremes the range
+runs from about -13 to +36 days, so the sign is not settled. Containment is the swing:
+it costs about a day if the layer-order pre-declaration works and up to about 12 for a
+fork. That is why the untried layer-order test still matters more to the choice than
+this estimate does.
+
+### What would move the numbers
+
+- **The catalog contract from #1786.** Whether it carries ports, output schemas, which
+  fields hold bindings, interface hints and structured validation paths could move the
+  total by about 8 days. If the frontend has to work out which bindings are available
+  across branches, merges and error scopes, the binding row goes to its worst case.
+- **The tables API.** Without it the table pickers stay mocked, and a mock does not
+  meet the acceptance criteria.
+- **The keyboard alternative for connecting nodes.** The design is open, about 3 days.
+- **Whether backend catalog copy comes with translations.** About 2 days.
+- **Design and review iteration.** Not included, and probably the largest hidden
+  factor. There are no mockups: the demos are illustrative only.
+- **Scope.** Scope switching for foreach is assumed, not a visual subflow. Auto-layout,
+  import and export, and templates are excluded. The new code is assumed to live in its
+  own directory under the coverage gate.
+
+### Planning consequence
+
+The planning window for #56 runs from 2026-09-21 to 2026-10-23, about five weeks. The
+three areas alone are about ten weeks at the likely figure, and the owner also holds
+#1786, #1789 and #1790. Issue #56 already says to re-estimate after the SDK and
+execution design checks, and this is an input to that. It is not a reason to reopen
+the SDK question.
+
 ## Measurements
 
 Bundle, from `next build` of this branch against `main`:
@@ -353,6 +458,8 @@ Only the SDK-only distributions go away with the SDK, along with the Poppins and
 
 ## Not evaluated, and caveats
 
+- **The cost figures.** The estimate above is judgement, and its SDK-side offsets (adapter,
+  containment, accessibility patches, German chrome) were not measured.
 - **Version drift.** The issue names commit `b926e94`. Its history has diverged from
   the `v2.3.0` tag (`gh api` compare: 20 commits ahead, 6 behind), and `b926e94`
   already carries the 2.3.0 release commit and `version: 2.3.0`. Four of the commits
