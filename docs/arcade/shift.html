@@ -101,6 +101,32 @@
         letter-spacing: 0.1em;
         color: var(--faint);
       }
+
+      @media (max-width: 640px) {
+        .pip {
+          width: 8px;
+          height: 8px;
+        }
+
+        .dialog {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          padding: 9px 11px;
+        }
+
+        .dialog .line {
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .objective {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          font-size: 11px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -108,7 +134,7 @@
       <div class="arc-top">
         <img class="arc-mark" src="../assets/amigo.svg" alt="" />
         <h1 class="arc-title">Night Shift</h1>
-        <a class="arc-back" href="./">← the arcade</a>
+        <a class="arc-back" href="./" aria-label="Back to the arcade">←<span class="label"> the arcade</span></a>
         <p class="arc-eyebrow">The whole floor, one pair of hands</p>
         <button type="button" class="arc-fs" id="sound">Sound on</button>
         <button type="button" class="arc-fs" id="fs">Fullscreen</button>
@@ -152,6 +178,8 @@
         </div>
         </div>
       </div>
+
+      <p class="arc-rotate">Turn the phone sideways for a bigger picture</p>
 
       <div class="arc-legend">
         <div><strong><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</strong> Walk. Hold anywhere on touch.</div>
@@ -458,7 +486,10 @@
         function perks() {
           return {
             fast: H.has("skill.handoff"),
-            playbook: H.has("context.playbook"),
+            /* The wiki is a route as much as the playbook is: either one is
+               enough to know where to go next. */
+            playbook: H.has("context.playbook") || H.has("mcp.notion"),
+            route: H.has("mcp.notion"),
             bonusTicket: H.has("mcp.linear"),
           };
         }
@@ -556,7 +587,18 @@
             els.objective.hidden = true;
             return;
           }
-          els.objectiveText.textContent = step.hint + " · " + byId[step.at].name;
+          /* Each step's `hint` describes where to go once that step is done, so
+             the line for the step you are on is the previous step's hint paired
+             with this step's station. Pairing a step's own hint with its own
+             station reads as a contradiction: "go to the knowledge base" next
+             to "Chat desk". */
+          var previous = g.script[g.progress - 1];
+          var text = (previous ? previous.hint : "Start at the chat desk") + " · " + byId[step.at].name;
+          if (g.perk.route) {
+            var after = g.script[g.progress + 1];
+            if (after && after.at !== step.at) text += "   →   then " + byId[after.at].name;
+          }
+          els.objectiveText.textContent = text;
           els.objective.hidden = false;
         }
 
@@ -581,6 +623,7 @@
           var active = [];
           if (p.fast) active.push("Delegation speeds Amigo up");
           if (p.playbook) active.push("The playbook names the next station");
+          if (p.route) active.push("Notion names the stop after next");
           if (p.bonusTicket) active.push("Linear MCP adds a sixth ticket");
           document.getElementById("perkLine").textContent = active.length
             ? "Harness active: " + active.join(" · ")
@@ -680,8 +723,8 @@
             ],
             retryLabel: "Take another shift",
           });
-          window.Amigo.wireContinue(els.overlay, start);
           els.overlay.hidden = false;
+          window.Amigo.wireContinue(els.overlay, start);
           els.objective.hidden = true;
           if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
         }
@@ -972,7 +1015,11 @@
           function () {
             return g && g.mode === "playing";
           },
-          start
+          start,
+          function () {
+            keys = {};
+            pointer = null;
+          }
         );
         window.Amigo.fit(screenEl, cv);
         window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));

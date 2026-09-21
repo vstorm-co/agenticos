@@ -110,6 +110,35 @@
         height: 10px;
         background: var(--poncho);
       }
+
+      @media (max-width: 640px) {
+        .hearts {
+          gap: 3px;
+          margin-top: 2px;
+        }
+
+        .heart {
+          width: 9px;
+          height: 8px;
+        }
+
+        .caps {
+          gap: 3px;
+          margin-top: 2px;
+        }
+
+        .cap {
+          gap: 3px;
+          padding: 1px 5px;
+          font-size: 8px;
+          letter-spacing: 0.04em;
+        }
+
+        .cap i {
+          width: 5px;
+          height: 5px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -117,7 +146,7 @@
       <div class="arc-top">
         <img class="arc-mark" src="../assets/amigo.svg" alt="" />
         <h1 class="arc-title">Capability Canyon</h1>
-        <a class="arc-back" href="./">← the arcade</a>
+        <a class="arc-back" href="./" aria-label="Back to the arcade">←<span class="label"> the arcade</span></a>
         <p class="arc-eyebrow">Nothing publishes half-built</p>
         <button type="button" class="arc-fs" id="sound">Sound on</button>
         <button type="button" class="arc-fs" id="fs">Fullscreen</button>
@@ -162,6 +191,8 @@
         </div>
         </div>
       </div>
+
+      <p class="arc-rotate">Turn the phone sideways for a bigger picture</p>
 
       <div class="arc-legend">
         <div><strong><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></strong> Walk. Momentum carries.</div>
@@ -418,6 +449,19 @@
         }
 
         var cv = document.getElementById("game");
+
+        /* Upright on a phone, the canyon trades width for height: the camera
+           already clamps to whatever the view is, so a narrower field shows
+           twenty columns instead of thirty and the picture stops sitting in a
+           letterbox. The level itself is sixteen rows, so height cannot grow. */
+        if (
+          window.matchMedia &&
+          window.matchMedia("(pointer: coarse)").matches &&
+          window.innerHeight > window.innerWidth
+        ) {
+          cv.width = 320;
+        }
+
         var ctx = cv.getContext("2d");
         ctx.imageSmoothingEnabled = false;
         var W = cv.width;
@@ -605,8 +649,8 @@
             ],
             retryLabel: kind === "won" ? "Run it again" : "Try again",
           });
-          window.Amigo.wireContinue(overlay, start);
           overlay.hidden = false;
+          window.Amigo.wireContinue(overlay, start);
           if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
         }
 
@@ -1284,7 +1328,11 @@
           function () {
             return game && game.mode === "playing";
           },
-          start
+          start,
+          function () {
+            keys = {};
+            if (game) game.jumpHeld = 0;
+          }
         );
         window.Amigo.fit(screenEl, cv);
         window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));

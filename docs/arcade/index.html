@@ -834,6 +834,20 @@
           frame();
         }
 
+        /* A player walks into a cabinet, earns three parts and presses Back.
+           A bfcache-eligible browser hands this exact document back without
+           rerunning a line of it, so the board would still show what it showed
+           before the run. The same goes for a second tab writing the record. */
+        window.addEventListener("pageshow", function () {
+          H.invalidate();
+          paint();
+        });
+        window.addEventListener("storage", function (e) {
+          if (e.key && e.key !== H.key) return;
+          H.invalidate();
+          paint();
+        });
+
         Array.prototype.forEach.call(document.querySelectorAll("[data-preview]"), function (c) {
           preview(c, c.dataset.preview);
         });

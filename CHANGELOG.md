@@ -125,6 +125,32 @@ Two things are versioned separately from this file and worth knowing about:
   panel opens itself when a browse starts, stays up when it ends (*blocked by the
   page* is the outcome most worth reading), and stays closed for a browse somebody
   closed it on. `preview` off keeps the narration and drops the pictures.
+## [0.0.478] - 2026-09-21
+
+### Added
+
+- **Amigo's Arcade - three browser games that explain the platform by making
+  somebody play it.** Published beside the documentation at `/arcade/`: a desert
+  runner where the budget drains for as long as the agent runs, a side-scrolling
+  canyon whose publish flag refuses an agent missing any of its capabilities, and
+  a top-down control room where a shift is a retrieval, a tool behind a sealed
+  credential, a write that waits for an approval, a source to connect, a messy
+  customer export to clean, and a thirty-thousand-dollar invoice answered by
+  routing the cheap traffic to open weights. The three cabinets share one harness
+  record in `localStorage` - twenty-two parts across capabilities, skills, context
+  files, memory, knowledge, MCP servers, models and one Vstorm badge - and every
+  part changes how the other two play rather than only listing itself: browser
+  control is a second jump, a retry policy covers one hit, session memory keeps a
+  checkpoint, structured output slows the hallucinations down, the Linear server
+  puts a sixth ticket on the shift. The hub prints the collection as the YAML spec
+  the product exports, with everything uncollected left in as comments. Six static
+  files, copied verbatim by MkDocs the way `docs/presentation/index.html` already
+  is, so nothing enters the navigation and no page owes a translation. Amigo is
+  transcribed pixel for pixel from `docs/assets/amigo.svg` and the palette is the
+  sunset from `docs/assets/social-preview.html`, so the sprite on screen and the
+  mascot in the README cannot drift apart. Sound is synthesised through Web Audio
+  rather than shipped as files, and every cabinet plays from a keyboard, a mouse,
+  or an on-screen pad that appears only on a coarse pointer.
 
 ## [0.0.477] - 2026-09-21
 

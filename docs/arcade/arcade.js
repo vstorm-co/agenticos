@@ -171,7 +171,7 @@
       blurb: "The team wiki, as pages the agent can search and write back to.",
       where: "Capability Canyon",
       how: "Find the page hidden past the second drop",
-      perk: "The night shift names every station on your route.",
+      perk: "The night shift names the stop after the next one.",
     },
     {
       id: "model.claude",
@@ -254,9 +254,17 @@
   }
 
   /* Every read and write is wrapped: a private window, blocked site data or a
-   * thumbnail capture all answer with a throw rather than an empty string, and
-   * a game that cannot save is still a game. */
-  function read() {
+   * thumbnail capture all answer with a throw rather than an empty string.
+   *
+   * The last known record is also held in memory, and that copy is what the
+   * games read. Without it, a browser that refuses to store anything would
+   * throw away each write the moment it happened - the next `read()` would hand
+   * back defaults, and an unlock earned thirty seconds ago would already be
+   * gone. This way a blocked browser still plays a whole session properly; it
+   * just forgets between visits. */
+  var cache = null;
+
+  function load() {
     var state = clone(DEFAULT_STATE);
     try {
       var raw = global.localStorage.getItem(KEY);
@@ -276,14 +284,26 @@
     return state;
   }
 
+  function read() {
+    if (!cache) cache = load();
+    return clone(cache);
+  }
+
   function write(state) {
+    cache = clone(state);
     try {
       global.localStorage.setItem(KEY, JSON.stringify(state));
     } catch (err) {
-      /* Nothing to do and nothing worth saying: the run still counts, it just
-       * does not outlive the tab. */
+      /* Nothing to do and nothing worth saying: the run still counts through
+       * the copy above, it just does not outlive the tab. */
     }
     return state;
+  }
+
+  /* Drop the in-memory copy so the next read goes back to storage - for a page
+   * restored from the back/forward cache, or another tab writing the record. */
+  function invalidate() {
+    cache = null;
   }
 
   var listeners = [];
@@ -359,6 +379,9 @@
       write(clone(DEFAULT_STATE));
       emit({ type: "reset" });
     },
+
+    invalidate: invalidate,
+    key: KEY,
 
     on: function (fn) {
       listeners.push(fn);
@@ -487,7 +510,12 @@
    * action at once, and opening it is what connects the GitHub MCP server -
    * the one part of the harness you cannot earn by playing well. */
   function continueScreen(options) {
-    var nag = NAGS[Math.floor(Math.random() * NAGS.length)];
+    /* The catalogue promises that connecting the GitHub server stops the
+     * arcade asking for a star, so it has to actually stop. */
+    var starred = Harness.has("mcp.github");
+    var nag = starred
+      ? "GitHub MCP connected. No more nagging."
+      : NAGS[Math.floor(Math.random() * NAGS.length)];
     var stats = (options.stats || [])
       .map(function (row) {
         return '<span><b>' + row[0] + "</b>" + row[1] + "</span>";
@@ -502,7 +530,9 @@
       (options.reason ? '<p class="arc-reason">' + options.reason + "</p>" : "") +
       (options.note ? "<p>" + options.note + "</p>" : "") +
       (stats ? '<div class="arc-tally">' + stats + "</div>" : "") +
-      '<p class="arc-nag">' +
+      '<p class="' +
+      (starred ? "arc-hint" : "arc-nag") +
+      '">' +
       nag +
       "</p>" +
       '<div class="arc-actions">' +
@@ -754,7 +784,7 @@
    * of them: a runner whose budget drains while you answer a message elsewhere
    * is a runner that punishes you for leaving, which no arcade cabinet does.
    * `R` restarts without going through the continue screen. */
-  function pauser(screen, isPlaying, restart) {
+  function pauser(screen, isPlaying, restart, release) {
     var panel = global.document.createElement("div");
     panel.className = "arc-paused";
     panel.hidden = true;
@@ -766,6 +796,10 @@
     function set(next) {
       api.on = isPlaying() ? next : false;
       panel.hidden = !api.on;
+      /* A window that loses focus mid-stride is never told the key came back
+       * up, so the game would resume with Amigo still walking or still ducking
+       * into whatever killed him. */
+      if (api.on && release) release();
     }
 
     global.document.addEventListener("keydown", function (e) {
@@ -780,10 +814,14 @@
       }
     });
     global.addEventListener("blur", function () {
+      if (release) release();
       set(true);
     });
     global.document.addEventListener("visibilitychange", function () {
-      if (global.document.hidden) set(true);
+      if (global.document.hidden) {
+        if (release) release();
+        set(true);
+      }
     });
 
     return api;
@@ -919,16 +957,31 @@
       return;
     }
 
+    /* A phone in fullscreen can be asked to stay landscape, which is the
+     * orientation every one of these pictures is drawn for. Desktop browsers
+     * and iOS both refuse, and refusing is fine. */
+    function landscape() {
+      var orientation = global.screen && global.screen.orientation;
+      if (!orientation || !orientation.lock) return;
+      try {
+        var locking = orientation.lock("landscape");
+        if (locking && locking.catch) locking.catch(function () {});
+      } catch (err) {
+        /* Not supported here. */
+      }
+    }
+
     function toggle() {
       if (global.document.fullscreenElement) {
         global.document.exitFullscreen();
       } else if (page.requestFullscreen) {
-        page.requestFullscreen().catch(function () {
+        page.requestFullscreen().then(landscape, function () {
           /* Refused by the browser - the windowed layout is already full-page,
            * so there is nothing to recover from. */
         });
       } else {
         page.webkitRequestFullscreen();
+        landscape();
       }
     }
 
