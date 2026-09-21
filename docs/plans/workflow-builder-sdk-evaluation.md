@@ -338,8 +338,8 @@ Only the SDK-only distributions go away with the SDK, along with the Poppins and
 - Two editors mounted at once inline. Upstream says one; the lab only detects it.
 - The iframe, beyond the policy refusal.
 - Whether the SDK's chrome follows the console's language switch. It ships English
-  and Polish, which matches the console's two locales today; a third locale would
-  need its own SDK translations.
+  and Polish, and the console now serves English, Polish and German, so German
+  would need its own SDK translations.
 - Select-all (Ctrl+A) in the SDK.
 - Single runs on one machine; the numbers show shape, not a benchmark.
 - No backend was started. The agent picker was checked against stubbed responses on
