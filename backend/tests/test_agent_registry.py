@@ -3306,6 +3306,77 @@ class TestBrowserUseRefusedAtPublish:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
 
+class TestBrowserChoiceRefusedAtPublish:
+    """The endpoint `browser_choice` drives, checked where `browser_use`'s is.
+
+    Its own function rather than one shared with `browser_use`: two capabilities,
+    two endpoints, two messages a person has to be able to act on. The blank case
+    is here too, because `cdp_url` has to stay optional for the capability to be
+    enumerable - so publish is the only place the demand for one can be made.
+    """
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
+        spec = _spec(
+            capabilities=[{"id": "browser_choice", "config": {}}],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any("needs a cdp_url" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
+    async def test_a_loopback_endpoint_is_refused(self):
+        spec = _spec(
+            capabilities=[{"id": "browser_choice", "config": {"cdp_url": "http://127.0.0.1:9222"}}],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "endpoint cannot be used" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_public_endpoint_publishes(self):
+        profile = MagicMock(id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[{"id": "browser_choice", "config": {"cdp_url": "http://8.8.8.8:9222"}}],
+            model_profile_id=profile.id,
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        # The endpoint itself is accepted; what is left is the vault key the
+        # capability declares, which this spec does not bind.
+        assert not any(
+            "cdp_url" in problem or "endpoint cannot be used" in problem
+            for problem in refused.value.details["problems"]
+        )
+
+
 def _bound(capability_id: str, config: dict, **approval: object):
     """A one-capability spec, configured and gated as one binding says."""
     return _spec(
