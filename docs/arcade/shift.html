@@ -101,6 +101,32 @@
         letter-spacing: 0.1em;
         color: var(--faint);
       }
+
+      @media (max-width: 640px) {
+        .pip {
+          width: 8px;
+          height: 8px;
+        }
+
+        .dialog {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          padding: 9px 11px;
+        }
+
+        .dialog .line {
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .objective {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          font-size: 11px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -108,7 +134,7 @@
       <div class="arc-top">
         <img class="arc-mark" src="../assets/amigo.svg" alt="" />
         <h1 class="arc-title">Night Shift</h1>
-        <a class="arc-back" href="./">← the arcade</a>
+        <a class="arc-back" href="./" aria-label="Back to the arcade">←<span class="label"> the arcade</span></a>
         <p class="arc-eyebrow">The whole floor, one pair of hands</p>
         <button type="button" class="arc-fs" id="sound">Sound on</button>
         <button type="button" class="arc-fs" id="fs">Fullscreen</button>
@@ -152,6 +178,8 @@
         </div>
         </div>
       </div>
+
+      <p class="arc-rotate">Turn the phone sideways for a bigger picture</p>
 
       <div class="arc-legend">
         <div><strong><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</strong> Walk. Hold anywhere on touch.</div>

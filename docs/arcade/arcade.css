@@ -133,9 +133,11 @@ body::after,
 }
 
 .arc-page.is-game .arc-screen {
-  line-height: 0;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: #07080b;
 }
 
 @media (max-height: 620px) {
@@ -276,10 +278,11 @@ body::after,
   display: block;
   font-weight: 500;
   font-size: 9.5px;
+  line-height: 1.4;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint);
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
 
 .arc-hud .arc-value {
@@ -392,12 +395,13 @@ body::after,
 }
 
 .arc-tally span {
-  min-width: 88px;
-  padding: 7px 12px;
+  min-width: 92px;
+  padding: 9px 14px 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--line);
   border-radius: 3px;
-  font-size: 17px;
+  font-size: 18px;
+  line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
 
@@ -405,10 +409,11 @@ body::after,
   display: block;
   font-weight: 500;
   font-size: 9.5px;
+  line-height: 1.4;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .arc-actions {
@@ -462,7 +467,7 @@ body::after,
 }
 
 .arc-btn.is-repo::before {
-  content: "*";
+  content: "\2605";
   color: var(--sun);
   margin-right: 7px;
 }
@@ -790,10 +795,6 @@ kbd {
    quarter so the thumb has somewhere to be and the canvas is not floating in
    the middle of a black field. */
 @media (pointer: coarse) and (max-width: 640px) {
-  .arc-page.is-game .arc-fs#fs {
-    display: none;
-  }
-
   .arc-pad {
     min-height: 25vh;
     gap: 10px;
@@ -816,9 +817,9 @@ kbd {
    canvas floating in the middle of nothing. */
 @media (pointer: coarse) and (min-height: 560px) {
   .arc-pad {
-    flex: 1 1 auto;
-    min-height: 170px;
-    max-height: 42vh;
+    flex: 0 0 auto;
+    min-height: 26vh;
+    max-height: 240px;
   }
 }
 
@@ -853,4 +854,109 @@ kbd {
 .arc-pad[data-layout="shift"] [data-code="KeyE"] {
   grid-column: 4;
   grid-row: 1 / span 2;
+}
+
+/* Held upright, a wide picture can only ever be half as tall as the phone is
+   wide. The hint says so once, quietly, and only where turning the phone would
+   actually help. */
+.arc-rotate {
+  display: none;
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  .arc-rotate {
+    display: block;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    text-align: center;
+  }
+}
+
+/* The header is one row on a phone: the title shrinks, the back link keeps its
+   arrow and drops its label, and the two controls stay reachable without
+   pushing anything onto a second line. */
+@media (max-width: 640px) {
+  .arc-page.is-game .arc-top {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  /* The title yields first: a long cabinet name must not push the controls off
+     the edge of the screen. */
+  .arc-page.is-game .arc-title {
+    font-size: 16px;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .arc-page.is-game .arc-back {
+    padding: 3px 5px;
+    font-size: 14px;
+  }
+
+  .arc-page.is-game .arc-back .label {
+    display: none;
+  }
+
+  .arc-page.is-game .arc-fs {
+    margin-left: auto;
+    padding: 4px 7px;
+    font-size: 9.5px;
+    white-space: nowrap;
+  }
+
+  .arc-page.is-game .arc-fs + .arc-fs {
+    margin-left: 0;
+  }
+}
+
+/* A readout sized for a 1400px cabinet covers a third of a phone screen, so on
+   a phone the HUD gets its own smaller scale. */
+@media (max-width: 640px) {
+  .arc-hud {
+    inset: 5px 6px auto 6px;
+    gap: 4px;
+  }
+
+  .arc-hud > div {
+    padding: 2px 6px 3px;
+  }
+
+  .arc-hud b {
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    margin-bottom: 1px;
+  }
+
+  .arc-hud .arc-value {
+    font-size: 12px;
+  }
+
+  .arc-bar {
+    width: 66px;
+    height: 6px;
+    margin-top: 3px;
+  }
+}
+
+/* The fullscreen control becomes its glyph on a phone: the word costs about
+   seventy pixels, which is the difference between a cabinet name that reads and
+   one that ends in an ellipsis. */
+@media (max-width: 640px) {
+  .arc-page.is-game .arc-fs#fs {
+    font-size: 0;
+    padding: 4px 8px;
+  }
+
+  .arc-page.is-game .arc-fs#fs::after {
+    content: "\26F6";
+    font-size: 15px;
+    line-height: 1.2;
+  }
 }

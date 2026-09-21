@@ -31,7 +31,7 @@
       <div class="arc-top">
         <img class="arc-mark" src="../assets/amigo.svg" alt="" />
         <h1 class="arc-title">Desert Run</h1>
-        <a class="arc-back" href="./">← the arcade</a>
+        <a class="arc-back" href="./" aria-label="Back to the arcade">←<span class="label"> the arcade</span></a>
         <p class="arc-eyebrow">One agent, one long shift</p>
         <button type="button" class="arc-fs" id="sound">Sound on</button>
         <button type="button" class="arc-fs" id="fs">Fullscreen</button>
@@ -71,6 +71,8 @@
         </div>
       </div>
 
+      <p class="arc-rotate">Turn the phone sideways for a bigger picture</p>
+
       <div class="arc-legend">
         <div><strong><kbd>Space</kbd> / <kbd>↑</kbd> / tap</strong> Jump. Hold it for height.</div>
         <div><strong><kbd>↓</kbd> / swipe down</strong> Duck under a drifting answer.</div>
@@ -89,6 +91,20 @@
         var FRAMES = window.Amigo.sprites();
 
         var cv = document.getElementById("game");
+
+        /* A phone held upright can only give a two-to-one picture half its own
+           width in height. Everything in this game is measured from the ground
+           line, so a taller backing canvas is simply more sky - the run itself
+           is unchanged, and the picture fills the screen instead of sitting in
+           a letterbox. */
+        if (
+          window.matchMedia &&
+          window.matchMedia("(pointer: coarse)").matches &&
+          window.innerHeight > window.innerWidth
+        ) {
+          cv.height = 360;
+        }
+
         var ctx = cv.getContext("2d");
         ctx.imageSmoothingEnabled = false;
         var W = cv.width;

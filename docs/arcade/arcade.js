@@ -919,16 +919,31 @@
       return;
     }
 
+    /* A phone in fullscreen can be asked to stay landscape, which is the
+     * orientation every one of these pictures is drawn for. Desktop browsers
+     * and iOS both refuse, and refusing is fine. */
+    function landscape() {
+      var orientation = global.screen && global.screen.orientation;
+      if (!orientation || !orientation.lock) return;
+      try {
+        var locking = orientation.lock("landscape");
+        if (locking && locking.catch) locking.catch(function () {});
+      } catch (err) {
+        /* Not supported here. */
+      }
+    }
+
     function toggle() {
       if (global.document.fullscreenElement) {
         global.document.exitFullscreen();
       } else if (page.requestFullscreen) {
-        page.requestFullscreen().catch(function () {
+        page.requestFullscreen().then(landscape, function () {
           /* Refused by the browser - the windowed layout is already full-page,
            * so there is nothing to recover from. */
         });
       } else {
         page.webkitRequestFullscreen();
+        landscape();
       }
     }
 
