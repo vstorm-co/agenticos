@@ -139,7 +139,9 @@ revoked, the same retry is a 404.
 
 A receipt lasts 24 hours. After that the key is forgotten, and the same key with the same
 body is a new write: it executes again instead of returning the first answer. Retry within
-the window, and treat a longer gap as a fresh request.
+the window, and treat a longer gap as a fresh request. The lifetime is enforced when the key
+is used, so it holds to the hour; the daily sweep only reclaims the space of receipts nobody
+retried.
 
 ## Listing and filtering { #listing-and-filtering }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "42b8ae06f828"
+source_sha: "7d4c12a83afc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -147,7 +147,9 @@ Po cofnięciu dostępu to samo ponowienie to 404.
 
 Receipt trwa 24 godziny. Potem klucz jest zapominany, a ten sam klucz z tą samą treścią to
 nowy zapis: wykonuje się ponownie, zamiast zwrócić pierwszą odpowiedź. Ponawiaj w tym
-oknie, a dłuższą przerwę traktuj jak nowe żądanie.
+oknie, a dłuższą przerwę traktuj jak nowe żądanie. Czas życia jest egzekwowany w chwili użycia
+klucza, więc obowiązuje co do godziny; codzienny sweep tylko odzyskuje miejsce po receipts,
+których nikt nie ponowił.
 
 ## Listowanie i filtrowanie { #listing-and-filtering }
 

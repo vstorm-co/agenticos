@@ -1,5 +1,5 @@
 ---
-source_sha: "42b8ae06f828"
+source_sha: "7d4c12a83afc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -149,7 +149,9 @@ revocado el acceso, el mismo reintento es un 404.
 
 Un receipt dura 24 horas. Después la clave se olvida, y la misma clave con el mismo cuerpo
 es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respuesta.
-Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva.
+Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva. La duración se aplica al usar la
+clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
+receipts que nadie reintentó.
 
 ## Listar y filtrar { #listing-and-filtering }
 

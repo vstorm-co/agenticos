@@ -1,5 +1,5 @@
 ---
-source_sha: "42b8ae06f828"
+source_sha: "7d4c12a83afc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -158,7 +158,9 @@ darf. Nach dem Entzug des Zugriffs ist dieselbe Wiederholung ein 404.
 Ein Receipt hält 24 Stunden. Danach ist der Schlüssel vergessen, und derselbe Schlüssel mit
 demselben Body ist ein neuer Schreibzugriff: Er wird erneut ausgeführt, statt die erste
 Antwort zurückzugeben. Wiederholen Sie innerhalb des Fensters und behandeln Sie eine
-längere Pause als neue Anfrage.
+längere Pause als neue Anfrage. Die Lebensdauer wird beim Verwenden des Schlüssels
+durchgesetzt und gilt daher auf die Stunde genau; der tägliche Sweep gibt nur den Platz
+von Receipts frei, die niemand wiederholt hat.
 
 ## Auflisten und Filtern { #listing-and-filtering }
 
