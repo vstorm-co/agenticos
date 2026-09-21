@@ -1,5 +1,5 @@
 ---
-source_sha: "fd68c2def472"
+source_sha: "c2694c0193b0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -114,6 +114,11 @@ Los upserts concurrentes de un mismo external id crean un solo registro. El que 
 encuentra y se le responde como a una actualización: necesita la revision o se le dice
 cuál enviar.
 
+Una actualización que dejaría cada celda como está no cambia nada. La revision se mantiene,
+no se escribe fila de historial ni receipt, y se devuelve el registro actual. Una
+`expected_revision` obsoleta sigue siendo un conflicto, porque se comprueba primero. Un
+upsert que encuentra el registro sigue la misma regla.
+
 Un borrado es un borrado definitivo. El historial del registro se conserva.
 
 ## Reintentos seguros { #safe-retries }
@@ -163,6 +168,11 @@ ambos. Un receipt guarda el registro completo tal como lo devolvió la escritura
 desaparece con su cuenta o su organización. Las filas de outbox guardan ids y no se purgan
 tras la entrega. Trátalos como datos personales si lo son las celdas; consulta
 [protección de datos](data-protection.md#the-database).
+
+Estos almacenes guardan instantáneas completas, y una edición real de un registro grande
+sigue escribiendo una en el historial y, si se envía una clave, otra en un receipt. Las
+cuotas o límites de tasa por tenant para ese crecimiento y guardar solo lo que cambió aún
+no están implementados.
 
 La fila de outbox es el traspaso a lo que reaccione a un registro nuevo. Por ahora nada
 la consume. Un consumidor reclama las filas sin entregar en su propia sesión y las marca
@@ -240,3 +250,5 @@ sesión.
   llamarán a este servicio.
 - Consumidores del outbox y comprobadores de dependencias para workflows, vistas y
   triggers.
+- Cuotas o límites de tasa por tenant para el crecimiento de historial y receipts, y guardar
+  solo los cambios.

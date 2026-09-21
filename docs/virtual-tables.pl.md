@@ -1,5 +1,5 @@
 ---
-source_sha: "fd68c2def472"
+source_sha: "c2694c0193b0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -112,6 +112,11 @@ Równoległe upserty tego samego external id tworzą jeden rekord. Przegrywając
 znajduje i jest obsługiwany jak aktualizacja: potrzebuje revision albo dowiaduje się,
 którą wysłać.
 
+Aktualizacja, która zostawiłaby każdą komórkę bez zmian, nie zmienia niczego. Revision
+zostaje, nie powstaje wiersz historii ani receipt, a zwracany jest bieżący rekord.
+Nieaktualne `expected_revision` to nadal konflikt, bo jest sprawdzane najpierw. Upsert,
+który znajdzie rekord, podlega tej samej regule.
+
 Usunięcie jest twarde. Historia rekordu zostaje.
 
 ## Bezpieczne ponawianie { #safe-retries }
@@ -161,6 +166,11 @@ Receipt trzyma cały rekord tak, jak zwrócił go zapis, i znika tylko razem ze 
 kontem lub organizacją. Wiersze outbox trzymają id i nie są czyszczone po dostarczeniu.
 Traktuj je jako dane osobowe, jeśli takie są komórki; zobacz
 [ochronę danych](data-protection.md#the-database).
+
+Te magazyny trzymają pełne migawki, a prawdziwa edycja dużego rekordu nadal zapisuje
+jedną w historii, a przy wysłanym kluczu także w receipt. Limity lub rate limity per
+tenant na ten przyrost oraz zapisywanie tylko tego, co się zmieniło, nie są jeszcze
+zaimplementowane.
 
 Wiersz outbox to przekazanie temu, co reaguje na nowy rekord. Na razie nic go nie
 konsumuje. Konsument pobiera niedostarczone wiersze we własnej sesji i oznacza je jako
@@ -235,3 +245,5 @@ robi go sesja żądania, a worker ma własny zakres sesji.
   uzgodnione.
 - Narzędzia agenta, węzły workflow i ekrany konsoli, które będą wywoływać ten serwis.
 - Konsumenci outbox oraz checkery zależności dla workflow, widoków i triggerów.
+- Limity lub rate limity per tenant na przyrost historii i receipts oraz przechowywanie
+  samych różnic.

@@ -1,5 +1,5 @@
 ---
-source_sha: "fd68c2def472"
+source_sha: "c2694c0193b0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -119,6 +119,11 @@ Gleichzeitige Upserts derselben external id erzeugen einen Datensatz. Der Verlie
 findet ihn und wird wie ein Update beantwortet: Er braucht die Revision oder erfährt,
 welche er senden muss.
 
+Ein Update, das jede Zelle unverändert ließe, ändert nichts. Die Revision bleibt, es wird
+keine Historienzeile und kein Receipt geschrieben, und der aktuelle Datensatz wird
+zurückgegeben. Eine veraltete `expected_revision` ist weiterhin ein Konflikt, weil sie
+zuerst geprüft wird. Ein Upsert, der den Datensatz findet, folgt derselben Regel.
+
 Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt.
 
 ## Sichere Wiederholungen { #safe-retries }
@@ -172,6 +177,11 @@ Schreibzugriff zurückgab, und verschwindet nur mit seinem Konto oder seiner Org
 Outbox-Zeilen enthalten ids und werden nach der Zustellung nie bereinigt. Behandeln Sie sie
 als personenbezogene Daten, wenn es die Zellen sind; siehe
 [Datenschutz](data-protection.md#the-database).
+
+Diese Speicher halten vollständige Schnappschüsse, und eine echte Bearbeitung eines großen
+Datensatzes schreibt weiterhin einen in die Historie und, wenn ein Schlüssel gesendet
+wird, einen in ein Receipt. Kontingente oder Rate-Limits pro Tenant für dieses Wachstum
+und das Speichern nur der Änderungen sind noch nicht implementiert.
 
 Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert.
 Bisher konsumiert sie nichts. Ein Konsument holt sich nicht zugestellte Zeilen in einer
@@ -249,3 +259,5 @@ Session-Scope.
 - Agent-Tools, Workflow-Knoten und die Konsolenansichten, die diesen Service aufrufen
   werden.
 - Konsumenten der Outbox und Dependency-Checker für Workflows, Views und Trigger.
+- Kontingente oder Rate-Limits pro Tenant für das Wachstum von Historie und Receipts sowie
+  das Speichern nur der Änderungen.

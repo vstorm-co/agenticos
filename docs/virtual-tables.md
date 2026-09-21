@@ -105,6 +105,11 @@ identifier or `Idempotency-Key` that breaks a rule is `INVALID_RECORD`.
 Concurrent upserts of one external id create one record. The loser finds it and is
 answered as an update: it needs the revision, or it is told which one to send.
 
+An update that would leave every cell as it is changes nothing. The revision stays, no
+history row or receipt is written, and the current record is returned. A stale
+`expected_revision` is still a conflict, because it is checked first. An upsert that finds
+the record follows the same rule.
+
 A delete is a hard delete. The record's history stays.
 
 ## Safe retries { #safe-retries }
@@ -151,6 +156,10 @@ behind. A receipt holds the whole record as the write returned it, and is remove
 with its account or organization. Outbox rows hold ids, and are never purged after
 delivery. Treat them as personal data if the cells are; see
 [data protection](data-protection.md#the-database).
+
+These stores hold full snapshots, and a genuine edit of a large record still writes one to
+the history, and one to a receipt when a key is sent. Per-tenant quotas or rate limits on
+that growth, and storing only what changed, are not implemented yet.
 
 The outbox row is the hand-off to whatever reacts to a new record. Nothing consumes
 it yet. A consumer claims undelivered rows in its own session and marks them
@@ -224,3 +233,4 @@ commits: the request's session does, and a worker owns its own session scope.
   user. How an API key acts on a table for the external API is still to be agreed.
 - Agent tools, workflow nodes and the console screens, which will call this service.
 - Consumers of the outbox and dependency checkers for workflows, views and triggers.
+- Per-tenant quotas or rate limits on history and receipt growth, and delta storage for them.
