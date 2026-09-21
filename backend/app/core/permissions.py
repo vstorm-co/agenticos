@@ -46,6 +46,14 @@ class Perm(StrEnum):
     # because a role may reasonably reach one and not the other.
     CONTEXT_VIEW = "context:view"
     CONTEXT_EDIT = "context:edit"
+    # Virtual tables are a shared resource shaped like context files: an owner, a
+    # visibility, grants. Creating one is its own permission because a role may
+    # reasonably be allowed to work in a table somebody shared and not to add to
+    # the organization's set of them; it is global rather than a resource
+    # permission because there is no row yet for a scope to apply to.
+    TABLES_VIEW = "tables:view"
+    TABLES_EDIT = "tables:edit"
+    TABLES_CREATE = "tables:create"
     # A stored key is a shared resource like any other: it has an owner, a
     # visibility and grants. `connections:manage` used to gate the whole vault,
     # which made "can see every key in the organization" and "can add a bot"
@@ -92,6 +100,8 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SKILLS_EDIT,
         Perm.CONTEXT_VIEW,
         Perm.CONTEXT_EDIT,
+        Perm.TABLES_VIEW,
+        Perm.TABLES_EDIT,
         Perm.SECRETS_VIEW,
         Perm.SECRETS_EDIT,
     }
@@ -194,6 +204,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.TABLES_VIEW: Scope.ALL,
+        Perm.TABLES_EDIT: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -210,6 +222,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.TABLES_VIEW: Scope.ALL,
+        Perm.TABLES_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -224,6 +238,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.SHARED,
+        Perm.TABLES_VIEW: Scope.ALL,
+        Perm.TABLES_EDIT: Scope.SHARED,
+        Perm.TABLES_CREATE: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.MCP_MANAGE: Scope.ALL,
@@ -247,6 +264,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.ALL,
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
+        Perm.TABLES_VIEW: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
@@ -265,6 +283,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.OWN,
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.CONTEXT_EDIT: Scope.OWN,
+        Perm.TABLES_VIEW: Scope.SHARED,
+        Perm.TABLES_EDIT: Scope.OWN,
+        Perm.TABLES_CREATE: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
@@ -274,6 +295,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.SHARED,
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
+        Perm.TABLES_VIEW: Scope.SHARED,
     },
 }
 
