@@ -81,3 +81,32 @@ async def test_an_edited_record_moves_to_the_front_of_updated_at_desc(engine: As
     order = await _listed(factory, ctx, table, RecordSort(by="updated_at", direction="desc"))
 
     assert order == ["first", "third", "second"]
+
+
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+async def test_records_tied_on_the_sort_field_come_out_in_id_order_in_either_direction(
+    engine: AsyncEngine, direction
+):
+    """The record id breaks every tie, ascending, whichever way the sort runs.
+
+    The records are created in separate transactions so their creation order is not their id
+    order. Rows read in one transaction share a `created_at`, and the index the listing scans
+    then hands them over sorted by id already, which would hide a missing tiebreak.
+    """
+    factory, ctx, table, _records = await _table_with_three_committed_records(engine)
+    note = str(table.columns[0].id)
+    for n in range(10):
+        async with factory() as session:
+            await VirtualTableService(session).create_record(
+                ctx, table.id, RecordCreate(external_id=f"tie{n}", values={note: "same"})
+            )
+            await session.commit()
+
+    async with factory() as session:
+        page = await VirtualTableService(session).list_records(
+            ctx, table.id, RecordQuery(sort=RecordSort(by=note, direction=direction), limit=100)
+        )
+
+    tied = [item.id for item in page.items if item.values.get(note) == "same"]
+    assert len(tied) == 10
+    assert tied == sorted(tied)
