@@ -1603,9 +1603,9 @@ is prose with headings, code and tables in it, and a rounded fill around that fi
 every one of them.
 
 **Every word on any of these screens comes from `frontend/messages/en.json`.** English
-is the source language and `pl.json` holds only what has actually been translated -
-`src/i18n.ts` merges English underneath every locale, so a missing translation renders
-English rather than the key. `make lint` runs `frontend/scripts/check-i18n.ts`, which
+is the source language; `pl.json` and `de.json` hold only what has actually been
+translated - `src/i18n.ts` merges English underneath every locale, so a missing
+translation renders English rather than the key. `make lint` runs `frontend/scripts/check-i18n.ts`, which
 fails both ways: on copy left in a component, and on a key a component reads that the
 catalog does not hold.
 

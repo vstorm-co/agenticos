@@ -35,8 +35,8 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.
-# `messages/pl.json` and every `*.{pl,de,es}.md` is a translation: entry for
-# entry, codespell reads all of it as misspelled English. `docs/howto/translate.md`
+# `messages/pl.json`, `messages/de.json` and every `*.{pl,de,es}.md` is a
+# translation: entry for entry, codespell reads all of it as misspelled English. `docs/howto/translate.md`
 # is the one English page that reads that way too - its glossary states each term
 # in four languages, which is the point of it.
 #
@@ -45,4 +45,4 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 # only to the walk, because that prefix is how codespell names a file while
 # walking. The three prefixed entries are therefore repeated in
 # `.pre-commit-config.yaml`, and the bare ones do not have to be.
-skip = *THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./docs/howto/translate.md
+skip = *THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./docs/howto/translate.md

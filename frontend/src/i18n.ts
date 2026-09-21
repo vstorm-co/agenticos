@@ -1,11 +1,13 @@
 import { getRequestConfig } from "next-intl/server";
 
+import { locales, defaultLocale, type Locale } from "./lib/locales";
+
 import en from "../messages/en.json";
 
-export const locales = ["en", "pl"] as const;
-export type Locale = (typeof locales)[number];
-
-export const defaultLocale: Locale = "en";
+// Imported and re-exported rather than declared here: `next.config.ts` needs the
+// same list and cannot import this file, which drags in next-intl and the whole
+// English catalog. Fifty modules import these from `@/i18n`, so the name stays.
+export { locales, defaultLocale, type Locale };
 
 type Messages = { [key: string]: string | Messages };
 
@@ -18,10 +20,10 @@ type Messages = { [key: string]: string | Messages };
  * message the locale is missing - so shipping a feature in English would break the
  * Polish UI until somebody translated it, which is exactly the wrong incentive.
  *
- * Merged rather than duplicated. `pl.json` holds the strings that have actually been
- * translated and nothing else, so there is no second copy of nine hundred English
- * sentences to keep in step - and `frontend/scripts/check-i18n.ts` only has to hold
- * one catalog complete.
+ * Merged rather than duplicated. A locale's catalog holds the strings that have
+ * actually been translated and nothing else, so there is no second copy of nine
+ * hundred English sentences to keep in step - and `frontend/scripts/check-i18n.ts`
+ * only has to hold one catalog complete.
  */
 function withEnglishUnderneath(messages: Messages): Messages {
   const merge = (base: Messages, over: Messages): Messages => {
@@ -54,6 +56,7 @@ export function getLocaleLabel(locale: Locale): string {
   const labels: Record<Locale, string> = {
     en: "English",
     pl: "Polski",
+    de: "Deutsch",
   };
   return labels[locale];
 }
@@ -62,6 +65,7 @@ export function getLocaleFlag(locale: Locale): string {
   const flags: Record<Locale, string> = {
     en: "🇬🇧",
     pl: "🇵🇱",
+    de: "🇩🇪",
   };
   return flags[locale];
 }

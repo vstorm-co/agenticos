@@ -1,5 +1,5 @@
 ---
-source_sha: "4771f415a4dc"
+source_sha: "b7e986f50dc1"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1676,9 +1676,9 @@ Una respuesta es prosa con encabezados, código y tablas dentro, y un relleno re
 alrededor pelea con todos ellos.
 
 **Cada palabra de cualquiera de estas pantallas sale de `frontend/messages/en.json`.**
-El inglés es el idioma de origen y `pl.json` solo tiene lo que se ha traducido de
-verdad - `src/i18n.ts` fusiona el inglés por debajo de cada locale, así que una
-traducción que falta renderiza inglés y no la clave. `make lint` ejecuta
+El inglés es el idioma de origen; `pl.json` y `de.json` solo tienen lo que se ha
+traducido de verdad - `src/i18n.ts` fusiona el inglés por debajo de cada locale,
+así que una traducción que falta renderiza inglés y no la clave. `make lint` ejecuta
 `frontend/scripts/check-i18n.ts`, que falla en ambos sentidos: por texto dejado en un
 componente, y por una clave que un componente lee y que el catálogo no tiene.
 
