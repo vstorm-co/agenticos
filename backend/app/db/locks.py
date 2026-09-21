@@ -48,6 +48,11 @@ class LockScope(IntEnum):
     #: and the purge take this, so one waits for the other and the write that loses
     #: finds no account to write about (#1421).
     PERSONAL_DATA_PER_USER = 6
+    #: The live table names of one organization. A name is unique among live
+    #: tables, and "is this name free" followed by an insert is two statements:
+    #: without this two creates of one name both pass the check and the second
+    #: dies on the unique index with a 500 instead of a 409 (#1782).
+    VIRTUAL_TABLE_NAMES_PER_ORG = 7
 
 
 def _key(subject: UUID) -> int:

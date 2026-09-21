@@ -799,6 +799,7 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/repositories/virtual_table.py",
     "app/schemas/virtual_table.py",
     "app/services/virtual_tables/**",
 ]
@@ -1166,6 +1167,7 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/repositories/virtual_table.py",
     "app/schemas/virtual_table.py",
     "app/services/virtual_tables/**",
 ]

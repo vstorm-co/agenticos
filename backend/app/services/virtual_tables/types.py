@@ -27,9 +27,9 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from enum import StrEnum
 from uuid import UUID
 
+from app.repositories.virtual_table import SqlKind
 from app.schemas.virtual_table import CellValue, ColumnDef, ColumnTypeName, FilterOp, FilterValue
 
 MAX_TEXT = 1_000
@@ -44,18 +44,6 @@ _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 class CellProblem(ValueError):
     """A value does not fit its column. The message is safe to show the user."""
-
-
-class SqlKind(StrEnum):
-    """How the repository reads a cell out of the JSONB document to compare or sort it."""
-
-    TEXT = "text"
-    NUMERIC = "numeric"
-    INTEGER = "integer"
-    BOOLEAN = "boolean"
-    DATE = "date"
-    DATETIME = "datetime"
-    ARRAY = "array"
 
 
 _ORDERED: frozenset[FilterOp] = frozenset({"eq", "ne", "lt", "lte", "gt", "gte", "in", "is_null"})

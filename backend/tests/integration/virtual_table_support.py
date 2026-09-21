@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTable
+from app.schemas.virtual_table import (
+    ColumnInput,
+    ColumnTypeName,
+    OptionInput,
+    TableCreate,
+    TableRead,
+)
+from app.services.virtual_tables import VirtualTableService
 
 
 async def make_user(db: AsyncSession) -> User:
@@ -46,3 +56,46 @@ async def make_table(
     db.add(table)
     await db.flush()
     return table
+
+
+def ctx_for(user: User, org: Organization, role: str = "owner") -> AuthContext:
+    return AuthContext(user_id=user.id, organization_id=org.id, role=role)
+
+
+def column(label: str, type_: ColumnTypeName, **rest: Any) -> ColumnInput:
+    return ColumnInput(label=label, type=type_, **rest)
+
+
+async def orders_table(
+    service: VirtualTableService, ctx: AuthContext, name: str = "Orders"
+) -> TableRead:
+    """A table with one column of most types, for tests that need cells to work with."""
+    return await service.create_table(
+        ctx,
+        TableCreate(
+            name=name,
+            columns=[
+                column("Customer", "text"),
+                column("Quantity", "integer"),
+                column("Total", "number"),
+                column("Paid", "boolean"),
+                column("Due", "date"),
+                column("Placed", "datetime"),
+                column(
+                    "Status",
+                    "single_select",
+                    options=[OptionInput(label="Open"), OptionInput(label="Shipped")],
+                ),
+                column(
+                    "Tags",
+                    "multi_select",
+                    options=[OptionInput(label="Rush"), OptionInput(label="Gift")],
+                ),
+            ],
+        ),
+    )
+
+
+def cid(table: TableRead, label: str) -> str:
+    """The id of the column with this label, as a record's `values` key."""
+    return str(next(item.id for item in table.columns if item.label == label))
