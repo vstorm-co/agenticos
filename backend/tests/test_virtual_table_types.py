@@ -173,3 +173,28 @@ def test_the_extreme_timestamps_that_do_fit_are_accepted():
 
     assert validate_cell(column, "0001-01-01T00:00:00Z").startswith("0001-01-01")
     assert validate_cell(column, "9999-12-31T23:59:59+00:00").startswith("9999-12-31")
+
+
+LONE_SURROGATE = chr(0xD800)
+
+
+@pytest.mark.parametrize("type_", ["text", "long_text"])
+def test_a_lone_surrogate_is_refused_in_a_cell_a_filter_operand_and_a_default(type_):
+    """Pydantic accepts it and PostgreSQL then refuses it, which was a 500 in all three."""
+    text = "a" + LONE_SURROGATE
+
+    with pytest.raises(CellProblem, match="not valid Unicode"):
+        validate_cell(_column(type_), text)
+    for op in ("eq", "contains", "starts_with"):
+        with pytest.raises(CellProblem, match="not valid Unicode"):
+            validate_filter(_column(type_), op, text)
+    with pytest.raises(CellProblem, match="not valid Unicode"):
+        validate_filter(_column(type_), "in", [text])
+    with pytest.raises(CellProblem, match="not valid Unicode"):
+        validate_default(_column(type_, default=text))
+
+
+def test_text_that_merely_looks_unusual_is_still_stored_as_sent():
+    paired = "pair " + chr(0x1F680) + " é"
+
+    assert validate_cell(_column("text"), paired) == paired

@@ -1,12 +1,14 @@
 """The request models are the API contract: what they preserve and what they refuse."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from app.schemas.virtual_table import (
+    OperationKey,
     RecordCreate,
     RecordQuery,
     RecordUpdate,
+    RecordUpsert,
     TableCreate,
 )
 
@@ -43,3 +45,41 @@ def test_a_query_is_bounded():
             RecordQuery.model_validate(bad)
     with pytest.raises(ValidationError):
         RecordQuery.model_validate({"filters": [{"column_id": "not-a-uuid", "op": "eq"}]})
+
+
+SURROGATE = chr(0xD800)
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda bad: TableCreate(name=bad),
+        lambda bad: TableCreate(name="ok", description=bad),
+        lambda bad: TableCreate(name="ok", columns=[{"label": bad, "type": "text"}]),
+        lambda bad: TableCreate(
+            name="ok",
+            columns=[{"label": "Pick", "type": "single_select", "options": [{"label": bad}]}],
+        ),
+        lambda bad: RecordCreate(external_id=bad, values={}),
+        lambda bad: RecordCreate(values={bad: 1}),
+        lambda bad: RecordUpdate(expected_revision=1, values={bad: 1}),
+        lambda bad: RecordUpsert(values={bad: 1}),
+    ],
+)
+def test_a_lone_surrogate_is_refused_wherever_a_caller_string_reaches_the_database(build):
+    with pytest.raises(ValidationError):
+        build("a" + SURROGATE)
+
+
+def test_a_values_key_is_bounded_because_an_unknown_one_is_echoed_back():
+    with pytest.raises(ValidationError):
+        RecordCreate(values={"k" * 65: 1})
+    assert RecordCreate(values={"k" * 64: 1}).values
+
+
+def test_the_operation_key_type_refuses_a_surrogate_and_a_line_break():
+    adapter = TypeAdapter(OperationKey)
+
+    for bad in ("a" + SURROGATE, "a\nb"):
+        with pytest.raises(ValidationError):
+            adapter.validate_python(bad)

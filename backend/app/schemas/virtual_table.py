@@ -43,6 +43,18 @@ CellValue = str | int | float | bool | list[str] | None
 FilterValue = CellValue | list[CellValue]
 
 
+def _encodable(value: str) -> None:
+    """Refuse a lone UTF-16 surrogate: pydantic accepts one, and nothing can store or send it.
+
+    PostgreSQL rejects it inside JSON and inside a text parameter, and encoding a response that
+    echoes it raises. All three surfaced as a 500 rather than a refusal.
+    """
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError("Cannot contain characters that are not valid Unicode") from None
+
+
 def _without_nul(value: str) -> str:
     """Refuse NUL, which PostgreSQL cannot store in a text column or a JSONB string.
 
@@ -50,6 +62,7 @@ def _without_nul(value: str) -> str:
     """
     if "\x00" in value:
         raise ValueError("Cannot contain a NUL character")
+    _encodable(value)
     return value
 
 
@@ -66,6 +79,7 @@ def _plain_key(value: str) -> str:
         raise ValueError("Cannot contain a NUL character")
     if "\n" in value or "\r" in value:
         raise ValueError("Cannot contain a line break")
+    _encodable(value)
     return value
 
 
@@ -73,6 +87,9 @@ PlainKey = AfterValidator(_plain_key)
 
 Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64), NoNul]
 Description = Annotated[str, StringConstraints(max_length=500), NoNul]
+CellKey = Annotated[str, StringConstraints(max_length=64), NoNul]
+"""A key of a record's `values`: a column id. Bounded and clean because an unknown one is echoed
+back in the refusal."""
 ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), PlainKey]
 OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128), PlainKey]
 
@@ -196,7 +213,7 @@ class RecordCreate(_Request):
     external_id: ExternalId | None = Field(
         default=None, description="Your own key for the record, unique within the table"
     )
-    values: dict[str, CellValue] = Field(
+    values: dict[CellKey, CellValue] = Field(
         default_factory=dict, description="Cell values keyed by column id"
     )
 
@@ -205,7 +222,7 @@ class RecordUpdate(_Request):
     """A partial update: only the columns named change, and `null` clears one."""
 
     expected_revision: int = Field(ge=1, description="The revision the caller last read")
-    values: dict[str, CellValue]
+    values: dict[CellKey, CellValue]
 
 
 class RecordUpsert(_Request):
@@ -215,7 +232,7 @@ class RecordUpsert(_Request):
     when it does not.
     """
 
-    values: dict[str, CellValue]
+    values: dict[CellKey, CellValue]
     expected_revision: int | None = Field(default=None, ge=1)
 
 

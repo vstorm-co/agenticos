@@ -72,6 +72,11 @@ def _text_of(limit: int) -> Validator:
             raise CellProblem("Expected text")
         if "\x00" in value:
             raise CellProblem("Text cannot contain a NUL character")
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            # A lone surrogate: accepted by the JSON parser, refused by PostgreSQL.
+            raise CellProblem("Text cannot contain characters that are not valid Unicode") from None
         if len(value) > limit:
             raise CellProblem(f"Text is longer than {limit} characters")
         return value

@@ -646,3 +646,24 @@ async def test_the_longest_permitted_external_id_and_operation_key_are_accepted(
 
     assert written.created
     assert await service.record_exists(ctx, table.id, "x" * 255)
+
+
+async def test_a_lone_surrogate_is_a_typed_refusal_for_a_cell_a_filter_and_a_default(db):
+    """Each of these reached PostgreSQL and came back as a 500."""
+    service, ctx, table, _org = await _setup(db)
+    customer = next(c.id for c in table.columns if c.label == "Customer")
+    bad = "a" + chr(0xD800)
+
+    with pytest.raises(InvalidRecordError):
+        await service.create_record(ctx, table.id, RecordCreate(values={str(customer): bad}))
+    with pytest.raises(InvalidQueryError):
+        await service.list_records(
+            ctx,
+            table.id,
+            RecordQuery(filters=[RecordFilter(column_id=customer, op="contains", value=bad)]),
+        )
+    with pytest.raises(InvalidSchemaError):
+        await service.create_table(
+            ctx, TableCreate(name="Notes", columns=[column("Note", "text", default=bad)])
+        )
+    assert await _count(db, VirtualTableRecord) == 0

@@ -464,3 +464,23 @@ async def test_a_role_without_tables_create_gets_the_403_the_document_promises(
     assert body["error"]["details"]["required"] == ["tables:create"]
     assert allowed_to_read.status_code == 200
     service.create_table.assert_not_awaited()
+
+
+async def test_a_lone_surrogate_in_a_values_key_or_a_name_is_a_422_not_an_encoding_error(
+    client, service
+):
+    """The refusal used to echo the key into its own body and fail to encode it."""
+    escaped = chr(92) + "ud800"
+    headers = {"content-type": "application/json"}
+    async with client() as http:
+        by_key = await http.post(
+            _records(), content=('{"values": {"a' + escaped + '": 1}}').encode(), headers=headers
+        )
+        by_name = await http.post(
+            _url(), content=('{"name": "a' + escaped + '"}').encode(), headers=headers
+        )
+
+    assert (by_key.status_code, by_name.status_code) == (422, 422)
+    assert by_key.json()["error"]["code"] == "VALIDATION_ERROR"
+    service.create_record.assert_not_awaited()
+    service.create_table.assert_not_awaited()
