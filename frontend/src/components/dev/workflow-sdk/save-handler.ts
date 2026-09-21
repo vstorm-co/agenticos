@@ -11,8 +11,8 @@ import { replaceScope, type WorkflowGraph } from "./typed-graph";
  * `if (didSave)`. `DidSaveStatus` is `'error' | 'success' | 'alreadyStarted'`, all
  * non-empty strings, so a callback that *resolves* `'error'` is reported to the
  * user as a successful save. The only way to reach the SDK's error path is to
- * throw. `guardedSave` therefore resolves `'success'` after a commit and throws in
- * every other case; `naiveSave` is the shape the SDK's own type invites, kept here
+ * throw. `createGuardedSave` therefore resolves `'success'` after a commit and throws in
+ * every other case; `createNaiveSave` is the shape the SDK's own type invites, kept here
  * so the lab can show what it does. It also skips the stale-editor and payload-name
  * checks, which is what an integration written from the SDK's documentation has.
  */
