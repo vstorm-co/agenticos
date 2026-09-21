@@ -18,14 +18,13 @@
  * - **Search sits under it** rather than in the destination list: it is an
  *   action, not a place, and what it finds is scoped by the organization
  *   directly above it.
- * - **The bell sits beside search**, not in the footer with language and
- *   theme: an unread run failure or a parked approval is worth noticing on
- *   the way past, not tucked beside a settings icon nobody glances at.
- * - **The destinations scroll on their own.** With enough entries the list has
- *   to move; the organization above and the account below must not move with
- *   it.
- * - **Language and theme are settings, not navigation** - two quiet icons in
- *   the footer, deliberately not shaped like the nav entries above them.
+ * - **The destinations are the whole column.** Nothing sits above them: the
+ *   organization moved into the account's menu, where "who am I and where am
+ *   I" is one question with one answer instead of two controls at opposite
+ *   ends of the sidebar.
+ * - **The footer strip carries what is not a destination** - language, theme,
+ *   search and the bell, four icons the width of one row. Search keeps its
+ *   shortcut beside it, because the chip is what teaches the shortcut.
  * - **The account is last.** Least used, and where every comparable product
  *   puts it.
  *
@@ -42,24 +41,19 @@ import { LanguageSwitcherIcon } from "@/components/language-switcher";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
-import { OrgSwitcher } from "@/components/teams";
 import { ThemeToggle } from "@/components/theme";
 
 export function SidebarShell({ children }: { children: ReactNode }) {
   return (
     <>
-      <div className="flex flex-col gap-1 px-3 py-3">
-        <OrgSwitcher />
-        <SidebarSearch />
-        <NotificationBell />
-      </div>
-
       <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">{children}</div>
 
       <div className="flex flex-col gap-1 border-t px-3 py-2">
-        <div className="flex items-center">
+        <div className="flex items-center gap-0.5">
           <LanguageSwitcherIcon />
           <ThemeToggle className="text-muted-foreground hover:text-foreground hover:bg-accent h-9 w-9 rounded-lg [&_svg]:size-[1.1rem]" />
+          <SidebarSearch variant="icon" />
+          <NotificationBell variant="icon" />
         </div>
         <SidebarUser />
       </div>

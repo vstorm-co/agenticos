@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { ImageResponse } from "next/og";
 
+import { AMIGO_HEAD_DATA_URI } from "@/lib/amigo-head.generated";
 import { readBranding } from "@/lib/branding-server";
 import { SITE } from "@/lib/seo";
 
@@ -40,14 +41,8 @@ export default async function OpengraphImage() {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div
-            style={{
-              width: 14,
-              height: 14,
-              borderRadius: 9999,
-              background: "#C5F94A",
-            }}
-          />
+          {/* The same mark as the favicon and the sidebar, from the same data URI. */}
+          <img src={AMIGO_HEAD_DATA_URI} alt="" width={32} height={32} />
           <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>{appName}</span>
         </div>
         <span

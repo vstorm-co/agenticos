@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
+import { GeneratedImage } from "@/components/ui/generated-image";
 import { codeLanguage, isRenderSafeImage, type FileKind } from "@/lib/file-kinds";
 import { parseDelimited } from "@/lib/delimited";
 
@@ -103,8 +104,18 @@ export function FileBytesView({ name, url, mediaType, onDownload }: FileBytesVie
     // Gated on the render-safe allowlist, not `image/` alone: the server sends a
     // TIFF with `media_type=image/tiff` (only its disposition forced to attachment),
     // so `startsWith("image/")` would still draw a broken `<img>` for it (#1591).
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={name} className="max-h-[70vh] w-full object-contain" />;
+    // The picture condenses out of a churning mosaic rather than replacing a
+    // spinner, so the moment a file first appears has no cut in it. A browser
+    // without WebGL gets the plain image; the WebGL half is imported on demand,
+    // because it carries `three` and no other page needs it.
+    return (
+      <GeneratedImage
+        src={url}
+        alt={name}
+        borderRadius={12}
+        className="max-h-[70vh] w-full object-contain"
+      />
+    );
 
   if (mediaType === "application/pdf")
     // An iframe rather than an object or an embed: it is the element every browser

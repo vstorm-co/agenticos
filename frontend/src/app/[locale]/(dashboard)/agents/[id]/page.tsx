@@ -722,7 +722,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <span className="group relative">
               <AgentAvatar
                 agentId={id}
-                name={agent.name}
+                slug={agent.slug}
                 hasAvatar={agent.has_avatar}
                 colorSlot={agent.avatar_color}
                 size="lg"

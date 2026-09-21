@@ -1,5 +1,5 @@
 ---
-source_sha: "7dfb1219d808"
+source_sha: "236ecf2bb230"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -464,8 +464,8 @@ Pro Collection, neben dem Parser:
 
 | Einstellung | Vorgabe | Beschreibung |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Höchstzahl der Zeichen pro Chunk |
-| `chunk_overlap` | `50` | Zeichen der Überlappung; muss kleiner sein als `chunk_size` |
+| `chunk_size` | `2500` | Höchstzahl der Zeichen pro Chunk |
+| `chunk_overlap` | `200` | Zeichen der Überlappung; muss kleiner sein als `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategie: `recursive`, `markdown`, `fixed` |
 
 **Vergleich der Strategien:**
@@ -523,7 +523,7 @@ als Text gerendert trägt — bei 3072 Dimensionen zehntausende Bytes pro Zeile.
 ihren eigenen Wert.**
 
 Ein `ingestion`-Feld pro Upload trägt nur, was es ändert, `chunk_overlap: 4096`
-an eine Collection gesendet, die bei 512 chunkt, sind also zwei einzeln legale
+an eine Collection gesendet, die bei 2500 chunkt, sind also zwei einzeln legale
 Zahlen und eine Konfiguration, die fast alles wiederholt, worüber sie
 hinausgeht.
 

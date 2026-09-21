@@ -196,6 +196,7 @@ function agentRow(overrides: Partial<CostByAgent> = {}): CostByAgent {
   return {
     agent_id: "agent-1",
     agent_name: "Billing clerk",
+    agent_slug: "analyst",
     // Null on every row this endpoint returns. It is populated only on the usage
     // email's per-model rows, which is the whole reason the tab must not read it.
     model_label: null,

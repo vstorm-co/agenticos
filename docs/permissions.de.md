@@ -1,5 +1,5 @@
 ---
-source_sha: "066986448f49"
+source_sha: "d2ae58f6e26e"
 ---
 
 # Berechtigungen { #permissions }
@@ -256,6 +256,15 @@ Berechtigungen neu kombinieren; Kunden können keine neuen erfinden.
 Jede teilbare Ressource trägt eine `owner_user_id` und eine `visibility`
 (`private` | `team` | `org`). Darüber hinaus hält `resource_grants` eine Zeile je
 Teilung: eine Ressource, eine Person, eine Stufe.
+
+**Ein neuer Agent ist `org`, sofern seine Autorin nichts anderes sagt** — und der
+Dialog, der ihn anlegt, fragt danach. Ein Agent ist etwas, das ein Unternehmen
+baut, also soll das Unternehmen ihn finden; `private` ist die Ausnahme, für den
+einen, an dem noch jemand herumdenkt. Früher war es die Regel, weshalb jeder
+Agent unsichtbar entstand und danach von Hand geteilt wurde — und die zweite
+Person, die ihn suchte, bekam zu hören, es gebe ihn nicht. Ein Entwurf kann
+ohnehin nicht laufen und keine Exposure erreicht ihn, also entscheidet das, wer
+ihn sieht, nicht was er tut.
 
 | Stufe | Erlaubt |
 |---|---|

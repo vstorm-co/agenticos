@@ -559,6 +559,7 @@ async def get_spend(
         by_agent=[
             CostByAgent(
                 agent_id=row.agent_id,
+                agent_slug=row.agent_slug,
                 agent_name=row.agent_name,
                 cost_usd=row.cost_usd,
                 run_count=row.run_count,

@@ -10,7 +10,6 @@ import { SidebarShell } from "./sidebar-shell";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
-vi.mock("@/components/teams", () => ({ OrgSwitcher: () => <button>the org switcher</button> }));
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));
@@ -38,35 +37,35 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 }
 
 describe("SidebarShell", () => {
-  it("puts the organization above everything it scopes", () => {
-    // Agents, keys and run history are all read through the active
-    // organization, and the wrong one selected does not raise an error - it
-    // shows a different, equally plausible product. It is not a footer control.
+  it("opens on the destinations, with nothing above them", () => {
+    // The organization moved into the account's menu, so the column starts with
+    // the places you can go rather than with the tenant they are read through.
     renderShell();
 
-    const org = screen.getByRole("button", { name: "the org switcher" });
-    expect(follows(org, screen.getByRole("navigation"))).toBe(true);
-    expect(follows(org, screen.getByRole("button", { name: "the account menu" }))).toBe(true);
+    const nav = screen.getByRole("navigation");
+    for (const below of ["the search row", "the bell", "the account menu"]) {
+      expect(follows(nav, screen.getByRole("button", { name: below }))).toBe(true);
+    }
   });
 
   it("puts the account last", () => {
     renderShell();
 
     const account = screen.getByRole("button", { name: "the account menu" });
-    for (const before of ["the org switcher", "the search row", "the bell", "the theme toggle"]) {
+    for (const before of ["the search row", "the bell", "the theme toggle"]) {
       expect(follows(screen.getByRole("button", { name: before }), account)).toBe(true);
     }
   });
 
   it("scrolls the destinations without taking the pinned controls with them", () => {
     // The one rule the column cannot break: with enough entries the list moves,
-    // and the organization above it and the way out below it do not.
+    // and the strip below it does not.
     renderShell();
 
     const scroller = screen.getByRole("navigation").parentElement;
     expect(scroller).toHaveClass("overflow-y-auto");
-    expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the org switcher" }));
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
+    expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
   });
 
   it("keeps search, the bell and the two settings out of the destination list", () => {

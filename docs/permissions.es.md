@@ -1,5 +1,5 @@
 ---
-source_sha: "066986448f49"
+source_sha: "d2ae58f6e26e"
 ---
 
 # Permisos { #permissions }
@@ -251,6 +251,14 @@ Todo recurso compartible lleva un `owner_user_id` y una `visibility` (`private` 
 `team` | `org`). Encima de eso, `resource_grants` guarda una fila por cada cosa
 compartida: un recurso, una persona, un nivel. Una fila así es una **concesión**
 (*grant*).
+
+**Un agent nuevo es `org` salvo que su autora diga otra cosa**, y el diálogo que
+lo crea lo pregunta. Un agent es algo que una empresa construye, así que la
+empresa tiene que poder encontrarlo; `private` es la excepción, para ese que
+alguien todavía está pensando. Antes era la regla, de modo que cada agent nacía
+invisible y se compartía a mano — y a la segunda persona que lo buscaba se le
+decía que no existía. Un borrador no puede ejecutarse igualmente y ninguna
+exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 
 | Nivel | Permite |
 |---|---|

@@ -421,8 +421,8 @@ Per collection, alongside the parser:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Maximum characters per chunk |
-| `chunk_overlap` | `50` | Characters of overlap; must be smaller than `chunk_size` |
+| `chunk_size` | `2500` | Maximum characters per chunk |
+| `chunk_overlap` | `200` | Characters of overlap; must be smaller than `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategy: `recursive`, `markdown`, `fixed` |
 
 **Strategy comparison:**
@@ -474,7 +474,7 @@ dimensions, tens of kilobytes a row.
 **An override is checked against the merged pair, not against its own value.**
 
 A per-upload `ingestion` field carries only what it changes, so `chunk_overlap: 4096`
-sent to a collection chunking at 512 is two individually legal numbers and one
+sent to a collection chunking at 2500 is two individually legal numbers and one
 configuration that repeats almost everything it advances past.
 
 The merge re-validates, and the upload is refused with a **400** naming both settings

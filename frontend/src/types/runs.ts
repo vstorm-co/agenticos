@@ -325,6 +325,8 @@ export interface ApprovalList {
  */
 export interface CostByAgent {
   agent_id: string;
+  /** Its handle, which is what the generated face beside the row is drawn from. */
+  agent_slug: string;
   /** The agent's name. Null only on the usage email's rows, which group by model. */
   agent_name: string | null;
   /** The model, on the usage email's per-model rows only. Null on the Spend tab. */

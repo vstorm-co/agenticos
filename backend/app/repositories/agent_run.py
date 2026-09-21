@@ -723,6 +723,9 @@ class AgentSpendRow:
 
     agent_id: UUID
     agent_name: str
+    agent_slug: str
+    """The handle, which is what the generated face beside this row is drawn
+    from - so the spend table draws the same picture every other surface does."""
     cost_usd: Decimal
     run_count: int
     partial_run_count: int
@@ -787,6 +790,7 @@ async def spend_by_agent(
         select(
             Agent.id,
             Agent.name,
+            Agent.slug,
             func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0),
             func.count(AgentRun.id).filter(top_level),
             func.count(AgentRun.id).filter(top_level, AgentRun.cost_is_partial)
@@ -811,20 +815,21 @@ async def spend_by_agent(
             # agent whose only runs predate the window leaks in as a $0.00 line.
             or_(and_(*window), AgentRun.started_at >= month_since),
         )
-        .group_by(Agent.id, Agent.name, cap.as_float())
+        .group_by(Agent.id, Agent.name, Agent.slug, cap.as_float())
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0).desc())
     )
     return [
         AgentSpendRow(
             agent_id=agent_id,
             agent_name=name,
+            agent_slug=slug,
             cost_usd=Decimal(cost),
             run_count=runs,
             partial_run_count=unpriced,
             month_to_date_usd=Decimal(month),
             monthly_cap_usd=None if monthly_cap is None else Decimal(str(monthly_cap)),
         )
-        for agent_id, name, cost, runs, unpriced, month, monthly_cap in rows.all()
+        for agent_id, name, slug, cost, runs, unpriced, month, monthly_cap in rows.all()
     ]
 
 

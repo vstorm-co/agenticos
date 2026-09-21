@@ -65,13 +65,13 @@ describe("a tool call in the transcript", () => {
     card({ name: "search_documents", status: "running", result: undefined });
 
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
   it("treats a call that has not started as one in flight", () => {
     card({ status: "pending", result: undefined });
 
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
   it("says what happened once the call has finished, rather than narrating it", () => {
@@ -87,7 +87,7 @@ describe("a tool call in the transcript", () => {
     card({ result: "done" });
 
     expect(screen.queryByLabelText("Failed")).toBeNull();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("marks a tool that failed", () => {
@@ -102,7 +102,7 @@ describe("a tool call in the transcript", () => {
     card({ status: "awaiting_approval", result: undefined });
 
     expect(screen.getByText("waiting for approval")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("says a replayed call that never finished in the past tense, without a spinner", () => {
@@ -113,7 +113,7 @@ describe("a tool call in the transcript", () => {
 
     expect(screen.queryByText("Searching the documents")).toBeNull();
     expect(screen.getByText("Knowledge Base Search")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
     expect(screen.queryByLabelText("Failed")).toBeNull();
   });
 

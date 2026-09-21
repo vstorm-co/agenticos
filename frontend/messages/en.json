@@ -652,7 +652,11 @@
     "eachPersonsOwnAccount": "Each person's own account",
     "useEachPersonsOwnAccount": "Use each person's own account",
     "eachPersonsOwnAccountHint": "Whoever talks to this agent connects their own account and the agent speaks to the service as them - in the dashboard, in direct messages and in channels alike. Not available to API keys, the widget, schedules and triggers, where nobody is signed in.",
-    "everyToolThisServerOffers": "Every tool it offers"
+    "everyToolThisServerOffers": "Every tool it offers",
+    "whoCanFindIt": "Who can find it",
+    "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
+    "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
+    "preview": "Preview"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1198,7 +1202,16 @@
     "view": "View",
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "rail": {
+      "label": "Jump to a message",
+      "previous": "Previous message",
+      "next": "Next message",
+      "jumpTo": "Jump to the message from {author}",
+      "you": "You",
+      "agent": "Agent",
+      "empty": "No text in this message"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3531,7 +3544,10 @@
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour",
       "knowledge": "Knowledge",
-      "skills": "Skills"
+      "skills": "Skills",
+      "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
+      "tagsHint": "Anything narrower you want to search by later.",
+      "labelCount": "{used} of {max}"
     },
     "auth": {
       "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",
@@ -4248,7 +4264,7 @@
     },
     "context": {
       "context": "Context",
-      "contextStandingKnowledge": "Standing context every agent can draw on - a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it here.",
+      "contextStandingKnowledge": "An AGENTS.md for your agents. Standing knowledge every one of them can draw on - a glossary, a policy, a brand voice - written once here instead of pasted into each set of instructions. Injected into the prompt or read on demand, and current the moment you edit it.",
       "newContext": "New context file",
       "youCannotSeeOrganization": "You cannot see this organization's context files",
       "askAdministratorAccessContext": "Ask an administrator for access to context files.",
@@ -4820,7 +4836,6 @@
     "role2": "Role",
     "roleFor": "Role for {email}",
     "rolesUnavailable": "The role list could not be loaded, so there is nothing to invite anybody as. Reload the page and try again.",
-    "selectOrg": "Select org",
     "sending2": "Sending...",
     "sendInvite": "Send invite",
     "spentNoLimit": "${spent} spent this month, against no limit.",
@@ -4990,7 +5005,8 @@
     "droppedUnknownFormat": "{count, plural, =1 {One file has a format a context file cannot declare and was skipped} other {# files have a format a context file cannot declare and were skipped}}",
     "droppedNotText": "{count, plural, =1 {One file was not text and was skipped} other {# files were not text and were skipped}}",
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
-    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}"
+    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
+    "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n"
   },
   "memory": {
     "clearAction": "Clear memory",
