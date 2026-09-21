@@ -48,6 +48,10 @@ evidence = "The platform build of Next.js's compiler names no author and ships n
 holder = "Vercel, Inc."
 evidence = "As for @next/swc-linux-x64-gnu: the arm64 build from the same repository"
 
+[notices.npm."use-composed-ref"]
+holder = "Mateusz Burzynski (Andarist)"
+evidence = "use-composed-ref 1.4.0 declares `license: MIT` in its package.json and ships no licence file or author; its repository is https://github.com/Andarist/use-composed-ref, which holds no LICENSE file either, and its npm maintainer is andarist <mateuszburzynski@gmail.com>. Reached through @workflowbuilder/sdk -> @synergycodes/overflow-ui -> @mantine/core -> react-textarea-autosize (#1781)"
+
 [notices.python."pydantic-monty"]
 holder = "Pydantic Services Inc."
 evidence = "The wheel names no author; its Project-URL is https://github.com/pydantic/monty, whose LICENSE is MIT, Copyright (c) Pydantic Services Inc. 2026 to present"
@@ -120,6 +124,12 @@ license = "LGPL-3.0-or-later"
 status = "accepted"
 obligations = "The arm64 build of the same libvips library; the same obligations as the x64 build."
 fulfilled_by = "As for @img/sharp-libvips-linux-x64."
+
+[review.npm."@fontsource/poppins"]
+license = "OFL-1.1"
+status = "accepted"
+obligations = "SIL Open Font License: keep the copyright notices and the licence text with every copy; do not sell the font on its own; do not use a reserved font name for a modified version. The font files are distributed with the console, unmodified, because @workflowbuilder/sdk depends on them (#1781)."
+fulfilled_by = "Unmodified; the package's LICENSE carries the licence text and the Poppins Project Authors' copyright notices, and frontend/scripts/collect-licenses.ts copies it into the frontend image under /app/licenses/node_modules/@fontsource/poppins/; source at https://github.com/fontsource/font-files."
 
 [review.npm."caniuse-lite"]
 license = "CC-BY-4.0"

@@ -23,10 +23,10 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 112 | 230 |
-| Apache-2.0 | 60 | 24 |
-| BSD-3-Clause | 33 | 4 |
-| ISC | 6 | 16 |
+| MIT | 112 | 345 |
+| Apache-2.0 | 60 | 27 |
+| BSD-3-Clause | 33 | 10 |
+| ISC | 6 | 22 |
 | BSD-2-Clause | 10 | 0 |
 | LGPL-3.0-or-later | 1 | 2 |
 | MPL-2.0 | 3 | 0 |
@@ -44,9 +44,11 @@ names no author is in the evidence column below.
 | LGPL-2.1-or-later | 1 | 0 |
 | MIT AND ISC | 0 | 1 |
 | MIT AND PSF-2.0 | 1 | 0 |
+| MIT OR CC0-1.0 | 0 | 1 |
 | MIT-0 | 1 | 0 |
 | MIT-CMU | 1 | 0 |
 | MPL-2.0 AND (Apache-2.0 OR MIT) | 1 | 0 |
+| OFL-1.1 | 0 | 1 |
 | Unlicense | 1 | 0 |
 
 ## Backend image (Python)
@@ -299,17 +301,44 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-281 distributions.
+413 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
+| @babel/code-frame | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/generator | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/helper-globals | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/helper-module-imports | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/helper-string-parser | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/helper-validator-identifier | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/parser | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/runtime | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/template | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/traverse | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
+| @babel/types | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
+| @cfworker/json-schema | 4.1.1 | MIT | https://github.com/cfworker/cfworker | package.json license; no licence file, attributed to Jeremy Danyow <jdanyow@gmail.com> |
 | @eloqnt/config | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
 | @eloqnt/format-json | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
 | @eloqnt/format-po | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/formats/po | package.json license |
+| @emotion/babel-plugin | 11.13.5 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/babel-plugin | package.json license |
+| @emotion/cache | 11.14.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/cache | package.json license |
+| @emotion/hash | 0.9.2 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/hash | package.json license |
+| @emotion/is-prop-valid | 1.4.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/is-prop-valid | package.json license |
+| @emotion/memoize | 0.9.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/memoize | package.json license |
+| @emotion/react | 11.14.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/react | package.json license |
+| @emotion/serialize | 1.3.3 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/serialize | package.json license |
+| @emotion/sheet | 1.4.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/sheet | package.json license |
+| @emotion/styled | 11.14.1 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/styled | package.json license |
+| @emotion/unitless | 0.10.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/unitless | package.json license |
+| @emotion/use-insertion-effect-with-fallbacks | 1.2.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/use-insertion-effect-with-fallbacks | package.json license |
+| @emotion/utils | 1.4.2 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/utils | package.json license |
+| @emotion/weak-memoize | 0.4.0 | MIT | https://github.com/emotion-js/emotion/tree/main/packages/weak-memoize | package.json license |
 | @floating-ui/core | 1.8.0 | MIT | https://github.com/floating-ui/floating-ui | package.json license |
 | @floating-ui/dom | 1.8.0 | MIT | https://github.com/floating-ui/floating-ui | package.json license |
+| @floating-ui/react | 0.26.28 | MIT | https://github.com/floating-ui/floating-ui | package.json license |
 | @floating-ui/react-dom | 2.1.9 | MIT | https://github.com/floating-ui/floating-ui | package.json license |
 | @floating-ui/utils | 0.2.12 | MIT | https://github.com/floating-ui/floating-ui | package.json license |
+| @fontsource/poppins | 5.3.0 | OFL-1.1 | https://github.com/fontsource/font-files | package.json license; review accepted |
 | @formatjs/fast-memoize | 3.1.7 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @formatjs/icu-messageformat-parser | 3.5.16 | MIT | https://github.com/formatjs/formatjs | package.json license |
 | @formatjs/icu-skeleton-parser | 2.1.11 | MIT | https://github.com/formatjs/formatjs | package.json license |
@@ -319,6 +348,24 @@ names no author is in the evidence column below.
 | @img/sharp-libvips-linux-x64 | 1.3.3 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| @jridgewell/gen-mapping | 0.3.13 | MIT | https://github.com/jridgewell/sourcemaps | package.json license |
+| @jridgewell/resolve-uri | 3.1.2 | MIT | https://github.com/jridgewell/resolve-uri | package.json license |
+| @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps | package.json license |
+| @jridgewell/trace-mapping | 0.3.31 | MIT | https://github.com/jridgewell/sourcemaps | package.json license |
+| @jsonforms/core | 3.8.0 | MIT | https://github.com/eclipsesource/jsonforms | package.json license |
+| @jsonforms/react | 3.8.0 | MIT | https://github.com/eclipsesource/jsonforms | package.json license |
+| @mantine/core | 7.17.8 | MIT | https://github.com/mantinedev/mantine | package.json license; no licence file, attributed to Vitaly Rtishchev <rtivital@gmail.com> |
+| @mantine/dates | 7.17.8 | MIT | https://github.com/mantinedev/mantine | package.json license; no licence file, attributed to Vitaly Rtishchev <rtivital@gmail.com> |
+| @mantine/hooks | 7.17.8 | MIT | https://github.com/mantinedev/mantine | package.json license; no licence file, attributed to Vitaly Rtishchev <rtivital@gmail.com> |
+| @mui/base | 5.0.0-beta.62 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/core-downloads-tracker | 6.5.0 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/material | 6.5.0 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/private-theming | 6.4.9 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/styled-engine | 6.5.0 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/system | 6.5.0 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/types | 7.2.24 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/types | 7.4.12 | MIT | https://github.com/mui/material-ui | package.json license |
+| @mui/utils | 6.4.9 | MIT | https://github.com/mui/material-ui | package.json license |
 | @next/env | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
@@ -335,7 +382,9 @@ names no author is in the evidence column below.
 | @parcel/watcher | 2.6.0 | MIT | https://github.com/parcel-bundler/watcher | package.json license |
 | @parcel/watcher-linux-arm64-glibc | 2.6.0 | MIT | https://github.com/parcel-bundler/watcher | package.json license |
 | @parcel/watcher-linux-x64-glibc | 2.6.0 | MIT | https://github.com/parcel-bundler/watcher | package.json license |
+| @phosphor-icons/react | 2.1.10 | MIT | https://github.com/phosphor-icons/react | package.json license |
 | @playwright/test | 1.63.0 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
+| @popperjs/core | 2.11.8 | MIT | github:popperjs/popper-core | package.json license |
 | @radix-ui/number | 1.1.3 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/primitive | 1.1.7 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-alert-dialog | 1.1.23 | MIT | https://github.com/radix-ui/primitives | package.json license |
@@ -386,33 +435,50 @@ names no author is in the evidence column below.
 | @swc/counter | 0.1.3 | Apache-2.0 | https://github.com/swc-project/pkgs | package.json license; no licence file, attributed to 강동윤 <kdy1997.dev@gmail.com> |
 | @swc/helpers | 0.5.23 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @swc/types | 0.1.28 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
+| @synergycodes/overflow-ui | 1.0.0-beta.27 | MIT | https://github.com/synergycodes/overflow-ui | package.json license; no licence file, attributed to Synergy Codes |
 | @tanstack/query-core | 5.102.8 | MIT | https://github.com/TanStack/query | package.json license |
 | @tanstack/react-query | 5.102.8 | MIT | https://github.com/TanStack/query | package.json license |
 | @types/d3-array | 3.2.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-color | 3.1.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-drag | 3.0.7 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-ease | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-interpolate | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-path | 3.1.1 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-scale | 4.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-selection | 3.0.12 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-shape | 3.1.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-time | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-timer | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-transition | 3.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-zoom | 3.0.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/debug | 4.1.13 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree | 1.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree-jsx | 1.0.5 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/hast | 3.0.5 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/json-schema | 7.0.15 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/mdast | 4.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/ms | 2.1.0 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/parse-json | 4.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/prop-types | 15.7.15 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/react | 19.3.0 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/react-dom | 19.3.0 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/react-transition-group | 4.4.12 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/unist | 2.0.11 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/unist | 3.0.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/use-sync-external-store | 0.0.6 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @ungap/structured-clone | 1.3.3 | ISC | https://github.com/ungap/structured-clone | package.json license |
 | @vercel/otel | 2.1.3 | MIT | https://github.com/vercel/otel | package.json license |
+| @workflowbuilder/sdk | 2.3.0 | Apache-2.0 | https://github.com/synergycodes/workflowbuilder | package.json license |
+| @xyflow/react | 12.11.6 | MIT | https://github.com/xyflow/xyflow | package.json license |
+| @xyflow/system | 0.0.82 | MIT | https://github.com/xyflow/xyflow | package.json license |
+| ace-builds | 1.44.0 | BSD-3-Clause | https://github.com/ajaxorg/ace-builds | package.json license |
+| ajv | 8.20.0 | MIT | https://github.com/ajv-validator/ajv | package.json license |
+| ajv-formats | 2.1.1 | MIT | https://github.com/ajv-validator/ajv-formats | package.json license |
 | aria-hidden | 1.2.6 | MIT | https://github.com/theKashey/aria-hidden | package.json license |
+| babel-plugin-macros | 3.1.0 | MIT | https://github.com/kentcdodds/babel-plugin-macros | package.json license |
 | bail | 2.0.2 | MIT | https://github.com/wooorm/bail | package.json license |
 | baseline-browser-mapping | 2.11.10 | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping | package.json license |
+| callsites | 3.1.0 | MIT | https://github.com/sindresorhus/callsites | package.json license |
 | caniuse-lite | 1.0.30001806 | CC-BY-4.0 | https://github.com/browserslist/caniuse-lite | package.json license; review accepted |
 | ccount | 2.0.1 | MIT | https://github.com/wooorm/ccount | package.json license |
 | character-entities | 2.0.2 | MIT | https://github.com/wooorm/character-entities | package.json license |
@@ -421,22 +487,33 @@ names no author is in the evidence column below.
 | character-reference-invalid | 2.0.1 | MIT | https://github.com/wooorm/character-reference-invalid | package.json license |
 | cjs-module-lexer | 2.2.0 | MIT | https://github.com/nodejs/cjs-module-lexer | package.json license |
 | class-variance-authority | 0.7.1 | Apache-2.0 | https://github.com/joe-bell/cva | package.json license |
+| classcat | 5.0.5 | MIT | https://github.com/jorgebucaran/classcat | package.json license |
 | client-only | 0.0.1 | MIT | https://reactjs.org/ | package.json license; no licence file, attributed to Meta Platforms, Inc. and affiliates |
+| clsx | 1.2.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | clsx | 2.1.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | cmdk | 1.1.1 | MIT | https://github.com/pacocoursey/cmdk | package.json license |
 | comma-separated-tokens | 2.0.3 | MIT | https://github.com/wooorm/comma-separated-tokens | package.json license |
+| convert-source-map | 1.9.0 | MIT | https://github.com/thlorenz/convert-source-map | package.json license |
+| cosmiconfig | 7.1.0 | MIT | https://github.com/davidtheclark/cosmiconfig | package.json license |
 | csstype | 3.2.3 | MIT | https://github.com/frenic/csstype | package.json license |
 | d3-array | 3.2.4 | ISC | https://github.com/d3/d3-array | package.json license |
 | d3-color | 3.1.0 | ISC | https://github.com/d3/d3-color | package.json license |
+| d3-dispatch | 3.0.1 | ISC | https://github.com/d3/d3-dispatch | package.json license |
+| d3-drag | 3.0.0 | ISC | https://github.com/d3/d3-drag | package.json license |
 | d3-ease | 3.0.1 | BSD-3-Clause | https://github.com/d3/d3-ease | package.json license |
 | d3-format | 3.1.2 | ISC | https://github.com/d3/d3-format | package.json license |
 | d3-interpolate | 3.0.1 | ISC | https://github.com/d3/d3-interpolate | package.json license |
 | d3-path | 3.1.0 | ISC | https://github.com/d3/d3-path | package.json license |
 | d3-scale | 4.0.2 | ISC | https://github.com/d3/d3-scale | package.json license |
+| d3-selection | 3.0.0 | ISC | https://github.com/d3/d3-selection | package.json license |
 | d3-shape | 3.2.0 | ISC | https://github.com/d3/d3-shape | package.json license |
 | d3-time | 3.1.0 | ISC | https://github.com/d3/d3-time | package.json license |
 | d3-time-format | 4.1.0 | ISC | https://github.com/d3/d3-time-format | package.json license |
 | d3-timer | 3.0.1 | ISC | https://github.com/d3/d3-timer | package.json license |
+| d3-transition | 3.0.1 | ISC | https://github.com/d3/d3-transition | package.json license |
+| d3-zoom | 3.0.0 | ISC | https://github.com/d3/d3-zoom | package.json license |
+| date-fns | 4.4.0 | MIT | https://github.com/date-fns/date-fns | package.json license |
+| dayjs | 1.11.23 | MIT | https://github.com/iamkun/dayjs | package.json license |
 | debug | 4.4.3 | MIT | https://github.com/debug-js/debug | package.json license |
 | decimal.js-light | 2.5.1 | MIT | https://github.com/MikeMcl/decimal.js-light | package.json license |
 | decode-named-character-reference | 1.3.0 | MIT | https://github.com/wooorm/decode-named-character-reference | package.json license |
@@ -444,34 +521,61 @@ names no author is in the evidence column below.
 | detect-libc | 2.1.2 | Apache-2.0 | https://github.com/lovell/detect-libc | package.json license |
 | detect-node-es | 1.1.0 | MIT | https://github.com/thekashey/detect-node | package.json license |
 | devlop | 1.1.0 | MIT | https://github.com/wooorm/devlop | package.json license |
+| diff-match-patch | 1.0.5 | Apache-2.0 | https://github.com/JackuB/diff-match-patch | package.json license |
+| dom-helpers | 5.2.1 | MIT | https://github.com/react-bootstrap/dom-helpers | package.json license |
 | driver.js | 1.8.0 | MIT | https://github.com/nilbuild/driver.js | package.json license |
+| error-ex | 1.3.4 | MIT | https://github.com/qix-/node-error-ex | package.json license |
+| es-errors | 1.3.0 | MIT | https://github.com/ljharb/es-errors | package.json license |
 | es-module-lexer | 2.3.1 | MIT | https://github.com/guybedford/es-module-lexer | package.json license |
 | es-toolkit | 1.50.0 | MIT | https://github.com/toss/es-toolkit | package.json license |
+| escape-string-regexp | 4.0.0 | MIT | https://github.com/sindresorhus/escape-string-regexp | package.json license |
 | escape-string-regexp | 5.0.0 | MIT | https://github.com/sindresorhus/escape-string-regexp | package.json license |
 | estree-util-is-identifier-name | 3.0.0 | MIT | https://github.com/syntax-tree/estree-util-is-identifier-name | package.json license |
 | eventemitter3 | 5.0.4 | MIT | https://github.com/primus/eventemitter3 | package.json license |
 | extend | 3.0.2 | MIT | https://github.com/justmoon/node-extend | package.json license |
+| fast-deep-equal | 3.1.3 | MIT | https://github.com/epoberezkin/fast-deep-equal | package.json license |
+| fast-equals | 5.4.3 | MIT | https://github.com/planttheidea/fast-equals | package.json license |
+| fast-uri | 3.1.8 | BSD-3-Clause | https://github.com/fastify/fast-uri | package.json license |
+| find-root | 1.1.0 | MIT | https://github.com/js-n/find-root | package.json license |
+| function-bind | 1.1.2 | MIT | https://github.com/Raynos/function-bind | package.json license |
 | get-nonce | 1.0.1 | MIT | https://github.com/theKashey/get-nonce | package.json license |
+| goober | 2.1.19 | MIT | https://github.com/cristianbote/goober | package.json license |
+| hasown | 2.0.4 | MIT | https://github.com/inspect-js/hasOwn | package.json license |
 | hast-util-is-element | 3.0.0 | MIT | https://github.com/syntax-tree/hast-util-is-element | package.json license |
 | hast-util-to-jsx-runtime | 2.3.6 | MIT | https://github.com/syntax-tree/hast-util-to-jsx-runtime | package.json license |
 | hast-util-to-text | 4.0.2 | MIT | https://github.com/syntax-tree/hast-util-to-text | package.json license |
 | hast-util-whitespace | 3.0.0 | MIT | https://github.com/syntax-tree/hast-util-whitespace | package.json license |
 | highlight.js | 11.11.1 | BSD-3-Clause | https://github.com/highlightjs/highlight.js | package.json license |
+| hoist-non-react-statics | 3.3.2 | BSD-3-Clause | https://github.com/mridgway/hoist-non-react-statics | package.json license |
+| html-parse-stringify | 3.1.0 | MIT | https://github.com/henrikjoreteg/html-parse-stringify | package.json license |
 | html-url-attributes | 3.0.1 | MIT | https://github.com/rehypejs/rehype-minify/tree/main/packages/html-url-attributes | package.json license |
+| i18next | 24.2.3 | MIT | https://github.com/i18next/i18next | package.json license |
+| i18next-browser-languagedetector | 8.2.1 | MIT | https://github.com/i18next/i18next-browser-languageDetector | package.json license |
 | icu-minify | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
+| immer | 10.2.0 | MIT | https://github.com/immerjs/immer | package.json license |
 | immer | 11.1.15 | MIT | https://github.com/immerjs/immer | package.json license |
+| import-fresh | 3.3.1 | MIT | https://github.com/sindresorhus/import-fresh | package.json license |
 | import-in-the-middle | 3.3.3 | Apache-2.0 | https://github.com/nodejs/import-in-the-middle | package.json license |
 | inline-style-parser | 0.2.7 | MIT | https://github.com/remarkablemark/inline-style-parser | package.json license |
 | internmap | 2.0.3 | ISC | https://github.com/mbostock/internmap | package.json license |
 | intl-messageformat | 11.2.13 | BSD-3-Clause | https://github.com/formatjs/formatjs | package.json license |
 | is-alphabetical | 2.0.1 | MIT | https://github.com/wooorm/is-alphabetical | package.json license |
 | is-alphanumerical | 2.0.1 | MIT | https://github.com/wooorm/is-alphanumerical | package.json license |
+| is-arrayish | 0.2.1 | MIT | https://github.com/qix-/node-is-arrayish | package.json license |
+| is-core-module | 2.16.2 | MIT | https://github.com/inspect-js/is-core-module | package.json license |
 | is-decimal | 2.0.1 | MIT | https://github.com/wooorm/is-decimal | package.json license |
 | is-extglob | 2.1.1 | MIT | https://github.com/jonschlinkert/is-extglob | package.json license |
 | is-glob | 4.0.3 | MIT | https://github.com/micromatch/is-glob | package.json license |
 | is-hexadecimal | 2.0.1 | MIT | https://github.com/wooorm/is-hexadecimal | package.json license |
 | is-plain-obj | 4.1.0 | MIT | https://github.com/sindresorhus/is-plain-obj | package.json license |
+| js-tokens | 4.0.0 | MIT | https://github.com/lydell/js-tokens | package.json license |
+| jsesc | 3.1.0 | MIT | https://github.com/mathiasbynens/jsesc | package.json license |
+| json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors | package.json license |
+| json-schema-traverse | 1.0.0 | MIT | https://github.com/epoberezkin/json-schema-traverse | package.json license |
+| lines-and-columns | 1.2.4 | MIT | https://github.com/eventualbuddha/lines-and-columns | package.json license |
+| lodash | 4.18.1 | MIT | https://github.com/lodash/lodash | package.json license |
 | longest-streak | 3.1.0 | MIT | https://github.com/wooorm/longest-streak | package.json license |
+| loose-envify | 1.4.0 | MIT | https://github.com/zertosh/loose-envify | package.json license |
 | lowlight | 3.3.0 | MIT | https://github.com/wooorm/lowlight | package.json license |
 | lucide-react | 1.46.0 | ISC | https://github.com/lucide-icons/lucide | package.json license |
 | markdown-table | 3.0.4 | MIT | https://github.com/wooorm/markdown-table | package.json license |
@@ -526,22 +630,36 @@ names no author is in the evidence column below.
 | next-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |
+| notistack | 3.0.2 | MIT | https://github.com/iamhosseindhv/notistack | package.json license |
+| object-assign | 4.1.1 | MIT | https://github.com/sindresorhus/object-assign | package.json license |
+| parent-module | 1.0.1 | MIT | https://github.com/sindresorhus/parent-module | package.json license |
 | parse-entities | 4.0.2 | MIT | https://github.com/wooorm/parse-entities | package.json license |
+| parse-json | 5.2.0 | MIT | https://github.com/sindresorhus/parse-json | package.json license |
+| path-parse | 1.0.7 | MIT | https://github.com/jbgutierrez/path-parse | package.json license |
+| path-type | 4.0.0 | MIT | https://github.com/sindresorhus/path-type | package.json license |
 | picocolors | 1.1.1 | ISC | https://github.com/alexeyraspopov/picocolors | package.json license |
 | picomatch | 4.0.5 | MIT | https://github.com/micromatch/picomatch | package.json license |
 | playwright | 1.63.0 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | playwright-core | 1.63.0 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | po-parser | 2.2.0 | MIT | https://github.com/amannn/po-parser | package.json license |
 | postcss | 8.5.23 | MIT | https://github.com/postcss/postcss | package.json license |
+| prop-types | 15.8.1 | MIT | https://github.com/facebook/prop-types | package.json license |
 | property-information | 7.2.0 | MIT | https://github.com/wooorm/property-information | package.json license |
 | react | 19.3.0 | MIT | https://github.com/react/react | package.json license |
+| react-ace | 14.1.0 | MIT | http://github.com/securingsincity/react-ace | package.json license |
 | react-dom | 19.3.0 | MIT | https://github.com/react/react | package.json license |
+| react-i18next | 15.7.4 | MIT | https://github.com/i18next/react-i18next | package.json license |
+| react-is | 16.13.1 | MIT | https://github.com/facebook/react | package.json license |
 | react-is | 19.2.8 | MIT | https://github.com/react/react | package.json license |
 | react-markdown | 10.1.0 | MIT | https://github.com/remarkjs/react-markdown | package.json license |
+| react-mentions-ts | 5.4.7 | BSD-3-Clause | https://github.com/hbmartin/react-mentions-ts | package.json license |
+| react-number-format | 5.4.5 | MIT | https://github.com/s-yadav/react-number-format | package.json license |
 | react-redux | 9.3.0 | MIT | github:reduxjs/react-redux | package.json license |
 | react-remove-scroll | 2.7.2 | MIT | https://github.com/theKashey/react-remove-scroll | package.json license |
 | react-remove-scroll-bar | 2.3.8 | MIT | https://github.com/theKashey/react-remove-scroll-bar | package.json license; no licence file, attributed to Anton Korzunov <thekashey@gmail.com> |
 | react-style-singleton | 2.2.3 | MIT | https://github.com/theKashey/react-style-singleton | package.json license |
+| react-textarea-autosize | 8.5.9 | MIT | https://github.com/Andarist/react-textarea-autosize | package.json license |
+| react-transition-group | 4.4.5 | BSD-3-Clause | https://github.com/reactjs/react-transition-group | package.json license |
 | recharts | 3.10.1 | MIT | https://github.com/recharts/recharts | package.json license |
 | redux | 5.0.1 | MIT | github:reduxjs/redux | package.json license |
 | redux-thunk | 3.1.0 | MIT | github:reduxjs/redux-thunk | package.json license |
@@ -550,23 +668,33 @@ names no author is in the evidence column below.
 | remark-parse | 11.0.0 | MIT | https://github.com/remarkjs/remark/tree/main/packages/remark-parse | package.json license |
 | remark-rehype | 11.1.2 | MIT | https://github.com/remarkjs/remark-rehype | package.json license |
 | remark-stringify | 11.0.0 | MIT | https://github.com/remarkjs/remark/tree/main/packages/remark-stringify | package.json license |
+| remeda | 2.50.0 | MIT | https://github.com/remeda/remeda | package.json license; no licence file, attributed to Łukasz Sentkiewicz |
+| require-from-string | 2.0.2 | MIT | https://github.com/floatdrop/require-from-string | package.json license |
 | require-in-the-middle | 8.0.1 | MIT | https://github.com/nodejs/require-in-the-middle | package.json license |
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
+| resolve | 1.22.12 | MIT | ssh://github.com/browserify/resolve | package.json license |
+| resolve-from | 4.0.0 | MIT | https://github.com/sindresorhus/resolve-from | package.json license |
 | scheduler | 0.28.0 | MIT | https://github.com/react/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
 | sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.8 | MIT | https://github.com/emilkowalski/sonner | package.json license |
+| source-map | 0.5.7 | BSD-3-Clause | http://github.com/mozilla/source-map | package.json license |
 | source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
 | stringify-entities | 4.0.4 | MIT | https://github.com/wooorm/stringify-entities | package.json license |
 | style-to-js | 1.1.21 | MIT | https://github.com/remarkablemark/style-to-js | package.json license |
 | style-to-object | 1.0.14 | MIT | https://github.com/remarkablemark/style-to-object | package.json license |
 | styled-jsx | 5.1.6 | MIT | https://github.com/vercel/styled-jsx | package.json license |
+| stylis | 4.2.0 | MIT | https://github.com/thysultan/stylis.js | package.json license |
+| supports-preserve-symlinks-flag | 1.0.0 | MIT | https://github.com/inspect-js/node-supports-preserve-symlinks-flag | package.json license |
+| tabbable | 6.5.0 | MIT | https://github.com/focus-trap/tabbable | package.json license |
 | tailwind-merge | 3.7.0 | MIT | https://github.com/dcastil/tailwind-merge | package.json license |
 | tiny-invariant | 1.3.3 | MIT | https://github.com/alexreardon/tiny-invariant | package.json license |
 | trim-lines | 3.0.1 | MIT | https://github.com/wooorm/trim-lines | package.json license |
 | trough | 2.2.0 | MIT | https://github.com/wooorm/trough | package.json license |
 | tslib | 2.8.1 | 0BSD | https://github.com/Microsoft/tslib | package.json license |
+| type-fest | 4.41.0 | MIT OR CC0-1.0 | https://github.com/sindresorhus/type-fest | package.json license |
+| typescript | 6.0.3 | Apache-2.0 | https://github.com/microsoft/TypeScript | package.json license |
 | unified | 11.0.5 | MIT | https://github.com/unifiedjs/unified | package.json license |
 | unist-util-find-after | 5.0.0 | MIT | https://github.com/syntax-tree/unist-util-find-after | package.json license |
 | unist-util-is | 6.0.1 | MIT | https://github.com/syntax-tree/unist-util-is | package.json license |
@@ -575,13 +703,19 @@ names no author is in the evidence column below.
 | unist-util-visit | 5.1.0 | MIT | https://github.com/syntax-tree/unist-util-visit | package.json license |
 | unist-util-visit-parents | 6.0.2 | MIT | https://github.com/syntax-tree/unist-util-visit-parents | package.json license |
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ | package.json license |
+| use-composed-ref | 1.4.0 | MIT | https://github.com/Andarist/use-composed-ref | package.json license; no licence file, attributed to Mateusz Burzynski (Andarist) |
 | use-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
+| use-isomorphic-layout-effect | 1.2.1 | MIT | https://github.com/Andarist/use-isomorphic-layout-effect | package.json license |
+| use-latest | 1.3.0 | MIT | https://github.com/Andarist/use-latest | package.json license |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar | package.json license |
 | use-sync-external-store | 1.6.0 | MIT | https://github.com/facebook/react | package.json license |
 | vfile | 6.0.3 | MIT | https://github.com/vfile/vfile | package.json license |
 | vfile-message | 4.0.3 | MIT | https://github.com/vfile/vfile-message | package.json license |
 | victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
+| void-elements | 3.1.0 | MIT | https://github.com/pugjs/void-elements | package.json license |
+| yaml | 1.10.3 | ISC | github:eemeli/yaml | package.json license |
 | yaml | 2.9.1 | ISC | github:eemeli/yaml | package.json license |
+| zustand | 4.5.7 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zustand | 5.0.15 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zwitch | 2.0.4 | MIT | https://github.com/wooorm/zwitch | package.json license |
 
