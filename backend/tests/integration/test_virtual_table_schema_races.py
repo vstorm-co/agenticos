@@ -18,7 +18,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.virtual_table import VirtualTableRecord
-from app.schemas.virtual_table import RecordCreate, SchemaUpdate, TableCreate
+from app.schemas.virtual_table import (
+    RecordCreate,
+    RecordUpdate,
+    RecordUpsert,
+    SchemaUpdate,
+    TableCreate,
+)
 from app.services.virtual_tables import VirtualTableService
 from app.services.virtual_tables.exceptions import InvalidSchemaError, TableArchivedError
 from tests.integration.virtual_table_support import column, ctx_for, make_org, make_user
@@ -121,3 +127,71 @@ async def test_a_column_cannot_become_required_beside_an_uncommitted_record_with
         await tighten
     async with factory() as check:
         assert (await VirtualTableService(check).describe_table(ctx, table.id)).schema_version == 1
+
+
+async def _write_waits_for_archive(engine: AsyncEngine, write):
+    """Hold an archive open, start `write` against it, and check it waits then is refused.
+
+    `write` is `(service, ctx, table, record) -> awaitable`. The record exists and is
+    committed before the archive starts, so each call has a real row to act on. Updating
+    or deleting a row touches nothing the archive's row lock would block, so only the
+    write's own share lock on the table can make it wait.
+    """
+    factory, ctx, table = await _committed_table(engine)
+    record = await _own_session(
+        factory,
+        lambda service: service.create_record(
+            ctx, table.id, RecordCreate(external_id="A-1", values={})
+        ),
+    )
+
+    async with factory() as archiving:
+        await VirtualTableService(archiving).archive_table(ctx, table.id)
+        attempt = asyncio.create_task(
+            _own_session(factory, lambda service: write(service, ctx, table, record.record))
+        )
+        await asyncio.sleep(_SETTLE)
+        assert not attempt.done(), "the write did not wait for the archive"
+        await archiving.commit()
+
+    with pytest.raises(TableArchivedError):
+        await attempt
+    async with factory() as check:
+        stored = await check.scalar(select(VirtualTableRecord.revision))
+        assert stored == 1, "the refused write changed or removed the record"
+
+
+async def test_an_update_waits_for_an_archive_in_flight_and_is_then_refused(engine: AsyncEngine):
+    await _write_waits_for_archive(
+        engine,
+        lambda service, ctx, table, record: service.update_record(
+            ctx, table.id, record.id, RecordUpdate(expected_revision=1, values={})
+        ),
+    )
+
+
+async def test_an_upsert_of_an_existing_record_waits_for_an_archive_in_flight(engine: AsyncEngine):
+    await _write_waits_for_archive(
+        engine,
+        lambda service, ctx, table, record: service.upsert_record(
+            ctx, table.id, "A-1", RecordUpsert(values={}, expected_revision=1)
+        ),
+    )
+
+
+async def test_an_upsert_that_creates_waits_for_an_archive_in_flight(engine: AsyncEngine):
+    await _write_waits_for_archive(
+        engine,
+        lambda service, ctx, table, record: service.upsert_record(
+            ctx, table.id, "B-2", RecordUpsert(values={})
+        ),
+    )
+
+
+async def test_a_delete_waits_for_an_archive_in_flight_and_is_then_refused(engine: AsyncEngine):
+    await _write_waits_for_archive(
+        engine,
+        lambda service, ctx, table, record: service.delete_record(
+            ctx, table.id, record.id, expected_revision=1
+        ),
+    )
