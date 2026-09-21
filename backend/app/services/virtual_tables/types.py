@@ -125,7 +125,11 @@ def _datetime(value: object, column: ColumnDef, writing: bool) -> CellValue:
         raise CellProblem("Expected an ISO 8601 timestamp with a time zone") from None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise CellProblem("The timestamp needs a time zone, such as Z or +02:00")
-    return parsed.astimezone(UTC).isoformat(timespec="microseconds")
+    try:
+        return parsed.astimezone(UTC).isoformat(timespec="microseconds")
+    except OverflowError:
+        # An offset can push a timestamp near year 1 or 9999 out of the range UTC has.
+        raise CellProblem("Timestamp is out of range") from None
 
 
 def _option_id(value: object, column: ColumnDef, writing: bool) -> str:

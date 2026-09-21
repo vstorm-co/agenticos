@@ -31,6 +31,7 @@ from app.services.virtual_tables import VirtualTableService
 from app.services.virtual_tables.exceptions import (
     InvalidQueryError,
     InvalidRecordError,
+    InvalidSchemaError,
     RevisionConflictError,
     RevisionRequiredError,
 )
@@ -567,3 +568,24 @@ async def test_an_explicit_null_on_create_stays_empty_while_an_omitted_cell_take
 
     assert omitted.record.values == {country: "PL"}
     assert cleared.record.values == {}
+
+
+@pytest.mark.parametrize("stamp", ["0001-01-01T00:00:00+02:00", "9999-12-31T23:59:59-02:00"])
+async def test_a_timestamp_out_of_range_is_a_typed_refusal_for_a_cell_a_filter_and_a_default(
+    db, stamp
+):
+    service, ctx, table, _org = await _setup(db)
+    placed = next(c.id for c in table.columns if c.label == "Placed")
+
+    with pytest.raises(InvalidRecordError):
+        await service.create_record(ctx, table.id, RecordCreate(values={str(placed): stamp}))
+    with pytest.raises(InvalidQueryError):
+        await service.list_records(
+            ctx,
+            table.id,
+            RecordQuery(filters=[RecordFilter(column_id=placed, op="lt", value=stamp)]),
+        )
+    with pytest.raises(InvalidSchemaError):
+        await service.create_table(
+            ctx, TableCreate(name="Late", columns=[column("At", "datetime", default=stamp)])
+        )

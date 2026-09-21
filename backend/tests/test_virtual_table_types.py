@@ -150,3 +150,26 @@ def test_a_filter_may_name_an_archived_option_though_a_write_may_not():
     assert validate_filter(multi, "contains", str(old.id)) == str(old.id)
     with pytest.raises(CellProblem):
         validate_filter(multi, "contains", str(uuid.uuid4()))
+
+
+OUT_OF_RANGE = ["0001-01-01T00:00:00+02:00", "9999-12-31T23:59:59-02:00"]
+
+
+@pytest.mark.parametrize("value", OUT_OF_RANGE)
+def test_a_timestamp_the_offset_pushes_out_of_range_is_a_refusal_in_every_position(value):
+    """Each of a cell, a filter operand and a default is a 422, never an OverflowError."""
+    column = _column("datetime")
+
+    with pytest.raises(CellProblem, match="out of range"):
+        validate_cell(column, value)
+    with pytest.raises(CellProblem, match="out of range"):
+        validate_filter(column, "lt", value)
+    with pytest.raises(CellProblem, match="out of range"):
+        validate_default(_column("datetime", default=value))
+
+
+def test_the_extreme_timestamps_that_do_fit_are_accepted():
+    column = _column("datetime")
+
+    assert validate_cell(column, "0001-01-01T00:00:00Z").startswith("0001-01-01")
+    assert validate_cell(column, "9999-12-31T23:59:59+00:00").startswith("9999-12-31")
