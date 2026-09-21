@@ -310,3 +310,64 @@ def test_the_openapi_document_types_the_write_contract():
         f"{settings.API_V1_STR}/tables/{{table_id}}/records/by-external-id/{{external_id}}"
     ]["put"]
     assert {"200", "201", "428"} <= set(upsert["responses"])
+
+
+NUL = chr(0)
+
+
+@pytest.mark.parametrize("spelling", ["2026/ORD-1", "2026%2FORD-1"])
+async def test_an_external_id_containing_a_slash_is_reachable_by_both_routes(
+    client, service, spelling
+):
+    async with client() as http:
+        read = await http.get(_records(f"/by-external-id/{spelling}"))
+        write = await http.put(_records(f"/by-external-id/{spelling}"), json={"values": {}})
+
+    assert (read.status_code, write.status_code) == (200, 201)
+    assert service.get_record_by_external_id.await_args.args[2] == "2026/ORD-1"
+    assert service.upsert_record.await_args.args[2] == "2026/ORD-1"
+
+
+async def test_an_external_id_that_would_hit_the_database_limit_or_hold_nul_is_a_422(
+    client, service
+):
+    too_long = "x" * 256
+    async with client() as http:
+        responses = [
+            await http.get(_records(f"/by-external-id/{too_long}")),
+            await http.put(_records(f"/by-external-id/{too_long}"), json={"values": {}}),
+            await http.get(_records("/by-external-id/a%00b")),
+            await http.put(_records("/by-external-id/a%00b"), json={"values": {}}),
+            await http.get(_records("/exists"), params={"external_id": f"a{NUL}b"}),
+            await http.get(_url(), params={"q": f"a{NUL}b"}),
+            await http.post(_records(), json={"external_id": f"a{NUL}b", "values": {}}),
+            await http.post(_records(), json={"external_id": too_long, "values": {}}),
+        ]
+
+    assert [r.status_code for r in responses] == [422] * 8
+    service.upsert_record.assert_not_awaited()
+    service.create_record.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"name": f"a{NUL}b"},
+        {"name": "ok", "description": f"a{NUL}b"},
+        {"name": "ok", "columns": [{"label": f"a{NUL}b", "type": "text"}]},
+        {
+            "name": "ok",
+            "columns": [
+                {"label": "Pick", "type": "single_select", "options": [{"label": f"a{NUL}b"}]}
+            ],
+        },
+    ],
+)
+async def test_nul_in_a_name_description_or_label_is_a_422_not_a_database_error(
+    client, service, body
+):
+    async with client() as http:
+        response = await http.post(_url(), json=body)
+
+    assert response.status_code == 422
+    service.create_table.assert_not_awaited()

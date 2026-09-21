@@ -36,7 +36,7 @@ is refused. Keys are scoped to the caller and the kind of write.
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
 
 from app.api.deps import Auth, VirtualTableSvc, require
 from app.api.routes.v1._table_responses import answer
@@ -74,6 +74,19 @@ IdempotencyKey = Annotated[
     ),
 ]
 
+# NUL is refused in every string that reaches a text column: PostgreSQL cannot store it.
+_NO_NUL = r"^[^\x00]*$"
+
+ExternalIdPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=255,
+        pattern=_NO_NUL,
+        description="The caller's own key for the record. It may contain `/`.",
+    ),
+]
+
 _REFUSALS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorEnvelope, "description": "No such table or record"},
     409: {"model": ErrorEnvelope, "description": "A conflict; see `error.code`"},
@@ -91,7 +104,9 @@ _REFUSALS: dict[int | str, dict[str, Any]] = {
 async def list_tables(
     service: VirtualTableSvc,
     ctx: Auth,
-    q: str | None = Query(None, max_length=100, description="Match on name or description"),
+    q: str | None = Query(
+        None, max_length=100, pattern=_NO_NUL, description="Match on name or description"
+    ),
     include_archived: bool = Query(False),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -176,32 +191,32 @@ async def record_exists(
     table_id: UUID,
     service: VirtualTableSvc,
     ctx: Auth,
-    external_id: str = Query(..., min_length=1, max_length=255),
+    external_id: str = Query(..., min_length=1, max_length=255, pattern=_NO_NUL),
 ) -> Any:
     """Whether a record with this external id exists."""
     return RecordExists(exists=await service.record_exists(ctx, table_id, external_id))
 
 
 @router.get(
-    "/{table_id}/records/by-external-id/{external_id}",
+    "/{table_id}/records/by-external-id/{external_id:path}",
     response_model=RecordRead,
     responses=_REFUSALS,
 )
 async def get_record_by_external_id(
-    table_id: UUID, external_id: str, service: VirtualTableSvc, ctx: Auth
+    table_id: UUID, external_id: ExternalIdPath, service: VirtualTableSvc, ctx: Auth
 ) -> Any:
     """One record, by the caller's own key for it."""
     return await service.get_record_by_external_id(ctx, table_id, external_id)
 
 
 @router.put(
-    "/{table_id}/records/by-external-id/{external_id}",
+    "/{table_id}/records/by-external-id/{external_id:path}",
     response_model=RecordRead,
     responses={**_REFUSALS, 201: {"model": RecordRead, "description": "Created"}},
 )
 async def upsert_record(
     table_id: UUID,
-    external_id: str,
+    external_id: ExternalIdPath,
     data: RecordUpsert,
     response: Response,
     service: VirtualTableSvc,

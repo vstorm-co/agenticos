@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 ColumnTypeName = Literal[
     "text",
@@ -42,8 +42,22 @@ CellValue = str | int | float | bool | list[str] | None
 
 FilterValue = CellValue | list[CellValue]
 
-Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
-ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255)]
+
+def _without_nul(value: str) -> str:
+    """Refuse NUL, which PostgreSQL cannot store in a text column or a JSONB string.
+
+    Left in, it is a database error and a 500 rather than a refusal the caller can act on.
+    """
+    if "\x00" in value:
+        raise ValueError("Cannot contain a NUL character")
+    return value
+
+
+NoNul = AfterValidator(_without_nul)
+
+Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64), NoNul]
+Description = Annotated[str, StringConstraints(max_length=500), NoNul]
+ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), NoNul]
 OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 
 MAX_COLUMNS = 100
@@ -113,14 +127,14 @@ class ColumnInput(_Request):
 
 class TableCreate(_Request):
     name: Label = Field(description="Unique among the organization's live tables")
-    description: str | None = Field(default=None, max_length=500)
+    description: Description | None = None
     columns: list[ColumnInput] = Field(default_factory=list, max_length=MAX_COLUMNS)
     visibility: VisibilityName = "private"
 
 
 class TableUpdate(_Request):
     name: Label | None = None
-    description: str | None = Field(default=None, max_length=500)
+    description: Description | None = None
 
 
 class SchemaUpdate(_Request):
