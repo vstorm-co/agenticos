@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.474] - 2026-09-21
+
 ### Added
 
 - **A generated face is the default avatar for people and agents.** Two initials
