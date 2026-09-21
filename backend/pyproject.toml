@@ -794,6 +794,13 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Typed records shared by the console, agent tools, workflow nodes and the
+    # public API. Every branch is a refusal - a stale revision, a reused
+    # operation key, another tenant's table, an archived column - and a write path
+    # that skipped one would overwrite or leak a tenant's rows silently (#1782).
+    "app/db/models/virtual_table.py",
+    "app/schemas/virtual_table.py",
+    "app/services/virtual_tables/**",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1154,6 +1161,13 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Typed records shared by the console, agent tools, workflow nodes and the
+    # public API. Every branch is a refusal - a stale revision, a reused
+    # operation key, another tenant's table, an archived column - and a write path
+    # that skipped one would overwrite or leak a tenant's rows silently (#1782).
+    "app/db/models/virtual_table.py",
+    "app/schemas/virtual_table.py",
+    "app/services/virtual_tables/**",
 ]
 branch = true
 omit = [
