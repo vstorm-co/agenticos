@@ -109,6 +109,15 @@ describe("the save callback handed to the SDK", () => {
     expect(state.graph.nodes.map((n) => n.id)).toEqual(["start", "each-file", "end"]);
   });
 
+  it("reports a stale scope path as a failure and rethrows, saving nothing", async () => {
+    const persist = vi.fn();
+    const { target, outcomes, data } = setup({ scopePath: ["missing"], persist });
+    await expect(createGuardedSave(target)(data)).rejects.toThrow(/not a foreach/);
+    expect(persist).not.toHaveBeenCalled();
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({ status: "failed" });
+  });
+
   it("the naive callback resolves the strings the SDK reads as success, and skips the guards", async () => {
     const conflict = setup();
     conflict.server.forced = "conflict";
