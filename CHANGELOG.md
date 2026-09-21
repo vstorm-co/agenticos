@@ -49,8 +49,28 @@ Two things are versioned separately from this file and worth knowing about:
   out of a WebGL loader rather than swapping a spinner for it. Fetched on demand
   and only where WebGL can run it, because it carries `three`.
 
+### Fixed
+
+- **The Getting Started agent answers in English unless it is asked not to.**
+  Nothing told it what language to use, so it guessed from the question - and a
+  mistyped Polish greeting came back in Czech. It now answers in English whatever
+  the question arrives in, and switches only when somebody asks it to in as many
+  words.
+
 ### Changed
 
+- **Amigo walks across the README.** He was standing still with a one-pixel bob,
+  which is an idle rather than a reason to look. The banner is a wider canvas he
+  crosses and comes back over, on two leg poses that alternate under him, all of
+  it in whole pixels - a sprite drawn on a 16-pixel grid and moved a third of a
+  pixel is a sprite with soft edges. `scripts/gen_amigo_assets.py` cuts it from
+  the same drawing as the mark, so there is still one Amigo.
+- **The social preview is rebuilt, and now has a source.** The card it replaced
+  was a finished PNG with nothing behind it: the mark changed, the card kept
+  showing the retired one, and nothing noticed. `docs/assets/social-preview.html`
+  is the card - flat ground, no gradient wash, no drawn grid, the product's own
+  Bricolage Grotesque - and Amigo paces along the bottom of it. It renders to a
+  GIF for anywhere that animates and a PNG for anywhere that does not.
 - **A chat turn is set to a readable measure.** The transcript's column was sized
   for the widest thing that can appear in it - a chart, a table, a tool card - and
   the text took the same width, about a hundred characters to a line at the body
@@ -68,10 +88,10 @@ Two things are versioned separately from this file and worth knowing about:
   browser tab and on the link-unfurl card, and a bare initial on the iOS home
   screen. The mascot's head and hat, cropped square, is now the one mark the site
   header, the tab, the sidebar and the social card show, and the whole character
-  heads the README and every documentation landing page. `scripts/gen_amigo_head.py`
+  heads the README and every documentation landing page. `scripts/gen_amigo_assets.py`
   cuts that crop out of the drawing and writes both derived forms - an SVG for
   MkDocs and a data URI for the two `next/og` images, which cannot load a path -
-  so nothing is drawn twice and `backend/tests/test_amigo_mark.py` fails if they
+  so nothing is drawn twice and `backend/tests/test_amigo_assets.py` fails if they
   drift apart. The orbit is gone. The home-screen icon keeps its initial, which
   is the deployment's name rather than this build's.
 - **Amigo blinks and breathes.** One pixel of bob and an occasional blink, added

@@ -3,9 +3,12 @@
   <style>
     /* An idle, not an entrance: one pixel of bob and an occasional blink, so the
        character reads as alive in a README without asking for attention. Both are
-       additive - with no CSS at all the first frame is the drawing itself. */
+       additive, and the eyelids are held shut with an `opacity` attribute rather
+       than a rule - where the CSS in an image does not run, the frame left
+       behind is the drawing itself and not a sprite with its eyes painted
+       over. */
     .amigo { animation: amigo-bob 2.6s steps(1, end) infinite; }
-    .amigo-eyelid { opacity: 0; animation: amigo-blink 4.9s steps(1, end) infinite; }
+    .amigo-eyelid { animation: amigo-blink 4.9s steps(1, end) infinite; }
     @keyframes amigo-bob {
       0%, 49% { transform: translateY(0); }
       50%, 100% { transform: translateY(-1px); }
@@ -87,7 +90,7 @@
     <rect x="9" y="17" width="3" height="1" fill="#4a2c17"/>
     <rect x="4" y="18" width="3" height="1" fill="#4a2c17"/>
     <rect x="9" y="18" width="3" height="1" fill="#4a2c17"/>
-    <rect class="amigo-eyelid" x="5" y="6" width="2" height="2" fill="#f1c27d"/>
-    <rect class="amigo-eyelid" x="9" y="6" width="2" height="2" fill="#f1c27d"/>
+    <rect class="amigo-eyelid" opacity="0" x="5" y="6" width="2" height="2" fill="#f1c27d"/>
+    <rect class="amigo-eyelid" opacity="0" x="9" y="6" width="2" height="2" fill="#f1c27d"/>
   </g>
 </svg>

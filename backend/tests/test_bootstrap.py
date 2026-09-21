@@ -492,3 +492,26 @@ class TestEndToEnd:
 
         assert result.exit_code == 0
         run.assert_called_once()
+
+
+class TestDemoInstructions:
+    """What the shipped agent is told, where getting it wrong is visible to a client."""
+
+    def test_the_demo_agent_is_told_which_language_to_answer_in(self):
+        """A greeting in one language was answered in a different one entirely.
+
+        Asked "co tma" - Polish, mistyped - the agent replied in Czech, because
+        nothing told it what to do with a question that was not English and a
+        model will happily guess. The rule has to be explicit and it has to be a
+        request that switches it, not a guess: inferring the language from the
+        question is the behaviour that produced the Czech.
+        """
+        from app.commands.bootstrap import DEMO_INSTRUCTIONS
+
+        # Wrapped to the file's width, so the assertion reads the sentence rather
+        # than the line breaks the prompt happens to carry.
+        said = " ".join(DEMO_INSTRUCTIONS.split())
+
+        assert "**Answer in English**, whatever language the question arrives in." in said
+        assert "Switch only when somebody asks you to in as many words" in said
+        assert "Do not infer a language from the question" in said

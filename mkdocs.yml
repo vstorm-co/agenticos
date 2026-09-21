@@ -33,7 +33,7 @@ exclude_docs: |
 theme:
   name: material
   language: en
-  # Amigo's head, cropped square from the mascot by `scripts/gen_amigo_head.py`
+  # Amigo's head, cropped square from the mascot by `scripts/gen_amigo_assets.py`
   # and never drawn twice - the same bargain
   # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark this
   # product draws. The console's built-in glyph is that same crop as a data URI,
