@@ -1,9 +1,9 @@
-/* The arcade's shared half: one harness, three cabinets.
+/* The arcade's shared half: one harness, five cabinets.
  *
  * Every game here grows the same agent. What a player collects in the runner is
- * still there in the canyon, because all three read and write one record in
+ * still there in the canyon, because all five read and write one record in
  * `localStorage` - that record is the point of the arcade, and the games are
- * three ways of filling it in.
+ * five ways of filling it in.
  *
  * Amigo himself is transcribed from `docs/assets/amigo.svg`, one letter per
  * pixel, so the sprite on screen and the mascot in the README are the same
@@ -21,13 +21,31 @@
    * is a progression and not a sticker album. */
   var PARTS = [
     {
+      id: "skill.coordination",
+      kind: "skill",
+      name: "Coordination",
+      blurb: "A smaller team with a clear task beats a room full of meetings.",
+      where: "Just One More Agent",
+      how: "Ship the comma before time or money runs out",
+      perk: "Agent running costs are reduced by ten percent.",
+    },
+    {
+      id: "data.signal_filter",
+      kind: "data",
+      name: "Signal filter",
+      blurb: "Keep the instructions. Lose the thousand lines of verbose logs.",
+      where: "Context Tetris",
+      how: "Answer one task by collecting all three context types",
+      perk: "Start Context Tetris with one extra discard.",
+    },
+    {
       id: "tool.web_search",
       kind: "tool",
       name: "Web search",
       blurb: "It looks things up instead of guessing.",
       where: "Desert Run",
-      how: "Bank 30 tokens in one shift",
-      perk: "Tokens pull toward Amigo from further away.",
+      how: "Bank 30 tokens, equip Web search, or collect four tool cells",
+      perk: "Tokens pull closer in Desert Run; Web search speeds up the office.",
     },
     {
       id: "tool.browser",
@@ -62,7 +80,7 @@
       name: "Context compaction",
       blurb: "A long conversation is folded down before it overflows.",
       where: "Capability Canyon",
-      how: "Bank 40 tokens in one run",
+      how: "Bank 40 tokens or collect four skill cells in Context Tetris",
       perk: "The budget drains a quarter slower.",
     },
     {
@@ -71,8 +89,8 @@
       name: "Delegation",
       blurb: "Work it should not do itself goes to a sub-agent.",
       where: "Night Shift",
-      how: "Close every ticket inside three minutes",
-      perk: "Amigo walks faster on the shift floor.",
+      how: "Close tickets inside three minutes or equip Delegation in the office",
+      perk: "Amigo walks faster on the shift floor; delegation reduces office chaos.",
     },
     {
       id: "skill.structured",
@@ -89,8 +107,8 @@
       name: "Company playbook",
       blurb: "Standing knowledge bound to the agent, not pasted per message.",
       where: "Night Shift",
-      how: "Work a shift through to the end",
-      perk: "The shift shows you which station is next.",
+      how: "Finish Night Shift or equip Company docs in the office",
+      perk: "The shift shows the next station; Company docs calm the office.",
     },
     {
       id: "context.brand",
@@ -98,7 +116,7 @@
       name: "Brand voice",
       blurb: "It answers in the company's words rather than the model's.",
       where: "The arcade",
-      how: "Play all three cabinets",
+      how: "Play any three cabinets",
       perk: "Amigo's poncho picks up a gold trim.",
     },
     {
@@ -143,8 +161,8 @@
       name: "GitHub MCP",
       blurb: "Issues, pull requests and releases, from a chat message.",
       where: "Any continue screen",
-      how: "Open the repository",
-      perk: "Bragging rights, and the arcade stops nagging you.",
+      how: "Open the repository, equip GitHub MCP, or collect four MCP cells",
+      perk: "The office ships faster and focus recharges sooner. MCP cells restore discards.",
     },
     {
       id: "mcp.linear",
@@ -236,6 +254,12 @@
     unlocked: [],
     played: [],
     stats: {
+      agentsBest: 0,
+      agentsRuns: 0,
+      agentsWins: 0,
+      contextBest: 0,
+      contextRuns: 0,
+      contextTasks: 0,
       runnerBest: 0,
       runnerRuns: 0,
       runnerDeaths: 0,

@@ -2,17 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Amigo's Arcade - AgenticOS</title>
     <meta
       name="description"
-      content="Three small games about building an AI agent. Everything you collect - capabilities, skills, context, memory, MCP servers - lands in one harness that follows you between cabinets."
+      content="Five small games about building an AI agent. Everything you collect - capabilities, skills, context, memory, MCP servers - lands in one harness that follows you between cabinets."
     />
     <link rel="icon" href="../assets/amigo-head.svg" />
     <meta property="og:title" content="Amigo's Arcade" />
     <meta
       property="og:description"
-      content="Three small games about building an AI agent. Collect capabilities, skills, context, memory and MCP servers into one harness."
+      content="Five small games about building an AI agent. Collect capabilities, skills, context, memory and MCP servers into one harness."
     />
     <meta property="og:image" content="../assets/social-preview.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -376,15 +379,20 @@
 
       <div class="hub-intro">
         <p class="hub-lede">
-          Three small games about the same job: giving an agent something it did not have before.
-          Every capability, skill, context file, memory and MCP server you pick up is written to
-          <b>one harness</b> in this browser, and it follows you into the other two cabinets - a tool
-          earned in the desert is a tool you still have in the canyon.
+          Five small games about the same job: giving an agent something it did
+          not have before. Every capability, skill, context file, memory and MCP
+          server you pick up is written to
+          <b>one harness</b> in this browser, and it follows you into the other
+          cabinets - a tool earned in the desert is a tool you still have in the
+          canyon.
         </p>
 
         <div class="hub-meter">
           <span class="label">Harness</span>
-          <span class="count"><span id="count">0</span><em>&thinsp;/&thinsp;<span id="total">0</span></em></span>
+          <span class="count"
+            ><span id="count">0</span
+            ><em>&thinsp;/&thinsp;<span id="total">0</span></em></span
+          >
           <div class="hub-pips" id="pips" aria-hidden="true"></div>
           <span class="label" id="nextUp"></span>
         </div>
@@ -396,44 +404,103 @@
           <p>Keyboard or touch. No install, no account.</p>
         </div>
         <div class="hub-cabinets">
+          <a class="hub-cab" href="agents.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="agents"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Just One More Agent</h3>
+              <p>
+                One comma to fix. A growing army of agents. Equip tools and MCP, pick a provider, and
+                cancel meetings before the budget becomes the punchline.
+              </p>
+              <div class="foot">
+                <span data-score="agents"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+          <a class="hub-cab" href="context.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="context"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Context Tetris</h3>
+              <p>
+                Instructions, documents, memories and far too many logs. Stack
+                the context, clear rows and keep enough signal to answer.
+              </p>
+              <div class="foot">
+                <span data-score="context"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
           <a class="hub-cab" href="runner.html">
-            <canvas width="320" height="128" data-preview="runner" aria-hidden="true"></canvas>
+            <canvas
+              width="320"
+              height="128"
+              data-preview="runner"
+              aria-hidden="true"
+            ></canvas>
             <div class="body">
               <h3>Desert Run</h3>
               <p>
-                One long shift across the sand. Hop the rate limits, duck the confident wrong
-                answers, and mind the thirty-thousand-dollar invoice coming the other way.
+                One long shift across the sand. Hop the rate limits, duck the
+                confident wrong answers, and mind the thirty-thousand-dollar
+                invoice coming the other way.
               </p>
               <div class="foot">
-                <span data-score="runner"></span><span class="play">Play &rarr;</span>
+                <span data-score="runner"></span
+                ><span class="play">Play &rarr;</span>
               </div>
             </div>
           </a>
 
           <a class="hub-cab" href="canyon.html">
-            <canvas width="320" height="128" data-preview="canyon" aria-hidden="true"></canvas>
+            <canvas
+              width="320"
+              height="128"
+              data-preview="canyon"
+              aria-hidden="true"
+            ></canvas>
             <div class="body">
               <h3>Capability Canyon</h3>
               <p>
-                Capabilities, document chunks and a typed-output schema are scattered across a
-                canyon, and the publish flag refuses a half-built agent.
+                Capabilities, document chunks and a typed-output schema are
+                scattered across a canyon, and the publish flag refuses a
+                half-built agent.
               </p>
               <div class="foot">
-                <span data-score="canyon"></span><span class="play">Play &rarr;</span>
+                <span data-score="canyon"></span
+                ><span class="play">Play &rarr;</span>
               </div>
             </div>
           </a>
 
           <a class="hub-cab" href="shift.html">
-            <canvas width="320" height="128" data-preview="shift" aria-hidden="true"></canvas>
+            <canvas
+              width="320"
+              height="128"
+              data-preview="shift"
+              aria-hidden="true"
+            ></canvas>
             <div class="body">
               <h3>Night Shift</h3>
               <p>
-                A quiet control room and a queue that is not. Connect a source, clean an export,
-                answer the invoice finance just found - one pair of hands, in the right order.
+                A quiet control room and a queue that is not. Connect a source,
+                clean an export, answer the invoice finance just found - one
+                pair of hands, in the right order.
               </p>
               <div class="foot">
-                <span data-score="shift"></span><span class="play">Play &rarr;</span>
+                <span data-score="shift"></span
+                ><span class="play">Play &rarr;</span>
               </div>
             </div>
           </a>
@@ -443,7 +510,9 @@
       <div class="arc-section">
         <div class="arc-head">
           <h2>The harness</h2>
-          <p>Each part changes how the games play, not just what the list says.</p>
+          <p>
+            Each part changes how the games play, not just what the list says.
+          </p>
         </div>
         <div class="hub-grid" id="slots"></div>
       </div>
@@ -467,12 +536,17 @@
       </div>
 
       <div class="hub-foot">
-        <a href="https://github.com/vstorm-co/agenticos" target="_blank" rel="noopener"
+        <a
+          href="https://github.com/vstorm-co/agenticos"
+          target="_blank"
+          rel="noopener"
           >Star the repository</a
         >
         <a href="../">Read the documentation</a>
         <span class="grow"></span>
-        <button type="button" class="arc-btn" id="reset">Wipe the harness</button>
+        <button type="button" class="arc-btn" id="reset">
+          Wipe the harness
+        </button>
       </div>
     </div>
 
@@ -486,7 +560,8 @@
 
         function paintMeter(state) {
           document.getElementById("count").textContent = state.unlocked.length;
-          document.getElementById("total").textContent = window.Amigo.parts.length;
+          document.getElementById("total").textContent =
+            window.Amigo.parts.length;
           var pips = document.getElementById("pips");
           pips.innerHTML = "";
           window.Amigo.parts.forEach(function (part) {
@@ -563,7 +638,8 @@
             window.Amigo.parts.forEach(function (part) {
               if (part.kind !== kind) return;
               var slug = part.id.split(".")[1];
-              if (state.unlocked.indexOf(part.id) !== -1) lines.push("    - " + slug);
+              if (state.unlocked.indexOf(part.id) !== -1)
+                lines.push("    - " + slug);
               else lines.push("    # - " + slug + "  (not collected yet)");
             });
           });
@@ -574,7 +650,8 @@
           var html = specText(state)
             .split("\n")
             .map(function (line) {
-              if (line.trim().charAt(0) === "#") return '<span class="c">' + line + "</span>";
+              if (line.trim().charAt(0) === "#")
+                return '<span class="c">' + line + "</span>";
               var m = line.match(/^(\s*)([a-z_]+):(.*)$/);
               if (m) {
                 return (
@@ -600,22 +677,36 @@
             ["Canyon clears", s.canyonClears],
             ["Shifts worked", s.shiftClears],
             ["Failed runs", s.runnerDeaths],
+            ["Commas shipped", s.agentsWins],
+            ["Context best", s.contextBest],
+            ["Tasks answered", s.contextTasks],
           ];
           document.getElementById("stats").innerHTML = rows
             .map(function (row) {
-              return "<div><b>" + row[0] + "</b><span>" + row[1] + "</span></div>";
+              return (
+                "<div><b>" + row[0] + "</b><span>" + row[1] + "</span></div>"
+              );
             })
             .join("");
 
-          document.querySelector('[data-score="runner"]').innerHTML = s.runnerBest
-            ? "Best <em>" + s.runnerBest + "</em> tokens"
-            : "Never played";
-          document.querySelector('[data-score="canyon"]').innerHTML = s.canyonClears
-            ? "Cleared <em>" + s.canyonClears + "</em>&times;"
-            : "Never cleared";
-          document.querySelector('[data-score="shift"]').innerHTML = s.shiftClears
-            ? "Worked <em>" + s.shiftClears + "</em>&times;"
-            : "Never worked";
+          document.querySelector('[data-score="agents"]').textContent =
+            s.agentsRuns ? "Best " + s.agentsBest + " points" : "Never played";
+          document.querySelector('[data-score="context"]').textContent =
+            s.contextRuns
+              ? "Best " + s.contextBest + " points"
+              : "Never played";
+          document.querySelector('[data-score="runner"]').innerHTML =
+            s.runnerBest
+              ? "Best <em>" + s.runnerBest + "</em> tokens"
+              : "Never played";
+          document.querySelector('[data-score="canyon"]').innerHTML =
+            s.canyonClears
+              ? "Cleared <em>" + s.canyonClears + "</em>&times;"
+              : "Never cleared";
+          document.querySelector('[data-score="shift"]').innerHTML =
+            s.shiftClears
+              ? "Worked <em>" + s.shiftClears + "</em>&times;"
+              : "Never worked";
         }
 
         function paint() {
@@ -627,7 +718,12 @@
         }
 
         document.getElementById("reset").addEventListener("click", function () {
-          if (!window.confirm("Wipe the harness? Every collected part goes with it.")) return;
+          if (
+            !window.confirm(
+              "Wipe the harness? Every collected part goes with it.",
+            )
+          )
+            return;
           H.reset();
           paint();
         });
@@ -647,7 +743,7 @@
               },
               function () {
                 done("Select it");
-              }
+              },
             );
           } catch (err) {
             done("Select it");
@@ -692,10 +788,13 @@
             ctx.arc(W - 62, ground - 44, 19, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = "rgba(139,46,67,.42)";
-            for (var b = -20; b < 20; b += 4) ctx.fillRect(W - 81, ground - 44 + b, 38, 2);
+            for (var b = -20; b < 20; b += 4)
+              ctx.fillRect(W - 81, ground - 44 + b, 38, 2);
 
             for (var d = 0; d < 4; d++) {
-              var dx = (((d * 110 - t * 0.5) % (W + 130)) + W + 130) % (W + 130) - 65;
+              var dx =
+                ((((d * 110 - t * 0.5) % (W + 130)) + W + 130) % (W + 130)) -
+                65;
               ctx.fillStyle = "#4c1c3d";
               ctx.fillRect(dx + 6, ground - 17, 60, 17);
               ctx.fillRect(dx, ground - 11, 72, 11);
@@ -709,7 +808,12 @@
             var scroll = (t * 2.1) % 22;
             for (var g = -22; g < W + 22; g += 22) {
               ctx.fillRect(Math.round(g - scroll), ground + 2, 8, 2);
-              ctx.fillRect(Math.round(g - scroll * 1.5 + 11), ground + 11, 4, 2);
+              ctx.fillRect(
+                Math.round(g - scroll * 1.5 + 11),
+                ground + 11,
+                4,
+                2,
+              );
             }
 
             var cx = W - ((t * 2.1) % (W + 90));
@@ -723,7 +827,15 @@
             ctx.fillRect(tx, ground - 40 + Math.sin(t * 0.12) * 2, 7, 7);
 
             var hop = Math.max(0, Math.sin(t * 0.09)) * 22;
-            amigo(34, ground - 19 - hop, hop > 1 ? sprites.air : Math.floor(t / 5) % 2 ? sprites.step : sprites.stand);
+            amigo(
+              34,
+              ground - 19 - hop,
+              hop > 1
+                ? sprites.air
+                : Math.floor(t / 5) % 2
+                  ? sprites.step
+                  : sprites.stand,
+            );
           }
 
           function canyon() {
@@ -734,13 +846,17 @@
             ctx.fillRect(0, H2 * 0.55, W, H2 * 0.45);
 
             for (var m = 0; m < 4; m++) {
-              var mx = (((m * 128 - t * 0.28) % (W + 150)) + W + 150) % (W + 150) - 75;
+              var mx =
+                ((((m * 128 - t * 0.28) % (W + 150)) + W + 150) % (W + 150)) -
+                75;
               ctx.fillStyle = "#6e4a7a";
               ctx.fillRect(mx, ground - 58, 52, 58);
               ctx.fillRect(mx - 10, ground - 34, 72, 34);
             }
             for (var c = 0; c < 3; c++) {
-              var cx2 = (((c * 168 - t * 0.5) % (W + 200)) + W + 200) % (W + 200) - 100;
+              var cx2 =
+                ((((c * 168 - t * 0.5) % (W + 200)) + W + 200) % (W + 200)) -
+                100;
               ctx.fillStyle = "#8d5470";
               ctx.fillRect(cx2, ground - 38, 66, 38);
             }
@@ -773,13 +889,22 @@
 
             var phase = (t % 150) / 150;
             var hop2 = Math.sin(phase * Math.PI * 4) * 16;
-            amigo(44 + phase * 70, ground - 19 - Math.max(0, hop2), hop2 > 1 ? sprites.air : Math.floor(t / 5) % 2 ? sprites.step : sprites.stand);
+            amigo(
+              44 + phase * 70,
+              ground - 19 - Math.max(0, hop2),
+              hop2 > 1
+                ? sprites.air
+                : Math.floor(t / 5) % 2
+                  ? sprites.step
+                  : sprites.stand,
+            );
           }
 
           function control() {
             for (var gx = 0; gx < W; gx += 16) {
               for (var gy = 0; gy < H2; gy += 16) {
-                ctx.fillStyle = ((gx + gy) / 16) % 2 === 0 ? "#1b1f28" : "#191d25";
+                ctx.fillStyle =
+                  ((gx + gy) / 16) % 2 === 0 ? "#1b1f28" : "#191d25";
                 ctx.fillRect(gx, gy, 16, 16);
                 ctx.fillStyle = "rgba(46,139,87,.10)";
                 ctx.fillRect(gx, gy + 15, 16, 1);
@@ -798,7 +923,8 @@
               ctx.fillStyle = color;
               ctx.fillRect(x + 2, y - 6, 28, 10);
               ctx.fillStyle = "rgba(11,12,15,.55)";
-              for (var i = 0; i < 3; i++) ctx.fillRect(x + 4, y - 4 + i * 3, 12 + i * 5, 1);
+              for (var i = 0; i < 3; i++)
+                ctx.fillRect(x + 4, y - 4 + i * 3, 12 + i * 5, 1);
             }
             desk(38, 42, "#2e8b57");
             desk(146, 30, "#4b6bdd");
@@ -824,10 +950,52 @@
             ctx.fillRect(Math.round(px) + 4, Math.round(py) - 11, 8, 8);
           }
 
+          function officePreview() {
+            ctx.fillStyle = "#191522";
+            ctx.fillRect(0, 0, W, H2);
+            ctx.strokeStyle = "#58425d";
+            for (var i = 0; i < 8; i++) {
+              var x = 30 + (i % 4) * 76,
+                y = 25 + Math.floor(i / 4) * 57;
+              ctx.beginPath();
+              ctx.moveTo(160, 64);
+              ctx.lineTo(x + 8, y + 14);
+              ctx.stroke();
+              amigo(
+                x,
+                y,
+                Math.floor(t / 20 + i) % 2 ? sprites.stand : sprites.step,
+              );
+              ctx.fillStyle = "#574353";
+              ctx.fillRect(x - 4, y + 19, 37, 6);
+              ctx.fillStyle = "#eac05c";
+              ctx.fillRect(x + 16, y + 9, 14, 10);
+            }
+          }
+          function contextPreview() {
+            ctx.fillStyle = "#101421";
+            ctx.fillRect(0, 0, W, H2);
+            var shades = ["#54b6ce", "#b587d5", "#687084", "#eac05c"];
+            for (var x = 0; x < 16; x++) {
+              var height = 1 + ((x * 7) % 4);
+              for (var y = 0; y < height; y++) {
+                ctx.fillStyle = shades[(x + y) % 4];
+                ctx.fillRect(x * 20 + 1, H2 - (y + 1) * 20, 18, 18);
+              }
+            }
+            ctx.fillStyle = "#eac05c";
+            var fall = (Math.floor(t / 9) % 4) * 10;
+            ctx.fillRect(141, fall, 18, 18);
+            ctx.fillRect(121, fall + 20, 18, 18);
+            ctx.fillRect(141, fall + 20, 18, 18);
+            ctx.fillRect(161, fall + 20, 18, 18);
+          }
           function frame() {
             t++;
             if (kind === "runner") desert();
             else if (kind === "canyon") canyon();
+            else if (kind === "agents") officePreview();
+            else if (kind === "context") contextPreview();
             else control();
             requestAnimationFrame(frame);
           }
@@ -848,9 +1016,12 @@
           paint();
         });
 
-        Array.prototype.forEach.call(document.querySelectorAll("[data-preview]"), function (c) {
-          preview(c, c.dataset.preview);
-        });
+        Array.prototype.forEach.call(
+          document.querySelectorAll("[data-preview]"),
+          function (c) {
+            preview(c, c.dataset.preview);
+          },
+        );
 
         paint();
       })();
