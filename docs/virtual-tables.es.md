@@ -1,5 +1,5 @@
 ---
-source_sha: "c2694c0193b0"
+source_sha: "97b47861864a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -73,6 +73,9 @@ las columnas actuales:
   puede volver del archivo sin un valor por defecto, porque los registros escritos mientras
   estaba archivada no podían guardar uno.
 - Una `expected_version` obsoleta es un `SCHEMA_VERSION_CONFLICT`.
+- Un envío idéntico a las columnas actuales, con los mismos ids, orden, etiquetas y
+  opciones, no cambia nada: no se añade versión y se devuelve la tabla actual. Reordenar o
+  cambiar una etiqueta es un cambio.
 
 Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
@@ -107,8 +110,8 @@ registro de nuevo y reintenta. Un upsert que encuentra un registro existente y n
 enviar.
 
 Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
-igual que las rutas, y un identificador o `Idempotency-Key` que incumpla una regla es
-`INVALID_RECORD`.
+igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un
+llamante que usa el servicio directamente recibe `INVALID_RECORD`.
 
 Los upserts concurrentes de un mismo external id crean un solo registro. El que pierde lo
 encuentra y se le responde como a una actualización: necesita la revision o se le dice
@@ -128,6 +131,9 @@ caracteres). Un reintento con la misma clave y el mismo cuerpo devuelve la prime
 respuesta, con `Idempotent-Replayed: true`, y no escribe nada, aunque el registro haya
 cambiado entretanto. La misma clave con un cuerpo distinto se rechaza con
 `IDEMPOTENCY_KEY_REUSED`.
+
+La cabecera marca un create, update o upsert repetido. Un borrado repetido responde 204
+como la primera vez y no se marca.
 
 Una clave pertenece al llamante y al tipo de escritura, así que dos llamantes pueden usar
 la misma cadena y un mismo llamante puede usarla para un create y un upsert. Solo se
@@ -214,6 +220,9 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |
+| `AUTHORIZATION_ERROR` | 403 | Al llamante le falta la permission que exige una ruta de colección (`tables:view`, `tables:create`) |
+| `CONCURRENT_CHANGE` | 409 | Un upsert perdió una carrera con el borrado del mismo registro. Reinténtalo |
 | `NOT_FOUND` | 404 | No existe esa tabla o registro, o no es alcanzable para el llamante |
 
 ## Llamar al servicio desde Python { #calling-the-service-from-python }

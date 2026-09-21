@@ -1,5 +1,5 @@
 ---
-source_sha: "c2694c0193b0"
+source_sha: "97b47861864a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -72,6 +72,9 @@ ją z bieżącymi kolumnami:
   rekord nie ma w niej wartości, a wymagana kolumna nie może wrócić z archiwum bez
   wartości domyślnej, bo rekordy zapisane w czasie archiwizacji nie mogły jej mieć.
 - Nieaktualne `expected_version` to `SCHEMA_VERSION_CONFLICT`.
+- Zgłoszenie identyczne z bieżącymi kolumnami, z tymi samymi id, kolejnością, etykietami i
+  opcjami, nie zmienia niczego: nie powstaje wersja, a zwracana jest bieżąca tabela.
+  Zmiana kolejności lub etykiety jest zmianą.
 
 Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
@@ -105,8 +108,8 @@ i spróbuj jeszcze raz. Upsert, który znajdzie istniejący rekord i nie dostani
 `expected_revision`, otrzymuje `REVISION_REQUIRED` (428), znów z revision do wysłania.
 
 External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`. Nie może zawierać NUL ani znaku nowego wiersza. Serwis sprawdza to
-tak samo jak trasy, a identyfikator lub `Idempotency-Key` łamiący regułę to
-`INVALID_RECORD`.
+tak samo jak trasy. Przez HTTP trasa odrzuca to pierwsza, kodem `VALIDATION_ERROR`;
+wywołujący, który używa serwisu bezpośrednio, dostaje `INVALID_RECORD`.
 
 Równoległe upserty tego samego external id tworzą jeden rekord. Przegrywający go
 znajduje i jest obsługiwany jak aktualizacja: potrzebuje revision albo dowiaduje się,
@@ -126,6 +129,9 @@ Ponowienie z tym samym kluczem i tą samą treścią zwraca pierwszą odpowiedź
 `Idempotent-Replayed: true`, i niczego nie zapisuje, nawet jeśli rekord zmienił się w
 międzyczasie. Ten sam klucz z inną treścią jest odrzucany kodem
 `IDEMPOTENCY_KEY_REUSED`.
+
+Nagłówek oznacza powtórzone create, update lub upsert. Powtórzone usunięcie odpowiada 204
+jak za pierwszym razem i nie jest oznaczane.
 
 Klucz należy do wywołującego i do rodzaju zapisu, więc dwóch wywołujących może użyć
 tego samego ciągu, a jeden wywołujący może go użyć do create i do upsert. Zapisywane
@@ -212,6 +218,9 @@ według czego klient się rozgałęzia.
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
 | `INVALID_SCHEMA` | 422 | Niespójna zmiana schematu |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Klucz został użyty dla innego żądania |
+| `VALIDATION_ERROR` | 422 | Samo żądanie jest wadliwe: zły typ, nieznane pole, limit albo NUL, znak nowego wiersza lub osamotniony surogat w id, kluczu lub nazwie. Trasa odrzuca je, zanim uruchomi się serwis |
+| `AUTHORIZATION_ERROR` | 403 | Wywołujący nie ma permission, której wymaga trasa kolekcji (`tables:view`, `tables:create`) |
+| `CONCURRENT_CHANGE` | 409 | Upsert przegrał wyścig z usunięciem tego samego rekordu. Ponów go |
 | `NOT_FOUND` | 404 | Nie ma takiej tabeli ani rekordu albo wywołujący nie ma do nich dostępu |
 
 ## Wywoływanie serwisu z Pythona { #calling-the-service-from-python }

@@ -1,5 +1,5 @@
 ---
-source_sha: "c2694c0193b0"
+source_sha: "97b47861864a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -77,6 +77,10 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   Standardwert nicht aus dem Archiv zurückkehren, weil Datensätze, die während der
   Archivierung geschrieben wurden, keinen halten konnten.
 - Eine veraltete `expected_version` ergibt `SCHEMA_VERSION_CONFLICT`.
+- Eine Übermittlung, die den aktuellen Spalten entspricht, mit denselben ids, derselben
+  Reihenfolge, denselben Bezeichnungen und Optionen, ändert nichts: Es wird keine Version
+  angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
+  geänderte Bezeichnung ist eine Änderung.
 
 Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
@@ -112,8 +116,8 @@ und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder 
 zu sendenden Revision.
 
 Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
-prüft das ebenso wie die Routen, und eine Kennung oder ein `Idempotency-Key`, die eine
-Regel verletzen, ergeben `INVALID_RECORD`.
+prüft das ebenso wie die Routen. Über HTTP lehnt die Route es zuerst ab, mit
+`VALIDATION_ERROR`; ein Aufrufer, der den Service direkt nutzt, erhält `INVALID_RECORD`.
 
 Gleichzeitige Upserts derselben external id erzeugen einen Datensatz. Der Verlierer
 findet ihn und wird wie ein Update beantwortet: Er braucht die Revision oder erfährt,
@@ -133,6 +137,9 @@ Jeder Schreibzugriff auf Datensätze akzeptiert einen `Idempotency-Key`-Header (
 erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn sich der
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
+
+Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer
 dieselbe Zeichenfolge verwenden können und ein Aufrufer sie für ein Create und ein
@@ -224,6 +231,9 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
+| `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |
+| `AUTHORIZATION_ERROR` | 403 | Dem Aufrufer fehlt die Permission, die eine Collection-Route verlangt (`tables:view`, `tables:create`) |
+| `CONCURRENT_CHANGE` | 409 | Ein Upsert hat ein Rennen mit dem Löschen desselben Datensatzes verloren. Wiederholen Sie ihn |
 | `NOT_FOUND` | 404 | Keine solche Tabelle oder kein solcher Datensatz, oder nicht erreichbar für den Aufrufer |
 
 ## Den Service aus Python aufrufen { #calling-the-service-from-python }

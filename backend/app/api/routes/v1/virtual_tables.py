@@ -20,6 +20,9 @@ is stable: a client branches on it, not on the message.
 - `SCHEMA_DEPENDENCY` (409): something depends on what a schema change removes.
 - `TABLE_ARCHIVED` (409): the table refuses writes.
 - `ALREADY_EXISTS` (409): a table name or a record's external id is taken.
+- `VALIDATION_ERROR` (422): the request itself is malformed, refused before the service runs.
+- `AUTHORIZATION_ERROR` (403): the caller lacks the permission a collection route requires.
+- `CONCURRENT_CHANGE` (409): an upsert lost a race with a delete of the same record; retry.
 - `INVALID_RECORD`, `ARCHIVED_COLUMN`, `INVALID_QUERY`, `INVALID_SCHEMA` (422): the
   value, filter or schema does not fit; `details.fields` names each field.
 - `IDEMPOTENCY_KEY_REUSED` (422): the `Idempotency-Key` was used for a different
@@ -30,7 +33,8 @@ is stable: a client branches on it, not on the message.
 **Idempotency.** Every record write accepts an `Idempotency-Key` header. Retrying a
 write with the same key and the same body returns the stored answer (with
 `Idempotent-Replayed: true`) and writes nothing; the same key with a different body
-is refused. Keys are scoped to the caller and the kind of write.
+is refused. Keys are scoped to the caller and the kind of write. A replayed delete answers
+204 as the first one did and is not marked.
 """
 
 from typing import Annotated, Any

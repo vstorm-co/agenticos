@@ -66,6 +66,9 @@ current columns:
   required column cannot come back from the archive without a default, because records
   written while it was archived could not hold one.
 - A stale `expected_version` is a `SCHEMA_VERSION_CONFLICT`.
+- A submission identical to the current columns, with the same ids, order, labels and
+  options, changes nothing: no version is appended and the current table is returned. A
+  reorder or a changed label is a change.
 
 Records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
@@ -99,8 +102,8 @@ and retry. An upsert that finds an existing record and no `expected_revision` ge
 `REVISION_REQUIRED` (428), again with the revision to send.
 
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
-contain NUL or a line break. The service checks this as well as the routes, and an
-identifier or `Idempotency-Key` that breaks a rule is `INVALID_RECORD`.
+contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,
+with `VALIDATION_ERROR`; a caller that uses the service directly gets `INVALID_RECORD`.
 
 Concurrent upserts of one external id create one record. The loser finds it and is
 answered as an update: it needs the revision, or it is told which one to send.
@@ -118,6 +121,9 @@ Every record write accepts an `Idempotency-Key` header (at most 128 characters).
 retry with the same key and the same body returns the first answer, with
 `Idempotent-Replayed: true`, and writes nothing, even if the record has changed
 since. The same key with a different body is refused with `IDEMPOTENCY_KEY_REUSED`.
+
+The header marks a replayed create, update or upsert. A replayed delete answers 204 as the
+first one did and is not marked.
 
 A key belongs to the caller and to the kind of write, so two callers can use the
 same string and one caller can use it for a create and an upsert. Only successes are
@@ -201,6 +207,9 @@ what a client branches on.
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
 | `INVALID_SCHEMA` | 422 | An inconsistent schema change |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | The key was used for a different request |
+| `VALIDATION_ERROR` | 422 | The request itself is malformed: a wrong type, an unknown field, a limit, or NUL, a line break or a lone surrogate in an id, key or name. Refused by the route before the service runs |
+| `AUTHORIZATION_ERROR` | 403 | The caller lacks the permission a collection route requires (`tables:view`, `tables:create`) |
+| `CONCURRENT_CHANGE` | 409 | An upsert lost a race with the deletion of the same record. Retry it |
 | `NOT_FOUND` | 404 | No such table or record, or not one the caller may reach |
 
 ## Calling the service from Python { #calling-the-service-from-python }
