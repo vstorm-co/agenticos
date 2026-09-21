@@ -8,6 +8,7 @@ that does not bind the capability gets nothing - no read-back tool, no reduction
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -23,7 +24,14 @@ from pydantic_ai_harness.tool_output_limits import Spill, Summarize, Truncate
 
 from app.agents.capabilities import CapabilityBinding, build, get
 from app.agents.capabilities._registry import CapabilityBuildContext
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarding,
+    metered_by,
+)
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.tool_output_limits import (
     DEFAULT_SUMMARY_PROMPT,
@@ -291,6 +299,25 @@ class TestMetering:
 
         assert ledger.entries == []
         assert result == "ok"
+
+    async def test_at_a_cap_the_reduction_is_skipped_and_the_return_passes_through(self):
+        """At a cap a `summarize` band's own request would spend past it, so the
+        reduction is skipped and the return is left un-reduced (agenticos#1808)."""
+        ledger = SpendLedger()
+        capability = MeteredToolOutputLimits(wrapped=_Spender(input_tokens=1_200))
+        ctx = _run_context()
+        exhausted = BudgetGuard(
+            limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))]
+        )
+
+        with metered_by(ledger), guarding(exhausted):
+            result = await capability.after_tool_execute(
+                ctx, call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000
+            )
+
+        assert result == "x" * 5_000
+        assert ledger.entries == []
+        assert ctx.usage.input_tokens == 0
 
 
 class TestRegistration:

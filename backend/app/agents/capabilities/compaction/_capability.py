@@ -9,7 +9,11 @@ through an `Agent` it constructs itself, so that request never passes
 on the one the strategy builds. The tokens land in `ctx.usage` and would land
 nowhere else, which is #16 wearing a different hat: a run under-reports its cost
 and no cap can stop a compaction loop. :class:`MeteredCompaction` books the
-difference against the run's ledger.
+difference against the run's ledger, and
+:meth:`NotifyingSummarizingCompaction.compact` re-checks the run's caps before the
+summary and skips it at a ceiling (agenticos#1808), pins the summariser to a
+content-free copy of the run's model so the summary honours `content="none"`
+(agenticos#1809), and runs it under the run's own model settings (agenticos#1810).
 
 **A scope somebody can reason about.** This reaches the messages of *one run*.
 Between turns the history is rebuilt from the transcript by
@@ -34,12 +38,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse
-from pydantic_ai.models import ModelRequestContext
+from pydantic_ai.models import Model, ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai_harness.compaction import (
     DEFAULT_CONTEXT_WINDOW,
@@ -50,8 +54,15 @@ from pydantic_ai_harness.compaction import (
     estimate_token_count,
 )
 
-from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
+from app.agents.capabilities._ambient import run_model_settings
+from app.agents.capabilities.budget import (
+    can_afford_ambient_call,
+    record_ambient_usage,
+    usage_counts,
+    usage_delta,
+)
 from app.agents.compaction_events import CompactionEvent
+from app.agents.observability import auxiliary_model
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +122,9 @@ class CompactionConfig(BaseModel):
     inherits the run's model because that is the one whose credential was
     resolved from the vault; a model named here as a string would be looked up
     against process environment variables, which on this platform is either
-    nothing or somebody else's key.
+    nothing or somebody else's key. It inherits the run's model *settings* and its
+    `content` mode too, and is skipped at a budget cap - see
+    :meth:`NotifyingSummarizingCompaction.compact`.
     """
 
     strategy: StrategyName = Field(
@@ -230,6 +243,20 @@ class NotifyingSummarizingCompaction(SummarizingCompaction[AgentDepsT]):
     async def compact(
         self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
     ) -> list[ModelMessage]:
+        if isinstance(ctx.model, Model):
+            # A request-response run: pin the summariser to a content-free copy of
+            # the run's model (agenticos#1809) and to the run's own settings
+            # (agenticos#1810). Left alone on a realtime run - `self.model` stays
+            # `None` and the harness raises its own error, as it did before this fix.
+            if self.model is None:
+                self.model = cast(Model, auxiliary_model(ctx))
+            self.model_settings = run_model_settings(ctx)
+        if not await can_afford_ambient_call():
+            # At a cap the summary's own request would spend past it, so it is
+            # skipped and the history returned unchanged (agenticos#1808). A zero-LLM
+            # tier of `tiered` is a different object that never reaches here, so
+            # clearing and sliding still run at the cap.
+            return messages
         before = len(messages)
         sink = getattr(ctx.deps, "on_compaction", None)
         compacted: list[ModelMessage] | None = None
@@ -450,9 +477,13 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     spent the tokens, and a run that failed is exactly the run whose cost is
     argued about later.
 
-    What this cannot do is *stop* the spend. `BudgetGuard` refuses in
-    `wrap_model_request`, which runs after this hook, so a compaction that
-    crosses a cap is recorded here and refused on the request after it.
+    This books the spend; what *stops* it is
+    :meth:`NotifyingSummarizingCompaction.compact`, which asks
+    :func:`~app.agents.capabilities.budget.can_afford_ambient_call` before the
+    summary and skips it at a cap (agenticos#1808). `BudgetGuard` still refuses the
+    next real request in `wrap_model_request`, which runs after this hook, so a
+    summary that crosses a cap mid-run is recorded here and refused on the request
+    after it.
     """
 
     gauge: ContextGauge | None = None
