@@ -270,9 +270,11 @@ class RetentionService:
             try:
                 removed = 0
                 for _ in range(MAX_BATCHES):
-                    took = await delete_batch(
-                        self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH
-                    )
+                    # Per batch, for the reason `_purge` gives.
+                    async with self.db.begin_nested():
+                        took = await delete_batch(
+                            self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH
+                        )
                     removed += took
                     if took < BATCH:
                         break
@@ -290,7 +292,12 @@ class RetentionService:
         """One class, in batches, until a pass removes nothing or the cap is reached."""
         removed = 0
         for _ in range(MAX_BATCHES):
-            took = await self._purge_batch(name, organization_id=organization_id, cutoff=cutoff)
+            # A savepoint per batch: a database error in one delete aborts the transaction it
+            # runs in, and without this every later class - and the audit entry that records the
+            # sweep - would fail with InFailedSQLTransaction while the caught error looked
+            # handled. Rolling back to the savepoint undoes only the failing batch.
+            async with self.db.begin_nested():
+                took = await self._purge_batch(name, organization_id=organization_id, cutoff=cutoff)
             removed += took
             if took < BATCH:
                 break

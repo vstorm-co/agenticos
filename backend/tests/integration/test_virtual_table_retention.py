@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.core.config import settings
 from app.db.models.audit_log import AppAdminAuditLog
@@ -299,3 +299,98 @@ async def test_receipts_and_outbox_are_removed_only_from_the_organization_asked_
 
     assert await _count(db, VirtualTableReceipt, theirs) == 1
     assert await _count(db, VirtualTableOutbox, theirs) == 1
+
+
+async def _fail_in_the_database(db, **kwargs) -> int:
+    """A delete that fails the way a real one does: PostgreSQL rejects the statement.
+
+    Unlike raising in Python, this aborts the transaction, which is what used to make every
+    later class and the audit entry fail with InFailedSQLTransaction.
+    """
+    await db.execute(text("SELECT * FROM a_table_that_does_not_exist"))
+    return 0
+
+
+async def test_a_database_error_in_one_table_class_leaves_the_others_and_the_audit_intact(
+    db, monkeypatch
+):
+    owner, org, table = await _tenant(db)
+    db.add_all(
+        [
+            _receipt(org, owner, "old", age=timedelta(days=5)),
+            _outbox(org, table, dispatched_age=timedelta(days=30)),
+            _history(org, table, age=timedelta(days=settings.TABLES_HISTORY_RETENTION_DAYS + 5)),
+        ]
+    )
+    await db.flush()
+    monkeypatch.setattr(retention_repo, "delete_table_outbox", _fail_in_the_database)
+
+    (result,) = await _sweep(db)
+
+    assert result.failed == ["table_outbox"]
+    assert result.removed == {"table_receipts": 1, "table_history": 1}
+    # Before the failure and after it, both deleted; the failed class's row stays for the next pass.
+    assert await _count(db, VirtualTableReceipt, org) == 0
+    assert await _count(db, VirtualTableRecordHistory, org) == 0
+    assert await _count(db, VirtualTableOutbox, org) == 1
+    entry = await db.scalar(
+        select(AppAdminAuditLog.details).where(
+            AppAdminAuditLog.organization_id == org.id,
+            AppAdminAuditLog.action == "retention.swept",
+        )
+    )
+    assert entry == {
+        "removed": {"table_receipts": 1, "table_history": 1},
+        "failed": ["table_outbox"],
+    }
+
+
+async def test_a_database_error_in_an_older_class_no_longer_takes_the_table_classes_with_it(
+    db, monkeypatch
+):
+    """The gap predates the table classes: any class failing in the database aborted the rest."""
+    owner, org, _table = await _tenant(db)
+    org.retention_days = {"workspaces": 1}
+    db.add(_receipt(org, owner, "old", age=timedelta(days=5)))
+    await db.flush()
+    monkeypatch.setattr(retention_repo, "delete_workspaces", _fail_in_the_database)
+
+    (result,) = await _sweep(db)
+
+    assert result.failed == ["workspaces"]
+    assert result.removed == {"table_receipts": 1}
+    assert await _count(db, VirtualTableReceipt, org) == 0
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(AppAdminAuditLog)
+            .where(
+                AppAdminAuditLog.organization_id == org.id,
+                AppAdminAuditLog.action == "retention.swept",
+            )
+        )
+        == 1
+    )
+
+
+async def test_a_batch_that_fails_keeps_the_batches_before_it(db, monkeypatch):
+    owner, org, _table = await _tenant(db)
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    db.add_all([_receipt(org, owner, f"k{n}", age=expired) for n in range(4)])
+    await db.flush()
+    real = retention_repo.delete_table_receipts
+    calls = {"n": 0}
+
+    async def second_batch_fails(db, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            return await _fail_in_the_database(db)
+        return await real(db, **kwargs)
+
+    monkeypatch.setattr(retention_repo, "delete_table_receipts", second_batch_fails)
+
+    (result,) = await _sweep(db)
+
+    assert result.failed == ["table_receipts"]
+    assert await _count(db, VirtualTableReceipt, org) == 2
