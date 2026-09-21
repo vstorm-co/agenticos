@@ -1,5 +1,5 @@
 ---
-source_sha: "45d48da31ced"
+source_sha: "3228db48ffba"
 ---
 
 # Ochrona danych { #data-protection }
@@ -78,6 +78,7 @@ przez sprawdzenie rodzica.
 | `conversations`, `messages`, `tool_calls` | Każdy czat na każdej powierzchni | Tekst, który ludzie napisali, odpowiedzi i rozumowanie modelu, argumenty i wyniki narzędzi, kroczące podsumowanie długich wątków | Podstawowa funkcja produktu; historia, do której człowiek wraca |
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
+| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Wiersze [Virtual Table](virtual-tables.md) i ślad każdej zmiany w nich | Cokolwiek organizacja umieściła w komórkach, w tym potencjalnie dane osobowe. Bieżące wartości (records); wartości sprzed i po każdej zmianie (history); cały rekord tak, jak zwrócił go zapis z kluczem (receipts); id i external id każdego utworzonego rekordu (outbox, bez wartości). Usunięcie rekordu usuwa tylko bieżący wiersz: history i receipts zachowują wartości, a żadna z trzech tabel śladu nie ma klasy retencji ani czyszczenia. Usunięcie konta usuwa jego receipts i czyści je jako autora w history; usunięcie organizacji usuwa wszystkie cztery | Typowane rekordy dla agentów i workflow, bezpieczne ponawianie zapisu i przekazanie utworzonego rekordu |
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |
 | `rag_documents`, `knowledge_bases` i jedna tabela wektorowa na kolekcję | Wgrane i zsynchronizowane dokumenty, ich chunki i embeddingi | Tekst dokumentu i jego wektory, oryginalna ścieżka pliku w źródle | Wyszukiwanie |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka | Budżety, zatwierdzenia, historia runów |

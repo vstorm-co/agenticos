@@ -1,5 +1,5 @@
 ---
-source_sha: "0125f6cd20cf"
+source_sha: "58aa7826a2ab"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -31,7 +31,8 @@ renombrar reescribe una versión del esquema y ningún registro. Un registro rec
 versión del esquema con la que se escribió por última vez.
 
 Un registro guarda solo las celdas que tienen valor. Una celda enviada como `null` se
-vacía, y una lectura no muestra nada para ella.
+vacía, y una lectura no muestra nada para ella. En un create, el valor por defecto de una
+columna rellena solo las celdas que omites; una celda que envías como `null` queda vacía.
 
 ## Tipos de columna { #column-types }
 
@@ -49,8 +50,8 @@ vacía, y una lectura no muestra nada para ella.
 
 El texto se guarda exactamente como se envía. Los espacios al principio y al final, los
 saltos de línea y los valores formados solo por espacios son datos del usuario, así que
-no se recortan. Solo se aplica un límite de longitud, y el carácter NUL se rechaza
-porque PostgreSQL no puede almacenarlo.
+no se recortan. Solo se aplica un límite de longitud, y el carácter NUL se rechaza, en las celdas y también en nombres, etiquetas,
+descripciones y external ids, porque PostgreSQL no puede almacenarlo.
 
 Las comparaciones solo coinciden con celdas que tienen valor. Usa `is_null` para
 encontrar las vacías.
@@ -75,6 +76,10 @@ Los registros no se reescriben. Un registro escrito con la versión 1 sigue sien
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
 defecto la próxima vez que se edita el registro.
 
+Una escritura de registro y un cambio de esquema o el archivado de la misma tabla se
+turnan: la escritura espera a la que está en curso y se juzga luego según lo que esta
+confirmó, así que un registro nunca cae en una tabla archivada un momento antes.
+
 Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
 dependencias registrado si algo aún la usa. Los workflows, las vistas y los triggers
 todavía no existen, así que no hay ninguno registrado y nada bloquea;
@@ -98,6 +103,8 @@ Una actualización o un borrado que indica una revision antigua se rechaza con
 registro de nuevo y reintenta. Un upsert que encuentra un registro existente y no recibe
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
+
+Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`.
 
 Los upserts concurrentes de un mismo external id crean un solo registro. El que pierde lo
 encuentra y se le responde como a una actualización: necesita la revision o se le dice
@@ -144,6 +151,13 @@ de tabla y de esquema se registran en el [audit log](governance.md); los cambios
 registros, en el historial por registro, que conserva los valores antes y después de cada
 cambio.
 
+Tres de estos almacenes conservan datos sin retención. El historial por registro y los
+receipts guardan los valores, así que borrar un registro elimina la fila actual y deja
+ambos. Un receipt guarda el registro completo tal como lo devolvió la escritura y solo
+desaparece con su cuenta o su organización. Las filas de outbox guardan ids y no se purgan
+tras la entrega. Trátalos como datos personales si lo son las celdas; consulta
+[protección de datos](data-protection.md#the-database).
+
 La fila de outbox es el traspaso a lo que reaccione a un registro nuevo. Por ahora nada
 la consume. Un consumidor reclama las filas sin entregar en su propia sesión y las marca
 como entregadas.
@@ -159,7 +173,9 @@ como entregadas.
 `tables:view` y `tables:edit` son permissions de recurso, así que un [grant](permissions.md)
 sobre una tabla amplía un rol solo para esa tabla: un viewer con `edit` sobre una tabla
 edita esa tabla y nada más. Compartir usa las mismas rutas `/tables/{id}/sharing` que los
-demás recursos compartidos. Los registros heredan el acceso de su tabla.
+demás recursos compartidos. Los registros heredan el acceso de su tabla, y el esquema lo impone: una fila de records,
+history u outbox referencia su tabla también a través de la organización, así que no puede
+nombrar una tabla de otro tenant.
 
 La tabla de otra organización y una a la que el llamante no puede acceder son ambas un
 404. Un contexto sin sujeto autenticado no alcanza nada.

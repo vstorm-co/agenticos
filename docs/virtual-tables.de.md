@@ -1,5 +1,5 @@
 ---
-source_sha: "0125f6cd20cf"
+source_sha: "58aa7826a2ab"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -31,7 +31,9 @@ Umbenennen schreibt daher eine Schema-Version um und keinen Datensatz. Ein Daten
 merkt sich die Schema-Version, unter der er zuletzt geschrieben wurde.
 
 Ein Datensatz speichert nur die Zellen, die einen Wert enthalten. Eine Zelle, die als
-`null` gesendet wird, wird geleert, und ein Lesezugriff zeigt für sie nichts an.
+`null` gesendet wird, wird geleert, und ein Lesezugriff zeigt für sie nichts an. Bei einem
+Create füllt der Standardwert einer Spalte nur die Zellen, die Sie weglassen; eine Zelle,
+die Sie als `null` senden, bleibt leer.
 
 ## Spaltentypen { #column-types }
 
@@ -50,7 +52,8 @@ Ein Datensatz speichert nur die Zellen, die einen Wert enthalten. Eine Zelle, di
 Text wird genau so gespeichert, wie er gesendet wurde. Führende und nachgestellte
 Leerzeichen, Zeilenumbrüche und Werte, die nur aus Leerzeichen bestehen, sind Daten des
 Benutzers und werden deshalb nicht beschnitten. Es gilt nur eine Längenbegrenzung, und
-das NUL-Zeichen wird abgelehnt, weil PostgreSQL es nicht speichern kann.
+das NUL-Zeichen wird abgelehnt, in Zellen ebenso wie in Namen, Bezeichnungen,
+Beschreibungen und external ids, weil PostgreSQL es nicht speichern kann.
 
 Vergleiche treffen nur Zellen, die einen Wert enthalten. Mit `is_null` finden Sie die
 leeren.
@@ -77,6 +80,11 @@ Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datens
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 
+Ein Schreibzugriff auf einen Datensatz und eine Schemaänderung oder Archivierung derselben
+Tabelle kommen nacheinander dran: Der Schreibzugriff wartet auf eine laufende und wird
+dann an dem gemessen, was sie committet hat, sodass ein Datensatz nie in einer Tabelle
+landet, die einen Moment zuvor archiviert wurde.
+
 Beim Archivieren einer Spalte oder der ganzen Tabelle wird zuerst jeder registrierte
 Dependency-Checker gefragt, ob etwas sie noch verwendet. Workflows, Views und Trigger
 gibt es noch nicht, daher ist keiner registriert und nichts blockiert;
@@ -100,6 +108,8 @@ Ein Update oder Delete mit einer alten Revision wird mit `REVISION_CONFLICT` (40
 erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Datensatz findet
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
+
+Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`.
 
 Gleichzeitige Upserts derselben external id erzeugen einen Datensatz. Der Verlierer
 findet ihn und wird wie ein Update beantwortet: Er braucht die Revision oder erfährt,
@@ -149,6 +159,14 @@ Fehler in irgendeinem Schritt hinterlässt keines davon. Änderungen an Tabelle 
 Schema werden im [Audit-Log](governance.md) festgehalten; Änderungen an Datensätzen in
 der Historie pro Datensatz, die die Werte vor und nach jeder Änderung aufbewahrt.
 
+Drei dieser Speicher halten Daten ohne Aufbewahrungsfrist. Die Historie pro Datensatz und
+die Receipts enthalten die Werte, ein Löschen des Datensatzes entfernt also die aktuelle
+Zeile und lässt beide zurück. Ein Receipt enthält den ganzen Datensatz, wie ihn der
+Schreibzugriff zurückgab, und verschwindet nur mit seinem Konto oder seiner Organisation.
+Outbox-Zeilen enthalten ids und werden nach der Zustellung nie bereinigt. Behandeln Sie sie
+als personenbezogene Daten, wenn es die Zellen sind; siehe
+[Datenschutz](data-protection.md#the-database).
+
 Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert.
 Bisher konsumiert sie nichts. Ein Konsument holt sich nicht zugestellte Zeilen in einer
 eigenen Session und markiert sie als zugestellt.
@@ -165,7 +183,9 @@ eigenen Session und markiert sie als zugestellt.
 [Grant](permissions.md) auf eine Tabelle eine Rolle nur für diese Tabelle: Ein Viewer
 mit `edit` auf einer Tabelle bearbeitet diese Tabelle und sonst nichts. Das Teilen
 nutzt dieselben `/tables/{id}/sharing`-Routen wie die anderen geteilten Ressourcen.
-Datensätze erben den Zugriff ihrer Tabelle.
+Datensätze erben den Zugriff ihrer Tabelle, und das Schema erzwingt es: Eine Zeile in
+Records, History oder Outbox verweist auch über die Organisation auf ihre Tabelle und kann
+keine Tabelle eines anderen Tenants nennen.
 
 Die Tabelle einer anderen Organisation und eine, die der Aufrufer nicht erreichen darf,
 sind beide ein 404. Ein Kontext ohne angemeldetes Subjekt erreicht nichts.

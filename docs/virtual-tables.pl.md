@@ -1,5 +1,5 @@
 ---
-source_sha: "0125f6cd20cf"
+source_sha: "58aa7826a2ab"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -30,7 +30,9 @@ jedną wersję schematu i żaden rekord. Rekord pamięta wersję schematu, w kt�
 ostatnio zapisany.
 
 Rekord przechowuje tylko komórki, które mają wartość. Komórka wysłana jako `null`
-zostaje wyczyszczona, a odczyt nic dla niej nie pokazuje.
+zostaje wyczyszczona, a odczyt nic dla niej nie pokazuje. Przy create wartość domyślna
+kolumny wypełnia tylko komórki, które pominiesz; komórka wysłana jako `null` zostaje
+pusta.
 
 ## Typy kolumn { #column-types }
 
@@ -48,8 +50,8 @@ zostaje wyczyszczona, a odczyt nic dla niej nie pokazuje.
 
 Tekst jest zapisywany dokładnie tak, jak został wysłany. Spacje na początku i na
 końcu, podziały wierszy i wartości złożone z samych spacji to dane użytkownika, więc
-nie są przycinane. Obowiązuje tylko limit długości, a znak NUL jest odrzucany, bo
-PostgreSQL nie potrafi go zapisać.
+nie są przycinane. Obowiązuje tylko limit długości, a znak NUL jest odrzucany, w komórkach i tak samo w nazwach, etykietach, opisach i
+external id, bo PostgreSQL nie potrafi go zapisać.
 
 Porównania pasują tylko do komórek, które mają wartość. Puste znajdziesz przez `is_null`.
 
@@ -74,6 +76,10 @@ Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
 domyślną przy najbliższej edycji rekordu.
 
+Zapis rekordu oraz zmiana schematu lub archiwizacja tej samej tabeli czekają na siebie:
+zapis czeka na trwającą zmianę i jest potem oceniany według tego, co ona zatwierdziła,
+więc rekord nigdy nie trafia do tabeli zarchiwizowanej chwilę wcześniej.
+
 Archiwizacja kolumny lub całej tabeli najpierw pyta każdy zarejestrowany checker
 zależności, czy coś jeszcze z niej korzysta. Workflow, widoki i triggery jeszcze nie
 istnieją, więc żaden checker nie jest zarejestrowany i nic nie blokuje;
@@ -96,6 +102,8 @@ Aktualizacja lub usunięcie ze starą revision jest odrzucane kodem `REVISION_CO
 (409) i `details.current_revision`; nic nie zostaje nadpisane. Odczytaj rekord ponownie
 i spróbuj jeszcze raz. Upsert, który znajdzie istniejący rekord i nie dostanie
 `expected_revision`, otrzymuje `REVISION_REQUIRED` (428), znów z revision do wysłania.
+
+External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`.
 
 Równoległe upserty tego samego external id tworzą jeden rekord. Przegrywający go
 znajduje i jest obsługiwany jak aktualizacja: potrzebuje revision albo dowiaduje się,
@@ -142,6 +150,13 @@ lub wycofywane razem. Błąd na dowolnym kroku nie zostawia żadnego z nich. Zmi
 tabeli i schematu trafiają do [audit log](governance.md); zmiany rekordów trafiają do
 historii per rekord, która przechowuje wartości sprzed i po każdej zmianie.
 
+Trzy z tych magazynów trzymają dane bez retencji. Historia per rekord i receipts
+przechowują wartości, więc usunięcie rekordu usuwa bieżący wiersz i zostawia oba.
+Receipt trzyma cały rekord tak, jak zwrócił go zapis, i znika tylko razem ze swoim
+kontem lub organizacją. Wiersze outbox trzymają id i nie są czyszczone po dostarczeniu.
+Traktuj je jako dane osobowe, jeśli takie są komórki; zobacz
+[ochronę danych](data-protection.md#the-database).
+
 Wiersz outbox to przekazanie temu, co reaguje na nowy rekord. Na razie nic go nie
 konsumuje. Konsument pobiera niedostarczone wiersze we własnej sesji i oznacza je jako
 dostarczone.
@@ -158,7 +173,8 @@ dostarczone.
 jedną tabelę poszerza rolę tylko dla tej tabeli: viewer z `edit` na jednej tabeli
 edytuje tę tabelę i nic więcej. Udostępnianie używa tych samych tras
 `/tables/{id}/sharing` co inne zasoby współdzielone. Rekordy dziedziczą dostęp swojej
-tabeli.
+tabeli, a schemat to wymusza: wiersz records, history lub outbox odwołuje się do swojej
+tabeli także przez organizację, więc nie może wskazać tabeli innego tenanta.
 
 Tabela innej organizacji i tabela, do której wywołujący nie ma dostępu, to w obu
 przypadkach 404. Kontekst bez zalogowanego podmiotu nie dociera do niczego.

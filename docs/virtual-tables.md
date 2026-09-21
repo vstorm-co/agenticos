@@ -26,7 +26,8 @@ rewrites one schema version and no record. A record remembers the schema version
 was last written under.
 
 A record stores only the cells that hold a value. A cell sent as `null` is cleared,
-and a read shows nothing for it.
+and a read shows nothing for it. On a create, a column's default fills only the cells
+you leave out; a cell you send as `null` stays empty.
 
 ## Column types { #column-types }
 
@@ -44,7 +45,8 @@ and a read shows nothing for it.
 
 Text is stored exactly as sent. Leading and trailing spaces, line breaks and
 whitespace-only values are the user's data, so they are not trimmed. Only a length
-limit applies, and the NUL character is refused because PostgreSQL cannot store it.
+limit applies, and the NUL character is refused, in cells and equally in names, labels,
+descriptions and external ids, because PostgreSQL cannot store it.
 
 Comparisons match only cells that hold a value. Use `is_null` to find the empty ones.
 
@@ -66,6 +68,10 @@ current columns:
 Records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
 next time the record is edited.
+
+A record write and a schema change or archive of the same table take turns: the write
+waits for one in flight and is then judged against what it committed, so a record never
+lands in a table archived a moment earlier.
 
 Archiving a column, or the whole table, first asks every registered dependency
 checker whether something still uses it. Workflows, views and triggers do not exist
@@ -89,6 +95,8 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 (409) and `details.current_revision`; nothing is overwritten. Read the record again
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
+
+An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`.
 
 Concurrent upserts of one external id create one record. The loser finds it and is
 answered as an update: it needs the revision, or it is told which one to send.
@@ -132,6 +140,13 @@ back together. A failure at any step leaves none of them. Table and schema chang
 are recorded in the [audit log](governance.md); record changes are recorded in the
 per-record history, which keeps the values before and after each change.
 
+Three of these stores keep data with no retention yet. The per-record history and the
+receipts hold the values, so a record delete removes the current row and leaves both
+behind. A receipt holds the whole record as the write returned it, and is removed only
+with its account or organization. Outbox rows hold ids, and are never purged after
+delivery. Treat them as personal data if the cells are; see
+[data protection](data-protection.md#the-database).
+
 The outbox row is the hand-off to whatever reacts to a new record. Nothing consumes
 it yet. A consumer claims undelivered rows in its own session and marks them
 delivered.
@@ -147,7 +162,9 @@ delivered.
 `tables:view` and `tables:edit` are resource permissions, so a [grant](permissions.md)
 on one table widens a role for that table only: a viewer given `edit` on one table
 edits that table and nothing else. Sharing uses the same `/tables/{id}/sharing`
-routes as the other shared resources. Records inherit their table's access.
+routes as the other shared resources. Records inherit their table's access, and the schema enforces it: a record, history or
+outbox row references its table through the organization as well, so a row cannot name a
+table from another tenant.
 
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.

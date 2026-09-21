@@ -1,5 +1,5 @@
 ---
-source_sha: "9792d48fbbe0"
+source_sha: "066986448f49"
 ---
 
 # Berechtigungen { #permissions }
@@ -264,8 +264,8 @@ Teilung: eine Ressource, eine Person, eine Stufe.
 | `edit` | sie außerdem zu ändern |
 
 Die Tabelle ist bewusst generisch - `resource_type` + `resource_id`, ohne
-Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien
-und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
+Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien,
+[Tabellen](virtual-tables.md) und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
 dass die Datenbank einen Grant nicht per Cascade löschen kann, wenn sein Ziel
 verschwindet, sodass Services Grants zusammen mit der Ressource löschen.
 
