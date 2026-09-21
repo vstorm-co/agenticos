@@ -5,11 +5,12 @@ reporting the one that already broke it, and an unpriced model is visibly
 unpriced rather than silently free.
 """
 
+import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -17,9 +18,13 @@ from app.agents.capabilities.budget import (
     BudgetScope,
     SpendLedger,
     SpendLimit,
+    can_afford_ambient_call,
+    guarding,
     metered_by,
+    metered_nested_run,
     price_request,
     record_ambient_usage,
+    reserved_limits,
     usage_counts,
     usage_delta,
 )
@@ -422,3 +427,156 @@ class TestUsageDelta:
         assert usage_delta(before, usage) == RequestUsage(
             input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3
         )
+
+
+class TestCanAffordNextRequest:
+    """The non-raising predicate `can_afford_next_request` agrees with the
+    refusing check `_assert_within_budget`, so an ambient call and a real request
+    decide the same way about the same cap (agenticos#1808)."""
+
+    @pytest.mark.anyio
+    async def test_true_below_the_cap_and_no_raise(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        assert await guard.can_afford_next_request() is True
+        await guard._assert_within_budget()
+
+    @pytest.mark.anyio
+    async def test_false_at_the_cap_where_the_check_would_raise(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("10"),
+                    period_spend=AsyncMock(return_value=Decimal("10")),
+                )
+            ],
+        )
+        assert await guard.can_afford_next_request() is False
+        with pytest.raises(BudgetExceeded):
+            await guard._assert_within_budget()
+
+    @pytest.mark.anyio
+    async def test_no_limits_can_always_afford(self):
+        assert await BudgetGuard(ledger=SpendLedger()).can_afford_next_request() is True
+
+
+class TestCanAffordAmbientCall:
+    """An ambient call consults the active guard; outside a run there is none and
+    the call proceeds, which keeps a preview, the CLI and ingestion unchanged."""
+
+    @pytest.mark.anyio
+    async def test_no_active_guard_allows_the_call(self):
+        assert await can_afford_ambient_call() is True
+
+    @pytest.mark.anyio
+    async def test_an_active_guard_below_its_cap_allows_the_call(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        with guarding(guard):
+            assert await can_afford_ambient_call() is True
+
+    @pytest.mark.anyio
+    async def test_an_active_guard_at_its_cap_refuses_the_call(self):
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))],
+        )
+        with guarding(guard):
+            assert await can_afford_ambient_call() is False
+        # The guard is cleared on block exit, so an ambient call outside it proceeds.
+        assert await can_afford_ambient_call() is True
+
+
+class TestReservedLimits:
+    def test_none_limits_stay_none(self):
+        assert reserved_limits(None) is None
+
+    def test_an_unset_request_limit_is_left_alone(self):
+        limits = UsageLimits(request_limit=None)
+        assert reserved_limits(limits) is limits
+
+    def test_one_request_is_held_back(self):
+        result = reserved_limits(UsageLimits(request_limit=4))
+        assert result is not None
+        assert result.request_limit == 3
+
+    def test_it_never_goes_below_zero(self):
+        result = reserved_limits(UsageLimits(request_limit=0))
+        assert result is not None
+        assert result.request_limit == 0
+
+
+class TestMeteredNestedRun:
+    """Concurrency-safe metering for an ambient run that shares `ctx.usage`.
+
+    The regression is agenticos#1811: two ambient runs under one `metered_by`
+    block that each snapshot and diff the *shared* usage book the sum twice,
+    because each reads the other's increments inside its own window. Spending into
+    a private copy and folding only the own-delta back fixes it.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_old_delta_over_shared_usage_double_books(self):
+        """Documents the defect the new helper removes: the snapshot/delta pattern
+        over one shared `ctx.usage` counts each concurrent run's spend twice."""
+        usage = RunUsage()
+        ledger = SpendLedger()
+
+        async def old_nested() -> None:
+            before = usage_counts(usage)
+            await asyncio.sleep(0)  # both snapshot the same start before either spends
+            usage.incr(RunUsage(requests=1, input_tokens=10, output_tokens=5))
+            await asyncio.sleep(0)  # both spend before either diffs
+            spent = usage_delta(before, usage)
+            with metered_by(ledger):
+                if spent is not None:
+                    record_ambient_usage("gpt-4.1", spent)
+
+        await asyncio.gather(old_nested(), old_nested())
+        # Two runs spent 10 input tokens each; the shared-usage diff books 40.
+        assert usage.input_tokens == 20
+        assert ledger.input_tokens == 40
+
+    @pytest.mark.anyio
+    async def test_it_books_each_concurrent_run_exactly_once(self):
+        usage = RunUsage()
+        ledger = SpendLedger()
+
+        async def nested(model_name: str) -> None:
+            with metered_by(ledger), metered_nested_run(usage, model_name) as private:
+                await asyncio.sleep(0)
+                private.incr(RunUsage(requests=1, input_tokens=10, output_tokens=5))
+                await asyncio.sleep(0)
+
+        await asyncio.gather(nested("gpt-4.1"), nested("gpt-4.1"))
+        # Each nested run's own spend is folded back once: no double-count, and the
+        # shared usage ends at start + 2 requests.
+        assert usage.requests == 2
+        assert usage.input_tokens == 20
+        assert ledger.input_tokens == 20
+        assert ledger.output_tokens == 10
+        assert len(ledger.entries) == 2
+
+    @pytest.mark.anyio
+    async def test_the_running_totals_travel_into_the_private_copy(self):
+        """The private copy starts from the shared usage, so a reserved limit still
+        meters the nested run against where the run already is, not from zero."""
+        usage = RunUsage(requests=3, input_tokens=100)
+        with metered_nested_run(usage, "gpt-4.1") as private:
+            assert private.requests == 3
+            assert private.input_tokens == 100
+
+    @pytest.mark.anyio
+    async def test_a_run_that_spends_nothing_books_nothing(self):
+        usage = RunUsage(requests=2)
+        ledger = SpendLedger()
+        with metered_by(ledger), metered_nested_run(usage, "gpt-4.1"):
+            pass
+        assert usage.requests == 2
+        assert ledger.entries == []

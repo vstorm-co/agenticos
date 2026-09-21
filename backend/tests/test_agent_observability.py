@@ -7,14 +7,54 @@ write token never leaves the vault path it came in on.
 """
 
 import uuid
+from typing import Any
 from unittest.mock import MagicMock, patch
 
+from pydantic_ai._run_context import RunContext
+from pydantic_ai.models.instrumented import InstrumentedModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
+
 from app.agents.factory import _instrument
-from app.agents.observability import instrument_agent, suppress_content
+from app.agents.observability import auxiliary_model, instrument_agent, suppress_content
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.secret_kinds import ApiKeySecret
 
 MODULE = "app.agents.factory"
+
+
+def _ctx(*, model: Any, trace_include_content: bool) -> RunContext[None]:
+    return RunContext(
+        deps=None,
+        model=model,
+        usage=RunUsage(),
+        trace_include_content=trace_include_content,
+    )
+
+
+class TestAuxiliaryModel:
+    """The model a code-built auxiliary agent runs on inherits the run's content
+    mode, so a run tracing without content does not leak an auxiliary call's
+    prompt or output to its Logfire project (agenticos#1809)."""
+
+    def test_content_off_wraps_the_model_content_free(self):
+        model = TestModel()
+        result = auxiliary_model(_ctx(model=model, trace_include_content=False))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings.include_content is False
+        assert result.wrapped is model
+
+    def test_content_on_leaves_the_model_untouched(self):
+        """Tracing with content, there is nothing to suppress, so the run's own
+        model is returned unchanged rather than wrapped a second time."""
+        model = TestModel()
+        assert auxiliary_model(_ctx(model=model, trace_include_content=True)) is model
+
+    def test_a_non_request_response_model_is_returned_unchanged(self):
+        """A realtime model cannot be wrapped and does not run an auxiliary agent,
+        so it is handed back as-is for the caller to reject."""
+        realtime = object()
+        assert auxiliary_model(_ctx(model=realtime, trace_include_content=False)) is realtime
 
 
 def _secret(token: str = "pylf_v1_eu_secret") -> ApiKeySecret:

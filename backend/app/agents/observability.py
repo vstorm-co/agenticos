@@ -24,6 +24,9 @@ from typing import Any
 import logfire
 from opentelemetry import trace
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models import AbstractModel, Model
+from pydantic_ai.models.instrumented import InstrumentationSettings, instrument_model
+from pydantic_ai.tools import RunContext
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +125,26 @@ def suppress_content(agent: PydanticAgent[Any, Any]) -> None:
         logfire.instrument_pydantic_ai(agent, include_content=False)
     except Exception:
         logger.exception("agent_content_suppress_failed")
+
+
+def auxiliary_model(ctx: RunContext[Any]) -> AbstractModel:
+    """The run's model for an auxiliary call, content-free when the run is.
+
+    A capability that writes through an `Agent` it builds itself - a system
+    reminder, a compaction summary - inherits the run's model, but building that
+    agent on the bare `ctx.model` traces its prompt and output under the run's
+    Logfire instrumentation regardless of the run's own `content` mode. An agent
+    published with `content="none"` would then leak the auxiliary call's text to
+    the project the outer run kept content-free (agenticos#1809).
+
+    So when the outer run is tracing without content (`trace_include_content` is
+    `False`), the model is wrapped in a content-free `InstrumentedModel`, which
+    records the same timing, tokens and cost with no message text or tool
+    arguments. When the run traces *with* content there is nothing to suppress and
+    the model is returned unchanged; a realtime model (not a request-response
+    :class:`Model`) is returned unchanged too, since it cannot be wrapped and does
+    not run an auxiliary agent.
+    """
+    if ctx.trace_include_content or not isinstance(ctx.model, Model):
+        return ctx.model
+    return instrument_model(ctx.model, InstrumentationSettings(include_content=False))
