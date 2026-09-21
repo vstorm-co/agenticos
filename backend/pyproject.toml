@@ -73,7 +73,7 @@ dependencies = [
     # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
     # own change, with its own tests. Until then this cap is what keeps the
     # scheduled freshness upgrade green rather than perpetually red.
-    "mcp<3",
+    "mcp<2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
