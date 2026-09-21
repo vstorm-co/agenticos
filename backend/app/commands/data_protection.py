@@ -103,7 +103,8 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     # is what moves it.
     "browser_choice": (
         "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the decision model at "
-        "decision_base_url (the vendor's endpoint by default)"
+        "decision_base_url (the vendor's endpoint by default), which receives each "
+        "page's address, its element labels and a bounded excerpt of its visible text"
     ),
     "browser_use": "the browser service this deployment configures",
     "image_generation": "the image provider named in the binding",

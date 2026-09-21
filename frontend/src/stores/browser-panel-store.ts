@@ -2,34 +2,49 @@
 
 import { create } from "zustand";
 
+export const MIN_PANEL_WIDTH = 360;
+export const MAX_PANEL_WIDTH = 880;
+export const DEFAULT_PANEL_WIDTH = 520;
+
+/** Where an expanded browse is drawn. */
+export type BrowserViewMode = "panel" | "full";
+
 interface BrowserPanelState {
-  isOpen: boolean;
   /**
-   * Browses the person closed the panel on, so it stays closed for them.
+   * Which browse is expanded, by `call_id`, or `null` for none.
    *
-   * The panel opens itself when a browse starts, which is the point of a live
-   * preview - but a person who closed it did not close one frame, they closed
-   * this browse, and re-opening on the next step would make the control useless
-   * at exactly the moment it is being used. Keyed by `call_id`, so the *next*
-   * browse opens normally.
+   * An id rather than a boolean, because a turn can browse twice and both have
+   * a card. "Open" is not a property of the panel, it is a property of one
+   * browse - and a panel that showed "the running one" would swap page under
+   * somebody reading it the moment the other browse advanced.
    */
-  dismissed: string[];
-  /** Open for this browse, unless it is one the person already closed. */
-  openFor: (callId: string) => void;
-  close: (callId: string | null) => void;
+  openCallId: string | null;
+  mode: BrowserViewMode;
+  /** How wide the side panel is, as somebody dragged it. Full screen ignores it. */
+  width: number;
+  open: (callId: string, mode: BrowserViewMode) => void;
+  close: () => void;
+  setWidth: (width: number) => void;
 }
 
+/**
+ * Which browse is expanded, how, and how wide.
+ *
+ * Only that. The browses themselves live in `use-chat`, with the delegations and
+ * for the same reason - they belong to a turn, and this belongs to a person's
+ * window. Nothing here opens itself: a browse shows itself as a card in the
+ * transcript, and expanding it is somebody's decision.
+ *
+ * Width is held for the session rather than persisted. `localStorage` would
+ * survive a reload and also has to be wrapped in try/catch and tolerate coming
+ * back empty, which is a lot of machinery for remembering a drag.
+ */
 export const useBrowserPanelStore = create<BrowserPanelState>((set) => ({
-  isOpen: false,
-  dismissed: [],
-  openFor: (callId) =>
-    set((state) => (state.dismissed.includes(callId) ? state : { ...state, isOpen: true })),
-  close: (callId) =>
-    set((state) => ({
-      isOpen: false,
-      dismissed:
-        callId && !state.dismissed.includes(callId)
-          ? [...state.dismissed, callId]
-          : state.dismissed,
-    })),
+  openCallId: null,
+  mode: "panel",
+  width: DEFAULT_PANEL_WIDTH,
+  open: (callId, mode) => set({ openCallId: callId, mode }),
+  close: () => set({ openCallId: null }),
+  setWidth: (width) =>
+    set({ width: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, Math.round(width))) }),
 }));

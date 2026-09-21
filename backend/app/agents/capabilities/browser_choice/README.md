@@ -22,9 +22,19 @@ The prompt still says page text is untrusted data. What *enforces* it is the
 shape of the question.
 
 That is not the same as safe. "Delete account" is an action a page genuinely
-offers, so the capability is `side_effecting` on both the capability and the tool,
-and an approval gate is what stands between an injected page and an unattended
-press. The action space is bounded, not harmless.
+offers. The action space is bounded, not harmless.
+
+**Which is why the two `side_effecting` flags disagree here.** The capability's is
+true, so the console badges it and an operator can gate it. The tool's is false,
+so a browse is not held by default - and that is a decision rather than an
+oversight. An approval on a browse arrives *before* the first page is fetched, on
+a goal in natural language and a URL: it asks somebody to approve actions nobody
+can see yet, which is consent without information, and the answer to it is almost
+always yes. What stands in its place is that a browse is *watchable* - the console
+draws it while it runs and every step names what was chosen and how sure the
+engine was - plus `allowed_domains`, which bounds where it can go at all, and
+`min_confidence`, which is the automatic form of the same instinct. An operator
+who wants the gate sets `tool_approval` on the binding, which beats both flags.
 
 **`BLOCKED` is an answer.** A sign-in wall, a consent gate, a captcha, a page that
 simply does not contain what was asked for - the engine says so in the same breath
@@ -60,6 +70,15 @@ image. `cdp_url` points at a browser service an operator runs and isolates. A
 browser in the application container widens the surface the platform itself runs
 on, for nothing.
 
+The field is not left blank for somebody to guess at, though. The Builder
+prefills it from `BROWSER_CDP_ALLOWED_HOSTS` when exactly one host is allowed,
+and hints the first one otherwise - an author is choosing from that list whether
+the form says so or not, and a field that refuses at publish without ever saying
+what it would accept wastes an afternoon. `agenticos cmd doctor` then answers the
+other half: whether anything is actually listening. It reports rather than fails,
+because the allowlist holds hosts and not ports, so the probe has to assume
+Chromium's 9222 and an operator on another port is not broken.
+
 **Decide for itself which browser it may drive.** The host must be on
 `BROWSER_CDP_ALLOWED_HOSTS`, and an empty allowlist - the default - refuses the
 capability outright. That is deliberately *not* `browser_use`'s arrangement,
@@ -86,25 +105,62 @@ this capability exists to make back inside an opaque function, and would make tw
 runs over one page offer different tables. The loop's answer to a page too dense
 for the cap is to scroll.
 
-**Re-resolve an index at action time.** The coordinates a click uses come from the
-snapshot that offered the element. A page that re-rendered in between has
-renumbered everything, and pressing "element 7" after that presses whatever moved
-into seventh place.
+**Trust the coordinates a snapshot recorded.** It did, and that was wrong. The
+decision model answers *after* the snapshot, which on a page that re-renders is
+long enough for everything to move - so a click on the stale centre lands on
+whatever slid into that position, which is an action on an element that was never
+in the candidate table and the bounded-action property gone. Every element now
+carries a selector, and every action resolves it again, checks that what it found
+still describes itself the way the table said it did, and uses the fresh
+coordinates. An element that moved or changed is one step refused with a reason
+the model reads, not the browse's end.
+
+**Let the operation and the target contradict each other.** They are two
+independent answers, so `TYPE_TEXT` aimed at a link is a pair the model can
+produce - and typing starts by focusing, which for a link means *following* it.
+The action would have happened and only then failed. Roles are checked before
+dispatch: `TYPE_TEXT` needs a field that holds text, `SELECT` needs a dropdown.
 
 **Read the accessibility tree.** It is the richer source and it is also the one the
 page writes: `aria-label` is an author's sentence. A bounding rectangle that is on
 screen, non-zero and not disabled is a fact about what a person could press.
 
+## A dropdown is a value, not a click
+
+Clicking a native `<select>` opens Chromium's own popup, whose options are not in
+the DOM at all - so the next snapshot shows the same untouched dropdown, and a
+form that needs one choice loops until the repeat guard stops it. `SELECT` is
+therefore answered with a *value*, the way `TYPE_TEXT` is: the option is matched
+on its visible label, set on the element, and `input` and `change` are dispatched,
+which is what the listeners on that form are waiting for.
+
+The options travel on the element rather than as choosable rows of their own,
+which is the obvious design and the wrong one: a country list is two hundred
+options and would spend the whole candidate cap describing one field. So a
+dropdown is one row, its choices are listed with it (bounded, with a count for
+the rest), and an option it does not have is refused rather than typed somewhere.
+
 ## Two guards, because a bounded action space is not a bounded run
 
 A page can offer a legitimate action for ever - the cookie banner that reappears,
 the "load more" that loads nothing - and choosing it every time is the loop working
-correctly all the way to its ceiling. So the same action on the same page three
+correctly all the way to its ceiling. So the same action in the same place three
 times running ends the browse as `blocked` while there is still something useful to
 say, and `min_confidence` lets an operator refuse to act on a pick the decision
 model was not sure about. It defaults to 0 - act on every pick, report the score -
 because a floor that silently blocks a first browse is worse than one an operator
 turns on after reading a few.
+
+"The same place" is the URL, the scroll position and the roles and labels of what
+the page offers. Not the URL alone, which a wizard or a paginated table defeats -
+`Next` at the same index on the same address three times, each click advancing the
+flow. And **not** the field values or the page's text, both of which were in there
+and had to come out: a value changes the moment it is typed, so typing the same
+thing ten times read as ten different states, and the text of any page with an
+autocomplete on it differs every step. Measured against a live Wikipedia, with the
+text included, eight identical `TYPE_TEXT` steps ran to the ceiling unremarked.
+What the narrower signature costs is bounded and stated: a page whose *labels*
+churn is not caught by this guard, and `max_steps` is what stops it.
 
 ## The two model paths, and the one that has no price
 
@@ -126,17 +182,47 @@ Every step sends the page's URL, its title and its element labels to the decisio
 model. On the vendor's public endpoint that is a third party, in a product sold as
 self-hosted, and it may be the contents of a customer's internal system.
 
-Two things make that a decision rather than an accident. The capability requires an
-API key from this deployment's vault, so it cannot run until an operator
+A bounded excerpt of the page's visible text goes with it, because without it the
+engine cannot tell that it has finished - a price, a confirmation and "no results"
+are text rather than controls, so `DONE` would be a guess. A value the agent
+*types* does not: the history line the next decision reads says `filled textbox:
+Password`, never what was in it, so a credential the host model wrote into a form
+does not travel to a separately configured endpoint.
+
+Two things make the destination a decision rather than an accident. The capability
+requires an API key from this deployment's vault, so it cannot run until an operator
 deliberately adds one - there is no ambient `TYPESAFE_API_KEY` path, and the key
 follows the agent rather than the process. And `decision_base_url` points the
 decision model somewhere else, for a deployment that has a private endpoint.
 `docs/data-protection.md` says the same thing where an operator will look for it.
 
+## The picker over a catalog, and the string underneath it
+
+`decision_model` is offered from `app/core/catalog/decision_models.json` and
+stored as a plain string. Both halves are deliberate. A moving alias is the right
+answer for almost every agent and typing one is a chance to typo, so the Builder
+shows a select; and a *pinned* build (`jev-1.13.0`) is the right answer for an
+agent whose confidence floor was tuned against one, which TypeSafe accepts and
+which a `Literal` would have forbidden. Nobody should wait for a release of this
+platform to use a release of that one.
+
+`decision_base_url` names its own default in the field description rather than
+leaving it implicit in the SDK. Empty is the setting with the largest consequence
+in this capability - it is the difference between page content staying inside a
+deployment and leaving it - and a default destination nobody can see is a default
+nobody audits.
+
 ## The live preview
 
 `preview` sends the viewport to the chat as a JPEG per step, on the same channel
-as a delegation's frames (`app/agents/browser_events.py`). It is a separate frame
+as a delegation's frames (`app/agents/browser_events.py`). The console draws it as
+a thumbnail card in the transcript and expands it into a resizable panel when
+somebody asks - a panel that opened itself would say watching the browser matters
+more than reading the answer, which is true for about four seconds. It is bounded by
+`preview_width` without resizing anything, because the viewport *is*
+`preview_width`: one number decides how wide the page renders and how wide the
+picture is, which is also what keeps the frame a person watches identical to the
+page the model was shown. It is a separate frame
 from the step's narration so that encoding a picture never holds up the sentence,
 and so a deployment that cannot afford the bandwidth turns the pictures off and
 keeps the narration. A surface with no `browser_events` sink runs the browse

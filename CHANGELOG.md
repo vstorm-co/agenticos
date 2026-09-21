@@ -55,6 +55,69 @@ Two things are versioned separately from this file and worth knowing about:
   now names the hosts, matching is exact and case-folded, and an empty allowlist -
   the default - refuses browser automation outright. The check no longer resolves
   DNS, so publish validation does not need a thread for it.
+- **Ten defects in `browser_choice`, from a review of the unmerged branch.** Each
+  had a way of being invisible: `TYPE_TEXT` aimed at a link *clicked the link*
+  before failing, because typing begins by focusing and the operation and the
+  target are two independent answers from the model; a native `<select>` could
+  not be operated at all, because clicking one opens Chromium's own popup whose
+  options are not in the DOM, so a form needing one choice looped until the
+  repeat guard stopped it; an action used the coordinates its snapshot recorded,
+  and the decision model answers late enough for a re-rendered page to have moved
+  everything under them; the value the host model typed into a field was written
+  into the history that the separately configured decision endpoint reads on the
+  next step, so a password was disclosed to it; the decision prompt carried no
+  page text, so an engine that had already found the price could not tell it had
+  finished; `/json/version` was trusted to name the socket to open, so a
+  compromised or author-chosen endpoint could answer `ws://169.254.169.254/` and
+  have the deployment dial it; a browse that raised after opening left the chat
+  panel spinning for ever; the allowlist was checked only on the next snapshot,
+  so the final step could return an off-list page's content as the tool's answer;
+  the repeat guard read the URL alone, so a wizard clicking `Next` three times was
+  refused as a loop; and `preview_width` was declared in three places and read by
+  none. Every element now carries a selector, every action re-resolves it and
+  checks it still describes itself the way the candidate table said, a dropdown is
+  answered with a value, a typed value never leaves the run, and a finish frame is
+  sent on every path out.
+- **The browse panel is a card first, and a window when you ask.** A full side
+  panel opening itself over the conversation says watching the browser matters
+  more than reading the answer, which is true for about four seconds. So a browse
+  appears as a glass card under the message - a thumbnail of the page, where it
+  is, how far along - and expands into a panel that drags to any width between
+  360 and 880 pixels, closes back to the card, and reopens. The resize handle is
+  a `slider` with arrow keys, because a width is a real setting and dragging is
+  not available to everyone.
+- **The browsing capability's form fills itself in.** `cdp_url` is prefilled from
+  `BROWSER_CDP_ALLOWED_HOSTS` when one host is allowed and hinted otherwise - an
+  author was already choosing from that list, and a field that refuses at publish
+  without saying what it would accept wastes an afternoon. `decision_model` is a
+  picker over a new `app/core/catalog/decision_models.json` while staying a
+  string, so a pinned build (`jev-1.13.0`) is still storable. `decision_base_url`
+  names the vendor endpoint it defaults to, because that default is the difference
+  between page content staying inside a deployment and leaving it.
+- **`agenticos cmd doctor` probes the browser hosts.** Reports rather than fails:
+  the allowlist holds hosts and not ports, so the probe assumes Chromium's 9222
+  and an operator running theirs elsewhere is not broken. What the line is for is
+  the other case - nothing listening anywhere, and an agent published against it.
+- **The decision-model key is a TypeSafe key.** It has its own entry in the
+  service catalog, so the Builder asks for "a TypeSafe key" rather than "a key for
+  Browser automation", the picker offers the TypeSafe secrets rather than every
+  `api_key` in the vault, and a key added from that picker is stored under that
+  purpose. Filed under `other` beside LlamaParse and mem0 - its actual peers - and
+  deliberately not `model_provider`, which is what the chat model picker reads to
+  offer a provider to run an agent on.
+- **A browse is no longer held for approval by default.** The capability stays
+  `side_effecting`, so the console badges it and an operator can still gate it with
+  `tool_approval`; the tool's own flag is now false. An approval on a browse
+  arrives before the first page is fetched, on a goal and a URL - it asks somebody
+  to approve actions nobody can see yet, and the answer is almost always yes. What
+  replaces it is that a browse is watchable, bounded by `allowed_domains`, and
+  refusable by `min_confidence`.
+- **`EXTRAS`, a build argument for the backend image.** The capability docs told an
+  operator to install `agenticos[browser]` and nothing in the build honoured it:
+  the image is `uv sync --frozen --no-dev` with no extras, so there was no
+  supported way to get the engine in and a bound agent failed its one tool with an
+  install line nobody could act on. `browser_use` has had the same gap since it
+  shipped. Empty by default, so a plain build is exactly what it was.
 - **A live browser panel in the chat.** A browse streams its steps, the
   probability the engine chose each at, and the viewport as a picture per step -
   narration and picture as separate frames, so encoding one never holds up the

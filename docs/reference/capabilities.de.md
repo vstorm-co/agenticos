@@ -1,5 +1,5 @@
 ---
-source_sha: "855173f04a37"
+source_sha: "c179bcecb5c2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -526,9 +526,18 @@ Einfachauswahl, deren Optionen serverseitig aus dem lebenden DOM gebaut werden �
 Seite kann eine Aktion also nicht anbieten, indem sie sie beschreibt.
 
 Das ist nicht dasselbe wie sicher. „Konto löschen" ist eine Aktion, die eine Seite
-tatsächlich anbietet, deshalb ist `browse_page` **`side_effecting` und gate-fähig** —
-stellen Sie es hinter eine [Freigabe](../governance.md), und die eingeschleuste Seite
-erreicht einen Menschen, keine Aktion.
+tatsächlich anbietet, deshalb ist die Capability **`side_effecting`** und
+`browse_page` lässt sich hinter eine [Freigabe](../governance.md) stellen.
+
+**Standardmäßig wird es nicht zur Freigabe zurückgehalten** — die eine Stelle, an der
+das Flag des Tools dem der Capability widerspricht. Eine Freigabe für einen Durchlauf
+kommt *bevor* die erste Seite geholt ist, zu einem Ziel in natürlicher Sprache und
+einer URL — sie bittet also jemanden, Aktionen freizugeben, die noch niemand sehen
+kann, und das ist Einwilligung ohne Information. An ihre Stelle tritt das Zusehen: Die
+Konsole zeichnet den Durchlauf, während er läuft, jeder Schritt nennt die Wahl und
+ihre Wahrscheinlichkeit, und `allowed_domains` begrenzt, wohin er überhaupt darf. Ein
+Betreiber, der das Gate will, setzt `tool_approval` auf der Bindung, was hier gewinnt;
+`min_confidence` ist die automatische Fassung desselben Impulses.
 
 **Sie meldet, wenn sie blockiert ist.** Eine Anmeldewand, ein Einwilligungsdialog,
 ein Captcha, eine Seite, die das Gefragte nicht enthält: Die Engine sagt es, und der
@@ -538,10 +547,10 @@ an der Schrittgrenze gestoppt und der Browser war nicht erreichbar.
 
 | Einstellung | Standard | Werte |
 |---|---|---|
-| `cdp_url` | — | ein Chromium-DevTools-Endpunkt; erforderlich, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen |
+| `cdp_url` | der einzige erlaubte Host, wenn es einen gibt | ein Chromium-DevTools-Endpunkt; erforderlich, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen. Bei genau einem erlaubten Host kommt das Formular ausgefüllt |
 | `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Globs wie `*.example.com` erlaubt; null bedeutet unbeschränkt |
-| `decision_model` | `jev-latest` | das Modell, das in jedem Schritt Operation und Element wählt |
-| `decision_base_url` | null | wo dieses Modell läuft, wenn es nicht der öffentliche Endpunkt des Anbieters ist |
+| `decision_model` | `jev-latest` | eine Auswahl über `app/core/catalog/decision_models.json`; ein fester Build wie `jev-1.13.0` lässt sich eintippen, weil ein Agent mit einer auf eine Version abgestimmten Konfidenzschwelle genau den braucht |
+| `decision_base_url` | null | wo dieses Modell läuft. Leer ist das eigene `https://api.typesafe.ai` des Anbieters, und dorthin geht der Seiteninhalt, solange dieses Feld nichts anderes sagt |
 | `max_steps` | 25 | 1–100; jeder Schritt ist eine Entscheidungsanfrage |
 | `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt zur Auswahl gestellt werden dürfen |
 | `min_confidence` | 0.0 | 0–1; auf eine Auswahl unterhalb dieses Werts nicht handeln und den Durchlauf als blockiert beenden |
@@ -565,9 +574,15 @@ akzeptiert einen ins Internet gestellten CDP-Debugger, die schlechtere der beide
 Haltungen. Ein geprüfter Host braucht keine Adressprüfung; ein ungeprüfter wird
 abgelehnt, worauf er auch auflöst.
 
-**Jeder Schritt sendet die Seite an das Entscheidungsmodell.** Ihre URL, ihren Titel
-und die Beschriftungen der Elemente — was am öffentlichen Endpunkt des Anbieters ein
-Dritter ist und der Inhalt eines internen Systems sein kann. Zwei Dinge machen daraus
+**Jeder Schritt sendet die Seite an das Entscheidungsmodell.** Ihre URL, ihren
+Titel, die Beschriftungen der Elemente und einen begrenzten Auszug ihres sichtbaren
+Textes — was am öffentlichen Endpunkt des Anbieters ein Dritter ist und der Inhalt
+eines internen Systems sein kann. Der Text ist dabei, weil die Engine sonst nicht
+erkennen kann, dass sie *fertig* ist: Ein Preis, eine Bestätigung und „keine
+Ergebnisse“ sind gewöhnlicher Text und keine Bedienelemente, `DONE` wäre also
+geraten. Ein Wert, den der Agent eintippt, wird bewusst nicht gesendet — der Schritt
+wird ohne ihn als „gefüllt“ vermerkt, ein Passwort reist also nicht zu diesem
+Endpunkt. Zwei Dinge machen daraus
 eine Entscheidung statt eines Versehens: Die Capability verlangt einen API-Key aus dem
 Vault dieses Deployments, kann also erst laufen, wenn ein Betreiber einen hinterlegt,
 und `decision_base_url` lenkt das Entscheidungsmodell woandershin. Siehe

@@ -24,10 +24,12 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from hashlib import sha256
 from typing import Protocol
 
 from app.agents.browser_events import BrowseOutcome, BrowserEvent, BrowserEventSink
 from app.agents.capabilities.browser_choice._elements import Element, Snapshot
+from app.agents.capabilities.browser_choice._page import StaleElement
 
 REPEAT_LIMIT = 3
 """How often the identical action on the identical page is tried before giving up.
@@ -64,36 +66,28 @@ class PageSession(Protocol):
     """
 
     async def snapshot(self) -> Snapshot:
-        """The page as it is now: its URL, its title and what can be chosen on it."""
-        ...  # pragma: no cover
+        """The page as it is now: its URL, its title, its words and what can be chosen."""
 
     async def click(self, element: Element) -> None:
-        """Press an element, at the coordinates its snapshot recorded."""
-        ...  # pragma: no cover
+        """Press an element, resolved and verified where it is now."""
 
     async def type_text(self, element: Element, text: str) -> None:
         """Focus a field and enter `text`, replacing whatever it held."""
-        ...  # pragma: no cover
 
-    async def select(self, element: Element) -> None:
-        """Open a dropdown so its options become choosable elements next step."""
-        ...  # pragma: no cover
+    async def select(self, element: Element, value: str) -> None:
+        """Choose `value` in a native dropdown, firing what a person's choice fires."""
 
     async def scroll(self) -> None:
         """Move one viewport down."""
-        ...  # pragma: no cover
 
     async def settle(self) -> None:
-        """Give the page a moment to finish whatever the last action started."""
-        ...  # pragma: no cover
+        """Wait for whatever the last action started, and for the page to be ready."""
 
     async def screenshot(self) -> str | None:
         """The viewport as a `data:` URL, or `None` where previews are off."""
-        ...  # pragma: no cover
 
     async def read(self) -> str:
         """The page's readable text, which is what a finished browse answers with."""
-        ...  # pragma: no cover
 
 
 Decide = Callable[[str, Snapshot, tuple[str, ...]], Awaitable[Choice]]
@@ -243,11 +237,7 @@ async def run_browse(
                 snapshot=snapshot,
             )
 
-        # The scroll position is part of what makes an action distinct. Scrolling
-        # down a long page is the same URL, the same operation and no element
-        # three times running, and it is progress - while a scroll that moved
-        # nothing, at the bottom of the page, repeats and is caught.
-        signature = f"{snapshot.url}|{snapshot.scroll_y}|{choice.operation}|{choice.index}"
+        signature = _signature(snapshot, choice)
         recent.append(signature)
         if recent[-REPEAT_LIMIT:].count(signature) == REPEAT_LIMIT:
             return await _finish(
@@ -279,9 +269,18 @@ async def run_browse(
                     ),
                     snapshot=snapshot,
                 )
-            history += (
-                await _act_on_element(page, choice.operation, element, goal, history, generate),
-            )
+            try:
+                history += (
+                    await _act_on_element(page, choice.operation, element, goal, history, generate),
+                )
+            except StaleElement as refused:
+                # The page moved between the snapshot and the decision, or the
+                # two answers did not go together. Either way the action did not
+                # happen, and the next snapshot describes what is there now - so
+                # this is one wasted step with a reason the model can read, not
+                # the end of the browse. The repeat guard is what stops a page
+                # that does this for ever.
+                history += (f"refused: {refused}",)
         else:
             history += (await _act_on_page(page, choice.operation),)
         await page.settle()
@@ -295,6 +294,42 @@ async def run_browse(
         detail=f"Stopped after the {policy.max_steps}-step ceiling without reaching the goal.",
         snapshot=snapshot,
     )
+
+
+def _signature(snapshot: Snapshot, choice: Choice) -> str:
+    """What makes one step distinguishable from the step before it.
+
+    Three things beyond the operation and the element, each answering a way the
+    guard was wrong with less:
+
+    *The scroll position*, because scrolling down a long page is the same URL and
+    the same operation three times running, and it is progress.
+
+    *What the page offers*, because a URL is not a state. A wizard, a paginated
+    table and a filter that rewrites its results in place all present `Next` at
+    the same index on the same address - and each click advanced the flow.
+    Without this the third such step is refused as a loop having in fact worked
+    twice.
+
+    **Roles and labels, and deliberately not values or the page's text.** Both
+    were in here and both had to come out, because each made the guard weaker
+    than the URL alone: a field's value changes the moment it is typed into, so
+    typing the same thing ten times read as ten different states; and the text of
+    any page with an autocomplete, a clock or a carousel on it differs every
+    step, so nothing on such a page could ever repeat. Measured against a live
+    Wikipedia: with the text in the signature, eight identical `TYPE_TEXT` steps
+    ran to the ceiling unremarked.
+
+    What that costs is honest and bounded: a page whose *labels* churn - a list
+    of suggestions appearing under a search box - is not caught by this guard,
+    and `max_steps` is what stops it. A guard that cannot be fooled by a dynamic
+    page is a guard that refuses static ones.
+
+    Hashed rather than carried, because this is compared and never read.
+    """
+    offered = "\u241f".join(f"{element.role}:{element.label}" for element in snapshot.elements)
+    state = f"{snapshot.url}|{snapshot.scroll_y}|{offered}"
+    return f"{sha256(state.encode()).hexdigest()}|{choice.operation}|{choice.index}"
 
 
 def _element_at(snapshot: Snapshot, index: int | None) -> Element | None:
@@ -352,11 +387,18 @@ async def _act_on_element(
         await page.click(element)
         return f"clicked {element.role}: {element.label}"
     if operation == "SELECT":
-        await page.select(element)
-        return f"opened {element.role}: {element.label}"
+        chosen = await generate(goal, element, history)
+        await page.select(element, chosen)
+        return f"chose {chosen!r} in {element.role}: {element.label}"
     text = await generate(goal, element, history)
     await page.type_text(element, text)
-    return f"typed {text!r} into {element.role}: {element.label}"
+    # The value is deliberately not in this line. Every history entry is sent to
+    # the decision model on the next step, and that endpoint is configured
+    # separately and may be a third party - so a password, an address or anything
+    # else the host model wrote into a field would be disclosed to it, which is
+    # not what the data-protection inventory says it receives. What the next
+    # decision needs is that the field is filled, not what with.
+    return f"filled {element.role}: {element.label}"
 
 
 async def _finish(

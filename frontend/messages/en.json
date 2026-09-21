@@ -1229,7 +1229,10 @@
       "blocked": "Blocked by the page",
       "exhausted": "Stopped at the step limit",
       "failed": "The browser could not be reached"
-    }
+    },
+    "browserResize": "Resize the browser view",
+    "browserOpenPanel": "Open in the side panel",
+    "browserOpenFull": "Open full screen"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

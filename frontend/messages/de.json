@@ -1216,7 +1216,10 @@
       "blocked": "Von der Seite blockiert",
       "exhausted": "Beim Schrittlimit gestoppt",
       "failed": "Der Browser war nicht erreichbar"
-    }
+    },
+    "browserResize": "Breite der Browser-Ansicht ändern",
+    "browserOpenPanel": "In der Seitenleiste öffnen",
+    "browserOpenFull": "Im Vollbild öffnen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

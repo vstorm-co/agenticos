@@ -466,8 +466,18 @@ options are built on the server from the live DOM, so a page cannot offer an act
 by describing one.
 
 That is not the same as safe. "Delete account" is an action a page genuinely offers,
-so `browse_page` is **`side_effecting` and gateable** — put it behind
-[approval](../governance.md) and the injected page reaches a person, not an action.
+so the capability is **`side_effecting`** and `browse_page` can be put behind
+[approval](../governance.md).
+
+**It is not held for approval by default**, which is the one place the tool's flag
+disagrees with the capability's. An approval on a browse arrives *before* the first
+page is fetched, on a goal in natural language and a URL — so it asks somebody to
+approve actions nobody can see yet, which is consent without information. What
+replaces it is watching: the console draws the browse while it runs, every step
+names what was chosen and how sure the engine was, and `allowed_domains` bounds
+where it can go at all. An operator who wants the gate sets `tool_approval` on the
+binding, which wins over this; `min_confidence` is the automatic version of the same
+instinct.
 
 **It reports being blocked.** A sign-in wall, a consent gate, a captcha, a page that
 does not contain what was asked for: the engine says so, and the browse ends with an
@@ -477,10 +487,10 @@ could not be reached.
 
 | Config | Default | Values |
 |---|---|---|
-| `cdp_url` | — | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS` |
+| `cdp_url` | the one allowed host, where there is one | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS`. With exactly one host allowed the form arrives filled in |
 | `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted |
-| `decision_model` | `jev-latest` | the model that picks the operation and the element each step |
-| `decision_base_url` | null | where that model runs, when it is not the vendor's public endpoint |
+| `decision_model` | `jev-latest` | a picker over `app/core/catalog/decision_models.json`; a pinned build such as `jev-1.13.0` can be typed, because an agent whose confidence floor was tuned against a version needs one |
+| `decision_base_url` | null | where that model runs. Empty is the vendor's own `https://api.typesafe.ai`, which is where page content goes unless this says otherwise |
 | `max_steps` | 25 | 1–100; each step is one decision request |
 | `candidate_cap` | 60 | 2–200; how many elements may be offered as choices in one step |
 | `min_confidence` | 0.0 | 0–1; refuse to act on a pick scored below this, ending the browse as blocked |
@@ -503,9 +513,13 @@ on your own network that this page tells you to run, and it accepts a CDP debugg
 exposed to the internet, which is the worse posture of the two. A vetted host
 needs no address check; an unvetted one is refused whatever it resolves to.
 
-**Every step sends the page to the decision model.** Its URL, its title and its
-element labels — which on the vendor's public endpoint is a third party, and may be
-the contents of an internal system. Two things make that a decision rather than an
+**Every step sends the page to the decision model.** Its URL, its title, its
+element labels and a bounded excerpt of its visible text — which on the vendor's
+public endpoint is a third party, and may be the contents of an internal system.
+The text is there because without it the engine cannot tell that it has *finished*:
+a price, a confirmation and "no results" are ordinary text rather than controls, so
+`DONE` would be a guess. A value the agent types is deliberately not sent — the step
+is recorded as "filled" without it, so a password does not travel to that endpoint. Two things make that a decision rather than an
 accident: the capability requires an API key from this deployment's vault, so it
 cannot run until an operator adds one, and `decision_base_url` points the decision
 model somewhere else. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).

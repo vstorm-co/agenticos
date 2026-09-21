@@ -1,5 +1,5 @@
 ---
-source_sha: "855173f04a37"
+source_sha: "c179bcecb5c2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -495,9 +495,18 @@ jednokrotnego wyboru, którego opcje powstają na serwerze z żywego DOM — str
 może więc zaproponować akcji, opisując ją.
 
 To nie to samo co bezpieczeństwo. „Usuń konto" to akcja, którą strona naprawdę
-oferuje, więc `browse_page` jest **`side_effecting` i można je bramkować** — postaw
-je za [zatwierdzeniem](../governance.md), a wstrzyknięta strona dotrze do człowieka,
-nie do akcji.
+oferuje, więc capability jest **`side_effecting`**, a `browse_page` można postawić za
+[zatwierdzeniem](../governance.md).
+
+**Domyślnie nie jest wstrzymywane do zatwierdzenia** — i to jedyne miejsce, gdzie
+flaga narzędzia nie zgadza się z flagą capability. Zatwierdzenie przeglądania
+przychodzi *przed* pobraniem pierwszej strony, na cel w języku naturalnym i adres —
+czyli prosi człowieka o zgodę na akcje, których nikt jeszcze nie widzi, a to zgoda
+bez informacji. Zastępuje ją obserwacja: konsola rysuje przeglądanie w trakcie, każdy
+krok mówi, co wybrano i z jaką pewnością, a `allowed_domains` ogranicza, gdzie może
+w ogóle pójść. Operator, który chce bramki, ustawia `tool_approval` na powiązaniu, co
+wygrywa z tym ustawieniem; `min_confidence` to automatyczna wersja tego samego
+odruchu.
 
 **Zgłasza, że jest zablokowane.** Ściana logowania, zgoda na cookies, captcha,
 strona, która nie zawiera tego, o co pytano: silnik mówi to wprost, a przeglądanie
@@ -507,10 +516,10 @@ oraz nie udało się połączyć z przeglądarką.
 
 | Ustawienie | Domyślnie | Wartości |
 |---|---|---|
-| `cdp_url` | — | endpoint Chromium DevTools; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS` |
+| `cdp_url` | jedyny dozwolony host, jeśli jest jeden | endpoint Chromium DevTools; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS`. Przy dokładnie jednym dozwolonym hoście formularz przychodzi wypełniony |
 | `allowed_domains` | null | hosty, na których przeglądarka może być; globy jak `*.example.com` dozwolone; null oznacza brak ograniczeń |
-| `decision_model` | `jev-latest` | model, który w każdym kroku wybiera operację i element |
-| `decision_base_url` | null | gdzie ten model działa, jeśli nie jest to publiczny endpoint dostawcy |
+| `decision_model` | `jev-latest` | lista wyboru z `app/core/catalog/decision_models.json`; przypiętą wersję, np. `jev-1.13.0`, można wpisać, bo agent z progiem pewności wytarowanym na konkretnej wersji jej potrzebuje |
+| `decision_base_url` | null | gdzie ten model działa. Puste oznacza własny `https://api.typesafe.ai` dostawcy, i tam idzie treść strony, o ile to pole nie mówi inaczej |
 | `max_steps` | 25 | 1–100; każdy krok to jedno zapytanie decyzyjne |
 | `candidate_cap` | 60 | 2–200; ile elementów może zostać zaproponowanych do wyboru w jednym kroku |
 | `min_confidence` | 0.0 | 0–1; odmów działania na wyborze ocenionym poniżej tej wartości, kończąc przeglądanie jako zablokowane |
@@ -533,9 +542,13 @@ którą ta strona każe uruchomić, i przyjmuje debugger CDP wystawiony do inter
 co jest gorszą z tych dwóch postaw. Zweryfikowany host nie potrzebuje sprawdzania
 adresu; niezweryfikowany jest odrzucany niezależnie od tego, na co się rozwiązuje.
 
-**Każdy krok wysyła stronę do modelu decyzyjnego.** Jej adres, tytuł i etykiety
-elementów — co na publicznym endpoincie dostawcy jest stroną trzecią i może być
-zawartością systemu wewnętrznego. Dwie rzeczy czynią z tego decyzję, a nie przypadek:
+**Każdy krok wysyła stronę do modelu decyzyjnego.** Jej adres, tytuł, etykiety
+elementów i ograniczony fragment widocznego tekstu — co na publicznym endpoincie
+dostawcy jest stroną trzecią i może być zawartością systemu wewnętrznego. Tekst jest
+tam, bo bez niego silnik nie umie stwierdzić, że *skończył*: cena, potwierdzenie czy
+„brak wyników" to zwykły tekst, a nie kontrolki, więc `DONE` byłoby zgadywaniem.
+Wartość, którą agent wpisuje, celowo nie jest wysyłana — krok zapisuje się jako
+„wypełniono" bez niej, więc hasło nie podróżuje do tego endpointu. Dwie rzeczy czynią z tego decyzję, a nie przypadek:
 capability wymaga klucza API z vault tego wdrożenia, więc nie zadziała, dopóki
 operator go nie doda, a `decision_base_url` kieruje model decyzyjny gdzie indziej.
 Zobacz [co opuszcza wdrożenie](../data-protection.md#what-leaves-the-deployment).

@@ -1,10 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserPanel } from "./browser-panel";
 import type { Browse } from "@/lib/browse";
-import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+import {
+  DEFAULT_PANEL_WIDTH,
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_WIDTH,
+  useBrowserPanelStore,
+} from "@/stores/browser-panel-store";
 
 function browse(overrides: Partial<Browse> = {}): Browse {
   return {
@@ -23,7 +28,11 @@ function browse(overrides: Partial<Browse> = {}): Browse {
 }
 
 beforeEach(() => {
-  useBrowserPanelStore.setState({ isOpen: true, dismissed: [] });
+  useBrowserPanelStore.setState({
+    openCallId: "c1",
+    mode: "panel",
+    width: DEFAULT_PANEL_WIDTH,
+  });
 });
 
 describe("BrowserPanel - what the browser is doing, while it is doing it", () => {
@@ -33,7 +42,7 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
   });
 
   it("draws nothing while closed, however many browses there are", () => {
-    useBrowserPanelStore.setState({ isOpen: false });
+    useBrowserPanelStore.setState({ openCallId: null });
     const { container } = render(<BrowserPanel browses={[browse()]} />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -90,6 +99,47 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
     expect(screen.getByText("0.31")).toBeInTheDocument();
   });
 
+  it.each([
+    ["a confident pick", 0.91],
+    ["a middling one", 0.52],
+    ["one worth looking at", 0.19],
+  ])("shows the number for %s rather than only a colour", (_name, value) => {
+    // The confidence is why a step is worth listing. Three bands of colour and
+    // no number would throw away the reason it is on screen.
+    render(
+      <BrowserPanel
+        browses={[
+          browse({
+            steps: [
+              { step: 1, operation: "CLICK", target: "Accept", confidence: value, url: null },
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(value.toFixed(2))).toBeInTheDocument();
+  });
+
+  it("lists a step from a model that reports no confidence", () => {
+    render(
+      <BrowserPanel
+        browses={[
+          browse({
+            steps: [{ step: 1, operation: "SCROLL", target: null, confidence: null, url: null }],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("SCROLL")).toBeInTheDocument();
+  });
+
+  it("draws a browse that has no page to name yet", () => {
+    render(<BrowserPanel browses={[browse({ url: null, title: "", goal: "" })]} />);
+    expect(screen.getByRole("complementary")).toBeInTheDocument();
+  });
+
   it("says a blocked browse is about the page rather than a crash", () => {
     render(
       <BrowserPanel
@@ -113,39 +163,97 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("shows the running browse when a turn has browsed twice", () => {
+  it("shows the browse it was opened on, not whichever is running", () => {
+    // A panel that followed the newest browse would swap page under a reader
+    // the moment the other one advanced.
+    useBrowserPanelStore.setState({ openCallId: "c1" });
     render(
       <BrowserPanel
         browses={[
-          browse({ callId: "c1", title: "First", outcome: "done" }),
-          browse({ callId: "c2", title: "Second" }),
+          browse({ callId: "c1", title: "Poland", outcome: "done" }),
+          browse({ callId: "c2", title: "Germany" }),
         ]}
       />,
     );
 
-    expect(screen.getByText("Second")).toBeInTheDocument();
-    expect(screen.queryByText("First")).not.toBeInTheDocument();
+    expect(screen.getByText("Poland")).toBeInTheDocument();
+    expect(screen.queryByText("Germany")).not.toBeInTheDocument();
   });
 
-  it("stays closed for the browse the person closed it on", async () => {
-    // Closing is about this browse, not this frame. Re-opening on the next step
-    // would make the control useless exactly when it is being used.
+  it("closes itself when the turn that owned its browse is gone", () => {
+    // The browses were dropped and the panel was still open on one of them.
+    useBrowserPanelStore.setState({ openCallId: "c9" });
+    const { container } = render(<BrowserPanel browses={[browse({ callId: "c1" })]} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("takes the whole window in full screen, and carries no resize handle there", () => {
+    useBrowserPanelStore.setState({ openCallId: "c1", mode: "full" });
+    render(<BrowserPanel browses={[browse()]} />);
+
+    expect(screen.getByRole("complementary")).not.toHaveAttribute("style", /width/);
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  });
+
+  it("closing returns to the card rather than taking the browse away", async () => {
     const user = userEvent.setup();
     render(<BrowserPanel browses={[browse()]} />);
 
     await user.click(screen.getByLabelText("Close the browser panel"));
 
-    expect(useBrowserPanelStore.getState().isOpen).toBe(false);
-    useBrowserPanelStore.getState().openFor("c1");
-    expect(useBrowserPanelStore.getState().isOpen).toBe(false);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 
-  it("opens again for the next browse", () => {
-    useBrowserPanelStore.setState({ isOpen: false, dismissed: ["c1"] });
+  it("is as wide as somebody dragged it", () => {
+    useBrowserPanelStore.setState({ width: 640 });
+    render(<BrowserPanel browses={[browse()]} />);
 
-    useBrowserPanelStore.getState().openFor("c2");
+    expect(screen.getByRole("complementary")).toHaveStyle({ width: "640px" });
+  });
 
-    expect(useBrowserPanelStore.getState().isOpen).toBe(true);
+  it("resizes from the pointer's distance to the right edge", () => {
+    render(<BrowserPanel browses={[browse()]} />);
+    const handle = screen.getByRole("slider");
+    // jsdom reports 1024, so a pointer at 500 leaves 524 to the edge.
+    handle.setPointerCapture = vi.fn();
+
+    fireEvent.pointerDown(handle, { pointerId: 1 });
+    fireEvent.pointerMove(handle, { pointerId: 1, buttons: 1, clientX: 500 });
+
+    expect(useBrowserPanelStore.getState().width).toBe(window.innerWidth - 500);
+  });
+
+  it("ignores a move with no button held, which is a hover", () => {
+    useBrowserPanelStore.setState({ width: 500 });
+    render(<BrowserPanel browses={[browse()]} />);
+
+    fireEvent.pointerMove(screen.getByRole("slider"), { buttons: 0, clientX: 100 });
+
+    expect(useBrowserPanelStore.getState().width).toBe(500);
+  });
+
+  it("resizes with the arrow keys, for anyone not dragging", async () => {
+    const user = userEvent.setup();
+    useBrowserPanelStore.setState({ width: 500 });
+    render(<BrowserPanel browses={[browse()]} />);
+
+    screen.getByRole("slider").focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(useBrowserPanelStore.getState().width).toBeGreaterThan(500);
+
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    expect(useBrowserPanelStore.getState().width).toBeLessThan(500);
+  });
+
+  it("clamps the width to what a panel can usefully be", () => {
+    const { setWidth } = useBrowserPanelStore.getState();
+
+    setWidth(10);
+    expect(useBrowserPanelStore.getState().width).toBe(MIN_PANEL_WIDTH);
+
+    setWidth(99_999);
+    expect(useBrowserPanelStore.getState().width).toBe(MAX_PANEL_WIDTH);
   });
 
   it("closes on Escape", async () => {
@@ -154,6 +262,6 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
 
     await user.keyboard("{Escape}");
 
-    expect(useBrowserPanelStore.getState().isOpen).toBe(false);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 });

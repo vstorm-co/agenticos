@@ -31,10 +31,11 @@ export function resetTenantState(): void {
   // and those are the previous tenant's documents. Nothing renders them while
   // the panel is shut, which is the only reason it never showed.
   useSourcesPanelStore.setState({ isOpen: false, sources: [], highlightedIndex: null });
-  // And the browse panel, for the same reason and one more: `dismissed` holds the
-  // call ids of the previous tenant's browses, and a call id carried across the
-  // switch would keep the panel shut for an unrelated browse in the new one.
-  useBrowserPanelStore.setState({ isOpen: false, dismissed: [] });
+  // And the browse panel, which is drawn over whatever transcript is on screen
+  // and would otherwise open the new tenant's conversation on the previous
+  // one's page. Its width is a property of the window rather than the tenant, so
+  // that is left where somebody dragged it.
+  useBrowserPanelStore.setState({ openCallId: null });
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
   // The guided flow is tenant-coupled too: it holds the id of an agent built in

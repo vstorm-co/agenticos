@@ -13,6 +13,7 @@ import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
+import { BrowserCards } from "./browser-card";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -561,6 +562,10 @@ function ChatUI({
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
             <DelegationPanels delegations={delegations} />
+            {/* One card per browse, in the transcript, aligned to the message
+                column. An agent asked to compare two pages browses both at
+                once, and a single card would hide half of what it is doing. */}
+            <BrowserCards browses={browses} />
             <div ref={messagesEndRef} />
           </div>
         </div>
@@ -717,11 +722,9 @@ function ChatUI({
       </div>
       <FilePreviewDialog />
       <SourcesPanel />
-      {/* Opens itself when a browse starts and draws nothing otherwise, so it
-          costs a conversation with no browsing exactly nothing. Beside the
-          transcript rather than in it: the picture is what is happening now, and
-          a frame per step folded into the message list would rewrite the
-          transcript thirty times. */}
+      {/* The card's expansion: a resizable window over the conversation, for
+          when the thumbnail is too small to read. Draws nothing until somebody
+          opens it, so a conversation with no browsing costs nothing. */}
       <BrowserPanel browses={browses} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input

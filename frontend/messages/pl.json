@@ -289,7 +289,10 @@
       "blocked": "Strona zablokowała działanie",
       "exhausted": "Zatrzymane na limicie kroków",
       "failed": "Nie udało się połączyć z przeglądarką"
-    }
+    },
+    "browserResize": "Zmień szerokość widoku przeglądarki",
+    "browserOpenPanel": "Otwórz w panelu bocznym",
+    "browserOpenFull": "Otwórz na pełnym ekranie"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

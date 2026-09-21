@@ -1,118 +1,76 @@
 "use client";
 
-import { useEffect } from "react";
-import { Globe, Loader2, X } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { Globe, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { currentBrowse, isRunning, type Browse, type BrowseStep } from "@/lib/browse";
+import { browseById, isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
-import { useBrowserPanelStore } from "@/stores/browser-panel-store";
-import type { BrowseOutcome } from "@/types";
+import {
+  MAX_PANEL_WIDTH,
+  MIN_PANEL_WIDTH,
+  useBrowserPanelStore,
+} from "@/stores/browser-panel-store";
+import { Outcome, StepRow, Viewport } from "./browser-view";
+
+/** How much one arrow key moves the edge, for resizing without a pointer. */
+const KEY_STEP = 40;
 
 /**
- * How an outcome reads at a glance.
+ * The drag handle on the panel's inner edge.
  *
- * A table rather than a chain of conditions: the four outcomes are exhaustive,
- * so there is nothing to fall through to and nothing to test about falling
- * through. `blocked` is not an error tone - it is the engine reporting something
- * true about the page, and colouring it like a crash would teach people to
- * retry the thing that cannot work.
+ * Pointer capture rather than window listeners: the pointer leaves this element
+ * on the first millimetre of every drag, and `setPointerCapture` is what keeps
+ * the events coming to it without a global `mousemove` that has to be torn down
+ * on a component that may unmount mid-drag.
+ *
+ * It is also a `separator` with arrow keys, because a width is a real setting
+ * and dragging is not available to everyone.
  */
-const OUTCOME_TONE: Record<BrowseOutcome, string> = {
-  done: "text-brand",
-  blocked: "text-amber-600 dark:text-amber-400",
-  exhausted: "text-foreground/60",
-  failed: "text-destructive",
-};
-
-/**
- * How sure the engine was, as something readable at a glance.
- *
- * The number is shown as well as the dot. This is the one property that
- * distinguishes this engine from one that writes its next action, and rounding it
- * away into three colours would throw away the reason it is on screen.
- */
-function Confidence({ value }: { value: number }) {
+function ResizeHandle({ width, onResize }: { width: number; onResize: (next: number) => void }) {
   const t = useTranslations("chat");
-  const tone = value >= 0.7 ? "bg-brand" : value >= 0.4 ? "bg-foreground/45" : "bg-amber-500";
-  return (
-    <span
-      className="text-foreground/45 ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[10px] tabular-nums"
-      title={t("browserConfidenceHint", { value: value.toFixed(2) })}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full", tone)} aria-hidden />
-      {value.toFixed(2)}
-    </span>
+
+  const onPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.buttons === 0) return;
+      // The panel is pinned to the right edge, so its width is the distance
+      // from the pointer to that edge.
+      onResize(window.innerWidth - event.clientX);
+    },
+    [onResize],
   );
-}
 
-function StepRow({ step, last }: { step: BrowseStep; last: boolean }) {
   return (
-    <li
-      className={cn(
-        "flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
-        last && "bg-foreground/[0.04]",
-      )}
-    >
-      <span className="text-foreground/40 w-5 shrink-0 text-right font-mono text-[10px] tabular-nums">
-        {step.step}
-      </span>
-      <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
-        {step.operation}
-      </span>
-      {/* Page-derived text. Rendered as text, never as markup. */}
-      <span className="text-foreground/75 truncate" title={step.target ?? undefined}>
-        {step.target}
-      </span>
-      {step.confidence !== null && <Confidence value={step.confidence} />}
-    </li>
-  );
-}
-
-function Viewport({ browse }: { browse: Browse }) {
-  const t = useTranslations("chat");
-  const running = isRunning(browse);
-
-  if (!browse.image) {
-    return (
-      <div className="border-foreground/8 bg-foreground/[0.02] text-foreground/45 flex aspect-[4/3] w-full items-center justify-center rounded-xl border text-xs">
-        {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
-      </div>
-    );
-  }
-  return (
-    <div className="border-foreground/8 relative overflow-hidden rounded-xl border">
-      {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from
-          this run's own socket, not a file the image pipeline can resolve. */}
-      <img
-        src={browse.image}
-        alt={t("browserViewportAlt", { step: browse.imageStep })}
-        className="block w-full"
-      />
-      {running && (
-        <span className="bg-background/85 text-foreground/70 absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[10px] tabular-nums">
-          <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-          {browse.maxSteps
-            ? t("browserStepOf", { step: browse.imageStep, total: browse.maxSteps })
-            : t("browserStep", { step: browse.imageStep })}
-        </span>
-      )}
-    </div>
+    <div
+      // `slider`, not `separator`: this is a control that sets a value, it
+      // reports one through `aria-valuenow`, and the arrow keys change it. A
+      // separator that happens to be draggable is the other thing - and it is
+      // also what the a11y lint refuses to let take focus.
+      role="slider"
+      aria-orientation="vertical"
+      aria-label={t("browserResize")}
+      aria-valuenow={width}
+      aria-valuemin={MIN_PANEL_WIDTH}
+      aria-valuemax={MAX_PANEL_WIDTH}
+      tabIndex={0}
+      onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+      onPointerMove={onPointerMove}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") onResize(width + KEY_STEP);
+        if (event.key === "ArrowRight") onResize(width - KEY_STEP);
+      }}
+      className="hover:bg-brand/30 focus-visible:bg-brand/40 absolute inset-y-0 left-0 w-1.5 cursor-col-resize bg-transparent transition-colors"
+    />
   );
 }
 
 /**
- * What the agent's browser is doing, while it is doing it.
+ * What the agent's browser is doing, at the size of a window.
  *
- * A `browse_page` call is the longest tool call this product makes and the only
- * one where watching is how somebody notices it acting on a page they did not
- * expect. Without this the chat shows a tool call named `browse_page` and then,
- * a minute later, a paragraph.
- *
- * **One browse at a time, and it is the running one.** A turn can browse twice;
- * two viewports side by side is two videos playing at once. A finished browse
- * stays up rather than closing the panel under somebody reading it - `blocked`
- * is an answer about the page and it is the outcome most worth reading.
+ * The expansion of `BrowserCard`, not a thing that opens itself: the card is how
+ * a browse appears, and this is what somebody asks for when the thumbnail is too
+ * small to read. Closing it returns to the card, which is why there is no
+ * dismissed-browse bookkeeping here - nothing was taken away.
  *
  * **The steps are a list, not a transcript.** Each row is what was chosen and how
  * sure the engine was, which is the pair that says whether a browse is worth
@@ -121,25 +79,43 @@ function Viewport({ browse }: { browse: Browse }) {
  */
 export function BrowserPanel({ browses }: { browses: Browse[] }) {
   const t = useTranslations("chat");
-  const { isOpen, close } = useBrowserPanelStore();
-  const browse = currentBrowse(browses);
+  const openCallId = useBrowserPanelStore((state) => state.openCallId);
+  const mode = useBrowserPanelStore((state) => state.mode);
+  const width = useBrowserPanelStore((state) => state.width);
+  const close = useBrowserPanelStore((state) => state.close);
+  const setWidth = useBrowserPanelStore((state) => state.setWidth);
+  // The browse somebody opened, by id - never "the running one". A panel that
+  // followed whichever browse advanced last would swap page under a reader the
+  // moment the other one moved.
+  const browse = browseById(browses, openCallId);
+  const scroller = useRef<HTMLDivElement>(null);
+  const full = mode === "full";
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (browse === null) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close(browse?.callId ?? null);
+      if (event.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, close, browse?.callId]);
+  }, [browse, close]);
 
-  if (!isOpen || !browse) return null;
+  if (browse === null) return null;
 
   return (
     <aside
       aria-label={t("browserHeading")}
-      className="bg-background border-border fixed top-0 right-0 z-50 flex h-full w-[420px] flex-col border-l shadow-xl"
+      // Full screen takes the window and reads a page; the panel takes an edge
+      // and watches a browse beside the conversation. Only the second has a
+      // width to drag, so only the second carries the handle.
+      style={full ? undefined : { width }}
+      className={cn(
+        "bg-background/80 supports-[backdrop-filter]:bg-background/60 fixed z-50 flex flex-col shadow-2xl backdrop-blur-2xl",
+        full ? "inset-0 h-full w-full" : "border-border top-0 right-0 h-full border-l",
+      )}
     >
+      {!full && <ResizeHandle width={width} onResize={setWidth} />}
+
       <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <Globe className="text-foreground/40 h-4 w-4 shrink-0" aria-hidden />
@@ -156,7 +132,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
         </div>
         <button
           type="button"
-          onClick={() => close(browse.callId)}
+          onClick={close}
           aria-label={t("browserClose")}
           className="text-foreground/50 hover:text-foreground hover:bg-foreground/8 shrink-0 rounded-md p-1 transition-colors"
         >
@@ -164,7 +140,13 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
         </button>
       </div>
 
-      <div className="flex-1 scrollbar-thin space-y-4 overflow-y-auto px-4 py-4">
+      <div
+        ref={scroller}
+        className={cn(
+          "flex-1 scrollbar-thin overflow-y-auto px-4 py-4",
+          full ? "mx-auto w-full max-w-5xl space-y-5" : "space-y-4",
+        )}
+      >
         {browse.goal && (
           <p className="text-foreground/60 text-xs leading-relaxed">
             <span className="text-foreground/40 font-mono text-[10px] tracking-wider uppercase">
@@ -176,20 +158,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
         )}
 
         <Viewport browse={browse} />
-
-        {browse.outcome && (
-          <div className="border-foreground/8 rounded-xl border p-3">
-            <p
-              className={cn("text-xs font-medium", OUTCOME_TONE[browse.outcome])}
-              data-testid="browse-outcome"
-            >
-              {t(`browserOutcome.${browse.outcome}`)}
-            </p>
-            {browse.detail && (
-              <p className="text-foreground/55 mt-1 text-xs leading-relaxed">{browse.detail}</p>
-            )}
-          </div>
-        )}
+        <Outcome browse={browse} />
 
         {browse.steps.length > 0 && (
           <section className="space-y-1">

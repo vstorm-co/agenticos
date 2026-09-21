@@ -256,11 +256,21 @@ def build_toolset(
         except EndpointError as exc:
             return await fail(str(exc))
         except RuntimeError as exc:
-            # The missing extra, and nothing else: an engine that is not installed
-            # is the one runtime failure with an action a person can take, and it
-            # says what that action is. Anything else is a bug and stays a bug.
+            # The missing extra is the one runtime failure with an action a
+            # person can take, and it says what that action is.
             if str(exc) == MISSING_EXTRA:
                 return await fail(MISSING_EXTRA)
+            raise
+        except BaseException:
+            # Everything else - a socket that dropped mid-browse, a provider that
+            # refused, a cancelled turn, a bug - still owes the surface a finish
+            # frame. `run_browse` sends one on every outcome it reaches, but a
+            # raise from inside it never reaches one, and a panel that heard
+            # `browser_opened` and nothing since shows a browse running for ever.
+            # The frame is sent and the exception re-raised unchanged, so nothing
+            # is laundered into an answer: a bug stays a bug and a cancellation
+            # stays a cancellation.
+            await fail("The browse stopped unexpectedly.")
             raise
         return _outcome_text(result, goal)
 

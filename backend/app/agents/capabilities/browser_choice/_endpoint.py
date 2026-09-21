@@ -9,7 +9,7 @@ only thing standing between "browse the docs" and "browse the intranet".
 from __future__ import annotations
 
 from fnmatch import fnmatch
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 DEBUGGER_KEY = "webSocketDebuggerUrl"
 """The field `/json/version` answers with, and the one thing read out of it."""
@@ -29,29 +29,49 @@ def version_url(cdp_url: str) -> str:
 
 
 def websocket_url(cdp_url: str, version: object) -> str:
-    """The WebSocket to speak CDP over, from the endpoint an operator configured.
+    """The WebSocket to speak CDP over, addressed at the host the operator vetted.
 
     A `ws://` or `wss://` endpoint is already one and is returned unchanged; an
     `http(s)://` one is resolved through the `/json/version` payload passed in.
 
+    **Only the path is taken from that payload.** The host and port come from the
+    configured endpoint, and this is the whole point of the function rather than a
+    detail. The payload is a response from something the agent's author named: a
+    vetted endpoint that has been compromised, or one an author pointed at a
+    server of their own, can answer with `ws://169.254.169.254/` or
+    `ws://127.0.0.1:6379/` and have this deployment open a socket to it - an SSRF
+    that arrives after every check has passed. The path is the only part that has
+    to come from the browser, because it carries the per-launch token; the address
+    is already known.
+
+    It also happens to be what makes a proxied endpoint work at all: Chromium
+    reports its own `127.0.0.1` in that field, so a browser reached through a
+    sidecar or a port forward advertises an address that resolves to the caller.
+
     Args:
-        cdp_url: What the agent's config holds, already SSRF-checked at publish.
+        cdp_url: What the agent's config holds, its host already on the
+            operator's allowlist.
         version: The decoded `/json/version` body, or anything at all - a browser
             that answered with something else is a failure to report, not a shape
             to trust.
 
     Returns:
-        The `ws://` or `wss://` URL to connect to.
+        A `ws://` or `wss://` URL at the configured host, with the browser's own path.
 
     Raises:
-        EndpointError: The payload carried no usable debugger address.
+        EndpointError: The payload carried no usable debugger path.
     """
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
+    configured = urlsplit(cdp_url)
     if isinstance(version, dict):
         found = version.get(DEBUGGER_KEY)
         if isinstance(found, str) and found.startswith(("ws://", "wss://")):
-            return found
+            advertised = urlsplit(found)
+            scheme = "wss" if configured.scheme == "https" else "ws"
+            path = advertised.path or "/"
+            query = f"?{advertised.query}" if advertised.query else ""
+            return f"{scheme}://{configured.netloc}{path}{query}"
     raise EndpointError(
         f"The CDP endpoint at {version_url(cdp_url)} did not answer with a "
         f"{DEBUGGER_KEY}. Check that it is a Chromium DevTools endpoint."

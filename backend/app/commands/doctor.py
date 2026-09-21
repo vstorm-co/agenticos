@@ -40,6 +40,14 @@ if TYPE_CHECKING:
 # deployment that never ingests a document and never runs an agent is installed
 # correctly, it is just not finished - and exiting non-zero on that would make
 # this useless in a provisioning script.
+_ASSUMED_CDP_PORT = 9222
+"""Chromium's own default, and an assumption this command says out loud.
+
+The browser allowlist holds hosts rather than addresses on purpose, so there is
+no configured port to read - which is why a silent host is reported here and
+does not fail the command.
+"""
+
 _MARK = {
     "healthy": ("ok", success),
     "unconfigured": ("--", warning),
@@ -148,6 +156,61 @@ def _file_storage() -> tuple[str, str]:
     if mode == "none":
         return "unconfigured", f"backend=s3 bucket={bucket} encryption=none"
     return "healthy", f"backend=s3 bucket={bucket} encryption={mode}"
+
+
+async def _browser_endpoints() -> tuple[str, str]:
+    """Whether the browsers a `browser_choice` agent may drive are answering.
+
+    `BROWSER_CDP_ALLOWED_HOSTS` is the whole list an author can name, so it is
+    the whole list worth looking at - and looking here is the difference between
+    finding out now and finding out inside somebody's conversation, forty seconds
+    into a browse.
+
+    **A host that does not answer is reported and does not fail the command**,
+    which is the opposite of how `sandbox connections` treats one and is
+    deliberate. The allowlist holds hosts, not addresses - a host is a trust
+    boundary and a port is not - so this has to assume Chromium's own 9222, and
+    an operator running their browser on another port would be told their
+    deployment is broken when it is not. What the line is for is the other case:
+    nothing is listening anywhere, and an agent published against it will fail.
+
+    `/json/version` is Chromium's own unauthenticated endpoint. Nothing is sent
+    to it and only the browser's version is read back.
+    """
+    hosts = [host.strip() for host in settings.BROWSER_CDP_ALLOWED_HOSTS if host.strip()]
+    if not hosts:
+        return "unconfigured", "no browser host allowed - browser automation is refused"
+
+    import httpx
+
+    silent: list[str] = []
+    reached: list[str] = []
+    for host in hosts:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                answer = await client.get(f"http://{host}:{_ASSUMED_CDP_PORT}/json/version")
+                answer.raise_for_status()
+                version = answer.json().get("Browser", "a browser")
+        # Every way this can fail - refused, timed out, not a browser - is the
+        # same answer to the only question being asked.
+        except Exception:
+            silent.append(host)
+        else:
+            reached.append(f"{host} ({version})")
+
+    if reached and silent:
+        return (
+            "not_checked",
+            f"{', '.join(reached)}; no answer from {', '.join(silent)} on "
+            f"{_ASSUMED_CDP_PORT} - fine if it listens elsewhere",
+        )
+    if reached:
+        return "healthy", ", ".join(reached)
+    return (
+        "not_checked",
+        f"{', '.join(hosts)} allowed, none answering on {_ASSUMED_CDP_PORT} - "
+        f"a browse fails unless the browser is on another port",
+    )
 
 
 async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
@@ -298,6 +361,9 @@ async def _run(profile: str | None = None) -> int:
     async with get_db_context() as db:
         status, detail = await _sandbox_connections(db)
     failures += _report("sandbox connections", status, detail)
+
+    status, detail = await _browser_endpoints()
+    failures += _report("browser endpoints", status, detail)
 
     if profile:
         info(f"\nAgainst the {profile} profile - technical safeguards only:")

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyBrowserFrame, currentBrowse, isRunning, type Browse } from "./browse";
+import { applyBrowserFrame, browseById, isRunning, type Browse } from "./browse";
 import type { BrowserFrame } from "@/types";
 
 function frame(overrides: Partial<BrowserFrame> = {}): BrowserFrame {
@@ -175,29 +175,24 @@ describe("applyBrowserFrame - one browse per call_id", () => {
   });
 });
 
-describe("currentBrowse - which one the panel draws", () => {
-  it("draws nothing when nothing has browsed", () => {
-    expect(currentBrowse([])).toBeNull();
-  });
-
-  it("prefers the running browse over a finished one", () => {
+describe("browseById - which browse a panel was opened on", () => {
+  it("finds the one whose id was asked for", () => {
     const browses = fold(
-      frame({ kind: "browser_opened", call_id: "c1", step: 0 }),
-      frame({ kind: "browser_finished", call_id: "c1", step: 2, outcome: "done" }),
-      frame({ kind: "browser_opened", call_id: "c2", step: 0 }),
+      frame({ kind: "browser_opened", call_id: "c1", step: 0, goal: "first" }),
+      frame({ kind: "browser_opened", call_id: "c2", step: 0, goal: "second" }),
     );
 
-    expect(currentBrowse(browses)?.callId).toBe("c2");
+    expect(browseById(browses, "c2")?.goal).toBe("second");
   });
 
-  it("keeps the last finished browse on screen when none is running", () => {
-    // `blocked` is an answer about the page, and closing the panel under
-    // somebody reading it is how they never see it.
-    const browses = fold(
-      frame({ kind: "browser_opened", call_id: "c1", step: 0 }),
-      frame({ kind: "browser_finished", call_id: "c1", step: 2, outcome: "blocked" }),
-    );
+  it("answers nothing for an id the turn no longer holds", () => {
+    // The turn that owned it ended and its browses were dropped, while the
+    // panel was still open on one of them.
+    expect(browseById([], "c1")).toBeNull();
+  });
 
-    expect(currentBrowse(browses)?.outcome).toBe("blocked");
+  it("answers nothing when no browse is open", () => {
+    const browses = fold(frame({ kind: "browser_opened", call_id: "c1", step: 0 }));
+    expect(browseById(browses, null)).toBeNull();
   });
 });

@@ -27,6 +27,7 @@ from app.agents.capabilities.browser_choice._elements import (
     Snapshot,
     candidates,
     clean_label,
+    page_text,
 )
 from app.agents.capabilities.browser_choice._endpoint import (
     EndpointError,
@@ -96,6 +97,25 @@ COLLECT_JS = """
     el.getAttribute('name') ||
     el.value ||
     '';
+  // A selector that resolves to this element and no other. An id when the
+  // document really has one of it; otherwise the nth-of-type chain up to body,
+  // which is what makes an action verifiable after the page has re-rendered.
+  const pathOf = (el) => {
+    if (el.id) {
+      const byId = '#' + CSS.escape(el.id);
+      try { if (document.querySelectorAll(byId).length === 1) return byId; } catch (e) {}
+    }
+    const parts = [];
+    for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'html') break;
+      const parent = node.parentElement;
+      if (!parent) break;
+      const kin = Array.from(parent.children).filter((c) => c.tagName === node.tagName);
+      parts.unshift(kin.length > 1 ? tag + ':nth-of-type(' + (kin.indexOf(node) + 1) + ')' : tag);
+    }
+    return parts.join(' > ');
+  };
   const out = [];
   for (const el of document.querySelectorAll(SELECTOR)) {
     const r = el.getBoundingClientRect();
@@ -104,17 +124,25 @@ COLLECT_JS = """
     const style = window.getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
     if (el.disabled) continue;
+    const isSelect = el.tagName === 'SELECT';
     out.push({
       role: roleOf(el),
       label: labelOf(el),
-      x: r.left + r.width / 2,
-      y: r.top + r.height / 2,
-      value: (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ? (el.value || '') : '',
+      path: pathOf(el),
+      value: (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
+        ? (el.value || '')
+        : (isSelect ? (el.selectedOptions[0] ? el.selectedOptions[0].label : '') : ''),
+      // A native dropdown's choices travel with it rather than as rows of their
+      // own: a country list would otherwise be the whole table.
+      options: isSelect
+        ? Array.from(el.options).map((o) => (o.label || o.value || '').trim()).filter(Boolean)
+        : [],
     });
   }
   return JSON.stringify({
     url: location.href,
     title: document.title,
+    text: document.body ? document.body.innerText : '',
     scrollY: window.scrollY,
     scrollHeight: document.documentElement.scrollHeight,
     viewportHeight: window.innerHeight,
@@ -128,11 +156,70 @@ Deliberately geometric rather than semantic. The accessibility tree is the riche
 source and it is also the one a page controls: `aria-label` is an author's
 sentence, and a hostile page's accessibility tree is a hostile page's prose. A
 bounding rectangle that is on screen, non-zero and not disabled is a fact about
-what a person could press, which is the thing being enumerated.
+what a person could press.
 
 Elements arrive in document order and are numbered in Python, so the table the
 model reads and the truncation that bounds it cannot disagree about which element
-is which.
+is which. Each carries a selector as well, because the number is only meaningful
+against the snapshot it came from and an action happens later than that.
+
+The page's own visible text comes back too. Without it the model cannot tell that
+the goal has been reached - a price, a confirmation, "no results" are text, not
+elements - and `DONE` would be a guess.
+"""
+
+_SELECT_JS = """
+(() => {
+  const el = document.querySelector(%(path)s);
+  if (!el || el.tagName !== 'SELECT') return JSON.stringify({chosen: false});
+  const wanted = String(%(value)s).trim().toLowerCase();
+  const option = Array.from(el.options).find(
+    (o) => (o.label || '').trim().toLowerCase() === wanted ||
+           (o.value || '').trim().toLowerCase() === wanted
+  );
+  if (!option) return JSON.stringify({chosen: false});
+  el.value = option.value;
+  el.dispatchEvent(new Event('input', {bubbles: true}));
+  el.dispatchEvent(new Event('change', {bubbles: true}));
+  return JSON.stringify({chosen: true});
+})()
+"""
+"""Choosing an option the way a person's choice reaches the page's listeners."""
+
+VERIFY_JS = """
+(() => {
+  const el = document.querySelector(%(path)s);
+  if (!el) return JSON.stringify({found: false});
+  const r = el.getBoundingClientRect();
+  const explicit = el.getAttribute('role');
+  const tag = el.tagName.toLowerCase();
+  const role = explicit
+    ? explicit
+    : tag === 'a' ? 'link'
+    : tag === 'input' ? ((el.type || 'text') === 'text' ? 'textbox' : el.type)
+    : tag === 'textarea' ? 'textbox'
+    : tag === 'select' ? 'dropdown'
+    : tag;
+  return JSON.stringify({
+    found: true,
+    role: role,
+    label: (el.getAttribute('aria-label') || (el.innerText || '').trim() ||
+            el.getAttribute('placeholder') || el.getAttribute('title') ||
+            el.getAttribute('alt') || el.getAttribute('name') || el.value || ''),
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    onscreen: r.width >= 1 && r.height >= 1 && r.bottom >= 0 && r.top <= window.innerHeight,
+  });
+})()
+"""
+"""Where an element is *now*, and whether it is still the one that was offered.
+
+The decision model answers after the snapshot was taken, which on a page that
+re-renders is long enough for everything to move. Acting on the centre the
+snapshot recorded is how a click lands on whatever slid into that position -
+which is an action on an element that was never in the candidate table, and the
+whole bounded-action property gone. So every action resolves the selector again,
+compares what it found against what was offered, and uses the fresh coordinates.
 """
 
 
@@ -164,9 +251,9 @@ def parse_snapshot(raw: object, cap: int) -> Snapshot:
             index=index,
             role=clean_label(str(item.get("role", "element"))),
             label=clean_label(str(item.get("label", ""))),
-            x=float(item.get("x", 0.0)),
-            y=float(item.get("y", 0.0)),
+            path=str(item.get("path", "")),
             value=clean_label(str(item["value"])) if item.get("value") else None,
+            options=tuple(clean_label(str(option)) for option in item.get("options") or ()),
         )
         for index, item in enumerate(found)
     )
@@ -174,6 +261,7 @@ def parse_snapshot(raw: object, cap: int) -> Snapshot:
         url=str(payload.get("url", "")),
         title=str(payload.get("title", "")),
         elements=candidates(elements, cap),
+        text=page_text(str(payload.get("text") or "")),
         scroll_y=float(payload.get("scrollY", 0.0)),
         scroll_height=float(payload.get("scrollHeight", 0.0)),
         viewport_height=float(payload.get("viewportHeight", 0.0)),
@@ -198,6 +286,16 @@ class PagePolicy:
 
 class DomainRefused(RuntimeError):
     """The browser ended up somewhere the agent's allowlist does not permit."""
+
+
+class StaleElement(RuntimeError):
+    """The element a decision named is not the element that is there now.
+
+    Raised rather than worked around, and read by the loop as one step's refusal
+    rather than the browse's end: the page moved, the next snapshot describes
+    where it moved to, and the model gets to choose again. What must not happen
+    is the action going ahead on whatever is at those coordinates instead.
+    """
 
 
 class CdpPage:
@@ -262,34 +360,119 @@ class CdpPage:
             )
         return snapshot
 
+    async def _locate(  # pragma: no cover - needs a live browser
+        self, element: Element
+    ) -> tuple[float, float]:
+        """Where `element` is now, having checked it is still the same element.
+
+        The decision model answered against a snapshot, and a page that
+        re-rendered since has moved everything. Resolving the selector again and
+        comparing what came back is what keeps an action on the element that was
+        offered rather than on whatever took its place - and the coordinates
+        returned are the fresh ones, because the recorded centre is exactly the
+        stale fact that would send a click somewhere else.
+
+        Returns:
+            The element's centre, in viewport coordinates.
+
+        Raises:
+            StaleElement: It is gone, off screen, or no longer describes itself
+                the way the candidate table said it did.
+        """
+        if not element.path:
+            raise StaleElement(
+                f"The engine chose {element.role}: {element.label}, which this "
+                f"page offers no way to address."
+            )
+        # `%` formatting rather than an f-string: the selector is interpolated
+        # into JavaScript, so it goes in as a JSON string literal and cannot
+        # close the quote it sits in.
+        raw = await self._evaluate(VERIFY_JS % {"path": json.dumps(element.path)})
+        found: Any = json.loads(str(raw.get("value") or "{}"))
+        if not found.get("found") or not found.get("onscreen"):
+            raise StaleElement(
+                f"{element.role}: {element.label} is no longer on the page where it was offered."
+            )
+        moved_role = clean_label(str(found.get("role", "")))
+        moved_label = clean_label(str(found.get("label", "")))
+        if (moved_role, moved_label) != (element.role, element.label):
+            raise StaleElement(
+                f"The page changed under the decision: {element.role}: "
+                f"{element.label} is now {moved_role}: {moved_label}."
+            )
+        return float(found.get("x", 0.0)), float(found.get("y", 0.0))
+
     async def click(self, element: Element) -> None:  # pragma: no cover - needs a live browser
-        """Press an element at the centre its snapshot recorded."""
+        """Press an element, where it is now rather than where it was."""
+        x, y = await self._locate(element)
         for event in ("mousePressed", "mouseReleased"):
             await self._client.send.Input.dispatchMouseEvent(
-                params={
-                    "type": event,
-                    "x": element.x,
-                    "y": element.y,
-                    "button": "left",
-                    "clickCount": 1,
-                },
+                params={"type": event, "x": x, "y": y, "button": "left", "clickCount": 1},
                 session_id=self._session,
             )
 
-    async def type_text(
+    async def type_text(  # pragma: no cover - needs a live browser
         self, element: Element, text: str
-    ) -> None:  # pragma: no cover - needs a live browser
-        """Focus a field, clear it and insert `text`."""
-        await self.click(element)
+    ) -> None:
+        """Focus a field and enter `text`, replacing whatever it held.
+
+        Refuses an element that cannot hold text before it touches it. Typing
+        begins with a click to focus, so `TYPE_TEXT` aimed at a link would follow
+        the link and only then fail - performing an action nobody chose. The
+        operation and the target are two independent answers from the model, so
+        that pair is reachable and has to be refused rather than attempted.
+
+        Raises:
+            StaleElement: The element moved, or was never one that can be typed in.
+        """
+        if not element.editable:
+            raise StaleElement(
+                f"TYPE_TEXT cannot be carried out on {element.role}: "
+                f"{element.label}, which is not a field that holds text."
+            )
+        x, y = await self._locate(element)
+        for event in ("mousePressed", "mouseReleased"):
+            await self._client.send.Input.dispatchMouseEvent(
+                params={"type": event, "x": x, "y": y, "button": "left", "clickCount": 1},
+                session_id=self._session,
+            )
         await self._client.send.Input.dispatchKeyEvent(
             params={"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2},
             session_id=self._session,
         )
         await self._client.send.Input.insertText(params={"text": text}, session_id=self._session)
 
-    async def select(self, element: Element) -> None:  # pragma: no cover - needs a live browser
-        """Open a dropdown, so its options are choosable elements on the next step."""
-        await self.click(element)
+    async def select(  # pragma: no cover - needs a live browser
+        self, element: Element, value: str
+    ) -> None:
+        """Choose `value` in a native dropdown, and fire what a person's choice fires.
+
+        Not a click. Clicking a `<select>` opens Chromium's own popup, whose
+        options are not in the DOM at all - so the next snapshot shows the same
+        untouched dropdown, and a form that needs one choice loops until the
+        repeat guard stops it. The value is set on the element and `input` and
+        `change` are dispatched, which is what every listener on that form is
+        waiting for.
+
+        Matching is on the option's visible label first and its value second,
+        case-folded, because the model was shown labels.
+
+        Raises:
+            StaleElement: The element moved, is not a dropdown, or has no such option.
+        """
+        if element.role != "dropdown":
+            raise StaleElement(
+                f"SELECT cannot be carried out on {element.role}: {element.label}, "
+                f"which is not a dropdown."
+            )
+        await self._locate(element)
+        script = _SELECT_JS % {"path": json.dumps(element.path), "value": json.dumps(value)}
+        answer = await self._evaluate(script)
+        if not json.loads(str(answer.get("value") or "{}")).get("chosen"):
+            raise StaleElement(
+                f"{element.label} has no option matching {value!r}; its choices "
+                f"are the ones listed with it."
+            )
 
     async def scroll(self) -> None:  # pragma: no cover - needs a live browser
         """Move one viewport down."""
@@ -311,7 +494,14 @@ class CdpPage:
             await asyncio.sleep(_EVAL_BACKOFF)
 
     async def screenshot(self) -> str | None:  # pragma: no cover - needs a live browser
-        """The viewport as a JPEG `data:` URL, or `None` when previews are off."""
+        """The viewport as a JPEG `data:` URL, or `None` when previews are off.
+
+        Bounded by `preview_width` without resizing anything, because the
+        viewport *is* `preview_width` - set once on the session in `open_page` -
+        and `captureBeyondViewport` is off. One number decides how wide the page
+        renders and how wide the picture is, which is also what keeps the frame a
+        person watches identical to the page the model was shown.
+        """
         if not self._policy.preview:
             return None
         shot = await self._client.send.Page.captureScreenshot(
@@ -327,7 +517,29 @@ class CdpPage:
         return f"data:image/jpeg;base64,{data}" if data else None
 
     async def read(self) -> str:  # pragma: no cover - needs a live browser
-        """The page's readable text, bounded, which is what a finished browse answers with."""
+        """The page's readable text, bounded, and only where the allowlist covers it.
+
+        Checked here as well as in `snapshot`, which is not belt and braces: a
+        browse ends by reading the page, and the last step can be a click that
+        navigated somewhere the allowlist does not cover. Without this check that
+        page's text is the tool's answer - the content the allowlist exists to
+        keep out, delivered into the calling model's context, on the one path that
+        takes no further snapshot.
+
+        The allowlist cannot stop the navigation itself: a browser follows a link
+        or a redirect before anything here is asked. What it can do is refuse to
+        act on that page and refuse to repeat it, which is what this and
+        `snapshot` together enforce.
+
+        Returns:
+            The page's text, or a sentence saying it was withheld and why.
+        """
+        url = (await self._evaluate("location.href")).get("value")
+        if not domain_allowed(str(url or ""), self._policy.allowed_domains):
+            return (
+                f"[The browse ended on {url}, which this agent's allowed domains "
+                f"do not cover. Its content was not read.]"
+            )
         result = await self._evaluate("document.body ? document.body.innerText : ''")
         return str(result.get("value") or "")[:READ_LIMIT]
 

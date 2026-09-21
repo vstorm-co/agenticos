@@ -127,16 +127,8 @@ export function isRunning(browse: Browse): boolean {
   return browse.outcome === null;
 }
 
-/**
- * The browse to show, which is the newest one that is still running - or, when
- * none is, the last one to have finished.
- *
- * A finished browse stays on screen rather than closing the panel under somebody
- * reading it: `blocked` is an answer about the page, and it is the outcome most
- * worth reading.
- */
-export function currentBrowse(browses: Browse[]): Browse | null {
-  const running = browses.filter(isRunning);
-  const pick = running.length > 0 ? running.at(-1) : browses.at(-1);
-  return pick ?? null;
+/** One browse by its `call_id`, or `null` where the turn no longer holds it. */
+export function browseById(browses: Browse[], callId: string | null): Browse | null {
+  if (callId === null) return null;
+  return browses.find((browse) => browse.callId === callId) ?? null;
 }

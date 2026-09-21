@@ -2300,15 +2300,15 @@ describe("useChat - watching a browse", () => {
     receive(type, { kind: type, call_id: "c1", ...data });
   }
 
-  it("opens the panel on the first frame of a browse", () => {
-    // The point of a live preview: a browse is a real browser being driven for a
-    // minute, and watching it is how somebody notices it acting on a page they
-    // did not expect.
+  it("collects a browse without opening anything over the conversation", () => {
+    // The browse shows itself as a card in the transcript. A panel that opened
+    // itself would say watching the browser matters more than reading the
+    // answer, which is true for about four seconds.
     const { result } = renderHook(() => useChat(), { wrapper });
 
     browserFrame("browser_opened", { step: 0, goal: "find the price", max_steps: 25 });
 
-    expect(useBrowserPanelStore.getState().isOpen).toBe(true);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
     expect(result.current.browses).toHaveLength(1);
     expect(result.current.browses[0]).toMatchObject({ callId: "c1", goal: "find the price" });
   });
@@ -2338,15 +2338,41 @@ describe("useChat - watching a browse", () => {
     });
   });
 
-  it("does not re-open the panel on every frame of a browse somebody closed", () => {
+  it("drops the previous turn's browse when a new question is asked", () => {
+    // The panel draws the newest browse, so without this the next turn opens
+    // under the last turn's viewport - and a finished browse keeps a screenshot
+    // alive for as long as the hook does.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "first" });
+    browserFrame("browser_finished", { step: 1, outcome: "done" });
+
+    act(() => result.current.sendMessage("something else"));
+
+    expect(result.current.browses).toEqual([]);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  });
+
+  it("a new turn's browse replaces the last one rather than joining it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "first" });
+    act(() => result.current.sendMessage("something else"));
+
+    browserFrame("browser_opened", { step: 0, goal: "second" });
+
+    expect(result.current.browses).toHaveLength(1);
+    expect(result.current.browses[0]).toMatchObject({ goal: "second" });
+  });
+
+  it("keeps taking frames while the panel somebody opened is closed again", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     browserFrame("browser_opened", { step: 0, goal: "g" });
-    act(() => useBrowserPanelStore.getState().close("c1"));
+    act(() => useBrowserPanelStore.getState().open("c1", "panel"));
+    act(() => useBrowserPanelStore.getState().close());
 
     browserFrame("browser_step", { step: 1, operation: "CLICK" });
 
-    expect(useBrowserPanelStore.getState().isOpen).toBe(false);
-    // The frames still arrive; only the panel is closed.
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    // The frames still arrive; only the panel is closed. The card is still there.
     expect(result.current.browses[0]?.steps).toHaveLength(1);
   });
 });

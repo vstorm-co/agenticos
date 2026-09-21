@@ -1,5 +1,5 @@
 ---
-source_sha: "9e41895bc496"
+source_sha: "f3c07be4231c"
 ---
 
 # Datenschutz { #data-protection }
@@ -127,7 +127,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Ein Bildbeschreibungs-Model | Bilder in Dokumenten | Das `image_description_model` einer Collection | Die dieses Model-Providers |
 | Web-Recherche | Die Suchanfrage, die der Agent formuliert hat | `web_research.method` auf dem Spec: `duckduckgo` (kein Schlüssel), `tavily`, `brave` oder `exa` (je ein `search`-Secret), oder `native`, wobei der Provider des Chat-Models sucht | Die des Suchanbieters oder des Model-Providers |
 | Web-Fetch und Browser-Nutzung | Die URL; bei Browser-Nutzung die ganze Aufgabe | Die Capability auf dem Spec; Browser-Nutzung braucht zusätzlich einen CDP-Endpunkt, den Sie benennen | Die abgerufene Seite; der Browser-Host |
-| Das Entscheidungsmodell des Browsings | Jeder Schritt eines Durchlaufs: die URL der Seite, ihr Titel und die Beschriftungen der sichtbaren Elemente — was der Inhalt eines internen Systems sein kann | Die Capability `browser_choice`, die ohne einen von einem Betreiber hinterlegten Vault-Key nicht läuft; `decision_base_url` verschiebt das Ziel. Welchen Browser sie steuert, begrenzt `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Der Anbieter des Entscheidungsmodells oder Ihr eigener Host |
+| Das Entscheidungsmodell des Browsings | Jeder Schritt eines Durchlaufs: die URL der Seite, ihr Titel, die Beschriftungen der sichtbaren Elemente und bis zu 1.500 Zeichen ihres sichtbaren Textes — was der Inhalt eines internen Systems sein kann. Ein Wert, den der Agent eintippt, wird **nicht** gesendet: Der Schritt wird ohne ihn als „gefüllt“ vermerkt, ein Passwort oder eine Adresse erreicht diesen Endpunkt also nicht | Die Capability `browser_choice`, die ohne einen von einem Betreiber hinterlegten Vault-Key nicht läuft; `decision_base_url` verschiebt das Ziel. Welchen Browser sie steuert, begrenzt `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Der Anbieter des Entscheidungsmodells oder Ihr eigener Host |
 | Die Sandbox, ausgehend | **Alles im Workspace, an jeden beliebigen Host** — die Runtime `workbench` hat ein Netz, eine Shell und `curl` | Die Capability `sandbox` und eine Runtime mit `needs_network`; die Kommandofreigabe steuert, was läuft, nicht wohin es sich verbindet | Wohin das Kommando ging. Egress-Kontrolle ist die Firewall des Sandbox-Hosts, keine Einstellung hier |
 | Ein MCP-Server | Tool-Argumente und -Ergebnisse | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |

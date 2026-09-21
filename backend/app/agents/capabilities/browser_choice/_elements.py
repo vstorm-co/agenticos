@@ -35,14 +35,29 @@ grow an option without this becoming a second place to remember the cap.
 """
 
 
+EDITABLE_ROLES = frozenset(
+    {"textbox", "search", "email", "password", "number", "tel", "url", "date", "time"}
+)
+"""The roles `TYPE_TEXT` may be carried out against.
+
+The operation and the target are two independent answers, so a model can pair
+`TYPE_TEXT` with a link. Typing begins by focusing the element, and focusing a
+link means clicking it - so an incompatible pair does not merely fail, it
+performs a *different* action with side effects. Checked before dispatch rather
+than discovered afterwards.
+"""
+
+
 @dataclass(frozen=True, slots=True)
 class Element:
     """One thing on the page a person could act on.
 
-    `index` is stable only within the snapshot it came from. A page that re-renders
-    between the snapshot and the click renumbers everything, which is why an
-    operation is carried out against coordinates captured *with* the index rather
-    than re-resolved from it.
+    `index` is stable only within the snapshot it came from; `path` is what
+    survives one. A page that re-renders between the snapshot and the action
+    renumbers everything, so an action resolves `path` and checks that what it
+    found still describes itself the way the table said it did. Coordinates are
+    read from *that* resolution, never from the snapshot - a stale centre is how a
+    click lands on whatever moved into the position instead.
     """
 
     index: int
@@ -52,12 +67,42 @@ class Element:
     label: str
     """What it says, as a person reads it - the accessible name, already truncated."""
 
-    x: float
-    y: float
-    """Viewport coordinates of its centre, in CSS pixels."""
+    path: str = ""
+    """A CSS selector that resolves to this element alone, as the collector built it.
+
+    Empty only for an element a test constructed. The page layer refuses to act on
+    one, because an action it cannot verify is an action on an unknown element.
+    """
 
     value: str | None = None
     """What a field currently holds, so the loop can tell empty from filled."""
+
+    options: tuple[str, ...] = ()
+    """A dropdown's choices, for a native `<select>` and nothing else.
+
+    Carried on the element rather than emitted as choosable elements of their
+    own, which is the obvious design and the wrong one: a country list is two
+    hundred options, and putting them in the table would spend the whole
+    candidate cap describing one field. So a dropdown is one row, its choices
+    are shown with it, and `SELECT` is answered with a value the way `TYPE_TEXT`
+    is - which is also how a person describes it: choose Poland from the list.
+    """
+
+    @property
+    def editable(self) -> bool:
+        """Whether `TYPE_TEXT` can be carried out against this element."""
+        return self.role in EDITABLE_ROLES
+
+
+MAX_PAGE_TEXT = 1_500
+"""How much of the page's own words reach the decision model.
+
+Without any, the model cannot tell that the goal has been reached: a price, a
+confirmation, "no results" are ordinary text, not interactive elements, so a
+browse that had already succeeded could only guess at `DONE`. Bounded because
+this is sent on every step, and a long article would be the whole budget spent
+describing a page the model has already acted on.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +112,9 @@ class Snapshot:
     url: str
     title: str
     elements: tuple[Element, ...]
+    text: str = ""
+    """The page's visible words, bounded, for deciding whether the goal is met."""
+
     scroll_y: float = 0.0
     scroll_height: float = 0.0
     viewport_height: float = 0.0
@@ -133,5 +181,33 @@ def render_table(elements: tuple[Element, ...]) -> str:
         row = f"{element.index}. {element.role}: {element.label}"
         if element.value:
             row += f" [currently: {clean_label(element.value)}]"
+        if element.options:
+            row += f" [choices: {render_options(element.options)}]"
         lines.append(row)
     return "\n".join(lines)
+
+
+MAX_SHOWN_OPTIONS = 12
+"""How many of a dropdown's choices are written into the table.
+
+Enough to recognise what kind of list it is; not a country list rendered in
+full on every step. The count that follows is what tells the model the rest are
+there, so it can still name one it cannot see.
+"""
+
+
+def render_options(options: tuple[str, ...]) -> str:
+    """A dropdown's choices as one bounded phrase."""
+    shown = ", ".join(options[:MAX_SHOWN_OPTIONS])
+    extra = len(options) - MAX_SHOWN_OPTIONS
+    return f"{shown} (+{extra} more)" if extra > 0 else shown
+
+
+def page_text(raw: str) -> str:
+    """The page's visible words, collapsed and bounded, for the decision prompt.
+
+    Bounded from the front: what a page says first is what it is about, and a
+    truncation from the end would keep a footer over a heading.
+    """
+    collapsed = " ".join(raw.split())
+    return collapsed[:MAX_PAGE_TEXT]

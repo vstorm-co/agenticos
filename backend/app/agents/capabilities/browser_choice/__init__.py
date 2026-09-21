@@ -15,8 +15,21 @@ from app.agents.capabilities.browser_choice._elements import HARD_CANDIDATE_CAP
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
+from app.services.decision_models import DEFAULT_DECISION_MODEL, decision_model_schema
 
 __all__ = ["BrowserChoice", "BrowserChoiceConfig", "validate_cdp_url"]
+
+_DEFAULT_CDP_PORT = 9222
+"""Chromium's own default debugging port, which is what a suggestion should guess."""
+
+VENDOR_DECISION_ENDPOINT = "https://api.typesafe.ai"
+"""Where the decision model runs when nothing says otherwise.
+
+Named here rather than left implicit in the SDK, because "empty" is the setting
+with the largest consequence in this capability - it is the difference between
+page content staying inside a deployment and leaving it - and a field whose
+default destination is invisible is a field nobody audits.
+"""
 
 _CDP_SCHEMES = frozenset({"http", "https", "ws", "wss"})
 """A CDP endpoint is reached over HTTP(S) or a WebSocket, and over nothing else.
@@ -25,6 +38,27 @@ The same four `browser_use` allows. What decides whether the *host* is acceptabl
 is the operator's allowlist - see :func:`validate_cdp_url` for why it is that
 rather than the SSRF guard.
 """
+
+
+def _cdp_url_form(schema: dict[str, object]) -> None:
+    """Prefill and hint the endpoint from what the operator already declared.
+
+    `BROWSER_CDP_ALLOWED_HOSTS` is the list of browsers this deployment permits,
+    so an author typing a `cdp_url` is choosing from it whether the form says so
+    or not - and a field that refuses at publish without ever having said what it
+    would accept is a field that wastes somebody's afternoon. With one host
+    allowed, which is the ordinary case, the form arrives filled in.
+
+    Read when the schema is generated rather than when this module is imported,
+    because a deployment's allowlist is configuration and this file is code.
+    """
+    hosts = [host.strip() for host in settings.BROWSER_CDP_ALLOWED_HOSTS if host.strip()]
+    if not hosts:
+        schema["x-placeholder"] = "Set BROWSER_CDP_ALLOWED_HOSTS first"
+        return
+    schema["x-placeholder"] = f"http://{hosts[0]}:{_DEFAULT_CDP_PORT}"
+    if len(hosts) == 1:
+        schema["default"] = f"http://{hosts[0]}:{_DEFAULT_CDP_PORT}"
 
 
 class BrowserChoiceConfig(BaseModel):
@@ -39,6 +73,7 @@ class BrowserChoiceConfig(BaseModel):
 
     cdp_url: str = Field(
         default="",
+        json_schema_extra=_cdp_url_form,
         description=(
             "Chromium DevTools endpoint to drive - a browser service the operator "
             "runs, not a process in the API container."
@@ -62,15 +97,27 @@ class BrowserChoiceConfig(BaseModel):
         ),
     )
     decision_model: str = Field(
-        default="jev-latest",
+        default=DEFAULT_DECISION_MODEL,
+        json_schema_extra=decision_model_schema(),
         description="The model that picks the operation and the element each step.",
     )
+    """A picker over the catalog, and a string in validation - both deliberately.
+
+    `app/core/catalog/decision_models.json` is what the Builder offers, because a
+    moving alias is what almost every agent wants and typing one is a chance to
+    typo. The field stays a `str` so a pinned build (`jev-1.13.0`) is still
+    storable: TypeSafe accepts one, an agent whose confidence floor was tuned
+    against a version needs one, and nobody should wait for a release of this
+    platform to use a release of that one.
+    """
     decision_base_url: str | None = Field(
         default=None,
+        json_schema_extra={"x-placeholder": VENDOR_DECISION_ENDPOINT},
         description=(
-            "Where that model runs, when it is not the vendor's public endpoint. "
-            "Page content is sent here, so a deployment that may not send page "
-            "content to a third party sets this."
+            "Where that model runs. Empty is the vendor's own public endpoint "
+            f"({VENDOR_DECISION_ENDPOINT}), which is where page content goes "
+            "unless this says otherwise - so a deployment that may not send page "
+            "content to a third party fills this in with an endpoint of its own."
         ),
     )
     max_steps: int = Field(
@@ -175,7 +222,25 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
         CapabilityToolInfo(
             id="browse_page",
             description="Work through a web page towards a goal, one chosen action at a time.",
-            side_effecting=True,
+            # Not held for approval by default, while the capability above stays
+            # `side_effecting` - which is the per-tool override existing for
+            # exactly this shape of disagreement.
+            #
+            # The capability's flag is true because it is: a browse presses
+            # buttons on pages nobody here wrote. What does not follow is asking
+            # a person before every browse. A browse is one tool call and the
+            # approval would land *before* the first page is even fetched, on a
+            # goal in natural language and a URL - so the person is asked to
+            # approve something whose actions nobody can see yet, which is
+            # consent without information. The panel is the honest answer: the
+            # browse is watched while it happens, every step names what was
+            # chosen and how sure the engine was, and `allowed_domains` bounds
+            # where it can go at all.
+            #
+            # An operator who wants the gate sets `tool_approval` on the binding,
+            # which beats this, and `min_confidence` is the automatic version of
+            # the same instinct.
+            side_effecting=False,
         ),
     ),
     config_schema=BrowserChoiceConfig,
@@ -184,6 +249,12 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         description="The API key for the decision model that picks each step",
+        # Named, so the Builder asks for a TypeSafe key rather than "a key for
+        # Browser automation", and the picker offers the TypeSafe secrets rather
+        # than every `api_key` in the vault. A key added from that picker is
+        # stored under this purpose, which is what makes the second agent's
+        # question a choice instead of another paste.
+        purpose="typesafe",
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:

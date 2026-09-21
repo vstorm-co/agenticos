@@ -1,5 +1,5 @@
 ---
-source_sha: "855173f04a37"
+source_sha: "c179bcecb5c2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -498,9 +498,18 @@ Esta responde a una elección única cuyas opciones se construyen en el servidor
 partir del DOM vivo, así que una página no puede ofrecer una acción describiéndola.
 
 Eso no es lo mismo que ser segura. «Eliminar cuenta» es una acción que una página
-ofrece de verdad, por eso `browse_page` es **`side_effecting` y se puede bloquear**:
-ponla tras una [aprobación](../governance.md) y la página inyectada llega a una
-persona, no a una acción.
+ofrece de verdad, por eso la capability es **`side_effecting`** y `browse_page` se
+puede poner tras una [aprobación](../governance.md).
+
+**Por defecto no queda retenido para aprobación**, el único punto en el que la
+bandera de la herramienta discrepa de la de la capability. Una aprobación de un
+recorrido llega *antes* de que se cargue la primera página, sobre un objetivo en
+lenguaje natural y una URL: pide a alguien que apruebe acciones que nadie puede ver
+todavía, y eso es consentimiento sin información. Lo que la sustituye es mirar: la
+consola dibuja el recorrido mientras ocurre, cada paso nombra lo que se eligió y con
+qué probabilidad, y `allowed_domains` limita adónde puede ir. Un operador que quiera
+la puerta pone `tool_approval` en el vínculo, que gana sobre esto; `min_confidence`
+es la versión automática del mismo instinto.
 
 **Informa de que está bloqueada.** Un muro de inicio de sesión, un aviso de
 consentimiento, un captcha, una página que no contiene lo que se pedía: el motor lo
@@ -510,10 +519,10 @@ la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
 
 | Ajuste | Por defecto | Valores |
 |---|---|---|
-| `cdp_url` | — | un endpoint de Chromium DevTools; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS` |
+| `cdp_url` | el único host permitido, si hay uno | un endpoint de Chromium DevTools; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. Con exactamente un host permitido el formulario llega rellenado |
 | `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten globs como `*.example.com`; null no restringe |
-| `decision_model` | `jev-latest` | el modelo que elige la operación y el elemento en cada paso |
-| `decision_base_url` | null | dónde se ejecuta ese modelo, cuando no es el endpoint público del proveedor |
+| `decision_model` | `jev-latest` | un selector sobre `app/core/catalog/decision_models.json`; una versión fijada como `jev-1.13.0` se puede escribir, porque un agent cuyo umbral de confianza se ajustó contra una versión la necesita |
+| `decision_base_url` | null | dónde se ejecuta ese modelo. Vacío es el propio `https://api.typesafe.ai` del proveedor, y ahí va el contenido de la página salvo que este campo diga otra cosa |
 | `max_steps` | 25 | 1–100; cada paso es una petición de decisión |
 | `candidate_cap` | 60 | 2–200; cuántos elementos pueden ofrecerse como opciones en un paso |
 | `min_confidence` | 0.0 | 0–1; no actuar sobre una elección por debajo de este valor y terminar el recorrido como bloqueado |
@@ -538,9 +547,14 @@ página pide ejecutar, y acepta un depurador CDP expuesto a internet, que es la 
 de las dos posturas. Un host verificado no necesita comprobación de dirección; uno
 sin verificar se rechaza sea lo que sea a lo que resuelva.
 
-**Cada paso envía la página al modelo de decisión.** Su URL, su título y las
-etiquetas de los elementos, lo que en el endpoint público del proveedor es un tercero
-y puede ser el contenido de un sistema interno. Dos cosas lo convierten en una
+**Cada paso envía la página al modelo de decisión.** Su URL, su título, las
+etiquetas de los elementos y un extracto acotado de su texto visible, lo que en el
+endpoint público del proveedor es un tercero y puede ser el contenido de un sistema
+interno. El texto está ahí porque sin él el motor no puede saber que ha *terminado*:
+un precio, una confirmación o «sin resultados» son texto corriente y no controles, de
+modo que `DONE` sería una conjetura. Un valor que el agent escribe no se envía a
+propósito: el paso se registra como «rellenado» sin él, así que una contraseña no
+viaja a ese endpoint. Dos cosas lo convierten en una
 decisión y no en un descuido: la capability exige una clave de API del vault de este
 deployment, así que no puede ejecutarse hasta que un operador añada una, y
 `decision_base_url` lleva el modelo de decisión a otro sitio. Consulta

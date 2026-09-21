@@ -708,6 +708,7 @@ include = [
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
@@ -1068,6 +1069,7 @@ include = [
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
