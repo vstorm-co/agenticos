@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.478] - 2026-09-21
+
 ### Added
 
 - **Amigo's Arcade - three browser games that explain the platform by making
