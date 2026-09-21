@@ -82,12 +82,41 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `query_analysis_mode` | `off` | `off`, `keywords`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
 
 `default_top_k` applies only when the model does not ask for a number itself.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search
 tool, because the model keeps trying it and reasons from the silence.
+
+### Query analysis and expansion
+
+Short, underspecified or vocabulary-mismatched questions under-retrieve. Off by
+default, `query_analysis_mode` optionally expands the query *before* retrieval:
+
+| Mode | What it does | Cost |
+|---|---|---|
+| `off` | Search the query as written | none |
+| `keywords` | Extract the query's own content terms and append them, boosting them in the keyword leg | none — no model call |
+| `multi_query` | The run's model writes up to `query_analysis_max_variants` rephrasings; the original and the variants are each searched and their results fused | one model call, plus one retrieval per query |
+| `hyde` | The run's model writes a short hypothetical answer, and retrieval runs against *its* embedding | one model call |
+
+`keywords` adds no latency or cost and helps most when a query is terse.
+`multi_query` and `hyde` each add one model call before the search, so they trade
+latency and a little spend for recall on fuzzy questions; keep
+`query_analysis_max_variants` low to bound the fan-out. The model-backed modes use
+the agent's own model — there is no separate model to configure — and their cost
+is metered against the run's budget like any other model call. If the model cannot
+be reached, or the surface has none to run, the search falls back to the plain
+query rather than failing.
+
+Expansion widens *recall*, never *access*. Every query it produces is searched
+under the same tenant scope and the same business filters as the original, so an
+expanded query can never reach another organization's or an out-of-scope document.
+It composes with reranking: expansion widens the candidate set and the results are
+fused, and a reranker would reorder what fusion returned.
 
 ## Skills
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "33c8a8c2a7b9"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -90,12 +90,44 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `query_analysis_mode` | `off` | `off`, `keywords`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze
 niż brak narzędzia, bo model próbuje go dalej i wyciąga wnioski z tej ciszy.
+
+### Analiza i rozszerzanie zapytania { #query-analysis-and-expansion }
+
+Krótkie, niedookreślone lub rozjeżdżające się słownikowo pytania wyszukują za
+mało. Domyślnie wyłączone `query_analysis_mode` opcjonalnie rozszerza zapytanie
+*przed* wyszukiwaniem:
+
+| Tryb | Co robi | Koszt |
+|---|---|---|
+| `off` | Wyszukuje zapytanie tak, jak je napisano | brak |
+| `keywords` | Wyciąga własne terminy treściowe zapytania i dokleja je, wzmacniając je w części słownikowej | brak — bez wywołania modelu |
+| `multi_query` | Model runu pisze do `query_analysis_max_variants` przeredagowań; oryginał i warianty są wyszukiwane osobno, a ich wyniki łączone | jedno wywołanie modelu plus jedno wyszukiwanie na zapytanie |
+| `hyde` | Model runu pisze krótką hipotetyczną odpowiedź, a wyszukiwanie działa na *jej* embeddingu | jedno wywołanie modelu |
+
+`keywords` nie dodaje opóźnienia ani kosztu i pomaga najbardziej przy zwięzłych
+zapytaniach. `multi_query` i `hyde` dokładają po jednym wywołaniu modelu przed
+wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełność przy
+rozmytych pytaniach; trzymaj `query_analysis_max_variants` nisko, aby ograniczyć
+rozgałęzienie. Tryby oparte na modelu używają własnego modelu agenta — nie ma
+osobnego modelu do skonfigurowania — a ich koszt jest mierzony względem budżetu
+runu jak każde inne wywołanie modelu. Jeśli model jest nieosiągalny albo
+powierzchnia nie ma go do uruchomienia, wyszukiwanie wraca do zwykłego zapytania,
+zamiast zawieść.
+
+Rozszerzanie zwiększa *pełność*, nigdy *dostęp*. Każde wygenerowane zapytanie jest
+wyszukiwane w tym samym zakresie dzierżawcy i przy tych samych filtrach
+biznesowych co oryginał, więc rozszerzone zapytanie nigdy nie sięgnie do dokumentu
+innej organizacji ani spoza zakresu. Komponuje się z ponownym rankingiem:
+rozszerzanie poszerza zbiór kandydatów, a wyniki są łączone, i reranker
+przestawiłby to, co zwróciło łączenie.
 
 ## Skille { #skills }
 
