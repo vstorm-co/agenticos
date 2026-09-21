@@ -547,3 +547,101 @@ async def test_a_required_column_with_a_default_can_come_back_and_fills_on_the_n
 
     assert restored.schema_version == 4
     assert edited.record.values[str(country)] == "PL"
+
+
+async def _schema_state(db, service, ctx, table_id, org):
+    versions = (await service.list_schema_versions(ctx, table_id)).items
+    audited = await db.scalars(
+        select(AppAdminAuditLog.action).where(
+            AppAdminAuditLog.organization_id == org.id,
+            AppAdminAuditLog.action == "table.schema_changed",
+        )
+    )
+    return len(versions), len(list(audited))
+
+
+def _resubmit(table):
+    """The table's current columns exactly as a client that just read them would send them."""
+    return [
+        column(
+            c.label,
+            c.type,
+            id=c.id,
+            nullable=c.nullable,
+            default=c.default,
+            options=[OptionInput(id=o.id, label=o.label, archived=o.archived) for o in c.options],
+            archived=c.archived,
+        )
+        for c in table.columns
+    ]
+
+
+async def test_a_schema_put_identical_to_the_current_columns_changes_nothing(db):
+    service, ctx, _owner, org = await _setup(db)
+    table = await orders_table(service, ctx)
+    before = await _schema_state(db, service, ctx, table.id, org)
+
+    result = await service.update_schema(
+        ctx, table.id, SchemaUpdate(expected_version=1, columns=_resubmit(table))
+    )
+
+    assert result == table
+    assert await _schema_state(db, service, ctx, table.id, org) == before
+    assert (await service.describe_table(ctx, table.id)).schema_version == 1
+    # The version the client holds is still current, so another client's write is not refused.
+    again = await service.update_schema(
+        ctx, table.id, SchemaUpdate(expected_version=1, columns=_resubmit(table))
+    )
+    assert again.schema_version == 1
+
+
+@pytest.mark.security
+async def test_a_no_op_schema_put_with_a_stale_version_is_still_a_conflict(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await orders_table(service, ctx)
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[*_resubmit(table), column("Note", "text")],
+        ),
+    )
+
+    with pytest.raises(SchemaVersionConflictError):
+        await service.update_schema(
+            ctx, table.id, SchemaUpdate(expected_version=1, columns=_resubmit(table))
+        )
+
+
+@pytest.mark.parametrize("change", ["label", "reorder", "archive", "option", "nullable"])
+async def test_a_schema_put_that_changes_anything_still_appends_a_version(db, change):
+    service, ctx, _owner, org = await _setup(db)
+    table = await orders_table(service, ctx)
+    columns = _resubmit(table)
+    if change == "label":
+        columns[0] = column("Client", "text", id=table.columns[0].id)
+    elif change == "reorder":
+        columns[0], columns[1] = columns[1], columns[0]
+    elif change == "archive":
+        columns.pop()
+    elif change == "option":
+        status = next(c for c in table.columns if c.label == "Status")
+        index = next(i for i, c in enumerate(columns) if c.label == "Status")
+        columns[index] = column(
+            "Status",
+            "single_select",
+            id=status.id,
+            options=[OptionInput(id=o.id, label=o.label) for o in reversed(status.options)],
+        )
+    else:
+        columns[0] = column(
+            "Customer", "text", id=table.columns[0].id, nullable=False, default="n/a"
+        )
+
+    result = await service.update_schema(
+        ctx, table.id, SchemaUpdate(expected_version=1, columns=columns)
+    )
+
+    assert result.schema_version == 2
+    assert await _schema_state(db, service, ctx, table.id, org) == (2, 1)

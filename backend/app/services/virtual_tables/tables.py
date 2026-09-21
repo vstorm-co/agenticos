@@ -166,6 +166,10 @@ class TableOperations(Operations):
     ) -> TableRead:
         """Append the next schema version.
 
+        A submission that builds to exactly the current columns changes nothing: no version
+        is appended and the current table is returned. A stale `expected_version` is still a
+        conflict, because it is checked first.
+
         Records are not rewritten. Each keeps the version it was written under and
         is read through the current columns, so a column added later is simply empty
         on older records.
@@ -184,6 +188,11 @@ class TableOperations(Operations):
             )
         previous = await self._columns(table)
         columns = build_columns(data.columns, previous)
+        if columns == previous:
+            # Identical to what the table has, ids, order, labels and options included.
+            # A new version, an audit row and a bumped `schema_version` would make every other
+            # client's `expected_version` stale for a change that changed nothing.
+            return self._read(table, previous)
         change = diff(previous, columns)
         await self._refuse_empty_required(table, columns, change.required)
         await self._refuse_dependents(ctx, table, column_ids=change.archived)
