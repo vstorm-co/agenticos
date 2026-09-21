@@ -131,6 +131,16 @@ class MockResizeObserver implements ResizeObserver {
 }
 
 class MockIntersectionObserver implements IntersectionObserver {
+  // Takes what the real constructor takes, and keeps it. The implicit default
+  // constructor swallowed both arguments, so `new IntersectionObserver(cb, opts)`
+  // passed two arguments to a constructor that declared none - which CodeQL is
+  // right to call superfluous, and which left the mock unable to be wrong about
+  // a callback it never saw.
+  constructor(
+    readonly callback: IntersectionObserverCallback,
+    readonly options?: IntersectionObserverInit,
+  ) {}
+
   readonly root = null;
   readonly rootMargin = "";
   // Added to the DOM lib in TypeScript 7's `lib.dom.d.ts`. Declared here rather
