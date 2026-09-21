@@ -522,15 +522,7 @@ function ChatUI({
       {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
-          right of the text with white on both sides of it.
-
-          `max-w-3xl` rather than the 5xl this was: a turn is capped at a readable
-          measure (`.chat-measure`), so a wider column did not make the answer
-          wider - it parked the answer against the left edge and the question
-          against the right one, with a few hundred pixels of nothing between
-          them. Everything that needs the width - a chart, a table, a tool card -
-          is responsive and reads fine in what is left. The composer below takes
-          the same cap, because the two are read as one column. */}
+          right of the text with white on both sides of it. */}
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
         <TurnRail entries={railEntries} />
         <div
@@ -538,7 +530,7 @@ function ChatUI({
           className="flex-1 scrollbar-thin overflow-y-auto"
           style={{ paddingBottom: dockHeight }}
         >
-          <div className="mx-auto max-w-3xl px-2 py-4 sm:px-4 sm:py-6">
+          <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
             {isLoadingConversation ? (
               <ConversationSkeleton />
             ) : messages.length === 0 ? (
@@ -565,12 +557,12 @@ function ChatUI({
             index here it rides over the glass instead of blurring under it. */}
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
           {personalGaps.length > 0 && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectServicesCard gaps={personalGaps} />
             </div>
           )}
           {pendingApproval && onResumeDecisions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ToolApprovalDialog
                 actionRequests={pendingApproval.actionRequests}
                 reviewConfigs={pendingApproval.reviewConfigs}
@@ -580,7 +572,7 @@ function ChatUI({
             </div>
           )}
           {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-            <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-2">
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <QuestionPrompt
                 questions={pendingQuestions}
                 disabled={!isConnected}
@@ -588,7 +580,7 @@ function ChatUI({
               />
             </div>
           )}
-          <div className="pointer-events-auto mx-auto w-full max-w-3xl px-2 pb-2 sm:px-4 sm:pb-4">
+          <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
             <InterruptedNotice interrupted={interrupted} onRecheck={onRecheck} />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (

@@ -59,6 +59,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A question in the chat is a panel rather than an inverted slab.** It was drawn
+  in the foreground colour, which made it the brightest object in the transcript -
+  louder than the answer under it, and backwards: the question is the part
+  somebody already knows they asked. It takes the secondary surface now, with a
+  hairline border so it keeps its shape in the light theme, where the fill is
+  three percent off the page.
 - **Amigo walks across the README.** He was standing still with a one-pixel bob,
   which is an idle rather than a reason to look. The banner is a wider canvas he
   crosses and comes back over, on two leg poses that alternate under him, all of
@@ -71,17 +77,6 @@ Two things are versioned separately from this file and worth knowing about:
   is the card - flat ground, no gradient wash, no drawn grid, the product's own
   Bricolage Grotesque - and Amigo paces along the bottom of it. It renders to a
   GIF for anywhere that animates and a PNG for anywhere that does not.
-- **A chat turn is set to a readable measure.** The transcript's column was sized
-  for the widest thing that can appear in it - a chart, a table, a tool card - and
-  the text took the same width, about a hundred characters to a line at the body
-  size. Past roughly seventy-five the eye loses which line it was on coming back
-  to the left edge, which is most of a three-paragraph answer. Prose is now capped
-  at 62 characters' width and nothing else is: a code block, a table's scroller
-  and a chart still get the column. The column itself narrowed with it, because a
-  wider one did not make the answer wider - it parked the answer against the left
-  edge and the question against the right one with a few hundred pixels of nothing
-  between them. A question is bounded too; an unbounded one turned a pasted
-  paragraph into a bright slab wider than the answer under it.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
   header and hero, a lucide sparkle in the console sidebar, a lime dot in the
