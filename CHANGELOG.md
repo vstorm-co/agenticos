@@ -74,12 +74,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **The social preview shows the product, and now has a source.** The card it
   replaced was a finished PNG with nothing behind it: the mark changed, the card
   kept showing the retired one, and nothing noticed. It also showed nothing of
-  the thing it was advertising. `docs/assets/social-preview.html` is the card,
-  and it cycles three real screens cut straight from `docs/assets/screens/dark/`
-  - the builder, a chat run that drew a chart, the spend ledger - one for each
-  verb in the tagline, with the verb and the address bar changing under them.
-  Amigo paces the ledge beside it. It renders to a GIF for anywhere that
-  animates and a PNG for anywhere that does not.
+  the thing it was advertising. `docs/assets/social-preview.html` is the card
+  now, and the screen on it is a real one - a chat run where the agent read a
+  file, ran Python and drew the chart - cut straight from
+  `docs/assets/screens/dark/` rather than redrawn. Amigo paces the ledge beside
+  it. It renders to a GIF for anywhere that animates and a PNG for anywhere that
+  does not.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
   header and hero, a lucide sparkle in the console sidebar, a lime dot in the

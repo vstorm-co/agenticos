@@ -8,15 +8,17 @@
   replaced was a finished PNG with nothing behind it: the mark changed, the card
   kept showing the old one, and no check noticed.
 
-  Three real screens, one per verb in the tagline - the builder for "build", a
-  chat run for "run", the spend ledger for "govern" - cut straight from
-  docs/assets/screens/dark/ rather than redrawn, so the card cannot show a
-  product this one is not. The verb lights up with the screen under it.
+  The screen is a real one, cut straight from docs/assets/screens/dark/ rather
+  than redrawn, so the card cannot show a product this one is not. One screen and
+  not three: a card people read in a second has time to say one thing.
 
-  Open it in a browser and it runs. Render it with:
+  Open it in a browser and Amigo paces. Render it with:
 
-    frames: load ?frame=N&of=48 for N in 0..47, screenshot 1280x640 at dpr 1
-    assemble: any GIF writer, 110ms a frame, one shared palette
+    frames: load ?frame=N&of=48 for N in 0..47, screenshot 1280x640 at dpr 2
+    downscale: each frame to 1280x640, Lanczos - which is where the legible text
+      comes from; rendering straight at dpr 1 gives the screenshot no subpixels
+      to average and the app reads as grey noise
+    assemble: any GIF writer, 110ms a frame, one palette shared by every frame
 
   Type comes from Google Fonts rather than the repository's woff2 files, because
   this is rendered once by hand and a relative path out of docs/ into frontend/
@@ -28,10 +30,8 @@
 <style>
   :root {
     --ink: #F5F4EF;
-    --muted: #8A909B;
     --dim: #656B76;
     --rule: #23262E;
-    --accent: #F2C14E;
     --travel: 156px;
     --scale: 6;
     --cycle: 5.28s;
@@ -76,27 +76,23 @@
     line-height: 1.38;
     color: #A7ACB6;
   }
-  /* The verb lights with the screen beside it, so the card says which third of
-     the sentence the picture is evidence for. */
-  .tagline b { color: var(--ink); font-weight: 600; transition: none; }
-  .v1 { animation: lit-1 var(--cycle) steps(1, end) infinite; }
-  .v2 { animation: lit-2 var(--cycle) steps(1, end) infinite; }
-  .v3 { animation: lit-3 var(--cycle) steps(1, end) infinite; }
+  .tagline b { color: var(--ink); font-weight: 600; }
 
-  /* The window. It runs off the right edge on purpose: a card that fits the
-     whole screen into a third of its width is showing a texture, not a product,
-     and cropping is what buys the scale back. */
+  /* The window runs off the right edge on purpose. A card that fits a whole
+     2906-pixel screen into half its width is showing a texture, not a product;
+     cropping past the sidebar is what buys the scale back, and the headings are
+     legible at the size that leaves. */
   .stage {
     position: absolute;
-    left: 672px;
-    top: 84px;
-    width: 720px;
-    height: 472px;
+    left: 668px;
+    top: 80px;
+    width: 700px;
+    height: 480px;
     border: 1px solid var(--rule);
     border-radius: 14px;
     background: #101318;
     overflow: hidden;
-    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 34px 90px rgba(0, 0, 0, 0.6);
   }
   .chrome {
     height: 38px;
@@ -113,37 +109,14 @@
     font-family: "Geist Mono", ui-monospace, monospace;
     font-size: 13px;
     color: var(--dim);
-    position: relative;
   }
-  .route span { position: absolute; left: 0; top: 0; white-space: nowrap; opacity: 0; }
-  .route span:first-child { opacity: 1; }
 
   .viewport { position: relative; height: calc(100% - 38px); overflow: hidden; }
-  .shot {
-    position: absolute;
-    width: 1520px;
-    image-rendering: auto;
-    opacity: 0;
-  }
-  .shot:first-of-type { opacity: 1; }
-  /* One offset per screen: the sidebar is the least interesting 15% of every
-     one of them, so each is pulled left past it and down to its content. */
-  .s1 { left: -246px; top: -26px; }
-  .s2 { left: -465px; top: -372px; }
-  .s3 { left: -246px; top: -23px; }
+  /* One offset, measured against the source: the sidebar is the least
+     interesting 15% of the screen, and the run worth showing starts at the
+     sentence before the chart the agent drew. */
+  .shot { position: absolute; width: 1500px; left: -452px; top: -386px; }
 
-  .s1, .r1 { animation: show-1 var(--cycle) steps(1, end) infinite; }
-  .s2, .r2 { animation: show-2 var(--cycle) steps(1, end) infinite; }
-  .s3, .r3 { animation: show-3 var(--cycle) steps(1, end) infinite; }
-
-  @keyframes show-1 { 0%, 32.9% { opacity: 1; } 33%, 100% { opacity: 0; } }
-  @keyframes show-2 { 0%, 32.9% { opacity: 0; } 33%, 66.5% { opacity: 1; } 66.6%, 100% { opacity: 0; } }
-  @keyframes show-3 { 0%, 66.5% { opacity: 0; } 66.6%, 100% { opacity: 1; } }
-  @keyframes lit-1 { 0%, 32.9% { color: var(--accent); } 33%, 100% { color: var(--ink); } }
-  @keyframes lit-2 { 0%, 32.9% { color: var(--ink); } 33%, 66.5% { color: var(--accent); } 66.6%, 100% { color: var(--ink); } }
-  @keyframes lit-3 { 0%, 66.5% { color: var(--ink); } 66.6%, 100% { color: var(--accent); } }
-
-  /* The ledge Amigo walks on, and the line the repository sits under. */
   .ledge {
     position: absolute;
     left: 72px;
@@ -221,22 +194,16 @@
   <div class="copy">
     <p class="meta">Self-hosted &middot; Apache-2.0 &middot; Open source</p>
     <h1 class="wordmark">AgenticOS</h1>
-    <p class="tagline">One place to <b class="v1">build</b>, <b class="v2">run</b> and <b class="v3">govern</b> your company&rsquo;s AI agents.</p>
+    <p class="tagline">One place to <b>build</b>, <b>run</b> and <b>govern</b> your company&rsquo;s AI agents.</p>
   </div>
 
   <div class="stage">
     <div class="chrome">
       <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-      <span class="route">
-        <span class="r1">agenticos.acme.internal/agents/jarvis</span>
-        <span class="r2">agenticos.acme.internal/chat</span>
-        <span class="r3">agenticos.acme.internal/activity</span>
-      </span>
+      <span class="route">agenticos.acme.internal/chat</span>
     </div>
     <div class="viewport">
-      <img class="shot s1" src="screens/dark/builder-build.webp" alt="">
-      <img class="shot s2" src="screens/dark/chat-sandbox-commands.webp" alt="">
-      <img class="shot s3" src="screens/dark/activity-spend.webp" alt="">
+      <img class="shot" src="screens/dark/chat-sandbox-commands.webp" alt="">
     </div>
   </div>
 
@@ -323,17 +290,11 @@
     const t = f < half ? f / half : (of - f) / half;    // 0 -> 1 -> 0
     const travel = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--travel"));
     const step = Math.floor(f / 2) % 2 === 0;           // one pose every two frames
-    const scene = Math.min(2, Math.floor((f / of) * 3)); // three screens, hard cut
     document.body.classList.add("frozen");
     document.getElementById("walker").style.transform = `translateX(${Math.round(t * travel)}px)`;
     document.getElementById("sprite").style.transform = step ? "translateY(0)" : "translateY(-6px)";
     document.getElementById("stepA").style.opacity = step ? "1" : "0";
     document.getElementById("stepB").style.opacity = step ? "0" : "1";
-    document.querySelectorAll(".shot").forEach((el, i) => (el.style.opacity = i === scene ? "1" : "0"));
-    document.querySelectorAll(".route span").forEach((el, i) => (el.style.opacity = i === scene ? "1" : "0"));
-    document.querySelectorAll(".tagline b").forEach((el, i) => {
-      el.style.color = i === scene ? "var(--accent)" : "var(--ink)";
-    });
   }
 </script>
 </body>
