@@ -41,13 +41,19 @@ rather than the SSRF guard.
 
 
 def _cdp_url_form(schema: dict[str, object]) -> None:
-    """Prefill and hint the endpoint from what the operator already declared.
+    """Hint the endpoint from what the operator already declared.
 
     `BROWSER_CDP_ALLOWED_HOSTS` is the list of browsers this deployment permits,
     so an author typing a `cdp_url` is choosing from it whether the form says so
     or not - and a field that refuses at publish without ever having said what it
-    would accept is a field that wastes somebody's afternoon. With one host
-    allowed, which is the ordinary case, the form arrives filled in.
+    would accept is a field that wastes somebody's afternoon.
+
+    **A placeholder and not a default**, which is the correction to the first
+    version of this. The Builder's schema form *shows* a schema default without
+    writing it into the binding until somebody edits the field - so a default
+    here produced a form that looked filled in and a publish that was refused for
+    having no `cdp_url`, which is a worse afternoon than the one it was meant to
+    save. Grey text that says what to type does not lie about what is stored.
 
     Read when the schema is generated rather than when this module is imported,
     because a deployment's allowlist is configuration and this file is code.
@@ -57,8 +63,6 @@ def _cdp_url_form(schema: dict[str, object]) -> None:
         schema["x-placeholder"] = "Set BROWSER_CDP_ALLOWED_HOSTS first"
         return
     schema["x-placeholder"] = f"http://{hosts[0]}:{_DEFAULT_CDP_PORT}"
-    if len(hosts) == 1:
-        schema["default"] = f"http://{hosts[0]}:{_DEFAULT_CDP_PORT}"
 
 
 class BrowserChoiceConfig(BaseModel):
@@ -187,6 +191,10 @@ def _refuse_unvetted_decision_endpoint(base_url: str | None) -> None:
     parsed = urlsplit(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise UrlRefusedError("A decision_base_url must be an http or https URL with a host")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise UrlRefusedError(f"The decision_base_url has an invalid port: {exc}") from exc
     allowed = {host.strip().lower() for host in settings.DECISION_MODEL_ALLOWED_HOSTS}
     if parsed.hostname.lower() not in allowed:
         raise UrlRefusedError(
@@ -235,6 +243,15 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
     parsed = urlsplit(config.cdp_url)
     if parsed.scheme not in _CDP_SCHEMES or not parsed.hostname:
         raise UrlRefusedError("A cdp_url must be an http, https, ws or wss URL with a host")
+    try:
+        # Reading the port is what validates it. `urlsplit` parses
+        # `http://browser:notaport` without complaint and answers the expected
+        # hostname, so a check that never touched `.port` published happily and
+        # failed on the first browse, inside somebody's conversation, when the
+        # HTTP client parsed the same authority and refused it.
+        _ = parsed.port
+    except ValueError as exc:
+        raise UrlRefusedError(f"The cdp_url has an invalid port: {exc}") from exc
     allowed = {host.strip().lower() for host in settings.BROWSER_CDP_ALLOWED_HOSTS}
     if parsed.hostname.lower() not in allowed:
         # The host is named: it came from a stored spec rather than from anything

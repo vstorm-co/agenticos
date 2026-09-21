@@ -179,6 +179,34 @@ function SchemaField({
         )}
       </div>
 
+      {kind === "suggested" && (
+        <>
+          <Input
+            id={id}
+            list={`${id}-suggestions`}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {/* A native datalist rather than a combobox component: this is an
+              ordinary text field that offers the usual answers, and anything
+              richer would be a widget standing between somebody and a string
+              they already know how to type. i18n-exempt: option values are
+              identifiers the backend validates, not copy. */}
+          <datalist id={`${id}-suggestions`}>
+            {(suggestions(property) ?? []).map((choice) => (
+              <option key={choice} value={choice}>
+                {enumLabel(property, choice)}
+              </option>
+            ))}
+          </datalist>
+        </>
+      )}
+
       {kind === "number" && (
         <Input
           id={id}
@@ -376,7 +404,7 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
+type FieldKind = "string" | "number" | "boolean" | "enum" | "suggested" | "stringList";
 
 /**
  * What kind of input a property needs.
@@ -385,7 +413,26 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
  * rather than a plain type, so the null branch has to be looked past - without
  * that, every optional field would fall through to a text box.
  */
+/**
+ * The values a field suggests without restricting itself to them.
+ *
+ * `x-suggestions` is the open counterpart of `enum`: the backend validates a
+ * plain string and the catalog is what most people want, so the form offers the
+ * catalog and still accepts anything. A browsing agent's `decision_model` is the
+ * case it was added for - the catalog holds the moving aliases, and an agent
+ * whose confidence floor was tuned against a pinned build has to be able to name
+ * that build.
+ */
+function suggestions(property: JsonSchemaProperty): string[] | null {
+  const values = property["x-suggestions"];
+  return Array.isArray(values) && values.every((v) => typeof v === "string") ? values : null;
+}
+
 function resolveKind(property: JsonSchemaProperty): FieldKind {
+  // Before the enum check: a field carrying suggestions is an *open* string
+  // that happens to know the usual answers, and rendering it as a closed
+  // select would forbid the unusual one it exists to allow.
+  if (suggestions(property) !== null) return "suggested";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";

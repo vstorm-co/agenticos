@@ -155,17 +155,20 @@ describe("applyBrowserFrame - one browse per call_id", () => {
     expect(isRunning(browse as Browse)).toBe(false);
   });
 
-  it("keeps the frames of a browse whose opening frame it never saw", () => {
-    // A socket that reconnected mid-browse delivers the rest, and showing those
-    // beats discarding them because the first one was missed.
-    const [browse] = fold(frame({ step: 7, operation: "CLICK", target: "Next" }));
-
-    expect(browse?.callId).toBe("c1");
-    expect(browse?.steps).toHaveLength(1);
+  it("drops a late frame for a browse this turn never opened", () => {
+    // A background delegation from the previous turn emits a step after the
+    // turn boundary cleared `browses`. Reconstructing it would put that browse -
+    // and its screenshot of another page - under the new transcript.
+    expect(fold(frame({ step: 7, operation: "CLICK", target: "Next" }))).toEqual([]);
+    expect(
+      fold(frame({ kind: "browser_frame", step: 7, image: "data:image/jpeg;base64,X" })),
+    ).toEqual([]);
+    expect(fold(frame({ kind: "browser_finished", step: 7, outcome: "done" }))).toEqual([]);
   });
 
   it("keeps the steps when a second opening frame arrives", () => {
     const [browse] = fold(
+      frame({ kind: "browser_opened", step: 0, goal: "first" }),
       frame({ step: 1, operation: "CLICK" }),
       frame({ kind: "browser_opened", step: 0, goal: "late" }),
     );

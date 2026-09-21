@@ -108,14 +108,22 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
  *
  * Keyed on `call_id`, not on the run: one turn can browse twice, and a panel
  * keyed on the turn would draw the second browse's steps into the first one's
- * list. A frame for a browse nothing opened still creates one - a socket that
- * reconnected mid-browse delivers the rest, and showing those is better than
- * discarding them because the opening frame was missed.
+ * list.
+ *
+ * **A browse is created by `browser_opened` and by nothing else.** The first
+ * version of this took any frame for an unknown id, on the reasoning that a
+ * socket which reconnected mid-browse should still show what it could. That was
+ * the wrong trade once the turn boundaries started clearing `browses`: a
+ * background delegation from the previous turn emits a step after `doSend` or a
+ * conversation switch has cleared them, and a reducer that reconstructs on any
+ * frame puts that browse - and its screenshot of somebody else's page - back
+ * under the new transcript. A late frame for a browse this turn never opened is
+ * dropped.
  */
 export function applyBrowserFrame(current: Browse[], frame: BrowserFrame): Browse[] {
   const existing = current.find((browse) => browse.callId === frame.call_id);
   if (!existing) {
-    return [...current, applyTo(opened(frame), frame)];
+    return frame.kind === "browser_opened" ? [...current, applyTo(opened(frame), frame)] : current;
   }
   return current.map((browse) =>
     browse.callId === frame.call_id ? applyTo(browse, frame) : browse,

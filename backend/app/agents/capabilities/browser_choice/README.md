@@ -99,6 +99,14 @@ address check; an unvetted one is refused whatever it resolves to. Matching is
 exact and case-folded: a hostname is not a pattern, and `*.internal` on a
 security allowlist is a wildcard somebody reads as narrower than it is.
 
+**Let a page decide how much this deployment allocates.** The candidate cap, the
+option lists, the labels and the page text are all cut *inside* the page, before
+`JSON.stringify`. Cutting them in Python is cutting a string that has already
+been built by the browser and carried across the socket - which on a page with
+fifty thousand controls and a megabyte of text is the page choosing the number.
+Measured: a 594 KB page with 3,000 buttons and a 2,000-option select produces a
+9.6 KB CDP response.
+
 **Rank the candidate set.** Truncation to `candidate_cap` is by document order and
 nothing else. Scoring the elements by relevance to the goal would put the decision
 this capability exists to make back inside an opaque function, and would make two
@@ -238,6 +246,14 @@ per field typed. Neither passes the host agent's `BudgetGuard` - they go out
 through `Agent`s this package builds - so both are wrapped in `MeteredModel` and
 book against the run's ledger (agenticos#802).
 
+**And the budget is asked before each of them, not only after.** `BudgetGuard`
+checks inside `wrap_model_request`, which wraps the *agent's* requests - a browse
+makes up to a hundred of its own inside one tool call and goes nowhere near it,
+so an exhausted budget stopped the turn's next request and not the browse.
+`assert_ambient_budget()` is the sibling of `record_ambient_usage`: the runner
+opens `guarded_by(...)` beside `metered_by(...)`, and a capability running its
+own model can refuse before spending rather than report after.
+
 **Tokens, though, are not cost.** `price_request` prices a response through
 `genai-prices`, and a decision model the snapshot does not know prices as `None`.
 So a browse appears in Activity with its usage and without its money, and a
@@ -257,6 +273,14 @@ are text rather than controls, so `DONE` would be a guess. A value the agent
 *types* does not: the history line the next decision reads says `filled textbox:
 Password`, never what was in it, so a credential the host model wrote into a form
 does not travel to a separately configured endpoint.
+
+**The goal goes to the decision model; `private` does not.** A browse takes both,
+and they are not interchangeable. The value generator has no conversation
+history - it sees the field, the history and the task - so a calling model asked
+to sign in had to put the credentials somewhere, and the only place was the goal,
+which travels to the decision endpoint on every step. `private` is the place to
+put them: bound at the one call site into what the generator is told, and never
+in `observation()`. The tool's docstring says so where a model will read it.
 
 `decision_base_url` has an allowlist of its own -
 `DECISION_MODEL_ALLOWED_HOSTS`, empty by default, which permits only the vendor's

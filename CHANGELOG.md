@@ -78,6 +78,27 @@ Two things are versioned separately from this file and worth knowing about:
   checks it still describes itself the way the candidate table said, a dropdown is
   answered with a value, a typed value never leaves the run, and a finish frame is
   sent on every path out.
+- **Eight more again, and this round changed the tool's shape.** A browse now
+  takes `private` beside `goal`: the value generator has no conversation history,
+  so a calling model asked to sign in had to put the credentials in the goal -
+  and the goal travels to the decision endpoint on every step, which is the one
+  place the field-value redaction could not reach. `private` is bound into what
+  the generator is told and never into the decision prompt.
+
+  The rest: the budget is asked *before* each of a browse's own model calls, not
+  only booked after, because `BudgetGuard` wraps the agent's requests and a
+  browse makes up to a hundred of its own inside one tool call (`guarded_by` is
+  the sibling of `metered_by`); the candidate cap, option lists, labels and page
+  text are cut inside the page rather than after the transfer, so a 594 KB page
+  with 3,000 controls now produces a 9.6 KB CDP response; `cdp_url` and
+  `decision_base_url` refuse an invalid port at publish instead of on the first
+  browse; `decision_model` is `x-suggestions` rather than `enum`, because an
+  `enum` made the console render a closed select and forbade the pinned build
+  the field exists to allow; the `cdp_url` hint is a placeholder rather than a
+  schema default, which the console shows without storing - so the form looked
+  filled in and publishing it was refused; and the frontend reducer creates a
+  browse only from its opening frame, so a late frame from the previous turn
+  cannot restore a browse, and its screenshot, under the new transcript.
 - **Eight more, from a third review, and one I found answering them.** A field's
   contents left the browser: the history line stopped carrying a typed value and
   the next snapshot copied `el.value` straight back out, so the password the host

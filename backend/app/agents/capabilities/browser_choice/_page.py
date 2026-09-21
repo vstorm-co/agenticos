@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.agents.capabilities.browser_choice._elements import (
+    MAX_COLLECTED_OPTIONS,
     MAX_PAGE_TEXT,
     Element,
     Snapshot,
@@ -111,6 +112,11 @@ _COLLECT_JS = r"""
   };
   const out = [];
   for (const el of document.querySelectorAll(SELECTOR)) {
+    // The cap is enforced here as well as in Python, and this is the half that
+    // matters against a hostile page: `candidate_cap` truncates a list that has
+    // already been built and carried across the socket, so a page with fifty
+    // thousand visible controls decided how much this deployment allocated.
+    if (out.length >= %(cap)d) break;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
     if (r.bottom < 0 || r.top > window.innerHeight) continue;
@@ -140,8 +146,13 @@ _COLLECT_JS = r"""
       value: isSelect && el.selectedOptions[0] ? el.selectedOptions[0].label : '',
       // A native dropdown's choices travel with it rather than as rows of their
       // own: a country list would otherwise be the whole table.
+      // Bounded here too, and for the same reason: a `<select>` may hold every
+      // airport in the world, and the table shows a dozen of them either way.
       options: isSelect
-        ? Array.from(el.options).map((o) => (o.label || o.value || '').trim()).filter(Boolean)
+        ? Array.from(el.options)
+            .slice(0, %(options)d)
+            .map((o) => (o.label || o.value || '').trim())
+            .filter(Boolean)
         : [],
     });
   }
@@ -204,6 +215,10 @@ _NAMING_JS = r"""
   // without `el.labels` it reaches the model with an empty name and the model
   // cannot tell which field it is being asked to fill.
   const labelOf = (el) => {
+    // Cut before it is carried, not after: a label is bounded in Python by
+    // `clean_label`, which cannot help with a page that put a megabyte in an
+    // `aria-label` and had it serialised first.
+    const cut = (text) => (text || '').slice(0, 400);
     const referenced = (el.getAttribute('aria-labelledby') || '')
       .split(/\s+/)
       .filter(Boolean)
@@ -216,7 +231,7 @@ _NAMING_JS = r"""
     const attached = el.labels
       ? Array.from(el.labels).map((l) => (l.innerText || '').trim()).filter(Boolean).join(' ')
       : '';
-    return (
+    return cut(
       el.getAttribute('aria-label') ||
       referenced ||
       attached ||
@@ -503,7 +518,12 @@ class CdpPage:
         # The cut is applied in the page rather than after the transfer; a
         # little slack over `MAX_PAGE_TEXT` so the collapse in Python has
         # something to collapse.
-        script = _COLLECT_JS % {"naming": _NAMING_JS, "text_limit": MAX_PAGE_TEXT * 4}
+        script = _COLLECT_JS % {
+            "naming": _NAMING_JS,
+            "text_limit": MAX_PAGE_TEXT * 4,
+            "cap": self._policy.candidate_cap,
+            "options": MAX_COLLECTED_OPTIONS,
+        }
         result = await self._evaluate(script)
         snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):

@@ -93,8 +93,13 @@ class PageSession(Protocol):
 Decide = Callable[[str, Snapshot, tuple[str, ...]], Awaitable[Choice]]
 """Ask the decision model which operation and which element."""
 
-Generate = Callable[[str, Element, tuple[str, ...]], Awaitable[str]]
-"""Ask a language model what to type. The one generated thing in the loop."""
+Generate = Callable[[Element, tuple[str, ...]], Awaitable[str]]
+"""Ask a language model what to type. The one generated thing in the loop.
+
+Takes no goal. The goal reaches the decision model on every step, and the values
+this writes must not - so what the generator knows about the task is bound at the
+call site, where the private half of it can be kept out of everything else.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,7 +309,7 @@ async def run_browse(
                 )
             try:
                 history += (
-                    await _act_on_element(page, choice.operation, element, goal, history, generate),
+                    await _act_on_element(page, choice.operation, element, history, generate),
                 )
             except StaleElement as refused:
                 # The page moved between the snapshot and the decision, or the
@@ -403,7 +408,6 @@ async def _act_on_element(
     page: PageSession,
     operation: str,
     element: Element,
-    goal: str,
     history: tuple[str, ...],
     generate: Generate,
 ) -> str:
@@ -420,10 +424,10 @@ async def _act_on_element(
         await page.click(element)
         return f"clicked {element.role}: {element.label}"
     if operation == "SELECT":
-        chosen = await generate(goal, element, history)
+        chosen = await generate(element, history)
         await page.select(element, chosen)
         return f"chose {chosen!r} in {element.role}: {element.label}"
-    text = await generate(goal, element, history)
+    text = await generate(element, history)
     await page.type_text(element, text)
     # The value is deliberately not in this line. Every history entry is sent to
     # the decision model on the next step, and that endpoint is configured

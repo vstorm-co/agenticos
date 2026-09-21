@@ -18,7 +18,9 @@ import asyncio
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic_ai._run_context import RunContext
@@ -43,6 +45,7 @@ from app.agents.capabilities.browser_choice import (
 from app.agents.capabilities.browser_choice._elements import (
     EDITABLE_ROLES,
     HARD_CANDIDATE_CAP,
+    MAX_COLLECTED_OPTIONS,
     MAX_LABEL,
     MAX_PAGE_TEXT,
     MAX_SHOWN_OPTIONS,
@@ -67,6 +70,8 @@ from app.agents.capabilities.browser_choice._loop import (
     run_browse,
 )
 from app.agents.capabilities.browser_choice._page import (
+    _COLLECT_JS,
+    _NAMING_JS,
     MISSING_EXTRA,
     READ_LIMIT,
     CdpPage,
@@ -87,6 +92,14 @@ from app.agents.capabilities.browser_choice._toolset import (
     build_toolset,
     confidence_of,
     last_response,
+)
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
 )
 from app.agents.deps import AgentDeps
 from app.core.config import settings
@@ -520,7 +533,7 @@ def _decider(*choices: Choice):
     return decide
 
 
-async def _generate(goal: str, element: Element, history: tuple[str, ...]) -> str:
+async def _generate(element: Element, history: tuple[str, ...]) -> str:
     return "typed value"
 
 
@@ -738,7 +751,7 @@ class TestTheLoopCarriesOutWhatWasChosen:
             seen.append(history)
             return Choice("TYPE_TEXT", 0, 0.9) if not history else Choice("DONE", None, 0.9)
 
-        async def secret(goal: str, element: Element, history: tuple[str, ...]) -> str:
+        async def secret(element: Element, history: tuple[str, ...]) -> str:
             return "hunter2-the-actual-password"
 
         page = _FakePage(_snapshot(_element(0, role="textbox", label="Password"), _element(1)))
@@ -1025,6 +1038,42 @@ class TestTheToolRefusesBeforeItOpensAnything:
         assert "no decision-model" in await _call(api_key=None)
 
 
+@pytest.mark.security
+class TestTheBudgetIsCheckedBeforeEachOwnRequest:
+    """A browse makes its own model requests, and the host guard never sees them.
+
+    `BudgetGuard` checks inside `wrap_model_request`, which wraps the *agent's*
+    requests. A browse runs up to a hundred of its own inside one tool call, so
+    an exhausted budget stopped the turn's next request and not the browse.
+    """
+
+    @staticmethod
+    def _guard(*, limit: str, spent: str) -> BudgetGuard:
+        return BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal(limit),
+                    period_spend=AsyncMock(return_value=Decimal(spent)),
+                )
+            ],
+        )
+
+    async def test_an_exhausted_budget_refuses_the_first_decision(self):
+        with guarded_by(self._guard(limit="1.00", spent="1.00")), pytest.raises(BudgetExceeded):
+            await _call()
+
+    async def test_a_budget_with_room_lets_the_browse_run(self):
+        with guarded_by(self._guard(limit="1.00", spent="0.10")):
+            assert (await _call()).startswith("Finished")
+
+    async def test_nothing_counting_is_not_a_refusal(self):
+        # A preview, a test, the CLI - a capability should not refuse to work
+        # because nobody is billing.
+        assert (await _call()).startswith("Finished")
+
+
 class TestTheToolEndToEnd:
     """The whole body, with both engines substituted."""
 
@@ -1193,6 +1242,26 @@ class TestRegistrationAndPublish:
             validate_cdp_url(BrowserChoiceConfig())
 
 
+class TestWhatAPageCanMakeThisAllocate:
+    """The bounds that have to be inside the page rather than after it."""
+
+    def test_a_dropdown_is_read_up_to_a_bound(self):
+        # A `<select>` can hold every airport in the world, and an unbounded read
+        # of one is a page deciding how much this deployment allocates.
+        assert MAX_COLLECTED_OPTIONS > MAX_SHOWN_OPTIONS
+
+    def test_the_collector_is_given_the_caps_it_has_to_apply(self):
+        script = _COLLECT_JS % {
+            "naming": _NAMING_JS,
+            "text_limit": 6000,
+            "cap": 25,
+            "options": MAX_COLLECTED_OPTIONS,
+        }
+        assert "out.length >= 25" in script
+        assert f"slice(0, {MAX_COLLECTED_OPTIONS})" in script
+        assert "innerText.slice(0, 6000)" in script
+
+
 class TestWhereTheDecisionModelMayRun:
     """The second address a browse sends something to, and its own allowlist.
 
@@ -1233,6 +1302,13 @@ class TestWhereTheDecisionModelMayRun:
         monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
         self._check("https://JEV.Internal/v1")
 
+    def test_an_invalid_port_is_refused_here_rather_than_on_the_first_browse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        with pytest.raises(UrlRefusedError, match="invalid port"):
+            self._check("https://jev.internal:notaport")
+
     @pytest.mark.parametrize("url", ["ftp://jev.internal", "not a url", "https://"])
     def test_something_that_is_not_an_endpoint_is_refused_before_the_list(
         self, url: str, monkeypatch: pytest.MonkeyPatch
@@ -1250,11 +1326,18 @@ class TestWhereTheDecisionModelMayRun:
 class TestTheFormAnAuthorFillsIn:
     """What the Builder offers, which is most of what makes this configurable."""
 
-    def test_the_model_is_a_picker_over_the_catalog(self):
+    def test_the_model_suggests_the_catalog_without_closing_the_field(self):
+        """`x-suggestions`, never `enum`.
+
+        An `enum` makes the console render a closed select, which would forbid
+        the pinned build the field exists to allow - the promise broken by the
+        mechanism meant to deliver it.
+        """
         schema = get("browser_choice").config_json_schema()
         assert schema is not None
         field = schema["properties"]["decision_model"]
-        assert field["enum"] == [model.id for model in DECISION_MODELS]
+        assert field["x-suggestions"] == [model.id for model in DECISION_MODELS]
+        assert "enum" not in field
         assert field["x-enum-labels"][DEFAULT_DECISION_MODEL] == DECISION_MODELS[0].name
 
     def test_a_pinned_build_outside_the_catalog_is_still_storable(self):
@@ -1264,22 +1347,20 @@ class TestTheFormAnAuthorFillsIn:
         config = BrowserChoiceConfig(cdp_url="http://browser:9222", decision_model="jev-1.13.0")
         assert config.decision_model == "jev-1.13.0"
 
-    def test_the_endpoint_is_prefilled_from_what_the_operator_allowed(
-        self, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize(
+        "hosts", [["browser"], ["browser", "chrome.internal"]], ids=["one", "two"]
+    )
+    def test_the_endpoint_is_hinted_and_never_falsely_prefilled(
+        self, hosts: list[str], monkeypatch: pytest.MonkeyPatch
     ):
-        # An author is choosing from that list whether the form says so or not.
-        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
-        field = (get("browser_choice").config_json_schema() or {})["properties"]["cdp_url"]
-        assert field["default"] == "http://browser:9222"
-        assert field["x-placeholder"] == "http://browser:9222"
+        """A placeholder, not a schema default - however many hosts are allowed.
 
-    def test_two_allowed_hosts_are_hinted_rather_than_chosen_between(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser", "chrome.internal"])
+        The console *shows* a schema default without writing it into the binding
+        until somebody edits the field, so a default here produced a form that
+        looked filled in and a publish refused for having no `cdp_url`.
+        """
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", hosts)
         field = (get("browser_choice").config_json_schema() or {})["properties"]["cdp_url"]
-        # Hinted, not filled: with two to choose between, prefilling one is
-        # picking for somebody, and the wrong pick publishes.
         assert field["default"] == ""
         assert field["x-placeholder"] == "http://browser:9222"
 
@@ -1354,6 +1435,21 @@ class TestWhichBrowsersTheOperatorAllows:
         # wildcard somebody takes for narrower than it is.
         with pytest.raises(UrlRefusedError):
             validate_cdp_url(BrowserChoiceConfig(cdp_url="http://sub.chrome.internal:9222"))
+
+    @pytest.mark.parametrize(
+        "url",
+        ["http://browser:notaport", "http://browser:99999"],
+        ids=["not-a-number", "out-of-range"],
+    )
+    def test_an_invalid_port_is_refused_at_publish(self, url: str):
+        """`urlsplit` parses it and answers the expected hostname.
+
+        A check that never read `.port` published happily and failed on the
+        first browse, inside somebody's conversation, when the HTTP client
+        parsed the same authority and refused it.
+        """
+        with pytest.raises(UrlRefusedError, match="invalid port"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
 
     @pytest.mark.parametrize(
         "url", ["ftp://browser:9222", "not a url", "http://"], ids=["scheme", "garbage", "no-host"]

@@ -166,7 +166,7 @@ def observation(goal: str, snapshot: Snapshot, history: tuple[str, ...]) -> str:
     return "\n".join(lines)
 
 
-def value_prompt(goal: str, element: Element, history: tuple[str, ...]) -> str:
+def value_prompt(task: str, element: Element, history: tuple[str, ...]) -> str:
     """What to ask a language model when the chosen operation needs a value.
 
     The one place in the loop where something is generated rather than picked, and
@@ -177,9 +177,14 @@ def value_prompt(goal: str, element: Element, history: tuple[str, ...]) -> str:
     A dropdown is the same question with a closed answer: its choices are listed
     and the reply has to be one of them, because anything else is refused by the
     page layer rather than typed in somewhere.
+
+    `task` is the *whole* task - the goal and whatever private detail the calling
+    model supplied with it. That is the asymmetry this function exists on one
+    side of: everything here is sent to the run's own model, which already has
+    the conversation, and nothing here is sent to the decision endpoint.
     """
     lines = [
-        f"GOAL: {goal}",
+        f"TASK: {task}",
         f"FIELD: {element.role} labelled {element.label!r}",
     ]
     if element.value:

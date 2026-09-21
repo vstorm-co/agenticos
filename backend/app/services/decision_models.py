@@ -42,12 +42,15 @@ DEFAULT_DECISION_MODEL = DECISION_MODELS[0].id
 def decision_model_schema() -> dict[str, Any]:
     """The `json_schema_extra` that turns the model field into a picker.
 
-    `enum` is what the Builder's schema form renders a select from and
-    `x-enum-labels` is what it writes in the options, both conventions this
-    console already has - so the catalog reaches the form without a second
-    endpoint, a second hook or a second copy of the list.
+    `x-suggestions` is the *open* counterpart of `enum`, and the distinction is
+    the whole point: `enum` makes the console render a closed select, which would
+    have forbidden the pinned build this field exists to allow - the promise two
+    paragraphs up, broken by the mechanism meant to deliver it. Suggestions are
+    offered in a datalist and anything else is still typed. `x-enum-labels`
+    names them, the same convention a select uses, so the catalog reaches the
+    form without a second endpoint, a second hook or a second copy of the list.
     """
     return {
-        "enum": [model.id for model in DECISION_MODELS],
+        "x-suggestions": [model.id for model in DECISION_MODELS],
         "x-enum-labels": {model.id: model.name for model in DECISION_MODELS},
     }

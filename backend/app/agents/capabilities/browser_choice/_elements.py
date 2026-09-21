@@ -204,6 +204,15 @@ def render_table(elements: tuple[Element, ...]) -> str:
     return "\n".join(lines)
 
 
+MAX_COLLECTED_OPTIONS = 200
+"""How many of a dropdown's choices are carried out of the page at all.
+
+Larger than :data:`MAX_SHOWN_OPTIONS`, because the count that follows the shown
+ones has to mean something and because the model may name a choice it cannot
+see. Bounded all the same: a `<select>` can hold every airport in the world, and
+an unbounded read of one is a page deciding how much this deployment allocates.
+"""
+
 MAX_SHOWN_OPTIONS = 12
 """How many of a dropdown's choices are written into the table.
 
