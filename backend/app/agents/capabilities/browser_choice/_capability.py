@@ -100,7 +100,14 @@ class BrowserChoice(AbstractCapability[AgentDepsT]):
     candidate_cap: int = 60
     min_confidence: float = 0.0
     preview: bool = True
+
     preview_width: int = 1024
+    """The browser's viewport width, and so the width of the frames.
+
+    One number for both on purpose: the element table holds what is on screen, so
+    the viewport decides what the agent can reach without scrolling, and a frame
+    of a different size would show a person a page the model was not shown.
+    """
 
     page_factory: PageFactory | None = field(default=None, repr=False, compare=False)
     decision_factory: DecisionFactory | None = field(default=None, repr=False, compare=False)

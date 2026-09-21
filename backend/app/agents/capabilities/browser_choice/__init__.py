@@ -106,7 +106,10 @@ class BrowserChoiceConfig(BaseModel):
         default=1024,
         ge=320,
         le=1920,
-        description="How wide those frames are, in pixels.",
+        description=(
+            "The browser's viewport width in pixels, which is also how wide the "
+            "frames are. It decides what the agent can see without scrolling."
+        ),
     )
 
 

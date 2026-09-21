@@ -15,6 +15,7 @@ line, rather than failing to start.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -46,6 +47,26 @@ A page is not a document: a long article's text is the answer, and a search
 results page's text is mostly navigation. Bounded because the whole of it goes
 into the calling model's context, where an unbounded tool result is how one
 `browse_page` ends a conversation.
+"""
+
+_CONTEXT_GONE = "Execution context was destroyed"
+"""What CDP answers while a navigation is replacing the page under a command."""
+
+_EVAL_ATTEMPTS = 5
+_READY_ATTEMPTS = 20
+_EVAL_BACKOFF = 0.25
+_SETTLE_MS = 400
+_VIEWPORT_RATIO = 0.75
+"""Viewport height as a fraction of its width - a 4:3 window, not a phone.
+
+Taller shows more of a page per step and costs more of the decision model's
+attention on each; this is the shape a laptop actually has.
+"""
+"""How long to wait, and how often, for a page that is still arriving.
+
+Measured against a live Chromium rather than guessed: a `Target.createTarget`
+with a URL begins navigating before the session is attached, so the first
+`Runtime.evaluate` lands in a context that is already gone.
 """
 
 COLLECT_JS = """
@@ -194,13 +215,46 @@ class CdpPage:
         self._session = session_id
         self._policy = policy
 
+    async def _evaluate(  # pragma: no cover - needs a live browser
+        self, expression: str, *, await_promise: bool = False
+    ) -> Any:
+        """Run JavaScript in the page, surviving a navigation under it.
+
+        A navigation destroys the page's execution context, and CDP answers
+        `Execution context was destroyed` to anything already in flight or sent
+        before the new one exists. That is not an error here: a click on a link is
+        supposed to navigate, and the step after it has to read the page it
+        landed on. Retried a handful of times against a live browser rather than
+        guessed at - a fixed sleep is the same bet with no evidence.
+
+        Returns:
+            The `result` object CDP answered with.
+
+        Raises:
+            RuntimeError: The page never came back, or failed for any other reason.
+        """
+        for attempt in range(_EVAL_ATTEMPTS):
+            try:
+                answer = await self._client.send.Runtime.evaluate(
+                    params={
+                        "expression": expression,
+                        "returnByValue": True,
+                        "awaitPromise": await_promise,
+                    },
+                    session_id=self._session,
+                )
+            except RuntimeError as exc:
+                if _CONTEXT_GONE not in str(exc) or attempt == _EVAL_ATTEMPTS - 1:
+                    raise
+                await asyncio.sleep(_EVAL_BACKOFF)
+                continue
+            return answer.get("result", {})
+        raise RuntimeError(_CONTEXT_GONE)  # unreachable; the loop returns or raises
+
     async def snapshot(self) -> Snapshot:  # pragma: no cover - needs a live browser
         """The page as it is now, refused if it has left the allowlist."""
-        result = await self._client.send.Runtime.evaluate(
-            params={"expression": COLLECT_JS, "returnByValue": True},
-            session_id=self._session,
-        )
-        snapshot = parse_snapshot(result.get("result", {}).get("value"), self._policy.candidate_cap)
+        result = await self._evaluate(COLLECT_JS)
+        snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):
             raise DomainRefused(
                 f"The browser navigated to {snapshot.url}, which this agent's "
@@ -239,20 +293,22 @@ class CdpPage:
 
     async def scroll(self) -> None:  # pragma: no cover - needs a live browser
         """Move one viewport down."""
-        await self._client.send.Runtime.evaluate(
-            params={"expression": "window.scrollBy(0, window.innerHeight * 0.9)"},
-            session_id=self._session,
-        )
+        await self._evaluate("window.scrollBy(0, window.innerHeight * 0.9)")
 
     async def settle(self) -> None:  # pragma: no cover - needs a live browser
-        """Give the page a moment to finish whatever the last action started."""
-        await self._client.send.Runtime.evaluate(
-            params={
-                "expression": "new Promise(r => setTimeout(r, 700))",
-                "awaitPromise": True,
-            },
-            session_id=self._session,
-        )
+        """Wait for whatever the last action started, then for the page to be ready.
+
+        Two halves, because the last action may or may not have navigated. The
+        pause gives a click that only changed the DOM time to finish; the
+        readiness poll is what covers a click that replaced the page, where the
+        context the pause ran in no longer exists.
+        """
+        await self._evaluate(f"new Promise(r => setTimeout(r, {_SETTLE_MS}))", await_promise=True)
+        for _ in range(_READY_ATTEMPTS):
+            state = (await self._evaluate("document.readyState")).get("value")
+            if state in {"interactive", "complete"}:
+                return
+            await asyncio.sleep(_EVAL_BACKOFF)
 
     async def screenshot(self) -> str | None:  # pragma: no cover - needs a live browser
         """The viewport as a JPEG `data:` URL, or `None` when previews are off."""
@@ -272,15 +328,8 @@ class CdpPage:
 
     async def read(self) -> str:  # pragma: no cover - needs a live browser
         """The page's readable text, bounded, which is what a finished browse answers with."""
-        result = await self._client.send.Runtime.evaluate(
-            params={
-                "expression": "document.body ? document.body.innerText : ''",
-                "returnByValue": True,
-            },
-            session_id=self._session,
-        )
-        text = result.get("result", {}).get("value") or ""
-        return str(text)[:READ_LIMIT]
+        result = await self._evaluate("document.body ? document.body.innerText : ''")
+        return str(result.get("value") or "")[:READ_LIMIT]
 
 
 @asynccontextmanager
@@ -324,15 +373,39 @@ async def open_page(  # pragma: no cover - needs a live browser
     await client.start()
     target: str | None = None
     try:
-        created = await client.send.Target.createTarget(params={"url": start_url})
+        # The tab is created empty and navigated afterwards, which is not a
+        # detail: `createTarget` with a URL starts navigating before there is a
+        # session to attach, so the first command lands in an execution context
+        # the navigation has already destroyed. Measured against a live Chromium.
+        created = await client.send.Target.createTarget(params={"url": "about:blank"})
         target = created["targetId"]
         attached = await client.send.Target.attachToTarget(
             params={"targetId": target, "flatten": True}
         )
         session = attached["sessionId"]
-        await client.send.Page.enable(params={}, session_id=session)
-        await client.send.Runtime.enable(params={}, session_id=session)
-        yield CdpPage(client, session, policy)
+        # Neither takes parameters, and `Runtime.enable` is typed `params: None` -
+        # an empty dict is accepted at run time and is still the wrong call.
+        await client.send.Page.enable(session_id=session)
+        await client.send.Runtime.enable(session_id=session)
+        # The viewport, before anything is loaded. A headless Chromium defaults to
+        # 800x600, which decides more than how the pictures look: the element
+        # table holds what is *on screen*, so a short viewport hides a search box
+        # below the fold and the loop spends a step scrolling to what a person
+        # would have seen without moving. `preview_width` sets both, so the frame
+        # a person watches is the page the model was shown.
+        await client.send.Emulation.setDeviceMetricsOverride(
+            params={
+                "width": policy.preview_width,
+                "height": round(policy.preview_width * _VIEWPORT_RATIO),
+                "deviceScaleFactor": 1,
+                "mobile": False,
+            },
+            session_id=session,
+        )
+        page = CdpPage(client, session, policy)
+        await client.send.Page.navigate(params={"url": start_url}, session_id=session)
+        await page.settle()
+        yield page
     finally:
         if target is not None:
             await client.send.Target.closeTarget(params={"targetId": target})
