@@ -7,22 +7,30 @@ Decision record for #1781, part of #56. Timeboxed prototype of `@workflowbuilder
 
 **Do not adopt the SDK. Build the workflow editor on `@xyflow/react` directly.**
 
-On this record's own numbers the threshold is met: 2 patches against a bound of 5
-(see [Patches](#patches)), and the prototype's adapters fit the 2-day bound. The
-rejection is a judgement that rests on three findings the count does not capture:
+The patch count is 2 against a bound of 5 (see [Patches](#patches)), but that holds
+only if stylesheet containment is counted as one patch. The record itself says
+containment is a fork (a prefixed stylesheet build plus retargeting the SDK's
+portals) that nobody estimated. The issue's condition is that the adaptations be
+bounded, and for containment that is **not demonstrated**. That is the reason for the
+rejection. It is a judgement about an unestimated item, not a measured overrun: the
+other adapters fit the 2-day bound at prototype quality.
+
+Three findings support it:
 
 - Its stylesheet was not contained in the prototype. It restyles the whole document,
   survives client-side navigation and could not be fixed with tokens. Containing it
   needs a forked stylesheet build, or an iframe, which would require relaxing the
-  console's framing headers. Both were evaluated as far as the notes below say; neither
-  is shown to be impossible.
-- Every integration point that touches process-wide state needed a guard of ours
-  (autosave timers, save status, registries). One of them, left unguarded, wrote one
-  workflow's nodes into another workflow's document.
+  console's framing headers. The iframe was tested only as far as the CSP refusal, and
+  the forked stylesheet was not attempted; neither is shown to be impossible.
+- Left unguarded, the SDK's autosave timer outlives its editor and wrote one workflow's
+  nodes into another workflow's document. Remounting the editor to switch workflow or
+  organization worked. The other global state (registries, save status, Strict Mode)
+  caused no failure in the lab, though registry growth was read in the source only.
 - Half of what the editor needs is not in the package (undo/redo, copy/paste, nested
   scopes, a list-of-rows control), so that code is ours under either engine. The
-  parts the SDK does provide are the canvas chrome and simple property fields, and
-  the property forms that mattered were custom controls anyway.
+  parts the SDK does provide are the canvas chrome, the palette and the property
+  panel. Building those on React Flow directly was not estimated here, and this record
+  does not give a figure for it.
 
 One optional trigger for a later look: the reviewed upstream commit is already ahead
 of 2.3.0 and swaps its UI dependency (`@synergycodes/overflow-ui` for
@@ -40,6 +48,9 @@ are not in the issue text. Nothing better grounded turned up, so they stand.
 - A **patch** is a change to the SDK's own source or built output that has to be
   carried across upgrades.
 - **Adapter work** is our code around its public API.
+- The **half-day rule**: if the SDK's styles are not tamed in the first half day, that
+  is recorded as a failure. It was also set at the start of this evaluation and is not
+  in the issue text.
 
 ## What was built
 
@@ -97,10 +108,14 @@ are too. One editor per document is upstream's stated contract.
 - **Switching workflow or organization** remounts the editor. The store resets to the
   new document, and the new nodes render.
 - **A pending autosave outlives its editor.** The SDK's autosave timer is not
-  cancelled on unmount, and the save reads the global store when it fires. Reproduced
-  by editing a node, then switching workflow inside the 400 ms debounce. With a
-  callback that has no guard, **`acme/wf-a` was overwritten with `wf-b`'s nodes**
-  (`persisted acme/wf-a r2: b-start b-end`). The guarded callback refused it
+  cancelled on unmount, and the save reads the global store when it fires. The
+  autosave (`o4` in `dist/index-CEBfv0NZ.js`) fires only when more than 10 seconds have
+  passed since the last load or successful save, and it is debounced by 400 ms. It
+  skips `nodeDragStart` and `nodeDragChange` changes, but not `nodeDragStop`.
+  Reproduced by waiting past 10 seconds, editing a node, then switching workflow
+  inside the 400 ms debounce. With a callback that has no guard, **`acme/wf-a` was
+  overwritten with `wf-b`'s nodes**; the lab logged `persisted acme/wf-a r2:
+  b-start=B start b-end=B end`. The guarded callback refused it
   (`the editor that scheduled this save is gone`), and also refuses a payload whose
   `name` is not the editor's own.
 - **Registries grow.** `registerCustomRenderers` appends on every `<Root>` mount,
@@ -204,16 +219,21 @@ evaluation (it is not in the issue text).
 
 ## Patches
 
-Needed to meet the bar, none applied:
+Needed to meet the 5-patch bound, none applied:
 
-1. Contain the stylesheet (build-time scope or prefix, and portal targets).
+1. Contain the stylesheet (build-time scope or prefix, and portal targets). Counted
+   as one patch, though it is a fork nobody estimated.
 2. Give the icon-only buttons accessible names.
 
 Avoided by the adapter, upstream fixes wanted: the `didSave` truthiness, the autosave
-timer that survives unmount, the append-only renderer registry, the "Saved data has
-been restored" snackbar on every mount, and commit-on-blur text controls.
+timer that survives unmount, and the append-only renderer registry (mitigated by
+mounting one editor with a module-constant `jsonForm`).
 
-Count: **2 of the 5 allowed.**
+Not avoided, residual: the "Saved data has been restored" snackbar on every mount (no
+lab code suppresses it) and commit-on-blur text controls (an unblurred edit is lost to
+the `beforeunload` autosave).
+
+Count: **2 of the 5 allowed**, with the containment caveat above.
 
 ## Adapter work
 
@@ -231,13 +251,14 @@ The algorithms carry over to React Flow directly, not the files verbatim:
   from `sdk-adapter.ts`.
 
 These modules move once the real editor exists, and were not refactored for that.
-The algorithms in question total about 480 lines: `typed-graph.ts` 127,
-`clipboard.ts` 143, `history.ts` 110 and the guarded save in `save-handler.ts` 98,
-which excludes the lab-only `createNaiveSave`.
+The algorithms in question total about 480 lines including the stand-in types:
+`typed-graph.ts` 127 (63 of them the stand-in types and 64 the helpers), `clipboard.ts`
+143, `history.ts` 110 and the guarded save in `save-handler.ts` 98, which excludes the
+lab-only `createNaiveSave`. Without the stand-in types it is about 415 lines.
 
 | Module | Lines | Survives without the SDK |
 |---|---|---|
-| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 380 | The algorithms, not the files |
+| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 380 (317 without the stand-in types) | The algorithms, not the files |
 | `save-handler.ts` | 111 | The guards and 409 mapping, yes |
 | `sdk-adapter.ts` | 244 | Partly: the strict parse, not the SDK node shape |
 | `editor-controller.tsx` | 244 | Partly: history and clipboard wiring |
@@ -296,16 +317,22 @@ shape at roughly twice the numbers. Neither engine was tuned.
   notice attributed to Mateusz Burzynski (Andarist). That name is inferred from the
   npm maintainer's email address and the repository's ownership; the package itself
   names nobody.
+- `@xyflow/react` 12.11.6, the engine this record recommends, is a new direct
+  dependency on this branch and is MIT (read from the installed package). It brings
+  `@xyflow/system` (MIT) and the `d3-*` packages (ISC) into the notices.
 - The vendor sells an Enterprise Edition. Nothing in the npm package requires it.
 
-Removing the dependencies removes those entries and regenerates
-`THIRD_PARTY_NOTICES.md` (`make licenses`).
+If the editor is built on `@xyflow/react`, the `@xyflow/*` and `d3-*` entries stay.
+Only the SDK-only distributions go away with the SDK, along with the Poppins and
+`use-composed-ref` entries; regenerate `THIRD_PARTY_NOTICES.md` (`make licenses`).
 
 ## Not evaluated, and caveats
 
-- **Version drift.** The issue names commit `b926e94`, which is ahead of the `v2.3.0`
-  tag by four commits touching `packages/sdk` (a Temporal plugin, a required start
-  node, and the `@workflowbuilder/ui` migration). Behaviour here was measured on the
+- **Version drift.** The issue names commit `b926e94`. Its history has diverged from
+  the `v2.3.0` tag (`gh api` compare: 20 commits ahead, 6 behind), and `b926e94`
+  already carries the 2.3.0 release commit and `version: 2.3.0`. Four of the commits
+  in `v2.3.0..b926e94` touch `packages/sdk` (a Temporal plugin, a required start node,
+  and the `@workflowbuilder/ui` migration). Behaviour here was measured on the
   published 2.3.0 build, and the source was read at the `v2.3.0` tag. The migration
   may change the stylesheet and the dependency tree.
 - Two editors mounted at once inline. Upstream says one; the lab only detects it.
