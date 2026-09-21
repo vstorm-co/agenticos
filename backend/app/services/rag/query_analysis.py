@@ -119,7 +119,12 @@ _STOPWORDS: frozenset[str] = frozenset(
     }
 )
 
-_WORD_RE = re.compile(r"[a-z0-9][a-z0-9'-]*")
+# Unicode-aware: a token starts with any letter or digit (`[^\W_]` is a word
+# character other than underscore, so accented and non-Latin letters count) and
+# may carry internal word characters, apostrophes or hyphens. An ASCII-only class
+# would truncate "contraseña" to "contrase" and extract nothing from scripts that
+# have no a-z, silently reducing `keywords` mode to `off` for those queries.
+_WORD_RE = re.compile(r"[^\W_][\w'-]*")
 
 # A model asked for one variant per line still tends to number or bullet them;
 # strip the marker rather than let it pollute the search terms.

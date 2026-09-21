@@ -45,6 +45,15 @@ class TestKeywordExtraction:
     def test_an_all_stopword_query_yields_nothing(self):
         assert extract_keywords("what is the of a") == []
 
+    def test_keeps_accented_words_whole(self):
+        # An ASCII-only tokenizer truncates "contraseña" to "contrase"; the
+        # Unicode-aware one keeps the whole term so BM25 sees the real word.
+        assert extract_keywords("olvidé mi contraseña") == ["olvidé", "mi", "contraseña"]
+
+    def test_extracts_terms_from_non_latin_scripts(self):
+        # A non-Latin query must not silently reduce `keywords` mode to `off`.
+        assert extract_keywords("パスワード リセット") == ["パスワード", "リセット"]
+
 
 class TestPlanQueries:
     async def test_off_returns_the_query_alone(self):
