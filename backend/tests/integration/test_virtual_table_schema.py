@@ -190,3 +190,49 @@ async def test_deleting_the_organization_takes_its_tables_with_it(db):
 
     assert await db.scalar(select(VirtualTable).where(VirtualTable.id == table.id)) is None
     assert await db.scalar(select(VirtualTableRecord)) is None
+
+
+@pytest.mark.security
+async def test_a_child_row_cannot_name_a_table_from_another_organization(db):
+    """The composite foreign key, not a WHERE clause, keeps a row in its table's tenant."""
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    other_org = await make_org(db, owner=owner)
+    table = await make_table(db, org=org, owner=owner, name="orders")
+
+    children = [
+        VirtualTableRecord(
+            organization_id=other_org.id,
+            table_id=table.id,
+            schema_version=1,
+            values={},
+        ),
+        VirtualTableRecordHistory(
+            organization_id=other_org.id,
+            table_id=table.id,
+            record_id=uuid.uuid4(),
+            revision=1,
+            operation="create",
+        ),
+        VirtualTableOutbox(
+            organization_id=other_org.id,
+            table_id=table.id,
+            record_id=uuid.uuid4(),
+            event_type="table.record.created",
+            payload={},
+        ),
+    ]
+    for child in children:
+        async with db.begin_nested():
+            db.add(child)
+            with pytest.raises(IntegrityError):
+                await db.flush()
+
+
+async def test_a_child_row_in_its_tables_own_organization_is_accepted(db):
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    table = await make_table(db, org=org, owner=owner, name="orders")
+
+    db.add(_record(table))
+    await db.flush()

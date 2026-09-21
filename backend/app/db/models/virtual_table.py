@@ -35,6 +35,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -80,6 +81,10 @@ class VirtualTable(Base, TimestampMixin):
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        # Not a second key: it is what the composite foreign keys of the records,
+        # history and outbox point at, so a child row cannot name a table from
+        # another organization than its own `organization_id`.
+        UniqueConstraint("organization_id", "id", name="uq_virtual_table_org_id"),
         # Unique among live tables only, so an archived table's name can be reused.
         Index(
             "uq_virtual_table_org_name",
@@ -143,11 +148,7 @@ class VirtualTableRecord(Base, TimestampMixin):
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    table_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("virtual_tables.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    table_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     # The caller's own key for the record - an order number, a file name. Unique
     # per table when set, which is what lets an upsert find "the same record".
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -162,6 +163,12 @@ class VirtualTableRecord(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            ondelete="CASCADE",
+            name="virtual_table_records_org_table_fkey",
+        ),
         Index(
             "uq_virtual_table_record_external_id",
             "table_id",
@@ -194,9 +201,7 @@ class VirtualTableRecordHistory(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    table_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("virtual_tables.id", ondelete="CASCADE"), nullable=False
-    )
+    table_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     record_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     operation: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -210,6 +215,12 @@ class VirtualTableRecordHistory(Base):
     )
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            ondelete="CASCADE",
+            name="virtual_table_record_history_org_table_fkey",
+        ),
         Index("virtual_table_record_history_record_idx", "record_id", "revision"),
         CheckConstraint(
             "operation IN ('create', 'update', 'delete')",
@@ -286,9 +297,7 @@ class VirtualTableOutbox(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    table_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("virtual_tables.id", ondelete="CASCADE"), nullable=False
-    )
+    table_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     record_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -299,6 +308,12 @@ class VirtualTableOutbox(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            ondelete="CASCADE",
+            name="virtual_table_outbox_org_table_fkey",
+        ),
         Index(
             "virtual_table_outbox_pending_idx",
             "created_at",

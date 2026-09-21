@@ -21,6 +21,11 @@ Decisions worth knowing when reading the constraints:
   transaction as the record. The partial index covers only undelivered rows.
 - Table names are unique among live tables only, so an archived table's name can
   be reused.
+- The records, history and outbox reference their table through
+  `(organization_id, table_id)` against a unique `(organization_id, id)` on
+  `virtual_tables`, so the schema itself refuses a child row whose organization is
+  not its table's. Every query also filters on both, but a missed `WHERE` is then a
+  constraint violation rather than a cross-tenant row.
 
 New tables only, so `downgrade()` drops them and loses nothing that existed before.
 
@@ -117,6 +122,7 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("virtual_tables_pkey")),
+        sa.UniqueConstraint("organization_id", "id", name="uq_virtual_table_org_id"),
     )
     op.create_index(
         "uq_virtual_table_org_name",
@@ -161,9 +167,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["table_id"],
-            ["virtual_tables.id"],
-            name=op.f("virtual_table_outbox_table_id_fkey"),
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            name=op.f("virtual_table_outbox_org_table_fkey"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("virtual_table_outbox_pkey")),
@@ -209,9 +215,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["table_id"],
-            ["virtual_tables.id"],
-            name=op.f("virtual_table_record_history_table_id_fkey"),
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            name=op.f("virtual_table_record_history_org_table_fkey"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("virtual_table_record_history_pkey")),
@@ -257,9 +263,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["table_id"],
-            ["virtual_tables.id"],
-            name=op.f("virtual_table_records_table_id_fkey"),
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            name=op.f("virtual_table_records_org_table_fkey"),
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
