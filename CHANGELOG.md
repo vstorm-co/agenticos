@@ -79,8 +79,11 @@ Two things are versioned separately from this file and worth knowing about:
   is a 16-pixel sprite and a smooth gradient behind a sprite reads as a drawing
   pasted onto somebody else's artwork. `docs/assets/social-preview.html` is the
   card over it: Amigo walks the dunes, two birds cross the sky, the first stars
-  come out, and the verb in the tagline lights in the colour of the sun. It
-  renders to a 330 KiB GIF for anywhere that animates and a PNG for anywhere
+  come out, and the verb in the tagline lights in the colour of the sun. The
+  name is set in a pixel face for the same reason the sky is dithered - a smooth
+  grotesque over a 16-pixel scene was the one element on the card that belonged
+  to a different drawing - while the sentence under it stays a proper sans. It
+  renders to a 323 KiB GIF for anywhere that animates and a PNG for anywhere
   that does not.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
