@@ -55,10 +55,26 @@ def _without_nul(value: str) -> str:
 
 NoNul = AfterValidator(_without_nul)
 
+
+def _plain_key(value: str) -> str:
+    """Refuse NUL and line breaks in a key the caller chooses: an external id or an operation key.
+
+    A line break in a path segment is matched or dropped by the router depending on where it
+    sits, so an id containing one could be written to under one name and looked up under another.
+    """
+    if "\x00" in value:
+        raise ValueError("Cannot contain a NUL character")
+    if "\n" in value or "\r" in value:
+        raise ValueError("Cannot contain a line break")
+    return value
+
+
+PlainKey = AfterValidator(_plain_key)
+
 Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64), NoNul]
 Description = Annotated[str, StringConstraints(max_length=500), NoNul]
-ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), NoNul]
-OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128)]
+ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), PlainKey]
+OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128), PlainKey]
 
 MAX_COLUMNS = 100
 """Columns per table, archived ones included: an archived column keeps its id and its values."""

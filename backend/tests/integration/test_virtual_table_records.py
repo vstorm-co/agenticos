@@ -589,3 +589,66 @@ async def test_a_timestamp_out_of_range_is_a_typed_refusal_for_a_cell_a_filter_a
         await service.create_table(
             ctx, TableCreate(name="Late", columns=[column("At", "datetime", default=stamp)])
         )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "a" + chr(0) + "b",
+        "x" * 256,
+        "a\nb",
+        "a\rb",
+        "",
+    ],
+)
+async def test_the_service_refuses_a_bad_external_id_itself_not_through_the_database(db, bad):
+    """Agent tools and workflow nodes call the service, so its limits cannot live on the routes."""
+    service, ctx, table, _org = await _setup(db)
+
+    calls = [
+        service.upsert_record(ctx, table.id, bad, RecordUpsert(values={})),
+        service.record_exists(ctx, table.id, bad),
+        service.get_record_by_external_id(ctx, table.id, bad),
+    ]
+    for call in calls:
+        with pytest.raises(InvalidRecordError) as raised:
+            await call
+        assert raised.value.details["fields"][0]["field"] == "external_id"
+    assert await _count(db, VirtualTableRecord) == 0
+
+
+@pytest.mark.parametrize("bad", ["k" * 129, "a" + chr(0) + "b", "a\nb", ""])
+async def test_the_service_refuses_a_bad_operation_key_on_every_write(db, bad):
+    service, ctx, table, _org = await _setup(db)
+    written = await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    calls = [
+        service.create_record(ctx, table.id, RecordCreate(values={}), operation_key=bad),
+        service.update_record(
+            ctx,
+            table.id,
+            written.record.id,
+            RecordUpdate(expected_revision=1, values={}),
+            operation_key=bad,
+        ),
+        service.upsert_record(ctx, table.id, "A-1", RecordUpsert(values={}), operation_key=bad),
+        service.delete_record(
+            ctx, table.id, written.record.id, expected_revision=1, operation_key=bad
+        ),
+    ]
+    for call in calls:
+        with pytest.raises(InvalidRecordError) as raised:
+            await call
+        assert raised.value.details["fields"][0]["field"] == "operation_key"
+    assert await _count(db, VirtualTableRecord) == 1
+
+
+async def test_the_longest_permitted_external_id_and_operation_key_are_accepted(db):
+    service, ctx, table, _org = await _setup(db)
+
+    written = await service.upsert_record(
+        ctx, table.id, "x" * 255, RecordUpsert(values={}), operation_key="k" * 128
+    )
+
+    assert written.created
+    assert await service.record_exists(ctx, table.id, "x" * 255)

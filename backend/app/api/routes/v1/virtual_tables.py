@@ -39,10 +39,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
 
 from app.api.deps import Auth, VirtualTableSvc, require
+from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
 from app.schemas.virtual_table import (
     ErrorEnvelope,
+    OperationKey,
     RecordCreate,
     RecordExists,
     RecordList,
@@ -63,10 +65,8 @@ from app.schemas.virtual_table import (
 router = APIRouter()
 
 IdempotencyKey = Annotated[
-    str | None,
+    OperationKey | None,
     Header(
-        min_length=1,
-        max_length=128,
         description=(
             "Makes a retry safe: the same key and body return the first answer, and the "
             "same key with a different body is refused."
@@ -76,13 +76,16 @@ IdempotencyKey = Annotated[
 
 # NUL is refused in every string that reaches a text column: PostgreSQL cannot store it.
 _NO_NUL = r"^[^\x00]*$"
+# An external id also refuses line breaks. Its route uses the `anytext` convertor, which
+# matches them, so this is where an id holding one is refused rather than misrouted.
+_PLAIN_KEY = r"^[^\x00\r\n]*$"
 
 ExternalIdPath = Annotated[
     str,
     Path(
         min_length=1,
         max_length=255,
-        pattern=_NO_NUL,
+        pattern=_PLAIN_KEY,
         description="The caller's own key for the record. It may contain `/`.",
     ),
 ]
@@ -191,14 +194,14 @@ async def record_exists(
     table_id: UUID,
     service: VirtualTableSvc,
     ctx: Auth,
-    external_id: str = Query(..., min_length=1, max_length=255, pattern=_NO_NUL),
+    external_id: str = Query(..., min_length=1, max_length=255, pattern=_PLAIN_KEY),
 ) -> Any:
     """Whether a record with this external id exists."""
     return RecordExists(exists=await service.record_exists(ctx, table_id, external_id))
 
 
 @router.get(
-    "/{table_id}/records/by-external-id/{external_id:path}",
+    f"/{{table_id}}/records/by-external-id/{{external_id:{ANYTEXT}}}",
     response_model=RecordRead,
     responses=_REFUSALS,
 )
@@ -210,7 +213,7 @@ async def get_record_by_external_id(
 
 
 @router.put(
-    "/{table_id}/records/by-external-id/{external_id:path}",
+    f"/{{table_id}}/records/by-external-id/{{external_id:{ANYTEXT}}}",
     response_model=RecordRead,
     responses={**_REFUSALS, 201: {"model": RecordRead, "description": "Created"}},
 )

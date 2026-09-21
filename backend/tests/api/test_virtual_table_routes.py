@@ -371,3 +371,47 @@ async def test_nul_in_a_name_description_or_label_is_a_422_not_a_database_error(
 
     assert response.status_code == 422
     service.create_table.assert_not_awaited()
+
+
+@pytest.mark.parametrize("raw", ["abc%0A", "a%0Ab", "a%0Db", "%0A"])
+async def test_an_external_id_holding_a_line_break_is_a_422_not_a_silent_match_or_a_404(
+    client, service, raw
+):
+    """`abc%0A` used to reach the route as `abc`, and `a%0Ab` matched nothing at all."""
+    async with client() as http:
+        read = await http.get(_records(f"/by-external-id/{raw}"))
+        write = await http.put(_records(f"/by-external-id/{raw}"), json={"values": {}})
+
+    assert (read.status_code, write.status_code) == (422, 422)
+    assert read.json()["error"]["code"] == "VALIDATION_ERROR"
+    service.get_record_by_external_id.assert_not_awaited()
+    service.upsert_record.assert_not_awaited()
+
+
+@pytest.mark.parametrize("external_id", ["abc\n", "a\nb", "a\rb"])
+async def test_creating_a_record_with_a_line_break_in_its_external_id_is_a_422(
+    client, service, external_id
+):
+    async with client() as http:
+        response = await http.post(_records(), json={"external_id": external_id, "values": {}})
+
+    assert response.status_code == 422
+    service.create_record.assert_not_awaited()
+
+
+async def test_the_idempotency_key_header_is_bounded(client, service):
+    async with client() as http:
+        too_long = await http.post(
+            _records(), json={"values": {}}, headers={"Idempotency-Key": "k" * 129}
+        )
+
+    assert too_long.status_code == 422
+    service.create_record.assert_not_awaited()
+
+
+async def test_the_exists_query_refuses_a_line_break_in_the_external_id(client, service):
+    async with client() as http:
+        response = await http.get(_records("/exists"), params={"external_id": "a\nb"})
+
+    assert response.status_code == 422
+    service.record_exists.assert_not_awaited()

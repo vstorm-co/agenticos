@@ -20,7 +20,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from pydantic import TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
+
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 from app.repositories import virtual_table_repo
@@ -28,6 +32,8 @@ from app.repositories.virtual_table import FilterClause, SortClause
 from app.schemas.virtual_table import (
     CellValue,
     ColumnDef,
+    ExternalId,
+    OperationKey,
     RecordCreate,
     RecordList,
     RecordQuery,
@@ -54,6 +60,37 @@ from app.services.virtual_tables.types import (
 CREATED_EVENT = "table.record.created"
 
 _RECORD_TIMESTAMPS = ("created_at", "updated_at")
+
+
+_EXTERNAL_ID = TypeAdapter(ExternalId)
+_OPERATION_KEY = TypeAdapter(OperationKey)
+
+
+def _external_id(value: str) -> str:
+    """An external id as the routes accept it, for a caller that never went through one.
+
+    The console, agent tools and workflow nodes call the service directly, so the limits
+    live here as well: an id over 255 characters or holding NUL would otherwise reach
+    PostgreSQL and come back as a database error.
+    """
+    try:
+        return _EXTERNAL_ID.validate_python(value)
+    except PydanticValidationError as invalid:
+        raise _refused(invalid, "external_id") from None
+
+
+def _operation_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return _OPERATION_KEY.validate_python(value)
+    except PydanticValidationError as invalid:
+        raise _refused(invalid, "operation_key") from None
+
+
+def _refused(invalid: PydanticValidationError, field: str) -> InvalidRecordError:
+    problems = field_problems(invalid.errors(include_url=False, include_input=False), root=field)
+    return InvalidRecordError([(problem["field"], problem["message"]) for problem in problems])
 
 
 @dataclass(frozen=True)
@@ -163,6 +200,7 @@ class RecordOperations(Operations):
     async def get_record_by_external_id(
         self, ctx: AuthContext, table_id: UUID, external_id: str
     ) -> RecordRead:
+        external_id = _external_id(external_id)
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         record = await virtual_table_repo.get_record_by_external_id(
             self.db, external_id, table_id=table.id, organization_id=ctx.organization_id
@@ -173,6 +211,7 @@ class RecordOperations(Operations):
 
     async def record_exists(self, ctx: AuthContext, table_id: UUID, external_id: str) -> bool:
         """Whether a record with this external id exists, without reading it."""
+        external_id = _external_id(external_id)
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         return await virtual_table_repo.record_exists(
             self.db, external_id, table_id=table.id, organization_id=ctx.organization_id
@@ -226,6 +265,7 @@ class RecordOperations(Operations):
             ArchivedColumnError: A value names an archived column.
             TableArchivedError: The table is archived.
         """
+        operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
@@ -261,6 +301,7 @@ class RecordOperations(Operations):
             RevisionConflictError: Someone changed the record since it was read.
             NotFoundError: There is no such record.
         """
+        operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
@@ -298,6 +339,8 @@ class RecordOperations(Operations):
             RevisionRequiredError: The record exists and no revision was sent.
             RevisionConflictError: The record exists at a different revision.
         """
+        external_id = _external_id(external_id)
+        operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
@@ -353,6 +396,7 @@ class RecordOperations(Operations):
         With an operation key a retry of a delete that already succeeded returns
         normally instead of reporting the record missing.
         """
+        operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> DeleteOutcome:
