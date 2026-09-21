@@ -24,6 +24,7 @@ from app.schemas.virtual_table import (
     RecordUpsert,
     SchemaUpdate,
     TableCreate,
+    TableUpdate,
 )
 from app.services.virtual_tables import VirtualTableService
 from app.services.virtual_tables.exceptions import InvalidSchemaError, TableArchivedError
@@ -195,3 +196,28 @@ async def test_a_delete_waits_for_an_archive_in_flight_and_is_then_refused(engin
             ctx, table.id, record.id, expected_revision=1
         ),
     )
+
+
+async def test_a_rename_waits_for_an_archive_in_flight_and_is_then_refused(engine: AsyncEngine):
+    """Without a lock the rename read the live row, passed the archive check and renamed it."""
+    factory, ctx, table = await _committed_table(engine)
+
+    async with factory() as archiving:
+        await VirtualTableService(archiving).archive_table(ctx, table.id)
+        rename = asyncio.create_task(
+            _own_session(
+                factory,
+                lambda service: service.update_table(
+                    ctx, table.id, TableUpdate(name="Renamed", description="changed")
+                ),
+            )
+        )
+        await asyncio.sleep(_SETTLE)
+        assert not rename.done(), "the update did not wait for the archive"
+        await archiving.commit()
+
+    with pytest.raises(TableArchivedError):
+        await rename
+    async with factory() as check:
+        stored = await VirtualTableService(check).describe_table(ctx, table.id)
+    assert (stored.name, stored.description) == ("People", None)

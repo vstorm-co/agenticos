@@ -120,7 +120,11 @@ class TableOperations(Operations):
 
     async def update_table(self, ctx: AuthContext, table_id: UUID, data: TableUpdate) -> TableRead:
         """Rename a table or change its description."""
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        # Locked, so an archive in flight is waited for and then seen: an unlocked read passes
+        # `_ensure_live` on the old row and the update would rename a table archived a moment
+        # ago. The row lock comes before the name lock `_claim_name` takes, the same order as
+        # every other path that takes both (`create_table` locks no existing row).
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         changes = writable(data, over=VirtualTable)
         if "name" in changes and changes["name"] != table.name:
