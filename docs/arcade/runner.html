@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Desert Run - Amigo's Arcade</title>
+    <meta
+      name="description"
+      content="One long shift across the sand. Hop the rate limits, duck the confident wrong answers, and bank tokens before the budget runs out."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <style>
+      .arc-screen {
+        background: #1b1033;
+      }
+
+      .arc-screen canvas {
+        aspect-ratio: 2 / 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="arc-page is-game">
+      <div class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Desert Run</h1>
+        <a class="arc-back" href="./">← the arcade</a>
+        <p class="arc-eyebrow">One agent, one long shift</p>
+        <button type="button" class="arc-fs" id="sound">Sound on</button>
+        <button type="button" class="arc-fs" id="fs">Fullscreen</button>
+      </div>
+
+      <div class="arc-stage">
+        <div class="arc-screen" id="screen">
+        <canvas
+          id="game"
+          width="480"
+          height="240"
+          aria-label="Amigo runs through the desert, jumping obstacles and collecting tokens"
+        ></canvas>
+
+        <div class="arc-hud" id="hud" hidden>
+          <div><b>Tokens</b><span class="arc-value" id="score">0</span></div>
+          <div><b>Best</b><span class="arc-value" id="best">0</span></div>
+          <div><b>Shift</b><span class="arc-value" id="clock">0s</span></div>
+          <div class="arc-spacer">
+            <b>Budget</b>
+            <div class="arc-bar" id="bar"><i id="barFill" style="width: 100%"></i></div>
+          </div>
+        </div>
+
+        <div class="arc-overlay" id="overlay">
+          <h2>Desert Run</h2>
+          <p>
+            Amigo took the long shift. Hop the rate limits, duck the confident wrong answers, and
+            keep grabbing tokens - the budget drains every second the agent is running.
+          </p>
+          <p class="arc-hint" id="perkLine"></p>
+          <div class="arc-actions">
+            <button type="button" class="arc-btn is-primary" data-action="retry">Start</button>
+          </div>
+          <p class="arc-hint">Space to start · <a href="./">back to the arcade</a></p>
+        </div>
+        </div>
+      </div>
+
+      <div class="arc-legend">
+        <div><strong><kbd>Space</kbd> / <kbd>↑</kbd> / tap</strong> Jump. Hold it for height.</div>
+        <div><strong><kbd>↓</kbd> / swipe down</strong> Duck under a drifting answer.</div>
+        <div><strong>Gold tokens</strong> Top the budget back up. Run dry and the shift ends.</div>
+        <div id="legendPerks"><strong>Harness</strong> Parts you collect change how this plays.</div>
+        <div><strong><kbd>P</kbd> <kbd>R</kbd> <kbd>F</kbd></strong> Pause, restart, fullscreen.</div>
+      </div>
+    </div>
+
+    <script src="arcade.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var H = window.Amigo.harness;
+        var FRAMES = window.Amigo.sprites();
+
+        var cv = document.getElementById("game");
+        var ctx = cv.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        var W = cv.width;
+        var HGT = cv.height;
+        var GROUND = HGT - 34;
+        var AMIGO_X = 56;
+
+        var screenEl = document.getElementById("screen");
+        var overlay = document.getElementById("overlay");
+        var hud = document.getElementById("hud");
+        var scoreEl = document.getElementById("score");
+        var bestEl = document.getElementById("best");
+        var clockEl = document.getElementById("clock");
+        var bar = document.getElementById("bar");
+        var barFill = document.getElementById("barFill");
+
+        /* Read once per run, not per frame: a perk earned mid-run would
+           otherwise change the physics under the player's hands. */
+        function perks() {
+          var burn = 1;
+          if (H.has("skill.compaction")) burn *= 0.75;
+          if (H.has("model.claude")) burn *= 0.9;
+          return {
+            magnet: H.has("tool.web_search"),
+            doubleJump: H.has("tool.browser"),
+            capacity: (H.has("tool.charts") ? 1.2 : 1) * (H.has("vstorm.badge") ? 1.25 : 1),
+            freeHit: H.has("skill.retry"),
+            slowBurn: burn,
+            tokenValue: H.has("model.gpt") ? 2 : 1,
+            refill: H.has("model.deepseek") ? 0.055 : 0.035,
+            freeSeconds: H.has("model.qwen") ? 15 : 0,
+            cleanData: H.has("data.clean"),
+            hasClaude: H.has("model.claude"),
+            hasGpt: H.has("model.gpt"),
+            hasBadge: H.has("vstorm.badge"),
+          };
+        }
+
+        var FAILURES = [
+          ["Rate limited", "The provider answered 429. Amigo waits in the sand."],
+          ["Hallucinated", "It answered with total confidence. None of it was true."],
+          ["Tool call timed out", "The MCP server never came back."],
+          ["Context overflowed", "Too much was remembered, and none of it was useful."],
+        ];
+        var BUDGET_OUT = ["Budget exceeded", "The monthly cap ran out mid-sentence."];
+
+        var state = null;
+
+        function fresh() {
+          return {
+            mode: "ready",
+            t: 0,
+            speed: 2.4,
+            y: 0,
+            vy: 0,
+            ducking: false,
+            holding: false,
+            hold: 0,
+            jumps: 0,
+            budget: 1,
+            score: 0,
+            obstacles: [],
+            tokens: [],
+            puffs: [],
+            nextObstacle: 80,
+            nextToken: 50,
+            shake: 0,
+            invuln: 0,
+            slow: 0,
+            billed: 0,
+            badge: false,
+            usedFreeHit: false,
+            perk: perks(),
+          };
+        }
+
+        var stars = [];
+        for (var i = 0; i < 30; i++) {
+          stars.push({
+            x: Math.random() * W,
+            y: Math.random() * (GROUND - 80),
+            p: Math.floor(Math.random() * 100),
+          });
+        }
+
+        function makeDunes(count, drift, height) {
+          var set = [];
+          for (var i = 0; i < count; i++) {
+            set.push({
+              x: (i * (W + 40)) / count,
+              w: 80 + Math.random() * 110,
+              h: height + Math.random() * 18,
+              drift: drift,
+            });
+          }
+          return set;
+        }
+        var dunesFar = makeDunes(6, 0.22, 26);
+        var dunesMid = makeDunes(5, 0.42, 20);
+        var dunesNear = makeDunes(4, 0.68, 14);
+
+        var birds = [
+          { x: W + 40, y: 44, phase: 0 },
+          { x: W + 260, y: 66, phase: 7 },
+        ];
+
+        function paintBudget() {
+          var pct = (state.budget / state.perk.capacity) * 100;
+          barFill.style.width = Math.max(0, Math.min(100, pct)).toFixed(1) + "%";
+          bar.classList.toggle("is-low", state.budget < 0.3 * state.perk.capacity);
+        }
+
+        function paintHud() {
+          scoreEl.textContent = state.score;
+          clockEl.textContent = Math.floor(state.t / 60) + "s";
+          paintBudget();
+        }
+
+        function showPerks() {
+          var p = perks();
+          var active = [];
+          if (p.magnet) active.push("Web search pulls tokens in");
+          if (p.doubleJump) active.push("Browser control gives a second jump");
+          if (p.capacity > 1) active.push("Charts widen the budget");
+          if (p.freeHit) active.push("Retry policy covers one hit");
+          if (p.slowBurn < 1) active.push("Cheaper calls slow the burn");
+          if (p.tokenValue > 1) active.push("GPT doubles every token");
+          if (p.freeSeconds) active.push("Qwen runs the first 15s free");
+          if (p.refill > 0.035) active.push("DeepSeek refills more per token");
+          if (p.cleanData) active.push("Clean data thins the sludge");
+          if (p.hasBadge) active.push("The Vstorm badge widens the budget");
+          document.getElementById("perkLine").textContent = active.length
+            ? "Harness active: " + active.join(" · ")
+            : "Harness empty - everything you collect here changes the next run.";
+        }
+
+        function start() {
+          state = fresh();
+          state.mode = "playing";
+          state.budget = state.perk.capacity;
+          overlay.hidden = true;
+          hud.hidden = false;
+          paintHud();
+        }
+
+        function die(reason) {
+          state.mode = "dead";
+          state.shake = 12;
+          window.Amigo.sound.play("fail");
+
+          var seconds = Math.floor(state.t / 60);
+          var stats = H.record({
+            runnerBest: { best: state.score },
+            runnerRuns: { add: 1 },
+            runnerDeaths: { add: 1 },
+            runnerLongest: { best: seconds },
+            lifetimeTokens: { add: state.score },
+          });
+          bestEl.textContent = stats.runnerBest;
+
+          var earned = [];
+          if (state.score >= 30) earned.push(H.unlock("tool.web_search"));
+          if (seconds >= 60) earned.push(H.unlock("tool.charts"));
+          if (stats.runnerDeaths >= 3) earned.push(H.unlock("skill.retry"));
+          H.played("runner");
+
+          var got = earned.filter(Boolean);
+          var note = got.length
+            ? "Harness upgraded: " +
+              got
+                .map(function (part) {
+                  return part.name;
+                })
+                .join(", ") +
+              "."
+            : "";
+
+          overlay.innerHTML = window.Amigo.continueScreen({
+            title: "Run failed",
+            reason: reason[0],
+            note: note || reason[1],
+            stats: [
+              ["Tokens", state.score],
+              ["Shift", seconds + "s"],
+              ["Invoices", state.billed],
+              ["Best", stats.runnerBest],
+            ],
+          });
+          window.Amigo.wireContinue(overlay, start);
+          overlay.hidden = false;
+          if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
+        }
+
+        function puff(x, y, n) {
+          for (var i = 0; i < n; i++) {
+            state.puffs.push({
+              x: x,
+              y: y,
+              vx: -Math.random() * 1.2 - 0.3,
+              vy: -Math.random() * 0.8,
+              life: 18,
+            });
+          }
+        }
+
+        function jump() {
+          if (!state || state.mode !== "playing") {
+            start();
+            return;
+          }
+          var limit = state.perk.doubleJump ? 2 : 1;
+          if (state.y === 0) {
+            state.jumps = 1;
+            state.vy = 5.2;
+            state.holding = true;
+            state.hold = 0;
+            puff(AMIGO_X + 8, GROUND, 4);
+            window.Amigo.sound.play("jump");
+          } else if (state.jumps < limit) {
+            state.jumps++;
+            state.vy = 4.4;
+            state.holding = true;
+            state.hold = 4;
+            puff(AMIGO_X + 8, GROUND - state.y, 5);
+            window.Amigo.sound.play("jump2");
+          }
+        }
+
+        function release() {
+          if (state) state.holding = false;
+        }
+
+        function duck(on) {
+          if (state && state.mode === "playing") state.ducking = on;
+        }
+
+        document.addEventListener("keydown", function (e) {
+          if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+            e.preventDefault();
+            if (!e.repeat) jump();
+          }
+          if (e.code === "ArrowDown" || e.code === "KeyS") {
+            e.preventDefault();
+            duck(true);
+          }
+        });
+        document.addEventListener("keyup", function (e) {
+          if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") release();
+          if (e.code === "ArrowDown" || e.code === "KeyS") duck(false);
+        });
+
+        var touchY = null;
+        cv.addEventListener("pointerdown", function (e) {
+          touchY = e.clientY;
+          jump();
+        });
+        cv.addEventListener("pointermove", function (e) {
+          if (touchY !== null && e.clientY - touchY > 26) {
+            release();
+            duck(true);
+          }
+        });
+        document.addEventListener("pointerup", function () {
+          touchY = null;
+          release();
+          duck(false);
+        });
+
+        function amigoBox() {
+          var h = state.ducking && state.y === 0 ? 11 : 19;
+          return { x: AMIGO_X + 2, y: GROUND - state.y - h, w: 12, h: h };
+        }
+
+        function spawnObstacle() {
+          var roll = Math.random();
+          /* The invoice is the one obstacle that does not end the run: it takes
+             a bite out of the budget, which is what a surprise bill actually
+             does to you. */
+          if (state.t > 900 && Math.random() < 0.12) {
+            state.obstacles.push({
+              kind: "bill",
+              x: W + 10,
+              y: GROUND - 46,
+              w: 30,
+              h: 20,
+              bob: Math.random() * 6,
+            });
+            return;
+          }
+          if (!state.perk.cleanData ? Math.random() < 0.16 : Math.random() < 0.08) {
+            state.obstacles.push({ kind: "sludge", x: W + 10, y: GROUND - 8, w: 26, h: 8 });
+            return;
+          }
+          if (roll < 0.26) {
+            state.obstacles.push({
+              kind: "drift",
+              x: W + 10,
+              y: GROUND - 30,
+              w: 18,
+              h: 11,
+              bob: 0,
+            });
+          } else if (roll < 0.6) {
+            state.obstacles.push({ kind: "cactus", x: W + 10, y: GROUND - 26, w: 11, h: 26 });
+          } else if (roll < 0.84) {
+            state.obstacles.push({ kind: "rock", x: W + 10, y: GROUND - 13, w: 16, h: 13 });
+          } else {
+            state.obstacles.push({ kind: "cactus", x: W + 10, y: GROUND - 26, w: 11, h: 26 });
+            state.obstacles.push({ kind: "cactus", x: W + 30, y: GROUND - 20, w: 9, h: 20 });
+          }
+        }
+
+        function hit(reason) {
+          if (state.invuln > 0) return;
+          if (state.perk.freeHit && !state.usedFreeHit) {
+            state.usedFreeHit = true;
+            state.invuln = 96;
+            state.shake = 8;
+            window.Amigo.sound.play("deny");
+            window.Amigo.toast(screenEl, "Retry policy: one failed call retried, not surfaced.");
+            return;
+          }
+          paintHud();
+          die(reason);
+        }
+
+        function update() {
+          if (!state) return;
+          if (pauseCtl.on) return;
+          state.t++;
+          if (state.shake > 0) state.shake--;
+          if (state.mode !== "playing") return;
+          if (state.invuln > 0) state.invuln--;
+
+          state.speed = Math.min(6.8, 2.4 + state.t / 880);
+          if (state.slow > 0) {
+            state.slow--;
+            state.speed *= 0.62;
+          }
+
+          if (state.holding && state.vy > 0 && state.hold < 11) {
+            state.hold++;
+            state.vy += 0.16;
+          }
+          state.vy -= state.ducking && state.y > 0 ? 0.52 : 0.32;
+          state.y += state.vy;
+          if (state.y <= 0) {
+            if (state.vy < -3) {
+              puff(AMIGO_X + 4, GROUND, 3);
+              window.Amigo.sound.play("land");
+            }
+            state.y = 0;
+            state.vy = 0;
+            state.jumps = 0;
+            state.holding = false;
+          }
+
+          /* The budget is the clock: it drains while the agent runs and tokens
+             top it up, which is what makes a risky line through a gate worth
+             taking. */
+          var metered = state.t > state.perk.freeSeconds * 60;
+          if (metered) state.budget -= (0.00105 + state.speed * 0.00013) * state.perk.slowBurn;
+          if (state.budget <= 0) {
+            state.budget = 0;
+            paintHud();
+            die(BUDGET_OUT);
+            return;
+          }
+
+          if (--state.nextObstacle <= 0) {
+            spawnObstacle();
+            state.nextObstacle = Math.max(38, 108 - state.speed * 8) + Math.random() * 46;
+          }
+          if (--state.nextToken <= 0) {
+            var rare = Math.random();
+            if (state.t > 1500 && rare < 0.07 && !H.has("vstorm.badge")) {
+              /* The badge flies high enough that a single jump rarely reaches
+                 it - it is meant to be the thing you come back for. */
+              state.tokens.push({ kind: "badge", x: W + 14, y: GROUND - 74, got: false });
+            } else if (rare < 0.2) {
+              var vendor = !H.has("model.claude")
+                ? "claude"
+                : !H.has("model.gpt")
+                  ? "gpt"
+                  : Math.random() < 0.5
+                    ? "claude"
+                    : "gpt";
+              state.tokens.push({
+                kind: "chip",
+                vendor: vendor,
+                x: W + 14,
+                y: GROUND - (Math.random() < 0.5 ? 48 : 20),
+                got: false,
+              });
+            } else {
+              var high = Math.random() < 0.55;
+              var n = 2 + Math.floor(Math.random() * 3);
+              for (var i = 0; i < n; i++) {
+                state.tokens.push({
+                  kind: "token",
+                  x: W + 12 + i * 15,
+                  y: GROUND - (high ? 44 + Math.sin(i) * 7 : 16),
+                  got: false,
+                });
+              }
+            }
+            state.nextToken = 70 + Math.random() * 90;
+          }
+
+          var box = amigoBox();
+
+          for (var o = 0; o < state.obstacles.length; o++) {
+            var ob = state.obstacles[o];
+            ob.x -= state.speed;
+            if (ob.kind === "drift") {
+              ob.bob += 0.14;
+              ob.x -= 0.7;
+            }
+            var oy = ob.kind === "drift" ? ob.y + Math.sin(ob.bob) * 3 : ob.y;
+            if (
+              box.x < ob.x + ob.w &&
+              box.x + box.w > ob.x &&
+              box.y < oy + ob.h &&
+              box.y + box.h > oy
+            ) {
+              if (ob.kind === "bill") {
+                ob.x = -200;
+                state.budget = Math.max(0.04, state.budget - state.perk.capacity * 0.4);
+                state.shake = 14;
+                state.billed++;
+                window.Amigo.sound.play("bill");
+                window.Amigo.toast(screenEl, "Invoice: $30,000 of tokens, unapproved.");
+                paintHud();
+              } else if (ob.kind === "sludge") {
+                ob.x = -200;
+                state.slow = 110;
+                window.Amigo.sound.play("sludge");
+                window.Amigo.toast(screenEl, "Bad customer data: duplicates, nulls and test rows.");
+              } else {
+                hit(
+                  ob.kind === "drift"
+                    ? FAILURES[1]
+                    : FAILURES[Math.floor(Math.random() * FAILURES.length)]
+                );
+                if (state.mode !== "playing") return;
+                ob.x = -100;
+              }
+            }
+          }
+          state.obstacles = state.obstacles.filter(function (ob) {
+            return ob.x > -40;
+          });
+
+          var reach = state.perk.magnet ? 46 : 0;
+          for (var k = 0; k < state.tokens.length; k++) {
+            var tk = state.tokens[k];
+            tk.x -= state.speed;
+            if (reach) {
+              var dx = box.x + 6 - tk.x;
+              var dy = box.y + 9 - tk.y;
+              var dist = Math.hypot(dx, dy);
+              if (dist < reach) {
+                tk.x += (dx / dist) * 2.1;
+                tk.y += (dy / dist) * 2.1;
+              }
+            }
+            var size = tk.kind === "token" ? 7 : tk.kind === "chip" ? 13 : 15;
+            if (
+              !tk.got &&
+              box.x < tk.x + size &&
+              box.x + box.w > tk.x &&
+              box.y < tk.y + size &&
+              box.y + box.h > tk.y
+            ) {
+              tk.got = true;
+              if (tk.kind === "chip") {
+                state.score += 5;
+                state.budget = Math.min(state.perk.capacity, state.budget + 0.12);
+                var part = H.unlock(tk.vendor === "claude" ? "model.claude" : "model.gpt");
+                if (part) window.Amigo.unlockToast(screenEl, part);
+                else window.Amigo.sound.play("pickup");
+              } else if (tk.kind === "badge") {
+                state.score += 20;
+                state.badge = true;
+                state.budget = state.perk.capacity;
+                var badge = H.unlock("vstorm.badge");
+                if (badge) window.Amigo.unlockToast(screenEl, badge);
+                else window.Amigo.sound.play("vstorm");
+              } else {
+                state.score += state.perk.tokenValue;
+                state.budget = Math.min(state.perk.capacity, state.budget + state.perk.refill);
+                window.Amigo.sound.play("token");
+              }
+              paintHud();
+            }
+          }
+          state.tokens = state.tokens.filter(function (tk) {
+            return tk.x > -20 && !tk.got;
+          });
+
+          for (var p = 0; p < state.puffs.length; p++) {
+            var pf = state.puffs[p];
+            pf.x += pf.vx - state.speed * 0.4;
+            pf.y += pf.vy;
+            pf.life--;
+          }
+          state.puffs = state.puffs.filter(function (pf) {
+            return pf.life > 0;
+          });
+
+          if (state.t % 6 === 0) paintBudget();
+          if (state.t % 30 === 0) clockEl.textContent = Math.floor(state.t / 60) + "s";
+        }
+
+        function drawDunes(set, color, drift) {
+          ctx.fillStyle = color;
+          for (var i = 0; i < set.length; i++) {
+            var d = set[i];
+            d.x -= (state && state.mode === "playing" ? state.speed : 0.25) * drift;
+            if (d.x + d.w < -20) {
+              d.x = W + Math.random() * 60;
+              d.w = 80 + Math.random() * 110;
+            }
+            var x = Math.round(d.x);
+            var h = Math.round(d.h);
+            var w = Math.round(d.w);
+            /* Stepped rather than curved: a dune drawn with an arc is the one
+               shape on screen that is not on the sprite's grid. Four tiers,
+               each wider and shorter, so the silhouette tapers instead of
+               reading as a slab with a notch in it. */
+            var tiers = 4;
+            for (var tier = 0; tier < tiers; tier++) {
+              var inset = Math.round((w * 0.34 * (tiers - 1 - tier)) / tiers);
+              var top = GROUND - h + Math.round((h * tier) / tiers);
+              ctx.fillRect(x + inset, top, w - inset * 2, GROUND - top);
+            }
+          }
+        }
+
+        function drawObstacle(o) {
+          if (o.kind === "bill") {
+            drawBill(o);
+            return;
+          }
+          if (o.kind === "sludge") {
+            drawSludge(o);
+            return;
+          }
+          if (o.kind === "cactus") {
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(Math.round(o.x), Math.round(o.y), o.w, o.h);
+            ctx.fillStyle = "#256f46";
+            ctx.fillRect(Math.round(o.x), Math.round(o.y), 3, o.h);
+            ctx.fillStyle = "#3aa869";
+            ctx.fillRect(Math.round(o.x) + o.w - 3, Math.round(o.y) + 2, 2, o.h - 4);
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(Math.round(o.x) - 5, Math.round(o.y) + 8, 5, 4);
+            ctx.fillRect(Math.round(o.x) - 5, Math.round(o.y) + 4, 2, 5);
+            ctx.fillRect(Math.round(o.x) + o.w, Math.round(o.y) + 14, 5, 4);
+            ctx.fillRect(Math.round(o.x) + o.w + 3, Math.round(o.y) + 10, 2, 5);
+            ctx.fillStyle = "#1a1f2e";
+            ctx.fillRect(Math.round(o.x), Math.round(o.y) + o.h - 2, o.w, 2);
+          } else if (o.kind === "rock") {
+            ctx.fillStyle = "#6b5647";
+            ctx.fillRect(Math.round(o.x), Math.round(o.y) + 3, o.w, o.h - 3);
+            ctx.fillRect(Math.round(o.x) + 3, Math.round(o.y), o.w - 6, 4);
+            ctx.fillStyle = "#8a7160";
+            ctx.fillRect(Math.round(o.x) + 4, Math.round(o.y) + 1, 4, 2);
+            ctx.fillStyle = "#4a3b31";
+            ctx.fillRect(Math.round(o.x), Math.round(o.y) + o.h - 3, o.w, 3);
+          } else {
+            var y = Math.round(o.y + Math.sin(o.bob) * 3);
+            var x = Math.round(o.x);
+            ctx.fillStyle = "#f5f4ef";
+            ctx.fillRect(x, y, o.w, o.h);
+            ctx.fillRect(x + 4, y + o.h, 4, 3);
+            ctx.fillStyle = "#c8412b";
+            ctx.fillRect(x + 3, y + 3, 2, 4);
+            ctx.fillRect(x + 3, y + 8, 2, 1);
+            ctx.fillStyle = "#8e95a1";
+            ctx.fillRect(x + 8, y + 4, 7, 1);
+            ctx.fillRect(x + 8, y + 7, 5, 1);
+          }
+        }
+
+        /* A three-by-five alphabet, only the characters the invoice needs: a
+           number drawn with the canvas text API would be the one thing on
+           screen that is not on the pixel grid. */
+        var DIGITS = {
+          "0": "111101101101111",
+          "3": "111001011001111",
+          K: "101101110101101",
+          $: "010111110011010",
+        };
+
+        function stamp(text, x, y, color) {
+          ctx.fillStyle = color;
+          for (var c = 0; c < text.length; c++) {
+            var bits = DIGITS[text[c]];
+            if (!bits) continue;
+            for (var i = 0; i < 15; i++) {
+              if (bits[i] === "1") ctx.fillRect(x + (i % 3), y + Math.floor(i / 3), 1, 1);
+            }
+            x += 4;
+          }
+        }
+
+        function drawBill(o) {
+          var x = Math.round(o.x);
+          var y = Math.round(o.y + Math.sin(state.t * 0.09 + o.bob) * 3);
+          ctx.fillStyle = "#f5f4ef";
+          ctx.fillRect(x, y, o.w, o.h);
+          ctx.fillStyle = "#d8d5cb";
+          ctx.fillRect(x, y + o.h - 3, o.w, 3);
+          ctx.fillStyle = "#8e95a1";
+          ctx.fillRect(x + 3, y + 3, 14, 1);
+          ctx.fillRect(x + 3, y + 5, 9, 1);
+          ctx.fillStyle = "#c8412b";
+          ctx.fillRect(x + 2, y + 8, o.w - 4, 9);
+          stamp("$30K", x + 4, y + 10, "#fff4ec");
+        }
+
+        function drawSludge(o) {
+          var x = Math.round(o.x);
+          var y = Math.round(o.y);
+          var wob = Math.round(Math.sin(state.t * 0.2 + o.x * 0.1));
+          ctx.fillStyle = "#4b3a2a";
+          ctx.fillRect(x, y + 2 + wob, o.w, o.h - 2);
+          ctx.fillRect(x + 4, y + wob, o.w - 8, o.h);
+          ctx.fillStyle = "#6b5334";
+          ctx.fillRect(x + 3, y + 3 + wob, 4, 2);
+          ctx.fillRect(x + 13, y + 2 + wob, 5, 2);
+          ctx.fillStyle = "#2f241a";
+          ctx.fillRect(x, y + o.h, o.w, 2);
+        }
+
+        var VENDORS = {
+          claude: { body: "#d97757", edge: "#8a3f24", ink: "#2b1409" },
+          gpt: { body: "#10a37f", edge: "#0a6650", ink: "#03291f" },
+        };
+
+        function drawChip(tk) {
+          var skin = VENDORS[tk.vendor];
+          var bob = Math.round(Math.sin(state.t * 0.09 + tk.x * 0.05) * 2);
+          var x = Math.round(tk.x);
+          var y = Math.round(tk.y) + bob;
+          ctx.fillStyle = "rgba(245,244,239,.14)";
+          ctx.fillRect(x - 3, y - 3, 19, 19);
+          ctx.fillStyle = skin.edge;
+          ctx.fillRect(x, y, 13, 13);
+          ctx.fillStyle = skin.body;
+          ctx.fillRect(x + 1, y + 1, 11, 11);
+          ctx.fillStyle = skin.ink;
+          if (tk.vendor === "claude") {
+            /* A burst: four strokes from one point, the shape the Anthropic
+               mark reads as at eleven pixels across. */
+            ctx.fillRect(x + 6, y + 3, 1, 7);
+            ctx.fillRect(x + 3, y + 6, 7, 1);
+            ctx.fillRect(x + 4, y + 4, 1, 1);
+            ctx.fillRect(x + 8, y + 8, 1, 1);
+            ctx.fillRect(x + 8, y + 4, 1, 1);
+            ctx.fillRect(x + 4, y + 8, 1, 1);
+          } else {
+            ctx.fillRect(x + 4, y + 3, 5, 1);
+            ctx.fillRect(x + 3, y + 4, 1, 5);
+            ctx.fillRect(x + 9, y + 4, 1, 5);
+            ctx.fillRect(x + 4, y + 9, 5, 1);
+            ctx.fillRect(x + 6, y + 5, 1, 3);
+          }
+          ctx.fillStyle = skin.edge;
+          for (var pin = 0; pin < 3; pin++) {
+            ctx.fillRect(x - 2, y + 3 + pin * 4, 2, 2);
+            ctx.fillRect(x + 13, y + 3 + pin * 4, 2, 2);
+          }
+        }
+
+        function drawBadge(tk) {
+          var bob = Math.round(Math.sin(state.t * 0.12) * 3);
+          var x = Math.round(tk.x);
+          var y = Math.round(tk.y) + bob;
+          var glow = 0.2 + Math.sin(state.t * 0.16) * 0.12;
+          ctx.fillStyle = "rgba(123,92,240," + glow + ")";
+          ctx.fillRect(x - 5, y - 5, 25, 25);
+          ctx.fillStyle = "#4a33a8";
+          ctx.fillRect(x, y, 15, 15);
+          ctx.fillStyle = "#7b5cf0";
+          ctx.fillRect(x + 1, y + 1, 13, 13);
+          ctx.fillStyle = "#f5f4ef";
+          ctx.fillRect(x + 3, y + 3, 2, 5);
+          ctx.fillRect(x + 10, y + 3, 2, 5);
+          ctx.fillRect(x + 4, y + 8, 2, 2);
+          ctx.fillRect(x + 9, y + 8, 2, 2);
+          ctx.fillRect(x + 6, y + 10, 3, 2);
+        }
+
+        function drawPickup(tk) {
+          if (tk.kind === "chip") drawChip(tk);
+          else if (tk.kind === "badge") drawBadge(tk);
+          else drawToken(tk);
+        }
+
+        function drawToken(tk) {
+          var bob = Math.sin(state.t * 0.12 + tk.x * 0.1) * 1.5;
+          var x = Math.round(tk.x);
+          var y = Math.round(tk.y + bob);
+          ctx.fillStyle = "rgba(242,193,78,.18)";
+          ctx.fillRect(x - 2, y - 2, 11, 11);
+          ctx.fillStyle = "#f2c14e";
+          ctx.fillRect(x, y, 7, 7);
+          ctx.fillStyle = "#c99327";
+          ctx.fillRect(x, y + 5, 7, 2);
+          ctx.fillRect(x + 5, y, 2, 7);
+          ctx.fillStyle = "#fff3cf";
+          ctx.fillRect(x + 1, y + 1, 2, 2);
+        }
+
+        function drawAmigo() {
+          if (state.invuln > 0 && Math.floor(state.t / 4) % 2 === 0) return;
+          var ducking = state.ducking && state.y === 0;
+          var airborne = state.y > 0.5;
+          var frame = FRAMES.stand;
+          if (ducking) frame = FRAMES.tuck;
+          else if (airborne) frame = FRAMES.air;
+          else if (Math.floor(state.t / (state.mode === "playing" ? 5 : 14)) % 2 === 0)
+            frame = FRAMES.step;
+
+          var h = ducking ? 11 : 19;
+          var y = GROUND - state.y - h;
+          var lift = Math.min(1, state.y / 42);
+
+          ctx.fillStyle = "rgba(60,30,20," + (0.35 - lift * 0.22) + ")";
+          ctx.fillRect(Math.round(AMIGO_X + 2 + lift * 3), GROUND, Math.round(12 - lift * 5), 2);
+
+          ctx.save();
+          ctx.translate(AMIGO_X, Math.round(y));
+          if (ducking) ctx.drawImage(frame, 0, 0, 16, 19, -1, 0, 18, 11);
+          else ctx.drawImage(frame, 0, 0);
+          ctx.restore();
+        }
+
+        function draw() {
+          if (!state) return;
+          var shake = state.shake > 0 ? Math.round(Math.random() * 3 - 1.5) : 0;
+          ctx.save();
+          ctx.translate(shake, 0);
+
+          /* Three hard sky bands instead of a gradient: a smooth ramp behind a
+             sixteen-pixel sprite reads as two drawings stuck together, and a
+             256-colour render of it bands anyway. */
+          ctx.fillStyle = "#2a1147";
+          ctx.fillRect(-4, 0, W + 8, GROUND * 0.45);
+          ctx.fillStyle = "#4b1c47";
+          ctx.fillRect(-4, GROUND * 0.45, W + 8, GROUND * 0.25);
+          ctx.fillStyle = "#8a2e43";
+          ctx.fillRect(-4, GROUND * 0.7, W + 8, GROUND * 0.3 + 4);
+
+          for (var s = 0; s < stars.length; s++) {
+            var st = stars[s];
+            if ((Math.floor(state.t / 6) + st.p) % 5 === 0) continue;
+            ctx.fillStyle = "#f6e7c4";
+            ctx.fillRect(Math.round(st.x), Math.round(st.y), 2, 2);
+          }
+
+          var sx = W - 92;
+          var sy = GROUND - 78;
+          ctx.fillStyle = "#f2c14e";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 30, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(139,46,67,.42)";
+          for (var b = -30; b < 30; b += 4) ctx.fillRect(sx - 30, sy + b, 60, 2);
+
+          for (var i = 0; i < birds.length; i++) {
+            var bird = birds[i];
+            bird.x -= 0.55;
+            if (bird.x < -20) bird.x = W + 40 + Math.random() * 120;
+            var flap = Math.floor(state.t / 12 + bird.phase) % 2 === 0 ? 0 : 2;
+            ctx.fillStyle = "#3a1a3f";
+            ctx.fillRect(Math.round(bird.x), Math.round(bird.y) + flap, 3, 1);
+            ctx.fillRect(Math.round(bird.x) + 3, Math.round(bird.y), 2, 1);
+            ctx.fillRect(Math.round(bird.x) + 5, Math.round(bird.y) + flap, 3, 1);
+          }
+
+          drawDunes(dunesFar, "#3a1a3f", 0.22);
+          drawDunes(dunesMid, "#4c1c3d", 0.42);
+          drawDunes(dunesNear, "#5a1f38", 0.68);
+
+          ctx.fillStyle = "#c98a4b";
+          ctx.fillRect(0, GROUND, W, HGT - GROUND);
+          ctx.fillStyle = "#a96c37";
+          ctx.fillRect(0, GROUND + 7, W, HGT - GROUND - 7);
+          ctx.fillStyle = "#e0a765";
+          var scroll = (state.t * state.speed) % 24;
+          for (var x = -24; x < W + 24; x += 24) {
+            ctx.fillRect(Math.round(x - scroll), GROUND + 3, 9, 2);
+            ctx.fillRect(Math.round(x - scroll * 1.6 + 12), GROUND + 13, 5, 2);
+            ctx.fillRect(Math.round(x - scroll * 2.2 + 6), GROUND + 21, 3, 2);
+          }
+
+          for (var pp = 0; pp < state.puffs.length; pp++) {
+            var pf = state.puffs[pp];
+            ctx.fillStyle = "rgba(240,200,150," + (pf.life / 18) * 0.7 + ")";
+            ctx.fillRect(Math.round(pf.x), Math.round(pf.y), 3, 3);
+          }
+
+          state.obstacles.forEach(drawObstacle);
+          state.tokens.forEach(drawPickup);
+          drawAmigo();
+
+          /* Speed lines, only once the shift is genuinely fast. */
+          if (state.mode === "playing" && state.speed > 4.6) {
+            ctx.fillStyle = "rgba(245,244,239,.10)";
+            for (var l = 0; l < 4; l++) {
+              var ly = 40 + ((state.t * 7 + l * 53) % (GROUND - 60));
+              var lx = (W - ((state.t * 9 + l * 120) % (W + 80))) | 0;
+              ctx.fillRect(lx, ly, 16, 1);
+            }
+          }
+
+          ctx.restore();
+        }
+
+        state = fresh();
+        bestEl.textContent = H.stats().runnerBest;
+        showPerks();
+        window.Amigo.wireContinue(overlay, start);
+        var pauseCtl = window.Amigo.pauser(
+          screenEl,
+          function () {
+            return state && state.mode === "playing";
+          },
+          start
+        );
+        window.Amigo.fit(screenEl, cv);
+        window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));
+        window.Amigo.soundButton(document.getElementById("sound"));
+        window.Amigo.touchpad(document.querySelector(".arc-page"), "runner");
+        window.Amigo.loop(update, draw);
+      })();
+    </script>
+  </body>
+</html>

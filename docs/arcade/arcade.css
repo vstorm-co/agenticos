@@ -1,0 +1,856 @@
+/* The cabinet these four pages are built into.
+ *
+ * One committed visual world - a lit arcade screen at night - rather than a
+ * light and a dark theme. The palette is the sunset from
+ * `docs/assets/social-preview.html`, so the games, the social card and the
+ * mascot read as one drawing.
+ *
+ * Three faces, each with one job, the same split the social card makes:
+ * Pixelify Sans is the marquee, Inter carries anything written in sentences,
+ * and Geist Mono carries anything the machine is reporting - scores, labels,
+ * keys, the exported spec. Prose set in a monospace reads as terminal output,
+ * and none of this copy is terminal output.
+ */
+
+:root {
+  --ink: #f5f4ef;
+  --dim: #99a0ad;
+  --faint: #656c7b;
+  --sun: #f2c14e;
+  --poncho: #c8412b;
+  --sage: #2e8b57;
+  --sky: #3d9fb5;
+  --violet: #9b59b6;
+  --cobalt: #4b6bdd;
+  --night: #0a0b0e;
+  --panel: #12141a;
+  --raised: #191c24;
+  --edge: #242935;
+  --line: #1b1f28;
+
+  --display: "Pixelify Sans", ui-monospace, monospace;
+  --body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The `hidden` attribute only carries `display: none` from the user-agent
+   sheet, so any author rule that sets `display` on the same element wins and
+   the element stays on screen. Every overlay, dialog and HUD here is a flex or
+   grid box toggled through `hidden`, so this has to outrank all of them. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html:has(.arc-page.is-game),
+body:has(.arc-page.is-game) {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A faint scan over everything: the one thing that makes four separate HTML
+   files feel like one machine. */
+body::after,
+.arc-page.is-game::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0 1px,
+    rgba(0, 0, 0, 0) 1px 3px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--sun);
+  outline-offset: 2px;
+}
+
+.arc-page {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-inline: 24px;
+  padding-block: 28px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+@media (max-width: 640px) {
+  .arc-page {
+    padding-inline: 16px;
+  }
+}
+
+/* A cabinet page is one screenful: the header and the controls take what they
+   need, and the screen takes everything left over. The canvas keeps its own
+   pixel grid - `Amigo.fit` sets its CSS size in whole pixels - so growing the
+   cabinet scales the picture rather than reflowing the game. */
+.arc-page.is-game {
+  max-width: none;
+  height: 100%;
+  padding-block: 12px;
+  gap: 10px;
+  background: var(--night);
+}
+
+.arc-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.arc-page.is-game .arc-screen {
+  line-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+@media (max-height: 620px) {
+  .arc-page.is-game .arc-legend {
+    display: none;
+  }
+}
+
+.arc-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.arc-mark {
+  width: 26px;
+  height: 33px;
+  image-rendering: pixelated;
+  flex: none;
+}
+
+.arc-title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 27px;
+  line-height: 1;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.arc-eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.arc-top .arc-eyebrow {
+  margin-left: auto;
+}
+
+.arc-back {
+  font-family: var(--mono);
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.arc-back:hover,
+.arc-back:focus-visible {
+  color: var(--sun);
+  border-color: var(--edge);
+}
+
+.arc-fs {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border: 1px solid var(--edge);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--raised);
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.arc-fs:hover,
+.arc-fs:focus-visible {
+  color: var(--sun);
+  border-color: var(--sun);
+}
+
+/* The screen. `position: relative` is what every HUD, overlay and toast in the
+   games positions against. */
+.arc-screen {
+  position: relative;
+  border: 2px solid var(--edge);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 18px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+.arc-screen canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+/* A vignette over the canvas, under the HUD: the corners of a CRT were never as
+   bright as the middle, and it stops the HUD floating on a flat field. */
+.arc-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+/* Every readout on a screen is machine output, so the HUD is mono throughout,
+   and each group is a label over a value rather than beside it - at a glance
+   you read the numbers, not the words. */
+.arc-hud {
+  position: absolute;
+  inset: 10px 12px auto 12px;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.arc-hud > div {
+  background: rgba(10, 11, 14, 0.5);
+  border: 1px solid rgba(245, 244, 239, 0.08);
+  border-radius: 3px;
+  padding: 4px 10px 5px;
+}
+
+.arc-hud b {
+  display: block;
+  font-weight: 500;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 1px;
+}
+
+.arc-hud .arc-value {
+  font-size: 16px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.arc-spacer {
+  margin-left: auto;
+}
+
+.arc-bar {
+  width: 132px;
+  height: 9px;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(245, 244, 239, 0.22);
+  overflow: hidden;
+}
+
+.arc-bar i {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  transition:
+    width 90ms linear,
+    background 200ms;
+}
+
+.arc-bar.is-low i {
+  background: var(--poncho);
+  animation: arc-pulse 0.8s steps(2, end) infinite;
+}
+
+@keyframes arc-pulse {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0.55;
+  }
+}
+
+/* The overlay is attract mode, pause and continue screen at once, so it carries
+   the marquee face and the only centred type in the arcade. */
+.arc-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(8, 9, 13, 0.9);
+  overflow-y: auto;
+}
+
+.arc-overlay:focus {
+  outline: none;
+}
+
+.arc-overlay h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(30px, 6vw, 52px);
+  line-height: 1;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.arc-overlay h2.is-win {
+  color: var(--sun);
+}
+
+.arc-overlay p {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+
+.arc-reason {
+  font-family: var(--mono) !important;
+  color: var(--poncho) !important;
+  font-size: 12px !important;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.arc-nag {
+  color: var(--sun) !important;
+  font-size: 13px !important;
+  font-style: italic;
+}
+
+.arc-tally {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-family: var(--mono);
+  margin: 2px 0;
+}
+
+.arc-tally span {
+  min-width: 88px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.arc-tally b {
+  display: block;
+  font-weight: 500;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 2px;
+}
+
+.arc-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.arc-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  border: 1px solid var(--edge);
+  border-bottom-width: 3px;
+  border-radius: 3px;
+  background: var(--raised);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 80ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+.arc-btn:hover,
+.arc-btn:focus-visible {
+  border-color: var(--sun);
+  color: var(--sun);
+}
+
+.arc-btn:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+
+.arc-btn.is-primary {
+  background: var(--poncho);
+  border-color: #8e1b1b;
+  color: #fff4ec;
+}
+
+.arc-btn.is-primary:hover,
+.arc-btn.is-primary:focus-visible {
+  color: #fff4ec;
+  border-color: var(--sun);
+}
+
+.arc-btn.is-repo::before {
+  content: "*";
+  color: var(--sun);
+  margin-right: 7px;
+}
+
+.arc-hint {
+  font-family: var(--mono) !important;
+  font-size: 11px !important;
+  color: var(--faint) !important;
+  letter-spacing: 0.04em;
+}
+
+.arc-hint a {
+  color: inherit;
+}
+
+/* Paused is a state, not an event: it says how to get out, and it never covers
+   the picture completely, so you can still see where Amigo is standing. */
+.arc-paused {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  background: rgba(8, 9, 13, 0.55);
+  text-align: center;
+}
+
+.arc-paused h3 {
+  font-family: var(--display);
+  font-size: clamp(24px, 5vw, 38px);
+  margin: 0;
+  line-height: 1;
+}
+
+.arc-paused p {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.arc-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 7;
+  transform: translateX(-50%) translateY(8px);
+  max-width: calc(100% - 28px);
+  padding: 9px 15px;
+  background: rgba(8, 9, 13, 0.95);
+  border: 1px solid var(--edge);
+  border-left: 3px solid var(--dim);
+  border-radius: 2px;
+  font-size: 13px;
+  color: var(--ink);
+  opacity: 0;
+  transition:
+    opacity 200ms,
+    transform 200ms;
+  pointer-events: none;
+}
+
+.arc-toast.is-shown {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.arc-toast[data-tone="unlock"] {
+  border-left-color: var(--sun);
+  color: var(--sun);
+}
+
+/* The control legend is reference material, not prose: one key, one sentence,
+   so the keys make a column you can scan. */
+.arc-legend {
+  display: flex;
+  gap: 10px 26px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--dim);
+  line-height: 1.45;
+}
+
+.arc-legend div {
+  max-width: 30ch;
+}
+
+.arc-legend strong {
+  display: block;
+  color: var(--ink);
+  font-weight: 500;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  margin-bottom: 1px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+.arc-blink {
+  animation: arc-blink 1.3s steps(2, end) infinite;
+}
+
+@keyframes arc-blink {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0.35;
+  }
+}
+
+/* A section on the hub: a marquee heading, a mono note to its right, and a rule
+   that belongs to the heading rather than floating between blocks. */
+.arc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.arc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.arc-head h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 23px;
+  line-height: 1;
+  margin: 0;
+}
+
+.arc-head p {
+  margin: 0 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+}
+
+.arc-head p b {
+  color: var(--sun);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Touch controls. They exist only on a coarse pointer, where they take the
+   dead space a portrait phone leaves under a wide canvas and turn it into the
+   part of the screen a thumb can actually reach. */
+.arc-pad {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.arc-pad-key {
+  flex: 1;
+  min-height: 60px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.arc-pad-key.is-main {
+  flex: 1.7;
+  background: var(--poncho);
+  border-color: #8e1b1b;
+  color: #fff4ec;
+}
+
+.arc-pad-key.is-held {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  border-color: var(--sun);
+  color: var(--sun);
+}
+
+.arc-pad-key.is-main.is-held {
+  color: #fff4ec;
+}
+
+/* With a pad on screen the written legend is redundant, and the canvas needs
+   the height more than the reader needs the reminder. */
+.arc-page.has-pad .arc-legend {
+  display: none;
+}
+
+/* Phones. The header loses its subtitle, the HUD loses a third of its size, and
+   everything that was sized for a 1400px cabinet is sized for a hand. */
+@media (max-width: 640px) {
+  .arc-page.is-game {
+    gap: 8px;
+    padding-inline: 10px;
+    padding-block: max(10px, env(safe-area-inset-top, 0px))
+      max(10px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .arc-page.is-game .arc-top .arc-eyebrow {
+    display: none;
+  }
+
+  .arc-title {
+    font-size: 21px;
+  }
+
+  .arc-mark {
+    width: 21px;
+    height: 26px;
+  }
+
+  .arc-hud {
+    inset: 6px 8px auto 8px;
+    gap: 5px;
+    font-size: 10px;
+  }
+
+  .arc-hud > div {
+    padding: 3px 7px 4px;
+  }
+
+  .arc-hud b {
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+  }
+
+  .arc-hud .arc-value {
+    font-size: 13px;
+  }
+
+  .arc-bar {
+    width: 84px;
+    height: 7px;
+  }
+
+  .arc-overlay {
+    padding: 16px;
+    gap: 9px;
+  }
+
+  .arc-overlay p {
+    font-size: 13px;
+  }
+
+  .arc-tally span {
+    min-width: 70px;
+    padding: 5px 9px;
+    font-size: 15px;
+  }
+
+  .arc-toast {
+    bottom: 9px;
+    font-size: 12px;
+    padding: 7px 11px;
+  }
+
+  .arc-fs {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .arc-head p {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .hub-meter {
+    min-width: 0;
+  }
+}
+
+/* A phone on its side: the cabinet is the whole screen, so the header shrinks
+   to a strip and the pad sits under a canvas that now has room to be wide. */
+@media (max-width: 900px) and (max-height: 500px) {
+  .arc-page.is-game {
+    padding-block: 6px;
+    gap: 6px;
+  }
+
+  .arc-page.is-game .arc-top {
+    gap: 8px;
+  }
+
+  .arc-title {
+    font-size: 17px;
+  }
+
+  .arc-pad-key {
+    min-height: 44px;
+  }
+}
+
+/* Phones, part two: the fullscreen control goes (a phone browser is already
+   fullscreen, and iOS refuses the request anyway), and the pad claims the lower
+   quarter so the thumb has somewhere to be and the canvas is not floating in
+   the middle of a black field. */
+@media (pointer: coarse) and (max-width: 640px) {
+  .arc-page.is-game .arc-fs#fs {
+    display: none;
+  }
+
+  .arc-pad {
+    min-height: 25vh;
+    gap: 10px;
+  }
+
+  .arc-pad-key {
+    min-height: 0;
+    font-size: 13px;
+  }
+}
+
+@media (pointer: coarse) and (max-height: 500px) {
+  .arc-pad {
+    min-height: 0;
+  }
+}
+
+/* The screen goes to the top of the page on a phone and the pad claims the
+   bottom third, so the gap between them is deliberate space rather than a
+   canvas floating in the middle of nothing. */
+@media (pointer: coarse) and (min-height: 560px) {
+  .arc-pad {
+    flex: 1 1 auto;
+    min-height: 170px;
+    max-height: 42vh;
+  }
+}
+
+/* The shift walks in four directions, so its pad is a cross with the action
+   beside it - four labels in a row is a list, not a control. */
+.arc-pad[data-layout="shift"] {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.5fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.arc-pad[data-layout="shift"] [data-code="ArrowUp"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.arc-pad[data-layout="shift"] [data-code="ArrowLeft"] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.arc-pad[data-layout="shift"] [data-code="ArrowDown"] {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.arc-pad[data-layout="shift"] [data-code="ArrowRight"] {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.arc-pad[data-layout="shift"] [data-code="KeyE"] {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+}
