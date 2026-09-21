@@ -21,6 +21,13 @@ describe("typed graph helpers", () => {
     expect(() => replaceScope(sampleGraph(), ["start"], { nodes: [], edges: [] })).toThrow(
       /not a foreach/,
     );
+    // A path that matches nothing must not return the graph unchanged.
+    expect(() => replaceScope(sampleGraph(), ["missing"], { nodes: [], edges: [] })).toThrow(
+      /not a foreach/,
+    );
+    expect(() =>
+      replaceScope(sampleGraph(), ["each-file", "missing"], { nodes: [], edges: [] }),
+    ).toThrow(/not a foreach/);
   });
 
   it("replaces one scope and shares the rest", () => {

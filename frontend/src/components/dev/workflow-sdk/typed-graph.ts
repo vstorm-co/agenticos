@@ -90,6 +90,11 @@ export function replaceScope(
 ): WorkflowGraph {
   const [head, ...rest] = path;
   if (head === undefined) return next;
+  if (!graph.nodes.some((node) => node.id === head)) {
+    // `scopeAt` refuses the same path. Returning the graph unchanged here would let
+    // a save report success with the edit dropped.
+    throw new Error(`scope path names ${head}, which is not a foreach in this graph`);
+  }
   return {
     ...graph,
     nodes: graph.nodes.map((node) => {
