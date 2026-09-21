@@ -104,6 +104,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_notifications.py::TestWhereAnAlertSends::test_the_approval_alert_addresses_the_queue_not_the_builder": "the approval alert links to the queue not the agent editor, link correctness, no refusal",
     "tests/test_rag_parent_context.py::TestSizeBounding::test_a_result_is_capped_to_the_per_result_budget": "'budget' names the parent-context character cap, not a spend budget; a size bound, no refusal",
     "tests/test_rag_parent_context.py::TestSizeBounding::test_the_turn_budget_stops_expansion_across_results": "'budget' names the per-turn parent-context character cap, not a spend budget; a size bound, no refusal",
+    "tests/test_rag_parent_context.py::TestReuseAndSharedBudget::test_the_turn_budget_is_shared_across_collections": "'budget' names the per-turn parent-context character cap shared across collections, not a spend budget; a size bound, no refusal",
     "tests/test_sandbox_workspace.py::TestContainerBackedWorkspaces::test_a_docker_workspace_labels_its_tenant_and_reattaches": "a docker workspace labels its tenant for accounting and reattaches, feature, no isolation refusal",
     "tests/test_sandbox_workspace.py::TestDrawingAHostsImages::test_the_budget_bounds_a_page_of_photographs": "a thumbnail budget bounds image reads, resource limit, not a spend budget",
     "tests/test_services_organizations.py::TestOrganizationService::test_a_new_team_org_starts_with_the_default_monthly_budget": "a new team org gets the default monthly budget, default config, no refusal",
