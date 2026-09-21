@@ -351,6 +351,10 @@ async def insert_record(
             revision=1,
             created_by=created_by,
             updated_by=created_by,
+            # Both from the same `now()`, so a record nobody has edited sorts by when it
+            # was created rather than falling behind every edited one as a NULL would.
+            created_at=func.now(),
+            updated_at=func.now(),
         )
         .on_conflict_do_nothing(
             index_elements=["table_id", "external_id"],
