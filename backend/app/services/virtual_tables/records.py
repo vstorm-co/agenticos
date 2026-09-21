@@ -226,7 +226,7 @@ class RecordOperations(Operations):
             ArchivedColumnError: A value names an archived column.
             TableArchivedError: The table is archived.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
@@ -261,7 +261,7 @@ class RecordOperations(Operations):
             RevisionConflictError: Someone changed the record since it was read.
             NotFoundError: There is no such record.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
@@ -298,7 +298,7 @@ class RecordOperations(Operations):
             RevisionRequiredError: The record exists and no revision was sent.
             RevisionConflictError: The record exists at a different revision.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
@@ -353,7 +353,7 @@ class RecordOperations(Operations):
         With an operation key a retry of a delete that already succeeded returns
         normally instead of reporting the record missing.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> DeleteOutcome:
             self._ensure_live(table)

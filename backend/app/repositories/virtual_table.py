@@ -94,14 +94,28 @@ class SortClause:
 
 
 async def get_table(
-    db: AsyncSession, table_id: UUID, *, organization_id: UUID, for_update: bool = False
+    db: AsyncSession,
+    table_id: UUID,
+    *,
+    organization_id: UUID,
+    for_update: bool = False,
+    for_share: bool = False,
 ) -> VirtualTable | None:
-    """One table in one organization. `for_update` serializes schema changes and archiving."""
+    """One table in one organization.
+
+    `for_update` serializes schema changes and archiving. `for_share` is what a record
+    write takes: any number of writers hold it together, and it conflicts with
+    `for_update`, so a write and a schema change or archive of the same table never
+    interleave. Both re-read the row once they get the lock, so a waiter sees the
+    committed schema version and archive state rather than the ones it started with.
+    """
     query = select(VirtualTable).where(
         VirtualTable.id == table_id, VirtualTable.organization_id == organization_id
     )
     if for_update:
         query = query.with_for_update().execution_options(populate_existing=True)
+    elif for_share:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 

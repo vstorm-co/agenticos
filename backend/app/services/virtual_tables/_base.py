@@ -21,16 +21,29 @@ class Operations:
         self.db = db
 
     async def _load_table(
-        self, ctx: AuthContext, table_id: UUID, perm: Perm, *, lock: bool = False
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        perm: Perm,
+        *,
+        lock: bool = False,
+        share: bool = False,
     ) -> VirtualTable:
         """The table, if this caller may exercise `perm` on it.
 
         Another organization's table and one the caller may not reach are both a
         404: whether a private table exists is itself something the caller may not
-        learn. `lock` takes the row lock that serializes schema changes.
+        learn. `lock` takes the row lock that serializes schema changes; `share` is the lock a
+        record write takes, which waits for a schema change or an archive in flight and holds
+        them off until the write commits. Table locks come first and the audit chain lock last,
+        so the two never wait on each other.
         """
         table = await virtual_table_repo.get_table(
-            self.db, table_id, organization_id=ctx.organization_id, for_update=lock
+            self.db,
+            table_id,
+            organization_id=ctx.organization_id,
+            for_update=lock,
+            for_share=share,
         )
         if table is None or not await resolve_access(
             self.db, ctx, table, perm, resource_type=TABLE

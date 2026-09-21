@@ -30,7 +30,7 @@ def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace
     table = SimpleNamespace(id=uuid.uuid4(), archived_at=None, schema_version=1)
     service = RecordOperations(db=None)  # type: ignore[arg-type]
 
-    async def load(ctx, table_id, perm, *, lock=False):
+    async def load(ctx, table_id, perm, *, lock=False, share=False):
         return table
 
     async def passthrough(db, ctx, *, action, **_):
