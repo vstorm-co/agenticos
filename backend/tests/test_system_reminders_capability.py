@@ -7,8 +7,10 @@ point but never accumulates; an LLM reminder is billed to the run that ran it an
 falls back rather than failing the run; and an empty config contributes nothing.
 """
 
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from pydantic_ai._run_context import RunContext
@@ -25,11 +27,19 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
+from pydantic_ai.models.instrumented import InstrumentedModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.capabilities import CapabilityBinding, build, get
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarding,
+    metered_by,
+)
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
@@ -45,7 +55,6 @@ from app.agents.capabilities.system_reminders._capability import (
     _LlmReminder,
     _prompt_text,
     _recent_texts,
-    _reserved_limits,
     _should_fire,
     _wrap,
     goal_reanchor_producer,
@@ -71,11 +80,6 @@ def _request_context(messages: list[ModelMessage], *, model: Any = None) -> Mode
 
 def _response() -> ModelResponse:
     return ModelResponse(parts=[TextPart(content="ok")], usage=RequestUsage())
-
-
-async def _no_usage_result(output: str) -> SimpleNamespace:
-    """A run result that leaves the run's usage untouched."""
-    return SimpleNamespace(output=output)
 
 
 async def _run(
@@ -336,47 +340,58 @@ class TestLlmReminder:
         assert _tail_reminder(request_context) is None
         assert capability.state.fire_counts == {}
 
-    async def test_the_generation_agent_is_built_once_and_reused(self):
+    async def test_the_reminder_agent_is_content_free_and_uses_the_runs_settings(self):
+        """content="none" and the run's model settings reach the reminder's own
+        agent, which builds its own `Agent` past the guard (agenticos#1809, #1810)."""
+        captured: dict[str, Any] = {}
+
+        class _FakeAgent:
+            def __class_getitem__(cls, _item: Any) -> Any:
+                return cls
+
+            def __init__(self, model: Any, *, instructions: Any = None, output_type: Any = None):
+                captured["model"] = model
+
+            async def run(self, *_a: Any, **kwargs: Any) -> SimpleNamespace:
+                captured["model_settings"] = kwargs.get("model_settings")
+                return SimpleNamespace(output="focus")
+
         reminder = _LlmReminder(instructions="x", max_context_messages=5, fallback="f")
         ctx: RunContext[None] = RunContext(
             deps=None,
-            model=TestModel(custom_output_text="a"),
+            model=TestModel(),
             usage=RunUsage(),
             messages=[_user_request()],
+            trace_include_content=False,
+            model_settings={"temperature": 0.5},
         )
-        await reminder(ctx)
-        first = reminder._agent
-        await reminder(ctx)
-        assert reminder._agent is first is not None
-
-    async def test_a_generation_that_spends_nothing_books_nothing(self):
-        """A call that leaves usage untouched books no cost - the defensive path."""
-        reminder = _LlmReminder(instructions="x", max_context_messages=5, fallback="f")
-        reminder._agent = SimpleNamespace(  # type: ignore[assignment]
-            run=lambda *a, **k: _no_usage_result("focus")
-        )
-        ctx: RunContext[None] = RunContext(
-            deps=None, model=TestModel(), usage=RunUsage(), messages=[_user_request()]
-        )
-        ledger = SpendLedger()
-        with metered_by(ledger):
+        with patch("app.agents.capabilities._ambient.Agent", _FakeAgent):
             assert await reminder(ctx) == "focus"
-        assert ledger.entries == []
+        assert isinstance(captured["model"], InstrumentedModel)
+        assert captured["model_settings"] == {"temperature": 0.5}
 
+    @pytest.mark.security
+    async def test_at_a_budget_cap_it_reanchors_without_a_model_call(self):
+        """At a cap the reminder falls back to the zero-cost reanchor and the
+        agent is never built, so it cannot spend past the cap (agenticos#1808)."""
 
-class TestReservedLimits:
-    def test_none_limits_stay_none(self):
-        assert _reserved_limits(None) is None
+        def _no_agent(*_a: Any, **_k: Any) -> Any:
+            raise AssertionError("no auxiliary agent may be built at a budget cap")
 
-    def test_an_unset_request_limit_is_left_alone(self):
-        limits = UsageLimits(request_limit=None)
-        assert _reserved_limits(limits) is limits
-
-    def test_one_request_is_held_back(self):
-        assert _reserved_limits(UsageLimits(request_limit=4)).request_limit == 3
-
-    def test_it_never_goes_below_zero(self):
-        assert _reserved_limits(UsageLimits(request_limit=0)).request_limit == 0
+        reminder = _LlmReminder(instructions="x", max_context_messages=5, fallback="stay on task")
+        ctx: RunContext[None] = RunContext(
+            deps=None,
+            model=TestModel(),
+            usage=RunUsage(),
+            messages=[_user_request("the goal")],
+        )
+        exhausted = BudgetGuard(
+            limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))]
+        )
+        with guarding(exhausted), patch("app.agents.capabilities._ambient.Agent", _no_agent):
+            result = await reminder(ctx)
+        assert result is not None
+        assert "the goal" in result
 
 
 class TestShouldFire:

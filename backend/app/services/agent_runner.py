@@ -86,6 +86,7 @@ from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
     SpendEntry,
+    guarding,
     metered_by,
 )
 from app.agents.capabilities.channel_tools import (
@@ -1152,7 +1153,7 @@ class PreparedRun:
         The non-streaming half of :meth:`iterate`, and it exists for the same
         reason.
         """
-        with metered_by(self.built.ledger):
+        with guarding(self.built.budget), metered_by(self.built.ledger):
             return await self.built.agent.run(
                 user_prompt,
                 deps=self.built.deps,
@@ -1180,11 +1181,18 @@ class PreparedRun:
         that way for its whole life (agenticos#16), which is the argument for the
         agent being unreachable from a surface except through here.
 
+        `guarding` is opened alongside it, and for the same reason: an auxiliary
+        `Agent` a capability builds itself - a system reminder, a compaction
+        summary - re-checks the run's caps through
+        :func:`~app.agents.capabilities.budget.can_afford_ambient_call`, which reads
+        the guard set here. Miss it and such a call spends unrefused past a cap
+        (agenticos#1808).
+
         Yields the library's run object, so the caller drives the graph and
         decides what to forward. It stays readable after the block closes; the
         outcome is taken from it there.
         """
-        with metered_by(self.built.ledger):
+        with guarding(self.built.budget), metered_by(self.built.ledger):
             async with self.built.agent.iter(
                 user_prompt,
                 deps=self.built.deps,
