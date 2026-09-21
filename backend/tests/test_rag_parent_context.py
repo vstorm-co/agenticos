@@ -174,10 +174,61 @@ class TestParentAssembly:
 class TestSizeBounding:
     async def test_a_result_is_capped_to_the_per_result_budget(self):
         store = MagicMock()
-        store.search = AsyncMock(return_value=[_match(1)])
-        store.get_document_chunks = AsyncMock(return_value=_document(0, 1, 2))
+        # The matched chunk alone is longer than the per-result cap.
+        store.search = AsyncMock(
+            return_value=[
+                SearchResult(
+                    content="x" * 20,
+                    score=0.9,
+                    parent_doc_id="doc",
+                    metadata={"page_num": 0, "chunk_num": 1},
+                )
+            ]
+        )
+        store.get_document_chunks = AsyncMock(
+            return_value=[
+                DocumentChunk(content="before", page_num=0, chunk_num=0),
+                DocumentChunk(content="x" * 20, page_num=0, chunk_num=1),
+                DocumentChunk(content="after", page_num=0, chunk_num=2),
+            ]
+        )
 
-        results = await _service(store, per_result=5).retrieve(
+        results = await _service(store, per_result=8).retrieve(
+            query="q",
+            collection_name="col",
+            scope=TenantScope(organization_id=uuid4()),
+            parent_context=ParentContextMode.PARENT,
+        )
+
+        # Bounded to the cap, and it is the matched chunk that is kept - not the
+        # document's opening ("before").
+        assert results[0].expanded_content == "x" * 8
+
+    async def test_the_matched_chunk_survives_when_earlier_context_would_fill_the_cap(self):
+        store = MagicMock()
+        # The match is the last chunk; the chunks before it already exceed the cap.
+        # A join-then-truncate-from-the-end would return only the opening and drop
+        # the match, leaving the result's citation pointing at text it no longer
+        # carries. The match must be what survives.
+        store.search = AsyncMock(
+            return_value=[
+                SearchResult(
+                    content="the-match",
+                    score=0.9,
+                    parent_doc_id="doc",
+                    metadata={"page_num": 0, "chunk_num": 2},
+                )
+            ]
+        )
+        store.get_document_chunks = AsyncMock(
+            return_value=[
+                DocumentChunk(content="a" * 30, page_num=0, chunk_num=0),
+                DocumentChunk(content="b" * 30, page_num=0, chunk_num=1),
+                DocumentChunk(content="the-match", page_num=0, chunk_num=2),
+            ]
+        )
+
+        results = await _service(store, per_result=20).retrieve(
             query="q",
             collection_name="col",
             scope=TenantScope(organization_id=uuid4()),
@@ -185,27 +236,75 @@ class TestSizeBounding:
         )
 
         assert results[0].expanded_content is not None
-        assert len(results[0].expanded_content) == 5
+        assert "the-match" in results[0].expanded_content
+        assert len(results[0].expanded_content) <= 20
 
     async def test_the_turn_budget_stops_expansion_across_results(self):
         store = MagicMock()
-        # Two matches in different documents; the first exhausts the turn budget.
+        # Two matches in different documents; the first fills the turn budget.
         store.search = AsyncMock(
             return_value=[_match(1, doc="doc-a", score=0.9), _match(1, doc="doc-b", score=0.8)]
         )
-        store.get_document_chunks = AsyncMock(return_value=_document(0, 1, 2))
+        store.get_document_chunks = AsyncMock(
+            return_value=[DocumentChunk(content="a" * 6, page_num=0, chunk_num=1)]
+        )
 
-        results = await _service(store, per_result=100, per_turn=4).retrieve(
+        results = await _service(store, per_result=100, per_turn=6).retrieve(
             query="q",
             collection_name="col",
             scope=TenantScope(organization_id=uuid4()),
             parent_context=ParentContextMode.PARENT,
         )
 
-        # The first result is truncated to the turn cap; the second sees no
-        # budget left and is returned unexpanded rather than overflowing it.
-        assert len(results[0].expanded_content) == 4
+        # The first result fills the turn cap; the second sees no budget left and
+        # is returned unexpanded rather than overflowing it.
+        assert results[0].expanded_content == "a" * 6
         assert results[1].expanded_content is None
+
+
+class TestReuseAndSharedBudget:
+    async def test_a_document_is_fetched_once_for_several_matches(self):
+        store = MagicMock()
+        # Two matches from the same document: it must be read (and sorted) once,
+        # not once per match.
+        store.search = AsyncMock(return_value=[_match(1, score=0.9), _match(3, score=0.8)])
+        store.get_document_chunks = AsyncMock(return_value=_document(0, 1, 2, 3, 4))
+
+        await _service(store, window_size=1).retrieve(
+            query="q",
+            collection_name="col",
+            scope=TenantScope(organization_id=uuid4()),
+            parent_context=ParentContextMode.WINDOW,
+        )
+
+        assert store.get_document_chunks.await_count == 1
+
+    async def test_the_turn_budget_is_shared_across_collections(self):
+        store = MagicMock()
+        org = uuid4()
+        # One match per collection, each in its own document. The first collection
+        # fills the shared per-turn budget; the second must then see none left,
+        # rather than being granted a fresh budget of its own.
+        store.search = AsyncMock(
+            side_effect=lambda **kw: [_match(1, doc=f"doc-{kw['collection_name']}", score=0.9)]
+        )
+        store.get_document_chunks = AsyncMock(
+            return_value=[DocumentChunk(content="a" * 6, page_num=0, chunk_num=1)]
+        )
+
+        results = await _service(store, per_result=100, per_turn=6).retrieve_multi(
+            query="q",
+            collection_names=["col-a", "col-b"],
+            scopes={
+                "col-a": TenantScope(organization_id=org),
+                "col-b": TenantScope(organization_id=org),
+            },
+            parent_context=ParentContextMode.PARENT,
+        )
+
+        expanded = [r.expanded_content for r in results]
+        assert expanded.count("a" * 6) == 1
+        assert None in expanded
 
 
 class TestDeduplicatingOverlappingWindows:
