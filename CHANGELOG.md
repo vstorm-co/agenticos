@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.480] - 2026-09-22
+
+### Added
+
+- **Two more cabinets in Amigo's Arcade, both full-window.** *Just One More
+  Agent* is a management game: hire agents, survive the meetings and the chaos
+  they generate, and ship a one-comma change without running the fictional
+  budget out. *Context Tetris* drops instruction, document and memory blocks
+  that answer a task when a line clears, and tool, MCP and skill blocks that
+  arm a bonus instead. Both take keyboard and touch, pause and restart, go
+  fullscreen, make a noise, and hand back a line of text worth pasting
+  somewhere. Records persist, and the tools and MCP connections collected here
+  unlock the perks the existing cabinets already knew about - the harness
+  record in `localStorage` is shared, and a save from before this carries over.
+
+  Static HTML, CSS and JavaScript on GitHub Pages, like the three before them:
+  no backend, no model call, and every provider named in them is an invented
+  one. Rules are kept apart from rendering, so a budget ceiling, a block
+  collision, an equipment effect and a progression step are each checked
+  without a browser - `scripts/test_arcade.cjs` is that suite.
+
 ## [0.0.479] - 2026-09-22
 
 ### Added
