@@ -51,6 +51,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Amigo is the product's mark, everywhere one was drawn.** Five different marks
+  were in circulation: the pixel mascot in the README, a blue orbit in the docs
+  header and hero, a lucide sparkle in the console sidebar, a lime dot in the
+  browser tab and on the link-unfurl card, and a bare initial on the iOS home
+  screen. The mascot's head and hat, cropped square, is now the one mark the site
+  header, the tab, the sidebar and the social card show, and the whole character
+  heads the README and every documentation landing page. `scripts/gen_amigo_head.py`
+  cuts that crop out of the drawing and writes both derived forms - an SVG for
+  MkDocs and a data URI for the two `next/og` images, which cannot load a path -
+  so nothing is drawn twice and `backend/tests/test_amigo_mark.py` fails if they
+  drift apart. The orbit is gone. The home-screen icon keeps its initial, which
+  is the deployment's name rather than this build's.
+- **Amigo blinks and breathes.** One pixel of bob and an occasional blink, added
+  to the drawing itself so the README, the docs hero and anything else that shows
+  the file all get it, and stopped by `prefers-reduced-motion`. Both are additive:
+  where CSS in an image does not run, the first frame is the drawing as it was.
+
 - **An agent's generated face is drawn from its handle, not its id.** So the
   creation dialog can show the face while somebody is still typing their way to
   a name - the handle is derived from the name on every keystroke and then

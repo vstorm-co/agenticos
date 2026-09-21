@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 
-/** Dynamic favicon - black square with a lime brand dot. Renders at 32×32. */
+import { AMIGO_HEAD_DATA_URI } from "@/lib/amigo-head.generated";
+
+/** Dynamic favicon - Amigo's head on the brand black. Renders at 32x32. */
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 export const dynamic = "force-static";
@@ -18,14 +20,9 @@ export default function Icon() {
         borderRadius: "6px",
       }}
     >
-      <div
-        style={{
-          width: 14,
-          height: 14,
-          borderRadius: "9999px",
-          background: "#C5F94A",
-        }}
-      />
+      {/* 32 is twice the drawing's 16, so every pixel lands on two and the edges
+            stay hard. The crop carries its own margin, which is the inset. */}
+      <img src={AMIGO_HEAD_DATA_URI} alt="" width={32} height={32} />
     </div>,
     { ...size },
   );
