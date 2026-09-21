@@ -2313,7 +2313,6 @@
     "operateMaintainImproveService": "um den Dienst zu betreiben, zu erhalten und zu verbessern;",
     "pageviewFeatureUsageCounters": "– Zähler für Seitenaufrufe und Funktionsnutzung.",
     "paidPlansRenewAutomatically": "Bezahlte Tarife verlängern sich automatisch, bis sie gekündigt werden. Gebühren werden nicht erstattet, außer wo das Gesetz es verlangt. Sie können jederzeit kündigen – Ihr Tarif bleibt bis zum Ende des laufenden Abrechnungszeitraums aktiv.",
-    "period": "Punkt.",
     "preferences": "Einstellungen",
     "privacy": {
       "summary": "Was wir erheben, warum, und was Sie dagegen tun können. Wir trainieren nicht auf Ihren Daten – niemals.",
@@ -2357,7 +2356,6 @@
     "weAposLlNotify": "Wir benachrichtigen Sie in der App oder per E-Mail, bevor eine wesentliche Änderung wirksam wird. Die weitere Nutzung nach dem Stichtag gilt als Zustimmung.",
     "weDonAposT": "Wir setzen keine Werbe-Cookies. Manche eingebetteten Inhalte (Videos, Zahlungs-Widgets) können Cookies setzen – für diese gelten die Richtlinien ihrer Anbieter.",
     "weDonAposT2": "Wir trainieren keines unserer eigenen Modelle auf Ihren Daten.",
-    "weDonAposT3": "Wir trainieren nicht auf Ihren Kundendaten.",
     "weHostPrimarilyEu": "Wir hosten überwiegend in der EU. Wo Daten außerhalb Ihres Landes verarbeitet werden, stützen wir uns auf Standardvertragsklauseln oder gleichwertige Garantien.",
     "weKeepCustomerData": "Wir bewahren Kundendaten auf, solange Ihr Konto aktiv ist. Nach der Löschung werden Backups innerhalb von 30 Tagen bereinigt. Logs und Metriken werden bis zu 90 Tage für Sicherheit und Betriebsanalyse aufbewahrt.",
     "weMayUpdateThese": "Wir können diese Bedingungen ändern, wenn sich der Dienst weiterentwickelt. Wesentliche Änderungen kündigen wir mindestens 30 Tage vor ihrem Wirksamwerden per E-Mail oder in der App an. Die weitere Nutzung nach dem Stichtag gilt als Zustimmung.",
@@ -2379,7 +2377,8 @@
     "yourChoices": "Ihre Wahl",
     "yourResponseCookieBanner": "– Ihre Antwort auf das Cookie-Banner.",
     "yourRightsDescription": "Je nachdem, wo Sie leben, haben Sie möglicherweise das Recht, Ihre personenbezogenen Daten einzusehen, zu berichtigen, zu löschen oder zu exportieren sowie bestimmten Verarbeitungen zu widersprechen oder sie einzuschränken. Schreiben Sie an <mail>privacy@example.com</mail>, um sie auszuüben. Wir antworten innerhalb von 30 Tagen.",
-    "yourSelectedLanguage": "– Ihre gewählte Sprache."
+    "yourSelectedLanguage": "– Ihre gewählte Sprache.",
+    "weDoNotTrainOnCustomerData": "<b>Wir trainieren nicht auf Ihren Kundendaten.</b> Punkt."
   },
   "mcp": {
     "accessToken": "Access-Token",

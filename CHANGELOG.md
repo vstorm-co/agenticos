@@ -31,7 +31,16 @@ Two things are versioned separately from this file and worth knowing about:
   `/de/legal/*` is translated with the rest of the catalog and is a translation of
   the placeholder template the deployment ships, not legal advice. A deployment
   that relies on those pages points `admin.brandingTerms` and
-  `admin.brandingPrivacy` at its own.
+  `admin.brandingPrivacy` at its own. Its dates are German too: the formatter now
+  takes a tag per locale rather than falling back to `en-US`, so a fourth locale
+  is a type error instead of a page that reads `May 8, 2026` in German.
+
+  The compatibility redirects follow the locale list rather than naming it. They
+  matched `en|pl` literally, so every German bookmark to a moved page - the old
+  `/de/settings/providers`, say - answered 404 while every other surface had been
+  translated. `locales` now lives in `frontend/src/lib/locales.ts`, which the
+  build config can read and `src/i18n.ts`, which drags in next-intl and the whole
+  English catalog, cannot.
 
 ## [0.0.472] - 2026-09-19
 

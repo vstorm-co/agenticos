@@ -1,11 +1,13 @@
 import { getRequestConfig } from "next-intl/server";
 
+import { locales, defaultLocale, type Locale } from "./lib/locales";
+
 import en from "../messages/en.json";
 
-export const locales = ["en", "pl", "de"] as const;
-export type Locale = (typeof locales)[number];
-
-export const defaultLocale: Locale = "en";
+// Imported and re-exported rather than declared here: `next.config.ts` needs the
+// same list and cannot import this file, which drags in next-intl and the whole
+// English catalog. Fifty modules import these from `@/i18n`, so the name stays.
+export { locales, defaultLocale, type Locale };
 
 type Messages = { [key: string]: string | Messages };
 
