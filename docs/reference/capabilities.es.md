@@ -1,5 +1,5 @@
 ---
-source_sha: "c179bcecb5c2"
+source_sha: "2948d8926ff6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -557,7 +557,10 @@ propósito: el paso se registra como «rellenado» sin él, así que una contras
 viaja a ese endpoint. Dos cosas lo convierten en una
 decisión y no en un descuido: la capability exige una clave de API del vault de este
 deployment, así que no puede ejecutarse hasta que un operador añada una, y
-`decision_base_url` lleva el modelo de decisión a otro sitio. Consulta
+`decision_base_url` lleva el modelo de decisión a otro sitio: a un host de
+[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), porque ese campo está en el
+spec y la clave se desprecinta en una cabecera hacia lo que nombre. Una lista vacía,
+la de partida, solo permite el endpoint del proveedor. Consulta
 [qué sale del deployment](../data-protection.md#what-leaves-the-deployment).
 
 **Ambos modelos se contabilizan y ninguno se tarifica.** El modelo de decisión se

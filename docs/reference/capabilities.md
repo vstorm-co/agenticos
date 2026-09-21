@@ -513,16 +513,26 @@ on your own network that this page tells you to run, and it accepts a CDP debugg
 exposed to the internet, which is the worse posture of the two. A vetted host
 needs no address check; an unvetted one is refused whatever it resolves to.
 
+**Each browse gets a browser context of its own**, disposed when it ends. On a
+long-lived browser shared by many callers, the default context would keep a cookie
+set when one person's agent signed in — and the next caller of the same agent would
+arrive already authenticated as them. Closing the tab does not clear that;
+disposing the context does.
+
 **Every step sends the page to the decision model.** Its URL, its title, its
 element labels and a bounded excerpt of its visible text — which on the vendor's
 public endpoint is a third party, and may be the contents of an internal system.
 The text is there because without it the engine cannot tell that it has *finished*:
 a price, a confirmation and "no results" are ordinary text rather than controls, so
 `DONE` would be a guess. A value the agent types is deliberately not sent — the step
-is recorded as "filled" without it, so a password does not travel to that endpoint. Two things make that a decision rather than an
-accident: the capability requires an API key from this deployment's vault, so it
-cannot run until an operator adds one, and `decision_base_url` points the decision
-model somewhere else. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).
+is recorded as "filled" without it, so a password does not travel to that endpoint.
+
+Two things make that a decision rather than an accident: the capability requires an
+API key from this deployment's vault, so it cannot run until an operator adds one,
+and `decision_base_url` points the decision model somewhere else — at a host on
+[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), because that field is in the
+spec and the key is unsealed into a header to whatever it names. An empty allowlist,
+the default, permits only the vendor's endpoint. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).
 
 **Both model paths are metered, and neither is priced.** The decision model runs once
 per step and the run's own model once per field typed; both book tokens against the

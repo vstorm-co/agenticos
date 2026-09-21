@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.agents.capabilities.browser_choice._elements import (
+    MAX_PAGE_TEXT,
     Element,
     Snapshot,
     candidates,
@@ -53,6 +54,15 @@ into the calling model's context, where an unbounded tool result is how one
 _CONTEXT_GONE = "Execution context was destroyed"
 """What CDP answers while a navigation is replacing the page under a command."""
 
+_COMMAND_TIMEOUT = 30.0
+"""How long one CDP command may take before the browse is failed.
+
+Generous, because a real page can take seconds to answer an evaluate while it is
+still laying out - and bounded, because a browser that connected and then went
+quiet would otherwise hold the agent's turn open for as long as the run may live.
+`max_steps` cannot help: it counts iterations that finished.
+"""
+
 _EVAL_ATTEMPTS = 5
 _READY_ATTEMPTS = 20
 _EVAL_BACKOFF = 0.25
@@ -70,36 +80,19 @@ with a URL begins navigating before the session is attached, so the first
 `Runtime.evaluate` lands in a context that is already gone.
 """
 
-COLLECT_JS = """
+_COLLECT_JS = r"""
 (() => {
-  const SELECTOR = [
+%(naming)s  const SELECTOR = [
     'a[href]', 'button', 'input:not([type=hidden])', 'select', 'textarea',
     '[role=button]', '[role=link]', '[role=checkbox]', '[role=radio]',
     '[role=tab]', '[role=menuitem]', '[role=option]', '[role=switch]',
     '[contenteditable=""]', '[contenteditable=true]',
   ].join(',');
-  const roleOf = (el) => {
-    const explicit = el.getAttribute('role');
-    if (explicit) return explicit;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'a') return 'link';
-    if (tag === 'input') return (el.type || 'text') === 'text' ? 'textbox' : el.type;
-    if (tag === 'textarea') return 'textbox';
-    if (tag === 'select') return 'dropdown';
-    return tag;
-  };
-  const labelOf = (el) =>
-    el.getAttribute('aria-label') ||
-    (el.innerText || '').trim() ||
-    el.getAttribute('placeholder') ||
-    el.getAttribute('title') ||
-    el.getAttribute('alt') ||
-    el.getAttribute('name') ||
-    el.value ||
-    '';
   // A selector that resolves to this element and no other. An id when the
   // document really has one of it; otherwise the nth-of-type chain up to body,
   // which is what makes an action verifiable after the page has re-rendered.
+  // The collector's alone - the verifier is handed a path rather than building
+  // one - so it stays here rather than in the shared naming above.
   const pathOf = (el) => {
     if (el.id) {
       const byId = '#' + CSS.escape(el.id);
@@ -125,13 +118,21 @@ COLLECT_JS = """
     if (style.visibility === 'hidden' || style.display === 'none') continue;
     if (el.disabled) continue;
     const isSelect = el.tagName === 'SELECT';
+    const isField = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA';
     out.push({
       role: roleOf(el),
       label: labelOf(el),
       path: pathOf(el),
-      value: (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
-        ? (el.value || '')
-        : (isSelect ? (el.selectedOptions[0] ? el.selectedOptions[0].label : '') : ''),
+      // What a *field* holds never leaves the browser. Only whether it holds
+      // anything does. The history line stopped carrying a typed value, and
+      // that was half the fix: the next snapshot copied `el.value` straight back
+      // out, `render_table` printed it, and the password the host model had just
+      // entered went to the decision endpoint one step later. A dropdown is the
+      // exception and not an inconsistency - its selected option is one of the
+      // options already listed with it, and the loop cannot tell a chosen list
+      // from an unchosen one without it.
+      filled: isField ? Boolean(el.value) : false,
+      value: isSelect && el.selectedOptions[0] ? el.selectedOptions[0].label : '',
       // A native dropdown's choices travel with it rather than as rows of their
       // own: a country list would otherwise be the whole table.
       options: isSelect
@@ -142,7 +143,12 @@ COLLECT_JS = """
   return JSON.stringify({
     url: location.href,
     title: document.title,
-    text: document.body ? document.body.innerText : '',
+    // Cut here, in the page, and not in Python afterwards. A browsed page is
+    // untrusted, and one with a megabyte of visible text would have had the
+    // whole of it serialised into the CDP response and carried across the socket
+    // before anything bounded it - which is a page choosing how much memory this
+    // deployment allocates. `MAX_PAGE_TEXT` collapses and re-bounds what arrives.
+    text: document.body ? document.body.innerText.slice(0, %(text_limit)d) : '',
     scrollY: window.scrollY,
     scrollHeight: document.documentElement.scrollHeight,
     viewportHeight: window.innerHeight,
@@ -168,6 +174,114 @@ the goal has been reached - a price, a confirmation, "no results" are text, not
 elements - and `DONE` would be a guess.
 """
 
+_NAMING_JS = r"""
+  const roleOf = (el) => {
+    const explicit = el.getAttribute('role');
+    if (explicit) return explicit;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'a') return 'link';
+    if (tag === 'input') return (el.type || 'text') === 'text' ? 'textbox' : el.type;
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'select') return 'dropdown';
+    // A `<div contenteditable>` with no ARIA role is how every rich-text editor
+    // on the web is built. Reported as `div` it is not an editable role, so
+    // TYPE_TEXT on it was always refused and clicking it could only focus it -
+    // the editor could be reached and never filled.
+    if (el.isContentEditable) return 'textbox';
+    return tag;
+  };
+  // The accessible name, in the order a screen reader would resolve it. The
+  // first two matter more than they look: `<label for="email">Email</label>`
+  // beside an `<input id="email">` is the ordinary way a form is written, and
+  // such an input has no innerText, often no placeholder and no title - so
+  // without `el.labels` it reaches the model with an empty name and the model
+  // cannot tell which field it is being asked to fill.
+  const labelOf = (el) => {
+    const referenced = (el.getAttribute('aria-labelledby') || '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => {
+        const node = document.getElementById(id);
+        return node ? (node.innerText || '').trim() : '';
+      })
+      .filter(Boolean)
+      .join(' ');
+    const attached = el.labels
+      ? Array.from(el.labels).map((l) => (l.innerText || '').trim()).filter(Boolean).join(' ')
+      : '';
+    return (
+      el.getAttribute('aria-label') ||
+      referenced ||
+      attached ||
+      (el.innerText || '').trim() ||
+      el.getAttribute('placeholder') ||
+      el.getAttribute('title') ||
+      el.getAttribute('alt') ||
+      el.getAttribute('name') ||
+      el.value ||
+      ''
+    );
+  };
+"""
+"""How an element answers "what are you" and "what are you called".
+
+Interpolated into both scripts below rather than written in each, because the
+collector offers an element by role and label and the verifier refuses to act on
+one whose role or label has changed - so two copies of this are two chances for
+every element of some kind to fail its own identity check. It happened: the
+collector learned that a `contenteditable` div is a textbox and the verifier did
+not, and every rich-text editor was then refused as "now a div".
+"""
+
+
+_SAME_TAB_JS = r"""
+(() => {
+  // `window.open` navigates here instead of opening a tab the loop cannot see.
+  window.open = (url) => {
+    if (url) location.assign(url);
+    return window;
+  };
+  // And anything that says it wants another tab is asked to use this one. Run on
+  // every document, and again on whatever a page adds later.
+  const here = (root) => {
+    if (!root.querySelectorAll) return;
+    for (const node of root.querySelectorAll('[target]')) {
+      const target = (node.getAttribute('target') || '').toLowerCase();
+      if (target && target !== '_self') node.setAttribute('target', '_self');
+    }
+  };
+  const start = () => {
+    here(document);
+    new MutationObserver((records) => {
+      for (const record of records) for (const node of record.addedNodes) here(node);
+    }).observe(document.documentElement, {childList: true, subtree: true});
+  };
+  if (document.documentElement) start();
+  else document.addEventListener('DOMContentLoaded', start);
+})()
+"""
+"""Keeping a browse in the tab the loop is attached to."""
+
+_FOCUS_AND_SELECT_JS = r"""
+(() => {
+  const el = document.querySelector(%(path)s);
+  if (!el) return JSON.stringify({focused: false});
+  el.focus();
+  // A form control selects its own value; an editable element's selection
+  // belongs to the document, so it has to be told to cover the element.
+  if (typeof el.select === 'function') el.select();
+  else if (el.isContentEditable) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  return JSON.stringify({focused: true});
+})()
+"""
+"""Putting the caret in a field with its whole contents selected."""
+
 _SELECT_JS = """
 (() => {
   const el = document.querySelector(%(path)s);
@@ -186,29 +300,28 @@ _SELECT_JS = """
 """
 """Choosing an option the way a person's choice reaches the page's listeners."""
 
-VERIFY_JS = """
+VERIFY_JS = r"""
 (() => {
-  const el = document.querySelector(%(path)s);
+%(naming)s  const el = document.querySelector(%(path)s);
   if (!el) return JSON.stringify({found: false});
   const r = el.getBoundingClientRect();
-  const explicit = el.getAttribute('role');
-  const tag = el.tagName.toLowerCase();
-  const role = explicit
-    ? explicit
-    : tag === 'a' ? 'link'
-    : tag === 'input' ? ((el.type || 'text') === 'text' ? 'textbox' : el.type)
-    : tag === 'textarea' ? 'textbox'
-    : tag === 'select' ? 'dropdown'
-    : tag;
   return JSON.stringify({
     found: true,
-    role: role,
-    label: (el.getAttribute('aria-label') || (el.innerText || '').trim() ||
-            el.getAttribute('placeholder') || el.getAttribute('title') ||
-            el.getAttribute('alt') || el.getAttribute('name') || el.value || ''),
+    role: roleOf(el),
+    label: labelOf(el),
     x: r.left + r.width / 2,
     y: r.top + r.height / 2,
     onscreen: r.width >= 1 && r.height >= 1 && r.bottom >= 0 && r.top <= window.innerHeight,
+    // Whatever the browser would actually deliver the click to. Resolving the
+    // selector proves the element is still there; it does not prove nothing is
+    // on top of it, and a consent overlay, a sticky header or a transparent
+    // modal takes the press instead - an action on a node that was never in the
+    // candidate table. A descendant counts as a hit: a button's own label or
+    // icon is what sits at its centre.
+    hit: (() => {
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return at !== null && (at === el || el.contains(at));
+    })(),
   });
 })()
 """
@@ -253,6 +366,7 @@ def parse_snapshot(raw: object, cap: int) -> Snapshot:
             label=clean_label(str(item.get("label", ""))),
             path=str(item.get("path", "")),
             value=clean_label(str(item["value"])) if item.get("value") else None,
+            filled=bool(item.get("filled")),
             options=tuple(clean_label(str(option)) for option in item.get("options") or ()),
         )
         for index, item in enumerate(found)
@@ -333,25 +447,51 @@ class CdpPage:
         """
         for attempt in range(_EVAL_ATTEMPTS):
             try:
-                answer = await self._client.send.Runtime.evaluate(
-                    params={
-                        "expression": expression,
-                        "returnByValue": True,
-                        "awaitPromise": await_promise,
-                    },
-                    session_id=self._session,
+                answer = await asyncio.wait_for(
+                    self._client.send.Runtime.evaluate(
+                        params={
+                            "expression": expression,
+                            "returnByValue": True,
+                            "awaitPromise": await_promise,
+                        },
+                        session_id=self._session,
+                    ),
+                    timeout=_COMMAND_TIMEOUT,
                 )
+            except TimeoutError as exc:
+                # A socket that connected and then stopped answering. Without a
+                # bound here the await never returns: `max_steps` counts
+                # iterations that finished, so one hung command holds the turn
+                # and the panel open for as long as the run is allowed to live.
+                raise EndpointError(
+                    f"The browser stopped answering after {_COMMAND_TIMEOUT:.0f}s."
+                ) from exc
             except RuntimeError as exc:
                 if _CONTEXT_GONE not in str(exc) or attempt == _EVAL_ATTEMPTS - 1:
                     raise
                 await asyncio.sleep(_EVAL_BACKOFF)
                 continue
+            thrown = answer.get("exceptionDetails")
+            if thrown is not None:
+                # Without this a script that raised came back as
+                # `{"type": "object", "className": "ReferenceError"}` and the
+                # parser reported "the collector did not run" - true, and no
+                # help at all in finding out why. The page's own message is the
+                # one thing worth quoting.
+                described = (thrown.get("exception") or {}).get("description")
+                raise EndpointError(
+                    f"The page refused to run this: {described or thrown.get('text')}"
+                )
             return answer.get("result", {})
         raise RuntimeError(_CONTEXT_GONE)  # unreachable; the loop returns or raises
 
     async def snapshot(self) -> Snapshot:  # pragma: no cover - needs a live browser
         """The page as it is now, refused if it has left the allowlist."""
-        result = await self._evaluate(COLLECT_JS)
+        # The cut is applied in the page rather than after the transfer; a
+        # little slack over `MAX_PAGE_TEXT` so the collapse in Python has
+        # something to collapse.
+        script = _COLLECT_JS % {"naming": _NAMING_JS, "text_limit": MAX_PAGE_TEXT * 4}
+        result = await self._evaluate(script)
         snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):
             raise DomainRefused(
@@ -387,11 +527,18 @@ class CdpPage:
         # `%` formatting rather than an f-string: the selector is interpolated
         # into JavaScript, so it goes in as a JSON string literal and cannot
         # close the quote it sits in.
-        raw = await self._evaluate(VERIFY_JS % {"path": json.dumps(element.path)})
+        raw = await self._evaluate(
+            VERIFY_JS % {"naming": _NAMING_JS, "path": json.dumps(element.path)}
+        )
         found: Any = json.loads(str(raw.get("value") or "{}"))
         if not found.get("found") or not found.get("onscreen"):
             raise StaleElement(
                 f"{element.role}: {element.label} is no longer on the page where it was offered."
+            )
+        if not found.get("hit"):
+            raise StaleElement(
+                f"Something is covering {element.role}: {element.label}; a click "
+                f"there would land on it instead."
             )
         moved_role = clean_label(str(found.get("role", "")))
         moved_label = clean_label(str(found.get("label", "")))
@@ -436,10 +583,15 @@ class CdpPage:
                 params={"type": event, "x": x, "y": y, "button": "left", "clickCount": 1},
                 session_id=self._session,
             )
-        await self._client.send.Input.dispatchKeyEvent(
-            params={"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2},
-            session_id=self._session,
-        )
+        # Selected in the page rather than with a select-all keystroke. The
+        # keystroke was `Ctrl+A`, which is the wrong modifier on macOS and the
+        # wrong answer everywhere: it made "replace" mean "append" on any host
+        # where `Meta` is the accelerator, and it does nothing at all in a
+        # `contenteditable` where the selection is not the element's own. This
+        # selects the field's whole contents either way, and `insertText` then
+        # replaces the selection - so the page still sees real input events for
+        # what was typed, which is what its listeners are waiting for.
+        await self._evaluate(_FOCUS_AND_SELECT_JS % {"path": json.dumps(element.path)})
         await self._client.send.Input.insertText(params={"text": text}, session_id=self._session)
 
     async def select(  # pragma: no cover - needs a live browser
@@ -478,18 +630,30 @@ class CdpPage:
         """Move one viewport down."""
         await self._evaluate("window.scrollBy(0, window.innerHeight * 0.9)")
 
-    async def settle(self) -> None:  # pragma: no cover - needs a live browser
+    async def settle(  # pragma: no cover - needs a live browser
+        self, *, leaving: str | None = None
+    ) -> None:
         """Wait for whatever the last action started, then for the page to be ready.
 
         Two halves, because the last action may or may not have navigated. The
         pause gives a click that only changed the DOM time to finish; the
         readiness poll is what covers a click that replaced the page, where the
         context the pause ran in no longer exists.
+
+        Args:
+            leaving: A URL the page must no longer be on before this counts as
+                settled. Without it the poll is satisfied by the document it
+                started from - `about:blank` reports `readyState: "complete"`
+                the instant it is asked - so the first snapshot of a browse
+                could be taken before the navigation had replaced anything. With
+                an allowlist that blank snapshot is refused outright; without one
+                the model is asked to act on an empty page.
         """
         await self._evaluate(f"new Promise(r => setTimeout(r, {_SETTLE_MS}))", await_promise=True)
         for _ in range(_READY_ATTEMPTS):
+            here = (await self._evaluate("location.href")).get("value")
             state = (await self._evaluate("document.readyState")).get("value")
-            if state in {"interactive", "complete"}:
+            if (leaving is None or here != leaving) and state in {"interactive", "complete"}:
                 return
             await asyncio.sleep(_EVAL_BACKOFF)
 
@@ -584,12 +748,26 @@ async def open_page(  # pragma: no cover - needs a live browser
     client = CDPClient(socket)
     await client.start()
     target: str | None = None
+    context_id: str | None = None
     try:
+        # A browser context of its own, disposed with the browse. Without one
+        # every browse shares the default context of a long-lived browser, so a
+        # cookie set when one person's agent signed in is still there for the
+        # next caller of the same agent - which on a shared endpoint is one
+        # tenant reading another's authenticated pages. Closing the tab does not
+        # clear that; disposing the context does.
+        #
+        # No fallback if the browser refuses one: falling back to the default
+        # context is exactly the leak this exists to prevent.
+        context = await client.send.Target.createBrowserContext(params={})
+        context_id = context["browserContextId"]
         # The tab is created empty and navigated afterwards, which is not a
         # detail: `createTarget` with a URL starts navigating before there is a
         # session to attach, so the first command lands in an execution context
         # the navigation has already destroyed. Measured against a live Chromium.
-        created = await client.send.Target.createTarget(params={"url": "about:blank"})
+        created = await client.send.Target.createTarget(
+            params={"url": "about:blank", "browserContextId": context_id}
+        )
         target = created["targetId"]
         attached = await client.send.Target.attachToTarget(
             params={"targetId": target, "flatten": True}
@@ -599,6 +777,15 @@ async def open_page(  # pragma: no cover - needs a live browser
         # an empty dict is accepted at run time and is still the wrong call.
         await client.send.Page.enable(session_id=session)
         await client.send.Runtime.enable(session_id=session)
+        # Keep every navigation in this tab. `CdpPage` is bound to one attached
+        # session, so a `target="_blank"` link or a `window.open()` opens a target
+        # the loop never sees: the next snapshot reads the unchanged opener, the
+        # repeat guard eventually stops the browse, and a page nobody looked at
+        # is left behind. Rewriting the intent is simpler and more predictable
+        # than following targets, and it keeps a browse one thing in one place.
+        await client.send.Page.addScriptToEvaluateOnNewDocument(
+            params={"source": _SAME_TAB_JS}, session_id=session
+        )
         # The viewport, before anything is loaded. A headless Chromium defaults to
         # 800x600, which decides more than how the pictures look: the element
         # table holds what is *on screen*, so a short viewport hides a search box
@@ -616,9 +803,13 @@ async def open_page(  # pragma: no cover - needs a live browser
         )
         page = CdpPage(client, session, policy)
         await client.send.Page.navigate(params={"url": start_url}, session_id=session)
-        await page.settle()
+        # `leaving` is what makes this a wait rather than a formality: the tab is
+        # on `about:blank`, which is ready the instant it is asked.
+        await page.settle(leaving="about:blank")
         yield page
     finally:
         if target is not None:
             await client.send.Target.closeTarget(params={"targetId": target})
+        if context_id is not None:
+            await client.send.Target.disposeBrowserContext(params={"browserContextId": context_id})
         await client.stop()

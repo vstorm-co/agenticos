@@ -143,10 +143,17 @@ class BrowserEvent(BaseModel):
     )
 
 
-BrowserEventSink = Callable[[BrowserEvent], Awaitable[None]]
+BrowserEventSink = Callable[[BrowserEvent], Awaitable[bool]]
 """Where a surface hears what the browser is doing, or `None` where none can.
 
 Awaited by the loop between steps, which is deliberate back-pressure: a socket
 that cannot keep up slows the browse rather than growing an unbounded queue of
 screenshots behind it.
+
+**It answers whether the frame arrived**, unlike the delegation and compaction
+sinks it is otherwise modelled on. Those carry sentences; this one carries
+screenshots, and a run whose reader closed the tab deliberately carries on - so
+without an answer the loop would go on capturing and base64-encoding a JPEG per
+step for somebody who left. `False` is what lets it stop taking pictures while
+the browse itself continues.
 """

@@ -75,7 +75,21 @@ class Element:
     """
 
     value: str | None = None
-    """What a field currently holds, so the loop can tell empty from filled."""
+    """A dropdown's selected option, and nothing else's contents.
+
+    Deliberately not a text field's value. The loop needs to tell a filled field
+    from an empty one, which :attr:`filled` answers - and the *contents* would
+    reach the decision endpoint in the next step's element table, which is how a
+    password the host model had just typed would be disclosed to a third party
+    one step after being redacted from the history.
+
+    A dropdown is the exception rather than an inconsistency: its selection is
+    one of the options already listed beside it, and without it the loop cannot
+    tell a chosen list from an unchosen one.
+    """
+
+    filled: bool = False
+    """Whether a text field holds anything. Never what."""
 
     options: tuple[str, ...] = ()
     """A dropdown's choices, for a native `<select>` and nothing else.
@@ -180,7 +194,10 @@ def render_table(elements: tuple[Element, ...]) -> str:
     for element in elements:
         row = f"{element.index}. {element.role}: {element.label}"
         if element.value:
-            row += f" [currently: {clean_label(element.value)}]"
+            row += f" [selected: {clean_label(element.value)}]"
+        elif element.filled:
+            # That it has something in it, not what. See `Element.value`.
+            row += " [filled]"
         if element.options:
             row += f" [choices: {render_options(element.options)}]"
         lines.append(row)

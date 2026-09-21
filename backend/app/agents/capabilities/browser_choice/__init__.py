@@ -163,6 +163,39 @@ class BrowserChoiceConfig(BaseModel):
     )
 
 
+def _refuse_unvetted_decision_endpoint(base_url: str | None) -> None:
+    """Refuse to send the vault key to a decision endpoint nobody vetted.
+
+    `decision_base_url` is a field in the agent spec, and the key it
+    authenticates with is unsealed server-side and put in a request header to
+    whatever it names. So an author who may *bind* a shared TypeSafe key -
+    binding is not reading, and the API never returns the value - could point it
+    at a server of their own and read it out of the header. Approval is no help:
+    the same author publishes the binding.
+
+    That is `MEM0_ALLOWED_HOSTS`'s problem exactly, and this is its answer.
+    `None` is the vendor's own endpoint and always allowed; anything else needs
+    its host on `DECISION_MODEL_ALLOWED_HOSTS`, and the empty default therefore
+    permits only the vendor.
+
+    Raises:
+        UrlRefusedError: The URL is malformed, or names a host this deployment
+            has not allowed.
+    """
+    if base_url is None:
+        return
+    parsed = urlsplit(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise UrlRefusedError("A decision_base_url must be an http or https URL with a host")
+    allowed = {host.strip().lower() for host in settings.DECISION_MODEL_ALLOWED_HOSTS}
+    if parsed.hostname.lower() not in allowed:
+        raise UrlRefusedError(
+            f"This deployment does not allow a decision model at '{parsed.hostname}'. "
+            f"Leave decision_base_url empty for the vendor's endpoint, or add the "
+            f"host to DECISION_MODEL_ALLOWED_HOSTS"
+        )
+
+
 def validate_cdp_url(config: BrowserChoiceConfig) -> None:
     """Refuse a `cdp_url` this deployment's operator has not vetted.
 
@@ -193,6 +226,7 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
         UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
             a host this deployment does not allow.
     """
+    _refuse_unvetted_decision_endpoint(config.decision_base_url)
     if not config.cdp_url:
         raise UrlRefusedError(
             "Browser automation needs a cdp_url: the Chromium DevTools endpoint "

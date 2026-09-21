@@ -549,6 +549,16 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
+    # Where a browsing agent's decision model may run, beyond the vendor's own
+    # endpoint. `decision_base_url` is in the agent spec and the vault key is
+    # unsealed and handed to that address, so an author who may *bind* a shared
+    # TypeSafe key - without being able to read it - could point it at a server
+    # of their own and collect it from the request header. This is
+    # `MEM0_ALLOWED_HOSTS` again, one field along, and the answer is the same
+    # one. Empty allows only the vendor endpoint, which is the default and the
+    # configuration nobody has to think about.
+    DECISION_MODEL_ALLOWED_HOSTS: list[str] = []
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

@@ -163,9 +163,24 @@ class TestTheElementTable:
     def test_an_empty_table_says_so_rather_than_rendering_nothing(self):
         assert render_table(()) == "(no interactive elements in view)"
 
-    def test_a_field_with_a_value_shows_it(self):
-        rendered = render_table((_element(0, role="textbox", label="Search", value="paris"),))
-        assert rendered == "0. textbox: Search [currently: paris]"
+    def test_a_field_says_that_it_is_filled_and_never_with_what(self):
+        """The contents of a field must not reach the decision endpoint.
+
+        Redacting the history line was half the fix: the next snapshot copied
+        `el.value` straight back out and the table printed it, so a password the
+        host model had just typed was disclosed one step later.
+        """
+        rendered = render_table((_element(0, role="password", label="Password", filled=True),))
+        assert rendered == "0. password: Password [filled]"
+        assert "filled" in rendered
+
+    def test_a_dropdown_shows_which_option_is_chosen(self):
+        # Its selection is one of the options already listed beside it, and the
+        # loop cannot tell a chosen list from an unchosen one without it.
+        rendered = render_table(
+            (_element(0, role="dropdown", label="Country", value="Poland", options=("Poland",)),)
+        )
+        assert "[selected: Poland]" in rendered
 
     def test_a_page_scrolled_to_the_end_reports_it(self):
         assert _snapshot(scroll_y=1200.0, scroll_height=2000.0, viewport_height=800.0).at_bottom
@@ -264,6 +279,24 @@ class TestTheEndpointAndTheAllowlist:
         )
         assert resolved == "ws://browser.test:9222/"
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "file:///etc/passwd",
+            "chrome://settings",
+            "view-source:https://x.test",
+            "data:text/html,x",
+        ],
+        ids=["file", "chrome", "view-source", "data"],
+    )
+    def test_a_url_that_is_not_the_web_is_refused_with_no_allowlist_at_all(self, url: str):
+        """`start_url` is written by a model, and "anywhere" means anywhere on the web.
+
+        Without this, a generated `file:///etc/passwd` was navigated and `read()`
+        handed the browser host's own filesystem back to the agent as the answer.
+        """
+        assert not domain_allowed(url, None)
+
     def test_no_allowlist_allows_everything(self):
         assert domain_allowed("https://anything.test/a", None)
 
@@ -279,8 +312,11 @@ class TestTheEndpointAndTheAllowlist:
     def test_the_host_is_matched_case_insensitively_and_the_port_is_ignored(self):
         assert domain_allowed("https://EXAMPLE.test:8443/x", ["example.test"])
 
-    def test_a_url_with_no_host_is_refused_under_any_allowlist(self):
-        assert not domain_allowed("about:blank", ["example.test"])
+    @pytest.mark.parametrize("url", ["http://", "https:///path"], ids=["bare", "empty-host"])
+    def test_a_web_url_with_no_host_is_refused_either_way(self, url: str):
+        # Past the scheme check and still nothing to match an allowlist against.
+        assert not domain_allowed(url, ["example.test"])
+        assert not domain_allowed(url, None)
 
 
 class TestTheTwoQuestions:
@@ -477,13 +513,19 @@ def _policy(**kwargs: Any) -> LoopPolicy:
 
 
 class _Frames:
-    """Collects what a surface would have been shown."""
+    """Collects what a surface would have been shown.
 
-    def __init__(self) -> None:
+    Answers `True` by default, the way a live socket does. `delivers=False` is a
+    reader who closed the tab: the run carries on and the loop has to notice.
+    """
+
+    def __init__(self, *, delivers: bool = True) -> None:
         self.frames: list[BrowserEvent] = []
+        self._delivers = delivers
 
-    async def __call__(self, event: BrowserEvent) -> None:
+    async def __call__(self, event: BrowserEvent) -> bool:
         self.frames.append(event)
+        return self._delivers
 
     def kinds(self) -> list[str]:
         return [frame.kind for frame in self.frames]
@@ -578,6 +620,36 @@ class TestTheLoopStopsForAReason:
         assert result.outcome == "blocked"
         detail = frames.of("browser_finished")[0].detail or ""
         assert "0.22" in detail and "0.50" in detail
+
+    async def test_a_configured_floor_is_not_satisfied_by_a_missing_score(self):
+        """An operator who set a floor did not ask for "unless nothing is reported".
+
+        A custom `decision_base_url`, a pinned model that answers differently, or
+        a provider response without the expected details all arrive as `None` -
+        and skipping the check there disables the floor silently, in exactly the
+        deployments most likely to have set one.
+        """
+        frames = _Frames()
+        result = await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))),
+            _decider(Choice("CLICK", 0, None)),
+            frames,
+            min_confidence=0.5,
+        )
+
+        assert result.outcome == "blocked"
+        assert "no confidence" in (frames.of("browser_finished")[0].detail or "")
+
+    async def test_a_floor_of_zero_still_acts_on_a_pick_with_no_score(self):
+        # Zero means "act on every pick and report the score"; a model that
+        # reports none is every model but this one.
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        result = await _browse(
+            page, _decider(Choice("CLICK", 0, None), Choice("DONE", None, None)), min_confidence=0.0
+        )
+
+        assert result.outcome == "done"
+        assert page.done[0] == "click:0"
 
     async def test_an_element_operation_with_no_element_is_refused_not_guessed(self):
         frames = _Frames()
@@ -754,6 +826,37 @@ class TestWhatASurfaceIsShown:
             "browser_finished",
         ]
         assert frames.of("browser_frame")[0].image == "data:image/jpeg;base64,AAAA"
+
+    async def test_a_reader_who_left_stops_the_pictures_and_not_the_browse(self):
+        """A detached turn carries on by design.
+
+        Encoding a JPEG per step for a closed socket is the most expensive thing
+        in the loop done for nobody - so the first undelivered frame stops the
+        screenshots, and the browse finishes anyway.
+        """
+        frames = _Frames(delivers=False)
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+
+        result = await _browse(
+            page, _decider(Choice("SCROLL", None, 0.9)), frames, max_steps=3, preview=True
+        )
+
+        assert result.outcome == "exhausted"
+        # One picture taken, then no more - and the narration keeps being
+        # offered, because a few hundred bytes is not the cost worth avoiding.
+        assert page.shots == 1
+        assert len(frames.of("browser_step")) == 3
+
+    async def test_a_reader_who_stayed_keeps_getting_pictures(self):
+        frames = _Frames()
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+
+        await _browse(
+            page, _decider(Choice("SCROLL", None, 0.9)), frames, max_steps=3, preview=True
+        )
+
+        assert page.shots == 3
+        assert len(frames.of("browser_frame")) == 3
 
     async def test_previews_off_takes_no_screenshot_at_all(self):
         page = _FakePage(_snapshot(_element(0)))
@@ -1070,6 +1173,60 @@ class TestRegistrationAndPublish:
     def test_publishing_without_an_endpoint_is_refused_in_words(self):
         with pytest.raises(UrlRefusedError, match="needs a cdp_url"):
             validate_cdp_url(BrowserChoiceConfig())
+
+
+class TestWhereTheDecisionModelMayRun:
+    """The second address a browse sends something to, and its own allowlist.
+
+    `decision_base_url` is a spec field, and the vault key is unsealed and put
+    in a header to whatever it names - so an author who may *bind* a shared
+    TypeSafe key, without ever being able to read it, could point it at a server
+    of their own and collect it. Approval does not help: the same author
+    publishes the binding.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cdp(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+
+    @staticmethod
+    def _check(base_url: str | None) -> None:
+        validate_cdp_url(
+            BrowserChoiceConfig(cdp_url="http://browser:9222", decision_base_url=base_url)
+        )
+
+    def test_the_vendors_own_endpoint_needs_no_allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        # Empty is the default and the configuration nobody has to think about.
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        self._check(None)
+
+    def test_an_endpoint_the_operator_has_not_vetted_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError, match="DECISION_MODEL_ALLOWED_HOSTS"):
+            self._check("https://collect-my-keys.test")
+
+    def test_a_vetted_endpoint_publishes(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        self._check("https://jev.internal")
+
+    def test_the_host_is_matched_case_insensitively(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        self._check("https://JEV.Internal/v1")
+
+    @pytest.mark.parametrize("url", ["ftp://jev.internal", "not a url", "https://"])
+    def test_something_that_is_not_an_endpoint_is_refused_before_the_list(
+        self, url: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        with pytest.raises(UrlRefusedError, match="http or https"):
+            self._check(url)
+
+    def test_the_refusal_names_the_host_and_says_what_to_do(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError, match=re.escape("evil.test")):
+            self._check("https://evil.test")
 
 
 class TestTheFormAnAuthorFillsIn:

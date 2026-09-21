@@ -78,23 +78,41 @@ def websocket_url(cdp_url: str, version: object) -> str:
     )
 
 
+BROWSABLE_SCHEMES = frozenset({"http", "https"})
+"""What a browse may be pointed at, allowlist or no allowlist.
+
+Checked before the host, and checked even when an agent has no `allowed_domains`
+at all, because "anywhere" means anywhere *on the web*. `start_url` is written by
+a model, and without this a generated `file:///etc/passwd` was navigated and its
+contents read back through `read()` - the browser service's own filesystem
+returned to the agent as the answer. `chrome://`, `view-source:` and `data:` are
+the same shape of mistake.
+"""
+
+
 def domain_allowed(url: str, patterns: list[str] | None) -> bool:
     """Whether the agent may be on this URL.
 
-    `None` means the agent was published without an allowlist and may go
-    anywhere. An empty list is *not* the same thing and does not mean that: an
-    author who removed the last entry from an allowlist asked for nothing to be
-    allowed, and reading it as "everything" is how a restriction becomes its
-    opposite by deletion.
+    Two questions, and the scheme is the first. A URL that is not `http` or
+    `https` is refused whatever the allowlist says - see
+    :data:`BROWSABLE_SCHEMES`.
+
+    Then the host. `None` means the agent was published without an allowlist and
+    may go anywhere on the web. An empty list is *not* the same thing and does not
+    mean that: an author who removed the last entry from an allowlist asked for
+    nothing to be allowed, and reading it as "everything" is how a restriction
+    becomes its opposite by deletion.
 
     Matching is on the host alone, case-folded, with `fnmatch` so `*.example.com`
     works. The port is deliberately not matched - a host is a trust boundary and a
-    port is not - and a URL with no host at all (`about:blank`, `data:`) is
-    refused under any allowlist, because there is no host to have allowed.
+    port is not - and a URL with no host at all is refused either way.
     """
-    if patterns is None:
-        return True
-    host = (urlparse(url).hostname or "").lower()
+    parsed = urlparse(url)
+    if parsed.scheme not in BROWSABLE_SCHEMES:
+        return False
+    host = (parsed.hostname or "").lower()
     if not host:
         return False
+    if patterns is None:
+        return True
     return any(fnmatch(host, pattern.lower()) for pattern in patterns)

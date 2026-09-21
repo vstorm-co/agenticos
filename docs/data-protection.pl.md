@@ -1,5 +1,5 @@
 ---
-source_sha: "f3c07be4231c"
+source_sha: "7ac1e8fbe2ca"
 ---
 
 # Ochrona danych { #data-protection }
@@ -121,7 +121,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Model opisujący obrazy | Obrazy wewnątrz dokumentów | `image_description_model` kolekcji | Providera tego modelu |
 | Web research | Zapytanie wyszukiwania, które ułożył agent | `web_research.method` w specu: `duckduckgo` (bez klucza), `tavily`, `brave` albo `exa` (każde z sekretem `search`), albo `native`, gdzie szuka provider modelu czatowego | Dostawcy wyszukiwania albo providera modelu |
 | Web fetch i browser use | URL; dla browser use całe zadanie | Capability w specu; browser use potrzebuje też endpointu CDP, który wskażesz | Pobieranej strony; hosta przeglądarki |
-| Model decyzyjny przeglądania | Każdy krok przeglądania: adres strony, jej tytuł, etykiety widocznych elementów i do 1500 znaków jej widocznego tekstu — co może być zawartością systemu wewnętrznego. Wartość, którą agent wpisuje, **nie** jest wysyłana: krok zapisuje się jako „wypełniono” bez niej, więc hasło ani adres nie trafiają do tego endpointu | Capability `browser_choice`, która nie zadziała bez klucza z vault dodanego przez operatora; `decision_base_url` zmienia miejsce docelowe. To, jaką przeglądarkę prowadzi, ogranicza `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pusta | Dostawcy modelu decyzyjnego albo twojego własnego hosta |
+| Model decyzyjny przeglądania | Każdy krok przeglądania: adres strony, jej tytuł, etykiety widocznych elementów i do 1500 znaków jej widocznego tekstu — co może być zawartością systemu wewnętrznego. Wartość, którą agent wpisuje, **nie** jest wysyłana — ani to, co pole już zawiera: tabela elementów podaje wyłącznie, że pole jest wypełnione, więc hasło ani adres nie trafiają do tego endpointu | Capability `browser_choice`, która nie zadziała bez klucza z vault dodanego przez operatora; `decision_base_url` zmienia miejsce docelowe. To, jaką przeglądarkę prowadzi, ogranicza `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pusta | Dostawcy modelu decyzyjnego albo twojego własnego hosta |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |

@@ -105,6 +105,69 @@ this capability exists to make back inside an opaque function, and would make tw
 runs over one page offer different tables. The loop's answer to a page too dense
 for the cap is to scroll.
 
+**Share a browser context between callers.** Every browse gets one of its own,
+disposed when it ends. On a long-lived browser shared by many callers - which is
+the arrangement this capability tells an operator to run - the default context
+keeps the cookie set when one person's agent signed in, and the next caller of
+the same agent arrives already authenticated as them. Closing the tab does not
+clear that; disposing the context does. There is deliberately no fallback if the
+browser refuses one, because falling back to the default context is the leak.
+
+**Send a field's contents anywhere.** Only whether it has any. Redacting the
+history line was half a fix and read like a whole one: the next snapshot copied
+`el.value` straight back out of every input, `render_table` printed it as
+`[currently: ...]`, and the password the host model had just typed reached the
+decision endpoint one step after being kept out of the history. The table says
+`[filled]` now. A dropdown is the exception rather than an inconsistency - its
+selected option is one of the options already listed beside it, and without it
+the loop cannot tell a chosen list from an unchosen one.
+
+**Let a browse off the web.** `domain_allowed` returns true for an agent with no
+`allowed_domains`, and "anywhere" used to include `file:///etc/passwd` - which
+`start_url` is written by a model, and which `read()` would then have handed back
+as the answer. The scheme is checked before the host and whatever the allowlist
+says.
+
+**Read a form control's name off the control.** `<label for="email">Email</label>`
+beside an `<input id="email">` is how a form is ordinarily written, and such an
+input has no `innerText`, often no placeholder and no title - so the first version
+of the collector handed the model an empty label and the model could not tell
+which field it was being asked to fill. `el.labels` and `aria-labelledby` come
+first now.
+
+**Compute "what is this" twice.** The collector offers an element by role and
+label and the verifier refuses to act on one whose role or label has changed, so
+two copies of that computation are two chances for every element of some kind to
+fail its own identity check. It happened within an hour of the first copy: the
+collector learned that a `contenteditable` div is a textbox, the verifier did not,
+and every rich-text editor was refused as "now a div". `_NAMING_JS` is
+interpolated into both.
+
+**Trust that the coordinates are reachable.** Resolving the selector proves the
+element is still there; it does not prove nothing is on top of it. A consent
+overlay, a sticky header or a transparent modal takes the press instead - an
+action on a node that was never in the candidate table - so `elementFromPoint`
+decides, and a descendant counts as a hit because a button's own label is what
+sits at its centre.
+
+**Let a click open a tab it then ignores.** `CdpPage` is bound to one attached
+session, so a `target="_blank"` link opened a target the loop never saw: the next
+snapshot read the unchanged opener until the repeat guard stopped the browse. An
+init script neutralises `window.open` and rewrites `target` to `_self`, which is
+simpler and more predictable than following targets - and the isolated context
+disposes anything that escapes anyway.
+
+**Wait for ever on a browser that went quiet.** Every CDP command has a 30-second
+bound. `max_steps` cannot help: it counts iterations that *finished*, so one hung
+`Runtime.evaluate` held the agent's turn and the panel open for as long as the run
+was allowed to live.
+
+**Report a page's own exception as a mystery.** A script that raised came back as
+`{"className": "ReferenceError"}` and the parser said "the collector did not run"
+- true, and no help in finding out why. `exceptionDetails` is read and the page's
+own message quoted. This one was found by making the mistake: a refactor dropped
+`pathOf` from the collector and the only symptom was that sentence.
+
 **Trust the coordinates a snapshot recorded.** It did, and that was wrong. The
 decision model answers *after* the snapshot, which on a page that re-renders is
 long enough for everything to move - so a click on the stale centre lands on
@@ -189,6 +252,14 @@ are text rather than controls, so `DONE` would be a guess. A value the agent
 Password`, never what was in it, so a credential the host model wrote into a form
 does not travel to a separately configured endpoint.
 
+`decision_base_url` has an allowlist of its own -
+`DECISION_MODEL_ALLOWED_HOSTS`, empty by default, which permits only the vendor's
+endpoint. It needs one for a reason worth stating: the field is in the spec, and
+the vault key is unsealed into a request header to whatever it names - so an
+author who may *bind* a shared TypeSafe key, without the API ever returning its
+value to them, could point it at a server of their own and read it out of the
+header. Approval does not help, because the same author publishes the binding.
+
 Two things make the destination a decision rather than an accident. The capability
 requires an API key from this deployment's vault, so it cannot run until an operator
 deliberately adds one - there is no ambient `TYPESAFE_API_KEY` path, and the key
@@ -215,7 +286,13 @@ nobody audits.
 ## The live preview
 
 `preview` sends the viewport to the chat as a JPEG per step, on the same channel
-as a delegation's frames (`app/agents/browser_events.py`). The console draws it as
+as a delegation's frames (`app/agents/browser_events.py`) - except that this sink
+*answers*, which the delegation and compaction sinks do not. A detached turn
+carries on by design, so a browse whose reader closed the tab would go on
+capturing and base64-encoding a picture per step for nobody. The first
+undelivered frame stops the screenshots; the narration keeps being offered,
+because a few hundred bytes is not the cost worth avoiding and the socket may be
+a channel rather than a browser tab. The console draws it as
 a thumbnail card in the transcript and expands it into a resizable panel when
 somebody asks - a panel that opened itself would say watching the browser matters
 more than reading the answer, which is true for about four seconds. It is bounded by

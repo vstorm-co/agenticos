@@ -1,5 +1,5 @@
 ---
-source_sha: "c179bcecb5c2"
+source_sha: "2948d8926ff6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -585,7 +585,10 @@ wird ohne ihn als „gefüllt“ vermerkt, ein Passwort reist also nicht zu dies
 Endpunkt. Zwei Dinge machen daraus
 eine Entscheidung statt eines Versehens: Die Capability verlangt einen API-Key aus dem
 Vault dieses Deployments, kann also erst laufen, wenn ein Betreiber einen hinterlegt,
-und `decision_base_url` lenkt das Entscheidungsmodell woandershin. Siehe
+und `decision_base_url` lenkt das Entscheidungsmodell woandershin - auf einen Host
+auf [`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), denn dieses Feld steht im
+Spec und der Key wird entsiegelt in einen Header an die genannte Adresse gelegt. Eine
+leere Allowlist, die Voreinstellung, lässt nur den Endpunkt des Anbieters zu. Siehe
 [was das Deployment verlässt](../data-protection.md#what-leaves-the-deployment).
 
 **Beide Modellpfade werden gezählt, keiner bepreist.** Das Entscheidungsmodell läuft

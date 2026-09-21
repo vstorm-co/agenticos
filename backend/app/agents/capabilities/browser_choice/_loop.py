@@ -80,7 +80,7 @@ class PageSession(Protocol):
     async def scroll(self) -> None:
         """Move one viewport down."""
 
-    async def settle(self) -> None:
+    async def settle(self, *, leaving: str | None = None) -> None:
         """Wait for whatever the last action started, and for the page to be ready."""
 
     async def screenshot(self) -> str | None:
@@ -140,16 +140,28 @@ async def run_browse(
         `blocked`, which is an answer.
     """
 
-    async def emit(event: BrowserEvent) -> None:
-        """Send one frame, or drop it on a surface that cannot show any.
+    # Whether anybody is still listening. A run whose reader closed the tab
+    # carries on by design, and a browse that went on encoding a JPEG per step
+    # for a closed socket would be doing the most expensive thing in the loop
+    # for nobody. The narration keeps being offered - it costs a few hundred
+    # bytes and the socket may be a channel rather than a browser tab.
+    previews_land = policy.preview
+
+    async def emit(event: BrowserEvent) -> bool:
+        """Send one frame, and answer whether it arrived.
 
         The frame is built by the caller rather than from keyword arguments
         here. A `**fields` splat into a typed model reads as tidier and is not
         checkable - every field arrives as `object` - and these frames are the
         one part of the capability a second program parses.
+
+        Returns:
+            Whether a surface received it. `True` with no sink at all: there is
+            nothing to stop doing for a browse nobody was watching.
         """
-        if sink is not None:
-            await sink(event)
+        if sink is None:
+            return True
+        return await sink(event)
 
     first = await page.snapshot()
     await emit(
@@ -172,10 +184,10 @@ async def run_browse(
         if step > 1:
             snapshot = await page.snapshot()
 
-        if policy.preview:
+        if previews_land:
             image = await page.screenshot()
             if image is not None:
-                await emit(
+                previews_land = await emit(
                     BrowserEvent(
                         kind="browser_frame",
                         call_id=call_id,
@@ -220,6 +232,27 @@ async def run_browse(
                 step=step,
                 text=await page.read(),
                 detail="The engine found no available action that serves the goal.",
+                snapshot=snapshot,
+            )
+
+        # A floor an operator set is not satisfied by the absence of a score.
+        # A custom `decision_base_url`, a pinned model that reports differently,
+        # or a provider answer without the expected details all arrive as `None`
+        # - and treating that as "fine" turns a configured refusal into no
+        # refusal at all, silently, in exactly the deployments most likely to
+        # have set one. Zero means "act on every pick and report the score", so
+        # only a positive floor closes.
+        if policy.min_confidence > 0 and choice.confidence is None:
+            return await _finish(
+                emit,
+                call_id=call_id,
+                outcome="blocked",
+                step=step,
+                text=await page.read(),
+                detail=(
+                    f"The decision model reported no confidence, and this agent "
+                    f"requires at least {policy.min_confidence:.2f}."
+                ),
                 snapshot=snapshot,
             )
 
@@ -402,7 +435,7 @@ async def _act_on_element(
 
 
 async def _finish(
-    emit: Callable[[BrowserEvent], Awaitable[None]],
+    emit: Callable[[BrowserEvent], Awaitable[bool]],
     *,
     call_id: str,
     outcome: BrowseOutcome,

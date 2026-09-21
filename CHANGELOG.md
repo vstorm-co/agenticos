@@ -78,6 +78,47 @@ Two things are versioned separately from this file and worth knowing about:
   checks it still describes itself the way the candidate table said, a dropdown is
   answered with a value, a typed value never leaves the run, and a finish frame is
   sent on every path out.
+- **Eight more, from a third review, and one I found answering them.** A field's
+  contents left the browser: the history line stopped carrying a typed value and
+  the next snapshot copied `el.value` straight back out, so the password the host
+  model had just entered reached the decision endpoint one step after being
+  redacted - the table says `[filled]` now, and only a dropdown still reports its
+  selection. `domain_allowed` let an agent with no `allowed_domains` browse
+  `file:///etc/passwd`, which `read()` would have returned as the answer; the
+  scheme is checked first and always. A click used coordinates without asking
+  what was *at* them, so an overlay took the press. `<div contenteditable>` was
+  reported as a `div`, which is not an editable role, so every rich-text editor
+  could be reached and never filled. A page's visible text was serialised whole
+  over CDP before Python bounded it. A `target="_blank"` link opened a tab the
+  loop never saw. A positive `min_confidence` was silently disabled by a decision
+  model that reported no confidence at all. And a hung CDP command had no
+  timeout, so it held the turn open for as long as the run could live.
+
+  The one found while fixing them: `type_text` cleared a field with `Ctrl+A`,
+  which is the wrong modifier on macOS and does nothing in a `contenteditable` -
+  so "replace" meant "append". The selection is made in the page now. And the
+  reason it took a live browser to find the others at all is that a page's own
+  exception was reported as "the collector did not run"; `exceptionDetails` is
+  read and quoted.
+- **Five more review findings, four of them real.** A form control's name was
+  read off the control alone, so `<label for="email">Email</label>` beside an
+  `<input id="email">` reached the decision model with an empty label and the
+  model could not tell which field to fill - `el.labels` and `aria-labelledby`
+  come first now, in the collector and in the identity check, because two answers
+  there would make every labelled control fail its own verification. Every browse
+  gets a browser context of its own, disposed with it: on the long-lived shared
+  browser this capability tells an operator to run, the default context kept the
+  cookie one person's agent signed in with and handed it to the next caller of
+  the same agent. `decision_base_url` has an allowlist -
+  `DECISION_MODEL_ALLOWED_HOSTS`, empty by default - because the field is in the
+  spec and the vault key is unsealed into a header to whatever it names, so an
+  author who may bind a shared TypeSafe key without being able to read it could
+  point it at a server of their own. And the frame sink now answers whether it
+  was delivered, so a browse whose reader closed the tab stops encoding a JPEG
+  per step for nobody while the browse itself carries on. The fifth - waiting for
+  the first navigation before the first snapshot - was already fixed, and is now
+  fixed properly: `about:blank` reports itself ready the instant it is asked, so
+  the wait has to be for the page it is *leaving*.
 - **The browse panel is a card first, and a window when you ask.** A full side
   panel opening itself over the conversation says watching the browser matters
   more than reading the answer, which is true for about four seconds. So a browse

@@ -716,7 +716,7 @@ class AgentSession:
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
 
-    async def _browser_event(self, event: BrowserEvent) -> None:
+    async def _browser_event(self, event: BrowserEvent) -> bool:
         """Forward one frame from a browse in progress, under the frame's own name.
 
         The wire `type` *is* the frame's `kind`, for the reason
@@ -724,11 +724,19 @@ class AgentSession:
 
         A `browser_frame` carries a JPEG as a data URL and is the largest thing
         this socket sends. It is still sent one frame at a time and awaited, which
-        is deliberate back-pressure: `send_event` answers `False` on a closed
-        socket rather than raising, and a tab that went away mid-browse stops the
-        pictures at the next step instead of queueing thirty of them.
+        is deliberate back-pressure: a socket that cannot keep up slows the browse
+        rather than growing a queue of screenshots behind it.
+
+        **The answer is returned rather than discarded.** `send_event` reports
+        `False` on a closed socket instead of raising, and a detached turn keeps
+        running on purpose - so a browse whose reader closed the tab would go on
+        capturing and encoding a picture per step for nobody. Handing the `False`
+        back is what lets the loop stop taking them and carry on browsing.
+
+        Returns:
+            Whether the frame reached the client.
         """
-        await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
+        return await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.

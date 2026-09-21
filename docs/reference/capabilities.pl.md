@@ -1,5 +1,5 @@
 ---
-source_sha: "c179bcecb5c2"
+source_sha: "2948d8926ff6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -550,7 +550,10 @@ tam, bo bez niego silnik nie umie stwierdzić, że *skończył*: cena, potwierdz
 Wartość, którą agent wpisuje, celowo nie jest wysyłana — krok zapisuje się jako
 „wypełniono" bez niej, więc hasło nie podróżuje do tego endpointu. Dwie rzeczy czynią z tego decyzję, a nie przypadek:
 capability wymaga klucza API z vault tego wdrożenia, więc nie zadziała, dopóki
-operator go nie doda, a `decision_base_url` kieruje model decyzyjny gdzie indziej.
+operator go nie doda, a `decision_base_url` kieruje model decyzyjny gdzie indziej —
+na host z listy [`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), bo to pole
+leży w spec, a klucz jest odszyfrowywany do nagłówka pod wskazany adres. Pusta
+allowlista, czyli domyślna, dopuszcza wyłącznie endpoint dostawcy.
 Zobacz [co opuszcza wdrożenie](../data-protection.md#what-leaves-the-deployment).
 
 **Oba modele są liczone, żaden nie jest wyceniany.** Model decyzyjny działa raz na
