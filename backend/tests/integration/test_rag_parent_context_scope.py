@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.services.rag.config import RAGSettings
-from app.services.rag.filters import TenantScope
+from app.services.rag.filters import TenantScope, UnscopedScope
 from app.services.rag.models import ParentContextMode
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
@@ -54,13 +54,23 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
     return store
 
 
-async def _insert(store: PgVectorStore, *, tenant: uuid.UUID, prefix: str, chunk_num: int) -> None:
+async def _insert(
+    store: PgVectorStore,
+    *,
+    tenant: uuid.UUID | None,
+    prefix: str,
+    chunk_num: int,
+    emb: str = "[0.1,0.2,0.3]",
+) -> None:
     meta: dict[str, object] = {
         "filename": "handbook.pdf",
         "page_num": 0,
         "chunk_num": chunk_num,
-        "organization_id": str(tenant),
     }
+    # An untagged (deployment-wide) row carries no organization_id key, exactly as
+    # an app-scoped ingest leaves it.
+    if tenant is not None:
+        meta["organization_id"] = str(tenant)
     insert = (
         f"INSERT INTO {TABLE} (id, parent_doc_id, content, embedding, metadata) "  # noqa: S608
         "VALUES (:id, :pid, :content, CAST(:emb AS vector), CAST(:meta AS jsonb))"
@@ -69,10 +79,10 @@ async def _insert(store: PgVectorStore, *, tenant: uuid.UUID, prefix: str, chunk
         await session.execute(
             text(insert),
             {
-                "id": f"{tenant}-{chunk_num}",
+                "id": f"{tenant}-{prefix}-{chunk_num}",
                 "pid": DOC,
                 "content": f"{prefix}-c{chunk_num}",
-                "emb": "[0.1,0.2,0.3]",
+                "emb": emb,
                 "meta": json.dumps(meta),
             },
         )
@@ -138,3 +148,37 @@ async def test_window_expansion_is_scoped_to_the_searching_tenant(engine: AsyncE
     # Every neighbour pulled into the window belongs to Org B.
     assert all(piece.startswith("B-c") for piece in expanded.split("\n\n"))
     assert "A-c" not in expanded
+
+
+async def test_unscoped_expansion_stays_within_the_matched_rows_tenant(
+    engine: AsyncEngine,
+) -> None:
+    """An unscoped maintenance search that matches a tenant-tagged chunk expands
+    under that chunk's own tenant, not under the untagged rows sharing its id.
+
+    `UnscopedScope` applies no tenant conjunct, so the match can be any tenant's
+    row. Reading its siblings under a blanket `None` (untagged rows) would attach
+    an unrelated untagged document that collides on `parent_doc_id`. Org A's
+    chunks embed onto the query and the untagged ones do not, so the top match is
+    Org A's - and its expansion must return Org A's document only.
+    """
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    for chunk_num in range(3):
+        await _insert(store, tenant=ORG_A, prefix="A", chunk_num=chunk_num, emb="[0.1,0.2,0.3]")
+        await _insert(store, tenant=None, prefix="U", chunk_num=chunk_num, emb="[0.9,0.9,0.9]")
+    service = RetrievalService(vector_store=store, settings=RAGSettings())
+
+    results = await service.retrieve(
+        query="anything",
+        collection_name=COLLECTION,
+        scope=UnscopedScope(),
+        limit=1,
+        parent_context=ParentContextMode.PARENT,
+    )
+
+    assert len(results) == 1
+    expanded = results[0].expanded_content
+    assert expanded is not None
+    assert expanded.split("\n\n") == ["A-c0", "A-c1", "A-c2"]
+    assert "U-c" not in expanded

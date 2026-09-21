@@ -15,6 +15,7 @@ from app.services.rag.filters import (
     RetrievalQuery,
     RetrievalScope,
     TenantScope,
+    UnscopedScope,
     compose,
     scope_for_tenant,
 )
@@ -28,6 +29,31 @@ def _result_key(r: SearchResult) -> str:
     if r.parent_doc_id:
         return f"{r.parent_doc_id}:{r.metadata.get('chunk_num', '')}"
     return hashlib.md5(r.content.encode()).hexdigest()
+
+
+def _expansion_tenant(scope: RetrievalScope, result: SearchResult) -> UUID | None:
+    """The tenant a matched result's siblings are read back under (#1651).
+
+    Expansion must read siblings under the same tenant the match itself was found
+    under, or a shared collection name expands into another organization's chunks.
+
+    - `TenantScope` searched one organization's rows, so its siblings are that
+      organization's.
+    - `AppScope` searched the untagged, deployment-wide rows (`IS NULL`), so `None`.
+    - `UnscopedScope` applies no tenant conjunct, so a single maintenance search
+      can match rows from any tenant. Reading their siblings under a blanket `None`
+      would read only untagged rows - missing a tenant match's own document, or
+      attaching an unrelated untagged document that happens to share its
+      `parent_doc_id`. So an unscoped result's siblings are read under the tenant
+      stamped on the matched row itself (`metadata['organization_id']`, written by
+      `_build_chunk_metadata`), which is the tenant it was indexed under.
+    """
+    if isinstance(scope, TenantScope):
+        return scope.organization_id
+    if isinstance(scope, UnscopedScope):
+        org = result.metadata.get("organization_id")
+        return UUID(org) if org else None
+    return None
 
 
 def _assemble_passage(
@@ -312,11 +338,10 @@ class RetrievalService(BaseRetrievalService):
         # attaches surrounding context to what was already selected, so `OFF`
         # returns exactly what the pre-#1651 path did.
         if parent_context is not ParentContextMode.OFF:
-            tenant = scope.organization_id if isinstance(scope, TenantScope) else None
             await self._expand_context(
                 final_results,
                 parent_context,
-                lambda _r: (collection_name, tenant),
+                lambda r: (collection_name, _expansion_tenant(scope, r)),
             )
 
         total_time = time.time() - start_time
@@ -511,13 +536,7 @@ class RetrievalService(BaseRetrievalService):
                 collection = result.metadata.get("collection")
                 if collection is None or collection not in scopes:
                     return None
-                collection_scope = scopes[collection]
-                tenant = (
-                    collection_scope.organization_id
-                    if isinstance(collection_scope, TenantScope)
-                    else None
-                )
-                return collection, tenant
+                return collection, _expansion_tenant(scopes[collection], result)
 
             await self._expand_context(final, parent_context, resolve_fetch)
 
