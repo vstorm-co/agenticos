@@ -23,7 +23,14 @@ test.use({ storageState: AUTH_STATE });
 /** A second organization, so "switch" has somewhere to switch to. */
 const SECOND_ORG = "E2E Second Org";
 
-const ORG_SWITCHER = /^Organization:/;
+/**
+ * The account button, which is also the way into the organization.
+ *
+ * There is no organization control of its own any more: it moved into this
+ * menu, where "who am I and where am I" is one question instead of two buttons
+ * at opposite ends of the column.
+ */
+const ACCOUNT = new RegExp(OWNER_EMAIL);
 
 /** The persistent column. `<aside>` is the only complementary landmark here. */
 function column(page: Page) {
@@ -35,11 +42,15 @@ test.describe("Sidebar", () => {
     await page.goto("/dashboard");
 
     const sidebar = column(page);
-    await expect(sidebar.getByRole("button", { name: ORG_SWITCHER })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: "Search" })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: "Language" })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: /^Switch theme/ })).toBeVisible();
-    await expect(sidebar.getByRole("button", { name: new RegExp(OWNER_EMAIL) })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: ACCOUNT })).toBeVisible();
+
+    // The organization is still reachable, one level in.
+    await sidebar.getByRole("button", { name: ACCOUNT }).click();
+    await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // The point of the move: a 56px strip carrying one logo, on every page, is
     // vertical space nothing was buying.
@@ -54,26 +65,25 @@ test.describe("Sidebar", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   });
 
-  test("switching organization from the column is a real selection", async ({ page }) => {
+  test("switching organization from the account menu is a real selection", async ({ page }) => {
     // Established on entry rather than cleaned up afterwards: a run that fails
     // half way leaves the next one a working starting point, and bootstrap only
     // ever creates the owner's personal organization.
     await ensureSecondOrganization(page);
 
     await page.goto("/dashboard");
-    const trigger = column(page).getByRole("button", { name: ORG_SWITCHER });
-    await expect(trigger).toBeVisible();
-
-    await trigger.click();
+    await column(page).getByRole("button", { name: ACCOUNT }).click();
     await page.getByRole("menuitem", { name: SECOND_ORG }).click();
-    await expect(trigger).toContainText(SECOND_ORG);
 
     // Everything org-scoped reads the selection back on the next page load, so
-    // a label that changes and a selection that took are different things. The
-    // reload is what tells them apart.
+    // a menu that closed and a selection that took are different things. The
+    // reload is what tells them apart, and `aria-current` is where the menu says
+    // which one it is on.
     await page.reload();
-    await expect(column(page).getByRole("button", { name: ORG_SWITCHER })).toContainText(
-      SECOND_ORG,
+    await column(page).getByRole("button", { name: ACCOUNT }).click();
+    await expect(page.getByRole("menuitem", { name: SECOND_ORG })).toHaveAttribute(
+      "aria-current",
+      "true",
     );
   });
 
@@ -88,15 +98,17 @@ test.describe("Sidebar", () => {
 
       const header = page.getByRole("banner");
       await expect(header).toBeVisible();
-      await expect(visible(page, ORG_SWITCHER)).toHaveCount(0);
+      await expect(visible(page, ACCOUNT)).toHaveCount(0);
 
       await header.getByRole("button", { name: "Toggle menu" }).click();
 
-      // The two that exist nowhere else on a phone. Search is deliberately not
-      // asserted here: the bottom tab bar has always carried its own entrance
-      // to the same palette, so counting them proves nothing about the drawer.
-      await expect(visible(page, ORG_SWITCHER)).toHaveCount(1);
-      await expect(visible(page, new RegExp(OWNER_EMAIL))).toHaveCount(1);
+      // The account, which is the only way to the organization and to signing
+      // out on a phone. Search is deliberately not asserted here: the bottom tab
+      // bar has always carried its own entrance to the same palette, so counting
+      // them proves nothing about the drawer.
+      await expect(visible(page, ACCOUNT)).toHaveCount(1);
+      await visible(page, ACCOUNT).click();
+      await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
     });
   });
 });

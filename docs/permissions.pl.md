@@ -1,5 +1,5 @@
 ---
-source_sha: "9792d48fbbe0"
+source_sha: "4fc9ab1fab50"
 ---
 
 # Uprawnienia { #permissions }
@@ -242,6 +242,15 @@ uprawnienia; klienci nie mogą wymyślać nowych.
 Każdy zasób, który da się udostępnić, niesie `owner_user_id` i `visibility`
 (`private` | `team` | `org`). Na to nakłada się `resource_grants`, które trzyma
 jeden wiersz na udostępnienie: jeden zasób, jedna osoba, jeden poziom.
+
+**Nowy agent jest `org`, chyba że autor powie inaczej** — i dialog, który go
+tworzy, o to pyta. Agent to rzecz, którą firma buduje, więc firma ma go znaleźć;
+`private` jest wyjątkiem, dla tego jednego, który dopiero się kształtuje.
+Kiedyś było odwrotnie, co znaczyło, że każdy agent powstawał niewidoczny i był
+potem udostępniany ręcznie — a druga osoba, która go szukała, dostawała
+odpowiedź, że taki nie istnieje. Szkic i tak nie może zostać uruchomiony i nie
+sięga po niego żadna ekspozycja, więc to rozstrzyga, kto go widzi, a nie co
+robi.
 
 | Poziom | Pozwala |
 |---|---|

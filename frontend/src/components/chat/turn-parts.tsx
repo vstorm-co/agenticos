@@ -1,12 +1,13 @@
 "use client";
 
-import { MessageCircleQuestion, Sparkles } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { toolEntry } from "@/lib/tool-catalog";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
 
@@ -79,7 +80,10 @@ export function TurnParts({
             key={run.part.id}
             text={run.content}
             open={isStreaming && run.isLast}
-            isStreaming={isStreaming}
+            // The block still taking deltas, not every block in a streaming
+            // turn: the orb marks where the thinking is arriving, and a turn
+            // that thought twice would otherwise show two of them.
+            isStreaming={isStreaming && run.isLast}
           />
         ) : run.part.type === "ask_user" ? (
           <AskUserBlock
@@ -118,11 +122,16 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        {/* The same mark either way: moving while the reasoning arrives, frozen
+            once it is done. Swapping it for a different glyph at the end drew
+            the eye to a change that meant nothing. */}
+        <ThinkingOrb
+          state="breathing"
+          size={20}
+          paused={!isStreaming}
+          className="-my-2 h-6 w-6 opacity-80"
+        />
         {t("thoughtAboutIt")}
-        {isStreaming && (
-          <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
-        )}
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
           models that expose it head each block with `**Analyzing attached files**`
@@ -198,8 +207,13 @@ export function TextBubble({
   onCiteClick?: (index: number) => void;
 }) {
   if (isUser) {
+    // A panel rather than the inverted slab this was. `bg-foreground` made the
+    // question the brightest object on the page, louder than the answer under
+    // it - which is backwards: the question is what somebody already knows they
+    // asked. The border is what keeps the shape in the light theme, where the
+    // fill is three percent off the page.
     return (
-      <div className="bg-foreground text-background relative rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
+      <div className="bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border px-3 py-2 sm:px-4 sm:py-2.5">
         <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
       </div>
     );

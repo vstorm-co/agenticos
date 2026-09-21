@@ -5,6 +5,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
+
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { createPortal } from "react-dom";
@@ -38,6 +39,7 @@ import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
+import type { UseMicrophoneResult } from "voice-glow";
 
 /**
  * Past this many characters, a paste is a file rather than a message.
@@ -87,6 +89,14 @@ interface ChatInputProps {
    * rather than around - see `into`. Absent, it renders in place.
    */
   attachmentSlot?: HTMLElement | null;
+  /**
+   * The microphone the voice glow listens to, opened by this component's own
+   * button and owned by the caller - the glow is drawn around the composer box,
+   * which this component is inside rather than around. Optional, because a
+   * caller that draws no glow has nothing to listen with and dictation does not
+   * need it: the Web Speech API captures its own audio.
+   */
+  mic?: UseMicrophoneResult;
 }
 
 export function ChatInput({
@@ -97,6 +107,7 @@ export function ChatInput({
   slashContext,
   commands,
   attachmentSlot,
+  mic,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -219,6 +230,7 @@ export function ChatInput({
   const toggleMic = useCallback(() => {
     if (isListening) {
       recognitionRef.current?.stop();
+      mic?.stop();
       setIsListening(false);
       return;
     }
@@ -254,19 +266,26 @@ export function ChatInput({
 
     recognition.onend = () => {
       setIsListening(false);
+      mic?.stop();
       setMessage((prev) => prev.replace(/\u200B/g, ""));
     };
 
     recognition.onerror = () => {
       setIsListening(false);
+      mic?.stop();
       toast.error(t("speechError"));
     };
 
     recognitionRef.current = recognition;
     recognition.start();
+    // A second capture, for the glow only. The Web Speech API analyses its own
+    // audio and hands back text without ever exposing a stream, so there is
+    // nothing to share; this one is read for its level and never recorded, and
+    // a browser that refuses it leaves the dictation working.
+    void mic?.start();
     setIsListening(true);
     finalTranscript = message;
-  }, [isListening, message]);
+  }, [isListening, message, mic]);
 
   // File upload to backend - shared by the file picker, drag-and-drop and paste.
   const uploadFiles = useCallback(

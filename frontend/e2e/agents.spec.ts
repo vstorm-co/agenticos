@@ -224,8 +224,12 @@ test.describe("Agents", () => {
     await name.fill(SEEDED_AGENT_NAME);
     // Before anything is sent: the handle the name will produce is on screen,
     // which is what makes the refusal below legible rather than a message about
-    // a value nobody entered.
-    await expect(dialog.getByText(SEEDED_AGENT_HANDLE, { exact: true })).toBeVisible();
+    // a value nobody entered. Scoped to the field's own description, because the
+    // dialog previews the row it is about to become and shows the handle there
+    // too - both are the point, and an unscoped query matches both.
+    await expect(
+      dialog.locator("#agent-name-desc").getByText(SEEDED_AGENT_HANDLE, { exact: true }),
+    ).toBeVisible();
 
     await dialog.getByLabel("Description").fill("A second one, which should not be created.");
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -263,7 +267,7 @@ test.describe("Agents", () => {
     await expect(page.getByText("Explains what this platform does")).toBeVisible();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are a helpful assistant running on AgenticOS/,
+      /You are the Getting Started agent on AgenticOS/,
     );
 
     // The model section leads with the profile this agent actually runs on, and

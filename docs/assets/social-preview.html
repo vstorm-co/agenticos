@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AgenticOS - social preview</title>
+<!--
+  The source of docs/assets/social-preview.gif and .png, kept because the card it
+  replaced was a finished PNG with nothing behind it: the mark changed, the card
+  kept showing the old one, and no check noticed.
+
+  The desert is drawn by scripts/gen_social_bg.py - 160 by 80 pixels, one per
+  eight here, dithered rather than blended. Amigo is a 16-pixel sprite, and a
+  smooth gradient behind a sprite reads as a drawing pasted onto somebody else's
+  artwork; an ordered dither puts the ground on the same grid the character is
+  on.
+
+  Everything that moves moves in whole pixels, for the same reason. Open it in a
+  browser and it runs. Render it with:
+
+    frames: load ?frame=N&of=48 for N in 0..47, screenshot 1280x640 at dpr 2
+    downscale: each frame to 1280x640, Lanczos
+    assemble: any GIF writer, 110ms a frame, one palette shared by every frame
+
+  Type comes from Google Fonts rather than the repository's woff2 files, because
+  this is rendered once by hand and a relative path out of docs/ into frontend/
+  would not survive the docs build.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@700&amp;family=Inter:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #F5F4EF;
+    --dim: #8E95A1;
+    --sun: #F2C14E;
+    --cycle: 5.28s;
+    --cell: 6px;          /* one sprite pixel */
+    --travel: 216px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0B0C0F; }
+
+  .card {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #1b1033;
+    font-family: Inter, system-ui, sans-serif;
+    color: var(--ink);
+  }
+
+  .scene {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+  /* Enough shade for white text to sit on the bright half of a sunset, and no
+     more: the dither has to stay legible as dither. */
+  .veil {
+    position: absolute;
+    inset: 0;
+    /* Reaching zero well before the sun, on purpose. A gradient laid over a flat
+       disc turns it into a ramp, and a 256-colour palette renders a ramp that
+       shallow as vertical bands - which is what the first GIF of this did. */
+    background: linear-gradient(96deg, rgba(8,6,14,.93) 0%, rgba(8,6,14,.83) 26%,
+                rgba(8,6,14,.4) 46%, rgba(8,6,14,0) 63%);
+  }
+
+  /* The first stars of the evening, on the grid everything else is on. */
+  .star {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #f6e7c4;
+    opacity: 0;
+    animation: twinkle var(--cycle) steps(1, end) infinite;
+  }
+  @keyframes twinkle {
+    0%, 33% { opacity: 0; }
+    34%, 62% { opacity: 0.75; }
+    63%, 100% { opacity: 0; }
+  }
+
+  /* Two birds crossing, half a loop apart, so one is always in frame. */
+  .bird {
+    position: absolute;
+    animation: fly var(--cycle) linear infinite;
+  }
+  .bird svg { display: block; image-rendering: pixelated; }
+  @keyframes fly {
+    from { transform: translateX(0); }
+    to { transform: translateX(-1304px); }
+  }
+
+  .copy { position: absolute; left: 72px; top: 104px; width: 560px; z-index: 2; }
+  .meta {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin: 0 0 20px;
+  }
+  /* A pixel face for a pixel card. The background is drawn on a 16-pixel grid
+     and so is the mascot; a smooth grotesque over them was the one element on
+     this card that belonged to a different drawing. The body copy stays a
+     proper sans - a display face this loud is a name, not a paragraph. */
+  h1 {
+    font-family: "Pixelify Sans", ui-monospace, monospace;
+    font-weight: 700;
+    font-size: 106px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .tag { margin: 20px 0 0; font-size: 27px; line-height: 1.38; color: #C3C6CD; }
+  .tag b { color: var(--ink); font-weight: 600; }
+  /* One verb at a time, in the colour of the sun behind it. */
+  .v1 { animation: lit-1 var(--cycle) steps(1, end) infinite; }
+  .v2 { animation: lit-2 var(--cycle) steps(1, end) infinite; }
+  .v3 { animation: lit-3 var(--cycle) steps(1, end) infinite; }
+  @keyframes lit-1 { 0%, 32.9% { color: var(--sun); } 33%, 100% { color: var(--ink); } }
+  @keyframes lit-2 { 0%, 32.9% { color: var(--ink); } 33%, 66.5% { color: var(--sun); } 66.6%, 100% { color: var(--ink); } }
+  @keyframes lit-3 { 0%, 66.5% { color: var(--ink); } 66.6%, 100% { color: var(--sun); } }
+
+  .repo {
+    position: absolute;
+    left: 72px;
+    bottom: 56px;
+    margin: 0;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 17px;
+    color: var(--dim);
+    z-index: 2;
+  }
+  .repo b { color: #C3C6CD; font-weight: 400; }
+
+  .walker {
+    position: absolute;
+    left: 760px;
+    bottom: 84px;
+    width: calc(16 * var(--cell));
+    height: calc(19 * var(--cell));
+    z-index: 2;
+    animation: pace var(--cycle) steps(24, end) infinite;
+  }
+  .walker svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+  .step-b { opacity: 0; }
+  .sprite { animation: bob 0.44s steps(1, end) infinite; }
+  .step-a { animation: step-a 0.44s steps(1, end) infinite; }
+  .step-b { animation: step-b 0.44s steps(1, end) infinite; }
+  @keyframes pace {
+    0% { transform: translateX(0); }
+    50% { transform: translateX(var(--travel)); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes bob {
+    0%, 49% { transform: translateY(0); }
+    50%, 100% { transform: translateY(-6px); }
+  }
+  @keyframes step-a { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  @keyframes step-b { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .star, .bird, .walker, .sprite, .step-a, .step-b, .v1, .v2, .v3 { animation: none; }
+  }
+  /* One frame, for the renderer: every animation off and the same values set
+     directly, so a captured frame is exact rather than whatever the wall clock
+     happened to be when the shutter went. */
+  body.frozen * { animation: none !important; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img class="scene" src="social-preview-bg.png" alt="">
+
+  <div class="sky">
+    <span class="star" style="left:214px;top:96px;animation-delay:-0.00s"></span>
+    <span class="star" style="left:392px;top:62px;animation-delay:-1.80s"></span>
+    <span class="star" style="left:556px;top:128px;animation-delay:-3.27s"></span>
+    <span class="star" style="left:742px;top:78px;animation-delay:-0.95s"></span>
+    <span class="star" style="left:928px;top:112px;animation-delay:-4.22s"></span>
+    <span class="star" style="left:1108px;top:58px;animation-delay:-2.53s"></span>
+    <span class="star" style="left:318px;top:168px;animation-delay:-3.75s"></span>
+    <span class="bird" id="bird1" style="left:1280px;top:298px">
+      <svg viewBox="0 0 3 2" width="24" height="16"><rect x="0" y="0" width="1" height="1" fill="#3a1e33"/><rect x="2" y="0" width="1" height="1" fill="#3a1e33"/><rect x="1" y="1" width="1" height="1" fill="#3a1e33"/></svg>
+    </span>
+    <span class="bird" id="bird2" style="left:1280px;top:344px;animation-delay:-2.64s">
+      <svg viewBox="0 0 3 2" width="18" height="12"><rect x="0" y="0" width="1" height="1" fill="#4a2c17"/><rect x="2" y="0" width="1" height="1" fill="#4a2c17"/><rect x="1" y="1" width="1" height="1" fill="#4a2c17"/></svg>
+    </span>
+  </div>
+
+  <div class="veil"></div>
+
+  <div class="copy">
+    <p class="meta">Self-hosted &middot; Apache-2.0 &middot; Open source</p>
+    <h1>AgenticOS</h1>
+    <p class="tag">One place to <b class="v1">build</b>, <b class="v2">run</b> and <b class="v3">govern</b> your company&rsquo;s AI agents.</p>
+  </div>
+
+  <div class="walker" id="walker">
+    <svg viewBox="0 -1 16 20" shape-rendering="crispEdges" class="sprite" id="sprite" aria-label="Amigo, the AgenticOS pet">
+        <rect x="6" y="0" width="4" height="1" fill="#4a2c17"/>
+        <rect x="5" y="1" width="1" height="1" fill="#4a2c17"/>
+        <rect x="6" y="1" width="4" height="1" fill="#d99a5b"/>
+        <rect x="10" y="1" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="2" width="1" height="1" fill="#4a2c17"/>
+        <rect x="5" y="2" width="6" height="1" fill="#d99a5b"/>
+        <rect x="11" y="2" width="1" height="1" fill="#4a2c17"/>
+        <rect x="0" y="3" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="3" width="14" height="1" fill="#d99a5b"/>
+        <rect x="15" y="3" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="4" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="4" width="12" height="1" fill="#8e1b1b"/>
+        <rect x="14" y="4" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="5" width="1" height="1" fill="#4a2c17"/>
+        <rect x="5" y="5" width="6" height="1" fill="#f1c27d"/>
+        <rect x="11" y="5" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="6" width="1" height="1" fill="#4a2c17"/>
+        <rect x="5" y="6" width="1" height="1" fill="#ffffff"/>
+        <rect x="6" y="6" width="1" height="1" fill="#1a1f2e"/>
+        <rect x="7" y="6" width="2" height="1" fill="#f1c27d"/>
+        <rect x="9" y="6" width="1" height="1" fill="#ffffff"/>
+        <rect x="10" y="6" width="1" height="1" fill="#1a1f2e"/>
+        <rect x="11" y="6" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="7" width="1" height="1" fill="#4a2c17"/>
+        <rect x="5" y="7" width="2" height="1" fill="#1a1f2e"/>
+        <rect x="7" y="7" width="2" height="1" fill="#f1c27d"/>
+        <rect x="9" y="7" width="2" height="1" fill="#1a1f2e"/>
+        <rect x="11" y="7" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="8" width="1" height="1" fill="#4a2c17"/>
+        <rect x="5" y="8" width="2" height="1" fill="#1a1f2e"/>
+        <rect x="7" y="8" width="2" height="1" fill="#f1c27d"/>
+        <rect x="9" y="8" width="2" height="1" fill="#1a1f2e"/>
+        <rect x="11" y="8" width="1" height="1" fill="#4a2c17"/>
+        <rect x="3" y="9" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="9" width="3" height="1" fill="#5b3a1e"/>
+        <rect x="7" y="9" width="2" height="1" fill="#f1c27d"/>
+        <rect x="9" y="9" width="3" height="1" fill="#5b3a1e"/>
+        <rect x="12" y="9" width="1" height="1" fill="#4a2c17"/>
+        <rect x="3" y="10" width="1" height="1" fill="#4a2c17"/>
+        <rect x="4" y="10" width="8" height="1" fill="#c8412b"/>
+        <rect x="12" y="10" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="11" width="1" height="1" fill="#4a2c17"/>
+        <rect x="3" y="11" width="2" height="1" fill="#c8412b"/>
+        <rect x="5" y="11" width="6" height="1" fill="#2e8b57"/>
+        <rect x="11" y="11" width="2" height="1" fill="#c8412b"/>
+        <rect x="13" y="11" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="12" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="12" width="12" height="1" fill="#c8412b"/>
+        <rect x="14" y="12" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="13" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="13" width="1" height="1" fill="#c8412b"/>
+        <rect x="3" y="13" width="10" height="1" fill="#2e8b57"/>
+        <rect x="13" y="13" width="1" height="1" fill="#c8412b"/>
+        <rect x="14" y="13" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="14" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="14" width="12" height="1" fill="#c8412b"/>
+        <rect x="14" y="14" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="15" width="1" height="1" fill="#4a2c17"/>
+        <rect x="2" y="15" width="1" height="1" fill="#c8412b"/>
+        <rect x="3" y="15" width="10" height="1" fill="#f2c14e"/>
+        <rect x="13" y="15" width="1" height="1" fill="#c8412b"/>
+        <rect x="14" y="15" width="1" height="1" fill="#4a2c17"/>
+        <rect x="1" y="16" width="14" height="1" fill="#4a2c17"/>
+      <rect class="amigo-eyelid" opacity="0" x="5" y="6" width="2" height="2" fill="#f1c27d"/>
+      <rect class="amigo-eyelid" opacity="0" x="9" y="6" width="2" height="2" fill="#f1c27d"/>
+      <g class="step-a" id="stepA"><rect x="3" y="17" width="3" height="2" fill="#4a2c17"/><rect x="10" y="17" width="3" height="2" fill="#4a2c17"/></g>
+      <g class="step-b" id="stepB" opacity="0"><rect x="4" y="17" width="3" height="2" fill="#4a2c17"/><rect x="9" y="17" width="3" height="2" fill="#4a2c17"/></g>
+    </svg>
+  </div>
+
+  <p class="repo"><b>github.com</b>/vstorm-co/agenticos</p>
+</div>
+<script>
+  // ?frame=N&of=M freezes the card on one exact frame of the loop.
+  const q = new URLSearchParams(location.search);
+  if (q.has("frame")) {
+    const of = Number(q.get("of") || 48);
+    const f = Number(q.get("frame")) % of;
+    const t = f / of;
+    const half = of / 2;
+    const tri = f < half ? f / half : (of - f) / half;   // 0 -> 1 -> 0
+    const css = getComputedStyle(document.documentElement);
+    const travel = parseFloat(css.getPropertyValue("--travel"));
+    const step = Math.floor(f / 2) % 2 === 0;            // one pose every two frames
+    const scene = Math.min(2, Math.floor(t * 3));
+    document.body.classList.add("frozen");
+
+    document.getElementById("walker").style.transform = `translateX(${Math.round(tri * travel)}px)`;
+    document.getElementById("sprite").style.transform = step ? "translateY(0)" : "translateY(-6px)";
+    document.getElementById("stepA").style.opacity = step ? "1" : "0";
+    document.getElementById("stepB").style.opacity = step ? "0" : "1";
+
+    document.querySelectorAll(".tag b").forEach((el, i) => {
+      el.style.color = i === scene ? "var(--sun)" : "var(--ink)";
+    });
+    document.querySelectorAll(".star").forEach((el) => {
+      const delay = -parseFloat(el.style.animationDelay) / 5.28;
+      const p = (t + delay) % 1;
+      el.style.opacity = p >= 0.34 && p < 0.63 ? "0.75" : "0";
+    });
+    [["bird1", 0], ["bird2", 0.5]].forEach(([id, phase]) => {
+      const p = (t + phase) % 1;
+      document.getElementById(id).style.transform = `translateX(${Math.round(-p * 1304)}px)`;
+    });
+  }
+</script>
+</body>
+</html>

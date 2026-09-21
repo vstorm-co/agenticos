@@ -75,6 +75,27 @@ interface AddModelProps {
  * hiding the model somebody came here for.
  */
 /**
+ * The provider to start on, when the organization has told us which one it uses.
+ *
+ * A deployment can reach every provider in the catalog, but the keys it holds
+ * say which of them it can actually run on. An organization with exactly one key
+ * was being asked to choose from a list with one real answer in it - and then to
+ * choose the key underneath, which it also had one of.
+ *
+ * Exactly one, not "the first": two keys is a real choice and guessing between
+ * them would put a model on the wrong account, which is a bill somebody else
+ * pays. A secret's purpose *is* the provider id, which is what makes this a
+ * lookup rather than a convention.
+ */
+export function soleKeyedProvider(
+  providers: readonly { id: string }[],
+  secrets: readonly { purpose?: string | null }[],
+): string | undefined {
+  const keyed = providers.filter((entry) => secrets.some((secret) => secret.purpose === entry.id));
+  return keyed.length === 1 ? keyed[0]?.id : undefined;
+}
+
+/**
  * What a model id looks like for this provider, before it is refused.
  *
  * Only OpenRouter needs saying, and it needs saying badly: it routes to other
@@ -159,7 +180,10 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   // control.
   const canStoreKey = can(Perm.secretsEdit);
 
-  const [providerId, setProviderId] = useState(selected?.provider ?? "");
+  // What somebody picked, which is not the same as what the field shows: a
+  // `null` here means nobody has picked yet, and the answer below is what the
+  // organization already told us.
+  const [pickedProvider, setPickedProvider] = useState<string | null>(selected?.provider ?? null);
   const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
@@ -168,6 +192,21 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
+  /*
+   * The provider an organization with exactly one key is obviously going to
+   * pick, chosen for them.
+   *
+   * A deployment can reach every provider in the catalog, but the keys it holds
+   * say which of them it can actually run on - and an organization with one key
+   * was being asked to choose from a list with one real answer in it, then to
+   * choose the key under it, which it also had one of.
+   *
+   * Derived rather than written into state by an effect: the keys arrive after
+   * the first render, so an effect would be a second render that fills a field
+   * somebody may already be typing in. The moment anybody picks anything,
+   * `pickedProvider` wins and this stops being consulted.
+   */
+  const providerId = pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
   const provider = providers.find((entry) => entry.id === providerId);
   // The purposes list says which providers a *key* can be stored for; only the
   // provider catalog knows whether one accepts an endpoint and whether it can run
@@ -269,7 +308,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           <Select
             value={providerId}
             onValueChange={(value) => {
-              setProviderId(value);
+              setPickedProvider(value);
               setSecretId("");
               setModel("");
               setBaseUrl("");

@@ -99,12 +99,12 @@ describe("one step", () => {
       <AgentStep label="Ran pytest" kind="shell" state="parked" expanded={false} />,
     );
     expect(screen.getByText("waiting for approval")).toBeVisible();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
     parked.unmount();
 
     render(<AgentStep label="Ran pytest" kind="shell" state="done" expanded={false} />);
     expect(screen.queryByLabelText("Failed")).toBeNull();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("wears an MCP server's own logo instead of a generic icon", () => {

@@ -26,6 +26,7 @@ const WORKSPACE: WorkspaceSummary = {
   id: "w-1",
   agent_id: "a-1",
   agent_name: "Analyst",
+  agent_slug: "analyst",
   agent_has_avatar: false,
   conversation_id: "c-1",
   conversation_is_mine: false,

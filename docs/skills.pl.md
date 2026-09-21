@@ -1,5 +1,5 @@
 ---
-source_sha: "56976ecc2c20"
+source_sha: "10bf6042e631"
 ---
 
 # Skille { #skills }
@@ -185,20 +185,23 @@ widoczne dla organizacji.
 
 Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
 nazwa pasuje do dostarczonej biblioteki. Tych trzech się nie wybiera — one po
-prostu przychodzą.
+prostu przychodzą, raz, przy tworzeniu organizacji.
 
-**I tam zostają.** Katalog rośnie wraz z deployami, więc lista sama się
-uzupełnia: dołączony skill, którego organizacja jeszcze nie ma, zostaje
-skopiowany, gdy ktokolwiek następnym razem otworzy stronę, dopasowywany po
-nazwie, więc edytowana kopia zostaje dokładnie taka, jaka jest.
+**I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
+edytować, wyłączyć albo usunąć. Nic nie przywraca usuniętego.
 
-Organizacja utworzona, zanim deployment dostał nowy dołączony skill, zobaczy go
-przy następnej wizycie, a nie nigdy.
+To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
+dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
+więc usunięty built-in wracał przy następnej wizycie, a wyłączenie było jedynym
+sposobem na jego wycofanie. Oznaczało to też stronę, która zapisuje wiersze
+w trakcie czytania. Galeria jest miejscem, w którym wybiera się skill, a komenda
+seed poniżej jest sposobem, w jaki deployment rozsyła nowy dołączony skill
+świadomie.
 
-!!! warning "Usunięcie built-ina przywraca go przy następnym wyświetleniu listy"
+!!! info "Organizacja utworzona przed nowym dołączonym skillem nie dostanie go sama"
 
-    Uzupełnianie traktuje brakującą dołączoną nazwę jako lukę do zamknięcia.
-    Żeby wycofać taki skill, **wyłącz** go przyciskiem **Disable**.
+    Uruchom dla niej `seed-skills` albo zainstaluj skill z galerii. Obie drogi są
+    świadome i o to chodzi: nic nie pojawia się przy wczytaniu strony.
 
 Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 
@@ -254,10 +257,9 @@ To celowe. Sens skilla polega na tym, że szef wsparcia może poprawić polityk�
 zwrotów bez deployu, a żywy link do kopii z repozytorium odebrałby dokładnie to —
 organizacja czytałaby plik, który może zmienić tylko inżynier.
 
-Edycja jest ostateczna w zwykły sposób. Usunięcie nie, bo uzupełnianie listy
-traktuje brakującą dołączoną nazwę jako lukę do zamknięcia, więc built-in,
-którego organizacja nie chce, zostaje **wyłączony** — co respektuje każdy agent i
-czego nic nie nadpisuje.
+Edycja i usunięcie są ostateczne w zwykły sposób. Wyłączanie nadal istnieje dla
+skilla, który organizacja chce zachować, ale nie uruchamiać — respektuje je każdy
+agent — przestało jednak być jedynym sposobem na pozbycie się built-ina.
 
 ### Dlaczego biblioteka jest dołączona, a nie pobierana { #why-the-library-is-bundled-and-not-fetched }
 

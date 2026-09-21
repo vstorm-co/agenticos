@@ -170,21 +170,21 @@ describe("a turn in the transcript", () => {
   it("names the agent that answered, and the version that did", () => {
     // Not the agent selected now: a thread that switched agents has to say which
     // one produced which turn.
-    item({ agentVersion: 3 }, { agent: { id: "a-1", name: "Support" } as Agent });
+    item({ agentVersion: 3 }, { agent: { id: "a-1", slug: "support", name: "Support" } as Agent });
 
     expect(screen.getByText(/Support/)).toBeInTheDocument();
     expect(screen.getByText(/v3/)).toBeInTheDocument();
   });
 
   it("names the agent without a version when the transcript recorded none", () => {
-    item({}, { agent: { id: "a-1", name: "Support" } as Agent });
+    item({}, { agent: { id: "a-1", slug: "support", name: "Support" } as Agent });
 
     expect(screen.getByText("Support")).toBeInTheDocument();
     expect(screen.queryByText(/v\d/)).toBeNull();
   });
 
   it("says nothing about an agent on a person's own message", () => {
-    item({ role: "user" }, { agent: { id: "a-1", name: "Support" } as Agent });
+    item({ role: "user" }, { agent: { id: "a-1", slug: "support", name: "Support" } as Agent });
 
     expect(screen.queryByText("Support")).toBeNull();
   });
@@ -594,6 +594,26 @@ describe("what a person attached", () => {
 
     expect(container.querySelector("img")).toBeInTheDocument();
   });
+
+  it("draws a person who uploaded nothing the face generated from their id", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    const { container } = item({ role: "user", content: "x" });
+
+    expect(container.querySelector("g.mo-root")).toBeInTheDocument();
+  });
+
+  it("draws the agent's face mid-thought while the turn is still streaming", () => {
+    // The one picture in the product that says an agent is still working, which
+    // is why it is worth the inline SVG the motion costs.
+    const { container } = item(
+      { isStreaming: true },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent },
+    );
+
+    // The expression class, which is the half that only a turn in flight adds.
+    expect(container.querySelector("g.mo-expr")).toBeInTheDocument();
+  });
 });
 
 describe("the footer", () => {
@@ -837,7 +857,10 @@ describe("a segment that continues the turn above it", () => {
     // A run that parked on an approval leaves several messages. Repeating the
     // avatar and the name on each one read as three agents answering one
     // question - see `continuesTurn` in `MessageList`.
-    item({}, { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true });
+    item(
+      {},
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent, continuesTurn: true },
+    );
 
     expect(screen.queryByText("Support")).toBeNull();
   });
@@ -848,7 +871,11 @@ describe("a segment that continues the turn above it", () => {
     // as three separate things the agent did rather than one run.
     const { container } = item(
       {},
-      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: false },
+      {
+        agent: { id: "a-1", slug: "support", name: "Support" } as Agent,
+        continuesTurn: true,
+        endsTurn: false,
+      },
     );
 
     const row = container.firstElementChild!;
@@ -863,7 +890,11 @@ describe("a segment that continues the turn above it", () => {
   it("keeps its bottom padding on the segment that ends the turn", () => {
     const { container } = item(
       {},
-      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: true },
+      {
+        agent: { id: "a-1", slug: "support", name: "Support" } as Agent,
+        continuesTurn: true,
+        endsTurn: true,
+      },
     );
 
     expect(container.firstElementChild!.className).not.toContain("pb-0");
@@ -872,7 +903,7 @@ describe("a segment that continues the turn above it", () => {
   it("keeps the gutter, so the whole turn stays in one column", () => {
     const { container } = item(
       {},
-      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true },
+      { agent: { id: "a-1", slug: "support", name: "Support" } as Agent, continuesTurn: true },
     );
 
     // The avatar slot is still rendered and still the same size - empty rather

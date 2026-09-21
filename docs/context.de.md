@@ -1,5 +1,5 @@
 ---
-source_sha: "f5fcd6aff7b4"
+source_sha: "14e5585228ca"
 ---
 
 # Context-Dateien { #context-files }
@@ -7,6 +7,14 @@ source_sha: "f5fcd6aff7b4"
 Eine **Context-Datei** ist ein Stück stehendes Wissen, einmal geschrieben und an
 viele Agents gebunden: ein Glossar, eine Markenstimme, eine Eskalationsmatrix,
 die Liste der Produkte, die Sie wirklich verkaufen.
+
+Wenn Sie schon einmal eine `AGENTS.md` für einen Coding-Agent geschrieben haben:
+Das ist dieselbe Idee in derselben Form — eine Markdown-Datei, die sagt, wie hier
+gearbeitet wird, neben der Arbeit abgelegt statt in einem einzelnen Prompt. Der
+Unterschied liegt darin, wer sie liest: Eine `AGENTS.md` im Repository liest,
+welches Werkzeug sie auch immer öffnet; eine Context-Datei hier ist an die Agents
+gebunden, die Sie auswählen, wird mit ihnen versioniert und ist von der Person
+bearbeitbar, die die Antwort tatsächlich kennt.
 
 Sie ist die Antwort auf ein Problem, das jedes Unternehmen bei seinem dritten
 Agent trifft — dieselben drei Absätze, in drei Sätze von Instruktionen kopiert

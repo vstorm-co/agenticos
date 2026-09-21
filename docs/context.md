@@ -4,6 +4,13 @@ A **context file** is a piece of standing knowledge written once and attached to
 many agents: a glossary, a brand voice, an escalation matrix, the list of
 products you actually sell.
 
+If you have written an `AGENTS.md` for a coding agent, this is the same idea with
+the same shape — a Markdown file that says how things are done here, kept beside
+the work rather than inside one prompt. The difference is who reads it: an
+`AGENTS.md` in a repository is read by whatever tool happens to open it, and a
+context file here is attached to the agents you choose, versioned with them, and
+editable by the person who actually knows the answer.
+
 It is the answer to a problem every company hits at its third agent — the same
 three paragraphs pasted into three sets of instructions, and then edited in one
 of them.

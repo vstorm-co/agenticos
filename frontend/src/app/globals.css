@@ -1083,6 +1083,30 @@
   .hljs-function .hljs-title {
     color: #6f42c1;
   }
+  /*
+   * Markdown's own tokens, which this theme never named - so a heading and a
+   * bold run rendered in the body colour and an `AGENTS.md` looked unhighlighted
+   * even though every other token in it was coloured.
+   */
+  .hljs-section {
+    color: #005cc5;
+    font-weight: 600;
+  }
+  .hljs-strong {
+    color: #24292e;
+    font-weight: 600;
+  }
+  .hljs-emphasis {
+    color: #24292e;
+    font-style: italic;
+  }
+  .hljs-code {
+    color: #032f62;
+  }
+  .hljs-link {
+    color: #005cc5;
+    text-decoration: underline;
+  }
   .hljs-addition {
     color: #22863a;
     background-color: #f0fff4;
@@ -1149,6 +1173,30 @@
   .dark .hljs-function .hljs-title,
   .theme-dark .hljs-function .hljs-title {
     color: #d2a8ff;
+  }
+  .dark .hljs-section,
+  .theme-dark .hljs-section {
+    color: #79c0ff;
+    font-weight: 600;
+  }
+  .dark .hljs-strong,
+  .theme-dark .hljs-strong {
+    color: #f0f6fc;
+    font-weight: 600;
+  }
+  .dark .hljs-emphasis,
+  .theme-dark .hljs-emphasis {
+    color: #f0f6fc;
+    font-style: italic;
+  }
+  .dark .hljs-code,
+  .theme-dark .hljs-code {
+    color: #a5d6ff;
+  }
+  .dark .hljs-link,
+  .theme-dark .hljs-link {
+    color: #79c0ff;
+    text-decoration: underline;
   }
   .dark .hljs-addition,
   .theme-dark .hljs-addition {

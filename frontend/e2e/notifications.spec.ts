@@ -21,9 +21,16 @@ test.use({ storageState: AUTH_STATE });
 
 const SECURITY_EVENT_SUMMARY = "A vault secret was created.";
 
-/** The row-variant bell, inside the one `<aside>` landmark this shell has. */
+/**
+ * The bell, inside the one `<aside>` landmark this shell has.
+ *
+ * Case-insensitive on purpose. It is an icon in the footer strip rather than a
+ * labelled row, so its accessible name is the aria-label - which says how many
+ * are unread (`3 unread notifications`) and only reads `Notifications` when
+ * none are.
+ */
 function bellTrigger(page: Page) {
-  return page.getByRole("complementary").getByRole("button", { name: /Notifications/ });
+  return page.getByRole("complementary").getByRole("button", { name: /notifications/i });
 }
 
 async function openBell(page: Page) {
@@ -88,12 +95,14 @@ test.describe("Notifications", () => {
 
     // The badge itself, before it is cleared: "no digits afterwards" passes
     // just as well against a badge that never rendered at all.
-    await expect(bellTrigger(page)).toContainText(/\d/);
+    // The count is announced rather than printed: a 36px icon carries a dot, and
+    // the number lives in the label where a screen reader reaches it.
+    await expect(bellTrigger(page)).toHaveAttribute("aria-label", /\d/);
 
     await openBell(page);
     await page.getByRole("button", { name: "Mark all read" }).click();
 
-    await expect(bellTrigger(page)).not.toContainText(/\d/);
+    await expect(bellTrigger(page)).not.toHaveAttribute("aria-label", /\d/);
 
     // The panel, still open, agrees - the offer itself is gone now that
     // nothing is unread, not just the trigger's own badge.

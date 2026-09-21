@@ -129,26 +129,31 @@ There is no `(marketing)` route group.
   phrase* (`counted="40 skills"`, from the caller's namespace) or a key, never a word.
   The guard only reads props named in `READABLE_ATTRS`, so copy arriving through a new
   prop name is invisible until that name is added - `noun` and `term` were (#362).
-- **English is the source language, and `pl.json` holds only what is translated.**
-  `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
-  renders English instead of the key. A module-level table of labels cannot call a
-  translator, so it holds *keys* and the component translates at the point of use;
-  a pure helper either answers with a key or takes `t`.
+- **English is the source language; a translation holds only what is translated.**
+  `src/i18n.ts` merges `en.json` underneath every locale - `pl.json` and `de.json`
+  today - so a missing translation renders English instead of the key. A
+  module-level table of labels cannot call a translator, so it holds *keys* and the
+  component translates at the point of use; a pure helper either answers with a key
+  or takes `t`.
 - **The product's own nouns stay English in every locale**, and this is the list:
   **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
   vault, workspace, sandbox, MCP**. They name things a client also meets in
   `docs/`, in the API and in the YAML a spec exports into their own repository, so
   translating them in the UI and nowhere else makes two vocabularies for one
   product - a Polish reader looking up *zdolność* finds nothing. Inflect them
-  rather than replacing them (`agenta`, `w spec`, `runy`), and translate everything
-  around them. Decided before the first namespace rather than after the third
-  (#643); a word joining the list belongs here, not in one `pl.json` entry.
-- **Translate a namespace, not a branch.** Seventy Polish strings among four
+  rather than replacing them (`agenta`, `w spec`, `runy`; `der Agent`, `die
+  Capability`, `der Run`), and translate everything around them. The gender each
+  kept noun takes in German is fixed in `docs/howto/translate.md`, so one page does
+  not say *der Sandbox* and the next *ein Sandbox*. Decided before the first
+  namespace rather than after the third (#643); a word joining the list belongs
+  here, not in one catalog entry.
+- **Translate a namespace, not a branch.** Seventy translated strings among four
   hundred English ones in one dialog is worse than a consistently English one, so
   the unit of work is the namespace a person reads on one screen - which is why
   #634 finished `hosted` (12 keys, what a Polish visitor lands on) and left
-  `agents` (509) whole. Polish also makes the count rule bite harder than English
-  does: `one`/`few`/`many`/`other` where `en.json` needed `=1`/`other`.
+  `agents` (509) whole. `de.json` is the first catalog translated whole. Polish also
+  makes the count rule bite harder than English does: `one`/`few`/`many`/`other`
+  where `en.json` needed `=1`/`other`.
 - **The locale lives in a cookie, and a switch goes through `@/lib/locale-navigation`.**
   `localePrefix: "as-needed"` means an unprefixed path *is* English, and 49 files import
   a plain `next/link` - so a switch that only rewrites the URL survives exactly one
