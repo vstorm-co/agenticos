@@ -50,7 +50,7 @@ evidence = "As for @next/swc-linux-x64-gnu: the arm64 build from the same reposi
 
 [notices.npm."use-composed-ref"]
 holder = "Mateusz Burzynski (Andarist)"
-evidence = "use-composed-ref 1.4.0 declares `license: MIT` in its package.json and ships no licence file or author; its repository is https://github.com/Andarist/use-composed-ref, which holds no LICENSE file either, and its npm maintainer is andarist <mateuszburzynski@gmail.com>. Reached through @workflowbuilder/sdk -> @synergycodes/overflow-ui -> @mantine/core -> react-textarea-autosize (#1781)"
+evidence = "use-composed-ref 1.4.0 declares `license: MIT` in its package.json and ships no licence file or author; its repository is https://github.com/Andarist/use-composed-ref, which holds no LICENSE file either, and its npm maintainer is andarist <mateuszburzynski@gmail.com>. The holder's name is inferred from that email address and the repository's ownership, since the package names no author. Reached through @workflowbuilder/sdk -> @synergycodes/overflow-ui -> @mantine/core -> react-textarea-autosize (#1781)"
 
 [notices.python."pydantic-monty"]
 holder = "Pydantic Services Inc."
