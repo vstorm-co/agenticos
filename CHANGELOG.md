@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A development-only lab and a decision record for the Workflow Builder SDK.**
+  `/dev/workflow-sdk` mounts `@workflowbuilder/sdk` 2.3.0 against a typed workflow
+  graph and exercises what the workflow editor will need: the agent and version
+  picker, a Virtual Table write config, nested foreach, a round trip to the typed
+  graph, saves with `expected_revision` and HTTP 409, undo/redo, copy/paste with id
+  and binding remapping, and a Pydantic schema adapter. The route is not in the
+  navigation and answers 404 in production. The workflow API and tables are mocks.
+  The decision, in `docs/plans/workflow-builder-sdk-evaluation.md`, is to build the
+  editor on React Flow directly: the SDK's stylesheet cannot be contained in the
+  console, and an unguarded autosave overwrote one workflow with another's nodes.
+  The two packages stay pinned for the lab and add 132 distributions and one OFL
+  font to the frontend image notices. (#1781)
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed

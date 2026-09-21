@@ -1,5 +1,5 @@
 ---
-source_sha: "ed41ce8850a9"
+source_sha: "55a137806ddc"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -120,6 +120,7 @@ cifra actual es la del propio archivo de avisos.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Atribución y un enlace al código fuente | Aparece nombrado con su fuente en los avisos |
 | AGPL-3.0-only (`pymupdf`) | 1 | Copyleft de red: la imagen se transmite bajo los términos de la AGPL-3.0 y un despliegue modificado les debe a sus usuarios el código fuente modificado (art. 13) | Se mantiene deliberadamente y los términos se declaran: [la sección de abajo](#the-agpl-component) y el `COPYING` del wheel dentro de la imagen |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 familias | Texto de la licencia y avisos de copyright junto con las tipografías; no vender las tipografías por sí solas; no reutilizar los nombres reservados para tipografías modificadas | `frontend/src/app/fonts/OFL.txt` lleva los tres avisos; las tipografías se sirven sin modificar |
+| OFL-1.1 (`@fontsource/poppins`) | 1 familia | Texto de la licencia y avisos de copyright junto con la tipografía; no venderla por sí sola; no reutilizar el nombre reservado para una tipografía modificada | El `LICENSE` propio del paquete se recoge en la imagen junto a él; la tipografía se sirve sin modificar |
 | CC0-1.0, CC-BY-4.0, MIT (glifos de marca) | 3 fuentes | Atribución para los iconos de Font Awesome; las marcas siguen siendo marcas registradas de sus dueños | `NOTICE` nombra las fuentes y la posición sobre las marcas registradas |
 
 **De un paquete que no publica archivo de licencia** no se puede copiar ninguno.

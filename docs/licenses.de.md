@@ -1,5 +1,5 @@
 ---
-source_sha: "ed41ce8850a9"
+source_sha: "55a137806ddc"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -122,6 +122,7 @@ Notices-Datei ist die aktuelle Zahl.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Namensnennung und ein Link auf die Quelle | In den Notices mit seiner Quelle genannt |
 | AGPL-3.0-only (`pymupdf`) | 1 | Netzwerk-Copyleft: Das Image wird unter AGPL-3.0-Bedingungen weitergegeben, und ein verändertes Deployment schuldet seinen Nutzern den veränderten Quellcode (Abschnitt 13) | Bewusst behalten, Bedingungen benannt: [der Abschnitt unten](#the-agpl-component) und das `COPYING` des Wheels im Image |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 Familien | Lizenztext und Copyright-Hinweise bei den Fonts; kein Verkauf der Fonts für sich allein; keine Wiederverwendung der reservierten Namen für veränderte Fonts | `frontend/src/app/fonts/OFL.txt` trägt alle drei Hinweise; die Fonts werden unverändert ausgeliefert |
+| OFL-1.1 (`@fontsource/poppins`) | 1 Familie | Lizenztext und Copyright-Hinweise beim Font; kein Verkauf des Fonts für sich allein; keine Wiederverwendung des reservierten Namens für einen veränderten Font | Die eigene `LICENSE` des Pakets wird neben ihm ins Image gesammelt; der Font wird unverändert ausgeliefert |
 | CC0-1.0, CC-BY-4.0, MIT (Marken-Glyphen) | 3 Quellen | Namensnennung für die Font-Awesome-Icons; die Marken bleiben Marken ihrer Inhaber | `NOTICE` nennt die Quellen und die markenrechtliche Position |
 
 **Von einem Paket, das keine Lizenzdatei veröffentlicht**, lässt sich keine
