@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.476] - 2026-09-21
+
+### Changed
+
+- **The agent runtime moved to Pydantic AI 2.45 and Logfire 5.1.** The weekly
+  group that carries the four frameworks this platform is built out of:
+  `pydantic-ai-slim` and `pydantic-graph` 2.43 to 2.45, and the `logfire` floor
+  to 5.1.0. No call site changed - the whole backend suite runs against it
+  unmodified.
+
 ## [0.0.475] - 2026-09-21
 
 ### Fixed
