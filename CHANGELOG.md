@@ -17,6 +17,173 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.474] - 2026-09-21
+
+### Added
+
+- **A generated face is the default avatar for people and agents.** Two initials
+  on a colour told a reader very little at 20px, and a run table is a column of
+  them. Every person and every agent who never uploaded a picture now wears a
+  deterministic face drawn from the row's id, so renaming an agent does not hand
+  it somebody else's. The stored `avatar_color` slot keeps its meaning: the ten
+  `--avatar-*` tokens' hues become the generator's hue, so the picker still
+  picks what the face wears. Organizations keep their initials — a company is
+  not somebody. Every face blinks and breathes, and `prefers-reduced-motion`
+  holds all of it still.
+- **Thought orbs where a turn is waiting.** The stretch between asking and the
+  first token, the reasoning line while pydantic-ai's thinking deltas arrive, a
+  tool call still in flight, and a delegation still out each carry a dotted orb
+  whose animation says what kind of work it is: a read scans, a write braids, a
+  delegation wires a constellation. `STEP_ORBS` maps every `StepKind` the way
+  `STEP_ICONS` maps it.
+- **A beam around the composer while the caret is in it.** Monochrome, and only
+  on focus: a border that glows permanently is decoration, one that lights when
+  the caret arrives is the box saying where the typing goes.
+- **A glow that rises with a voice.** The composer's edge answers the microphone
+  while it is open. It is a second capture, because the Web Speech API analyses
+  its own audio and exposes no stream, so stopping the glow stops no dictation.
+- **A rail down the edge of a conversation.** One tick per message, the tick for
+  what is on screen lit, a card on hover naming who spoke with the opening of
+  what they said, and chevrons that step a turn at a time. For the transcript
+  long enough that finding the message where a number was quoted means reading
+  every turn on the way.
+- **A mosaic that dissolves into an image.** The file viewer resolves a picture
+  out of a WebGL loader rather than swapping a spinner for it. Fetched on demand
+  and only where WebGL can run it, because it carries `three`.
+
+### Fixed
+
+- **The Getting Started agent answers in English unless it is asked not to.**
+  Nothing told it what language to use, so it guessed from the question - and a
+  mistyped Polish greeting came back in Czech. It now answers in English whatever
+  the question arrives in, and switches only when somebody asks it to in as many
+  words.
+
+### Changed
+
+- **A question in the chat is a panel rather than an inverted slab.** It was drawn
+  in the foreground colour, which made it the brightest object in the transcript -
+  louder than the answer under it, and backwards: the question is the part
+  somebody already knows they asked. It takes the secondary surface now, with a
+  hairline border so it keeps its shape in the light theme, where the fill is
+  three percent off the page.
+- **Amigo walks across the README.** He was standing still with a one-pixel bob,
+  which is an idle rather than a reason to look. The banner is a wider canvas he
+  crosses and comes back over, on two leg poses that alternate under him, all of
+  it in whole pixels - a sprite drawn on a 16-pixel grid and moved a third of a
+  pixel is a sprite with soft edges. `scripts/gen_amigo_assets.py` cuts it from
+  the same drawing as the mark, so there is still one Amigo.
+- **The social preview is a desert at sundown, and now has a source.** The card
+  it replaced was a finished PNG with nothing behind it: the mark changed, the
+  card kept showing the retired one, and nothing noticed.
+  `scripts/gen_social_bg.py` draws the scene 160 pixels by 80 - one per eight on
+  the finished card - with an ordered dither rather than a blend, because Amigo
+  is a 16-pixel sprite and a smooth gradient behind a sprite reads as a drawing
+  pasted onto somebody else's artwork. `docs/assets/social-preview.html` is the
+  card over it: Amigo walks the dunes, two birds cross the sky, the first stars
+  come out, and the verb in the tagline lights in the colour of the sun. The
+  name is set in a pixel face for the same reason the sky is dithered - a smooth
+  grotesque over a 16-pixel scene was the one element on the card that belonged
+  to a different drawing - while the sentence under it stays a proper sans. It
+  renders to a 323 KiB GIF for anywhere that animates and a PNG for anywhere
+  that does not.
+- **Amigo is the product's mark, everywhere one was drawn.** Five different marks
+  were in circulation: the pixel mascot in the README, a blue orbit in the docs
+  header and hero, a lucide sparkle in the console sidebar, a lime dot in the
+  browser tab and on the link-unfurl card, and a bare initial on the iOS home
+  screen. The mascot's head and hat, cropped square, is now the one mark the site
+  header, the tab, the sidebar and the social card show, and the whole character
+  heads the README and every documentation landing page. `scripts/gen_amigo_assets.py`
+  cuts that crop out of the drawing and writes both derived forms - an SVG for
+  MkDocs and a data URI for the two `next/og` images, which cannot load a path -
+  so nothing is drawn twice and `backend/tests/test_amigo_assets.py` fails if they
+  drift apart. The orbit is gone. The home-screen icon keeps its initial, which
+  is the deployment's name rather than this build's.
+- **Amigo blinks and breathes.** One pixel of bob and an occasional blink, added
+  to the drawing itself so the README, the docs hero and anything else that shows
+  the file all get it, and stopped by `prefers-reduced-motion`. Both are additive:
+  where CSS in an image does not run, the first frame is the drawing as it was.
+
+- **An agent's generated face is drawn from its handle, not its id.** So the
+  creation dialog can show the face while somebody is still typing their way to
+  a name - the handle is derived from the name on every keystroke and then
+  frozen, which keeps the old guarantee that renaming an agent does not hand it
+  somebody else's picture. Triggers, workspaces and the spend breakdown carry
+  the handle now, beside the name they already carried, so every surface draws
+  the same face. Existing agents change appearance once.
+- **Categories and tags can be set when an agent is created**, and read better
+  where they are edited: two half-width fields side by side instead of two
+  stacked empty boxes, each saying what it is for, with the cap visible before
+  somebody hits it. The creation preview shows them on the row they will appear
+  on.
+- **The Getting Started agent is a demonstration rather than a stub.** It had
+  one capability - a clock - and a prompt that described the platform in three
+  sentences. It now ships with fourteen: web search and fetch, Python, charts,
+  a sandbox with files and a shell, planning, memory that outlives a
+  conversation, conversation search, context, the shipped skills, delegation to
+  sub-agents it can invent on the spot, context management and output limits.
+  All of it runs on the one key bootstrap already asked for - the sandbox uses
+  the run's own store and search defaults to DuckDuckGo, so there is no second
+  credential and no service to stand up. Bootstrap also writes an `AGENTS.md`
+  context file the agent reads before explaining the platform, which is the
+  same shape a client's own standing knowledge takes.
+- **A new agent is visible to the organization, and the dialog says so.** It
+  was private, so every agent was made invisible and then shared by hand - and
+  the second person to go looking for one was told it did not exist. Creating an
+  agent now asks who can find it, with the organization as the answer, and shows
+  the row it is about to become: name, handle, description and that choice.
+  Private is still there for the one somebody is still working out. A draft
+  cannot run either way, so this decides who sees it, not what it does.
+- **The context editor opens on the text, and the text has syntax.** A pane
+  somebody came to write in opened on a rendering of what they had not written
+  yet, and its source half was a plain textarea - so a long `AGENTS.md` was a
+  wall of identical grey where the headings that give it structure looked like
+  the sentences under them. Source is what `/context` opens on now, highlighted,
+  with gutters wide enough for the three columns of form above it. A file
+  browser still opens on the preview, which is what a reader wants.
+- **`/context` and its documentation lead with `AGENTS.md`.** It is the same
+  idea in the same shape, and naming it is faster than describing it.
+- **A built-in skill can be deleted, and stays deleted.** The skills listing used
+  to top itself up, copying in any bundled name the organization did not have
+  every time anyone opened the page. A deleted built-in came back on the next
+  visit, disabling was the only way to retire one, and reading a page wrote rows.
+  Organizations are still seeded at creation, `agenticos cmd seed-skills` still
+  pushes a new bundled skill out on purpose, and the gallery is where a skill is
+  chosen. What is gone is the page that put one back.
+- **Chunking defaults are 2500 characters with 200 of overlap**, up from 512 and
+  50. 512 characters is roughly three sentences: it splits a paragraph across
+  two embeddings and hands a model an answer with its own context missing.
+  Existing collections keep whatever they stored; this is what a new one starts
+  from, in the form at `/rag`, in the pipeline, and on the standalone parse
+  endpoint alike.
+
+## [0.0.473] - 2026-09-21
+
+### Added
+
+- **The console speaks German.** `frontend/messages/de.json` translates all 4,486
+  keys of the English catalog, and `de` joins `locales` in `src/i18n.ts`, so the
+  language switcher offers it, `/de/...` serves it and every canonical, alternate
+  and Open Graph locale names it. The terminology is the one the documentation
+  already fixed in `docs/howto/translate.md`: the product's own nouns stay English
+  and keep the gender decided there — der Agent, die Capability, der Run, die
+  Sandbox — and everything around them is translated, formally (*Sie*), as the
+  German pages of the site are.
+
+  `/de/legal/*` is translated with the rest of the catalog and is a translation of
+  the placeholder template the deployment ships, not legal advice. A deployment
+  that relies on those pages points `admin.brandingTerms` and
+  `admin.brandingPrivacy` at its own. Its dates are German too: the formatter now
+  takes a tag per locale rather than falling back to `en-US`, so a fourth locale
+  is a type error instead of a page that reads `May 8, 2026` in German.
+
+  The compatibility redirects follow the locale list rather than naming it. They
+  matched `en|pl` literally, so every German bookmark to a moved page - the old
+  `/de/settings/providers`, say - answered 404 while every other surface had been
+  translated. `locales` now lives in `frontend/src/lib/locales.ts`, which the
+  build config can read and `src/i18n.ts`, which drags in next-intl and the whole
+  English catalog, cannot.
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed

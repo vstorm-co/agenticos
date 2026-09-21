@@ -115,7 +115,7 @@ export function ChatAccounts() {
                         <span key={agent.id} className="flex items-center gap-1.5">
                           <AgentAvatar
                             agentId={agent.id}
-                            name={agent.name}
+                            slug={agent.slug}
                             hasAvatar={agent.has_avatar}
                             size="sm"
                           />

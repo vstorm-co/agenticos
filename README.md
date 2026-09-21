@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/amigo.svg" alt="Amigo, the AgenticOS pet" width="96">
+<img src="docs/assets/amigo-walk.svg" alt="Amigo, the AgenticOS pet, walking" width="288">
 
 <h1>AgenticOS</h1>
 

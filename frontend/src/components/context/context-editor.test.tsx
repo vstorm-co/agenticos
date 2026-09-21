@@ -65,13 +65,16 @@ describe("ContextEditor", () => {
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
-  it("reads the body rendered, and edits it behind the toggle", async () => {
+  it("opens on the text, and renders it behind the toggle", async () => {
+    // An editor for a file somebody came to write, so the source is what it
+    // opens on - a rendering of what has not been typed yet is a picture of an
+    // empty file.
     mount();
-    expect(screen.getByTestId("rendered")).toHaveTextContent("SLA: service level agreement.");
-
-    await openSource();
-
     expect(body()).toHaveValue("SLA: service level agreement.");
+
+    await userEvent.click(screen.getByRole("button", { name: /preview/i }));
+
+    expect(screen.getByTestId("rendered")).toHaveTextContent("SLA: service level agreement.");
   });
 
   it("saves the whole editable set, so an untouched field is not lost", async () => {

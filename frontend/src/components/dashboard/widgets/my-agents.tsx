@@ -57,7 +57,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                       apart by six lines of text is a list nobody scans. */}
                   <AgentAvatar
                     agentId={agent.id}
-                    name={agent.name}
+                    slug={agent.slug}
                     hasAvatar={agent.has_avatar ?? false}
                     size="sm"
                   />

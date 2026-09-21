@@ -841,7 +841,7 @@ function CollapsedSidebar({
                     {agent ? (
                       <AgentAvatar
                         agentId={agent.id}
-                        name={agent.name}
+                        slug={agent.slug}
                         hasAvatar={agent.has_avatar}
                         size="sm"
                       />

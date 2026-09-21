@@ -107,6 +107,9 @@ class WorkspaceOverview:
 
     row: AgentWorkspace
     agent_name: str
+    agent_slug: str
+    """The handle, which is what the generated face is drawn from - so a row
+    here draws the same picture the agent's own page does."""
     agent_has_avatar: bool
     """Whether the agent has a face to draw - resolved here because the reader
     of this listing may not hold `agents:view` to ask the agent list."""
@@ -833,6 +836,7 @@ class SandboxWorkspaceService:
                 agent_name=(
                     agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
                 ),
+                agent_slug=(agents[row.agent_id].slug if row.agent_id in agents else ""),
                 agent_has_avatar=(
                     agents[row.agent_id].has_avatar if row.agent_id in agents else False
                 ),

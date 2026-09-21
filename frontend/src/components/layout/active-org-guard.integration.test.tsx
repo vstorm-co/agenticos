@@ -84,6 +84,32 @@ function backendRefusing(refusedOrgId: string) {
   });
 }
 
+describe("ActiveOrgGuard settles the active organization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
+  });
+
+  it("chooses one when nothing is chosen, without anybody opening a menu", async () => {
+    // Choosing used to ride on the organization switcher standing permanently in
+    // the sidebar. It is a menu item now, and menu content mounts only when the
+    // menu opens - so `activeOrgId` stayed null until somebody clicked their own
+    // name. Null is not an error anywhere: `useMembers(activeOrgId ?? "")` asks
+    // for nothing, so the sharing panel could not name an owner and the reusable
+    // integrations never arrived, with no failed request to show for it.
+    //
+    // Asserted on the selection rather than on a `/orgs` call: the recovery hook
+    // fetches that list either way, so a call count proves nothing.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: PERSONAL, name: "Personal", is_personal: true }],
+    });
+
+    render(<ActiveOrgGuard />, { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL));
+  });
+});
+
 describe("a stale organization does not permanently empty the navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();

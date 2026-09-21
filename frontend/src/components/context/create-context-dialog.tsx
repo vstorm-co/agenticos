@@ -131,15 +131,28 @@ export function CreateContextDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+      {/* Wider gutters than the default 24px: this dialog is three columns of
+          form above a full editor, and at that width the content ran into the
+          edge of the sheet. */}
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE, "sm:px-8 sm:py-7")}>
         <DialogHeader>
           <DialogTitle>{t("newContext")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
-          <div className="flex flex-wrap items-start gap-4">
-            <div className="w-56 shrink-0 space-y-1.5">
+        {/* `overflow-auto` is a clipping box, and a focus ring is drawn outside
+            the control's own border - so the ring on the first field was sliced
+            off flush against the left edge of this container. The padding gives
+            it somewhere to land; the negative margin keeps the fields aligned
+            with the title and the footer either side of the scroller. */}
+        <div className="-mx-1.5 flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-1.5 py-1">
+          {/* A grid that fills the row rather than three fixed widths that stop
+              two thirds of the way across. The description under them is full
+              width, so a short row above it read as a dialog missing its right
+              hand side - and the wider the sheet, the bigger the hole. Name
+              takes the slack because a name is the field that can be long. */}
+          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="new-context-name">{t("name")}</Label>
               <Input
                 id="new-context-name"
@@ -152,7 +165,7 @@ export function CreateContextDialog({
               />
               <FieldNote error={errors.name}>{t("howItIsReferredTo")}</FieldNote>
             </div>
-            <div className="w-40 shrink-0 space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="new-context-mode">{t("mode")}</Label>
               <Select value={mode} onValueChange={(value) => setMode(value as ContextMode)}>
                 <SelectTrigger id="new-context-mode">
@@ -165,7 +178,7 @@ export function CreateContextDialog({
               </Select>
               <FieldNote>{t(mode === "inject" ? "modeInjectHint" : "modeLinkHint")}</FieldNote>
             </div>
-            <div className="w-32 shrink-0 space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="new-context-format">{t("format")}</Label>
               <Select value={format} onValueChange={(value) => edit("format", value)}>
                 <SelectTrigger id="new-context-format" className="font-mono">
@@ -201,12 +214,14 @@ export function CreateContextDialog({
               written in. Named from what has been typed so far, so the preview
               renders as the format the file is being given. */}
           <FileEditor
+            initialMode="source"
             // The placeholder until a name is typed, which is what the name
             // field itself shows: `.md` alone reads as a broken filename, and
             // the extension is what decides how the preview renders.
             name={displayName(name.trim() || t("namePlaceholder"), format)}
             content={content}
             canEdit
+            placeholder={t("bodyPlaceholder")}
             className="min-h-72"
             onChange={(next) => edit("content", next)}
             footer={

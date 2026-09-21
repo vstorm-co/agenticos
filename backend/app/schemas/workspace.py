@@ -84,6 +84,14 @@ class WorkspaceSummary(BaseSchema):
     id: UUID
     agent_id: UUID
     agent_name: str = Field(description="Resolved server-side, so a row names something readable")
+    agent_slug: str = Field(
+        default="",
+        description=(
+            "The handle, which is what the generated face is drawn from - so this "
+            "row draws the same picture the agent's own page does. Empty for an "
+            "agent that has been deleted."
+        ),
+    )
     agent_has_avatar: bool = Field(
         default=False,
         description=(

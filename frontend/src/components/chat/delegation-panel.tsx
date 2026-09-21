@@ -18,6 +18,7 @@ import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 
 /**
  * What the specialists are doing, one collapsible block per delegation.
@@ -117,7 +118,15 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
         aria-expanded={open}
         className="hover:text-foreground flex max-w-full min-w-0 items-center gap-2 rounded-md py-1 text-left"
       >
-        <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
+        {/* A delegation that is still out wears the orb the step list gives a
+            delegate tool: a constellation wiring itself, which is what handing
+            work to another agent looks like. Once it lands the glyph comes
+            back, because the panel is then a record rather than a report. */}
+        {delegation.status === "running" ? (
+          <ThinkingOrb state="connecting" size={20} className="-my-2 -ml-1 h-7 w-7" />
+        ) : (
+          <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
+        )}
         <span className="text-foreground/80 min-w-0 truncate text-[13px] font-medium">
           {delegation.subagent}
         </span>

@@ -667,7 +667,7 @@ export function TriggerFormDialog({
                           <span className="flex items-center gap-2">
                             <AgentAvatar
                               agentId={agent.id}
-                              name={agent.name}
+                              slug={agent.slug}
                               hasAvatar={agent.has_avatar}
                               colorSlot={agent.avatar_color}
                               size="sm"

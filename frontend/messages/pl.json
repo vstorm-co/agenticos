@@ -262,7 +262,16 @@
       }
     },
     "viewMeans": "View pozwala tylko czytać tę konwersację.",
-    "whatWentWrong": "Co poszło nie tak?"
+    "whatWentWrong": "Co poszło nie tak?",
+    "rail": {
+      "label": "Przejdź do wiadomości",
+      "previous": "Poprzednia wiadomość",
+      "next": "Następna wiadomość",
+      "jumpTo": "Przejdź do wiadomości od {author}",
+      "you": "Ty",
+      "agent": "Agent",
+      "empty": "Ta wiadomość nie ma tekstu"
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

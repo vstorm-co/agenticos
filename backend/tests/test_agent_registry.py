@@ -40,6 +40,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services.agent_registry import AgentRegistryService, slugify
 
@@ -1106,6 +1107,103 @@ class TestCreate:
         assert "@support" in refused.value.message
         assert "different handle" in refused.value.message
         assert create.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_an_agent_somebody_creates_is_visible_to_the_organization(self):
+        """An agent is a thing a company builds, so the company can find it.
+
+        Private was the default, which meant every agent was made invisible and
+        then shared by hand - and the second person to go looking for one was
+        told it did not exist. The choice lives on the form, so this asserts on
+        what the form sends rather than on the service's own default: that one
+        is deliberately the other way round, for the callers below.
+        """
+        ctx = _ctx()
+        submitted = AgentCreate(spec=_spec("Support"))
+        assert submitted.visibility is Visibility.ORG
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, submitted.spec, visibility=submitted.visibility
+            )
+
+        assert create.await_args.kwargs["visibility"] == "org"
+
+    @pytest.mark.anyio
+    async def test_an_agent_nobody_chose_a_visibility_for_is_private(self):
+        """The default is the least-exposing value, because of who reaches it.
+
+        Only the callers that make an agent without anybody choosing get it: a
+        clone, a promoted specialist, a template install. Defaulting those to
+        `org` published a copy of a private agent to the whole tenant, and a
+        colleague could then read its instructions out of `GET /agents/{id}`.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(ctx, _spec("Support"))
+
+        assert create.await_args.kwargs["visibility"] == "private"
+
+    @pytest.mark.anyio
+    async def test_cloning_a_private_agent_does_not_publish_the_copy(self):
+        """The copy inherits no audience, and least of all one nobody gave it."""
+        ctx = _ctx()
+        source = _agent(ctx, draft_spec=_spec("Support").model_dump(mode="json"))
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=source)),
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).clone(ctx, source.id)
+
+        assert create.call_args.kwargs["visibility"] == "private"
+
+    @pytest.mark.anyio
+    async def test_the_labels_it_was_created_with_are_written(self):
+        # Discovery metadata, not spec - the catalog a new agent joins is the
+        # moment somebody knows what to call it.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), categories=["support"], tags=["billing"]
+            )
+
+        assert create.await_args.kwargs["categories"] == ["support"]
+        assert create.await_args.kwargs["tags"] == ["billing"]
+
+    @pytest.mark.anyio
+    async def test_an_agent_asked_for_privately_stays_private(self):
+        # The exception is still available, and it is the caller's to ask for.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), visibility=Visibility.PRIVATE
+            )
+
+        assert create.await_args.kwargs["visibility"] == "private"
 
 
 class TestPromoteSpecialist:

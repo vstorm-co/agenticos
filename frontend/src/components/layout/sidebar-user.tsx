@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { OrganizationMenuItems } from "@/components/teams";
 import { useAuthStore } from "@/stores";
 
 /**
@@ -68,6 +69,11 @@ export function SidebarUser() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
+        {/* The tenant, above the account's own entries: every request this
+            person makes is scoped by it, and it used to live at the far end of
+            the column from the name it belongs to. */}
+        <OrganizationMenuItems />
+        <DropdownMenuSeparator />
         {/* One entry, not two. `/profile` redirects to `/settings/profile` and
             `/settings` opens on the same tab, so the menu offered a choice
             between two labels for one destination - which reads as two places

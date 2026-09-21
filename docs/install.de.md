@@ -1,5 +1,5 @@
 ---
-source_sha: "15980ecd7957"
+source_sha: "74925aba0c7c"
 ---
 
 # Installation { #install }
@@ -187,13 +187,25 @@ diese Kette einmal ab:
 | Einen Owner | `admin@example.com` / `admin123`, oder `--email` / `--password` |
 | Einen Vault-Eintrag | Ihren Provider-Key, für diese Organisation versiegelt |
 | Ein Model Profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` oder `openai/gpt-4.1`, je nachdem, für welchen Provider der Key ist |
+| Eine Context-Datei | `AGENTS.md`, die erklärt, was diese Plattform ist |
 | Einen Agent | `@getting-started`, veröffentlicht, wenn es einen Key gibt |
 
 Öffnen Sie jetzt <http://localhost:3000>, melden Sie sich als
 `admin@example.com` / `admin123` an und gehen Sie zu
 **Agents → Getting Started → Test**.
 
-Sie haben einen funktionierenden Agent.
+Sie haben einen funktionierenden Agent. Kein Platzhalter: Er kann im Web suchen
+und eine Seite holen, Python ausführen, ein Diagramm zeichnen, Dateien und eine
+Shell führen, eine Arbeit planen, sich etwas über eine Unterhaltung hinaus
+merken, durchsuchen, was früher gesagt wurde, die mitgelieferten Skills und
+`AGENTS.md` lesen und unabhängige Teile an Sub-Agents geben, die er im Moment
+selbst erfindet. Alles mit dem einen Key, den Sie gerade eingefügt haben — die
+Sandbox läuft im Speicher des Runs selbst, und die Suche nutzt standardmäßig
+DuckDuckGo, es gibt also kein zweites Credential und keinen Dienst aufzusetzen.
+
+Öffnen Sie ihn im Builder, um zu sehen wie: Jedes davon ist eine Capability, die
+eingeschaltet wurde, und die Instruktionen des Agents sind ein Textfeld, das Sie
+ändern können.
 
 !!! tip "Noch kein Provider-Key?"
 

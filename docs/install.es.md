@@ -1,5 +1,5 @@
 ---
-source_sha: "15980ecd7957"
+source_sha: "74925aba0c7c"
 ---
 
 # Instalación { #install }
@@ -184,12 +184,24 @@ esto recorre esa cadena una vez:
 | Un propietario | `admin@example.com` / `admin123`, o `--email` / `--password` |
 | Una entrada en el vault | Tu clave de provider, sellada para esa organización |
 | Un perfil de modelo | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` o `openai/gpt-4.1`, según de qué provider sea la clave |
+| Un archivo de contexto | `AGENTS.md`, que explica qué es esta plataforma |
 | Un agent | `@getting-started`, publicado si hay una clave |
 
 Ahora abre <http://localhost:3000>, inicia sesión como `admin@example.com` /
 `admin123` y ve a **Agents → Getting Started → Test**.
 
-Ya tienes un agent que funciona.
+Ya tienes un agent que funciona. Y no es un esbozo: puede buscar en la web y
+traer una página, ejecutar Python, dibujar un gráfico, llevar archivos y una
+shell, planificar un trabajo, recordar algo más allá de una conversación,
+buscar lo que se dijo antes, leer las skills distribuidas y `AGENTS.md`, y pasar
+las partes independientes a sub-agents que se inventa sobre la marcha. Todo con
+la única clave que acabas de pegar — la sandbox corre en el almacén de la propia
+ejecución y la búsqueda usa DuckDuckGo por defecto, así que no hay una segunda
+credencial ni un servicio que levantar.
+
+Ábrelo en el Builder para ver cómo: cada una de esas cosas es una capability que
+alguien encendió, y las instrucciones del agent son un campo de texto que puedes
+cambiar.
 
 !!! tip "¿Todavía sin clave de provider?"
 

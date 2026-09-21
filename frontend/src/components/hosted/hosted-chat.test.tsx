@@ -625,11 +625,11 @@ describe("a turn laid out the way web chat lays one out", () => {
         data: { tool_call_id: "c1", tool_name: "post_invoice" },
       }),
     );
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
 
     act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("renders the answer as Markdown and the question as plain text", () => {
