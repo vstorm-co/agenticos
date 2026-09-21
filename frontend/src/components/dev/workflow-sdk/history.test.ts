@@ -92,7 +92,7 @@ describe("Recorder", () => {
     expect(history.size).toBe(0);
   });
 
-  it("flushing before undo keeps a pending edit undoable and redoable", () => {
+  it("undo flushes a pending edit first, so it stays undoable and redoable", () => {
     const { state, history, recorder } = setup();
     state.value = 1;
     recorder.schedule();
@@ -101,14 +101,30 @@ describe("Recorder", () => {
     recorder.schedule();
     vi.advanceTimersByTime(100);
 
-    recorder.flush();
     // One step back lands on A, not on the baseline.
-    expect(history.undo()).toBe(1);
+    expect(recorder.undo()).toBe(1);
+    state.value = 1; // what the controller does: put the restored state in the store
     recorder.restored("1");
     vi.advanceTimersByTime(1000);
     // The timer the flush cleared does not fire later and record a stale state.
     expect(history.size).toBe(1);
-    expect(history.redo()).toBe(2);
+    expect(recorder.redo()).toBe(2);
+  });
+
+  it("redo flushes a pending edit first", () => {
+    const { state, history, recorder } = setup();
+    state.value = 1;
+    recorder.schedule();
+    vi.advanceTimersByTime(250);
+    expect(recorder.undo()).toBe(0);
+    state.value = 0;
+    recorder.restored("0");
+    state.value = 5; // a new edit after the undo, still pending
+    recorder.schedule();
+    // The pending edit is recorded (dropping the redo branch) before redo steps.
+    expect(recorder.redo()).toBeNull();
+    expect(history.size).toBe(1);
+    expect(history.canRedo).toBe(false);
   });
 
   it("does not record the state an undo restored", () => {

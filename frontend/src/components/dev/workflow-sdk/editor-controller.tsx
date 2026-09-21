@@ -186,14 +186,8 @@ export function EditorController({ scopeRef, newId, onApi, onLog }: Props) {
     };
 
     const api: EditorApi = {
-      undo: () => {
-        recorder.flush();
-        restore(history.undo());
-      },
-      redo: () => {
-        recorder.flush();
-        restore(history.redo());
-      },
+      undo: () => restore(recorder.undo()),
+      redo: () => restore(recorder.redo()),
       copy,
       cut,
       paste,

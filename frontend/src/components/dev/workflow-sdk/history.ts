@@ -61,9 +61,9 @@ export class History<T> {
  * Turns a stream of store changes into history entries, one per gesture.
  *
  * A drag emits a change per frame, so a change is recorded only once it has been
- * quiet for `delayMs`. Undo and redo must call `flush` first: a change still inside
+ * quiet for `delayMs`. Undo and redo must flush first: a change still inside
  * that window is not in the stack yet, and undoing past it would skip a step and
- * leave the change impossible to redo.
+ * leave the change impossible to redo. `undo` and `redo` here do that.
  */
 export class Recorder<T> {
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -96,6 +96,18 @@ export class Recorder<T> {
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.history.record(snapshot);
+  }
+
+  /** One step back, after recording any change still inside the debounce window. */
+  undo(): T | null {
+    this.flush();
+    return this.history.undo();
+  }
+
+  /** One step forward, after recording any change still inside the debounce window. */
+  redo(): T | null {
+    this.flush();
+    return this.history.redo();
   }
 
   /** The state was set by undo or redo, so it is already in the stack. */
