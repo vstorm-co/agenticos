@@ -45,7 +45,13 @@ def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace
     monkeypatch.setattr(service, "_load_table", load)
     monkeypatch.setattr(service, "_columns", columns)
     monkeypatch.setattr(records, "run_once", passthrough)
+
+    async def within_quota(*args, **kwargs):
+        return None
+
     monkeypatch.setattr(virtual_table_repo, "insert_record", no_insert)
+    monkeypatch.setattr(records.quotas, "enforce_record_size", within_quota)
+    monkeypatch.setattr(records.quotas, "enforce_record_count", within_quota)
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     return service, ctx, table
 

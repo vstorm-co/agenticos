@@ -258,6 +258,39 @@ async def list_schema_versions(
     return list(result.scalars().all())
 
 
+async def count_tables(db: AsyncSession, *, organization_id: UUID) -> int:
+    """Every table the organization has, archived ones included.
+
+    Archived ones count because nothing deletes a table: its records and history stay,
+    so it goes on costing what it cost.
+    """
+    count = await db.scalar(
+        select(func.count(VirtualTable.id)).where(VirtualTable.organization_id == organization_id)
+    )
+    return count or 0
+
+
+async def count_records_up_to(
+    db: AsyncSession, *, table_id: UUID, organization_id: UUID, ceiling: int
+) -> int:
+    """How many records the table holds, counting no further than `ceiling`.
+
+    Bounded so a create against a table at its limit reads `ceiling` index entries
+    and not the whole table, which is all the answer "is there room" needs.
+    """
+    capped = (
+        select(VirtualTableRecord.id)
+        .where(
+            VirtualTableRecord.table_id == table_id,
+            VirtualTableRecord.organization_id == organization_id,
+        )
+        .limit(ceiling)
+        .subquery()
+    )
+    count = await db.scalar(select(func.count()).select_from(capped))
+    return count or 0
+
+
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:
     """How many records hold nothing for a column - what stops it becoming required."""
     count = await db.scalar(

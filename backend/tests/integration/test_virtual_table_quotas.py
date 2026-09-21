@@ -1,0 +1,272 @@
+"""What one organization may store, and that a refusal is audited without content.
+
+These commit their data and open a session per call, because a refusal writes its audit
+entry in a session of its own: the refused request rolls back, and an entry written in
+its transaction would go with it. A test that kept everything in one uncommitted session
+could not see that the entry survives.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+
+from app.core.config import settings
+from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.virtual_table import VirtualTableRecord
+from app.schemas.virtual_table import (
+    RecordCreate,
+    RecordUpdate,
+    RecordUpsert,
+    TableCreate,
+)
+from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables.exceptions import QuotaExceededError
+from tests.integration.virtual_table_support import column, ctx_for, make_org, make_user
+
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+SECRET_TEXT = "a-value-that-must-never-appear-in-an-audit-entry"
+
+
+async def _tenant(factory):
+    async with factory() as setup:
+        owner = await make_user(setup)
+        org = await make_org(setup, owner=owner)
+        await setup.commit()
+    return ctx_for(owner, org)
+
+
+async def _call(factory, work):
+    async with factory() as session:
+        try:
+            result = await work(VirtualTableService(session))
+            await session.commit()
+            return result
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def _table(factory, ctx, name="People"):
+    return await _call(
+        factory,
+        lambda service: service.create_table(
+            ctx, TableCreate(name=name, columns=[column("Note", "text")])
+        ),
+    )
+
+
+async def _refusals(factory, ctx) -> list[dict]:
+    async with factory() as session:
+        rows = await session.scalars(
+            select(AppAdminAuditLog.details).where(
+                AppAdminAuditLog.organization_id == ctx.organization_id,
+                AppAdminAuditLog.action == "table.quota_refused",
+            )
+        )
+        return list(rows)
+
+
+async def _records(factory) -> int:
+    async with factory() as session:
+        return await session.scalar(select(func.count()).select_from(VirtualTableRecord))
+
+
+async def test_a_record_over_the_size_limit_is_refused_typed_and_audited_without_its_content(
+    engine: AsyncEngine, monkeypatch
+):
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 200)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    note = str(table.columns[0].id)
+
+    with pytest.raises(QuotaExceededError) as raised:
+        await _call(
+            factory,
+            lambda service: service.create_record(
+                ctx, table.id, RecordCreate(values={note: SECRET_TEXT * 10})
+            ),
+        )
+
+    error = raised.value
+    assert (error.status_code, error.code) == (402, "QUOTA_EXCEEDED")
+    assert error.details == {"quota": "record_bytes", "limit": 200}
+    assert SECRET_TEXT not in error.message
+    assert await _records(factory) == 0
+    entries = await _refusals(factory, ctx)
+    assert entries == [{"quota": "record_bytes", "limit": 200}]
+    assert SECRET_TEXT not in str(entries)
+
+
+async def test_a_record_may_be_exactly_the_limit_and_an_update_past_it_is_refused(
+    engine: AsyncEngine, monkeypatch
+):
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    note = str(table.columns[0].id)
+    overhead = len(('{"' + note + '":""}').encode())
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", overhead + 10)
+
+    written = await _call(
+        factory,
+        lambda service: service.create_record(ctx, table.id, RecordCreate(values={note: "x" * 10})),
+    )
+    with pytest.raises(QuotaExceededError):
+        await _call(
+            factory,
+            lambda service: service.update_record(
+                ctx,
+                table.id,
+                written.record.id,
+                RecordUpdate(expected_revision=1, values={note: "x" * 11}),
+            ),
+        )
+
+    async with factory() as check:
+        stored = await VirtualTableService(check).get_record(ctx, table.id, written.record.id)
+    assert (stored.revision, stored.values) == (1, {note: "x" * 10})
+
+
+async def test_the_record_limit_counts_bytes_not_characters(engine: AsyncEngine, monkeypatch):
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    note = str(table.columns[0].id)
+    overhead = len(('{"' + note + '":""}').encode())
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", overhead + 6)
+
+    with pytest.raises(QuotaExceededError):
+        await _call(
+            factory,
+            lambda service: service.create_record(
+                ctx, table.id, RecordCreate(values={note: "é" * 4})
+            ),
+        )
+
+
+async def test_the_table_limit_is_per_organization_and_counts_archived_tables(
+    engine: AsyncEngine, monkeypatch
+):
+    monkeypatch.setattr(settings, "TABLES_MAX_PER_ORGANIZATION", 2)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ours, theirs = await _tenant(factory), await _tenant(factory)
+    first = await _table(factory, ours, "One")
+    await _table(factory, ours, "Two")
+    await _call(factory, lambda service: service.archive_table(ours, first.id))
+
+    with pytest.raises(QuotaExceededError) as raised:
+        await _table(factory, ours, "Three")
+
+    assert raised.value.details == {"quota": "tables", "limit": 2}
+    assert (
+        len((await _call(factory, lambda s: s.list_tables(ours, include_archived=True))).items) == 2
+    )
+    await _table(factory, theirs, "One")
+    await _table(factory, theirs, "Two")
+    assert await _refusals(factory, ours) == [{"quota": "tables", "limit": 2}]
+    assert await _refusals(factory, theirs) == []
+
+
+async def test_the_record_limit_is_per_table_and_per_organization(engine: AsyncEngine, monkeypatch):
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 3)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ours, theirs = await _tenant(factory), await _tenant(factory)
+    table, other_table = await _table(factory, ours), await _table(factory, ours, "Other")
+    foreign = await _table(factory, theirs)
+    for n in range(3):
+        await _call(
+            factory,
+            lambda service, n=n: service.create_record(
+                ours, table.id, RecordCreate(external_id=f"r{n}", values={})
+            ),
+        )
+
+    for refused in (
+        lambda service: service.create_record(ours, table.id, RecordCreate(values={})),
+        lambda service: service.upsert_record(ours, table.id, "new", RecordUpsert(values={})),
+    ):
+        with pytest.raises(QuotaExceededError) as raised:
+            await _call(factory, refused)
+        assert raised.value.details == {"quota": "records", "limit": 3}
+
+    # The other table of the same organization, and another organization, are unaffected.
+    for target, who in ((other_table, ours), (foreign, theirs)):
+        for _ in range(3):
+            await _call(
+                factory,
+                lambda service, target=target, who=who: service.create_record(
+                    who, target.id, RecordCreate(values={})
+                ),
+            )
+    assert len(await _refusals(factory, ours)) == 2
+    assert await _refusals(factory, theirs) == []
+
+
+async def test_a_full_table_still_accepts_updates_to_its_records(engine: AsyncEngine, monkeypatch):
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 1)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    note = str(table.columns[0].id)
+    written = await _call(
+        factory,
+        lambda service: service.upsert_record(ctx, table.id, "only", RecordUpsert(values={})),
+    )
+
+    changed = await _call(
+        factory,
+        lambda service: service.upsert_record(
+            ctx,
+            table.id,
+            "only",
+            RecordUpsert(values={note: "edited"}, expected_revision=written.record.revision),
+        ),
+    )
+
+    assert changed.record.revision == 2
+
+
+async def test_concurrent_creates_cannot_pass_the_record_limit_together(
+    engine: AsyncEngine, monkeypatch
+):
+    """Each would read 'two of three' and insert; the count lock makes the check one step."""
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 3)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+
+    results = await asyncio.gather(
+        *(
+            _call(
+                factory,
+                lambda service: service.create_record(ctx, table.id, RecordCreate(values={})),
+            )
+            for _ in range(8)
+        ),
+        return_exceptions=True,
+    )
+
+    assert sum(not isinstance(r, BaseException) for r in results) == 3
+    assert all(isinstance(r, QuotaExceededError) for r in results if isinstance(r, BaseException))
+    assert await _records(factory) == 3
+
+
+async def test_concurrent_table_creates_cannot_pass_the_table_limit_together(
+    engine: AsyncEngine, monkeypatch
+):
+    monkeypatch.setattr(settings, "TABLES_MAX_PER_ORGANIZATION", 2)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+
+    results = await asyncio.gather(
+        *(_table(factory, ctx, f"T{n}") for n in range(6)), return_exceptions=True
+    )
+
+    assert sum(not isinstance(r, BaseException) for r in results) == 2
+    assert all(isinstance(r, QuotaExceededError) for r in results if isinstance(r, BaseException))

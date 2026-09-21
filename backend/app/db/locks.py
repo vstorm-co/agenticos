@@ -53,6 +53,10 @@ class LockScope(IntEnum):
     #: without this two creates of one name both pass the check and the second
     #: dies on the unique index with a 500 instead of a 409 (#1782).
     VIRTUAL_TABLE_NAMES_PER_ORG = 7
+    #: The record count of one table. A quota reads "how many records" and then
+    #: inserts, which two creates can do at once and both pass at limit - 1, so
+    #: creates into one table take turns for the length of the check (#1823).
+    VIRTUAL_TABLE_RECORD_COUNT = 8
 
 
 def _key(subject: UUID) -> int:

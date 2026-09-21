@@ -41,6 +41,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
@@ -160,6 +161,22 @@ def _merge(
     return merged
 
 
+def _changed_cells(
+    before: dict[str, CellValue], after: dict[str, CellValue]
+) -> dict[str, dict[str, CellValue]]:
+    """The `before` and `after` of an update's history row: only the cells that changed.
+
+    A full snapshot of each side would make one edit of one cell cost two copies of the
+    record, however large, and the cost of repeating it would be the size of the record
+    times the number of requests. A column missing from one side was empty there.
+    """
+    changed = [key for key in before.keys() | after.keys() if before.get(key) != after.get(key)]
+    return {
+        "before": {key: before[key] for key in changed if key in before},
+        "after": {key: after[key] for key in changed if key in after},
+    }
+
+
 def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterClause], SortClause]:
     by_id = {column.id: column for column in columns}
     clauses: list[FilterClause] = []
@@ -274,6 +291,7 @@ class RecordOperations(Operations):
 
         Raises:
             AlreadyExistsError: The external id is taken.
+            QuotaExceededError: The record is over the size limit, or the table is full.
             InvalidRecordError: A value does not fit its column.
             ArchivedColumnError: A value names an archived column.
             TableArchivedError: The table is archived.
@@ -484,6 +502,8 @@ class RecordOperations(Operations):
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
         merged = _merge(await self._columns(table), values, None)
+        await quotas.enforce_record_size(ctx, table, merged)
+        await quotas.enforce_record_count(self.db, ctx, table)
         record = await virtual_table_repo.insert_record(
             self.db,
             organization_id=ctx.organization_id,
@@ -566,6 +586,7 @@ class RecordOperations(Operations):
             # snapshot, and a receipt holding a whole copy, for a request that changed
             # nothing would let tiny repeated requests grow the shared database.
             raise _Unchanged(RecordRead.model_validate(record))
+        await quotas.enforce_record_size(ctx, table, merged)
         await virtual_table_repo.update_record(
             self.db,
             record=record,
@@ -581,6 +602,5 @@ class RecordOperations(Operations):
             revision=record.revision,
             operation="update",
             actor_user_id=ctx.subject_id,
-            before=before,
-            after=merged,
+            **_changed_cells(before, merged),
         )

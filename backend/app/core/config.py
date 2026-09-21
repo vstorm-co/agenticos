@@ -416,6 +416,35 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many table writes one member may make per minute, counted per member
+    # and organization in the shared Redis: a record create, update, upsert or
+    # delete, and a table create, rename, archive or schema change. Every one of
+    # them stores a snapshot in history, and a receipt when an idempotency key
+    # rides along, so a member editing one cell back and forth is the way a
+    # tenant grows a shared database with tiny requests (#1823). Wide enough
+    # for an import script or a person editing by hand, narrow enough that a
+    # loop is refused after a minute rather than after a night.
+    RATE_LIMIT_TABLE_WRITES_PER_MINUTE: int = Field(default=300, gt=0)
+    # Virtual Tables quotas, per organization. Every one is a ceiling on what one
+    # tenant may store in the shared PostgreSQL, and a write over one is refused
+    # with QUOTA_EXCEEDED and audited without its content (#1823). Tables count
+    # archived ones, because a table is never deleted and its rows stay.
+    TABLES_MAX_PER_ORGANIZATION: int = Field(default=200, gt=0)
+    TABLES_MAX_RECORDS_PER_TABLE: int = Field(default=100_000, gt=0)
+    # The serialized size of one record's values, in bytes. It bounds a create's
+    # and a delete's history snapshot and a receipt's copy, since each holds one
+    # record at most.
+    TABLES_MAX_RECORD_BYTES: int = Field(default=1_000_000, ge=1)
+    # How long an idempotency receipt answers a retry. After it, the same key is
+    # a new write. Also the bound on how long a receipt's full copy of a record
+    # is kept.
+    TABLES_RECEIPT_TTL_HOURS: int = Field(default=24, gt=0)
+    # How long a dispatched outbox row is kept. Undispatched rows are never
+    # removed: they are events nobody has consumed yet.
+    TABLES_OUTBOX_RETENTION_DAYS: int = Field(default=3, gt=0)
+    # How long a record's history is kept, counted from the change, for a deleted
+    # record as much as a live one.
+    TABLES_HISTORY_RETENTION_DAYS: int = Field(default=365, gt=0)
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
