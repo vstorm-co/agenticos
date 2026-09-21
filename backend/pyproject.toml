@@ -21,12 +21,12 @@ dependencies = [
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.4",
+    "uvicorn[standard]>=0.53.0",
     "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.0.0",
-    "sqlalchemy[asyncio]>=2.0.52",
+    "sqlalchemy[asyncio]>=2.0.54",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
@@ -73,7 +73,7 @@ dependencies = [
     # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
     # own change, with its own tests. Until then this cap is what keeps the
     # scheduled freshness upgrade green rather than perpetually red.
-    "mcp<2",
+    "mcp<3",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -98,7 +98,7 @@ dependencies = [
     "liteparse>=2.14.4",
     "google-api-python-client>=2.200.0",
     "google-auth>=2.58.0",
-    "boto3>=1.43.92",
+    "boto3>=1.43.97",
     "httpx>=0.28.0",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -185,8 +185,8 @@ dev = [
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.7",
-    "ty>=0.0.80",
+    "ruff>=0.16.8",
+    "ty>=0.0.82",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
