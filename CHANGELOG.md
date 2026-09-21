@@ -71,12 +71,15 @@ Two things are versioned separately from this file and worth knowing about:
   it in whole pixels - a sprite drawn on a 16-pixel grid and moved a third of a
   pixel is a sprite with soft edges. `scripts/gen_amigo_assets.py` cuts it from
   the same drawing as the mark, so there is still one Amigo.
-- **The social preview is rebuilt, and now has a source.** The card it replaced
-  was a finished PNG with nothing behind it: the mark changed, the card kept
-  showing the retired one, and nothing noticed. `docs/assets/social-preview.html`
-  is the card - flat ground, no gradient wash, no drawn grid, the product's own
-  Bricolage Grotesque - and Amigo paces along the bottom of it. It renders to a
-  GIF for anywhere that animates and a PNG for anywhere that does not.
+- **The social preview shows the product, and now has a source.** The card it
+  replaced was a finished PNG with nothing behind it: the mark changed, the card
+  kept showing the retired one, and nothing noticed. It also showed nothing of
+  the thing it was advertising. `docs/assets/social-preview.html` is the card,
+  and it cycles three real screens cut straight from `docs/assets/screens/dark/`
+  - the builder, a chat run that drew a chart, the spend ledger - one for each
+  verb in the tagline, with the verb and the address bar changing under them.
+  Amigo paces the ledge beside it. It renders to a GIF for anywhere that
+  animates and a PNG for anywhere that does not.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
   header and hero, a lucide sparkle in the console sidebar, a lime dot in the
