@@ -51,6 +51,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A chat turn is set to a readable measure.** The transcript's column was sized
+  for the widest thing that can appear in it - a chart, a table, a tool card - and
+  the text took the same width, about a hundred characters to a line at the body
+  size. Past roughly seventy-five the eye loses which line it was on coming back
+  to the left edge, which is most of a three-paragraph answer. Prose is now capped
+  at 62 characters' width and nothing else is: a code block, a table's scroller
+  and a chart still get the column. The column itself narrowed with it, because a
+  wider one did not make the answer wider - it parked the answer against the left
+  edge and the question against the right one with a few hundred pixels of nothing
+  between them. A question is bounded too; an unbounded one turned a pasted
+  paragraph into a bright slab wider than the answer under it.
 - **Amigo is the product's mark, everywhere one was drawn.** Five different marks
   were in circulation: the pixel mascot in the README, a blue orbit in the docs
   header and hero, a lucide sparkle in the console sidebar, a lime dot in the

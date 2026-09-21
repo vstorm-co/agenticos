@@ -1022,6 +1022,25 @@
   .prose-legal > :last-child {
     margin-bottom: 0;
   }
+
+  /*
+   * A readable measure for an answer, applied to the parts of one that are read
+   * as prose and to nothing else.
+   *
+   * A turn fills the transcript's column, which is sized for a table, a chart and
+   * a tool card - about a hundred characters of text at the body size, a third
+   * past where a line stops being easy to follow. Past roughly 75 the eye loses
+   * which line it was on when it returns to the left edge, and an answer of three
+   * paragraphs is where that starts to cost something.
+   *
+   * The exclusions are what keeps the column useful: every block that needs the
+   * full width arrives as a `div` (a collapsible code block, a table's scroller,
+   * a chart, a tool card) or as a bare `pre`, and capping those would put a
+   * horizontal scrollbar on content that had room for itself.
+   */
+  .chat-measure > *:not(div):not(pre):not(figure) {
+    max-width: 62ch;
+  }
 }
 
 /* =========================================================================

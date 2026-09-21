@@ -207,15 +207,18 @@ export function TextBubble({
   onCiteClick?: (index: number) => void;
 }) {
   if (isUser) {
+    // Bounded, because the column it sits in is sized for a chart: unbounded, a
+    // pasted paragraph became a bright slab the width of the transcript, louder
+    // than the answer under it.
     return (
-      <div className="bg-foreground text-background relative rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
+      <div className="bg-foreground text-background relative max-w-[60ch] rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
         <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
       </div>
     );
   }
 
   return (
-    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
+    <div className="prose-sm chat-measure max-w-none text-[15px] leading-relaxed">
       <MarkdownContent content={text} onCiteClick={onCiteClick} />
       {showCursor && (
         <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
