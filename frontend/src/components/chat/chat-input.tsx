@@ -318,7 +318,7 @@ export function ChatInput({
         }
       }
     },
-    [chatMaxUploadSizeMb, t],
+    [chatMaxUploadSizeMb, t, tErrors],
   );
 
   /**
@@ -344,10 +344,19 @@ export function ChatInput({
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+      // `e.target.files` is the input's own live `FileList`, not a copy of one:
+      // resetting the input empties that same object in place, so the array has
+      // to be built *before* the reset. Reading it after meant `Array.from` saw
+      // an empty list and the upload returned at its own empty guard - no card,
+      // no toast, no request, on every pick through the picker. jsdom does not
+      // reproduce the clear, so the unit suite stayed green throughout.
+      const files = Array.from(e.target.files ?? []);
+      // Cleared unconditionally, and before the early return: picking the same
+      // file twice in a row has to fire `change` again, which is what somebody
+      // does after a refusal they have since fixed.
       e.target.value = "";
-      await uploadFiles(Array.from(files));
+      if (files.length === 0) return;
+      await uploadFiles(files);
     },
     [uploadFiles],
   );
