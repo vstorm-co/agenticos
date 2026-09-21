@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.475] - 2026-09-21
+
+### Fixed
+
+- **The paperclip attaches the file again.** Picking a file through the
+  composer's file picker did nothing at all: no attachment card, no toast, no
+  request. `handleFileSelect` held the input's own live `FileList` and then
+  cleared the input, which empties that list in place in Blink and WebKit, so the
+  upload saw no files and returned before queueing anything. The files are copied
+  before the input is reset. Drag-and-drop and paste were never affected, because
+  neither goes through the input.
+
 ## [0.0.474] - 2026-09-21
 
 ### Added
