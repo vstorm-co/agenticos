@@ -221,7 +221,7 @@ class RetentionService:
                 continue
             cutoff = moment - timedelta(days=days)
             try:
-                removed = await self._purge(name, organization_id=organization_id, cutoff=cutoff)
+                await self._purge(name, result, cutoff=cutoff)
             except Exception:
                 # Named, not raised: a vector store that is down must not stop
                 # conversations being purged, and the next pass retries this
@@ -231,9 +231,6 @@ class RetentionService:
                     extra={"organization_id": str(organization_id), "retention_class": name},
                 )
                 result.failed.append(name)
-                continue
-            if removed:
-                result.removed[name] = removed
         await self._sweep_table_data(organization_id, moment, result)
         return result
 
@@ -268,14 +265,13 @@ class RetentionService:
         )
         for name, delete_batch, cutoff in sweeps:
             try:
-                removed = 0
                 for _ in range(MAX_BATCHES):
                     # Per batch, for the reason `_purge` gives.
                     async with self.db.begin_nested():
                         took = await delete_batch(
                             self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH
                         )
-                    removed += took
+                    self._count(result, name, took)
                     if took < BATCH:
                         break
             except Exception:
@@ -284,24 +280,37 @@ class RetentionService:
                     extra={"organization_id": str(organization_id), "retention_class": name},
                 )
                 result.failed.append(name)
-                continue
-            if removed:
-                result.removed[name] = removed
 
-    async def _purge(self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime) -> int:
-        """One class, in batches, until a pass removes nothing or the cap is reached."""
-        removed = 0
+    @staticmethod
+    def _count(result: SweepResult, name: str, removed: int) -> None:
+        """Add a finished batch to the class's count, as soon as it is finished.
+
+        Counted per batch rather than when the class ends, because every batch that completed
+        is part of the transaction the sweep commits: a later batch failing must still report
+        the rows the earlier ones removed, or the audit entry says nothing was deleted when it
+        was. A class that removed nothing stays out of `removed`.
+        """
+        if removed:
+            result.removed[name] = result.removed.get(name, 0) + removed
+
+    async def _purge(self, name: RetentionClass, result: SweepResult, *, cutoff: datetime) -> None:
+        """One class, in batches, until a pass removes nothing or the cap is reached.
+
+        Adds what each batch removed to `result` as it goes; an error propagates for the
+        caller to name the class, with the earlier batches already counted.
+        """
         for _ in range(MAX_BATCHES):
             # A savepoint per batch: a database error in one delete aborts the transaction it
             # runs in, and without this every later class - and the audit entry that records the
             # sweep - would fail with InFailedSQLTransaction while the caught error looked
             # handled. Rolling back to the savepoint undoes only the failing batch.
             async with self.db.begin_nested():
-                took = await self._purge_batch(name, organization_id=organization_id, cutoff=cutoff)
-            removed += took
+                took = await self._purge_batch(
+                    name, organization_id=result.organization_id, cutoff=cutoff
+                )
+            self._count(result, name, took)
             if took < BATCH:
                 break
-        return removed
 
     async def _purge_batch(
         self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime

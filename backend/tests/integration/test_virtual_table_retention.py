@@ -81,6 +81,16 @@ async def _count(db, model, org) -> int:
     )
 
 
+async def _audited(db, org) -> dict:
+    """The details of the one `retention.swept` entry an organization's sweep wrote."""
+    return await db.scalar(
+        select(AppAdminAuditLog.details).where(
+            AppAdminAuditLog.organization_id == org.id,
+            AppAdminAuditLog.action == "retention.swept",
+        )
+    )
+
+
 async def _sweep(db):
     return await RetentionService(db).sweep(now=NOW)
 
@@ -394,3 +404,45 @@ async def test_a_batch_that_fails_keeps_the_batches_before_it(db, monkeypatch):
 
     assert result.failed == ["table_receipts"]
     assert await _count(db, VirtualTableReceipt, org) == 2
+    # The two rows the first batch removed are part of what commits, so they are reported.
+    assert result.removed == {"table_receipts": 2}
+    assert await _audited(db, org) == {
+        "removed": {"table_receipts": 2},
+        "failed": ["table_receipts"],
+    }
+
+
+async def test_a_failing_older_class_reports_the_batches_that_finished_before_it(db, monkeypatch):
+    owner, org, _table = await _tenant(db)
+    org.retention_days = {"workspaces": 1}
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    calls = {"n": 0}
+
+    async def second_batch_fails(db, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return 2
+        return await _fail_in_the_database(db)
+
+    monkeypatch.setattr(retention_repo, "delete_workspaces", second_batch_fails)
+
+    (result,) = await _sweep(db)
+
+    assert result.failed == ["workspaces"]
+    assert result.removed == {"workspaces": 2}
+    assert await _audited(db, org) == {"removed": {"workspaces": 2}, "failed": ["workspaces"]}
+    assert owner.id
+
+
+async def test_a_class_that_removed_nothing_before_failing_is_not_reported_as_removed(
+    db, monkeypatch
+):
+    owner, org, _table = await _tenant(db)
+    db.add(_receipt(org, owner, "old", age=timedelta(days=5)))
+    await db.flush()
+    monkeypatch.setattr(retention_repo, "delete_table_outbox", _fail_in_the_database)
+
+    (result,) = await _sweep(db)
+
+    assert "table_outbox" not in result.removed
+    assert (await _audited(db, org))["failed"] == ["table_outbox"]
