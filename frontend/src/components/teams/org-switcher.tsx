@@ -59,7 +59,15 @@ export function OrganizationMenuItems() {
   return (
     <>
       {orgs.map((org) => (
-        <DropdownMenuItem key={org.id} onSelect={() => pick(org.id)} className="gap-2">
+        <DropdownMenuItem
+          key={org.id}
+          onSelect={() => pick(org.id)}
+          className="gap-2"
+          // The tick below is decoration, so which organization you are in was
+          // announced to nobody once this moved off a button whose label used to
+          // say it. `aria-current` is the same fact, reachable.
+          aria-current={org.id === activeId ? "true" : undefined}
+        >
           <EntityAvatar
             seed={org.id}
             name={org.name}
