@@ -1,5 +1,5 @@
 ---
-source_sha: "fffeb5145a26"
+source_sha: "dd8410f601c7"
 ---
 
 # La consola { #the-console }
@@ -105,6 +105,15 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**Ver un recorrido.** Un agent con
+[automatización del navegador](reference/capabilities.md#browser-automation-choose)
+abre un panel junto a la transcripción cuando empieza a recorrer una página: la vista
+de la página según avanza, la página en la que está y cada paso con la probabilidad
+con la que el motor lo eligió. Ese número es la razón de que exista el panel en lugar
+de un indicador de carga: un recorrido que actuó sobre una elección de 0,31 merece
+una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la página* es
+una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

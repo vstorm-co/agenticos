@@ -100,6 +100,15 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
+**Watching a browse.** An agent with
+[browser automation](reference/capabilities.md#browser-automation-choose) opens a
+panel beside the transcript when it starts working through a page: the viewport as
+it goes, the page it is on, and each step with the probability the engine chose it
+at. That number is the reason the panel exists rather than a spinner - a browse that
+acted on a 0.31 pick is one worth looking into. It stays up when the browse ends,
+because *blocked by the page* is an answer about the page. Close it and it stays
+closed for that browse.
+
 ## What each area is for
 
 | Area | It holds | Read |

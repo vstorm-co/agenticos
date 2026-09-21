@@ -1,5 +1,5 @@
 ---
-source_sha: "fffeb5145a26"
+source_sha: "dd8410f601c7"
 ---
 
 # Die Konsole { #the-console }
@@ -115,6 +115,16 @@ werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe
 gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
+
+**Einem Durchlauf zusehen.** Ein Agent mit
+[Browser-Automatisierung](reference/capabilities.md#browser-automation-choose) öffnet
+ein Panel neben dem Transkript, sobald er eine Seite durchzuarbeiten beginnt: das
+Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit der
+Wahrscheinlichkeit, mit der die Engine ihn gewählt hat. Diese Zahl ist der Grund,
+warum es das Panel statt eines Spinners gibt — ein Durchlauf, der auf einer Auswahl
+von 0,31 gehandelt hat, ist einen Blick wert. Es bleibt stehen, wenn der Durchlauf
+endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
+es, bleibt es für diesen Durchlauf geschlossen.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

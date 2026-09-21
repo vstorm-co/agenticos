@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **`browser_choice`, a browser capability that picks from the page instead of
+  writing its next move.** `browse_page` takes a goal and a URL, opens it in a
+  Chromium the operator runs, and repeats: read the page into a numbered table of
+  the elements a person could act on, ask a decision model which operation and
+  which element, do that. Only typing a field's value reaches a language model.
+  The premise is the security property - an engine that composes its action can
+  emit any string, so page text is an instruction channel into the model, while a
+  pick-one whose options are built server-side from the live DOM cannot be talked
+  into an action the page does not offer. It is still `side_effecting` and
+  gateable, because "Delete account" is an action a page genuinely offers. Four
+  outcomes and no fifth: finished, blocked by the page, stopped at the step limit,
+  browser unreachable - so a sign-in wall and a crashed browser are different
+  answers. `cdp_url` points at a browser service the operator runs and isolates,
+  SSRF-checked at publish; there is no local mode and no Chromium in the API image.
+  The engine arrives with the `browser` extra (`cdp-use` and the TypeSafe SDK),
+  which costs the lock two additions and no downgrade. Both model paths are
+  metered, and neither is priced - the bundled price snapshot does not know the
+  decision model, so `max_steps` is what bounds a browse rather than a dollar cap,
+  and the capability's README and `docs/reference/capabilities.md` say so. Page
+  content reaches the decision model on every step: the vault key requirement is
+  the operator's opt-in, `decision_base_url` moves the destination, and both are
+  named in `docs/data-protection.md`.
+- **A live browser panel in the chat.** A browse streams its steps, the
+  probability the engine chose each at, and the viewport as a picture per step -
+  narration and picture as separate frames, so encoding one never holds up the
+  other, and a finish frame on every outcome so nothing is left spinning. The
+  panel opens itself when a browse starts, stays up when it ends (*blocked by the
+  page* is the outcome most worth reading), and stays closed for a browse somebody
+  closed it on. `preview` off keeps the narration and drops the pictures.
+
 ## [0.0.477] - 2026-09-21
 
 ### Changed

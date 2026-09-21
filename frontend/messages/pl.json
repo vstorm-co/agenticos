@@ -243,7 +243,9 @@
     "thinking": "Myślę...",
     "title": "Czat",
     "tools": {
-      "patternInFile": "{pattern} w {file}"
+      "patternInFile": "{pattern} w {file}",
+      "workingThroughPage": "Przechodzę przez stronę",
+      "browsePage": "Przejdź przez stronę"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -271,6 +273,22 @@
       "you": "Ty",
       "agent": "Agent",
       "empty": "Ta wiadomość nie ma tekstu"
+    },
+    "browserHeading": "Przeglądarka",
+    "browserClose": "Zamknij panel przeglądarki",
+    "browserGoal": "Cel",
+    "browserSteps": "Kroki",
+    "browserStep": "Krok {step}",
+    "browserStepOf": "Krok {step} z {total}",
+    "browserWaitingForFrame": "Czekam na pierwszy widok strony…",
+    "browserNoPreview": "Ten agent działa bez podglądu na żywo.",
+    "browserViewportAlt": "Strona w kroku {step}",
+    "browserConfidenceHint": "Silnik wybrał tę opcję z prawdopodobieństwem {value}",
+    "browserOutcome": {
+      "done": "Zakończone",
+      "blocked": "Strona zablokowała działanie",
+      "exhausted": "Zatrzymane na limicie kroków",
+      "failed": "Nie udało się połączyć z przeglądarką"
     }
   },
   "errors": {

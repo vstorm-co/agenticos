@@ -30,6 +30,7 @@ tools listed.
 | `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
@@ -444,6 +445,76 @@ running until it is edited, rather than going on fetching unapproved.
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
 to do with a page belongs to the agent's instructions.
+
+## Browser automation (choose)
+
+`browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
+
+A goal and a starting URL. It opens the page in a Chromium you run and then repeats
+three things: read the page into a numbered table of the elements a person could act
+on, ask a decision model which operation and which element, carry that out. Only
+typing a field's value reaches a language model.
+
+Reach for it when a page has to be *operated* — a form, a filter, a consent gate, a
+multi-step flow, a search whose results need a click. For a page you only need to
+read, [web fetch](#web-fetch) is faster and has no side effects.
+
+**It chooses; it does not compose.** A browser agent that writes its next action can
+emit any string, so the page's text is an instruction channel into the model and the
+only defence is telling the model not to listen. This one answers a pick-one whose
+options are built on the server from the live DOM, so a page cannot offer an action
+by describing one.
+
+That is not the same as safe. "Delete account" is an action a page genuinely offers,
+so `browse_page` is **`side_effecting` and gateable** — put it behind
+[approval](../governance.md) and the injected page reaches a person, not an action.
+
+**It reports being blocked.** A sign-in wall, a consent gate, a captcha, a page that
+does not contain what was asked for: the engine says so, and the browse ends with an
+outcome rather than with silence at the step ceiling. Four outcomes, and all four are
+ordinary — finished, blocked by the page, stopped at the step limit, and the browser
+could not be reached.
+
+| Config | Default | Values |
+|---|---|---|
+| `cdp_url` | — | a Chromium DevTools endpoint; required, SSRF-checked at publish |
+| `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted |
+| `decision_model` | `jev-latest` | the model that picks the operation and the element each step |
+| `decision_base_url` | null | where that model runs, when it is not the vendor's public endpoint |
+| `max_steps` | 25 | 1–100; each step is one decision request |
+| `candidate_cap` | 60 | 2–200; how many elements may be offered as choices in one step |
+| `min_confidence` | 0.0 | 0–1; refuse to act on a pick scored below this, ending the browse as blocked |
+| `preview` | `true` | send the viewport to the chat while the browse runs |
+| `preview_width` | 1024 | 320–1920; how wide those frames are |
+
+**The browser is one you run.** There is no local mode and no Chromium in the API
+image: `cdp_url` points at a browser service an operator runs and isolates. It is a
+URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
+private, reserved or metadata address is refused **at publish**, when the spec is
+saved, rather than on every run.
+
+**Every step sends the page to the decision model.** Its URL, its title and its
+element labels — which on the vendor's public endpoint is a third party, and may be
+the contents of an internal system. Two things make that a decision rather than an
+accident: the capability requires an API key from this deployment's vault, so it
+cannot run until an operator adds one, and `decision_base_url` points the decision
+model somewhere else. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).
+
+**Both model paths are metered, and neither is priced.** The decision model runs once
+per step and the run's own model once per field typed; both book tokens against the
+run's budget. A price is another matter: the bundled price snapshot does not know the
+decision model, so a browse shows usage and no cost, and a budget denominated in
+dollars does not constrain it. `max_steps` is what bounds a browse.
+
+**`cdp-use` and the TypeSafe SDK arrive with the `browser` extra**, which a default
+install does not have. An operator who wants the capability installs
+`agenticos[browser]`; a bound agent whose deployment lacks it fails the one tool
+loudly, with the install line.
+
+**It streams while it runs.** The console draws the viewport, the page it is on, and
+each step with the probability the engine found it at — see
+[the console](../console.md). `preview` off keeps the narration and drops the
+pictures.
 
 ## Browser automation
 
@@ -1530,7 +1601,7 @@ the agent is assembled:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
+| `web:browse` | `browser_choice`, `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

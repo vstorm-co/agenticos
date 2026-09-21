@@ -1175,7 +1175,9 @@
       "webSearch": "Web Search",
       "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
       "writingPlan": "Writing the plan",
-      "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
+      "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}",
+      "workingThroughPage": "Working through a page",
+      "browsePage": "Work Through a Page"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1211,6 +1213,22 @@
       "you": "You",
       "agent": "Agent",
       "empty": "No text in this message"
+    },
+    "browserHeading": "Browser",
+    "browserClose": "Close the browser panel",
+    "browserGoal": "Goal",
+    "browserSteps": "Steps",
+    "browserStep": "Step {step}",
+    "browserStepOf": "Step {step} of {total}",
+    "browserWaitingForFrame": "Waiting for the first view of the page…",
+    "browserNoPreview": "This agent runs without a live preview.",
+    "browserViewportAlt": "The page as it looked at step {step}",
+    "browserConfidenceHint": "The engine found this pick with probability {value}",
+    "browserOutcome": {
+      "done": "Finished",
+      "blocked": "Blocked by the page",
+      "exhausted": "Stopped at the step limit",
+      "failed": "The browser could not be reached"
     }
   },
   "common": {

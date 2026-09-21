@@ -16,6 +16,7 @@ import type {
   ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
+  BrowserFrame,
   ChatMessageFile,
   Compaction,
   PersonalServiceGap,
@@ -36,6 +37,8 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
+import { applyBrowserFrame, type Browse } from "@/lib/browse";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
@@ -166,6 +169,15 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The browses of the turn on screen, keyed by their own `call_id` and held
+  // outside the assistant message for the reason the delegations above are: a
+  // `browse_page` call outlives nothing here, but its finish frame can land
+  // after `complete`, and anything hung off the streaming message would lose the
+  // outcome - which for a browse is the whole answer.
+  const [browses, setBrowses] = useState<Browse[]>([]);
+  // Selected rather than destructured, so a frame arriving does not re-render
+  // this hook's whole tree every time the panel's own open state changes.
+  const openBrowserPanel = useBrowserPanelStore((state) => state.openFor);
   // The summary in flight, or `null`. Cleared by the finishing frame and by the
   // end of the turn: a `complete` that arrived without one - a run that failed
   // between the two - would otherwise leave the notice up until the next message.
@@ -415,6 +427,25 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "browser_opened":
+        case "browser_step":
+        case "browser_frame":
+        case "browser_finished": {
+          // One branch for every frame: the envelope's `type` is the frame's own
+          // `kind` (see `AgentSession._browser_event`), so the payload narrows
+          // itself and the cases share one reducer.
+          const frame = wsEvent.data as BrowserFrame;
+          setBrowses((current) => applyBrowserFrame(current, frame));
+          // The panel opens itself on the first frame of a browse and not on the
+          // rest: a browse is a real browser being driven for a minute, and
+          // watching it is how somebody notices it acting on a page they did not
+          // expect. It stays closed for a browse the person closed it on.
+          if (frame.kind === "browser_opened") {
+            openBrowserPanel(frame.call_id);
+          }
+          break;
+        }
+
         case "compaction_impossible": {
           // Not a state - a setting. The fixed overhead is already past the
           // trigger, so no summary can get under it and the platform refuses to
@@ -576,6 +607,10 @@ export function useChat(options: UseChatOptions = {}) {
       // currentMessageId is read via currentMessageIdRef inside the handler,
       // so we deliberately omit it here - that's the whole point of the ref.
       addMessage,
+      // The store's own action, stable for this component's life - listed rather
+      // than omitted, because omitting it is how the next reorder of this list
+      // silently captures a stale one.
+      openBrowserPanel,
       updateMessage,
       appendTextDelta,
       appendThinkingDelta,
@@ -1216,6 +1251,8 @@ export function useChat(options: UseChatOptions = {}) {
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,
+    /** The turn's browses, in the order they started. See `BrowserPanel`. */
+    browses,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "26352d1d438f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -35,6 +35,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` |
 | `browser_use` | Browser-Automatisierung | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
 | `code_execution` | Python ausführen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Dateien & Shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
@@ -501,6 +502,82 @@ Eine Seite kommt als Markdown an, bei `max_content_chars` abgeschnitten; ein PDF
 oder ein Bild kommt als Binärinhalt an, den das Modell nativ liest. Nichts fasst
 es zusammen — was mit einer Seite zu tun ist, gehört in die Instruktionen des
 Agents.
+
+## Browser-Automatisierung (Auswahl) { #browser-automation-choose }
+
+`browse_page` — *Arbeitet eine Webseite Schritt für Schritt auf ein Ziel hin durch, eine gewählte Aktion nach der anderen.*
+
+Ein Ziel und eine Start-URL. Die Capability öffnet die Seite in einem Chromium, das
+Sie selbst betreiben, und wiederholt drei Dinge: Sie liest die Seite in eine
+nummerierte Tabelle der Elemente ein, auf denen ein Mensch handeln könnte, fragt ein
+Entscheidungsmodell nach Operation und Element und führt das aus. Nur der Wert eines
+Eingabefelds erreicht ein Sprachmodell.
+
+Greifen Sie dazu, wenn eine Seite *bedient* werden muss — ein Formular, ein Filter,
+ein Cookie-Banner, ein mehrstufiger Ablauf, eine Suche, deren Ergebnis einen Klick
+braucht. Für eine Seite, die Sie nur lesen müssen, ist [Web-Fetch](#web-fetch)
+schneller und hat keine Seiteneffekte.
+
+**Sie wählt, sie formuliert nicht.** Ein Browser-Agent, der seine nächste Aktion
+schreibt, kann jede beliebige Zeichenkette ausgeben — der Text der Seite ist damit
+ein Anweisungskanal in das Modell hinein, und die einzige Verteidigung besteht darin,
+dem Modell zu sagen, es solle nicht zuhören. Diese hier beantwortet eine
+Einfachauswahl, deren Optionen serverseitig aus dem lebenden DOM gebaut werden — eine
+Seite kann eine Aktion also nicht anbieten, indem sie sie beschreibt.
+
+Das ist nicht dasselbe wie sicher. „Konto löschen" ist eine Aktion, die eine Seite
+tatsächlich anbietet, deshalb ist `browse_page` **`side_effecting` und gate-fähig** —
+stellen Sie es hinter eine [Freigabe](../governance.md), und die eingeschleuste Seite
+erreicht einen Menschen, keine Aktion.
+
+**Sie meldet, wenn sie blockiert ist.** Eine Anmeldewand, ein Einwilligungsdialog,
+ein Captcha, eine Seite, die das Gefragte nicht enthält: Die Engine sagt es, und der
+Durchlauf endet mit einem Ergebnis statt mit Schweigen an der Schrittgrenze. Vier
+Ergebnisse, und alle vier sind gewöhnlich — abgeschlossen, von der Seite blockiert,
+an der Schrittgrenze gestoppt und der Browser war nicht erreichbar.
+
+| Einstellung | Standard | Werte |
+|---|---|---|
+| `cdp_url` | — | ein Chromium-DevTools-Endpunkt; erforderlich, bei der Veröffentlichung SSRF-geprüft |
+| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Globs wie `*.example.com` erlaubt; null bedeutet unbeschränkt |
+| `decision_model` | `jev-latest` | das Modell, das in jedem Schritt Operation und Element wählt |
+| `decision_base_url` | null | wo dieses Modell läuft, wenn es nicht der öffentliche Endpunkt des Anbieters ist |
+| `max_steps` | 25 | 1–100; jeder Schritt ist eine Entscheidungsanfrage |
+| `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt zur Auswahl gestellt werden dürfen |
+| `min_confidence` | 0.0 | 0–1; auf eine Auswahl unterhalb dieses Werts nicht handeln und den Durchlauf als blockiert beenden |
+| `preview` | `true` | das Sichtfenster während des Durchlaufs an den Chat senden |
+| `preview_width` | 1024 | 320–1920; wie breit diese Bilder sind |
+
+**Der Browser ist Ihrer.** Es gibt keinen lokalen Modus und kein Chromium im
+API-Image: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und
+isoliert. Es ist eine URL, die dieses Deployment serverseitig aufruft, also wird sie
+SSRF-geprüft — eine Loopback-, private, reservierte oder Metadaten-Adresse wird **bei
+der Veröffentlichung** abgelehnt, beim Speichern des Spec, nicht bei jedem Run.
+
+**Jeder Schritt sendet die Seite an das Entscheidungsmodell.** Ihre URL, ihren Titel
+und die Beschriftungen der Elemente — was am öffentlichen Endpunkt des Anbieters ein
+Dritter ist und der Inhalt eines internen Systems sein kann. Zwei Dinge machen daraus
+eine Entscheidung statt eines Versehens: Die Capability verlangt einen API-Key aus dem
+Vault dieses Deployments, kann also erst laufen, wenn ein Betreiber einen hinterlegt,
+und `decision_base_url` lenkt das Entscheidungsmodell woandershin. Siehe
+[was das Deployment verlässt](../data-protection.md#what-leaves-the-deployment).
+
+**Beide Modellpfade werden gezählt, keiner bepreist.** Das Entscheidungsmodell läuft
+einmal pro Schritt, das Modell des Runs einmal pro getipptem Feld; beide buchen Token
+auf das Budget des Runs. Ein Preis ist etwas anderes: Der mitgelieferte
+Preis-Snapshot kennt das Entscheidungsmodell nicht, ein Durchlauf zeigt also
+Verbrauch ohne Kosten, und ein in Dollar ausgedrücktes Budget begrenzt ihn nicht.
+`max_steps` ist es, was einen Durchlauf begrenzt.
+
+**`cdp-use` und das TypeSafe-SDK kommen mit dem Extra `browser`**, das eine
+Standardinstallation nicht hat. Ein Betreiber, der die Capability will, installiert
+`agenticos[browser]`; ein daran gebundener Agent auf einem Deployment ohne das Extra
+scheitert an diesem einen Tool laut und mit der Installationszeile.
+
+**Sie streamt, während sie läuft.** Die Konsole zeichnet das Sichtfenster, die Seite,
+auf der sie ist, und jeden Schritt mit der Wahrscheinlichkeit, mit der die Engine ihn
+gefunden hat — siehe [die Konsole](../console.md). `preview` aus behält die Erzählung
+und lässt die Bilder weg.
 
 ## Browser-Automatisierung { #browser-automation }
 
@@ -1732,7 +1809,7 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
+| `web:browse` | `browser_choice`, `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

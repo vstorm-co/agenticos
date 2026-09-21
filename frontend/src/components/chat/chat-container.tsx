@@ -12,6 +12,8 @@ import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
+import type { Browse } from "@/lib/browse";
+import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { TurnRail } from "./turn-rail";
@@ -145,6 +147,7 @@ export function ChatContainer() {
     personalGaps,
     lastUsage,
     delegations,
+    browses,
     sendMessage,
     stopGeneration,
     clearMessages,
@@ -318,6 +321,7 @@ export function ChatContainer() {
       // `latestUsage` is given the id rather than trusting the list.
       conversationCost={currentConversationId === null ? null : currentCost}
       delegations={delegations}
+      browses={browses}
       conversationId={currentConversationId}
       turns={turns}
       attachments={attachments}
@@ -382,6 +386,8 @@ interface ChatUIProps {
    * `complete` - a background delegation reports after the parent has answered.
    */
   delegations: Delegation[];
+  /** The turn's browses, for the live preview panel. See `BrowserPanel`. */
+  browses: Browse[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
   /**
@@ -431,6 +437,7 @@ function ChatUI({
   contextWindow,
   agentModel,
   delegations,
+  browses,
   conversationId,
   turns,
   attachments,
@@ -710,6 +717,12 @@ function ChatUI({
       </div>
       <FilePreviewDialog />
       <SourcesPanel />
+      {/* Opens itself when a browse starts and draws nothing otherwise, so it
+          costs a conversation with no browsing exactly nothing. Beside the
+          transcript rather than in it: the picture is what is happening now, and
+          a frame per step folded into the message list would rewrite the
+          transcript thirty times. */}
+      <BrowserPanel browses={browses} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a

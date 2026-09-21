@@ -1,5 +1,5 @@
 ---
-source_sha: "fffeb5145a26"
+source_sha: "dd8410f601c7"
 ---
 
 # Konsola { #the-console }
@@ -107,6 +107,15 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**Obserwowanie przeglądania.** Agent z
+[automatyzacją przeglądarki](reference/capabilities.md#browser-automation-choose)
+otwiera panel obok transkryptu, gdy zaczyna przechodzić przez stronę: widok strony na
+bieżąco, adres, na którym jest, i każdy krok z prawdopodobieństwem, z jakim silnik go
+wybrał. Ta liczba jest powodem, dla którego panel istnieje zamiast spinnera —
+przeglądanie, które zadziałało na wyborze 0.31, warto sprawdzić. Panel zostaje po
+zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
+zostanie zamknięty dla tego przeglądania.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

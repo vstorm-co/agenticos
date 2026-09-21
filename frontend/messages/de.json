@@ -1171,7 +1171,9 @@
       "webSearch": "Websuche",
       "writing": "{named, select, no {Schreibt …} other {Schreibt {subject}}}",
       "writingPlan": "Schreibt den Plan",
-      "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}"
+      "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}",
+      "workingThroughPage": "Arbeite eine Seite durch",
+      "browsePage": "Eine Seite durcharbeiten"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1198,7 +1200,23 @@
     "view": "Ansehen",
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
-    "whatWentWrong": "Was ist schiefgelaufen?"
+    "whatWentWrong": "Was ist schiefgelaufen?",
+    "browserHeading": "Browser",
+    "browserClose": "Browser-Panel schließen",
+    "browserGoal": "Ziel",
+    "browserSteps": "Schritte",
+    "browserStep": "Schritt {step}",
+    "browserStepOf": "Schritt {step} von {total}",
+    "browserWaitingForFrame": "Warte auf die erste Ansicht der Seite…",
+    "browserNoPreview": "Dieser Agent läuft ohne Live-Vorschau.",
+    "browserViewportAlt": "Die Seite in Schritt {step}",
+    "browserConfidenceHint": "Die Engine wählte diese Option mit Wahrscheinlichkeit {value}",
+    "browserOutcome": {
+      "done": "Abgeschlossen",
+      "blocked": "Von der Seite blockiert",
+      "exhausted": "Beim Schrittlimit gestoppt",
+      "failed": "Der Browser war nicht erreichbar"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

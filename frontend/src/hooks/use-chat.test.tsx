@@ -9,6 +9,7 @@ import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
+  useBrowserPanelStore,
   useChatStore,
   useConversationStore,
   useOrgStore,
@@ -2290,5 +2291,62 @@ describe("what the person cannot reach", () => {
     act(() => result.current.sendMessage("try again"));
 
     expect(result.current.personalGaps).toEqual([]);
+  });
+});
+
+describe("useChat - watching a browse", () => {
+  /** One browser frame, replayed the way the server sends one. */
+  function browserFrame(type: string, data: Record<string, unknown>): void {
+    receive(type, { kind: type, call_id: "c1", ...data });
+  }
+
+  it("opens the panel on the first frame of a browse", () => {
+    // The point of a live preview: a browse is a real browser being driven for a
+    // minute, and watching it is how somebody notices it acting on a page they
+    // did not expect.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    browserFrame("browser_opened", { step: 0, goal: "find the price", max_steps: 25 });
+
+    expect(useBrowserPanelStore.getState().isOpen).toBe(true);
+    expect(result.current.browses).toHaveLength(1);
+    expect(result.current.browses[0]).toMatchObject({ callId: "c1", goal: "find the price" });
+  });
+
+  it("fills the browse from its steps, its pictures and its outcome", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    browserFrame("browser_opened", { step: 0, goal: "g", max_steps: 25 });
+    browserFrame("browser_frame", { step: 1, image: "data:image/jpeg;base64,AAA" });
+    browserFrame("browser_step", {
+      step: 1,
+      operation: "CLICK",
+      target: "Accept all",
+      confidence: 0.42,
+    });
+    browserFrame("browser_finished", { step: 2, outcome: "blocked", detail: "Sign in first" });
+
+    expect(result.current.browses[0]).toMatchObject({
+      image: "data:image/jpeg;base64,AAA",
+      imageStep: 1,
+      outcome: "blocked",
+      detail: "Sign in first",
+    });
+    expect(result.current.browses[0]?.steps[0]).toMatchObject({
+      operation: "CLICK",
+      confidence: 0.42,
+    });
+  });
+
+  it("does not re-open the panel on every frame of a browse somebody closed", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "g" });
+    act(() => useBrowserPanelStore.getState().close("c1"));
+
+    browserFrame("browser_step", { step: 1, operation: "CLICK" });
+
+    expect(useBrowserPanelStore.getState().isOpen).toBe(false);
+    // The frames still arrive; only the panel is closed.
+    expect(result.current.browses[0]?.steps).toHaveLength(1);
   });
 });
