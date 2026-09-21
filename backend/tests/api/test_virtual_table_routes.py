@@ -422,3 +422,45 @@ def test_a_url_for_the_upsert_route_carries_the_external_id_through_unchanged():
     path = app.url_path_for("upsert_record", table_id=_TABLE, external_id="2026/ORD-1")
 
     assert path.endswith(f"/tables/{_TABLE}/records/by-external-id/2026/ORD-1")
+
+
+def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
+    paths = app.openapi()["paths"]
+    prefix = f"{settings.API_V1_STR}/tables"
+    table_routes = {
+        (path, method): operation
+        for path, item in paths.items()
+        if path.startswith(prefix) and "/sharing" not in path
+        for method, operation in item.items()
+    }
+
+    with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
+
+    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    refusal = table_routes[(prefix, "post")]["responses"]["403"]
+    assert refusal["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    assert len(table_routes) > 10
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("role", [OrgRoleName.VIEWER, OrgRoleName.OPERATOR])
+async def test_a_role_without_tables_create_gets_the_403_the_document_promises(
+    client, service, role
+):
+    """Checked against the real gate, not assumed: the status and the envelope's code."""
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=role)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    async with client() as http:
+        refused = await http.post(_url(), json={"name": "Orders"})
+        allowed_to_read = await http.get(_url())
+
+    assert refused.status_code == 403
+    body = refused.json()
+    assert list(body) == ["error"]
+    assert body["error"]["code"] == "AUTHORIZATION_ERROR"
+    assert body["error"]["details"]["required"] == ["tables:create"]
+    assert allowed_to_read.status_code == 200
+    service.create_table.assert_not_awaited()

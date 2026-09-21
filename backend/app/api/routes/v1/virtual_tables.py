@@ -97,11 +97,22 @@ _REFUSALS: dict[int | str, dict[str, Any]] = {
     428: {"model": ErrorEnvelope, "description": "`expected_revision` is required"},
 }
 
+# The collection routes carry a `require(...)` gate, which refuses with a 403 before the
+# handler runs. The per-table routes have no gate and answer 404 for a table the caller may
+# not reach, so they do not advertise it.
+_GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
+    403: {
+        "model": ErrorEnvelope,
+        "description": "The caller lacks the permission this route requires",
+    },
+    **_REFUSALS,
+}
+
 
 @router.get(
     "",
     response_model=TableList,
-    responses=_REFUSALS,
+    responses=_GATED_REFUSALS,
     dependencies=[Depends(require(Perm.TABLES_VIEW))],
 )
 async def list_tables(
@@ -124,7 +135,7 @@ async def list_tables(
     "",
     response_model=TableRead,
     status_code=status.HTTP_201_CREATED,
-    responses=_REFUSALS,
+    responses=_GATED_REFUSALS,
     dependencies=[Depends(require(Perm.TABLES_CREATE))],
 )
 async def create_table(data: TableCreate, service: VirtualTableSvc, ctx: Auth) -> Any:
