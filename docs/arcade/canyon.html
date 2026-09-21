@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Capability Canyon - Amigo's Arcade</title>
+    <meta
+      name="description"
+      content="Three capabilities are scattered across a canyon, and the publish flag refuses a half-built agent."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <style>
+      .arc-screen {
+        background: #4aa8d8;
+      }
+
+      .arc-screen canvas {
+        aspect-ratio: 30 / 16;
+      }
+
+      .hearts {
+        display: flex;
+        gap: 4px;
+        margin-top: 3px;
+      }
+
+      .heart {
+        width: 12px;
+        height: 11px;
+        background: var(--poncho);
+        clip-path: polygon(50% 100%, 0 38%, 0 14%, 25% 0, 50% 18%, 75% 0, 100% 14%, 100% 38%);
+      }
+
+      .heart.is-gone {
+        background: rgba(11, 12, 15, 0.45);
+      }
+
+      .caps {
+        display: flex;
+        gap: 6px;
+        margin-top: 3px;
+      }
+
+      .cap {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 99px;
+        background: rgba(11, 12, 15, 0.5);
+        border: 1px solid rgba(245, 244, 239, 0.2);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+
+      .cap i {
+        display: block;
+        width: 7px;
+        height: 7px;
+        background: rgba(245, 244, 239, 0.25);
+      }
+
+      .cap.is-on {
+        color: var(--ink);
+        border-color: var(--sun);
+      }
+
+      .cap.is-on i {
+        background: var(--sun);
+      }
+
+      /* The playbook perk: a strip of the whole canyon with the three orbs and
+         Amigo on it, so a player who has it can plan a route. */
+      .map {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        height: 6px;
+        z-index: 4;
+        background: rgba(11, 12, 15, 0.6);
+        border: 1px solid var(--edge);
+      }
+
+      .map i {
+        position: absolute;
+        top: -1px;
+        width: 3px;
+        height: 6px;
+        background: var(--sun);
+      }
+
+      .map i.is-got {
+        background: var(--sage);
+      }
+
+      .map b {
+        position: absolute;
+        top: -3px;
+        width: 2px;
+        height: 10px;
+        background: var(--poncho);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="arc-page is-game">
+      <div class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Capability Canyon</h1>
+        <a class="arc-back" href="./">← the arcade</a>
+        <p class="arc-eyebrow">Nothing publishes half-built</p>
+        <button type="button" class="arc-fs" id="sound">Sound on</button>
+        <button type="button" class="arc-fs" id="fs">Fullscreen</button>
+      </div>
+
+      <div class="arc-stage">
+        <div class="arc-screen" id="screen">
+        <canvas
+          id="game"
+          width="480"
+          height="256"
+          aria-label="A side-scrolling canyon: Amigo collects three capabilities and reaches the publish flag"
+        ></canvas>
+
+        <div class="arc-hud" id="hud" hidden>
+          <div><b>Lives</b><div class="hearts" id="hearts"></div></div>
+          <div><b>Tokens</b><span class="arc-value" id="tokens">0</span></div>
+          <div><b>Docs</b><span class="arc-value" id="docs">0/3</span></div>
+          <div class="arc-spacer">
+            <b>Spec</b>
+            <div class="caps">
+              <div class="cap" id="cap-search"><i></i>Search</div>
+              <div class="cap" id="cap-knowledge"><i></i>Knowledge</div>
+              <div class="cap" id="cap-mcp"><i></i>MCP</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="map" id="map" hidden></div>
+
+        <div class="arc-overlay" id="overlay">
+          <h2>Capability Canyon</h2>
+          <p>
+            Three capabilities are scattered across the canyon. Pick up all three, then reach the
+            flag - the publish gate refuses a half-built agent, exactly like the real one.
+          </p>
+          <p class="arc-hint" id="perkLine"></p>
+          <div class="arc-actions">
+            <button type="button" class="arc-btn is-primary" data-action="retry">Start</button>
+          </div>
+          <p class="arc-hint">Space to start · <a href="./">back to the arcade</a></p>
+        </div>
+        </div>
+      </div>
+
+      <div class="arc-legend">
+        <div><strong><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></strong> Walk. Momentum carries.</div>
+        <div><strong><kbd>Space</kbd> / <kbd>↑</kbd></strong> Jump. Hold it longer to go higher.</div>
+        <div><strong>Land on a drift</strong> Stomping a hallucination is the only way past it.</div>
+        <div><strong>The flag</strong> Opens with Search, Knowledge and MCP in hand. Not before.</div>
+        <div><strong><kbd>P</kbd> <kbd>R</kbd> <kbd>F</kbd></strong> Pause, restart, fullscreen.</div>
+      </div>
+    </div>
+
+    <script src="arcade.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var H = window.Amigo.harness;
+        var FRAMES = window.Amigo.sprites();
+
+        /* Twenty-column chunks. Rows are padded rather than aligned by hand, so
+           a short row is a row of sky and never a row that shifts the geometry.
+             #  rock      =  ledge     ^  spike     o  token
+             E  drift     1/2/3  capability         F  publish flag */
+        var CW = 20;
+        var ROWS = 16;
+        var CHUNKS = [
+          [
+            "", "", "", "", "", "", "", "",
+            "        ooo",
+            "", "", "", "",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "", "", "", "",
+            "      oooo",
+            "",
+            "     ========",
+            "          E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "", "",
+            "     oo    oo",
+            "", "", "", "", "",
+            "#######    #########",
+            "#######    #########",
+            "#######    #########",
+          ],
+          [
+            "", "", "", "",
+            "              1",
+            "            =====",
+            "          d",
+            "         ===",
+            "     o",
+            "      ===",
+            "  o",
+            "   ===",
+            "               E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "", "", "", "",
+            "      ooooo",
+            "",
+            "   ==========",
+            "     ^^^  B  ^^^",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "",
+            "         o",
+            "",
+            "====      ==========",
+            "",
+            "          =====",
+            "       ===",
+            "  2",
+            " =====   ^^^^^^  k",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "",
+            "           d",
+            "         ========",
+            "",
+            "      =====",
+            "",
+            "   =====",
+            "",
+            "  ===",
+            "            E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "",
+            "        3",
+            "      ======",
+            "",
+            "   ====",
+            "",
+            " ===",
+            "",
+            "    ===",
+            "        ^^^^   E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "",
+            "        p",
+            "      ======",
+            "",
+            "   =====",
+            "",
+            "         =====",
+            "  ^^^^^^^     E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "",
+            "====",
+            "",
+            "        =====",
+            "",
+            "             ====",
+            "",
+            "      n",
+            "  =====  ^^^^^^",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "",
+            "     d",
+            "",
+            "    =======",
+            "",
+            "        ooooo",
+            "   ============",
+            "  E        E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "",
+            "     oooooo",
+            "", "", "", "",
+            "   ====   ====",
+            "        E",
+            "####################",
+            "####################",
+            "####################",
+          ],
+          [
+            "", "", "", "", "", "", "", "",
+            "",
+            "          F",
+            "", "",
+            "      oo",
+            "####################",
+            "####################",
+            "####################",
+          ],
+        ];
+
+        var grid = [];
+        var spawns = { tokens: [], drifts: [], caps: [], extras: [], bills: [], flag: null };
+        for (var r = 0; r < ROWS; r++) grid.push([]);
+
+        CHUNKS.forEach(function (chunk, ci) {
+          for (var y = 0; y < ROWS; y++) {
+            var row = (chunk[y] || "").padEnd(CW, " ");
+            for (var x = 0; x < CW; x++) {
+              var gx = ci * CW + x;
+              var ch = row[x];
+              var tile = " ";
+              if (ch === "#" || ch === "=" || ch === "^") tile = ch;
+              else if (ch === "o") spawns.tokens.push({ x: gx * 16 + 5, y: y * 16 + 5 });
+              else if (ch === "E") spawns.drifts.push({ x: gx * 16, y: y * 16 });
+              else if (ch === "1")
+                spawns.caps.push({ id: "search", label: "Web search", x: gx * 16, y: y * 16 });
+              else if (ch === "2")
+                spawns.caps.push({ id: "knowledge", label: "Knowledge base", x: gx * 16, y: y * 16 });
+              else if (ch === "3")
+                spawns.caps.push({ id: "mcp", label: "MCP tools", x: gx * 16, y: y * 16 });
+              else if (ch === "d")
+                spawns.extras.push({
+                  kind: "doc",
+                  id: null,
+                  label: "Document chunk",
+                  x: gx * 16 + 2,
+                  y: y * 16 + 2,
+                });
+              else if (ch === "p")
+                spawns.extras.push({
+                  kind: "schema",
+                  id: "skill.structured",
+                  label: "Structured output",
+                  x: gx * 16,
+                  y: y * 16,
+                });
+              else if (ch === "n")
+                spawns.extras.push({
+                  kind: "notion",
+                  id: "mcp.notion",
+                  label: "Notion MCP",
+                  x: gx * 16,
+                  y: y * 16,
+                });
+              else if (ch === "k")
+                spawns.extras.push({
+                  kind: "chip",
+                  id: "model.deepseek",
+                  label: "DeepSeek",
+                  x: gx * 16,
+                  y: y * 16,
+                });
+              else if (ch === "B")
+                spawns.bills.push({ x: gx * 16, y: y * 16 - 14, w: 28, h: 30 });
+              else if (ch === "F") spawns.flag = { x: gx * 16, y: y * 16 };
+              grid[y][gx] = tile;
+            }
+          }
+        });
+
+        var COLS = CHUNKS.length * CW;
+        var LEVEL_W = COLS * 16;
+        var LEVEL_H = ROWS * 16;
+
+        function solidAt(gx, gy) {
+          if (gx < 0 || gx >= COLS || gy < 0 || gy >= ROWS) return false;
+          var t = grid[gy][gx];
+          return t === "#" || t === "=";
+        }
+        function spikeAt(gx, gy) {
+          return gx >= 0 && gx < COLS && gy >= 0 && gy < ROWS && grid[gy][gx] === "^";
+        }
+
+        var cv = document.getElementById("game");
+        var ctx = cv.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        var W = cv.width;
+        var HGT = cv.height;
+
+        var screenEl = document.getElementById("screen");
+        var overlay = document.getElementById("overlay");
+        var hud = document.getElementById("hud");
+        var heartsEl = document.getElementById("hearts");
+        var tokensEl = document.getElementById("tokens");
+        var docsEl = document.getElementById("docs");
+        var mapEl = document.getElementById("map");
+        var capEls = {
+          search: document.getElementById("cap-search"),
+          knowledge: document.getElementById("cap-knowledge"),
+          mcp: document.getElementById("cap-mcp"),
+        };
+
+        var P = { w: 10, h: 18 };
+        var game = null;
+
+        function perks() {
+          return {
+            doubleJump: H.has("tool.browser"),
+            freeHit: H.has("skill.retry"),
+            hearts: H.has("memory.long_term") ? 4 : 3,
+            keepCheckpoint: H.has("memory.session"),
+            magnet: H.has("tool.web_search"),
+            playbook: H.has("context.playbook") || H.has("data.vectors"),
+            slowDrifts: H.has("skill.structured"),
+            bonusDoc: H.has("mcp.gdrive"),
+          };
+        }
+
+        var lastCheckpoint = 40;
+
+        function reset(fromCheckpoint) {
+          var perk = perks();
+          game = {
+            mode: "playing",
+            t: 0,
+            perk: perk,
+            x: fromCheckpoint || 40,
+            y: 13 * 16 - P.h,
+            vx: 0,
+            vy: 0,
+            face: 1,
+            grounded: false,
+            coyote: 0,
+            jumpHeld: 0,
+            jumps: 0,
+            invuln: 0,
+            usedFreeHit: false,
+            hearts: perk.hearts,
+            tokens: 0,
+            checkpoint: fromCheckpoint || 40,
+            caps: { search: false, knowledge: false, mcp: false },
+            camera: 0,
+            items: spawns.tokens.map(function (t) {
+              return { x: t.x, y: t.y, got: false };
+            }),
+            caplings: spawns.caps.map(function (c) {
+              return { id: c.id, label: c.label, x: c.x, y: c.y, got: false };
+            }),
+            drifts: spawns.drifts.map(function (d) {
+              return { x: d.x, y: d.y, w: 13, h: 12, vx: perk.slowDrifts ? -0.28 : -0.45, dead: 0, home: d.x };
+            }),
+            extras: spawns.extras
+              .map(function (e) {
+                return { kind: e.kind, id: e.id, label: e.label, x: e.x, y: e.y, got: false };
+              })
+              .concat(
+                /* The Drive connection is worth one more chunk of source
+                   material, sitting where the first ledge is. */
+                perk.bonusDoc
+                  ? [{ kind: "doc", id: null, label: "Document chunk", x: 432, y: 160, got: false }]
+                  : []
+              ),
+            bills: spawns.bills.map(function (b) {
+              return { x: b.x, y: b.y, w: b.w, h: b.h };
+            }),
+            docs: 0,
+            pops: [],
+          };
+          paintHud();
+          mapEl.hidden = !perk.playbook;
+        }
+
+        function paintHud() {
+          heartsEl.innerHTML = "";
+          for (var i = 0; i < game.perk.hearts; i++) {
+            var h = document.createElement("div");
+            h.className = "heart" + (i < game.hearts ? "" : " is-gone");
+            heartsEl.appendChild(h);
+          }
+          tokensEl.textContent = game.tokens;
+          docsEl.textContent = game.docs + "/3";
+          Object.keys(capEls).forEach(function (id) {
+            capEls[id].classList.toggle("is-on", game.caps[id]);
+          });
+          if (game.perk.playbook) paintMap();
+        }
+
+        function paintMap() {
+          var marks = game.caplings
+            .map(function (c) {
+              return (
+                '<i class="' +
+                (c.got ? "is-got" : "") +
+                '" style="left:' +
+                ((c.x / LEVEL_W) * 100).toFixed(2) +
+                '%"></i>'
+              );
+            })
+            .join("");
+          mapEl.innerHTML =
+            marks + '<b style="left:' + ((game.x / LEVEL_W) * 100).toFixed(2) + '%"></b>';
+        }
+
+        function showPerks() {
+          var p = perks();
+          var active = [];
+          if (p.doubleJump) active.push("Browser control gives a second jump");
+          if (p.freeHit) active.push("Retry policy covers one hit");
+          if (p.hearts > 3) active.push("Long-term memory adds a heart");
+          if (p.keepCheckpoint) active.push("Session memory keeps your checkpoint");
+          if (p.magnet) active.push("Web search pulls tokens in");
+          if (p.playbook) active.push("The map shows the canyon");
+          if (p.slowDrifts) active.push("Structured output slows the drifts");
+          if (p.bonusDoc) active.push("Drive adds a fourth document");
+          document.getElementById("perkLine").textContent = active.length
+            ? "Harness active: " + active.join(" · ")
+            : "Harness empty - the desert run and the night shift both feed this.";
+        }
+
+        function start() {
+          reset(game && game.perk.keepCheckpoint ? lastCheckpoint : 40);
+          overlay.hidden = true;
+          hud.hidden = false;
+        }
+
+        function finish(kind) {
+          game.mode = kind;
+          window.Amigo.sound.play(kind === "won" ? "win" : "fail");
+          var have = Object.values(game.caps).filter(Boolean).length;
+          var earned = [];
+
+          H.record({
+            canyonBestTokens: { best: game.tokens },
+            canyonDepth: { best: Math.floor(game.x / (CW * 16)) },
+            lifetimeTokens: { add: game.tokens },
+          });
+          if (kind === "won") {
+            H.record({ canyonClears: { add: 1 } });
+            earned.push(H.unlock("tool.browser"));
+            lastCheckpoint = 40;
+          }
+          if (game.tokens >= 40) earned.push(H.unlock("skill.compaction"));
+          if (game.docs >= 3) earned.push(H.unlock("data.vectors"));
+          if (game.caps.knowledge) earned.push(H.unlock("memory.session"));
+          H.played("canyon");
+
+          var got = earned.filter(Boolean);
+          var note = got.length
+            ? "Harness upgraded: " +
+              got
+                .map(function (part) {
+                  return part.name;
+                })
+                .join(", ") +
+              "."
+            : kind === "won"
+              ? "An agent is a spec, and a spec publishes only once it is complete."
+              : "The canyon keeps what you collected. The harness does too.";
+
+          overlay.innerHTML = window.Amigo.continueScreen({
+            won: kind === "won",
+            title: kind === "won" ? "Published v1" : "Run ended",
+            reason: kind === "won" ? "" : "Out of lives",
+            note: note,
+            stats: [
+              ["Tokens", game.tokens],
+              ["Capabilities", have + " of 3"],
+              ["Clears", H.stats().canyonClears],
+            ],
+            retryLabel: kind === "won" ? "Run it again" : "Try again",
+          });
+          window.Amigo.wireContinue(overlay, start);
+          overlay.hidden = false;
+          if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
+        }
+
+        function note(msg) {
+          window.Amigo.toast(screenEl, msg);
+        }
+
+        var keys = {};
+        var LEFT = ["ArrowLeft", "KeyA"];
+        var RIGHT = ["ArrowRight", "KeyD"];
+        var JUMP = ["Space", "ArrowUp", "KeyW"];
+
+        function held(list) {
+          return list.some(function (k) {
+            return keys[k];
+          });
+        }
+
+        document.addEventListener("keydown", function (e) {
+          if (LEFT.concat(RIGHT, JUMP, ["ArrowDown"]).indexOf(e.code) !== -1) e.preventDefault();
+          if (JUMP.indexOf(e.code) !== -1) {
+            if (game && game.mode !== "playing") {
+              start();
+              return;
+            }
+            if (!e.repeat) tryJump();
+          }
+          keys[e.code] = true;
+        });
+        document.addEventListener("keyup", function (e) {
+          keys[e.code] = false;
+          if (JUMP.indexOf(e.code) !== -1 && game) game.jumpHeld = 0;
+        });
+
+        cv.addEventListener("pointerdown", function (e) {
+          if (game && game.mode !== "playing") {
+            start();
+            return;
+          }
+          var r = cv.getBoundingClientRect();
+          var rel = (e.clientX - r.left) / r.width;
+          if (rel > 0.62) {
+            keys.Space = true;
+            tryJump();
+          } else if (rel < 0.3) keys.ArrowLeft = true;
+          else keys.ArrowRight = true;
+        });
+        document.addEventListener("pointerup", function () {
+          keys.Space = false;
+          keys.ArrowLeft = false;
+          keys.ArrowRight = false;
+          if (game) game.jumpHeld = 0;
+        });
+
+        function tryJump() {
+          if (!game || game.mode !== "playing") return;
+          var limit = game.perk.doubleJump ? 2 : 1;
+          if (game.coyote > 0 && game.jumps === 0) {
+            game.vy = -4.6;
+            game.coyote = 0;
+            game.jumps = 1;
+            game.jumpHeld = 1;
+            game.grounded = false;
+            window.Amigo.sound.play("jump");
+          } else if (game.jumps < limit) {
+            game.jumps++;
+            game.vy = -4.1;
+            game.jumpHeld = 1;
+            window.Amigo.sound.play("jump2");
+            for (var i = 0; i < 5; i++) {
+              game.pops.push({
+                x: game.x + 5,
+                y: game.y + P.h,
+                vx: Math.random() * 2 - 1,
+                vy: Math.random() * 1.2,
+                life: 14,
+                tint: "245,244,239",
+              });
+            }
+          }
+        }
+
+        function hurt(knock, reason) {
+          if (game.invuln > 0) return;
+          if (game.perk.freeHit && !game.usedFreeHit) {
+            game.usedFreeHit = true;
+            game.invuln = 90;
+            note("Retry policy: that one was retried, not counted.");
+            return;
+          }
+          game.hearts--;
+          game.invuln = 80;
+          game.vy = -3.4;
+          window.Amigo.sound.play("hurt");
+          game.vx = knock * 2.4;
+          paintHud();
+          if (reason) note(reason);
+          if (game.hearts <= 0) finish("lost");
+        }
+
+        function respawn() {
+          game.hearts--;
+          paintHud();
+          if (game.hearts <= 0) {
+            finish("lost");
+            return;
+          }
+          game.x = game.checkpoint;
+          game.y = 0;
+          game.vx = 0;
+          game.vy = 0;
+          game.invuln = 70;
+          note("Back to the last checkpoint.");
+        }
+
+        function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
+          return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+        }
+
+        function moveX(dx) {
+          game.x += dx;
+          var top = Math.floor(game.y / 16);
+          var bot = Math.floor((game.y + P.h - 1) / 16);
+          var col;
+          var gy;
+          if (dx > 0) {
+            col = Math.floor((game.x + P.w) / 16);
+            for (gy = top; gy <= bot; gy++)
+              if (solidAt(col, gy)) {
+                game.x = col * 16 - P.w - 0.01;
+                game.vx = 0;
+              }
+          } else if (dx < 0) {
+            col = Math.floor(game.x / 16);
+            for (gy = top; gy <= bot; gy++)
+              if (solidAt(col, gy)) {
+                game.x = (col + 1) * 16 + 0.01;
+                game.vx = 0;
+              }
+          }
+          game.x = Math.max(0, Math.min(LEVEL_W - P.w, game.x));
+        }
+
+        function moveY(dy) {
+          game.y += dy;
+          game.grounded = false;
+          var left = Math.floor(game.x / 16);
+          var right = Math.floor((game.x + P.w - 1) / 16);
+          var row;
+          var gx;
+          if (dy > 0) {
+            row = Math.floor((game.y + P.h) / 16);
+            for (gx = left; gx <= right; gx++)
+              if (solidAt(gx, row)) {
+                game.y = row * 16 - P.h;
+                game.vy = 0;
+                game.grounded = true;
+                game.jumps = 0;
+              }
+          } else if (dy < 0) {
+            row = Math.floor(game.y / 16);
+            for (gx = left; gx <= right; gx++)
+              if (solidAt(gx, row)) {
+                game.y = (row + 1) * 16;
+                game.vy = 0;
+                game.jumpHeld = 99;
+              }
+          }
+        }
+
+        function touchingSpike() {
+          var left = Math.floor((game.x + 2) / 16);
+          var right = Math.floor((game.x + P.w - 2) / 16);
+          var row = Math.floor((game.y + P.h - 1) / 16);
+          return spikeAt(left, row) || spikeAt(right, row);
+        }
+
+        function update() {
+          if (!game || game.mode !== "playing") return;
+          if (pauseCtl.on) return;
+          game.t++;
+          if (game.invuln > 0) game.invuln--;
+
+          var accel = game.grounded ? 0.55 : 0.34;
+          if (held(LEFT) && !held(RIGHT)) {
+            game.vx -= accel;
+            game.face = -1;
+          } else if (held(RIGHT) && !held(LEFT)) {
+            game.vx += accel;
+            game.face = 1;
+          } else game.vx *= game.grounded ? 0.76 : 0.94;
+          game.vx = Math.max(-2.6, Math.min(2.6, game.vx));
+
+          if (game.grounded) game.coyote = 7;
+          else if (game.coyote > 0) game.coyote--;
+          else if (game.jumps === 0) game.jumps = 1;
+
+          if (held(JUMP) && game.jumpHeld > 0 && game.jumpHeld < 12 && game.vy < 0) {
+            game.jumpHeld++;
+            game.vy -= 0.26;
+          }
+
+          game.vy = Math.min(7.5, game.vy + 0.32);
+          moveX(game.vx);
+          moveY(game.vy);
+
+          if (game.y > LEVEL_H + 40) {
+            respawn();
+            return;
+          }
+          if (touchingSpike() && game.invuln === 0) {
+            hurt(-game.face, "Spikes: a hard failure, not a retry.");
+            if (game.mode !== "playing") return;
+          }
+
+          if (game.grounded && game.x > game.checkpoint + 40) {
+            game.checkpoint = game.x;
+            lastCheckpoint = game.x;
+          }
+
+          for (var i = 0; i < game.drifts.length; i++) {
+            var d = game.drifts[i];
+            if (d.dead) {
+              d.dead--;
+              continue;
+            }
+            if (Math.abs(d.x - game.x) > W) continue;
+            d.x += d.vx;
+            var ahead = Math.floor((d.x + (d.vx > 0 ? d.w + 1 : -1)) / 16);
+            var footY = Math.floor((d.y + d.h + 1) / 16);
+            var midY = Math.floor((d.y + d.h / 2) / 16);
+            if (solidAt(ahead, midY) || !solidAt(ahead, footY)) d.vx *= -1;
+            var nextFoot = Math.floor((d.y + d.h + 2.2) / 16);
+            if (
+              solidAt(Math.floor((d.x + 2) / 16), nextFoot) ||
+              solidAt(Math.floor((d.x + d.w - 2) / 16), nextFoot)
+            ) {
+              d.y = nextFoot * 16 - d.h;
+            } else d.y += 2.2;
+
+            if (overlap(game.x, game.y, P.w, P.h, d.x, d.y, d.w, d.h)) {
+              var falling = game.vy > 1 && game.y + P.h - game.vy <= d.y + 4;
+              if (falling) {
+                d.dead = 22;
+                game.vy = -4.2;
+                window.Amigo.sound.play("stomp");
+                game.tokens += 2;
+                paintHud();
+                for (var s = 0; s < 8; s++) {
+                  game.pops.push({
+                    x: d.x + 6,
+                    y: d.y + 5,
+                    vx: Math.random() * 3 - 1.5,
+                    vy: -Math.random() * 2.2,
+                    life: 24,
+                    tint: "245,244,239",
+                  });
+                }
+              } else hurt(game.x < d.x ? -1 : 1, "");
+              if (game.mode !== "playing") return;
+            }
+          }
+
+          var reach = game.perk.magnet ? 40 : 0;
+          for (var k = 0; k < game.items.length; k++) {
+            var it = game.items[k];
+            if (it.got) continue;
+            if (reach) {
+              var dx = game.x + 5 - it.x;
+              var dy = game.y + 9 - it.y;
+              var dist = Math.hypot(dx, dy);
+              if (dist < reach && dist > 1) {
+                it.x += (dx / dist) * 1.8;
+                it.y += (dy / dist) * 1.8;
+              }
+            }
+            if (overlap(game.x, game.y, P.w, P.h, it.x - 2, it.y - 2, 10, 10)) {
+              it.got = true;
+              game.tokens++;
+              window.Amigo.sound.play("token");
+              paintHud();
+            }
+          }
+
+          for (var x0 = 0; x0 < game.extras.length; x0++) {
+            var ex = game.extras[x0];
+            if (ex.got) continue;
+            if (overlap(game.x, game.y, P.w, P.h, ex.x, ex.y, 16, 16)) {
+              ex.got = true;
+              if (ex.kind === "doc") {
+                game.docs++;
+                game.tokens += 3;
+                paintHud();
+                window.Amigo.sound.play("pickup");
+                note("Document chunk " + game.docs + " of 3 - embedded and searchable.");
+              } else {
+                var got = H.unlock(ex.id);
+                if (got) window.Amigo.unlockToast(screenEl, got);
+                else {
+                  window.Amigo.sound.play("pickup");
+                  note(ex.label + " - already in the harness.");
+                }
+                game.tokens += 5;
+                paintHud();
+              }
+              for (var fx = 0; fx < 12; fx++) {
+                game.pops.push({
+                  x: ex.x + 8,
+                  y: ex.y + 8,
+                  vx: Math.random() * 4 - 2,
+                  vy: -Math.random() * 3,
+                  life: 28,
+                  tint: "245,244,239",
+                });
+              }
+            }
+          }
+
+          for (var bi = 0; bi < game.bills.length; bi++) {
+            var bill = game.bills[bi];
+            if (overlap(game.x, game.y, P.w, P.h, bill.x, bill.y, bill.w, bill.h)) {
+              if (game.invuln === 0) {
+                window.Amigo.sound.play("bill");
+                hurt(game.x < bill.x ? -1 : 1, "Invoice: $30,000 of tokens, nobody approved it.");
+                if (game.mode !== "playing") return;
+              }
+            }
+          }
+
+          for (var c = 0; c < game.caplings.length; c++) {
+            var cap = game.caplings[c];
+            if (cap.got) continue;
+            if (overlap(game.x, game.y, P.w, P.h, cap.x, cap.y, 16, 16)) {
+              cap.got = true;
+              game.caps[cap.id] = true;
+              paintHud();
+              note(cap.label + " added to the spec.");
+              for (var q = 0; q < 14; q++) {
+                game.pops.push({
+                  x: cap.x + 8,
+                  y: cap.y + 8,
+                  vx: Math.random() * 4 - 2,
+                  vy: -Math.random() * 3,
+                  life: 30,
+                  tint: "242,193,78",
+                });
+              }
+            }
+          }
+
+          for (var p = 0; p < game.pops.length; p++) {
+            var pop = game.pops[p];
+            pop.x += pop.vx;
+            pop.y += pop.vy;
+            pop.vy += 0.16;
+            pop.life--;
+          }
+          game.pops = game.pops.filter(function (pop) {
+            return pop.life > 0;
+          });
+
+          if (
+            spawns.flag &&
+            overlap(game.x, game.y, P.w, P.h, spawns.flag.x + 4, spawns.flag.y, 10, 66)
+          ) {
+            var have = Object.values(game.caps).filter(Boolean).length;
+            if (have === 3) {
+              finish("won");
+              return;
+            }
+            if (game.t % 40 === 0)
+              note("Publish refused: " + (3 - have) + " capability still missing.");
+          }
+
+          var target = Math.max(0, Math.min(LEVEL_W - W, game.x - W * 0.38));
+          game.camera += (target - game.camera) * 0.12;
+          if (game.perk.playbook && game.t % 8 === 0) paintMap();
+        }
+
+        function mesas(offset, color, height, spacing) {
+          ctx.fillStyle = color;
+          var base = HGT - 30;
+          for (var i = -1; i < 8; i++) {
+            var x = i * (spacing + 90) - (offset % (spacing + 90));
+            ctx.fillRect(x, base - height, spacing, height);
+            ctx.fillRect(x - 14, base - height * 0.55, spacing + 28, height);
+          }
+        }
+
+        function drawToken(it) {
+          var bob = Math.sin(game.t * 0.11 + it.x * 0.07) * 1.6;
+          var x = Math.round(it.x);
+          var y = Math.round(it.y + bob);
+          ctx.fillStyle = "#f2c14e";
+          ctx.fillRect(x, y, 7, 7);
+          ctx.fillStyle = "#c99327";
+          ctx.fillRect(x, y + 5, 7, 2);
+          ctx.fillRect(x + 5, y, 2, 7);
+          ctx.fillStyle = "#fff3cf";
+          ctx.fillRect(x + 1, y + 1, 2, 2);
+        }
+
+        function drawCap(c) {
+          var bob = Math.sin(game.t * 0.08) * 2;
+          var x = Math.round(c.x);
+          var y = Math.round(c.y + bob);
+          var glow = 0.22 + Math.sin(game.t * 0.12) * 0.12;
+          ctx.fillStyle = "rgba(242,193,78," + glow + ")";
+          ctx.fillRect(x - 4, y - 4, 24, 24);
+          ctx.fillStyle = "#1a1f2e";
+          ctx.fillRect(x, y, 16, 16);
+          ctx.fillStyle = "#f2c14e";
+          ctx.fillRect(x + 1, y + 1, 14, 14);
+          ctx.fillStyle = "#1a1f2e";
+          if (c.id === "search") {
+            ctx.fillRect(x + 4, y + 3, 6, 1);
+            ctx.fillRect(x + 3, y + 4, 1, 5);
+            ctx.fillRect(x + 10, y + 4, 1, 5);
+            ctx.fillRect(x + 4, y + 9, 6, 1);
+            ctx.fillRect(x + 10, y + 10, 3, 3);
+          } else if (c.id === "knowledge") {
+            ctx.fillRect(x + 3, y + 4, 10, 2);
+            ctx.fillRect(x + 3, y + 8, 10, 2);
+            ctx.fillRect(x + 3, y + 12, 10, 1);
+          } else {
+            ctx.fillRect(x + 5, y + 2, 2, 4);
+            ctx.fillRect(x + 9, y + 2, 2, 4);
+            ctx.fillRect(x + 3, y + 6, 10, 4);
+            ctx.fillRect(x + 7, y + 10, 2, 4);
+          }
+        }
+
+        function drawExtra(e) {
+          var bob = Math.round(Math.sin(game.t * 0.08 + e.x * 0.03) * 2);
+          var x = Math.round(e.x);
+          var y = Math.round(e.y) + bob;
+
+          if (e.kind === "doc") {
+            ctx.fillStyle = "rgba(212,118,58,.2)";
+            ctx.fillRect(x - 2, y - 2, 18, 20);
+            ctx.fillStyle = "#f5f4ef";
+            ctx.fillRect(x + 1, y, 12, 16);
+            ctx.fillStyle = "#d4763a";
+            ctx.fillRect(x + 1, y, 12, 2);
+            ctx.fillStyle = "#8e95a1";
+            ctx.fillRect(x + 3, y + 5, 8, 1);
+            ctx.fillRect(x + 3, y + 8, 8, 1);
+            ctx.fillRect(x + 3, y + 11, 5, 1);
+            ctx.fillStyle = "#c2c6cd";
+            ctx.fillRect(x + 9, y + 12, 4, 4);
+            return;
+          }
+
+          if (e.kind === "schema") {
+            /* Pydantic AI: a typed model, drawn as the braces that wrap one. */
+            ctx.fillStyle = "rgba(229,56,127,.22)";
+            ctx.fillRect(x - 3, y - 3, 22, 22);
+            ctx.fillStyle = "#7a1338";
+            ctx.fillRect(x, y, 16, 16);
+            ctx.fillStyle = "#e5387f";
+            ctx.fillRect(x + 1, y + 1, 14, 14);
+            ctx.fillStyle = "#fff0f6";
+            ctx.fillRect(x + 4, y + 3, 2, 1);
+            ctx.fillRect(x + 3, y + 4, 1, 3);
+            ctx.fillRect(x + 2, y + 7, 1, 2);
+            ctx.fillRect(x + 3, y + 9, 1, 3);
+            ctx.fillRect(x + 4, y + 12, 2, 1);
+            ctx.fillRect(x + 10, y + 3, 2, 1);
+            ctx.fillRect(x + 12, y + 4, 1, 3);
+            ctx.fillRect(x + 13, y + 7, 1, 2);
+            ctx.fillRect(x + 12, y + 9, 1, 3);
+            ctx.fillRect(x + 10, y + 12, 2, 1);
+            return;
+          }
+
+          if (e.kind === "notion") {
+            ctx.fillStyle = "rgba(245,244,239,.18)";
+            ctx.fillRect(x - 3, y - 3, 22, 22);
+            ctx.fillStyle = "#1a1f2e";
+            ctx.fillRect(x, y, 16, 16);
+            ctx.fillStyle = "#f5f4ef";
+            ctx.fillRect(x + 2, y + 2, 12, 12);
+            ctx.fillStyle = "#1a1f2e";
+            ctx.fillRect(x + 4, y + 4, 2, 8);
+            ctx.fillRect(x + 10, y + 4, 2, 8);
+            ctx.fillRect(x + 6, y + 6, 2, 2);
+            ctx.fillRect(x + 8, y + 8, 2, 2);
+            return;
+          }
+
+          ctx.fillStyle = "rgba(77,107,254,.22)";
+          ctx.fillRect(x - 3, y - 3, 22, 22);
+          ctx.fillStyle = "#2b3f9e";
+          ctx.fillRect(x, y, 16, 16);
+          ctx.fillStyle = "#4d6bfe";
+          ctx.fillRect(x + 1, y + 1, 14, 14);
+          ctx.fillStyle = "#eef1ff";
+          ctx.fillRect(x + 4, y + 6, 8, 4);
+          ctx.fillRect(x + 10, y + 4, 3, 3);
+          ctx.fillRect(x + 3, y + 10, 3, 2);
+          ctx.fillStyle = "#2b3f9e";
+          for (var pin = 0; pin < 3; pin++) {
+            ctx.fillRect(x - 2, y + 3 + pin * 5, 2, 2);
+            ctx.fillRect(x + 16, y + 3 + pin * 5, 2, 2);
+          }
+        }
+
+        function drawBill(b) {
+          var x = Math.round(b.x);
+          var y = Math.round(b.y);
+          ctx.fillStyle = "#f5f4ef";
+          ctx.fillRect(x, y, b.w, b.h);
+          ctx.fillStyle = "#d8d5cb";
+          ctx.fillRect(x, y + b.h - 4, b.w, 4);
+          ctx.fillStyle = "#8e95a1";
+          ctx.fillRect(x + 3, y + 4, 16, 1);
+          ctx.fillRect(x + 3, y + 7, 11, 1);
+          ctx.fillRect(x + 3, y + 10, 14, 1);
+          ctx.fillStyle = "#c8412b";
+          ctx.fillRect(x + 2, y + 14, b.w - 4, 11);
+          ctx.fillStyle = "#fff4ec";
+          ctx.fillRect(x + 5, y + 17, 1, 5);
+          ctx.fillRect(x + 4, y + 18, 3, 1);
+          ctx.fillRect(x + 4, y + 20, 3, 1);
+          ctx.fillRect(x + 9, y + 17, 3, 5);
+          ctx.fillRect(x + 14, y + 17, 3, 5);
+          ctx.fillRect(x + 19, y + 17, 3, 5);
+        }
+
+        function drawDrift(d) {
+          if (d.dead) {
+            ctx.fillStyle = "#f5f4ef";
+            ctx.fillRect(Math.round(d.x), Math.round(d.y + 8), d.w, 4);
+            return;
+          }
+          var x = Math.round(d.x);
+          var y = Math.round(d.y);
+          var squish = Math.round(Math.sin(game.t * 0.16 + d.home) * 1);
+          ctx.fillStyle = "#f5f4ef";
+          ctx.fillRect(x, y + squish, d.w, d.h - squish);
+          ctx.fillRect(x + 3, y + d.h, 4, 3);
+          ctx.fillStyle = "#1a1f2e";
+          var look = d.vx < 0 ? 0 : 3;
+          ctx.fillRect(x + 3 + look, y + 3, 2, 3);
+          ctx.fillRect(x + 8 + Math.round(look * 0.3), y + 3, 2, 3);
+          ctx.fillStyle = "#c8412b";
+          ctx.fillRect(x + 4, y + 8, 6, 1);
+        }
+
+        function drawFlag(f) {
+          var x = f.x + 6;
+          var top = f.y;
+          ctx.fillStyle = "#4a3b31";
+          ctx.fillRect(x, top, 3, 64);
+          var ready = Object.values(game.caps).filter(Boolean).length === 3;
+          var wave = Math.round(Math.sin(game.t * 0.1) * 2);
+          ctx.fillStyle = ready ? "#2e8b57" : "#8e95a1";
+          ctx.fillRect(x + 3, top + 2 + wave, 22, 13);
+          ctx.fillStyle = ready ? "#f2c14e" : "#5c626d";
+          ctx.fillRect(x + 6, top + 6 + wave, 16, 2);
+          ctx.fillRect(x + 6, top + 9 + wave, 10, 2);
+          ctx.fillStyle = "#4a3b31";
+          ctx.fillRect(x - 5, top + 60, 13, 4);
+        }
+
+        function drawAmigo() {
+          if (game.invuln > 0 && Math.floor(game.t / 4) % 2 === 0) return;
+          var frame = FRAMES.stand;
+          if (!game.grounded) frame = FRAMES.air;
+          else if (Math.abs(game.vx) > 0.35 && Math.floor(game.t / 5) % 2 === 0) frame = FRAMES.step;
+
+          ctx.save();
+          ctx.translate(Math.round(game.x - 3), Math.round(game.y - 1));
+          if (game.face < 0) {
+            ctx.translate(16, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(frame, 0, 0);
+          ctx.restore();
+        }
+
+        function draw() {
+          if (!game) return;
+          var cam = Math.round(game.camera);
+
+          ctx.fillStyle = "#4aa8d8";
+          ctx.fillRect(0, 0, W, HGT * 0.55);
+          ctx.fillStyle = "#79c6e2";
+          ctx.fillRect(0, HGT * 0.55, W, HGT * 0.45);
+
+          mesas(cam * 0.25, "#6e4a7a", 118, 70);
+          mesas(cam * 0.5, "#8d5470", 78, 110);
+
+          ctx.fillStyle = "rgba(255,255,255,.72)";
+          for (var i = 0; i < 6; i++) {
+            var x = (((i * 190 - cam * 0.15) % (W + 240)) + W + 240) % (W + 240) - 120;
+            var y = 22 + (i % 3) * 26;
+            ctx.fillRect(x, y, 34, 7);
+            ctx.fillRect(x + 7, y - 6, 20, 6);
+            ctx.fillRect(x - 6, y + 4, 46, 5);
+          }
+
+          ctx.save();
+          ctx.translate(-cam, 0);
+
+          var from = Math.max(0, Math.floor(cam / 16) - 1);
+          var to = Math.min(COLS - 1, Math.ceil((cam + W) / 16));
+          for (var gy = 0; gy < ROWS; gy++) {
+            for (var gx = from; gx <= to; gx++) {
+              var t = grid[gy][gx];
+              if (t === " ") continue;
+              var px = gx * 16;
+              var py = gy * 16;
+              if (t === "#") {
+                ctx.fillStyle = "#a96c37";
+                ctx.fillRect(px, py, 16, 16);
+                var open = !solidAt(gx, gy - 1);
+                if (open) {
+                  ctx.fillStyle = "#c98a4b";
+                  ctx.fillRect(px, py, 16, 4);
+                  ctx.fillStyle = "#e0a765";
+                  ctx.fillRect(px, py, 16, 2);
+                }
+                ctx.fillStyle = "#8a5327";
+                ctx.fillRect(px, py + 10, 16, 2);
+                ctx.fillRect(px + 6, py + 5, 2, 4);
+              } else if (t === "=") {
+                ctx.fillStyle = "#4a3b31";
+                ctx.fillRect(px, py, 16, 12);
+                ctx.fillStyle = "#6b5647";
+                ctx.fillRect(px, py, 16, 3);
+                ctx.fillStyle = "#2e8b57";
+                ctx.fillRect(px, py, 16, 1);
+              } else if (t === "^") {
+                ctx.fillStyle = "#cfd3da";
+                for (var sp = 0; sp < 4; sp++) {
+                  ctx.fillRect(px + sp * 4 + 1, py + 6, 2, 10);
+                  ctx.fillRect(px + sp * 4, py + 10, 4, 6);
+                }
+                ctx.fillStyle = "#8e95a1";
+                ctx.fillRect(px, py + 14, 16, 2);
+              }
+            }
+          }
+
+          if (spawns.flag) drawFlag(spawns.flag);
+          game.caplings.forEach(function (c) {
+            if (!c.got) drawCap(c);
+          });
+          game.items.forEach(function (it) {
+            if (!it.got) drawToken(it);
+          });
+          game.extras.forEach(function (e) {
+            if (!e.got) drawExtra(e);
+          });
+          game.bills.forEach(drawBill);
+          game.drifts.forEach(drawDrift);
+          game.pops.forEach(function (pop) {
+            ctx.fillStyle = "rgba(" + pop.tint + "," + pop.life / 30 + ")";
+            ctx.fillRect(Math.round(pop.x), Math.round(pop.y), 3, 3);
+          });
+          drawAmigo();
+
+          ctx.restore();
+        }
+
+        reset(40);
+        game.mode = "ready";
+        hud.hidden = true;
+        mapEl.hidden = true;
+        showPerks();
+        window.Amigo.wireContinue(overlay, start);
+        var pauseCtl = window.Amigo.pauser(
+          screenEl,
+          function () {
+            return game && game.mode === "playing";
+          },
+          start
+        );
+        window.Amigo.fit(screenEl, cv);
+        window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));
+        window.Amigo.soundButton(document.getElementById("sound"));
+        window.Amigo.touchpad(document.querySelector(".arc-page"), "canyon");
+        window.Amigo.loop(update, draw);
+      })();
+    </script>
+  </body>
+</html>

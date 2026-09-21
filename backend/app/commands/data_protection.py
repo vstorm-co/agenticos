@@ -102,8 +102,8 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     # which on the vendor's default endpoint is a third party. `decision_base_url`
     # is what moves it.
     "browser_choice": (
-        "the browser service this deployment configures, and the decision model "
-        "at decision_base_url (the vendor's endpoint by default)"
+        "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the decision model at "
+        "decision_base_url (the vendor's endpoint by default)"
     ),
     "browser_use": "the browser service this deployment configures",
     "image_generation": "the image provider named in the binding",
@@ -204,6 +204,10 @@ def _settings_section() -> Section:
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
         ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
+        [
+            "BROWSER_CDP_ALLOWED_HOSTS",
+            ", ".join(settings.BROWSER_CDP_ALLOWED_HOSTS) or "none",
+        ],
         ["GOOGLE_CLIENT_ID", "set" if settings.GOOGLE_CLIENT_ID else "unset"],
     ]
     return Section(

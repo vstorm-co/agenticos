@@ -14,6 +14,7 @@ reduced to the one pure function that parses what a browser answered.
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -80,7 +81,8 @@ from app.agents.capabilities.browser_choice._toolset import (
     last_response,
 )
 from app.agents.deps import AgentDeps
-from app.core.sanitize import SSRFBlockedError, UrlRefusedError
+from app.core.config import settings
+from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
@@ -829,12 +831,77 @@ class TestRegistrationAndPublish:
         with pytest.raises(UrlRefusedError, match="needs a cdp_url"):
             validate_cdp_url(BrowserChoiceConfig())
 
-    def test_publishing_a_loopback_debugger_is_refused(self):
-        with pytest.raises(SSRFBlockedError):
-            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://127.0.0.1:9222"))
 
-    def test_a_public_websocket_endpoint_is_accepted(self):
-        validate_cdp_url(BrowserChoiceConfig(cdp_url="ws://8.8.8.8:9222/devtools/browser/x"))
+class TestWhichBrowsersTheOperatorAllows:
+    """The control on `cdp_url`, and why it is an allowlist.
+
+    `cdp_url` lives in a spec, which anyone holding `edit` on the agent writes, so
+    the address is tenant-controlled and the request is this deployment's. The
+    SSRF guard was the wrong answer in both directions: it refused the isolated
+    browser service on the deployment's own network that the docs tell an operator
+    to run, and it accepted a CDP debugger exposed to the open internet. So the
+    operator names the hosts, as `MEM0_ALLOWED_HOSTS` does.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser", "chrome.internal"])
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://browser:9222",
+            "https://chrome.internal/devtools",
+            "ws://browser:9222/devtools/browser/abc",
+            "wss://chrome.internal:9222",
+        ],
+        ids=["http", "https", "ws", "wss"],
+    )
+    def test_a_vetted_host_is_accepted_on_any_cdp_scheme(self, url: str):
+        validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_a_private_address_on_the_list_is_the_whole_point(self):
+        # The compose sidecar the reference page tells an operator to run. The
+        # SSRF guard refused exactly this.
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
+
+    def test_a_host_is_matched_case_insensitively(self):
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://BROWSER:9222/x"))
+
+    @pytest.mark.parametrize(
+        "url",
+        ["http://127.0.0.1:9222", "http://10.0.0.5:9222", "http://evil.test:9222"],
+        ids=["loopback", "unlisted-private", "unlisted-public"],
+    )
+    def test_an_unvetted_host_is_refused_whatever_it_resolves_to(self, url: str):
+        with pytest.raises(UrlRefusedError, match="BROWSER_CDP_ALLOWED_HOSTS"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_the_refusal_names_the_host_so_an_operator_can_act_on_it(self):
+        with pytest.raises(UrlRefusedError, match=re.escape("evil.test")):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://evil.test:9222"))
+
+    def test_a_glob_on_the_allowlist_is_not_a_pattern(self):
+        # A hostname is not a pattern, and `*.internal` read as one would be a
+        # wildcard somebody takes for narrower than it is.
+        with pytest.raises(UrlRefusedError):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://sub.chrome.internal:9222"))
+
+    @pytest.mark.parametrize(
+        "url", ["ftp://browser:9222", "not a url", "http://"], ids=["scheme", "garbage", "no-host"]
+    )
+    def test_something_that_is_not_a_cdp_url_is_refused_before_the_list(self, url: str):
+        with pytest.raises(UrlRefusedError, match="http, https, ws or wss"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_an_empty_allowlist_refuses_browser_automation_outright(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # The same default `MEM0_ALLOWED_HOSTS` takes: nothing is allowed until an
+        # operator says what is.
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
 
     def test_the_builder_carries_the_vault_key_and_never_the_model_facing_config(self):
         built = _build_capability(

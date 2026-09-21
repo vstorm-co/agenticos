@@ -1,5 +1,5 @@
 ---
-source_sha: "26352d1d438f"
+source_sha: "855173f04a37"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -510,7 +510,7 @@ la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
 
 | Ajuste | Por defecto | Valores |
 |---|---|---|
-| `cdp_url` | — | un endpoint de Chromium DevTools; obligatorio, verificado contra SSRF al publicar |
+| `cdp_url` | — | un endpoint de Chromium DevTools; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS` |
 | `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten globs como `*.example.com`; null no restringe |
 | `decision_model` | `jev-latest` | el modelo que elige la operación y el elemento en cada paso |
 | `decision_base_url` | null | dónde se ejecuta ese modelo, cuando no es el endpoint público del proveedor |
@@ -520,11 +520,23 @@ la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
 | `preview` | `true` | enviar la vista de la página al chat mientras se ejecuta el recorrido |
 | `preview_width` | 1024 | 320–1920; el ancho de esos fotogramas |
 
-**El navegador es tuyo.** No hay modo local ni Chromium en la imagen de la API:
-`cdp_url` apunta a un servicio de navegador que un operador ejecuta y aísla. Es una
-URL a la que este deployment se conecta desde el servidor, por lo que se verifica
-contra SSRF: una dirección de loopback, privada, reservada o de metadatos se rechaza
-**al publicar**, cuando se guarda el spec, y no en cada run.
+**El navegador es tuyo, y el operador dice cuál.** No hay modo local ni Chromium
+en la imagen de la API: `cdp_url` apunta a un servicio de navegador que un operador
+ejecuta y aísla. El host tiene que estar en
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía —la de
+partida— rechaza la automatización del navegador por completo. Se verifica **al
+publicar**, cuando se guarda el spec, y no en cada run.
+
+Es una lista de permitidos y no la verificación SSRF por la que pasa cualquier otra
+URL suministrada por un tenant, y la razón es lo que `cdp_url` es: vive en un spec
+que escribe cualquiera con permiso `edit` sobre el agent, así que la dirección la
+controla el tenant y la petición es de este deployment.
+
+La protección SSRF se equivoca en las dos direcciones: solo admite direcciones
+*públicas*, de modo que rechaza el servicio aislado en tu propia red que esta
+página pide ejecutar, y acepta un depurador CDP expuesto a internet, que es la peor
+de las dos posturas. Un host verificado no necesita comprobación de dirección; uno
+sin verificar se rechaza sea lo que sea a lo que resuelva.
 
 **Cada paso envía la página al modelo de decisión.** Su URL, su título y las
 etiquetas de los elementos, lo que en el endpoint público del proveedor es un tercero

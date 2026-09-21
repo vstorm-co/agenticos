@@ -56,10 +56,29 @@ its own dependency, is the part that was wanted. The dependency note in
 ## What it deliberately does not do
 
 **Launch a browser.** There is no `playwright` mode and no Chromium in the API
-image. `cdp_url` points at a browser service an operator runs and isolates, and
-the endpoint is SSRF-checked at publish, off the event loop, by `validate_cdp_url`
-- `browser_use`'s arrangement (agenticos#33). A browser in the application
-container widens the surface the platform itself runs on, for nothing.
+image. `cdp_url` points at a browser service an operator runs and isolates. A
+browser in the application container widens the surface the platform itself runs
+on, for nothing.
+
+**Decide for itself which browser it may drive.** The host must be on
+`BROWSER_CDP_ALLOWED_HOSTS`, and an empty allowlist - the default - refuses the
+capability outright. That is deliberately *not* `browser_use`'s arrangement,
+which runs `cdp_url` through the SSRF guard (agenticos#33). The guard is the
+right control for a webhook and the wrong one here, in both directions: it admits
+only a *public* address, so it refuses the isolated service on the deployment's
+own network that this file tells an operator to run - `http://browser:9222` in
+the same compose project resolves privately and was rejected - while accepting a
+CDP debugger exposed to the open internet, which is a worse posture than the one
+it forbade. Measured, not argued: before this, the only endpoint that published
+was a public IP.
+
+What makes an allowlist the right shape is what `cdp_url` is. It lives in a spec,
+which anyone holding `edit` on the agent writes, so the address is
+tenant-controlled and the request is the deployment's - the same problem
+`MEM0_ALLOWED_HOSTS` exists for, and the same answer. A vetted host needs no
+address check; an unvetted one is refused whatever it resolves to. Matching is
+exact and case-folded: a hostname is not a pattern, and `*.internal` on a
+security allowlist is a wildcard somebody reads as narrower than it is.
 
 **Rank the candidate set.** Truncation to `candidate_cap` is by document order and
 nothing else. Scoring the elements by relevance to the goal would put the decision

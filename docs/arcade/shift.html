@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Night Shift - Amigo's Arcade</title>
+    <meta
+      name="description"
+      content="A quiet control room and three open tickets. Carry what each station needs, in the right order, with one pair of hands."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <style>
+      .arc-screen {
+        background: #14161d;
+      }
+
+      .arc-screen canvas {
+        aspect-ratio: 30 / 16;
+      }
+
+      .pips {
+        display: flex;
+        gap: 5px;
+        margin-top: 4px;
+      }
+
+      .pip {
+        width: 10px;
+        height: 10px;
+        border: 1px solid rgba(245, 244, 239, 0.35);
+      }
+
+      .pip.is-done {
+        background: var(--sage);
+        border-color: var(--sage);
+      }
+
+      .carry {
+        color: var(--sun);
+      }
+
+      .objective {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 4;
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        font-size: 12px;
+        color: var(--ink);
+        text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85);
+        pointer-events: none;
+      }
+
+      .objective b {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--sun);
+      }
+
+      .dialog {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 5;
+        display: grid;
+        gap: 6px;
+        padding: 12px 14px;
+        background: rgba(8, 9, 13, 0.95);
+        border: 2px solid var(--edge);
+        border-left: 3px solid var(--sun);
+      }
+
+      .dialog .who {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--sun);
+      }
+
+      .dialog .line {
+        font-size: 13px;
+        line-height: 1.6;
+        max-width: 72ch;
+      }
+
+      .dialog .go {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        color: var(--faint);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="arc-page is-game">
+      <div class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Night Shift</h1>
+        <a class="arc-back" href="./">← the arcade</a>
+        <p class="arc-eyebrow">The whole floor, one pair of hands</p>
+        <button type="button" class="arc-fs" id="sound">Sound on</button>
+        <button type="button" class="arc-fs" id="fs">Fullscreen</button>
+      </div>
+
+      <div class="arc-stage">
+        <div class="arc-screen" id="screen">
+        <canvas
+          id="game"
+          width="480"
+          height="256"
+          aria-label="A top-down control room: Amigo walks between stations and closes tickets"
+        ></canvas>
+
+        <div class="arc-hud" id="hud" hidden>
+          <div><b>Tickets</b><div class="pips" id="pips"></div></div>
+          <div id="carryBox" hidden><b>Carrying</b><span class="arc-value carry" id="carryName"></span></div>
+          <div class="arc-spacer"><b>Clock</b><span class="arc-value" id="clock">00:00</span></div>
+        </div>
+
+        <div class="objective" id="objective" hidden><b>Next</b><span id="objectiveText"></span></div>
+
+        <div class="dialog" id="dialog" hidden>
+          <div class="who" id="who"></div>
+          <div class="line" id="line"></div>
+          <div class="go">Space to continue</div>
+        </div>
+
+        <div class="arc-overlay" id="overlay">
+          <h2>Night Shift</h2>
+          <p>
+            The console is quiet and the queue is not. Walk Amigo between the stations, carry what
+            each one needs, and close every ticket - a retrieval, a tool behind a sealed credential,
+            a write that waits for a human, a source to connect, an export to clean.
+          </p>
+          <p class="arc-hint" id="perkLine"></p>
+          <div class="arc-actions">
+            <button type="button" class="arc-btn is-primary" data-action="retry">Clock in</button>
+          </div>
+          <p class="arc-hint">Space to start · <a href="./">back to the arcade</a></p>
+        </div>
+        </div>
+      </div>
+
+      <div class="arc-legend">
+        <div><strong><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</strong> Walk. Hold anywhere on touch.</div>
+        <div><strong><kbd>Space</kbd> / <kbd>E</kbd></strong> Use the nearest station. On touch, tap the desk itself.</div>
+        <div><strong>One pair of hands</strong> Amigo carries one thing at a time, so the route is the puzzle.</div>
+        <div><strong><kbd>P</kbd> <kbd>R</kbd> <kbd>F</kbd></strong> Pause, restart, fullscreen.</div>
+      </div>
+    </div>
+
+    <script src="arcade.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var H = window.Amigo.harness;
+        var FRAMES = window.Amigo.sprites();
+
+        var TS = 16;
+        var COLS = 30;
+        var ROWS = 16;
+
+        /* Rows are padded and the border is forced below, so a short row is a
+           row of floor rather than a map that silently shifts. */
+        var RAW = [
+          "##############################",
+          "#............##..............#",
+          "#............##..............#",
+          "#............##..............#",
+          "#............##..............#",
+          "#............##..............#",
+          "#............................#",
+          "#............................#",
+          "#........##........##........#",
+          "#........##........##........#",
+          "#........##........##........#",
+          "#........##........##........#",
+          "#........##........##........#",
+          "#........##........##........#",
+          "#............................#",
+          "##############################",
+        ];
+
+        var map = [];
+        for (var y = 0; y < ROWS; y++) {
+          var row = (RAW[y] || "").padEnd(COLS, ".").slice(0, COLS).split("");
+          for (var x = 0; x < COLS; x++) {
+            if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) row[x] = "#";
+          }
+          map.push(row);
+        }
+
+        var STATIONS = [
+          {
+            id: "knowledge",
+            name: "Knowledge base",
+            x: 4,
+            y: 3,
+            color: "#2e8b57",
+            idle: "Eighty-four documents, chunked and embedded. Ask for one and you get the passage, not the file.",
+          },
+          {
+            id: "models",
+            name: "Models",
+            x: 9,
+            y: 3,
+            color: "#c8412b",
+            idle: "Four providers wired in. Which one answers is a routing decision, not a rewrite.",
+          },
+          {
+            id: "vault",
+            name: "Vault",
+            x: 18,
+            y: 3,
+            color: "#4b6bdd",
+            idle: "Everything in here is sealed. You can carry a secret id out; you cannot carry the secret.",
+          },
+          {
+            id: "governance",
+            name: "Approvals",
+            x: 24,
+            y: 3,
+            color: "#f2c14e",
+            idle: "Anything that writes, spends or leaves the building stops here first.",
+          },
+          {
+            id: "mcp",
+            name: "MCP hub",
+            x: 4,
+            y: 9,
+            color: "#9b59b6",
+            idle: "Fourteen servers connected. Which tools an agent actually sees is a separate question.",
+          },
+          {
+            id: "parser",
+            name: "Parser",
+            x: 4,
+            y: 12,
+            color: "#d4763a",
+            idle: "Give me a file and I will give you text, tables and page numbers. Or an honest error.",
+          },
+          {
+            id: "chat",
+            name: "Chat desk",
+            x: 14,
+            y: 10,
+            color: "#c8412b",
+            idle: "This is where people talk to the agent. Everything else exists to answer what lands here.",
+          },
+          {
+            id: "connectors",
+            name: "Sources",
+            x: 24,
+            y: 12,
+            color: "#3d9fb5",
+            idle: "Drive, Notion, S3. A source syncs on a schedule and keeps its own permissions.",
+          },
+          {
+            id: "sandbox",
+            name: "Sandbox",
+            x: 24,
+            y: 9,
+            color: "#3d9fb5",
+            idle: "Give me something to run and I will run it somewhere it cannot hurt anyone.",
+          },
+        ];
+
+        var byId = {};
+        STATIONS.forEach(function (s) {
+          byId[s.id] = s;
+          map[s.y][s.x] = "S";
+          map[s.y][s.x + 1] = "S";
+        });
+
+        var ITEMS = {
+          doc: { name: "Q3 contract passage", color: "#2e8b57" },
+          key: { name: "Linear secret id", color: "#4b6bdd" },
+          tool: { name: "create_issue", color: "#9b59b6" },
+          approval: { name: "Signed approval", color: "#f2c14e" },
+          result: { name: "Migration result", color: "#3d9fb5" },
+          drive: { name: "Drive folder link", color: "#3d9fb5" },
+          indexed: { name: "Indexed sales folder", color: "#2e8b57" },
+          messy: { name: "Raw CRM export", color: "#6b5334" },
+          clean: { name: "Clean customer rows", color: "#d4763a" },
+          swap: { name: "Qwen deployment", color: "#7b5cf0" },
+        };
+
+        /* One list, read top to bottom. Each step names the station it happens
+           at, what Amigo has to be carrying, and what he leaves with. */
+        var BASE_SCRIPT = [
+          {
+            at: "chat",
+            line: "Ticket one: \u201CSummarise the Q3 supplier contract.\u201D The contract is not in my head - it is in the knowledge base.",
+            hint: "Go to the knowledge base",
+          },
+          {
+            at: "knowledge",
+            gives: "doc",
+            line: "Found it: clause seven, renewal terms, four chunks with the page numbers attached. Take the passage, not the PDF.",
+            hint: "Carry the passage back to the chat desk",
+          },
+          {
+            at: "chat",
+            needs: "doc",
+            closes: 0,
+            line: "Answered, with a citation anyone can click. Ticket two: \u201COpen a Linear issue for the renewal.\u201D That needs a tool, and the tool needs a credential.",
+            hint: "Fetch the credential from the vault",
+          },
+          {
+            at: "vault",
+            gives: "key",
+            line: "Sealed, and handed over as an id. The plaintext key never leaves this room, and nothing you carry can print it.",
+            hint: "Take the secret id to the MCP hub",
+          },
+          {
+            at: "mcp",
+            needs: "key",
+            gives: "tool",
+            line: "Connection probed: fourteen tools on that server, three allowed for this agent. create_issue is one of them.",
+            hint: "Bring the tool back to the chat desk",
+            unlock: "mcp.linear",
+          },
+          {
+            at: "chat",
+            needs: "tool",
+            closes: 1,
+            line: "Issue opened, link posted in the thread. Ticket three: \u201CRun the data migration.\u201D That one writes to production, so it does not just run.",
+            hint: "Get it approved before anything runs",
+          },
+          {
+            at: "governance",
+            gives: "approval",
+            line: "Approved, with a cap: one run, twenty cents, and it lands in the audit log whether it works or not.",
+            hint: "Take the approval to the sandbox",
+          },
+          {
+            at: "sandbox",
+            needs: "approval",
+            gives: "result",
+            line: "Session up, migration run in isolation, forty-one rows moved, nothing touched outside the box. The session is gone in sixty seconds.",
+            hint: "Report the result at the chat desk",
+          },
+          {
+            at: "chat",
+            needs: "result",
+            closes: 2,
+            line: "Three closed. Ticket four: \u201CSales keep asking the agent about a folder on Google Drive.\u201D It cannot read what it is not connected to.",
+            hint: "Connect the drive at the sources desk",
+          },
+          {
+            at: "connectors",
+            gives: "drive",
+            line: "Drive connected, read-only, syncing hourly. It inherits the folder's own sharing - nobody gets to read more through the agent than they can in Drive.",
+            hint: "Take the link to the knowledge base",
+            unlock: "mcp.gdrive",
+          },
+          {
+            at: "knowledge",
+            needs: "drive",
+            gives: "indexed",
+            line: "Two hundred and six files parsed, chunked and embedded. Slides and spreadsheets included.",
+            hint: "Close it out at the chat desk",
+          },
+          {
+            at: "chat",
+            needs: "indexed",
+            closes: 3,
+            line: "Sales can ask now. Ticket five: \u201CThe answers about customers are wrong.\u201D They are not wrong - the export they came from is a mess.",
+            hint: "Pull the raw export from the sources desk",
+          },
+          {
+            at: "connectors",
+            gives: "messy",
+            line: "Here it is: forty thousand rows, duplicate accounts, null emails and a hundred test records from 2019.",
+            hint: "Run it through the parser",
+          },
+          {
+            at: "parser",
+            needs: "messy",
+            gives: "clean",
+            line: "Deduplicated, nulls dropped, test rows out. Thirty-one thousand rows the agent can be trusted with.",
+            hint: "Close it out at the chat desk",
+            unlock: "data.clean",
+          },
+          {
+            at: "chat",
+            needs: "clean",
+            closes: 4,
+            line: "Five tickets closed, and the shift is quiet again.",
+            hint: "Shift complete",
+          },
+        ];
+
+        /* The sixth ticket only exists once the Linear server is connected -
+           which is also the joke: the more you wire in, the more lands on you. */
+        var BONUS_HANDOFF = {
+          at: "chat",
+          needs: "clean",
+          closes: 4,
+          line: "Five closed. One more, and it is from finance: \u201CThe OpenAI invoice came in at thirty thousand dollars.\u201D Nobody noticed until the card was charged.",
+          hint: "Take it to the models desk",
+        };
+
+        var BONUS = [
+          {
+            at: "models",
+            gives: "swap",
+            line: "Routed: the cheap eighty per cent of the traffic moves to Qwen on our own hardware, the hard fifth stays on Claude. Same answers, a fifth of the invoice.",
+            hint: "Report the new routing at the chat desk",
+            unlock: "model.qwen",
+          },
+          {
+            at: "chat",
+            needs: "swap",
+            closes: 5,
+            line: "Six tickets closed, and next month's invoice will fit on one line.",
+            hint: "Shift complete",
+          },
+        ];
+
+        var cv = document.getElementById("game");
+        var ctx = cv.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        var W = cv.width;
+        var HGT = cv.height;
+
+        var screenEl = document.getElementById("screen");
+        var els = {
+          overlay: document.getElementById("overlay"),
+          hud: document.getElementById("hud"),
+          dialog: document.getElementById("dialog"),
+          who: document.getElementById("who"),
+          line: document.getElementById("line"),
+          objective: document.getElementById("objective"),
+          objectiveText: document.getElementById("objectiveText"),
+          carryBox: document.getElementById("carryBox"),
+          carryName: document.getElementById("carryName"),
+          clock: document.getElementById("clock"),
+          pips: document.getElementById("pips"),
+        };
+
+        var P = { w: 10, h: 10 };
+        var g = null;
+
+        function perks() {
+          return {
+            fast: H.has("skill.handoff"),
+            playbook: H.has("context.playbook"),
+            bonusTicket: H.has("mcp.linear"),
+          };
+        }
+
+        function script(perk) {
+          if (!perk.bonusTicket) return BASE_SCRIPT.slice();
+          return BASE_SCRIPT.slice(0, BASE_SCRIPT.length - 1)
+            .concat([BONUS_HANDOFF])
+            .concat(BONUS);
+        }
+
+        function reset() {
+          var perk = perks();
+          g = {
+            mode: "ready",
+            perk: perk,
+            script: script(perk),
+            tickets: perk.bonusTicket ? 6 : 5,
+            t: 0,
+            frames: 0,
+            x: 14 * TS + 3,
+            y: 12 * TS,
+            face: 1,
+            walking: false,
+            step: 0,
+            carrying: null,
+            progress: 0,
+            closed: [],
+            dialog: null,
+            sparks: [],
+          };
+          for (var i = 0; i < g.tickets; i++) g.closed.push(false);
+        }
+
+        function solid(px, py) {
+          var gx = Math.floor(px / TS);
+          var gy = Math.floor(py / TS);
+          if (gx < 0 || gy < 0 || gx >= COLS || gy >= ROWS) return true;
+          var t = map[gy][gx];
+          return t === "#" || t === "S";
+        }
+
+        function blocked(x, y) {
+          return (
+            solid(x, y) ||
+            solid(x + P.w - 1, y) ||
+            solid(x, y + P.h - 1) ||
+            solid(x + P.w - 1, y + P.h - 1)
+          );
+        }
+
+        /* The nearest desk, not the last one that happened to match: two
+           stations can share a room, and "whichever the loop saw last" is how a
+           player ends up talking to the wrong one. */
+        function nearStation() {
+          var cx = g.x + P.w / 2;
+          var cy = g.y + P.h / 2;
+          var found = null;
+          var best = Infinity;
+          STATIONS.forEach(function (s) {
+            var sx = s.x * TS + TS;
+            var sy = s.y * TS + TS / 2;
+            if (Math.abs(cx - sx) >= 30 || Math.abs(cy - sy) >= 30) return;
+            var d = Math.hypot(cx - sx, cy - sy);
+            if (d < best) {
+              best = d;
+              found = s;
+            }
+          });
+          return found;
+        }
+
+        function fmt(secs) {
+          var m = Math.floor(secs / 60);
+          var s = secs % 60;
+          return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+        }
+
+        function paintHud() {
+          els.pips.innerHTML = "";
+          for (var i = 0; i < g.tickets; i++) {
+            var pip = document.createElement("span");
+            pip.className = "pip" + (g.closed[i] ? " is-done" : "");
+            els.pips.appendChild(pip);
+          }
+          if (g.carrying) {
+            els.carryBox.hidden = false;
+            els.carryName.textContent = ITEMS[g.carrying].name;
+          } else els.carryBox.hidden = true;
+        }
+
+        function showObjective() {
+          var step = g.script[g.progress];
+          if (!step || !g.perk.playbook) {
+            els.objective.hidden = true;
+            return;
+          }
+          els.objectiveText.textContent = step.hint + " · " + byId[step.at].name;
+          els.objective.hidden = false;
+        }
+
+        function say(who, line) {
+          g.dialog = true;
+          window.Amigo.sound.play("blip");
+          els.who.textContent = who;
+          els.line.textContent = line;
+          els.dialog.hidden = false;
+          els.objective.hidden = true;
+        }
+
+        function closeDialog() {
+          g.dialog = null;
+          els.dialog.hidden = true;
+          if (g.mode === "playing") showObjective();
+          if (g.mode === "won") finish();
+        }
+
+        function showPerks() {
+          var p = perks();
+          var active = [];
+          if (p.fast) active.push("Delegation speeds Amigo up");
+          if (p.playbook) active.push("The playbook names the next station");
+          if (p.bonusTicket) active.push("Linear MCP adds a sixth ticket");
+          document.getElementById("perkLine").textContent = active.length
+            ? "Harness active: " + active.join(" · ")
+            : "Harness empty - without a playbook you work the floor from memory.";
+        }
+
+        function start() {
+          reset();
+          g.mode = "playing";
+          els.overlay.hidden = true;
+          els.hud.hidden = false;
+          els.dialog.hidden = true;
+          paintHud();
+          showObjective();
+        }
+
+        function use() {
+          var s = nearStation();
+          if (!s) return;
+          var step = g.script[g.progress];
+
+          if (!step || step.at !== s.id) {
+            say(s.name, s.idle);
+            return;
+          }
+
+          if (step.needs && g.carrying !== step.needs) {
+            window.Amigo.sound.play("deny");
+            say(
+              s.name,
+              "Not yet - I need " +
+                ITEMS[step.needs].name.toLowerCase() +
+                " in hand before this goes anywhere."
+            );
+            return;
+          }
+
+          if (step.needs) g.carrying = null;
+          if (step.gives) g.carrying = step.gives;
+          if (step.closes !== undefined) {
+            g.closed[step.closes] = true;
+            window.Amigo.sound.play("ticket");
+            for (var i = 0; i < 10; i++) {
+              g.sparks.push({
+                x: s.x * TS + TS,
+                y: s.y * TS + 8,
+                vx: Math.random() * 3 - 1.5,
+                vy: -Math.random() * 2.4,
+                life: 30,
+              });
+            }
+          }
+          if (step.unlock) {
+            var part = H.unlock(step.unlock);
+            if (part) window.Amigo.unlockToast(screenEl, part);
+          }
+
+          g.progress++;
+          paintHud();
+          say(s.name, step.line);
+          if (g.progress >= g.script.length) g.mode = "won";
+        }
+
+        function finish() {
+          var secs = Math.floor(g.frames / 60);
+          window.Amigo.sound.play("win");
+          var stats = H.stats();
+          var earned = [];
+
+          H.record({ shiftClears: { add: 1 } });
+          if (!stats.shiftBest || secs < stats.shiftBest) H.record({ shiftBest: { set: secs } });
+
+          earned.push(H.unlock("context.playbook"));
+          if (secs <= 180) earned.push(H.unlock("skill.handoff"));
+          if (H.stats().shiftClears >= 2) earned.push(H.unlock("memory.long_term"));
+          H.played("shift");
+
+          var got = earned.filter(Boolean);
+          var note = got.length
+            ? "Harness upgraded: " +
+              got
+                .map(function (part) {
+                  return part.name;
+                })
+                .join(", ") +
+              "."
+            : "A retrieval, a tool call behind a sealed credential, and a write that waited for a human. That is the honest shape of an agent inside a company.";
+
+          els.overlay.innerHTML = window.Amigo.continueScreen({
+            won: true,
+            title: "Shift complete",
+            note: note,
+            stats: [
+              ["Tickets", g.tickets],
+              ["Clock", fmt(secs)],
+              ["Shifts worked", H.stats().shiftClears],
+            ],
+            retryLabel: "Take another shift",
+          });
+          window.Amigo.wireContinue(els.overlay, start);
+          els.overlay.hidden = false;
+          els.objective.hidden = true;
+          if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
+        }
+
+        var keys = {};
+        var USE = ["Space", "KeyE", "Enter"];
+        var NAV = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"];
+
+        document.addEventListener("keydown", function (e) {
+          if (NAV.concat(USE).indexOf(e.code) !== -1) e.preventDefault();
+          if (USE.indexOf(e.code) !== -1) {
+            if (e.repeat) return;
+            /* The dialog is answered first: the closing line of the last ticket
+               shows while the mode is already "won", and a mode check here would
+               restart the shift instead of rolling the credits. */
+            if (g.dialog) {
+              closeDialog();
+              return;
+            }
+            if (g.mode !== "playing") {
+              start();
+              return;
+            }
+            use();
+            return;
+          }
+          keys[e.code] = true;
+        });
+        document.addEventListener("keyup", function (e) {
+          keys[e.code] = false;
+        });
+
+        var pointer = null;
+        function pointAt(e) {
+          var r = cv.getBoundingClientRect();
+          return {
+            x: ((e.clientX - r.left) / r.width) * W,
+            y: ((e.clientY - r.top) / r.height) * HGT,
+          };
+        }
+
+        cv.addEventListener("pointerdown", function (e) {
+          if (g.dialog) {
+            closeDialog();
+            return;
+          }
+          if (g.mode !== "playing") {
+            start();
+            return;
+          }
+          pointer = pointAt(e);
+          /* A tap uses a station only when it lands on the station itself.
+             Anywhere else is a walk instruction - otherwise standing next to a
+             desk means every tap reopens its dialog and Amigo cannot leave. */
+          var near = nearStation();
+          if (near) {
+            var sx = near.x * TS + TS;
+            var sy = near.y * TS + TS / 2;
+            if (Math.hypot(pointer.x - sx, pointer.y - sy) < 28) use();
+          }
+        });
+        cv.addEventListener("pointermove", function (e) {
+          if (pointer) pointer = pointAt(e);
+        });
+        document.addEventListener("pointerup", function () {
+          pointer = null;
+        });
+        els.dialog.addEventListener("pointerdown", function () {
+          closeDialog();
+        });
+
+        function drainSparks() {
+          for (var i = 0; i < g.sparks.length; i++) {
+            var s = g.sparks[i];
+            s.x += s.vx;
+            s.y += s.vy;
+            s.vy += 0.14;
+            s.life--;
+          }
+          g.sparks = g.sparks.filter(function (s) {
+            return s.life > 0;
+          });
+        }
+
+        function update() {
+          if (!g) return;
+          if (pauseCtl.on) return;
+          g.t++;
+          if (g.mode !== "playing" || g.dialog) {
+            drainSparks();
+            return;
+          }
+          g.frames++;
+          if (g.frames % 30 === 0) els.clock.textContent = fmt(Math.floor(g.frames / 60));
+
+          var dx = 0;
+          var dy = 0;
+          if (keys.ArrowLeft || keys.KeyA) dx -= 1;
+          if (keys.ArrowRight || keys.KeyD) dx += 1;
+          if (keys.ArrowUp || keys.KeyW) dy -= 1;
+          if (keys.ArrowDown || keys.KeyS) dy += 1;
+
+          if (pointer) {
+            var cx = g.x + P.w / 2;
+            var cy = g.y + P.h / 2;
+            if (Math.hypot(pointer.x - cx, pointer.y - cy) > 8) {
+              dx = pointer.x - cx;
+              dy = pointer.y - cy;
+            }
+          }
+
+          var len = Math.hypot(dx, dy) || 1;
+          var speed = g.perk.fast ? 1.85 : 1.45;
+          var mx = (dx / len) * speed;
+          var my = (dy / len) * speed;
+          g.walking = Math.abs(mx) + Math.abs(my) > 0.05;
+          if (mx < -0.05) g.face = -1;
+          else if (mx > 0.05) g.face = 1;
+
+          if (!blocked(g.x + mx, g.y)) g.x += mx;
+          if (!blocked(g.x, g.y + my)) g.y += my;
+          if (g.walking) g.step += 0.18;
+
+          drainSparks();
+        }
+
+        /* A 3x5 bitmap alphabet: the station plates have to sit on the same grid
+           as everything else, and a hinted system font at six pixels does not. */
+        var GLYPHS = {
+          A: "010101111101101",
+          B: "110101110101110",
+          C: "011100100100011",
+          D: "110101101101110",
+          E: "111100110100111",
+          F: "111100110100100",
+          G: "011100101101011",
+          H: "101101111101101",
+          I: "111010010010111",
+          J: "001001001101010",
+          K: "101101110101101",
+          L: "100100100100111",
+          M: "101111111101101",
+          N: "101111111111101",
+          O: "010101101101010",
+          P: "110101110100100",
+          Q: "010101101111011",
+          R: "110101110101101",
+          S: "011100010001110",
+          T: "111010010010010",
+          U: "101101101101011",
+          V: "101101101010010",
+          W: "101101111111101",
+          X: "101101010101101",
+          Y: "101101010010010",
+          Z: "111001010100111",
+          " ": "000000000000000",
+        };
+
+        function plate(text, cx, y, color) {
+          var w = text.length * 4 - 1;
+          var x = Math.round(cx - w / 2);
+          ctx.fillStyle = "rgba(11,12,15,.75)";
+          ctx.fillRect(x - 2, y - 1, w + 4, 7);
+          ctx.fillStyle = color;
+          for (var c = 0; c < text.length; c++) {
+            var bits = GLYPHS[text[c]] || GLYPHS[" "];
+            for (var i = 0; i < 15; i++) {
+              if (bits[i] === "1") ctx.fillRect(x + (i % 3), y + Math.floor(i / 3), 1, 1);
+            }
+            x += 4;
+          }
+        }
+
+        function drawStation(s, active) {
+          var x = s.x * TS;
+          var y = s.y * TS;
+          if (active && g.mode === "playing") {
+            var pulse = 0.1 + Math.sin(g.t * 0.09) * 0.07;
+            ctx.fillStyle = "rgba(242,193,78," + pulse + ")";
+            ctx.fillRect(x - 10, y - 12, TS * 2 + 20, TS + 24);
+          }
+
+          ctx.fillStyle = "#11141a";
+          ctx.fillRect(x, y + 4, TS * 2, TS - 2);
+          ctx.fillStyle = "#3a4354";
+          ctx.fillRect(x, y - 8, TS * 2, 14);
+          ctx.fillStyle = s.color;
+          ctx.fillRect(x + 2, y - 6, TS * 2 - 4, 10);
+          ctx.fillStyle = "rgba(11,12,15,.55)";
+          for (var i = 0; i < 4; i++) {
+            ctx.fillRect(x + 4, y - 4 + i * 3, (TS * 2 - 8) * (0.4 + (i % 3) * 0.2), 1);
+          }
+          ctx.fillStyle = "#0b0c0f";
+          ctx.fillRect(x, y + TS - 2, TS * 2, 2);
+
+          plate(s.name.toUpperCase(), x + TS, y + TS + 3, active ? "#f2c14e" : "#6b7382");
+
+          if (active && g.mode === "playing" && g.perk.playbook) {
+            var bob = Math.round(Math.sin(g.t * 0.14) * 2);
+            ctx.fillStyle = "#f2c14e";
+            var ax = x + TS - 3;
+            var ay = y - 22 + bob;
+            ctx.fillRect(ax, ay, 6, 4);
+            ctx.fillRect(ax + 1, ay + 4, 4, 2);
+            ctx.fillRect(ax + 2, ay + 6, 2, 2);
+          }
+        }
+
+        function drawAmigo() {
+          var frame = g.walking && Math.floor(g.step) % 2 === 0 ? FRAMES.step : FRAMES.stand;
+          var x = Math.round(g.x - 3);
+          var y = Math.round(g.y - 9);
+
+          ctx.fillStyle = "rgba(0,0,0,.35)";
+          ctx.fillRect(x + 3, y + 19, 11, 3);
+
+          ctx.save();
+          ctx.translate(x, y);
+          if (g.face < 0) {
+            ctx.translate(16, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(frame, 0, 0);
+          ctx.restore();
+
+          /* What he is carrying floats over the hat: on a sixteen-pixel sprite
+             it is the only place a second object stays readable. */
+          if (g.carrying) {
+            var item = ITEMS[g.carrying];
+            var bob = Math.round(Math.sin(g.t * 0.12) * 1.5);
+            var ix = x + 4;
+            var iy = y - 11 + bob;
+            ctx.fillStyle = "rgba(11,12,15,.6)";
+            ctx.fillRect(ix - 1, iy - 1, 10, 10);
+            ctx.fillStyle = item.color;
+            ctx.fillRect(ix, iy, 8, 8);
+            ctx.fillStyle = "rgba(255,255,255,.7)";
+            ctx.fillRect(ix + 1, iy + 1, 2, 2);
+          }
+        }
+
+        function draw() {
+          if (!g) return;
+          ctx.fillStyle = "#171a21";
+          ctx.fillRect(0, 0, W, HGT);
+
+          for (var y = 0; y < ROWS; y++) {
+            for (var x = 0; x < COLS; x++) {
+              var t = map[y][x];
+              var px = x * TS;
+              var py = y * TS;
+              if (t === "#") {
+                ctx.fillStyle = "#2a3140";
+                ctx.fillRect(px, py, TS, TS);
+                ctx.fillStyle = "#39435a";
+                ctx.fillRect(px, py, TS, 3);
+                ctx.fillStyle = "#1d222c";
+                ctx.fillRect(px, py + TS - 3, TS, 3);
+              } else {
+                ctx.fillStyle = (x + y) % 2 === 0 ? "#1b1f28" : "#191d25";
+                ctx.fillRect(px, py, TS, TS);
+                ctx.fillStyle = "rgba(46,139,87,.10)";
+                ctx.fillRect(px, py + TS - 1, TS, 1);
+                ctx.fillRect(px + TS - 1, py, 1, TS);
+              }
+            }
+          }
+
+          var next = g.script[g.progress];
+          STATIONS.forEach(function (s) {
+            drawStation(s, next && next.at === s.id);
+          });
+
+          for (var i = 0; i < g.sparks.length; i++) {
+            var sp = g.sparks[i];
+            ctx.fillStyle = "rgba(46,139,87," + sp.life / 30 + ")";
+            ctx.fillRect(Math.round(sp.x), Math.round(sp.y), 3, 3);
+          }
+
+          drawAmigo();
+        }
+
+        reset();
+        showPerks();
+        window.Amigo.wireContinue(els.overlay, start);
+        var pauseCtl = window.Amigo.pauser(
+          screenEl,
+          function () {
+            return g && g.mode === "playing";
+          },
+          start
+        );
+        window.Amigo.fit(screenEl, cv);
+        window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));
+        window.Amigo.soundButton(document.getElementById("sound"));
+        window.Amigo.touchpad(document.querySelector(".arc-page"), "shift");
+        window.Amigo.loop(update, draw);
+      })();
+    </script>
+  </body>
+</html>

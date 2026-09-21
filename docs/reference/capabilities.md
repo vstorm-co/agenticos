@@ -477,7 +477,7 @@ could not be reached.
 
 | Config | Default | Values |
 |---|---|---|
-| `cdp_url` | — | a Chromium DevTools endpoint; required, SSRF-checked at publish |
+| `cdp_url` | — | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS` |
 | `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted |
 | `decision_model` | `jev-latest` | the model that picks the operation and the element each step |
 | `decision_base_url` | null | where that model runs, when it is not the vendor's public endpoint |
@@ -487,11 +487,21 @@ could not be reached.
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; how wide those frames are |
 
-**The browser is one you run.** There is no local mode and no Chromium in the API
-image: `cdp_url` points at a browser service an operator runs and isolates. It is a
-URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
-private, reserved or metadata address is refused **at publish**, when the spec is
-saved, rather than on every run.
+**The browser is one you run, and the operator says which.** There is no local
+mode and no Chromium in the API image: `cdp_url` points at a browser service an
+operator runs and isolates. The host must be on
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
+default — refuses browser automation outright. Checked **at publish**, when the
+spec is saved, rather than on every run.
+
+That is an allowlist rather than the SSRF check every other tenant-supplied URL
+goes through, and the reason is what `cdp_url` is: it lives in a spec, which
+anyone holding `edit` on the agent writes, so the address is tenant-controlled and
+the request is this deployment's. The SSRF guard is wrong for it in both
+directions — it admits only *public* addresses, so it refuses the isolated service
+on your own network that this page tells you to run, and it accepts a CDP debugger
+exposed to the internet, which is the worse posture of the two. A vetted host
+needs no address check; an unvetted one is refused whatever it resolves to.
 
 **Every step sends the page to the decision model.** Its URL, its title and its
 element labels — which on the vendor's public endpoint is a third party, and may be

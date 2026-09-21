@@ -41,6 +41,20 @@ Two things are versioned separately from this file and worth knowing about:
   content reaches the decision model on every step: the vault key requirement is
   the operator's opt-in, `decision_base_url` moves the destination, and both are
   named in `docs/data-protection.md`.
+- **`BROWSER_CDP_ALLOWED_HOSTS`, because the SSRF guard is the wrong control for a
+  CDP endpoint.** `cdp_url` first went through `validate_webhook_url`, copying
+  `browser_use` - and measured, the only endpoint that would publish was a
+  *public* IP address. That refuses the isolated browser service on the
+  deployment's own network that the reference page tells an operator to run
+  (`http://browser:9222` in the same compose project resolves privately and was
+  rejected) and accepts a CDP debugger exposed to the open internet, which is the
+  worse posture of the two. What decides the shape of the control is what
+  `cdp_url` is: it lives in a spec, which anyone holding `edit` on the agent
+  writes, so the address is tenant-controlled and the request is the
+  deployment's - the problem `MEM0_ALLOWED_HOSTS` already exists for. The operator
+  now names the hosts, matching is exact and case-folded, and an empty allowlist -
+  the default - refuses browser automation outright. The check no longer resolves
+  DNS, so publish validation does not need a thread for it.
 - **A live browser panel in the chat.** A browse streams its steps, the
   probability the engine chose each at, and the viewport as a picture per step -
   narration and picture as separate frames, so encoding one never holds up the

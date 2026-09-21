@@ -1,5 +1,7 @@
 """Browser automation that chooses from a page instead of composing an action."""
 
+from urllib.parse import urlsplit
+
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability
 
@@ -10,17 +12,18 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_choice._capability import BrowserChoice
 from app.agents.capabilities.browser_choice._elements import HARD_CANDIDATE_CAP
-from app.core.sanitize import UrlRefusedError, validate_webhook_url
+from app.core.config import settings
+from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
 
 __all__ = ["BrowserChoice", "BrowserChoiceConfig", "validate_cdp_url"]
 
 _CDP_SCHEMES = frozenset({"http", "https", "ws", "wss"})
-"""A CDP endpoint is reached over HTTP(S) or a WebSocket.
+"""A CDP endpoint is reached over HTTP(S) or a WebSocket, and over nothing else.
 
-Everything else `validate_webhook_url` enforces - no userinfo, no private,
-reserved or loopback address, DNS resolved to a public IP - applies unchanged.
-The same four `browser_use` allows, and the same reason.
+The same four `browser_use` allows. What decides whether the *host* is acceptable
+is the operator's allowlist - see :func:`validate_cdp_url` for why it is that
+rather than the SSRF guard.
 """
 
 
@@ -114,28 +117,53 @@ class BrowserChoiceConfig(BaseModel):
 
 
 def validate_cdp_url(config: BrowserChoiceConfig) -> None:
-    """Refuse a `cdp_url` that SSRF protection blocks.
+    """Refuse a `cdp_url` this deployment's operator has not vetted.
 
-    A `cdp_url` is a URL this deployment connects to server-side, so it is exactly
-    what `validate_webhook_url` exists to refuse - a metadata endpoint, a loopback
-    debugger, an internal service.
+    `cdp_url` lives in an agent spec, which anyone holding `edit` on that agent
+    writes, so it is tenant-controlled: the request is made by this deployment, to
+    an address somebody else named. That is the shape `MEM0_ALLOWED_HOSTS` exists
+    for, and this is the same control - the operator lists the hosts in
+    `BROWSER_CDP_ALLOWED_HOSTS`, and an empty list refuses browser automation
+    outright rather than defaulting to something.
 
-    Run at publish, not at build: it resolves DNS through `socket.getaddrinfo`,
-    which blocks, and a capability is built on the event loop inside a tool call.
-    The caller runs it in a thread, so a run is refused once, at publish, off the
-    loop - rather than re-resolved on every build. This is `browser_use`'s
-    arrangement and the reasoning is written out there (agenticos#33).
+    **Not the SSRF guard**, which is what this used to be and which is wrong here
+    in both directions. `validate_webhook_url` admits only a *public* address, so
+    it refused the isolated browser service on the deployment's own network that
+    the reference page tells an operator to run - `http://browser:9222` in the
+    same compose project resolves to a private address and was rejected - while
+    accepting a CDP debugger exposed to the open internet, which is a worse
+    posture than the one it forbade. A vetted host needs no address check; an
+    unvetted one is refused whatever it resolves to.
+
+    Matching is exact and case-folded, with no globs. A hostname is not a pattern,
+    and `*.internal` on a security allowlist is a wildcard somebody will read as
+    narrower than it is.
+
+    This one no longer resolves DNS, so it does not block and the caller does not
+    need a thread for it.
 
     Raises:
-        SSRFBlockedError: the endpoint is loopback, private, reserved or metadata.
-        UrlRefusedError: the URL is missing or malformed.
+        UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
+            a host this deployment does not allow.
     """
     if not config.cdp_url:
         raise UrlRefusedError(
             "Browser automation needs a cdp_url: the Chromium DevTools endpoint "
             "of the browser service this agent should drive"
         )
-    validate_webhook_url(config.cdp_url, allowed_schemes=_CDP_SCHEMES)
+    parsed = urlsplit(config.cdp_url)
+    if parsed.scheme not in _CDP_SCHEMES or not parsed.hostname:
+        raise UrlRefusedError("A cdp_url must be an http, https, ws or wss URL with a host")
+    allowed = {host.strip().lower() for host in settings.BROWSER_CDP_ALLOWED_HOSTS}
+    if parsed.hostname.lower() not in allowed:
+        # The host is named: it came from a stored spec rather than from anything
+        # the caller submitted, and the operator reading this problem is the one
+        # who decides the allowlist, so telling them which host was asked for is
+        # the difference between a fixable message and a puzzle.
+        raise UrlRefusedError(
+            f"This deployment does not allow browser automation against "
+            f"'{parsed.hostname}'. Add it to BROWSER_CDP_ALLOWED_HOSTS"
+        )
 
 
 @register(

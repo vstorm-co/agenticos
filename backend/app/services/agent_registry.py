@@ -263,29 +263,25 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
     return []
 
 
-async def _browser_choice_problems(config: BaseModel | None) -> list[str]:
-    """A `cdp_url` this deployment must not connect to, or none at all.
+def _browser_choice_problems(config: BaseModel | None) -> list[str]:
+    """A `cdp_url` this deployment's operator has not vetted, or none at all.
 
-    The same check `_browser_use_problems` makes and for the same reasons - off
-    the loop, at publish, on every binding including an inline specialist's. Kept
-    as its own function rather than generalised over the two configs: they are two
-    capabilities with two endpoints and two messages, and a shared helper taking
-    `BaseModel | None` would have to re-derive which one it is looking at in order
-    to say anything a person can act on.
+    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
+    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
+    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
+    control here rather than the SSRF guard.
 
-    The blank-endpoint case belongs here rather than in the config model for the
-    reason `BrowserChoiceConfig.cdp_url` gives: the field has to be optional so the
-    capability stays enumerable, so this is the only place the demand can be made.
+    Its own function rather than one shared with `browser_use`: two capabilities,
+    two endpoints, two controls now, and a helper taking `BaseModel | None` would
+    have to re-derive which it is looking at in order to say anything a person can
+    act on.
     """
     if not isinstance(config, BrowserChoiceConfig):
         return []
     try:
-        await asyncio.to_thread(validate_browser_choice_cdp_url, config)
+        validate_browser_choice_cdp_url(config)
     except ValueError as exc:
-        return [
-            f"Browser automation's endpoint cannot be used: {exc}. Point it at a "
-            "public browser service, not a loopback or internal address."
-        ]
+        return [f"Browser automation's endpoint cannot be used: {exc}."]
     return []
 
 
@@ -1333,7 +1329,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_use_problems(config))
-            problems.add(await _browser_choice_problems(config))
+            problems.add(_browser_choice_problems(config))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

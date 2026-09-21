@@ -1,5 +1,5 @@
 ---
-source_sha: "26352d1d438f"
+source_sha: "855173f04a37"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -538,7 +538,7 @@ an der Schrittgrenze gestoppt und der Browser war nicht erreichbar.
 
 | Einstellung | Standard | Werte |
 |---|---|---|
-| `cdp_url` | — | ein Chromium-DevTools-Endpunkt; erforderlich, bei der Veröffentlichung SSRF-geprüft |
+| `cdp_url` | — | ein Chromium-DevTools-Endpunkt; erforderlich, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen |
 | `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Globs wie `*.example.com` erlaubt; null bedeutet unbeschränkt |
 | `decision_model` | `jev-latest` | das Modell, das in jedem Schritt Operation und Element wählt |
 | `decision_base_url` | null | wo dieses Modell läuft, wenn es nicht der öffentliche Endpunkt des Anbieters ist |
@@ -548,11 +548,22 @@ an der Schrittgrenze gestoppt und der Browser war nicht erreichbar.
 | `preview` | `true` | das Sichtfenster während des Durchlaufs an den Chat senden |
 | `preview_width` | 1024 | 320–1920; wie breit diese Bilder sind |
 
-**Der Browser ist Ihrer.** Es gibt keinen lokalen Modus und kein Chromium im
-API-Image: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und
-isoliert. Es ist eine URL, die dieses Deployment serverseitig aufruft, also wird sie
-SSRF-geprüft — eine Loopback-, private, reservierte oder Metadaten-Adresse wird **bei
-der Veröffentlichung** abgelehnt, beim Speichern des Spec, nicht bei jedem Run.
+**Der Browser ist Ihrer, und der Betreiber sagt welcher.** Es gibt keinen lokalen
+Modus und kein Chromium im API-Image: `cdp_url` zeigt auf einen Browser-Dienst, den
+ein Betreiber betreibt und isoliert. Der Host muss auf
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere Allowlist
+— die Voreinstellung — lehnt Browser-Automatisierung vollständig ab. Geprüft **bei
+der Veröffentlichung**, beim Speichern des Spec, nicht bei jedem Run.
+
+Das ist eine Allowlist und nicht die SSRF-Prüfung, durch die jede andere
+mandantengelieferte URL geht, und der Grund ist, was `cdp_url` ist: Sie steht im
+Spec, den jeder mit `edit`-Recht schreibt, die Adresse ist also mandantenkontrolliert
+und die Anfrage gehört diesem Deployment. Der SSRF-Schutz ist hier in beide
+Richtungen falsch — er lässt nur *öffentliche* Adressen zu, lehnt damit den
+isolierten Dienst im eigenen Netz ab, den diese Seite zu betreiben verlangt, und
+akzeptiert einen ins Internet gestellten CDP-Debugger, die schlechtere der beiden
+Haltungen. Ein geprüfter Host braucht keine Adressprüfung; ein ungeprüfter wird
+abgelehnt, worauf er auch auflöst.
 
 **Jeder Schritt sendet die Seite an das Entscheidungsmodell.** Ihre URL, ihren Titel
 und die Beschriftungen der Elemente — was am öffentlichen Endpunkt des Anbieters ein

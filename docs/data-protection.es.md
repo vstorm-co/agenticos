@@ -1,5 +1,5 @@
 ---
-source_sha: "16bc7a74ccf9"
+source_sha: "9e41895bc496"
 ---
 
 # Protección de datos { #data-protection }
@@ -124,7 +124,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Un modelo de descripción de imágenes | Las imágenes dentro de los documentos | El `image_description_model` de una colección | La de ese provider de modelos |
 | Investigación web | La consulta de búsqueda que compuso el agent | `web_research.method` en el spec: `duckduckgo` (sin clave), `tavily`, `brave` o `exa` (un secreto `search` cada uno), o `native`, donde busca el provider del modelo de chat | La del proveedor de búsqueda, o la del provider del modelo |
 | Web fetch y uso del navegador | La URL; para el uso del navegador, la tarea entera | La capability en el spec; el uso del navegador necesita además un endpoint CDP que nombres tú | El sitio consultado; el host del navegador |
-| El modelo de decisión de la navegación | Cada paso de un recorrido: la URL de la página, su título y las etiquetas de los elementos a la vista, que pueden ser el contenido de un sistema interno | La capability `browser_choice`, que no se ejecuta sin una clave del vault que añada un operador; `decision_base_url` cambia el destino | El proveedor del modelo de decisión, o tu propio host |
+| El modelo de decisión de la navegación | Cada paso de un recorrido: la URL de la página, su título y las etiquetas de los elementos a la vista, que pueden ser el contenido de un sistema interno | La capability `browser_choice`, que no se ejecuta sin una clave del vault que añada un operador; `decision_base_url` cambia el destino. Qué navegador dirige lo limita `BROWSER_CDP_ALLOWED_HOSTS`, vacío por defecto | El proveedor del modelo de decisión, o tu propio host |
 | La sandbox, hacia fuera | **Cualquier cosa del workspace, a cualquier host** — la runtime `workbench` tiene red, shell y `curl` | La capability `sandbox` y una runtime con `needs_network`; la aprobación de comandos controla qué se ejecuta, no adónde se conecta | Adonde fuera el comando. El control de salida es el firewall del host de la sandbox, no un ajuste de aquí |
 | Un servidor MCP | Argumentos y resultados de herramientas | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |

@@ -1,5 +1,5 @@
 ---
-source_sha: "26352d1d438f"
+source_sha: "855173f04a37"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -507,7 +507,7 @@ oraz nie udało się połączyć z przeglądarką.
 
 | Ustawienie | Domyślnie | Wartości |
 |---|---|---|
-| `cdp_url` | — | endpoint Chromium DevTools; wymagany, sprawdzany pod kątem SSRF przy publikacji |
+| `cdp_url` | — | endpoint Chromium DevTools; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS` |
 | `allowed_domains` | null | hosty, na których przeglądarka może być; globy jak `*.example.com` dozwolone; null oznacza brak ograniczeń |
 | `decision_model` | `jev-latest` | model, który w każdym kroku wybiera operację i element |
 | `decision_base_url` | null | gdzie ten model działa, jeśli nie jest to publiczny endpoint dostawcy |
@@ -517,11 +517,21 @@ oraz nie udało się połączyć z przeglądarką.
 | `preview` | `true` | wysyłaj widok strony na czat w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość tych klatek |
 
-**Przeglądarka jest twoja.** Nie ma trybu lokalnego ani Chromium w obrazie API:
-`cdp_url` wskazuje na usługę przeglądarki, którą operator uruchamia i izoluje. To
-adres, z którym to wdrożenie łączy się po stronie serwera, więc jest sprawdzany pod
-kątem SSRF — adres pętli zwrotnej, prywatny, zarezerwowany lub metadanych jest
-odrzucany **przy publikacji**, przy zapisie spec, a nie przy każdym runie.
+**Przeglądarka jest twoja, a operator mówi która.** Nie ma trybu lokalnego ani
+Chromium w obrazie API: `cdp_url` wskazuje na usługę przeglądarki, którą operator
+uruchamia i izoluje. Host musi być na liście
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta allowlista — domyślna —
+odrzuca automatyzację przeglądarki całkowicie. Sprawdzane **przy publikacji**, przy
+zapisie spec, a nie przy każdym runie.
+
+To allowlista, a nie kontrola SSRF, przez którą przechodzi każdy inny adres podany
+przez tenanta, i powodem jest to, czym jest `cdp_url`: leży w spec, który pisze
+każdy z uprawnieniem `edit` na agencie, więc adres jest kontrolowany przez tenanta,
+a żądanie wykonuje to wdrożenie. Guard SSRF jest tu zły w obie strony — dopuszcza
+wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę w twojej własnej sieci,
+którą ta strona każe uruchomić, i przyjmuje debugger CDP wystawiony do internetu,
+co jest gorszą z tych dwóch postaw. Zweryfikowany host nie potrzebuje sprawdzania
+adresu; niezweryfikowany jest odrzucany niezależnie od tego, na co się rozwiązuje.
 
 **Każdy krok wysyła stronę do modelu decyzyjnego.** Jej adres, tytuł i etykiety
 elementów — co na publicznym endpoincie dostawcy jest stroną trzecią i może być

@@ -538,6 +538,17 @@ class Settings(BaseSettings):
     # `mem0_base_url` at their own server and capture it (docs/secrets.md).
     MEM0_ALLOWED_HOSTS: list[str] = []
 
+    # Hosts a browsing agent may drive a Chromium at. `cdp_url` lives in an agent
+    # spec, which anyone holding `edit` on that agent writes - so it is
+    # tenant-controlled, and an unbounded one is a request this deployment makes
+    # to any address the author names. The SSRF guard is the wrong control for it:
+    # it admits only *public* addresses, which refuses the isolated browser
+    # service on the deployment's own network that `docs/reference/capabilities.md`
+    # tells an operator to run, and accepts a CDP debugger exposed to the
+    # internet, which is worse. So the operator names the hosts instead, exactly
+    # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
+    BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:
