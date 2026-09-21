@@ -12,16 +12,22 @@ only if stylesheet containment is counted as one patch. The record itself says
 containment is a fork (a prefixed stylesheet build plus retargeting the SDK's
 portals) that nobody estimated. The issue's condition is that the adaptations be
 bounded, and for containment that is **not demonstrated**. That is the reason for the
-rejection. It is a judgement about an unestimated item, not a measured overrun: the
-other adapters fit the 2-day bound at prototype quality.
+rejection. It is a judgement about an unestimated item, not a measured overrun. Days
+of adapter work were not tracked, so the 2-day half of the threshold is a qualitative
+judgement too: the prototype reached every case in the issue, and nothing here records
+how long that took.
 
 Three findings support it:
 
 - Its stylesheet was not contained in the prototype. It restyles the whole document,
-  survives client-side navigation and could not be fixed with tokens. Containing it
-  needs a forked stylesheet build, or an iframe, which would require relaxing the
-  console's framing headers. The iframe was tested only as far as the CSP refusal, and
-  the forked stylesheet was not attempted; neither is shown to be impossible.
+  survives client-side navigation and could not be fixed with tokens. Ways to contain
+  it are a forked stylesheet build, an iframe (which would require relaxing the
+  console's framing headers), or a cheap layer-order pre-declaration ahead of
+  Tailwind's layers. The iframe was tested only as far as the CSP refusal, the fork
+  was not attempted, and the layer-order option was not tried; none is shown to be
+  impossible. If layer order works, the stylesheet finding shrinks to the
+  `<html data-theme>` and `wb-theme` side effects, and the decision would rest on the
+  next two findings and on the containment estimate that is still missing.
 - Left unguarded, the SDK's autosave timer outlives its editor and wrote one workflow's
   nodes into another workflow's document. Remounting the editor to switch workflow or
   organization worked. The other global state (registries, save status, Strict Mode)
@@ -31,6 +37,9 @@ Three findings support it:
   parts the SDK does provide are the canvas chrome, the palette and the property
   panel. Building those on React Flow directly was not estimated here, and this record
   does not give a figure for it.
+
+The workflow milestone's 1-2 working day estimate for this evaluation is unchanged:
+nothing here cuts it, as acceptance criterion 3 of #1781 requires.
 
 One optional trigger for a later look: the reviewed upstream commit is already ahead
 of 2.3.0 and swaps its UI dependency (`@synergycodes/overflow-ui` for
@@ -106,7 +115,8 @@ are too. One editor per document is upstream's stated contract.
 - **Strict Mode** (on in `next dev`): mount, cleanup and mount again left one active
   editor. No violation was detected.
 - **Switching workflow or organization** remounts the editor. The store resets to the
-  new document, and the new nodes render.
+  new document, and the new nodes render. This was exercised through the lab's own
+  two-button selector, not the console's real organization switcher.
 - **A pending autosave outlives its editor.** The SDK's autosave timer is not
   cancelled on unmount, and the save reads the global store when it fires. The
   autosave (`o4` in `dist/index-CEBfv0NZ.js`) fires only when more than 10 seconds have
@@ -204,16 +214,26 @@ What tokens cannot reach is the SDK stylesheet's own global rules, measured agai
 |---|---|---|
 | Whole page in Poppins | `*{font-family}` | Yes (mapped) |
 | `body` background changed | `body{background-color}` | Yes (mapped) |
-| `body{overflow:hidden}` | `body` rule | No: a second global override was added |
-| `.font-mono` renders in the body font | unlayered `*` beats our layered utility | No, and not patched |
+| `body{overflow:hidden}` | `body` rule in the SDK's `@layer reset` | No: a second global override was added |
+| `.font-mono` renders in the body font | The SDK's `*{font-family}` sits in its `@layer reset`. Its stylesheet loads after ours, so its layers are ordered after our `@layer utilities` and win | No token; not patched. A layer-order pre-declaration was not tried |
 | `<html data-theme>` set, `wb-theme` written to localStorage | SDK theme code | No |
 
 These persist after navigating from the lab to `/agents`, in the dev server and in a
-production build. Containing them would need the stylesheet rebuilt with a prefix
-and the SDK's portals (modals, snackbar, select popups, which render into `body`)
-pointed at our scope, or an iframe. Neither was attempted: the first is a fork, and
-the second would need the console's framing headers relaxed for one route, which was
-not done. So this is not shown to be impossible, only not achieved in the prototype.
+production build. The stylesheet begins `@layer reset,ext-lib,ui;`, and its `*` and
+`body` rules sit inside those layers; only the `:root` and `html[data-theme]`
+custom-property blocks are unlayered. Layer order follows first appearance, and ours
+(`@layer utilities` in `globals.css`) comes first, so the SDK's layers outrank it.
+Declaring the order ahead of Tailwind's layers (for example
+`@layer reset, ext-lib, ui, theme, base, components, utilities;`) is a possible cheap
+containment for the font and `body` rules. It was not tried, because the issue says
+not to extend the experiment, and it would not address the `<html data-theme>` and
+`wb-theme` localStorage side effects.
+
+The heavier routes are a stylesheet rebuilt with a prefix and the SDK's portals
+(modals, snackbar, select popups, which render into `body`) pointed at our scope, or
+an iframe. The fork was not attempted, and the iframe stopped at the console's
+framing refusal, since relaxing those headers for one route was not done. So this is
+not shown to be impossible, only not achieved in the prototype.
 Recorded as **not tamed: failed**, under the half-day rule set at the start of this
 evaluation (it is not in the issue text).
 
@@ -237,9 +257,9 @@ Count: **2 of the 5 allowed**, with the containment caveat above.
 
 ## Adapter work
 
-Measured with `wc -l`: 1,548 lines of adapter source, 1,046 lines of lab UI, mocks
+Measured with `wc -l`: 1,554 lines of adapter source, 1,046 lines of lab UI, mocks
 and fixtures (`baseline-flow`, `editor-host`, `fixtures`, `mock-workflow-api`, `perf`,
-`sdk-theme.css`, `workflow-sdk-lab` and the route's `page.tsx`), and 752 lines across
+`sdk-theme.css`, `workflow-sdk-lab` and the route's `page.tsx`), and 777 lines across
 the 7 test files.
 
 The algorithms carry over to React Flow directly, not the files verbatim:
@@ -251,22 +271,23 @@ The algorithms carry over to React Flow directly, not the files verbatim:
   from `sdk-adapter.ts`.
 
 These modules move once the real editor exists, and were not refactored for that.
-The algorithms in question total about 480 lines including the stand-in types:
+The algorithms in question total about 490 lines including the stand-in types:
 `typed-graph.ts` 127 (63 of them the stand-in types and 64 the helpers), `clipboard.ts`
-143, `history.ts` 110 and the guarded save in `save-handler.ts` 98, which excludes the
-lab-only `createNaiveSave`. Without the stand-in types it is about 415 lines.
+143, `history.ts` 122 and the guarded save in `save-handler.ts` 98, which excludes the
+lab-only `createNaiveSave`. Without the stand-in types it is about 427 lines.
 
 | Module | Lines | Survives without the SDK |
 |---|---|---|
-| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 380 (317 without the stand-in types) | The algorithms, not the files |
+| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 392 (329 without the stand-in types) | The algorithms, not the files |
 | `save-handler.ts` | 111 | The guards and 409 mapping, yes |
 | `sdk-adapter.ts` | 244 | Partly: the strict parse, not the SDK node shape |
-| `editor-controller.tsx` | 244 | Partly: history and clipboard wiring |
+| `editor-controller.tsx` | 238 | Partly: history and clipboard wiring |
 | `pydantic-schema.ts` | 192 | Only if property forms stay schema-driven |
 | `renderers.tsx`, `nodes.ts` | 377 | Controls yes, palette definitions no |
 
-This is a measure of size, not of days. The prototype reached every case in the
-issue, so the adapters fit the 2-day bound at prototype quality. Work the SDK would
+This is a measure of size, not of days. Days were not tracked: the prototype reached
+every case in the issue, and this record does not say how long that took, so the
+2-day half of the threshold rests on judgement. Work the SDK would
 still need is unbounded or unestimated: stylesheet containment, accessibility
 patches, whether its English and Polish chrome follows the console's language switch,
 and real API and permission wiring. That is a judgement about risk, not a measured
@@ -285,7 +306,11 @@ Bundle, from `next build` of this branch against `main`:
 | Frontend image, npm distributions | 281 | 413 (+132) |
 
 The SDK stays in its own dynamic import, so no other route pays for it. The 1,500
-extra chunks are its icon set, loaded on demand. The 132 extra packages include
+extra chunks are its icon set, loaded on demand. Of the 132 extra distributions, 9 are
+needed by the recommended `@xyflow/react` path anyway (`@xyflow/react`,
+`@xyflow/system`, `classcat`, `d3-dispatch`, `d3-drag`, `d3-selection`,
+`d3-transition`, `d3-zoom` and a second `zustand` copy that `@xyflow/react` brings), so
+**123 are SDK-only** (`THIRD_PARTY_NOTICES.md` lists them). The 132 include
 Material UI, Emotion and Mantine, beside our Radix, and a beta UI kit
 (`@synergycodes/overflow-ui@1.0.0-beta.27`).
 
@@ -336,6 +361,10 @@ Only the SDK-only distributions go away with the SDK, along with the Poppins and
   published 2.3.0 build, and the source was read at the `v2.3.0` tag. The migration
   may change the stylesheet and the dependency tree.
 - Two editors mounted at once inline. Upstream says one; the lab only detects it.
+- The console's real organization switcher. Workflow and organization switching was
+  exercised only through the lab's own selector.
+- A layer-order pre-declaration ahead of Tailwind's layers as stylesheet containment.
+  It is untried, and would not address `<html data-theme>` or `wb-theme`.
 - The iframe, beyond the policy refusal.
 - Whether the SDK's chrome follows the console's language switch. It ships English
   and Polish, and the console now serves English, Polish and German, so German
