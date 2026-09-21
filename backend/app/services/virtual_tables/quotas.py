@@ -104,10 +104,21 @@ async def enforce_table_count(db: AsyncSession, ctx: AuthContext) -> None:
         )
 
 
+async def lock_record_count(db: AsyncSession, table: VirtualTable) -> None:
+    """Take turns with every other create into this table, until the transaction ends.
+
+    Re-entrant within one transaction. An upsert takes it *before* deciding whether its
+    external id exists, so that a concurrent upsert of the same new id has committed by the
+    time it looks: the loser then sees the winner's row and updates it instead of counting a
+    table its rival just filled and being refused for it.
+    """
+    await hold_subject(db, LockScope.VIRTUAL_TABLE_RECORD_COUNT, table.id)
+
+
 async def enforce_record_count(db: AsyncSession, ctx: AuthContext, table: VirtualTable) -> None:
     """Refuse a new record when the table already holds as many as it may."""
     limit = settings.TABLES_MAX_RECORDS_PER_TABLE
-    await hold_subject(db, LockScope.VIRTUAL_TABLE_RECORD_COUNT, table.id)
+    await lock_record_count(db, table)
     held = await virtual_table_repo.count_records_up_to(
         db, table_id=table.id, organization_id=ctx.organization_id, ceiling=limit
     )

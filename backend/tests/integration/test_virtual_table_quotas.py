@@ -24,7 +24,7 @@ from app.schemas.virtual_table import (
     TableCreate,
 )
 from app.services.virtual_tables import VirtualTableService
-from app.services.virtual_tables.exceptions import QuotaExceededError
+from app.services.virtual_tables.exceptions import QuotaExceededError, RevisionRequiredError
 from tests.integration.virtual_table_support import column, ctx_for, make_org, make_user
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -313,3 +313,72 @@ async def test_a_burst_of_refusals_never_waits_on_the_pool_the_requests_hold(
 
     assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 8
     assert len(await _refusals(ordinary, ctx)) == 8
+
+
+async def test_two_upserts_of_one_new_id_for_the_last_slot_create_once_and_never_refuse(
+    engine: AsyncEngine, monkeypatch
+):
+    """The loser used to take the count lock after the winner filled the table, see it full
+    and be refused (and audited as a refusal), when its own id was already there to update."""
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 3)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    for n in range(2):
+        await _call(
+            factory,
+            lambda service, n=n: service.upsert_record(
+                ctx, table.id, f"seed{n}", RecordUpsert(values={})
+            ),
+        )
+
+    results = await asyncio.gather(
+        *(
+            _call(
+                factory,
+                lambda service: service.upsert_record(
+                    ctx, table.id, "the-last-slot", RecordUpsert(values={})
+                ),
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    created = [r for r in results if not isinstance(r, BaseException)]
+    others = [r for r in results if isinstance(r, BaseException)]
+    assert len(created) == 1 and created[0].created
+    assert len(others) == 1 and isinstance(others[0], RevisionRequiredError)
+    assert await _records(factory) == 3
+    assert await _refusals(factory, ctx) == []
+
+
+async def test_an_upsert_waiting_on_a_rival_for_the_last_slot_updates_it_when_the_rival_commits(
+    engine: AsyncEngine, monkeypatch
+):
+    """The same race with the interleaving fixed: the rival holds the slot, uncommitted."""
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 1)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+
+    async with factory() as rival:
+        await VirtualTableService(rival).upsert_record(
+            ctx, table.id, "the-last-slot", RecordUpsert(values={})
+        )
+        waiting = asyncio.create_task(
+            _call(
+                factory,
+                lambda service: service.upsert_record(
+                    ctx, table.id, "the-last-slot", RecordUpsert(values={})
+                ),
+            )
+        )
+        await asyncio.sleep(0.4)
+        assert not waiting.done(), "the second upsert did not wait for the first"
+        await rival.commit()
+
+    with pytest.raises(RevisionRequiredError):
+        await waiting
+    assert await _records(factory) == 1
+    assert await _refusals(factory, ctx) == []

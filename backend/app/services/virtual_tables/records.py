@@ -381,26 +381,21 @@ class RecordOperations(Operations):
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
-            existing = await virtual_table_repo.get_record_by_external_id(
-                self.db,
-                external_id,
-                table_id=table.id,
-                organization_id=ctx.organization_id,
-                for_update=True,
-            )
+            existing = await self._lookup(ctx, table, external_id)
+            if existing is None:
+                # Take turns with other creates before deciding the id is new. A concurrent
+                # upsert of the same id holds this lock until it commits, so once it is ours
+                # the winner's row is visible: this call then updates it, and never counts a
+                # table its rival just filled and is refused for it.
+                await quotas.lock_record_count(self.db, table)
+                existing = await self._lookup(ctx, table, external_id)
             if existing is None:
                 created = await self._insert(ctx, table, external_id, data.values)
                 if created is not None:
                     return self._outcome(created, created=True)
                 # Another transaction took the external id between the lookup and
                 # the insert. Its row is committed by now, so read and update it.
-                existing = await virtual_table_repo.get_record_by_external_id(
-                    self.db,
-                    external_id,
-                    table_id=table.id,
-                    organization_id=ctx.organization_id,
-                    for_update=True,
-                )
+                existing = await self._lookup(ctx, table, external_id)
                 if existing is None:
                     raise ConcurrentChangeError()
             if data.expected_revision is None:
@@ -488,6 +483,18 @@ class RecordOperations(Operations):
         except _Unchanged as unchanged:
             return RecordWrite(record=unchanged.record, created=False, replayed=False)
         return RecordWrite(record=outcome.record, created=outcome.created, replayed=replayed)
+
+    async def _lookup(
+        self, ctx: AuthContext, table: VirtualTable, external_id: str
+    ) -> VirtualTableRecord | None:
+        """The record with this external id, locked for the write that follows."""
+        return await virtual_table_repo.get_record_by_external_id(
+            self.db,
+            external_id,
+            table_id=table.id,
+            organization_id=ctx.organization_id,
+            for_update=True,
+        )
 
     @staticmethod
     def _outcome(record: VirtualTableRecord, *, created: bool) -> WriteOutcome:
