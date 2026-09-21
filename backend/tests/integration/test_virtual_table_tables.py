@@ -476,3 +476,74 @@ async def test_a_column_made_required_after_every_record_has_a_value_rejects_new
     ]
     with pytest.raises(InvalidRecordError):
         await service.create_record(ctx, table.id, RecordCreate(values={str(name_id): None}))
+
+
+@pytest.mark.security
+async def test_a_required_column_cannot_come_back_from_the_archive_beside_records_that_lack_it(db):
+    """Records written while it was archived could not hold a value, so it would be violated."""
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="People", columns=[column("Name", "text")])
+    )
+    name = table.columns[0].id
+    await service.create_record(ctx, table.id, RecordCreate(values={str(name): "Ada"}))
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(expected_version=1, columns=[column("Name", "text", id=name, nullable=False)]),
+    )
+    await service.update_schema(ctx, table.id, SchemaUpdate(expected_version=2, columns=[]))
+    await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    with pytest.raises(InvalidSchemaError) as raised:
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=3, columns=[column("Name", "text", id=name, nullable=False)]
+            ),
+        )
+
+    assert raised.value.details["fields"][0]["field"] == "columns.0.nullable"
+    assert (await service.describe_table(ctx, table.id)).schema_version == 3
+
+
+async def test_a_required_column_with_a_default_can_come_back_and_fills_on_the_next_edit(db):
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(
+            name="People",
+            columns=[column("Country", "text", nullable=False, default="PL")],
+        ),
+    )
+    country = table.columns[0].id
+    await service.update_schema(ctx, table.id, SchemaUpdate(expected_version=1, columns=[]))
+    other = await service.update_schema(
+        ctx, table.id, SchemaUpdate(expected_version=2, columns=[column("Note", "text")])
+    )
+    written = await service.create_record(
+        ctx, table.id, RecordCreate(values={str(other.columns[0].id): "x"})
+    )
+    assert str(country) not in written.record.values
+
+    restored = await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=3,
+            columns=[
+                column("Note", "text", id=other.columns[0].id),
+                column("Country", "text", id=country, nullable=False, default="PL"),
+            ],
+        ),
+    )
+    edited = await service.update_record(
+        ctx,
+        table.id,
+        written.record.id,
+        RecordUpdate(expected_revision=1, values={str(other.columns[0].id): "y"}),
+    )
+
+    assert restored.schema_version == 4
+    assert edited.record.values[str(country)] == "PL"

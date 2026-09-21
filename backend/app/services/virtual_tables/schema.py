@@ -37,7 +37,7 @@ class SchemaDiff:
     """Columns that were live and are now archived."""
 
     required: frozenset[UUID]
-    """Columns that allowed an empty cell and now do not."""
+    """Live columns that now demand a value and that existing records may lack one for."""
 
 
 def _options(
@@ -134,8 +134,19 @@ def build_columns(
     return columns
 
 
+def _becomes_required(old: ColumnDef, new: ColumnDef) -> bool:
+    """Whether a live required column is one records may now lack a value for.
+
+    Two ways in: an optional column that becomes required, and a required column that comes
+    back from the archive. Records written while it was archived could not hold a value for
+    it, so un-archiving without a default leaves every one of them missing something the
+    column now demands. With a default the next edit fills it, exactly as for a new column.
+    """
+    return old.nullable or (old.archived and new.default is None)
+
+
 def diff(previous: Sequence[ColumnDef], current: Sequence[ColumnDef]) -> SchemaDiff:
-    """Which existing columns a change archives, and which it makes required."""
+    """Which existing columns a change archives, and which it makes required or restores as required."""
     before = {column.id: column for column in previous}
     archived = frozenset(
         column.id
@@ -145,6 +156,9 @@ def diff(previous: Sequence[ColumnDef], current: Sequence[ColumnDef]) -> SchemaD
     required = frozenset(
         column.id
         for column in current
-        if not column.nullable and column.id in before and before[column.id].nullable
+        if not column.nullable
+        and not column.archived
+        and column.id in before
+        and _becomes_required(before[column.id], column)
     )
     return SchemaDiff(archived=archived, required=required)

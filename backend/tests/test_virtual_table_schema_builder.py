@@ -164,3 +164,39 @@ def test_a_select_default_is_stored_as_the_canonical_option_id():
     )
 
     assert rebuilt.default == str(option)
+
+
+def _required(**rest) -> ColumnDef:
+    return ColumnDef(id=uuid.uuid4(), label="Name", type="text", nullable=False, **rest)
+
+
+def test_a_required_column_coming_back_from_the_archive_without_a_default_is_flagged():
+    archived = _required(archived=True)
+    restored = build_columns(
+        [ColumnInput(id=archived.id, label="Name", type="text", nullable=False)], [archived]
+    )
+
+    assert diff([archived], restored).required == {archived.id}
+
+
+def test_a_required_column_coming_back_with_a_default_is_not_flagged():
+    archived = _required(archived=True, default="x")
+    restored = build_columns(
+        [ColumnInput(id=archived.id, label="Name", type="text", nullable=False, default="x")],
+        [archived],
+    )
+
+    assert diff([archived], restored).required == frozenset()
+
+
+def test_a_required_column_that_stays_archived_or_stays_live_is_not_flagged():
+    live = _required()
+    archived = _required(archived=True)
+
+    stays_live = build_columns(
+        [ColumnInput(id=live.id, label="Name", type="text", nullable=False)], [live]
+    )
+    stays_archived = build_columns([], [archived])
+
+    assert diff([live], stays_live).required == frozenset()
+    assert diff([archived], stays_archived).required == frozenset()
