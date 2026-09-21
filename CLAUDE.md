@@ -213,6 +213,7 @@ retranslated is how a stale translation stops being visible.
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |

@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Virtual Tables: typed records behind one service and an HTTP API.** A table is
+  metadata plus JSONB, never a physical SQL table, with immutable schema versions,
+  stable table, column and option ids, and nine column types (text, long text,
+  number, integer, boolean, date, datetime, single and multi select). Records carry
+  a revision: an update or delete must send `expected_revision` and a stale one is
+  a typed `REVISION_CONFLICT`. Upsert by external id is atomic, so concurrent
+  upserts create one record. Every record write commits its history row, its
+  created-event outbox row and its idempotency receipt with the change, and an
+  `Idempotency-Key` header makes a retry return the first answer. Access is
+  visibility plus grants like context files, with new `tables:view`, `tables:edit`
+  and `tables:create` permissions, and every route answers refusals in one typed
+  error envelope. Migration `0092_virtual_tables.py`; see
+  [Virtual Tables](docs/virtual-tables.md). (#1782)
+
 ## [0.0.472] - 2026-09-19
 
 ### Fixed
