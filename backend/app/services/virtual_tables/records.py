@@ -93,6 +93,19 @@ def _refused(invalid: PydanticValidationError, field: str) -> InvalidRecordError
     return InvalidRecordError([(problem["field"], problem["message"]) for problem in problems])
 
 
+class _Unchanged(Exception):
+    """An update that would change nothing, carrying the record as it already is.
+
+    Raised from inside the write's savepoint on purpose: rolling it back is what removes
+    the receipt the operation key had claimed, so a no-op leaves no receipt, no history row
+    and no new revision. `_write` catches it and answers with the current record.
+    """
+
+    def __init__(self, record: RecordRead) -> None:
+        super().__init__("The update changes nothing")
+        self.record = record
+
+
 @dataclass(frozen=True)
 class RecordWrite:
     """The result of a create, update or upsert."""
@@ -297,6 +310,9 @@ class RecordOperations(Operations):
     ) -> RecordWrite:
         """Change the named cells of a record, if it is still at `expected_revision`.
 
+        An update that leaves every cell as it is changes nothing: the revision stays, no
+        history row or receipt is written, and the current record is returned.
+
         Raises:
             RevisionConflictError: Someone changed the record since it was read.
             NotFoundError: There is no such record.
@@ -334,6 +350,8 @@ class RecordOperations(Operations):
         update and must carry `expected_revision`. Concurrent upserts of one external
         id produce one record: the loser finds it and either updates it (with a
         matching revision) or is told which revision to send.
+
+        An update that would change nothing follows the rule of `update_record`.
 
         Raises:
             RevisionRequiredError: The record exists and no revision was sent.
@@ -439,15 +457,18 @@ class RecordOperations(Operations):
         payload: dict[str, Any],
         action: Callable[[], Awaitable[WriteOutcome]],
     ) -> RecordWrite:
-        outcome, replayed = await run_once(
-            self.db,
-            ctx,
-            operation=operation,
-            operation_key=operation_key,
-            payload=payload,
-            outcome_type=WriteOutcome,
-            action=action,
-        )
+        try:
+            outcome, replayed = await run_once(
+                self.db,
+                ctx,
+                operation=operation,
+                operation_key=operation_key,
+                payload=payload,
+                outcome_type=WriteOutcome,
+                action=action,
+            )
+        except _Unchanged as unchanged:
+            return RecordWrite(record=unchanged.record, created=False, replayed=False)
         return RecordWrite(record=outcome.record, created=outcome.created, replayed=replayed)
 
     @staticmethod
@@ -532,10 +553,19 @@ class RecordOperations(Operations):
         values: dict[str, CellValue],
         expected_revision: int,
     ) -> None:
-        """Update a locked record and write its history row."""
+        """Update a locked record and write its history row.
+
+        The revision is checked first, so a stale one is a conflict even when the values
+        would have changed nothing. An update that changes nothing raises `_Unchanged`.
+        """
         self._check_revision(record, expected_revision)
         before = dict(record.values)
         merged = _merge(await self._columns(table), values, before)
+        if merged == before:
+            # Nothing to record. Bumping the revision and keeping a full before-and-after
+            # snapshot, and a receipt holding a whole copy, for a request that changed
+            # nothing would let tiny repeated requests grow the shared database.
+            raise _Unchanged(RecordRead.model_validate(record))
         await virtual_table_repo.update_record(
             self.db,
             record=record,

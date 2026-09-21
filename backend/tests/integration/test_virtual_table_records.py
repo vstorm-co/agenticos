@@ -310,20 +310,14 @@ async def test_records_without_a_value_sort_last_in_either_direction(db):
         assert [item.values.get(quantity) for item in page.items] == expected
 
 
-async def test_the_default_order_is_creation_time_then_id_and_updated_at_is_sortable(db):
+async def test_the_default_order_is_creation_time_then_id(db):
+    """Inside one transaction every `now()` is equal, so the record id decides."""
     service, ctx, table, _org = await _setup(db)
     await _seed(service, ctx, table, [("a", "a", 1), ("b", "b", 1), ("c", "c", 1)])
 
     default = await service.list_records(ctx, table.id)
     keys = [(item.created_at, item.id) for item in default.items]
     assert keys == sorted(keys)
-    edited = await service.update_record(
-        ctx, table.id, default.items[0].id, RecordUpdate(expected_revision=1, values={})
-    )
-    newest = await service.list_records(
-        ctx, table.id, RecordQuery(sort=RecordSort(by="updated_at", direction="desc"))
-    )
-    assert newest.items[0].id == edited.record.id
 
 
 async def _ids(service, ctx, table, *filters) -> set[str]:

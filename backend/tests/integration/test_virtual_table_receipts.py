@@ -407,3 +407,100 @@ async def test_concurrent_creates_of_one_table_name_have_one_winner(engine: Asyn
 
     assert sum(not isinstance(r, BaseException) for r in results) == 1
     assert all(isinstance(r, AlreadyExistsError) for r in results if isinstance(r, BaseException))
+
+
+async def _history(db) -> int:
+    return await _rows(db, VirtualTableRecordHistory)
+
+
+@pytest.mark.parametrize("no_op", ["empty", "same"])
+async def test_an_update_that_changes_nothing_writes_no_history_receipt_or_revision(db, no_op):
+    """A tiny repeated request must not grow the shared database with full snapshots."""
+    service, ctx, table, _org = await _setup(db)
+    quantity = cid(table, "Quantity")
+    written = await service.create_record(ctx, table.id, RecordCreate(values={quantity: 4}))
+    values = {} if no_op == "empty" else {quantity: 4}
+
+    for key in (None, "fresh-1", "fresh-2"):
+        result = await service.update_record(
+            ctx,
+            table.id,
+            written.record.id,
+            RecordUpdate(expected_revision=1, values=values),
+            operation_key=key,
+        )
+
+        assert result.record == written.record
+        assert (result.created, result.replayed) == (False, False)
+    assert await _history(db) == 1
+    assert await _rows(db, VirtualTableReceipt) == 0
+    stored = await service.get_record(ctx, table.id, written.record.id)
+    assert (stored.revision, stored.updated_at) == (1, written.record.updated_at)
+
+
+async def test_a_no_op_update_still_checks_the_revision_first(db):
+    service, ctx, table, _org = await _setup(db)
+    quantity = cid(table, "Quantity")
+    written = await service.create_record(ctx, table.id, RecordCreate(values={quantity: 4}))
+
+    with pytest.raises(RevisionConflictError) as raised:
+        await service.update_record(
+            ctx,
+            table.id,
+            written.record.id,
+            RecordUpdate(expected_revision=7, values={quantity: 4}),
+            operation_key="k",
+        )
+
+    assert raised.value.details["current_revision"] == 1
+    assert await _rows(db, VirtualTableReceipt) == 0
+
+
+async def test_a_real_edit_after_a_no_op_still_uses_the_same_revision(db):
+    service, ctx, table, _org = await _setup(db)
+    quantity = cid(table, "Quantity")
+    written = await service.create_record(ctx, table.id, RecordCreate(values={quantity: 4}))
+    await service.update_record(
+        ctx, table.id, written.record.id, RecordUpdate(expected_revision=1, values={})
+    )
+
+    edited = await service.update_record(
+        ctx,
+        table.id,
+        written.record.id,
+        RecordUpdate(expected_revision=1, values={quantity: 5}),
+        operation_key="real",
+    )
+
+    assert edited.record.revision == 2 and edited.record.values == {quantity: 5}
+    assert await _history(db) == 2
+    assert await _rows(db, VirtualTableReceipt) == 1
+
+
+async def test_an_upsert_that_would_change_nothing_writes_nothing_either(db):
+    service, ctx, table, _org = await _setup(db)
+    customer = cid(table, "Customer")
+    created = await service.upsert_record(
+        ctx, table.id, "A-1", RecordUpsert(values={customer: "Acme"})
+    )
+
+    for key in (None, "fresh"):
+        again = await service.upsert_record(
+            ctx,
+            table.id,
+            "A-1",
+            RecordUpsert(values={customer: "Acme"}, expected_revision=1),
+            operation_key=key,
+        )
+        assert again.record == created.record and not again.created
+    with pytest.raises(RevisionConflictError):
+        await service.upsert_record(
+            ctx,
+            table.id,
+            "A-1",
+            RecordUpsert(values={customer: "Acme"}, expected_revision=3),
+        )
+
+    assert await _history(db) == 1
+    assert await _rows(db, VirtualTableReceipt) == 0
+    assert await _rows(db, VirtualTableOutbox) == 1
