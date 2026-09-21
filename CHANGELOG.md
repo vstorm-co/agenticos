@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.479] - 2026-09-22
+
 ### Added
 
 - **`browser_choice`, a browser capability that picks from the page instead of
