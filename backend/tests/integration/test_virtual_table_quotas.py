@@ -270,3 +270,46 @@ async def test_concurrent_table_creates_cannot_pass_the_table_limit_together(
 
     assert sum(not isinstance(r, BaseException) for r in results) == 2
     assert all(isinstance(r, QuotaExceededError) for r in results if isinstance(r, BaseException))
+
+
+async def test_a_burst_of_refusals_never_waits_on_the_pool_the_requests_hold(
+    engine: AsyncEngine, monkeypatch
+):
+    """Each refused request holds a pooled connection while its audit entry is written.
+
+    With the audit on the same pool, a burst larger than the pool has every request waiting
+    for a second connection until the timeout, and they answer 500 instead of the refusal.
+    The pool here is deliberately tiny and the timeout short, and the loop is claimed the
+    way the API's is, which is what makes `get_db_context` reach for that pool.
+    """
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.db import session as db_session
+
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 1)
+    ordinary = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(ordinary)
+    table = await _table(ordinary, ctx)
+    tiny_engine = create_async_engine(engine.url, pool_size=2, max_overflow=0, pool_timeout=1)
+    tiny = async_sessionmaker(tiny_engine, expire_on_commit=False)
+    monkeypatch.setattr(db_session, "async_session_maker", tiny)
+    db_session.claim_pooled_engines()
+    try:
+        results = await asyncio.gather(
+            *(
+                _call(
+                    tiny,
+                    lambda service: service.create_record(
+                        ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
+                    ),
+                )
+                for _ in range(8)
+            ),
+            return_exceptions=True,
+        )
+    finally:
+        db_session.release_pooled_engines()
+        await tiny_engine.dispose()
+
+    assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 8
+    assert len(await _refusals(ordinary, ctx)) == 8

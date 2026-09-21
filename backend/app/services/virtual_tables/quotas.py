@@ -27,7 +27,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import VirtualTable
-from app.db.session import get_db_context
+from app.db.session import get_worker_db_context
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import CellValue
 from app.services.virtual_tables.exceptions import Quota, QuotaExceededError
@@ -50,8 +50,16 @@ async def refuse(
     message: str,
     target_id: UUID,
 ) -> NoReturn:
-    """Audit the refusal in its own transaction, then raise it."""
-    async with get_db_context() as audit_db:
+    """Audit the refusal in its own transaction, then raise it.
+
+    The session comes from `get_worker_db_context`, which connects on a `NullPool` engine of
+    its own, and not from `get_db_context`: on the API's loop that one draws from the same pool
+    as the request that is being refused, which already holds a connection. With the default
+    pool, that many concurrent refusals each hold one and wait for a second until the pool
+    timeout, and answer 500 instead of `QUOTA_EXCEEDED` (the circular wait `vector_engine` was
+    added to avoid). A refusal is rare and a connect is cheap beside the request around it.
+    """
+    async with get_worker_db_context() as audit_db:
         await record_audit(
             audit_db,
             actor_user_id=ctx.subject_id,

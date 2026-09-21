@@ -39,7 +39,7 @@ def audited(monkeypatch) -> list[dict]:
     async def record(db, **entry):
         entries.append(entry)
 
-    monkeypatch.setattr(quotas, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(quotas, "get_worker_db_context", lambda: _Session())
     monkeypatch.setattr(quotas, "record_audit", record)
     return entries
 
