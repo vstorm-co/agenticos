@@ -1,5 +1,5 @@
 ---
-source_sha: "58aa7826a2ab"
+source_sha: "fd68c2def472"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -69,7 +69,8 @@ ją z bieżącymi kolumnami:
   `ARCHIVED_COLUMN`.
 - Nowa kolumna wymagana potrzebuje wartości domyślnej, bo istniejące rekordy nic w
   niej nie mają. Istniejąca kolumna nie może stać się wymagana, dopóki jakikolwiek
-  rekord nie ma w niej wartości.
+  rekord nie ma w niej wartości, a wymagana kolumna nie może wrócić z archiwum bez
+  wartości domyślnej, bo rekordy zapisane w czasie archiwizacji nie mogły jej mieć.
 - Nieaktualne `expected_version` to `SCHEMA_VERSION_CONFLICT`.
 
 Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
@@ -103,7 +104,9 @@ Aktualizacja lub usunięcie ze starą revision jest odrzucane kodem `REVISION_CO
 i spróbuj jeszcze raz. Upsert, który znajdzie istniejący rekord i nie dostanie
 `expected_revision`, otrzymuje `REVISION_REQUIRED` (428), znów z revision do wysłania.
 
-External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`.
+External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`. Nie może zawierać NUL ani znaku nowego wiersza. Serwis sprawdza to
+tak samo jak trasy, a identyfikator lub `Idempotency-Key` łamiący regułę to
+`INVALID_RECORD`.
 
 Równoległe upserty tego samego external id tworzą jeden rekord. Przegrywający go
 znajduje i jest obsługiwany jak aktualizacja: potrzebuje revision albo dowiaduje się,
@@ -137,7 +140,9 @@ filtrów.
 Kolejność jest całkowita. Po żądanym sortowaniu (`created_at`, `updated_at` lub
 kolumna, którą można sortować) następuje id rekordu, więc strona nigdy nie powtarza ani
 nie pomija rekordu w niezmienionej tabeli. Rekordy bez wartości w sortowanej kolumnie
-są na końcu w obu kierunkach. Kolumny `multi_select` nie da się sortować.
+są na końcu w obu kierunkach. Kolumny `multi_select` nie da się sortować. `updated_at` jest ustawiane przy utworzeniu
+rekordu i przesuwa się z każdą edycją, więc rekordy, których nikt nie edytował,
+sortują się według czasu utworzenia.
 
 Nie ma `total`, bo liczenie przefiltrowanej tabeli nie jest tanie. `has_more` mówi, czy
 następuje kolejna strona.

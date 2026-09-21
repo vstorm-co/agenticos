@@ -1,5 +1,5 @@
 ---
-source_sha: "58aa7826a2ab"
+source_sha: "fd68c2def472"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -69,7 +69,9 @@ las columnas actuales:
   siendo legibles y filtrables, y escribir en ella se rechaza con `ARCHIVED_COLUMN`.
 - Una columna nueva obligatoria necesita un valor por defecto, ya que los registros
   existentes no guardan nada para ella. Una columna existente no puede pasar a ser
-  obligatoria mientras algún registro no tenga valor en ella.
+  obligatoria mientras algún registro no tenga valor en ella, y una columna obligatoria no
+  puede volver del archivo sin un valor por defecto, porque los registros escritos mientras
+  estaba archivada no podían guardar uno.
 - Una `expected_version` obsoleta es un `SCHEMA_VERSION_CONFLICT`.
 
 Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
@@ -104,7 +106,9 @@ registro de nuevo y reintenta. Un upsert que encuentra un registro existente y n
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
 
-Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`.
+Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
+igual que las rutas, y un identificador o `Idempotency-Key` que incumpla una regla es
+`INVALID_RECORD`.
 
 Los upserts concurrentes de un mismo external id crean un solo registro. El que pierde lo
 encuentra y se le responde como a una actualización: necesita la revision o se le dice
@@ -137,7 +141,9 @@ añade filtros tipados, que deben cumplirse todos. Ambos están acotados: `limit
 El orden es total. Al orden pedido (`created_at`, `updated_at` o una columna ordenable) le
 sigue el id del registro, de modo que una página nunca repite ni se salta un registro en
 una tabla sin cambios. Los registros sin valor en la columna ordenada van al final en
-ambas direcciones. Una columna `multi_select` no se puede ordenar.
+ambas direcciones. Una columna `multi_select` no se puede ordenar. `updated_at` se fija al crear un registro y
+avanza con cada edición, así que los registros que nadie ha editado se ordenan por su
+momento de creación.
 
 No hay `total`, porque contar una tabla filtrada no es barato. `has_more` indica si sigue
 otra página.

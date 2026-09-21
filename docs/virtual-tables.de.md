@@ -1,5 +1,5 @@
 ---
-source_sha: "58aa7826a2ab"
+source_sha: "fd68c2def472"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -73,7 +73,9 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   `ARCHIVED_COLUMN` abgelehnt.
 - Eine neue Pflichtspalte braucht einen Standardwert, weil bestehende Datensätze
   nichts für sie enthalten. Eine bestehende Spalte kann nicht zur Pflichtspalte werden,
-  solange ein Datensatz keinen Wert für sie hat.
+  solange ein Datensatz keinen Wert für sie hat, und eine Pflichtspalte kann ohne
+  Standardwert nicht aus dem Archiv zurückkehren, weil Datensätze, die während der
+  Archivierung geschrieben wurden, keinen halten konnten.
 - Eine veraltete `expected_version` ergibt `SCHEMA_VERSION_CONFLICT`.
 
 Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
@@ -109,7 +111,9 @@ erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Daten
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
 
-Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`.
+Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
+prüft das ebenso wie die Routen, und eine Kennung oder ein `Idempotency-Key`, die eine
+Regel verletzen, ergeben `INVALID_RECORD`.
 
 Gleichzeitige Upserts derselben external id erzeugen einen Datensatz. Der Verlierer
 findet ihn und wird wie ein Update beantwortet: Er braucht die Revision oder erfährt,
@@ -145,7 +149,9 @@ Die Reihenfolge ist total. Auf die gewünschte Sortierung (`created_at`, `update
 oder eine sortierbare Spalte) folgt die Datensatz-id, sodass eine Seite in einer
 unveränderten Tabelle nie einen Datensatz wiederholt oder überspringt. Datensätze ohne
 Wert in der sortierten Spalte kommen in beiden Richtungen zuletzt. Eine
-`multi_select`-Spalte lässt sich nicht sortieren.
+`multi_select`-Spalte lässt sich nicht sortieren. `updated_at` wird beim Erstellen eines
+Datensatzes gesetzt und rückt mit jeder Bearbeitung vor, sodass Datensätze, die niemand
+bearbeitet hat, nach ihrer Erstellungszeit sortieren.
 
 Es gibt kein `total`, weil das Zählen einer gefilterten Tabelle nicht billig ist.
 `has_more` sagt, ob eine weitere Seite folgt.

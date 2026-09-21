@@ -62,7 +62,9 @@ current columns:
 - Nothing is deleted. A column or option left out is **archived**: its values stay
   readable and filterable, and writing to it is refused with `ARCHIVED_COLUMN`.
 - A new required column needs a default, since existing records hold nothing for it.
-  An existing column cannot become required while any record has no value for it.
+  An existing column cannot become required while any record has no value for it, and a
+  required column cannot come back from the archive without a default, because records
+  written while it was archived could not hold one.
 - A stale `expected_version` is a `SCHEMA_VERSION_CONFLICT`.
 
 Records are not rewritten. A record written under version 1 stays readable and
@@ -96,7 +98,9 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
 
-An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`.
+An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
+contain NUL or a line break. The service checks this as well as the routes, and an
+identifier or `Idempotency-Key` that breaks a rule is `INVALID_RECORD`.
 
 Concurrent upserts of one external id create one record. The loser finds it and is
 answered as an update: it needs the revision, or it is told which one to send.
@@ -127,7 +131,8 @@ adds typed filters, all of which must hold. Both are bounded: `limit` is 1 to 10
 The order is total. The requested sort (`created_at`, `updated_at` or a sortable
 column) is followed by the record id, so a page never repeats or skips a record in
 an unchanged table. Records with no value in the sorted column come last in either
-direction. A `multi_select` column cannot be sorted.
+direction. A `multi_select` column cannot be sorted. `updated_at` is set when a record is
+created and moves on each edit, so records nobody has edited sort by their creation time.
 
 There is no `total`, because counting a filtered table is not cheap. `has_more` says
 whether another page follows.
