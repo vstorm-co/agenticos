@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.473] - 2026-09-21
+
 ### Added
 
 - **The console speaks German.** `frontend/messages/de.json` translates all 4,486
