@@ -1660,6 +1660,221 @@ class TestUnreadCountAndMarkRead:
         assert marked == 0
 
 
+class TestDismissAndClear:
+    """Clearing the inbox - `dismissed_at`, not a delete.
+
+    The row is the dedup anchor (`INSERT ... ON CONFLICT (recipient_user_id,
+    event_type, occurrence_id) DO NOTHING`), so a deleted row is one a retried
+    producer writes again: a budget alert somebody cleared would come back on
+    the next check. Dismissed, it stays, stops being listed, and ages out on
+    the ordinary retention sweep.
+    """
+
+    async def test_a_dismissed_row_leaves_the_inbox_and_the_badge(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-dismiss-1",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        assert await service.unread_count(ctx) == 1
+
+        await service.dismiss_one(ctx, notification.id)
+
+        rows, _, _ = await service.list_inbox(ctx, after=None, limit=50)
+        assert rows == []
+        # A row nobody can reach cannot go on counting towards a badge that
+        # nothing left on screen can clear.
+        assert await service.unread_count(ctx) == 0
+
+    async def test_the_row_survives_so_the_same_fact_cannot_be_written_twice(self, db):
+        """The whole reason this is not a delete."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="budget-42",
+            summary="Over budget",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        await service.dismiss_one(ctx, notification.id)
+
+        # The producer retries, as a budget check does on every run.
+        again = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id="budget-42",
+            summary="Over budget",
+            organization_id=org.id,
+        )
+
+        assert again == []
+        rows, _, _ = await service.list_inbox(ctx, after=None, limit=50)
+        assert rows == []
+
+    async def test_dismissing_a_row_twice_is_refused_the_second_time(self, db):
+        """`get_own` no longer returns it, so the second call has no row to
+        act on - and a 204 for an id this request never resolved would be a
+        claim it cannot support."""
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-dismiss-2",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        await service.dismiss_one(ctx, notification.id)
+
+        with pytest.raises(NotFoundError):
+            await service.dismiss_one(ctx, notification.id)
+
+    @pytest.mark.security
+    async def test_dismissing_somebody_elses_row_reads_as_missing(self, db):
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        other = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-dismiss-3",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+
+        with pytest.raises(NotFoundError):
+            await service.dismiss_one(_ctx(other, org, role="member"), notification.id)
+
+    @pytest.mark.security
+    async def test_dismissing_a_gate_excluded_row_reads_as_missing(self, db):
+        """Decision 7's read-time recheck applies to the write that clears a
+        row as much as to the read that lists it: a member who is no longer an
+        admin must not be able to act on an admin-gated row by its id."""
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-dismiss",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+
+        with pytest.raises(NotFoundError):
+            await service.dismiss_one(_ctx(member, org, role="member"), notification.id)
+
+    async def test_clearing_takes_read_rows_as_well_as_unread(self, db):
+        """What "clear" means to somebody looking at the panel is everything in
+        the panel - so this walks the listing, not the unread candidates that
+        `mark_all_read` walks."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        ctx = _ctx(recipient, org, role="member")
+        for index in range(3):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-clear-{index}",
+                summary="Run completed",
+                organization_id=org.id,
+            )
+        await service.mark_all_read(ctx)
+
+        assert await service.clear_inbox(ctx) == 3
+
+        rows, _, _ = await service.list_inbox(ctx, after=None, limit=50)
+        assert rows == []
+
+    async def test_clearing_an_empty_inbox_clears_nothing(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+
+        cleared = await NotificationCenterService(db).clear_inbox(
+            _ctx(recipient, org, role="member")
+        )
+
+        assert cleared == 0
+
+    @pytest.mark.security
+    async def test_clearing_leaves_a_row_the_caller_may_not_see(self, db):
+        """The sweep is gate-aware for the same reason `mark_all_read` is: it
+        must not write to a row this reader's current standing excludes."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-clear",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+
+        # The same person, read as a plain member: the row is theirs, and the
+        # gate is what says they may not act on it now.
+        assert await service.clear_inbox(_ctx(admin, org, role="member")) == 0
+        assert (
+            len((await service.list_inbox(_ctx(admin, org, role="admin"), after=None, limit=50))[0])
+            == 1
+        )
+
+    async def test_a_dismissed_row_does_not_come_back_on_a_later_page(self, db):
+        """The cursor walks `list_inbox_page`, which filters dismissed rows out
+        - so paging past a cleared row must not resurface it."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        ctx = _ctx(recipient, org, role="member")
+        written = []
+        for index in range(4):
+            [row] = await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-page-{index}",
+                summary="Run completed",
+                organization_id=org.id,
+            )
+            written.append(row)
+        await service.dismiss_one(ctx, written[0].id)
+        await service.dismiss_one(ctx, written[2].id)
+
+        first, _, cursor = await service.list_inbox(ctx, after=None, limit=1)
+        assert len(first) == 1
+        rest, _, _ = await service.list_inbox(ctx, after=cursor, limit=50)
+
+        seen = {row.id for row in first} | {row.id for row in rest}
+        assert seen == {written[1].id, written[3].id}
+
+
 class TestRequireCaller:
     async def test_a_context_with_no_subject_is_refused(self, db):
         from app.core.exceptions import AuthorizationError

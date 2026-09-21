@@ -130,6 +130,12 @@ _MANDATORY_WRITE_LIMIT = rate_limit.Limit(attempts=20, window_seconds=60)
 # unbounded.
 _MAX_INBOX_FETCH_ROUNDS = 5
 _UNREAD_CANDIDATE_CAP = 500
+# What one "clear" sweeps. Larger than the unread cap because it walks read
+# rows too - clearing an inbox is exactly the thing somebody does when it has
+# grown long - and still bounded, for the same reason the other two are: each
+# candidate takes its own permission check. A backlog past this is cleared by
+# a second click, the same contract `mark_all_read` already states.
+_DISMISS_CANDIDATE_CAP = 1000
 
 
 def encode_cursor(created_at: datetime, notification_id: uuid.UUID) -> str:
@@ -626,6 +632,70 @@ class NotificationCenterService:
         return await notification_repo.mark_ids_read(
             self.db, ids=visible_ids, read_at=datetime.now(UTC)
         )
+
+    async def dismiss_one(self, ctx: AuthContext, notification_id: uuid.UUID) -> None:
+        """Clear one row out of the caller's own inbox.
+
+        404s a row they may not - or may no longer - see, and a row already
+        dismissed, which `get_own` no longer returns: clearing something twice
+        is not an error a person can act on, but it is also not a row this
+        request found, and inventing a 204 for it would have the route claim
+        an id it never resolved.
+        """
+        notification = await self._own_visible(ctx, notification_id)
+        await notification_repo.dismiss(self.db, notification, dismissed_at=datetime.now(UTC))
+
+    async def clear_inbox(self, ctx: AuthContext) -> int:
+        """Clear everything the caller can currently see, read or not.
+
+        Bounded by `_DISMISS_CANDIDATE_CAP` rather than unbounded, and the
+        count returned is what was actually dismissed - so a caller can tell an
+        emptied inbox from a truncated one and ask again, which is the same
+        distinction `mark_all_read` draws with its own cap.
+
+        Deliberately the *listing's* rows, not the unread ones: what "clear"
+        means to somebody looking at the panel is everything in the panel.
+        """
+        user_id = self._require_caller(ctx)
+        candidates = await notification_repo.list_inbox_page(
+            self.db,
+            recipient_id=user_id,
+            organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
+            after=None,
+            limit=_DISMISS_CANDIDATE_CAP,
+        )
+        cache = await self._build_gate_cache(ctx, candidates)
+        visible_ids = []
+        for row in candidates:
+            gate = await self.gate_for(ctx, row, cache)
+            if gate.visible:
+                visible_ids.append(row.id)
+        return await notification_repo.dismiss_ids(
+            self.db, ids=visible_ids, dismissed_at=datetime.now(UTC)
+        )
+
+    async def _own_visible(self, ctx: AuthContext, notification_id: uuid.UUID) -> Notification:
+        """One of the caller's own rows, or `NotFoundError`.
+
+        Both halves of "not found" answer the same way, and that is the point:
+        a row belonging to somebody else and a row this reader's *current*
+        standing no longer passes (Decision 7) are indistinguishable from
+        outside, so neither leaks the fact that the other exists.
+        """
+        user_id = self._require_caller(ctx)
+        notification = await notification_repo.get_own(
+            self.db,
+            notification_id=notification_id,
+            recipient_id=user_id,
+            organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
+        )
+        if notification is None or not (await self.gate_for(ctx, notification)).visible:
+            raise NotFoundError(
+                message="Notification not found", details={"notification_id": str(notification_id)}
+            )
+        return notification
 
     # -- preferences (Decision 4) -----------------------------------------
 

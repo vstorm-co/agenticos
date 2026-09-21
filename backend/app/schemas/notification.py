@@ -55,6 +55,17 @@ class MarkAllReadResult(BaseSchema):
     marked: int
 
 
+class ClearInboxResult(BaseSchema):
+    """How many rows one "clear" actually took out of the inbox.
+
+    A number rather than a 204, and for the reason `MarkAllReadResult` carries
+    one: the sweep is capped, so a caller has to be able to tell an emptied
+    inbox from a truncated one and ask again.
+    """
+
+    cleared: int
+
+
 class FailedDeliveryRead(BaseSchema):
     """One terminally failed delivery - the operational view, app-admin only.
 

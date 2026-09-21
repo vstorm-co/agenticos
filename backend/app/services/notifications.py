@@ -332,51 +332,31 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def ingestion_completed(
-        self, doc: RAGDocument, *, attempt: int, chunk_count: int
-    ) -> None:
-        """One document finished parsing and indexing.
+    async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
+        """One document did not parse or index cleanly.
 
-        Reached from `RAGDocumentService.complete_ingestion`, once per settled
-        attempt - `attempt` is passed in rather than read off `doc` here, the
-        same "carried from dispatch, not read back" rule Decision 1 states for
-        why the occurrence id is `(doc_id, attempt)` and not `(doc_id,
-        doc.ingestion_attempt)`.
+        The only per-document notification there is, and there used to be two.
+        A document that indexed *successfully* wrote one as well - "\'x.pdf\'
+        finished ingesting." - which is a notification about nothing having
+        gone wrong, one per file, in a feature whose ordinary use is dropping
+        thirty files into a collection at once. It buried the rows that
+        actually needed reading and was the loudest producer the inbox had.
+        Success is now reported where it is asked for: the document's own
+        status in the collection, and `sync_completed` below for the
+        whole-attempt figure of a connector run.
 
         The audience is whoever uploaded it, falling back to the
         organization's administrators when null: a synced document, or one a
         CLI ingest tracked, has no personal uploader to tell individually. A
-        document tracked outside any organization at all (a CLI ingest run
-        given none) has no administrators to fall back to either, and tells
-        nobody rather than resolving to an empty scope.
-        """
-        if doc.organization_id is None:
-            return
-        recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
-        if not recipients:
-            return
-        doc_url = self._collection_link(doc.knowledge_base_id, doc.organization_id)
-        await self._center.write(
-            recipients=list(recipients),
-            event_type=NotificationEventType.INGESTION_COMPLETED,
-            occurrence_id=f"{doc.id}:{attempt}",
-            summary=f"'{doc.filename}' finished ingesting.",
-            context_url=doc_url,
-            render_context={
-                "filename": doc.filename,
-                "collection_name": doc.collection_name,
-                "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
-                "chunk_count": str(chunk_count),
-                "app_name": settings.PROJECT_NAME,
-                "doc_url": doc_url,
-            },
-            organization_id=doc.organization_id,
-            use_savepoint=True,
-        )
+        document tracked outside any organization at all has no administrators
+        to fall back to either, and tells nobody rather than resolving to an
+        empty scope.
 
-    async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
-        """The mirror of `ingestion_completed`, for the document that did not
-        parse or index cleanly - same audience, same per-attempt dedup key."""
+        `attempt` is passed in rather than read off `doc` here, the same
+        "carried from dispatch, not read back" rule Decision 1 states for why
+        the occurrence id is `(doc_id, attempt)` and not `(doc_id,
+        doc.ingestion_attempt)`.
+        """
         if doc.organization_id is None:
             return
         recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
@@ -415,13 +395,14 @@ class NotificationService:
     ) -> None:
         """A connector sync's whole-attempt outcome.
 
-        This is the aggregate signal a per-document `ingestion_completed`
-        cannot give: it fires once per sync run, in addition to - never
-        instead of - whatever per-document events the files inside it
-        produced. A sync that ingested nothing new (nothing changed since the
-        last run) is exactly as silent-worthy as one that failed outright
-        would be loud, so this fires on every ordinary completion regardless
-        of `failed`, not only when something went wrong.
+        The aggregate no per-document event can give, and since the
+        per-document success notice was dropped it is the only place an
+        ordinary, entirely successful ingestion is reported at all. That is
+        deliberate rather than an oversight: a sync is something a person
+        started and is waiting on, so one line saying how it went is an answer
+        to a question they asked - where a line per file was an interruption
+        nobody asked for. It fires on every ordinary completion regardless of
+        `failed`, including a sync that found nothing new.
         """
         recipients = await self._ingestion_audience(initiator_user_id, organization_id)
         if not recipients:

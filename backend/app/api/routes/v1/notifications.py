@@ -13,10 +13,11 @@ concern, not a tenant one (Decision 3).
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import Auth, CurrentAppAdmin, NotificationCenterSvc, NotificationDeliverySvc
 from app.schemas.notification import (
+    ClearInboxResult,
     FailedDeliveryList,
     FailedDeliveryRead,
     MarkAllReadResult,
@@ -111,6 +112,32 @@ async def mark_notification_read(
 @router.post("/notifications/mark-all-read", response_model=MarkAllReadResult)
 async def mark_all_notifications_read(service: NotificationCenterSvc, ctx: Auth) -> Any:
     return MarkAllReadResult(marked=await service.mark_all_read(ctx))
+
+
+@router.delete("/notifications", response_model=ClearInboxResult)
+async def clear_notification_inbox(service: NotificationCenterSvc, ctx: Auth) -> Any:
+    """Clear everything the caller can currently see, read or not.
+
+    The rows are kept and stop being listed, never deleted: this table is its
+    own dedup anchor, so a deleted row is one a retried producer writes again
+    (`Notification.dismissed_at`). Capped, and the count says how many were
+    actually taken - a backlog past the cap is cleared by asking twice.
+    """
+    return ClearInboxResult(cleared=await service.clear_inbox(ctx))
+
+
+@router.delete(
+    "/notifications/{notification_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def dismiss_notification(
+    notification_id: UUID, service: NotificationCenterSvc, ctx: Auth
+) -> Response:
+    """Clear one of the caller's own rows. 404s a row they may not - or may no
+    longer - see, the same rule `mark_notification_read` follows."""
+    await service.dismiss_one(ctx, notification_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/admin/notifications/deliveries", response_model=FailedDeliveryList)

@@ -1,4 +1,4 @@
-"""The four inbox routes, through the app (#1598).
+"""The six inbox routes, through the app (#1598).
 
 `tests/integration/test_notification_center.py` proves the service's write
 path and its gate-aware reads against a real database; what is left is the
@@ -234,6 +234,65 @@ class TestMarkAllRead:
                 response = await http.post(_url("/mark-all-read"))
         assert response.status_code == 200
         assert response.json() == {"marked": 3}
+
+
+class TestDismissOne:
+    async def test_dismissing_a_row_answers_204_with_no_body(self, client: OpenClient):
+        row = _row()
+        with (
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.get_own", new=AsyncMock(return_value=row)
+            ),
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.dismiss", new=AsyncMock(return_value=row)
+            ),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"/{row.id}"))
+        assert response.status_code == 204
+        assert response.content == b""
+
+    async def test_a_missing_row_is_404(self, client: OpenClient):
+        with patch(
+            f"{NOTIFICATION_PATH}.notification_repo.get_own", new=AsyncMock(return_value=None)
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"/{uuid.uuid4()}"))
+        assert response.status_code == 404
+
+
+class TestClearInbox:
+    async def test_returns_the_number_cleared(self, client: OpenClient):
+        with (
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.list_inbox_page",
+                new=AsyncMock(return_value=[_row(), _row()]),
+            ),
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.dismiss_ids",
+                new=AsyncMock(return_value=2),
+            ),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(""))
+        assert response.status_code == 200
+        assert response.json() == {"cleared": 2}
+
+    async def test_an_empty_inbox_clears_nothing(self, client: OpenClient):
+        with (
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.list_inbox_page",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.dismiss_ids",
+                new=AsyncMock(return_value=0),
+            ),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(""))
+        assert response.status_code == 200
+        assert response.json() == {"cleared": 0}
 
 
 def _stored_preference(**overrides) -> NotificationChannelPreference:
