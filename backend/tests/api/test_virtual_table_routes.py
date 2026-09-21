@@ -415,3 +415,10 @@ async def test_the_exists_query_refuses_a_line_break_in_the_external_id(client, 
 
     assert response.status_code == 422
     service.record_exists.assert_not_awaited()
+
+
+def test_a_url_for_the_upsert_route_carries_the_external_id_through_unchanged():
+    """Building a URL runs the converter the other way, and must not touch the text."""
+    path = app.url_path_for("upsert_record", table_id=_TABLE, external_id="2026/ORD-1")
+
+    assert path.endswith(f"/tables/{_TABLE}/records/by-external-id/2026/ORD-1")
