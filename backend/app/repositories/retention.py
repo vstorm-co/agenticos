@@ -35,6 +35,11 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.models.virtual_table import (
+    VirtualTableOutbox,
+    VirtualTableReceipt,
+    VirtualTableRecordHistory,
+)
 
 #: The statuses a retention sweep may retire.
 #:
@@ -347,3 +352,81 @@ async def set_retention(
     await db.flush()
     await db.refresh(organization)
     return organization
+
+
+async def delete_table_receipts(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest idempotency receipts created before `cutoff`.
+
+    A receipt holds a whole copy of a record and answers a retry only while its key
+    can plausibly still be retried, so what leaves here is the copy and the promise.
+    """
+    expiring = (
+        select(VirtualTableReceipt.id)
+        .where(
+            VirtualTableReceipt.organization_id == organization_id,
+            VirtualTableReceipt.created_at < cutoff,
+        )
+        .order_by(VirtualTableReceipt.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableReceipt).where(VirtualTableReceipt.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_outbox(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest outbox rows dispatched before `cutoff`.
+
+    Only rows with a `dispatched_at`: an undispatched row is an event nobody has
+    consumed, and deleting it would lose it rather than retire it.
+    """
+    expiring = (
+        select(VirtualTableOutbox.id)
+        .where(
+            VirtualTableOutbox.organization_id == organization_id,
+            VirtualTableOutbox.dispatched_at.is_not(None),
+            VirtualTableOutbox.dispatched_at < cutoff,
+        )
+        .order_by(VirtualTableOutbox.dispatched_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableOutbox).where(VirtualTableOutbox.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_history(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest record history written before `cutoff`.
+
+    By the change's own date, for a live record and a deleted one alike: a delete
+    leaves its history behind on purpose, and this is what eventually removes it.
+    """
+    expiring = (
+        select(VirtualTableRecordHistory.id)
+        .where(
+            VirtualTableRecordHistory.organization_id == organization_id,
+            VirtualTableRecordHistory.created_at < cutoff,
+        )
+        .order_by(VirtualTableRecordHistory.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            delete(VirtualTableRecordHistory).where(VirtualTableRecordHistory.id.in_(expiring))
+        ),
+    )
+    return result.rowcount or 0

@@ -37,6 +37,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm, role_has
@@ -233,7 +234,57 @@ class RetentionService:
                 continue
             if removed:
                 result.removed[name] = removed
+        await self._sweep_table_data(organization_id, moment, result)
         return result
+
+    async def _sweep_table_data(
+        self, organization_id: UUID, moment: datetime, result: SweepResult
+    ) -> None:
+        """Virtual Tables' receipts, dispatched outbox rows and history, on the deployment's terms.
+
+        Not a class an organization sets a period on: how long a retry can be replayed and
+        how long a change is remembered are properties of the deployment
+        (`TABLES_RECEIPT_TTL_HOURS`, `TABLES_OUTBOX_RETENTION_DAYS`,
+        `TABLES_HISTORY_RETENTION_DAYS`), and the sweep, the batching, the per-class failure
+        handling and the one audit entry per organization are this mechanism's. Counts go
+        under `table_receipts`, `table_outbox` and `table_history`, never content.
+        """
+        sweeps = (
+            (
+                "table_receipts",
+                retention_repo.delete_table_receipts,
+                moment - timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS),
+            ),
+            (
+                "table_outbox",
+                retention_repo.delete_table_outbox,
+                moment - timedelta(days=settings.TABLES_OUTBOX_RETENTION_DAYS),
+            ),
+            (
+                "table_history",
+                retention_repo.delete_table_history,
+                moment - timedelta(days=settings.TABLES_HISTORY_RETENTION_DAYS),
+            ),
+        )
+        for name, delete_batch, cutoff in sweeps:
+            try:
+                removed = 0
+                for _ in range(MAX_BATCHES):
+                    took = await delete_batch(
+                        self.db, organization_id=organization_id, cutoff=cutoff, limit=BATCH
+                    )
+                    removed += took
+                    if took < BATCH:
+                        break
+            except Exception:
+                logger.exception(
+                    "retention_class_failed",
+                    extra={"organization_id": str(organization_id), "retention_class": name},
+                )
+                result.failed.append(name)
+                continue
+            if removed:
+                result.removed[name] = removed
 
     async def _purge(self, name: RetentionClass, *, organization_id: UUID, cutoff: datetime) -> int:
         """One class, in batches, until a pass removes nothing or the cap is reached."""

@@ -187,10 +187,18 @@ class VirtualTableRecord(Base, TimestampMixin):
 
 
 class VirtualTableRecordHistory(Base):
-    """One change to a record: what it was, what it became, and who did it.
+    """One change to a record, and who made it.
+
+    What `before` and `after` hold depends on `operation`, which is what keeps a row's
+    size bounded by the record limit rather than by how often the record is edited:
+
+    - `create`: `before` is empty and `after` is the whole record.
+    - `update`: only the cells that changed. `before` holds their earlier values and
+      `after` their new ones, and a column absent from one side was empty there.
+    - `delete`: `before` is the whole record and `after` is empty.
 
     `record_id` is deliberately not a foreign key: a hard delete removes the row
-    and must leave this behind.
+    and must leave this behind, until the retention window removes it.
     """
 
     __tablename__ = "virtual_table_record_history"
@@ -222,6 +230,8 @@ class VirtualTableRecordHistory(Base):
             name="virtual_table_record_history_org_table_fkey",
         ),
         Index("virtual_table_record_history_record_idx", "record_id", "revision"),
+        # What the retention sweep scans: one organization's rows older than a cutoff.
+        Index("virtual_table_record_history_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(
             "operation IN ('create', 'update', 'delete')",
             name="operation",
@@ -271,6 +281,7 @@ class VirtualTableReceipt(Base):
             "operation_key",
             name="uq_virtual_table_receipt_key",
         ),
+        Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(
             "operation IN ('record.create', 'record.update', 'record.delete', 'record.upsert')",
             name="operation",
@@ -318,6 +329,13 @@ class VirtualTableOutbox(Base):
             "virtual_table_outbox_pending_idx",
             "created_at",
             postgresql_where=text("dispatched_at IS NULL"),
+        ),
+        # The other half of the outbox: delivered rows, which the retention sweep removes.
+        Index(
+            "virtual_table_outbox_dispatched_idx",
+            "organization_id",
+            "dispatched_at",
+            postgresql_where=text("dispatched_at IS NOT NULL"),
         ),
         CheckConstraint("event_type IN ('table.record.created')", name="event_type"),
     )
