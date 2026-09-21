@@ -33,6 +33,24 @@ Two things are versioned separately from this file and worth knowing about:
   error envelope. Migration `0092_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 
+### Fixed
+
+- **Virtual Tables: what a tenant can store is now bounded.** History, receipts and
+  the outbox had no ceiling, so one member could grow the shared database with tiny
+  requests (#1823). A record's values are capped at `TABLES_MAX_RECORD_BYTES`
+  (1 MB), which bounds the snapshots a create, a delete and a receipt keep, and an
+  update's history row keeps only the cells that changed. An organization is capped
+  at `TABLES_MAX_PER_ORGANIZATION` tables and a table at `TABLES_MAX_RECORDS_PER_TABLE`
+  records; a write over a limit is a `QUOTA_EXCEEDED` (402) naming the quota, audited
+  without the content. The daily retention sweep now removes receipts after 24
+  hours, dispatched outbox rows after 3 days and record history after 365 days
+  (`TABLES_RECEIPT_TTL_HOURS`, `TABLES_OUTBOX_RETENTION_DAYS`,
+  `TABLES_HISTORY_RETENTION_DAYS`), with one audit entry per organization naming the
+  class and count. Table writes, in the console as much as over the API, are limited
+  to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member and organization. A
+  retried write whose receipt has expired now executes as a new write. Migration
+  `0093_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
+
 ## [0.0.476] - 2026-09-21
 
 ### Changed

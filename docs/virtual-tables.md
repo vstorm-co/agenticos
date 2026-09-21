@@ -117,7 +117,7 @@ history row or receipt is written, and the current record is returned. A stale
 `expected_revision` is still a conflict, because it is checked first. An upsert that finds
 the record follows the same rule.
 
-A delete is a hard delete. The record's history stays.
+A delete is a hard delete. The record's history stays until its retention removes it.
 
 ## Safe retries { #safe-retries }
 
@@ -136,6 +136,10 @@ same key.
 
 A replay is answered only to a caller who can still edit the table. Once access is
 revoked, the same retry is a 404.
+
+A receipt lasts 24 hours. After that the key is forgotten, and the same key with the same
+body is a new write: it executes again instead of returning the first answer. Retry within
+the window, and treat a longer gap as a fresh request.
 
 ## Listing and filtering { #listing-and-filtering }
 
@@ -158,22 +162,56 @@ A record write, its history row, its idempotency receipt and, for a create, a
 `table.record.created` outbox row are written in one transaction and commit or roll
 back together. A failure at any step leaves none of them. Table and schema changes
 are recorded in the [audit log](governance.md); record changes are recorded in the
-per-record history, which keeps the values before and after each change.
+per-record history, which keeps the cells each change touched.
 
-Three of these stores keep data with no retention yet. The per-record history and the
-receipts hold the values, so a record delete removes the current row and leaves both
-behind. A receipt holds the whole record as the write returned it, and is removed only
-with its account or organization. Outbox rows hold ids, and are never purged after
-delivery. Treat them as personal data if the cells are; see
-[data protection](data-protection.md#the-database).
-
-These stores hold full snapshots, and a genuine edit of a large record still writes one to
-the history, and one to a receipt when a key is sent. Per-tenant quotas or rate limits on
-that growth, and storing only what changed, are not implemented yet.
+Two of these stores hold copies of what was written. A receipt holds the whole record as
+the write returned it, and history holds what changed, so a record delete removes the
+current row and leaves both behind until their retention removes them. Outbox rows hold
+ids. Treat all three as personal data if the cells are; see
+[data protection](data-protection.md#the-database) and
+[limits and retention](#limits-and-retention).
 
 The outbox row is the hand-off to whatever reacts to a new record. Nothing consumes
 it yet. A consumer claims undelivered rows in its own session and marks them
 delivered.
+
+## Limits and retention { #limits-and-retention }
+
+A tenant can only grow the shared database as far as the deployment lets it. Every limit is
+a deployment setting, applies **per organization** so one tenant's usage never counts
+against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would pass it.
+
+| Setting | Default | Limits |
+|---|---|---|
+| `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
+| `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
+| `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
+
+The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
+100000}`), never the content, and writes a `table.quota_refused` entry to the
+[audit log](governance.md) with the same two fields. Nothing is written by the refused
+request. Writes are also limited to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member
+and organization, in the console as much as over the API; a member over it gets a 429 with
+`Retry-After`. See [configuration](configuration.md#rate-limiting).
+
+**What history keeps.** A create keeps the whole record in `after`, and a delete keeps the
+whole record in `before`; the record limit bounds both. An update keeps only the cells
+that changed: `before` holds their earlier values and `after` their new ones, and a column
+missing from one side was empty there. Editing one cell of a large record therefore costs
+one cell, however often it is repeated.
+
+**Retention.** The daily [retention sweep](governance.md#retention) also removes table
+data, hard-deleting in batches, for every organization:
+
+| What | Removed when | Setting |
+|---|---|---|
+| Receipts | Older than 24 hours | `TABLES_RECEIPT_TTL_HOURS` |
+| Outbox rows | Dispatched more than 3 days ago. A row nobody has consumed is kept | `TABLES_OUTBOX_RETENTION_DAYS` |
+| History | Older than 365 days, for a deleted record as much as a live one | `TABLES_HISTORY_RETENTION_DAYS` |
+
+The sweep writes one audit entry per organization, naming the class (`table_receipts`,
+`table_outbox`, `table_history`) and the count. These are deployment settings, not
+per-organization ones. The records themselves and the tables are never removed by it.
 
 ## Who can do what { #who-can-do-what }
 
@@ -211,6 +249,8 @@ what a client branches on.
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
 | `INVALID_SCHEMA` | 422 | An inconsistent schema change |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | The key was used for a different request |
+| `QUOTA_EXCEEDED` | 402 | The write would pass a storage limit; `details` names the quota (`tables`, `records`, `record_bytes`) and its ceiling |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many table writes in the last minute; see `Retry-After` |
 | `VALIDATION_ERROR` | 422 | The request itself is malformed: a wrong type, an unknown field, a limit, or NUL, a line break or a lone surrogate in an id, key or name. Refused by the route before the service runs |
 | `AUTHORIZATION_ERROR` | 403 | The caller lacks the permission a collection route requires (`tables:view`, `tables:create`) |
 | `CONCURRENT_CHANGE` | 409 | An upsert lost a race with the deletion of the same record. Retry it |
@@ -246,4 +286,3 @@ commits: the request's session does, and a worker owns its own session scope.
   user. How an API key acts on a table for the external API is still to be agreed.
 - Agent tools, workflow nodes and the console screens, which will call this service.
 - Consumers of the outbox and dependency checkers for workflows, views and triggers.
-- Per-tenant quotas or rate limits on history and receipt growth, and delta storage for them.

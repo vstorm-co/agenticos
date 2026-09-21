@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "42b8ae06f828"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -124,7 +124,7 @@ zostaje, nie powstaje wiersz historii ani receipt, a zwracany jest bieżący rek
 Nieaktualne `expected_revision` to nadal konflikt, bo jest sprawdzane najpierw. Upsert,
 który znajdzie rekord, podlega tej samej regule.
 
-Usunięcie jest twarde. Historia rekordu zostaje.
+Usunięcie jest twarde. Historia rekordu zostaje, dopóki nie usunie jej retencja.
 
 ## Bezpieczne ponawianie { #safe-retries }
 
@@ -144,6 +144,10 @@ ponawiasz z tym samym kluczem.
 
 Powtórzona odpowiedź trafia tylko do wywołującego, który nadal może edytować tabelę.
 Po cofnięciu dostępu to samo ponowienie to 404.
+
+Receipt trwa 24 godziny. Potem klucz jest zapominany, a ten sam klucz z tą samą treścią to
+nowy zapis: wykonuje się ponownie, zamiast zwrócić pierwszą odpowiedź. Ponawiaj w tym
+oknie, a dłuższą przerwę traktuj jak nowe żądanie.
 
 ## Listowanie i filtrowanie { #listing-and-filtering }
 
@@ -168,23 +172,57 @@ Zapis rekordu, jego wiersz historii, jego potwierdzenie idempotencji i, dla crea
 wiersz outbox `table.record.created` są zapisywane w jednej transakcji i zatwierdzane
 lub wycofywane razem. Błąd na dowolnym kroku nie zostawia żadnego z nich. Zmiany
 tabeli i schematu trafiają do [audit log](governance.md); zmiany rekordów trafiają do
-historii per rekord, która przechowuje wartości sprzed i po każdej zmianie.
+historii per rekord, która przechowuje komórki dotknięte każdą zmianą.
 
-Trzy z tych magazynów trzymają dane bez retencji. Historia per rekord i receipts
-przechowują wartości, więc usunięcie rekordu usuwa bieżący wiersz i zostawia oba.
-Receipt trzyma cały rekord tak, jak zwrócił go zapis, i znika tylko razem ze swoim
-kontem lub organizacją. Wiersze outbox trzymają id i nie są czyszczone po dostarczeniu.
-Traktuj je jako dane osobowe, jeśli takie są komórki; zobacz
-[ochronę danych](data-protection.md#the-database).
-
-Te magazyny trzymają pełne migawki, a prawdziwa edycja dużego rekordu nadal zapisuje
-jedną w historii, a przy wysłanym kluczu także w receipt. Limity lub rate limity per
-tenant na ten przyrost oraz zapisywanie tylko tego, co się zmieniło, nie są jeszcze
-zaimplementowane.
+Dwa z tych magazynów trzymają kopie tego, co zapisano. Receipt trzyma cały rekord tak, jak
+zwrócił go zapis, a history trzyma to, co się zmieniło, więc usunięcie rekordu usuwa
+bieżący wiersz i zostawia oba, dopóki nie usunie ich retencja. Wiersze outbox trzymają id.
+Traktuj wszystkie trzy jako dane osobowe, jeśli takie są komórki; zobacz
+[ochronę danych](data-protection.md#the-database) oraz
+[limity i retencję](#limits-and-retention).
 
 Wiersz outbox to przekazanie temu, co reaguje na nowy rekord. Na razie nic go nie
 konsumuje. Konsument pobiera niedostarczone wiersze we własnej sesji i oznacza je jako
 dostarczone.
+
+## Limity i retencja { #limits-and-retention }
+
+Tenant może rozrosnąć wspólną bazę tylko tak, jak pozwala wdrożenie. Każdy limit to
+ustawienie wdrożenia, obowiązuje **per organizacja**, więc użycie jednego tenanta nigdy nie
+liczy się na konto innego, i jest odrzucany kodem `QUOTA_EXCEEDED` (402), gdy zapis by go
+przekroczył.
+
+| Ustawienie | Domyślnie | Ogranicza |
+|---|---|---|
+| `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabele organizacji. Zarchiwizowane się liczą, bo tabela nigdy nie jest usuwana |
+| `TABLES_MAX_RECORDS_PER_TABLE` | 100 000 | Rekordy w jednej tabeli. Aktualizacja rekordu w pełnej tabeli jest dozwolona |
+| `TABLES_MAX_RECORD_BYTES` | 1 000 000 | Zserializowane wartości jednego rekordu, w bajtach |
+
+Odmowa nazywa limit i jego pułap w `details` (`{"quota": "records", "limit": 100000}`),
+nigdy treść, i zapisuje wpis `table.quota_refused` w [audit log](governance.md) z tymi
+samymi dwoma polami. Odrzucone żądanie niczego nie zapisuje. Zapisy są też ograniczone do
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) na członka i organizację, w konsoli tak samo jak
+przez API; członek ponad limit dostaje 429 z `Retry-After`. Zobacz
+[konfigurację](configuration.md#rate-limiting).
+
+**Co trzyma history.** Create trzyma cały rekord w `after`, a delete trzyma cały rekord w
+`before`; limit rekordu ogranicza oba. Update trzyma tylko komórki, które się zmieniły:
+`before` zawiera ich wcześniejsze wartości, a `after` nowe, a kolumna nieobecna po jednej
+stronie była tam pusta. Edycja jednej komórki dużego rekordu kosztuje więc jedną komórkę,
+choćby powtarzana bez końca.
+
+**Retencja.** Codzienny [sweep retencji](governance.md#retention) usuwa też dane tabel,
+twardo i partiami, dla każdej organizacji:
+
+| Co | Usuwane, gdy | Ustawienie |
+|---|---|---|
+| Receipts | Starsze niż 24 godziny | `TABLES_RECEIPT_TTL_HOURS` |
+| Wiersze outbox | Wysłane ponad 3 dni temu. Wiersz, którego nikt nie skonsumował, zostaje | `TABLES_OUTBOX_RETENTION_DAYS` |
+| History | Starsza niż 365 dni, dla usuniętego rekordu tak samo jak dla żywego | `TABLES_HISTORY_RETENTION_DAYS` |
+
+Sweep zapisuje jeden wpis audytu na organizację, nazywający klasę (`table_receipts`,
+`table_outbox`, `table_history`) i liczbę. To ustawienia wdrożenia, a nie per organizacja.
+Samych rekordów i tabel sweep nigdy nie usuwa.
 
 ## Kto co może { #who-can-do-what }
 
@@ -222,6 +260,8 @@ według czego klient się rozgałęzia.
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
 | `INVALID_SCHEMA` | 422 | Niespójna zmiana schematu |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Klucz został użyty dla innego żądania |
+| `QUOTA_EXCEEDED` | 402 | Zapis przekroczyłby limit przechowywania; `details` nazywa limit (`tables`, `records`, `record_bytes`) i jego pułap |
+| `RATE_LIMIT_EXCEEDED` | 429 | Za dużo zapisów do tabel w ostatniej minucie; zobacz `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Samo żądanie jest wadliwe: zły typ, nieznane pole, limit albo NUL, znak nowego wiersza lub osamotniony surogat w id, kluczu lub nazwie. Trasa odrzuca je, zanim uruchomi się serwis |
 | `AUTHORIZATION_ERROR` | 403 | Wywołujący nie ma permission, której wymaga trasa kolekcji (`tables:view`, `tables:create`) |
 | `CONCURRENT_CHANGE` | 409 | Upsert przegrał wyścig z usunięciem tego samego rekordu. Ponów go |
@@ -258,5 +298,3 @@ robi go sesja żądania, a worker ma własny zakres sesji.
   uzgodnione.
 - Narzędzia agenta, węzły workflow i ekrany konsoli, które będą wywoływać ten serwis.
 - Konsumenci outbox oraz checkery zależności dla workflow, widoków i triggerów.
-- Limity lub rate limity per tenant na przyrost historii i receipts oraz przechowywanie
-  samych różnic.

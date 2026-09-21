@@ -978,8 +978,9 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
 page's config and logo, and a visitor's upload. The console's own routes are
-behind a session and are not metered — whether the whole API should carry a
-ceiling is a separate decision, not this one.
+behind a session and are not metered, with one exception: writes to
+[Virtual Tables](virtual-tables.md), which store a snapshot per change. Whether the
+whole API should carry a ceiling is a separate decision, not this one.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -989,6 +990,7 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, and a table create, rename, archive or schema change. Applies to the console as much as to a script. Reads are not counted |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
@@ -1103,6 +1105,25 @@ stays safe but shared.
 
     With two proxies in front, collapse the header to one hop at your edge — only
     the last hop is trustworthy.
+
+## Virtual Tables limits and retention { #virtual-tables-limits-and-retention }
+
+What one organization may store in [Virtual Tables](virtual-tables.md#limits-and-retention),
+and how long the copies a write leaves behind are kept. A write over a limit is refused
+with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the content.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tables per organization. Archived ones count, because nothing deletes a table |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Records in one table |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialized size of one record's values, in bytes. Minimum `1`. It also bounds what a create's and a delete's history row and a receipt hold |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept. Undispatched rows are never removed |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | How long a record's history is kept, counted from the change, for a deleted record as well |
+
+The three retention periods are applied by the daily
+[retention sweep](governance.md#retention), for every organization, and are not
+per-organization settings.
 
 ## A worker whose event loop has stopped turning
 
