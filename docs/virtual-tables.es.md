@@ -1,5 +1,5 @@
 ---
-source_sha: "97b47861864a"
+source_sha: "48a8b9fe7002"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -67,6 +67,10 @@ las columnas actuales:
   de significar lo que significaban. Añade una columna nueva en su lugar.
 - No se borra nada. Una columna u opción omitida se **archiva**: sus valores siguen
   siendo legibles y filtrables, y escribir en ella se rechaza con `ARCHIVED_COLUMN`.
+- Las archivadas cuentan para los límites. Una tabla tiene como máximo 100 columnas y una
+  columna select como máximo 100 opciones, archivadas incluidas. Un cambio que superara
+  alguno se rechaza con `INVALID_SCHEMA` y no añade versión, así que no se puede sustituir
+  una lista llena de opciones; añade una columna nueva en su lugar.
 - Una columna nueva obligatoria necesita un valor por defecto, ya que los registros
   existentes no guardan nada para ella. Una columna existente no puede pasar a ser
   obligatoria mientras algún registro no tenga valor en ella, y una columna obligatoria no

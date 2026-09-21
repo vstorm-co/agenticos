@@ -61,6 +61,10 @@ current columns:
   longer mean what they did. Add a new column instead.
 - Nothing is deleted. A column or option left out is **archived**: its values stay
   readable and filterable, and writing to it is refused with `ARCHIVED_COLUMN`.
+- Archived ones count toward the limits. A table holds at most 100 columns and a select
+  column at most 100 options, archived included. A change that would exceed either is
+  refused with `INVALID_SCHEMA` and appends no version, so replacing a full list of options
+  is not possible; add a new column instead.
 - A new required column needs a default, since existing records hold nothing for it.
   An existing column cannot become required while any record has no value for it, and a
   required column cannot come back from the archive without a default, because records

@@ -1,5 +1,5 @@
 ---
-source_sha: "97b47861864a"
+source_sha: "48a8b9fe7002"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -67,6 +67,10 @@ ją z bieżącymi kolumnami:
 - Nic nie jest usuwane. Pominięta kolumna lub opcja zostaje **zarchiwizowana**: jej
   wartości pozostają czytelne i filtrowalne, a zapis do niej jest odrzucany kodem
   `ARCHIVED_COLUMN`.
+- Zarchiwizowane liczą się do limitów. Tabela ma co najwyżej 100 kolumn, a kolumna typu
+  select co najwyżej 100 opcji, wliczając zarchiwizowane. Zmiana, która przekroczyłaby
+  któryś, jest odrzucana kodem `INVALID_SCHEMA` i nie dodaje wersji, więc nie można
+  zastąpić pełnej listy opcji; dodaj zamiast tego nową kolumnę.
 - Nowa kolumna wymagana potrzebuje wartości domyślnej, bo istniejące rekordy nic w
   niej nie mają. Istniejąca kolumna nie może stać się wymagana, dopóki jakikolwiek
   rekord nie ma w niej wartości, a wymagana kolumna nie może wrócić z archiwum bez

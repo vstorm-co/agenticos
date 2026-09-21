@@ -1,5 +1,5 @@
 ---
-source_sha: "97b47861864a"
+source_sha: "48a8b9fe7002"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -71,6 +71,11 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
 - Nichts wird gelöscht. Eine weggelassene Spalte oder Option wird **archiviert**: Ihre
   Werte bleiben les- und filterbar, und ein Schreibzugriff darauf wird mit
   `ARCHIVED_COLUMN` abgelehnt.
+- Archivierte zählen zu den Grenzen. Eine Tabelle hat höchstens 100 Spalten und eine
+  Select-Spalte höchstens 100 Optionen, Archivierte eingeschlossen. Eine Änderung, die eine
+  davon überschreiten würde, wird mit `INVALID_SCHEMA` abgelehnt und hängt keine Version an;
+  eine volle Liste von Optionen lässt sich also nicht ersetzen. Fügen Sie stattdessen eine
+  neue Spalte hinzu.
 - Eine neue Pflichtspalte braucht einen Standardwert, weil bestehende Datensätze
   nichts für sie enthalten. Eine bestehende Spalte kann nicht zur Pflichtspalte werden,
   solange ein Datensatz keinen Wert für sie hat, und eine Pflichtspalte kann ohne
