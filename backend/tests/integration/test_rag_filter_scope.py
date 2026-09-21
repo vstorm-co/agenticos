@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import random
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
     RetrievalFilters,
@@ -24,6 +25,7 @@ from app.services.rag.filters import (
     UnscopedScope,
 )
 from app.services.rag.models import Document, DocumentMetadata, DocumentPage, DocumentPageChunk
+from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -197,6 +199,50 @@ async def test_the_facet_rejects_a_non_whitelisted_key(engine: AsyncEngine) -> N
         await store.distinct_metadata_values(
             "anything", ["content"], TenantScope(organization_id=uuid.uuid4())
         )
+
+
+async def test_an_expanded_query_cannot_reach_another_tenants_chunk(
+    engine: AsyncEngine,
+) -> None:
+    """#1649 acceptance: query analysis widens recall but never access.
+
+    The whole tool path runs - `plan_queries` expands the query, `fuse_over_queries`
+    retrieves for each variant, the real store answers - and the expansion produces
+    variants crafted to match org B's content verbatim. They still cannot reach it,
+    because every produced query is retrieved under the one scope the tool resolved
+    (org A's): expansion supplies query *text* only and never the scope or filters.
+    """
+    collection = f"expand_{uuid.uuid4().hex[:8]}"
+    store = _store(engine)
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    await _insert(store, collection, org=org_a, content="internal onboarding policy")
+    await _insert(store, collection, org=org_b, content="competitor secret roadmap")
+
+    service = RetrievalService(store, RAGSettings())
+    # resolve_scope is proven on its own above; here the point is that whatever it
+    # resolves is applied to *every* expanded query, so it is pinned to org A's.
+    service.resolve_scope = AsyncMock(  # ty: ignore[invalid-assignment]
+        return_value=TenantScope(organization_id=org_a)
+    )
+
+    async def generate(_: str) -> str:
+        return "competitor secret roadmap\ncompetitor roadmap"
+
+    with patch(
+        "app.agents.capabilities.knowledge._search.get_retrieval_service",
+        return_value=service,
+    ):
+        answer = await search_knowledge_base(
+            query="onboarding",
+            kb_collection_names=[collection],
+            organization_id=org_a,
+            analysis_mode="multi_query",
+            analysis_max_variants=2,
+            generate=generate,
+        )
+
+    assert "internal onboarding policy" in answer
+    assert "competitor secret roadmap" not in answer
 
 
 def _vec(rng: random.Random) -> list[float]:

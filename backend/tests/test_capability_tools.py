@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,7 @@ from pydantic_ai.usage import RunUsage
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
+from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
 from app.agents.capabilities.charts._toolset import ChartSeriesInput
@@ -30,7 +32,7 @@ from app.agents.capabilities.code_execution._sandbox import (
     run_python,
 )
 from app.agents.capabilities.knowledge._search import _format_results
-from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
+from app.agents.capabilities.knowledge._toolset import _model_generate, build_knowledge_toolset
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
@@ -199,6 +201,96 @@ class TestKnowledgeTool:
 
         assert "not valid" in str(steer.value)
         backend.assert_not_awaited()
+
+
+class TestQueryAnalysisWiring:
+    """The tool builds the model-backed generator only when a mode needs it, and
+    hands the mode, its bounds and the generator down to the search (#1649)."""
+
+    @pytest.mark.anyio
+    async def test_model_generate_runs_a_metered_call_over_the_run_model(self):
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="change my password"),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            out = await generate("prompt")
+        assert out == "change my password"
+        # The nested expansion call is booked against the run's ledger rather than
+        # spent invisibly, which is what keeps a budget able to see it.
+        assert ledger.input_tokens == ctx.usage.input_tokens > 0
+
+    def test_model_generate_returns_none_for_a_model_that_cannot_run_a_request(self):
+        """A realtime model is not request-response, so the LLM modes degrade."""
+        ctx = RunContext(deps=None, model=object(), usage=RunUsage(), retry=0, max_retries=1)
+        assert _model_generate(ctx) is None
+
+    @pytest.mark.anyio
+    async def test_a_generation_that_spends_nothing_books_nothing(self):
+        """The defensive path: a call that leaves usage untouched books no cost."""
+
+        async def _run(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+            return SimpleNamespace(output="a variant")
+
+        ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage(), retry=0, max_retries=1)
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.Agent",
+            return_value=SimpleNamespace(run=_run),
+        ):
+            generate = _model_generate(ctx)
+            assert generate is not None
+            ledger = SpendLedger()
+            with metered_by(ledger):
+                out = await generate("prompt")
+        assert out == "a variant"
+        assert ledger.entries == []
+
+    @pytest.mark.anyio
+    async def test_an_llm_mode_hands_a_generator_and_its_bounds_to_the_search(self):
+        toolset = build_knowledge_toolset(
+            default_top_k=5, query_analysis_mode="multi_query", query_analysis_max_variants=2
+        )
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_tool_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        kwargs = backend.await_args.kwargs
+        assert kwargs["analysis_mode"] == "multi_query"
+        assert kwargs["analysis_max_variants"] == 2
+        assert kwargs["generate"] is not None
+
+    @pytest.mark.anyio
+    async def test_an_algorithmic_mode_builds_no_generator(self):
+        """`keywords` needs no model, so nothing is handed down to run one."""
+        toolset = build_knowledge_toolset(default_top_k=5, query_analysis_mode="keywords")
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_tool_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        assert backend.await_args.kwargs["analysis_mode"] == "keywords"
+        assert backend.await_args.kwargs["generate"] is None
+
+    @pytest.mark.anyio
+    async def test_the_default_is_off_with_no_generator(self):
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        assert backend.call_args.kwargs["analysis_mode"] == "off"
+        assert backend.call_args.kwargs["generate"] is None
 
 
 class TestKnowledgeFormatting:

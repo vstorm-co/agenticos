@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -20,6 +20,7 @@ from app.agents.capabilities.budget import (
     metered_by,
     price_request,
     record_ambient_usage,
+    reserved_limits,
     usage_counts,
     usage_delta,
 )
@@ -422,3 +423,22 @@ class TestUsageDelta:
         assert usage_delta(before, usage) == RequestUsage(
             input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3
         )
+
+
+class TestReservedLimits:
+    """A nested model call (a compaction summary, an LLM reminder, query
+    expansion) must leave the run a request slot so its own call cannot push the
+    run one past its limit."""
+
+    def test_no_limits_pass_through(self):
+        assert reserved_limits(None) is None
+
+    def test_a_limit_with_no_request_cap_is_unchanged(self):
+        limits = UsageLimits(request_limit=None, total_tokens_limit=1000)
+        assert reserved_limits(limits) is limits
+
+    def test_one_request_is_held_back(self):
+        assert reserved_limits(UsageLimits(request_limit=5)).request_limit == 4
+
+    def test_a_zero_request_budget_does_not_go_negative(self):
+        assert reserved_limits(UsageLimits(request_limit=0)).request_limit == 0

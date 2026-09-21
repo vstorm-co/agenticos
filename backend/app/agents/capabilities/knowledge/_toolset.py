@@ -6,15 +6,60 @@ import logging
 from datetime import date
 
 from pydantic import ValidationError
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
+from app.agents.capabilities.budget import (
+    record_ambient_usage,
+    reserved_limits,
+    usage_counts,
+    usage_delta,
+)
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
+from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode
 
 logger = logging.getLogger(__name__)
+
+# The modes that need a model to run their expansion; the rest are algorithmic.
+_LLM_ANALYSIS_MODES: frozenset[QueryAnalysisMode] = frozenset({"multi_query", "hyde"})
+
+
+def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
+    """A metered one-prompt caller over the run's own model, for query expansion.
+
+    Expansion inherits `ctx.model` - the model whose credential was resolved from
+    the vault - rather than a model named in config, which on this platform would
+    be looked up against process environment variables (compaction and the LLM
+    system reminder make the same choice, for the same reason). The nested call
+    spends against `ctx.usage` where the run's request wrapper cannot see it, so
+    the difference is booked against the run's ledger, and one request slot is held
+    back so the expansion cannot push the run past its own request limit.
+
+    Returns `None` for a realtime model, which cannot serve a request-response
+    call; `plan_queries` then degrades the LLM modes to the plain query.
+    """
+    model = ctx.model
+    if not isinstance(model, Model):
+        return None
+    agent: Agent[None, str] = Agent(model, output_type=str)
+
+    async def generate(prompt: str) -> str:
+        before = usage_counts(ctx.usage)
+        try:
+            result = await agent.run(
+                prompt, usage=ctx.usage, usage_limits=reserved_limits(ctx.usage_limits)
+            )
+        finally:
+            spent = usage_delta(before, ctx.usage)
+            if spent is not None:
+                record_ambient_usage(model.model_name or "unknown", spent)
+        return result.output
+
+    return generate
 
 
 def _normalize(value: list[str] | None) -> list[str] | None:
@@ -29,13 +74,22 @@ def _normalize(value: list[str] | None) -> list[str] | None:
     return value or None
 
 
-def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]:
+def build_knowledge_toolset(
+    *,
+    default_top_k: int,
+    query_analysis_mode: QueryAnalysisMode = "off",
+    query_analysis_max_variants: int = 3,
+) -> FunctionToolset[AgentDeps]:
     """A toolset with one search tool, under the name it is declared with.
 
     The same search is "Search orders" for one agent and "Look up policies" for
     another - but that is said in the binding's `tool_overrides`, applied for
     every capability at once, not here. A rename this toolset performed itself
     would be invisible to the approval gate.
+
+    `query_analysis_mode` optionally expands the query before retrieval (#1649):
+    the LLM-backed modes are run through the host run's model and every produced
+    query is retrieved under the same scope and filters as the original.
     """
 
     async def search_documents(
@@ -94,6 +148,10 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
             )
             return steer(ctx, f"Those search filters are not valid: {problems}. Adjust and retry.")
 
+        # Built only for a mode that makes a model call, so `off` and `keywords`
+        # never construct one. `plan_queries` degrades to the plain query if this
+        # is None (a realtime model, or a surface with no model to run).
+        generate = _model_generate(ctx) if query_analysis_mode in _LLM_ANALYSIS_MODES else None
         try:
             return await search_knowledge_base(
                 query=query,
@@ -105,6 +163,9 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # name returns and embeds only this organization's chunks (#913).
                 organization_id=ctx.deps.organization_id,
                 filters=filters,
+                analysis_mode=query_analysis_mode,
+                analysis_max_variants=query_analysis_max_variants,
+                generate=generate,
             )
         except Exception:
             # A retry rather than a returned message: an error in the shape of a

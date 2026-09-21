@@ -628,6 +628,30 @@ class TestConfigValidation:
         assert exc.value.details is not None
         assert all(set(problem) == {"field", "message"} for problem in exc.value.details["fields"])
 
+    def test_query_analysis_config_is_validated_and_bounded(self):
+        config = get("knowledge").validate_config(
+            {"query_analysis_mode": "multi_query", "query_analysis_max_variants": 4}
+        )
+        assert isinstance(config, KnowledgeConfig)
+        assert (config.query_analysis_mode, config.query_analysis_max_variants) == (
+            "multi_query",
+            4,
+        )
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "translate"})
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_max_variants": 99})
+
+    def test_query_analysis_defaults_off(self):
+        """A stored spec that predates the field loads with expansion off."""
+        assert get("knowledge").validate_config({}).query_analysis_mode == "off"
+
+    def test_query_analysis_fields_are_in_the_form_schema(self):
+        schema = get("knowledge").config_json_schema()
+        assert schema is not None
+        assert "query_analysis_mode" in schema["properties"]
+        assert "query_analysis_max_variants" in schema["properties"]
+
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None
 
@@ -681,6 +705,23 @@ class TestBuilding:
             resources={"kb_collection_names": ["kb_1"]},
         )
         assert isinstance(built[0], Knowledge)
+
+    def test_knowledge_carries_its_query_analysis_config(self):
+        """The binding's mode and bound reach the built capability, so it is what
+        actually runs rather than the default."""
+        built = build(
+            [
+                CapabilityBinding(
+                    capability_id="knowledge",
+                    config={"query_analysis_mode": "hyde", "query_analysis_max_variants": 4},
+                )
+            ],
+            granted_scopes=frozenset({"knowledge:read"}),
+            resources={"kb_collection_names": ["kb_1"]},
+        )
+        assert isinstance(built[0], Knowledge)
+        assert built[0].query_analysis_mode == "hyde"
+        assert built[0].query_analysis_max_variants == 4
 
     def test_config_reaches_the_capability(self):
         built = build(

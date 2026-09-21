@@ -10,7 +10,8 @@ from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
-from app.services.rag.retrieval import RetrievalService
+from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
+from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,9 @@ async def search_knowledge_base(
     top_k: int = 5,
     organization_id: UUID | None = None,
     filters: RetrievalFilters | None = None,
+    analysis_mode: QueryAnalysisMode = "off",
+    analysis_max_variants: int = 3,
+    generate: GenerateText | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -132,6 +136,14 @@ async def search_knowledge_base(
         filters: Optional narrowing-only business filters (source, document type,
             organizational unit, date range). Never a tenant or authorization
             field - those are structurally inexpressible here.
+        analysis_mode: Optional query analysis run before retrieval (#1649). Off by
+            default. Each produced query is retrieved under the *same* scope and
+            filters and their results are fused, so expansion can widen recall but
+            never access.
+        analysis_max_variants: How many rephrasings `multi_query` may add.
+        generate: Runs one prompt through the run's model, for the LLM-backed
+            analysis modes. `None` on a surface with no model to run (a channel
+            searching directly), which degrades those modes to the plain query.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -143,9 +155,18 @@ async def search_knowledge_base(
         # tenant's chunks. Refuse rather than widen (FA-039 C1).
         return "No organization context is available, so the knowledge base cannot be searched."
 
+    # The analysis step runs before retrieval and produces only alternative query
+    # *strings*; the scope and filters below are resolved once and bound into the
+    # `retrieve_one` closure, identical for every produced query, so no expanded
+    # query can reach past this tenant's and collection's rows (#1649, FA-039).
+    queries = await plan_queries(
+        query, mode=analysis_mode, max_variants=analysis_max_variants, generate=generate
+    )
+
     service: Any = get_retrieval_service()
     one_collection = len(resolved) == 1
     try:
+        single_scope = scopes_by_name = None
         if one_collection:
             # Resolved per name rather than built from `organization_id` alone:
             # this tool holds only a name, never an already-authorized knowledge
@@ -153,23 +174,30 @@ async def search_knowledge_base(
             # `AppScope` for an app-scoped base every organization reads,
             # `TenantScope` for an org one - or an app-scoped base's untagged
             # rows never matched (#1684, FA-039).
-            scope = await service.resolve_scope(resolved[0], organization_id)
-            results = await service.retrieve(
-                query=query,
-                collection_name=resolved[0],
-                scope=scope,
-                filters=filters,
-                limit=top_k,
-            )
+            single_scope = await service.resolve_scope(resolved[0], organization_id)
         else:
-            scopes = {name: await service.resolve_scope(name, organization_id) for name in resolved}
-            results = await service.retrieve_multi(
-                query=query,
+            scopes_by_name = {
+                name: await service.resolve_scope(name, organization_id) for name in resolved
+            }
+
+        async def retrieve_one(one_query: str) -> Any:
+            if one_collection:
+                return await service.retrieve(
+                    query=one_query,
+                    collection_name=resolved[0],
+                    scope=single_scope,
+                    filters=filters,
+                    limit=top_k,
+                )
+            return await service.retrieve_multi(
+                query=one_query,
                 collection_names=resolved,
-                scopes=scopes,
+                scopes=scopes_by_name,
                 filters=filters,
                 limit=top_k,
             )
+
+        results = await fuse_over_queries(queries, retrieve_one, limit=top_k)
     except AppException:
         # Already an account of what is wrong and what to do about it - an
         # unconfigured embedding credential names the setting to set. Rewrapping

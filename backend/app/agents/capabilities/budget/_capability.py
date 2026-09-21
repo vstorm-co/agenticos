@@ -45,7 +45,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapModelRequestHandler
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import ModelRequestContext
-from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 logger = logging.getLogger(__name__)
 
@@ -469,6 +469,22 @@ def usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUs
         cache_read_tokens=after[2] - before[2],
         cache_write_tokens=after[3] - before[3],
     )
+
+
+def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
+    """The run's limits with one request held back for a nested model call.
+
+    A capability that runs its own `Agent` inside a tool or a hook - a compaction
+    summary, an LLM reminder, query expansion - spends against the run's usage
+    after the enclosing request already cleared its own limit check. Left the run's
+    last request slot, that nested call would let the approved request push the run
+    one past `request_limit`. Holding the slot back makes the nested run raise
+    first, so the caller falls back to whatever it does without the nested call and
+    the limit holds. `None` (no limit set) is passed through unchanged.
+    """
+    if limits is None or limits.request_limit is None:
+        return limits
+    return replace(limits, request_limit=max(0, limits.request_limit - 1))
 
 
 PeriodSpendLookup = Callable[[], Awaitable[Decimal]]

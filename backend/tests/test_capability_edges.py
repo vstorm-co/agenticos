@@ -220,6 +220,80 @@ class TestKnowledgeSearchGuards:
 
         assert refusal.value.details == {"key_origin": "collection 'kb_a'"}
 
+    @pytest.mark.anyio
+    async def test_keywords_mode_searches_one_boosted_query(self):
+        """Keywords analysis is algorithmic: one query, no model call, terms added."""
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="reset my password",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                analysis_mode="keywords",
+            )
+        service.retrieve.assert_awaited_once()
+        assert service.retrieve.await_args.kwargs["query"] == "reset my password reset password"
+
+    @pytest.mark.anyio
+    async def test_multi_query_fans_out_under_one_scope_and_fuses(self):
+        """Every expanded query is retrieved under the *same* resolved scope, so
+        expansion widens recall without ever widening access (#1649, FA-039)."""
+        scope = MagicMock()
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=scope)
+        service.retrieve = AsyncMock(return_value=[])
+
+        async def generate(_: str) -> str:
+            return "change my password\nrecover my account"
+
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="reset password",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                analysis_mode="multi_query",
+                analysis_max_variants=2,
+                generate=generate,
+            )
+        # The original plus two variants, each a separate retrieval, all bound to
+        # the one scope the tool resolved.
+        assert service.retrieve.await_count == 3
+        searched = {call.kwargs["query"] for call in service.retrieve.await_args_list}
+        assert searched == {"reset password", "change my password", "recover my account"}
+        assert all(call.kwargs["scope"] is scope for call in service.retrieve.await_args_list)
+
+    @pytest.mark.anyio
+    async def test_expansion_fans_out_across_the_multi_collection_path_too(self):
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve_multi = AsyncMock(return_value=[])
+
+        async def generate(_: str) -> str:
+            return "a rephrasing"
+
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="q",
+                kb_collection_names=["kb_a", "kb_b"],
+                organization_id=uuid4(),
+                analysis_mode="multi_query",
+                analysis_max_variants=3,
+                generate=generate,
+            )
+        # Original + one variant, each spanning both collections.
+        assert service.retrieve_multi.await_count == 2
+
 
 class TestEmbeddingCredential:
     """An unconfigured embedding key is a configuration state, not a crash."""

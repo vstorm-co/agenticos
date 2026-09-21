@@ -4,7 +4,7 @@ import hashlib
 import logging
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
 from rank_bm25 import BM25Okapi
@@ -76,24 +76,26 @@ class RetrievalService(BaseRetrievalService):
 
     @staticmethod
     def _rrf_fuse(
-        vector_results: list[SearchResult],
-        bm25_results: list[SearchResult],
+        result_lists: list[list[SearchResult]],
         k: int = 60,
     ) -> list[SearchResult]:
-        """Reciprocal Rank Fusion of vector and BM25 results."""
+        """Reciprocal Rank Fusion of any number of ranked result lists.
+
+        Two lists are the hybrid case (vector then BM25); more are the expanded
+        case, one per query variant (#1649). A row's fused score is the sum of its
+        `1 / (k + rank)` over every list it appears in, and the earliest list it
+        appears in provides its representative - which for the hybrid case is the
+        vector leg, exactly as before this generalised past two lists.
+        """
         scores: dict[str, float] = {}
         result_map: dict[str, SearchResult] = {}
 
-        for rank, r in enumerate(vector_results):
-            key = _result_key(r)
-            scores[key] = scores.get(key, 0) + 1.0 / (k + rank + 1)
-            result_map[key] = r
-
-        for rank, r in enumerate(bm25_results):
-            key = _result_key(r)
-            scores[key] = scores.get(key, 0) + 1.0 / (k + rank + 1)
-            if key not in result_map:
-                result_map[key] = r
+        for results in result_lists:
+            for rank, r in enumerate(results):
+                key = _result_key(r)
+                scores[key] = scores.get(key, 0) + 1.0 / (k + rank + 1)
+                if key not in result_map:
+                    result_map[key] = r
 
         sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
         return [
@@ -193,7 +195,7 @@ class RetrievalService(BaseRetrievalService):
                 query, collection_name, limit * fetch_multiplier, query_filter
             )
             if bm25_results:
-                pipeline_results = self._rrf_fuse(pipeline_results, bm25_results)
+                pipeline_results = self._rrf_fuse([pipeline_results, bm25_results])
                 logger.info("[RETRIEVAL] Hybrid search: fused %d results", len(pipeline_results))
 
         for i, r in enumerate(pipeline_results[:3]):
@@ -314,3 +316,33 @@ class RetrievalService(BaseRetrievalService):
                 deduped.append(r)
 
         return deduped[:limit]
+
+
+async def fuse_over_queries(
+    queries: list[str],
+    retrieve_one: Callable[[str], Awaitable[list[SearchResult]]],
+    *,
+    limit: int,
+) -> list[SearchResult]:
+    """Retrieve for each of an expanded set of queries and fuse the results (#1649).
+
+    `retrieve_one` is a closure the caller builds over `RetrievalService.retrieve`
+    (or `retrieve_multi`) with the scope and filters **already bound**, so every
+    query in `queries` is searched under the same server-trusted `RetrievalScope`
+    and the same business filters. Query analysis supplies alternative query
+    *text* only and never reaches the scope or the filters, so a produced query
+    cannot widen access past the caller's tenant and collection - the whole point
+    of expanding here rather than inside the store (FA-039).
+
+    A single query is returned exactly as `retrieve_one` gave it, with no fusion
+    pass, so an agent with analysis off retrieves byte-for-byte as it did before
+    this existed. Several queries are each retrieved, RRF-fused so a chunk found
+    by more than one variant ranks above one found by a single variant, and cut
+    to `limit`. This is the seam a reranker (#142) slots into: expansion widens
+    the candidate set, fusion orders it, and a reranker would reorder what fusion
+    returned.
+    """
+    if len(queries) == 1:
+        return await retrieve_one(queries[0])
+    result_lists = [await retrieve_one(query) for query in queries]
+    return RetrievalService._rrf_fuse(result_lists)[:limit]
