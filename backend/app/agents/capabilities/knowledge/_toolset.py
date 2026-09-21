@@ -11,6 +11,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.knowledge._search import search_knowledge_base
+from app.agents.capabilities.knowledge._self_query import infer_filters
 from app.agents.deps import AgentDeps
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
 
@@ -29,13 +30,21 @@ def _normalize(value: list[str] | None) -> list[str] | None:
     return value or None
 
 
-def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]:
+def build_knowledge_toolset(
+    *, default_top_k: int, self_query_enabled: bool = False
+) -> FunctionToolset[AgentDeps]:
     """A toolset with one search tool, under the name it is declared with.
 
     The same search is "Search orders" for one agent and "Look up policies" for
     another - but that is said in the binding's `tool_overrides`, applied for
     every capability at once, not here. A rename this toolset performed itself
     would be invisible to the approval gate.
+
+    With `self_query_enabled`, a search the model runs without naming any filter
+    of its own first asks an LLM to derive the FA-039 business filters the query
+    implies (`_self_query.infer_filters`). The model's explicit filters win when it
+    supplies them; an empty or unparsable inference falls back to an unfiltered -
+    but still tenant/collection-scoped - search.
     """
 
     async def search_documents(
@@ -93,6 +102,28 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 for err in exc.errors()
             )
             return steer(ctx, f"Those search filters are not valid: {problems}. Adjust and retry.")
+
+        model_named_a_filter = any(
+            value is not None
+            for value in (
+                filters.source,
+                filters.document_type,
+                filters.organizational_unit,
+                filters.date_from,
+                filters.date_to,
+            )
+        )
+        if self_query_enabled and not model_named_a_filter:
+            # Only when the model named no filter itself - its explicit intent
+            # wins. The inferred object is a `RetrievalFilters`, so it carries no
+            # tenant or authorization field and runs through the same validation;
+            # a `None` result leaves the search unfiltered within the still-enforced
+            # scope, never widened.
+            inferred = await infer_filters(
+                ctx.model, query, usage=ctx.usage, usage_limits=ctx.usage_limits
+            )
+            if inferred is not None:
+                filters = inferred
 
         try:
             return await search_knowledge_base(

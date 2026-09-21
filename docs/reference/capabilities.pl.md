@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "db9b5813e36f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -90,8 +90,20 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | wł. / wył. |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
+
+`self_query_enabled` włącza self-query, domyślnie wyłączone. Gdy wyszukiwanie
+uruchamia się bez filtra wskazanego przez sam model, LLM czyta pytanie —
+„dokumenty z zeszłego miesiąca o onboardingu” — i wyprowadza filtry biznesowe,
+które ono implikuje (zakres dat, typ dokumentu). Własne, jawne filtry modelu
+zawsze wygrywają; self-query jedynie uzupełnia lukę. Wywnioskowany obiekt to ten
+sam zwalidowany filtr, który podaje wywołujący, więc nie niesie żadnego pola
+tenanta ani autoryzacji i nie może rozszerzyć dostępu — może jedynie zawęzić w
+obrębie własnego tenanta i kolekcji agenta. Puste lub nieprzetwarzalne
+wnioskowanie wyszukuje bez filtra w obrębie tego wciąż egzekwowanego zakresu.
+Korzysta z modelu samego przebiegu, a jego koszt jest księgowany na tym przebiegu.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze

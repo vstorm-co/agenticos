@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "db9b5813e36f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -90,8 +90,23 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | an / aus |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
+
+`self_query_enabled` schaltet Self-Query ein, standardmäßig aus. Läuft eine Suche
+ohne einen vom Modell selbst genannten Filter, liest ein LLM die Frage —
+„Dokumente vom letzten Monat über Onboarding“ — und leitet die geschäftlichen
+Filter ab, die sie impliziert (einen Datumsbereich, einen Dokumenttyp). Die
+eigenen, ausdrücklichen Filter des Modells gewinnen immer; Self-Query füllt nur
+die Lücke.
+
+Das abgeleitete Objekt ist derselbe validierte Filter, den ein Aufrufer
+liefert, trägt also kein Tenant- oder Autorisierungsfeld und kann den Zugriff
+nicht erweitern — es kann nur innerhalb des eigenen Tenants und der Collections des
+Agenten einschränken. Eine leere oder nicht verwertbare Ableitung sucht
+ungefiltert innerhalb dieses weiterhin erzwungenen Bereichs. Sie nutzt das Modell
+des Laufs selbst, und ihre Kosten werden dem Lauf angerechnet.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als

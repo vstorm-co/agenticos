@@ -1,5 +1,5 @@
 ---
-source_sha: "3a400557468e"
+source_sha: "db9b5813e36f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -88,8 +88,23 @@ colección que nadie le conectó.
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | activado / desactivado |
 
 `default_top_k` se aplica solo cuando el modelo no pide un número por su cuenta.
+
+`self_query_enabled` activa la self-query, desactivada por defecto. Cuando una
+búsqueda se ejecuta sin ningún filtro que el propio modelo haya indicado, un LLM
+lee la pregunta — «documentos del mes pasado sobre onboarding» — y deriva los
+filtros de negocio que implica (un rango de fechas, un tipo de documento). Los
+filtros explícitos del propio modelo siempre ganan; la self-query solo rellena el
+hueco.
+
+El objeto inferido es el mismo filtro validado que aporta quien llama, así
+que no lleva ningún campo de tenant ni de autorización y no puede ampliar el
+acceso: solo puede acotar dentro del propio tenant y las colecciones del agente.
+Una inferencia vacía o no interpretable busca sin filtro dentro de ese ámbito aún
+aplicado. Reutiliza el modelo de la propia ejecución y su gasto se imputa a la
+ejecución.
 
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no

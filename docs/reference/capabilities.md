@@ -82,8 +82,21 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | on / off |
 
 `default_top_k` applies only when the model does not ask for a number itself.
+
+`self_query_enabled` turns on self-query, off by default. When a search runs with
+no filter the model named itself, an LLM reads the question — "documents from last
+month about onboarding" — and derives the business filters it implies (a date
+range, a document type). The model's own explicit filters always win; self-query
+only fills the gap.
+
+The inferred object is the same validated filter a caller supplies, so it carries
+no tenant or authorization field and cannot widen access — it can only narrow
+within the agent's own tenant and collections. An empty or unparsable inference
+searches unfiltered within that still-enforced scope, and it reuses the run's own
+model with its spend booked against the run.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search

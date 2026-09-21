@@ -40,4 +40,7 @@ def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
     if not ctx.resources.get("kb_collection_names"):
         return None
     config = ctx.config if isinstance(ctx.config, KnowledgeConfig) else KnowledgeConfig()
-    return Knowledge(default_top_k=config.default_top_k)
+    return Knowledge(
+        default_top_k=config.default_top_k,
+        self_query_enabled=config.self_query_enabled,
+    )

@@ -22,6 +22,15 @@ class KnowledgeConfig(BaseModel):
         le=50,
         description="Passages returned when the model does not ask for a number",
     )
+    self_query_enabled: bool = Field(
+        default=False,
+        description=(
+            "Infer FA-039 business filters (source, document type, organizational "
+            "unit, date range) from the natural-language query with an LLM when the "
+            "model searches without naming any filter itself. Off by default. It can "
+            "only narrow within the agent's tenant and collections, never widen."
+        ),
+    )
 
 
 @dataclass
@@ -45,6 +54,7 @@ class Knowledge(AbstractCapability[AgentDepsT]):
     """
 
     default_top_k: int = 5
+    self_query_enabled: bool = False
 
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
@@ -53,5 +63,8 @@ class Knowledge(AbstractCapability[AgentDepsT]):
     def get_toolset(self) -> AbstractToolset[Any]:
         """The search toolset, built once per capability instance."""
         if self._toolset is None:
-            self._toolset = build_knowledge_toolset(default_top_k=self.default_top_k)
+            self._toolset = build_knowledge_toolset(
+                default_top_k=self.default_top_k,
+                self_query_enabled=self.self_query_enabled,
+            )
         return self._toolset
