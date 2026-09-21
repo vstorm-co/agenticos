@@ -17,6 +17,7 @@ from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
+from app.db.models.virtual_table import VirtualTable
 
 
 async def load_agent(db: AsyncSession, agent_id: UUID, organization_id: UUID) -> Agent:
@@ -47,6 +48,13 @@ async def load_context(db: AsyncSession, context_id: UUID, organization_id: UUID
             message="Context file not found", details={"context_id": str(context_id)}
         )
     return file
+
+
+async def load_table(db: AsyncSession, table_id: UUID, organization_id: UUID) -> VirtualTable:
+    table = await db.get(VirtualTable, table_id)
+    if table is None or table.organization_id != organization_id:
+        raise NotFoundError(message="Table not found", details={"table_id": str(table_id)})
+    return table
 
 
 async def load_secret(

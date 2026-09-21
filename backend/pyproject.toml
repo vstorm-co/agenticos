@@ -802,6 +802,8 @@ include = [
     "app/repositories/virtual_table.py",
     "app/schemas/virtual_table.py",
     "app/services/virtual_tables/**",
+    "app/api/routes/v1/virtual_tables.py",
+    "app/api/routes/v1/_table_responses.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1170,6 +1172,8 @@ include = [
     "app/repositories/virtual_table.py",
     "app/schemas/virtual_table.py",
     "app/services/virtual_tables/**",
+    "app/api/routes/v1/virtual_tables.py",
+    "app/api/routes/v1/_table_responses.py",
 ]
 branch = true
 omit = [

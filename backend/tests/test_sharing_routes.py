@@ -20,6 +20,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_context,
     load_secret,
     load_skill,
+    load_table,
 )
 from app.api.routes.v1.sharing import (
     agent_sharing_router,
@@ -27,6 +28,7 @@ from app.api.routes.v1.sharing import (
     context_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
+    table_sharing_router,
 )
 from app.core.exceptions import NotFoundError
 from app.services.access import AGENT, COLLECTION, SECRET, SKILL
@@ -37,6 +39,7 @@ ROUTERS = (
     ("skills", skill_sharing_router),
     ("context", context_sharing_router),
     ("secrets", secret_sharing_router),
+    ("tables", table_sharing_router),
 )
 
 LOADERS = (
@@ -45,6 +48,7 @@ LOADERS = (
     ("skill", load_skill, "Skill not found", "skill_id"),
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
+    ("table", load_table, "Table not found", "table_id"),
 )
 
 
