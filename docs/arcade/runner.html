@@ -293,8 +293,8 @@
               ["Best", stats.runnerBest],
             ],
           });
-          window.Amigo.wireContinue(overlay, start);
           overlay.hidden = false;
+          window.Amigo.wireContinue(overlay, start);
           if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
         }
 
@@ -936,7 +936,13 @@
           function () {
             return state && state.mode === "playing";
           },
-          start
+          start,
+          function () {
+            if (!state) return;
+            state.ducking = false;
+            state.holding = false;
+            touchY = null;
+          }
         );
         window.Amigo.fit(screenEl, cv);
         window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));

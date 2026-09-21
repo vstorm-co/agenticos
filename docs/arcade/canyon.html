@@ -649,8 +649,8 @@
             ],
             retryLabel: kind === "won" ? "Run it again" : "Try again",
           });
-          window.Amigo.wireContinue(overlay, start);
           overlay.hidden = false;
+          window.Amigo.wireContinue(overlay, start);
           if (got.length) window.Amigo.unlockToast(screenEl, got[0]);
         }
 
@@ -1328,7 +1328,11 @@
           function () {
             return game && game.mode === "playing";
           },
-          start
+          start,
+          function () {
+            keys = {};
+            if (game) game.jumpHeld = 0;
+          }
         );
         window.Amigo.fit(screenEl, cv);
         window.Amigo.fullscreen(document.querySelector(".arc-page"), document.getElementById("fs"));
