@@ -148,6 +148,7 @@ async def test_an_upsert_creates_then_asks_for_the_revision_then_updates(http):
     assert exists.json() == {"exists": True}
 
 
+@pytest.mark.security
 async def test_a_rejected_write_leaves_nothing_behind(http):
     client, _caller, _stranger, factory = http
     table = await _table(client)
@@ -164,6 +165,7 @@ async def test_a_rejected_write_leaves_nothing_behind(http):
         assert await check.scalar(select(func.count()).select_from(VirtualTableRecord)) == 0
 
 
+@pytest.mark.security
 async def test_another_organization_sees_no_such_table_over_http(http):
     client, caller, stranger, _factory = http
     table = await _table(client)

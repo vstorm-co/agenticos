@@ -23,12 +23,14 @@ def test_a_label_of_only_spaces_is_refused():
         TableCreate(name="   ")
 
 
+@pytest.mark.security
 def test_an_unknown_request_field_is_refused_rather_than_ignored():
     """A misspelled `expected_revison` must not become a write with no concurrency check."""
     with pytest.raises(ValidationError):
         RecordUpdate.model_validate({"expected_revison": 1, "values": {}})
 
 
+@pytest.mark.security
 def test_an_update_cannot_omit_its_expected_revision():
     with pytest.raises(ValidationError):
         RecordUpdate.model_validate({"values": {}})

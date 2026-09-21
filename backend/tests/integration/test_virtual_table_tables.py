@@ -72,6 +72,7 @@ async def test_a_table_is_created_with_its_first_schema_version_and_audited(db):
     assert "table.created" in list(audited)
 
 
+@pytest.mark.security
 async def test_creating_a_table_needs_the_create_permission(db):
     service, _ctx, owner, org = await _setup(db)
 
@@ -133,6 +134,7 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     assert owner.id
 
 
+@pytest.mark.security
 async def test_a_private_table_is_a_404_to_another_member_but_a_grant_opens_it(db):
     service, ctx, _owner, org = await _setup(db)
     table = await service.create_table(ctx, TableCreate(name="Private"))
@@ -178,6 +180,7 @@ async def test_a_rename_keeps_the_column_id_and_the_records_keep_their_values(db
     assert [version.columns[0].label for version in versions.items] == ["Name", "Full name"]
 
 
+@pytest.mark.security
 async def test_a_column_left_out_is_archived_not_deleted_and_can_no_longer_be_written(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -208,6 +211,7 @@ async def test_a_column_left_out_is_archived_not_deleted_and_can_no_longer_be_wr
     assert raised.value.details["column_id"] == str(age_id)
 
 
+@pytest.mark.security
 async def test_a_schema_change_refuses_what_would_break_stored_values(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -286,6 +290,7 @@ async def test_options_are_archived_when_left_out_and_keep_their_ids(db):
     assert options["Blocked"].archived is False
 
 
+@pytest.mark.security
 async def test_a_stale_schema_version_is_a_conflict_and_nothing_changes(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(ctx, TableCreate(name="People"))
@@ -300,6 +305,7 @@ async def test_a_stale_schema_version_is_a_conflict_and_nothing_changes(db):
     assert raised.value.details == {"expected_version": 1, "current_version": 2}
 
 
+@pytest.mark.security
 async def test_a_column_with_empty_cells_cannot_become_required(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -352,6 +358,7 @@ async def test_a_new_required_column_with_a_default_fills_old_records_when_they_
     assert new.record.values == {country_id: "PL"}
 
 
+@pytest.mark.security
 async def test_an_archived_table_keeps_its_records_readable_and_refuses_every_write(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -379,6 +386,7 @@ async def test_an_archived_table_keeps_its_records_readable_and_refuses_every_wr
         await service.update_schema(ctx, table.id, SchemaUpdate(expected_version=1, columns=[]))
 
 
+@pytest.mark.security
 async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -417,6 +425,7 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
     assert len(seen) == 2
 
 
+@pytest.mark.security
 async def test_another_organizations_table_does_not_exist(db):
     service, ctx, _owner, _org = await _setup(db)
     table = await orders_table(service, ctx)

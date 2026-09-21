@@ -107,6 +107,7 @@ async def test_a_taken_external_id_is_a_conflict_and_an_untaken_one_may_repeat_a
     assert await _count(db, VirtualTableRecord) == 3
 
 
+@pytest.mark.security
 async def test_invalid_values_are_refused_per_field_and_nothing_is_written(db):
     service, ctx, table, _org = await _setup(db)
     quantity, paid = cid(table, "Quantity"), cid(table, "Paid")
@@ -175,6 +176,7 @@ async def test_an_update_changes_named_cells_bumps_the_revision_and_keeps_histor
     assert await _count(db, VirtualTableOutbox) == 1
 
 
+@pytest.mark.security
 async def test_a_stale_revision_is_a_typed_conflict_and_the_record_is_untouched(db):
     service, ctx, table, _org = await _setup(db)
     quantity = cid(table, "Quantity")
@@ -409,6 +411,7 @@ async def test_typed_filters_compare_numbers_dates_times_text_booleans_and_optio
     ) == {"a"}
 
 
+@pytest.mark.security
 async def test_a_filter_or_sort_the_table_cannot_answer_is_a_typed_refusal(db):
     service, ctx, table, _org = await _setup(db)
     quantity = next(c.id for c in table.columns if c.label == "Quantity")
@@ -458,6 +461,7 @@ async def test_records_written_before_a_column_was_archived_can_still_be_filtere
     assert [item.external_id for item in page.items] == ["b"]
 
 
+@pytest.mark.security
 async def test_a_viewer_reads_but_only_an_edit_grant_lets_them_write(db):
     service, ctx, table, org = await _setup(db)
     written = await service.create_record(ctx, table.id, RecordCreate(external_id="A-1", values={}))
@@ -490,6 +494,7 @@ async def test_a_viewer_reads_but_only_an_edit_grant_lets_them_write(db):
     await service.create_record(viewer, table.id, RecordCreate(values={}))
 
 
+@pytest.mark.security
 async def test_another_organization_cannot_read_or_write_a_table_even_as_an_owner(db):
     service, ctx, table, _org = await _setup(db)
     written = await service.create_record(ctx, table.id, RecordCreate(external_id="A-1", values={}))
@@ -515,6 +520,7 @@ async def test_another_organization_cannot_read_or_write_a_table_even_as_an_owne
     assert (await service.get_record(ctx, table.id, written.record.id)).revision == 1
 
 
+@pytest.mark.security
 async def test_a_record_id_from_another_table_is_not_found_through_this_one(db):
     service, ctx, table, _org = await _setup(db)
     other = await service.create_table(

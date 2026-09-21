@@ -95,6 +95,7 @@ async def test_a_retry_returns_the_original_answer_even_after_the_record_changed
     assert first.record == retry.record
 
 
+@pytest.mark.security
 async def test_reusing_a_key_for_a_different_request_is_refused_and_writes_nothing(db):
     service, ctx, table, _org = await _setup(db)
     customer = cid(table, "Customer")
@@ -111,6 +112,7 @@ async def test_reusing_a_key_for_a_different_request_is_refused_and_writes_nothi
     assert await _rows(db, VirtualTableRecord) == 1
 
 
+@pytest.mark.security
 async def test_a_key_is_scoped_to_the_principal_the_operation_and_the_table(db):
     service, ctx, table, org = await _setup(db)
     body = RecordCreate(values={})
@@ -131,6 +133,7 @@ async def test_a_key_is_scoped_to_the_principal_the_operation_and_the_table(db):
     assert await _rows(db, VirtualTableReceipt) == 3
 
 
+@pytest.mark.security
 async def test_a_refused_write_leaves_no_receipt_so_the_corrected_retry_succeeds(db):
     service, ctx, table, _org = await _setup(db)
     quantity = cid(table, "Quantity")
@@ -170,6 +173,7 @@ async def test_a_retried_delete_succeeds_but_an_unkeyed_second_delete_is_not_fou
     assert await _rows(db, VirtualTableReceipt) == 1
 
 
+@pytest.mark.security
 async def test_a_receipt_is_not_replayed_to_a_principal_who_lost_access(db):
     service, ctx, table, org = await _setup(db)
     colleague = await make_user(db)
@@ -334,6 +338,7 @@ async def test_concurrent_retries_of_one_keyed_upsert_agree_on_one_record(engine
         assert await _rows(check, VirtualTableOutbox) == 1
 
 
+@pytest.mark.security
 async def test_concurrent_use_of_one_key_for_different_requests_has_one_winner(
     engine: AsyncEngine,
 ):
@@ -355,6 +360,7 @@ async def test_concurrent_use_of_one_key_for_different_requests_has_one_winner(
         assert await _rows(check, VirtualTableRecord) == 1
 
 
+@pytest.mark.security
 async def test_concurrent_updates_from_one_revision_let_exactly_one_win(engine: AsyncEngine):
     factory, ctx, table = await _committed_table(engine)
     quantity = cid(table, "Quantity")
