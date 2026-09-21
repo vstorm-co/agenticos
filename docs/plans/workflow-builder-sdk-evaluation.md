@@ -50,6 +50,55 @@ of 2.3.0 and swaps its UI dependency (`@synergycodes/overflow-ui` for
 The issue says not to extend the experiment automatically, so nothing here schedules
 that. See [Not evaluated](#not-evaluated-and-caveats).
 
+## Recommendation and next steps
+
+**Keep the decision: do not adopt the SDK, and build the editor on `@xyflow/react`.**
+Confidence is medium. The record rests on a judgement about an unestimated item, and
+the estimate below is judgement too.
+
+Why the recommendation holds:
+
+- The SDK contributes the canvas chrome, the palette and simple property fields. The
+  rest of the editor is ours under either engine, and the property forms that mattered
+  were our own controls. The lab needed about 1,500 lines of adapters around it.
+- It carries guards and dependencies the console would live with: a module-level store
+  that allows one editor, an autosave that outlives its editor, a second UI kit next
+  to Radix, 123 SDK-only packages, English and Polish chrome only, and controls
+  without accessible names.
+- The day count does not favour it. Choosing React Flow adds about 10 days on a paired
+  basis, roughly 12% of the total, and the range straddles zero. Costs the count does
+  not capture, such as upstream churn and a beta UI kit, tilt it towards React Flow.
+
+What would change it:
+
+- **The layer-order test.** The one cheap untried experiment, well under a day. If it
+  works, the stylesheet finding shrinks to the `data-theme` and `wb-theme` side
+  effects. The global-state, missing-feature and dependency findings would remain, so
+  it is unlikely to reverse the decision alone. The issue forbids extending the
+  timebox automatically, so it needs an explicit go-ahead.
+- **A much larger SDK saving.** About 30 days or more would reverse it. Nothing here
+  suggests that.
+
+Next steps:
+
+1. Before this PR merges, remove the lab, its two dependencies, their licence entries
+   and the changelog entry. Keep the lab reachable, for example by tagging the last
+   commit that contains it. What survives is this record.
+2. Carry over the algorithms only when #1787 starts: the typed graph, history,
+   clipboard and save contract, about 490 lines including stand-in types. They move as
+   algorithms, not as files.
+3. Flag the schedule. The three editor areas are about ten weeks at the likely figure
+   against a five-week window, and the same owner holds #1786, #1789 and #1790.
+   Issue #56 already calls for a re-estimate.
+4. Settle the #1786 catalog contract early. It is the largest uncertainty, about 8
+   days, and it decides how property forms and bindings work.
+5. Optionally re-check the SDK at its next release. Upstream is already replacing its
+   UI dependency.
+
+Caveats: the estimate and its SDK-side offsets are judgement, the performance figures
+are single runs, and some browser claims were not independently re-verified. See
+[Not evaluated](#not-evaluated-and-caveats).
+
 ## Threshold, set before the lab was built
 
 Issue #1781 says only that the adaptations must be "bounded". The figures below, **at
