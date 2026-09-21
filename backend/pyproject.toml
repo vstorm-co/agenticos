@@ -73,7 +73,7 @@ dependencies = [
     # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
     # own change, with its own tests. Until then this cap is what keeps the
     # scheduled freshness upgrade green rather than perpetually red.
-    "mcp<2",
+    "mcp<3",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -158,7 +158,7 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
-    "mem0ai>=2.0.20",
+    "mem0ai>=2.1.0",
     "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
