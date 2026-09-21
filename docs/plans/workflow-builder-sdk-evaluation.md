@@ -43,8 +43,9 @@ up, so the number stands.
 
 A development-only lab at `/dev/workflow-sdk`, in
 `frontend/src/components/dev/workflow-sdk/`. It is not linked from the navigation, it
-404s in production builds like `dev/components`, and it is outside the onboarding and
-dashboard registries on purpose.
+renders the not-found page in production builds (checked against `next start`; the
+HTTP status is 200 because the response streams under the dashboard layout), and it
+is outside the onboarding and dashboard registries on purpose.
 
 | Piece | File | Real or mock |
 |---|---|---|

@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
   picker, a Virtual Table write config, nested foreach, a round trip to the typed
   graph, saves with `expected_revision` and HTTP 409, undo/redo, copy/paste with id
   and binding remapping, and a Pydantic schema adapter. The route is not in the
-  navigation and answers 404 in production. The workflow API and tables are mocks.
+  navigation and renders the not-found page in production. The workflow API and tables are mocks.
   The decision, in `docs/plans/workflow-builder-sdk-evaluation.md`, is to build the
   editor on React Flow directly: the SDK's stylesheet cannot be contained in the
   console, and an unguarded autosave overwrote one workflow with another's nodes.
