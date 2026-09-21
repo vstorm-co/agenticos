@@ -7,14 +7,15 @@ Decision record for #1781, part of #56. Timeboxed prototype of `@workflowbuilder
 
 **Do not adopt the SDK. Build the workflow editor on `@xyflow/react` directly.**
 
-Two patches are needed against a bound of five (see [Patches](#patches)), so the
-count alone would pass. The decision rests on three findings the count does not
-capture:
+On this record's own numbers the threshold is met: 2 patches against a bound of 5
+(see [Patches](#patches)), and the prototype's adapters fit the 2-day bound. The
+rejection is a judgement that rests on three findings the count does not capture:
 
-- Its stylesheet cannot be contained inside the console. It restyles the whole
-  document, survives client-side navigation and cannot be fixed with tokens. The two
-  ways out are a forked stylesheet build or an iframe, and the console's own policy
-  forbids framing.
+- Its stylesheet was not contained in the prototype. It restyles the whole document,
+  survives client-side navigation and could not be fixed with tokens. Containing it
+  needs a forked stylesheet build, or an iframe, which would require relaxing the
+  console's framing headers. Both were evaluated as far as the notes below say; neither
+  is shown to be impossible.
 - Every integration point that touches process-wide state needed a guard of ours
   (autosave timers, save status, registries). One of them, left unguarded, wrote one
   workflow's nodes into another workflow's document.
@@ -23,17 +24,18 @@ capture:
   parts the SDK does provide are the canvas chrome and simple property fields, and
   the property forms that mattered were custom controls anyway.
 
-Re-open the question when the SDK ships its next release. The reviewed upstream
-commit is already ahead of 2.3.0 and swaps its UI dependency
-(`@synergycodes/overflow-ui` for `@workflowbuilder/ui`), which may change both the
-package weight and the stylesheet. See [Not evaluated](#not-evaluated-and-caveats).
+One optional trigger for a later look: the reviewed upstream commit is already ahead
+of 2.3.0 and swaps its UI dependency (`@synergycodes/overflow-ui` for
+`@workflowbuilder/ui`), which may change both the package weight and the stylesheet.
+The issue says not to extend the experiment automatically, so nothing here schedules
+that. See [Not evaluated](#not-evaluated-and-caveats).
 
 ## Threshold, set before the lab was built
 
-The task brief fixed the adoption rule before any code was written, and it was not
-changed afterwards: adopt only if the adaptations are bounded, taken as **at most 5
-patches to the SDK and about 2 days of adapter work**. Nothing better grounded turned
-up, so the number stands.
+Issue #1781 says only that the adaptations must be "bounded". The figures below, **at
+most 5 patches to the SDK and about 2 days of adapter work**, were set at the start of
+this evaluation, before any code was written, and were not changed afterwards. They
+are not in the issue text. Nothing better grounded turned up, so they stand.
 
 - A **patch** is a change to the SDK's own source or built output that has to be
   carried across upgrades.
@@ -105,14 +107,17 @@ are too. One editor per document is upstream's stated contract.
   without deduplication. Confirmed in the source, not measured: it is harmless for
   correctness and grows by one copy per mount. Mounting one editor per page and
   keeping `jsonForm` a module constant is the mitigation.
-- `IntegrationWrapper` reloads the document whenever its `nodes` or `edges` props
-  change identity, discarding edits. The lab passes references frozen at mount.
+- **Swapping documents needs a remount.** Under `<Root>` with the `props` strategy,
+  the SDK copies `name`, `nodes`, `edges` and `layoutDirection` into state on its
+  first render (`bB` in `dist/index-CEBfv0NZ.js`), so later prop changes are ignored.
+  Only the `localStorage` and `api` strategies call `setState`. Checked in the dist
+  source only, not in the browser. The lab keys the editor on the document.
 - Text controls commit on blur, not on input. An edit not yet blurred is not in the
   store, so it is lost to the `beforeunload` autosave.
 
 **Iframe outcome, recorded separately.** An iframe would isolate the singleton and the
 stylesheet at once, since each frame has its own module registry and document.
-Framing a console route is refused by the console itself: measured as
+Framing a console route is refused by the console's own headers: measured as
 `Framing '…' violates the following Content Security Policy directive:
 "frame-ancestors 'none'"`, and `X-Frame-Options: DENY` stands behind it. Only
 `/api/files/*` and `/api/generated/*` are frameable. Verifying the iframe would mean
@@ -125,7 +130,10 @@ in usability.
 
 `DidSaveStatus` is `'error' | 'success' | 'alreadyStarted'`, and the SDK's
 `RuntimeIntegrationWrapper` reads a `props` callback's answer with `if (didSave)`.
-All three are non-empty strings, so:
+All three are non-empty strings. The SDK documents this: its `index.d.ts` says
+"Today's runtime treats every non-empty resolution as ..." the save finishing. So it
+is documented behaviour, not hidden, and it is unchanged at commit `b926e94`
+(checked in the source). For a manual save:
 
 | Callback answers | Server did | The SDK showed |
 |---|---|---|
@@ -133,10 +141,15 @@ All three are non-empty strings, so:
 | resolves `'error'` | 500 | "Saving diagram successfully" |
 | throws | 409 or 500 | "An error occurred while saving diagram" |
 
-The adapter avoids it without a patch: `createGuardedSave` resolves `'success'` only
-after the server committed and throws in every other case. The conflict banner is ours,
-because the SDK's error snackbar cannot say why. An upstream one-line fix
-(`didSave === 'success'`) would remove the need.
+The table holds for manual saves only: for an autosave (`isAutoSave`) the SDK shows
+no snackbar in any of the three rows. The SDK also coalesces concurrent saves itself,
+answering `'alreadyStarted'` while one is in flight, so the adapter needs no in-flight
+lock of its own.
+
+The adapter avoids the problem without a patch: `createGuardedSave` resolves
+`'success'` only after the server committed and throws in every other case. The
+conflict banner is ours, because the SDK's error snackbar cannot say why. An upstream
+one-line fix (`didSave === 'success'`) would remove the need.
 
 ### Pydantic schema
 
@@ -183,8 +196,11 @@ What tokens cannot reach is the SDK stylesheet's own global rules, measured agai
 These persist after navigating from the lab to `/agents`, in the dev server and in a
 production build. Containing them would need the stylesheet rebuilt with a prefix
 and the SDK's portals (modals, snackbar, select popups, which render into `body`)
-pointed at our scope, or an iframe. Neither was attempted; the first is a fork.
-Recorded as **not tamed: failed**, as the brief requires.
+pointed at our scope, or an iframe. Neither was attempted: the first is a fork, and
+the second would need the console's framing headers relaxed for one route, which was
+not done. So this is not shown to be impossible, only not achieved in the prototype.
+Recorded as **not tamed: failed**, under the half-day rule set at the start of this
+evaluation (it is not in the issue text).
 
 ## Patches
 
@@ -201,25 +217,39 @@ Count: **2 of the 5 allowed.**
 
 ## Adapter work
 
-About 1,500 lines of adapter source, plus about 1,700 lines of lab UI, mocks and
-fixtures, and about 1,000 lines of tests. Reusable unchanged on React Flow directly:
-`typed-graph.ts`, `clipboard.ts`, `history.ts` and the save contract in
-`save-handler.ts`, together about 430 lines.
+Measured with `wc -l`: 1,548 lines of adapter source, 1,046 lines of lab UI, mocks
+and fixtures (`baseline-flow`, `editor-host`, `fixtures`, `mock-workflow-api`, `perf`,
+`sdk-theme.css`, `workflow-sdk-lab` and the route's `page.tsx`), and 752 lines across
+the 7 test files.
+
+The algorithms carry over to React Flow directly, not the files verbatim:
+
+- `typed-graph.ts` is a stand-in for the generated API types.
+- `clipboard.ts` hard-codes the stand-in's binding fields, and its default branches
+  would silently treat a new node kind as having no bindings.
+- `save-handler.ts` imports its error classes from the mock server and `fromSdkScope`
+  from `sdk-adapter.ts`.
+
+These modules move once the real editor exists, and were not refactored for that.
+The algorithms in question total about 480 lines: `typed-graph.ts` 127,
+`clipboard.ts` 143, `history.ts` 110 and the guarded save in `save-handler.ts` 98,
+which excludes the lab-only `createNaiveSave`.
 
 | Module | Lines | Survives without the SDK |
 |---|---|---|
-| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 323 | Yes |
+| `typed-graph.ts`, `clipboard.ts`, `history.ts` | 380 | The algorithms, not the files |
 | `save-handler.ts` | 111 | The guards and 409 mapping, yes |
 | `sdk-adapter.ts` | 244 | Partly: the strict parse, not the SDK node shape |
-| `editor-controller.tsx` | 246 | Partly: history and clipboard wiring |
+| `editor-controller.tsx` | 244 | Partly: history and clipboard wiring |
 | `pydantic-schema.ts` | 192 | Only if property forms stay schema-driven |
 | `renderers.tsx`, `nodes.ts` | 377 | Controls yes, palette definitions no |
 
 This is a measure of size, not of days. The prototype reached every case in the
-brief, so the adapters fit the 2-day bound at prototype quality. Open work the SDK
-would still need is unbounded or unestimated: stylesheet containment, accessibility
-patches, the SDK's own English-only chrome next to a translated console, and real
-API and permission wiring. That is why the bound is judged not met.
+issue, so the adapters fit the 2-day bound at prototype quality. Work the SDK would
+still need is unbounded or unestimated: stylesheet containment, accessibility
+patches, whether its English and Polish chrome follows the console's language switch,
+and real API and permission wiring. That is a judgement about risk, not a measured
+overrun of the bound.
 
 ## Measurements
 
@@ -263,8 +293,9 @@ shape at roughly twice the numbers. Neither engine was tuned.
   `licenses/policy.toml` as accepted: keep the notices with every copy, do not sell
   the font alone. This change adds the row to `docs/licenses.md`.
 - `use-composed-ref` (MIT) has no licence file and names no author. Recorded as a
-  notice attributed to its repository owner, inferred from the repository and the npm
-  maintainer, since the package names nobody.
+  notice attributed to Mateusz Burzynski (Andarist). That name is inferred from the
+  npm maintainer's email address and the repository's ownership; the package itself
+  names nobody.
 - The vendor sells an Enterprise Edition. Nothing in the npm package requires it.
 
 Removing the dependencies removes those entries and regenerates
@@ -272,15 +303,16 @@ Removing the dependencies removes those entries and regenerates
 
 ## Not evaluated, and caveats
 
-- **Version drift.** The brief names commit `b926e94`, which is ahead of the `v2.3.0`
+- **Version drift.** The issue names commit `b926e94`, which is ahead of the `v2.3.0`
   tag by four commits touching `packages/sdk` (a Temporal plugin, a required start
   node, and the `@workflowbuilder/ui` migration). Behaviour here was measured on the
   published 2.3.0 build, and the source was read at the `v2.3.0` tag. The migration
   may change the stylesheet and the dependency tree.
 - Two editors mounted at once inline. Upstream says one; the lab only detects it.
-- Swapping documents by changing the SDK's props instead of remounting.
 - The iframe, beyond the policy refusal.
-- The SDK's own Polish locale against the console's language switch.
+- Whether the SDK's chrome follows the console's language switch. It ships English
+  and Polish, which matches the console's two locales today; a third locale would
+  need its own SDK translations.
 - Select-all (Ctrl+A) in the SDK.
 - Single runs on one machine; the numbers show shape, not a benchmark.
 - No backend was started. The agent picker was checked against stubbed responses on
@@ -290,7 +322,13 @@ Removing the dependencies removes those entries and regenerates
 
 ## What carries over
 
-- `typed-graph.ts`, `clipboard.ts` and `history.ts`, unchanged.
+- The algorithms in `typed-graph.ts`, `clipboard.ts` and `history.ts`, ported rather
+  than copied: see [Adapter work](#adapter-work) for what each hard-codes.
+- Clipboard scope. The lab's window-level Ctrl+C, X and V handler blocks native copy
+  everywhere outside inputs, so a port must scope it to the diagram. The lab's
+  clipboard is a module variable that survives remounts, so a port must key it per
+  organization and workflow, or it would carry one organization's agent and version
+  ids into another's workflow.
 - The save contract: send `expected_revision`, refuse a save whose editor is gone or
   whose payload names another workflow, and treat a 409 as a conflict the user
   resolves.

@@ -27,8 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
   and binding remapping, and a Pydantic schema adapter. The route is not in the
   navigation and renders the not-found page in production. The workflow API and tables are mocks.
   The decision, in `docs/plans/workflow-builder-sdk-evaluation.md`, is to build the
-  editor on React Flow directly: the SDK's stylesheet cannot be contained in the
-  console, and an unguarded autosave overwrote one workflow with another's nodes.
+  editor on React Flow directly: the SDK's stylesheet was not contained in the
+  prototype, and an unguarded autosave overwrote one workflow with another's nodes.
   The two packages stay pinned for the lab and add 132 distributions and one OFL
   font to the frontend image notices. (#1781)
 

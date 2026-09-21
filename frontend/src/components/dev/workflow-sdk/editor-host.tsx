@@ -45,7 +45,11 @@ export interface EditorHostProps {
   /** `org/workflow`; the SDK echoes it back as `name`, which the save checks. */
   name: string;
   scopePath: readonly string[];
-  /** The scope to edit. Read once, at mount: the SDK ignores later changes safely only when the reference is stable. */
+  /**
+   * The scope to edit. The SDK copies name, nodes, edges and layout direction into
+   * state on its first render and ignores later props under the `props` strategy, so
+   * swapping documents means remounting (the lab keys the editor on it).
+   */
   initialScope: WorkflowGraph;
   getGraph: () => WorkflowGraph;
   getRevision: () => number;
