@@ -96,8 +96,11 @@ test.describe("Sharing", () => {
     ).toBeVisible();
 
     // Which one is selected is the agent's stored visibility, not a default the
-    // component picked: bootstrap publishes this agent private.
-    await expect(panel.getByRole("radio", { name: "Private" })).toBeChecked();
+    // component picked. Bootstrap publishes this one to the organization: it is
+    // the agent that explains the platform, and an explanation the second person
+    // to look cannot find is not one.
+    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
+    await expect(panel.getByRole("radio", { name: "Private" })).not.toBeChecked();
   });
 
   test("a change of visibility is stored, not just shown", async ({ page }) => {
