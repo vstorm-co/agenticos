@@ -43,26 +43,17 @@ CellValue = str | int | float | bool | list[str] | None
 FilterValue = CellValue | list[CellValue]
 
 
-def _encodable(value: str) -> None:
-    """Refuse a lone UTF-16 surrogate: pydantic accepts one, and nothing can store or send it.
-
-    PostgreSQL rejects it inside JSON and inside a text parameter, and encoding a response that
-    echoes it raises. All three surfaced as a 500 rather than a refusal.
-    """
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError:
-        raise ValueError("Cannot contain characters that are not valid Unicode") from None
-
-
 def _without_nul(value: str) -> str:
     """Refuse NUL, which PostgreSQL cannot store in a text column or a JSONB string.
 
     Left in, it is a database error and a 500 rather than a refusal the caller can act on.
+    A lone UTF-16 surrogate needs no check here: pydantic refuses one in any string that
+    carries `StringConstraints`, which every type using this validator does. A bare `str`
+    or a union containing one does accept it, which is why cell values are checked in the
+    type registry instead.
     """
     if "\x00" in value:
         raise ValueError("Cannot contain a NUL character")
-    _encodable(value)
     return value
 
 
@@ -79,7 +70,6 @@ def _plain_key(value: str) -> str:
         raise ValueError("Cannot contain a NUL character")
     if "\n" in value or "\r" in value:
         raise ValueError("Cannot contain a line break")
-    _encodable(value)
     return value
 
 

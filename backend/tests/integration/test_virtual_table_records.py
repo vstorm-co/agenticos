@@ -667,3 +667,17 @@ async def test_a_lone_surrogate_is_a_typed_refusal_for_a_cell_a_filter_and_a_def
             ctx, TableCreate(name="Notes", columns=[column("Note", "text", default=bad)])
         )
     assert await _count(db, VirtualTableRecord) == 0
+
+
+async def test_a_surrogate_in_a_sort_or_a_select_value_is_a_typed_refusal(db):
+    """These are bare strings pydantic lets through; neither reaches the database."""
+    service, ctx, table, _org = await _setup(db)
+    status = cid(table, "Status")
+    bad = "a" + chr(0xD800)
+
+    with pytest.raises(InvalidQueryError):
+        await service.list_records(ctx, table.id, RecordQuery(sort=RecordSort(by=bad)))
+    with pytest.raises(InvalidRecordError):
+        await service.create_record(ctx, table.id, RecordCreate(values={status: bad}))
+    with pytest.raises(InvalidRecordError):
+        await service.create_record(ctx, table.id, RecordCreate(values={cid(table, "Tags"): [bad]}))
