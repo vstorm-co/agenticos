@@ -30,7 +30,8 @@ import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -144,12 +145,20 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      {/* A shape as well as a width. The form grew a visibility, two chip
+          editors and a preview that gets taller with every tag, which on a phone
+          or a short window pushed the header and the Create button off the
+          screen with nothing to scroll - a dialog you cannot submit. */}
+      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        {/* `min-h-0` because a flex child refuses to shrink without it, which is
+            how the body grows past the dialog's own ceiling instead of scrolling
+            inside it. The side padding keeps a focus ring off the scroller's
+            edge, where it would be sliced. */}
+        <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
           <FormField
             label={t("name4")}
             htmlFor="agent-name"

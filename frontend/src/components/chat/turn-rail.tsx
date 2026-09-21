@@ -92,30 +92,49 @@ export function TurnRail({ entries, className }: TurnRailProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [active, setActive] = useState(0);
 
+  // The ids, joined - and the only thing the observer below depends on.
+  // `entries` is rebuilt on every content delta, so depending on the array tore
+  // the observer down and re-queried the DOM once per message on every streamed
+  // token. The rail exists for long transcripts, which is exactly where that is
+  // most expensive; what it actually needs to react to is a turn arriving or
+  // leaving, and that is this string changing.
+  const idKey = entries.map((entry) => entry.id).join("\u0000");
+
   useEffect(() => {
-    if (entries.length < MIN_ENTRIES) return;
+    const ids = idKey ? idKey.split("\u0000") : [];
+    if (ids.length < MIN_ENTRIES) return;
+    const order = new Map(ids.map((id, index) => [id, index]));
+    // What is on screen now, kept across callbacks - not what changed in this
+    // one. A callback carries only the targets whose intersection flipped, so
+    // taking the minimum over those alone marked the second message active the
+    // moment it appeared while the first was still on screen, and left the old
+    // one active when it left while its neighbour stayed.
+    const onScreen = new Set<string>();
     // The topmost message still on screen is the one a reader is on. An observer
     // rather than a scroll handler, so nothing runs on the frames between.
     const observer = new IntersectionObserver(
       (records) => {
-        const visible = records
-          .filter((record) => record.isIntersecting)
-          .map((record) =>
-            entries.findIndex(
-              (entry) => entry.id === record.target.getAttribute("data-message-id"),
-            ),
-          )
-          .filter((index) => index >= 0);
-        if (visible.length > 0) setActive(Math.min(...visible));
+        for (const record of records) {
+          const id = record.target.getAttribute("data-message-id");
+          if (!id) continue;
+          if (record.isIntersecting) onScreen.add(id);
+          else onScreen.delete(id);
+        }
+        let topmost = Number.POSITIVE_INFINITY;
+        for (const id of onScreen) {
+          const index = order.get(id);
+          if (index !== undefined && index < topmost) topmost = index;
+        }
+        if (Number.isFinite(topmost)) setActive(topmost);
       },
       { rootMargin: "-10% 0px -60% 0px" },
     );
-    for (const entry of entries) {
-      const anchor = document.querySelector(`[data-message-id="${CSS.escape(entry.id)}"]`);
+    for (const id of ids) {
+      const anchor = document.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
       if (anchor) observer.observe(anchor);
     }
     return () => observer.disconnect();
-  }, [entries]);
+  }, [idKey]);
 
   if (entries.length < MIN_ENTRIES) return null;
 

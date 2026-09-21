@@ -995,7 +995,14 @@ class AgentRegistryService:
         ctx: AuthContext,
         spec: AgentSpec,
         *,
-        visibility: Visibility = Visibility.ORG,
+        # The least-exposing value, deliberately. `org` is what a person picks in
+        # the create form, and `AgentCreate.visibility` carries that choice to the
+        # route - so the default here only ever reaches the callers that make an
+        # agent without anybody choosing: a clone, a promoted specialist, a
+        # template install. Defaulting those to `org` published a copy of a
+        # private agent to the whole tenant, which is what a colleague then read
+        # the instructions out of.
+        visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
     ) -> Agent:

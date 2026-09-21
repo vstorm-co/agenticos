@@ -466,7 +466,15 @@ function ChatUI({
     () =>
       new Map(
         knownAgents.map(
-          (agent) => [agent.id, { name: agent.name, hasAvatar: agent.has_avatar }] as const,
+          (agent) =>
+            [
+              agent.id,
+              // The slug travels with the name because the face is drawn from it.
+              // Without it the rail's card fell back to an empty seed, so every
+              // agent wore the same generated face there - and a different one
+              // from the avatar beside its own answer in the transcript.
+              { name: agent.name, slug: agent.slug, hasAvatar: agent.has_avatar },
+            ] as const,
         ),
       ),
     [knownAgents],
@@ -483,6 +491,8 @@ function ChatUI({
         preview: (message.content ?? "").trim(),
         isUser: message.role === "user",
         agentId: message.role === "user" ? undefined : (message.agentId ?? undefined),
+        agentSlug:
+          message.role === "user" ? undefined : agentNames.get(message.agentId ?? "")?.slug,
         hasAvatar: message.agentId ? agentNames.get(message.agentId)?.hasAvatar : false,
         // A person's face is drawn from their id, an agent's from its own; the
         // rail never has to know which, it just hands over the seed.

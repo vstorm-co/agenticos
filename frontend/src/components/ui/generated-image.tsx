@@ -68,9 +68,25 @@ export function GeneratedImage({ src, alt, borderRadius, className }: GeneratedI
     };
   }, [supported]);
 
-  if (Effect === null) {
+  if (!supported) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={src} alt={alt} className={className} />;
+  }
+
+  if (Effect === null) {
+    // Supported, but `img-fx` is still on the wire - and those are not the same
+    // state. Drawing the picture here is the one thing this component exists to
+    // avoid: it would look finished and then be replaced by the mosaic it was
+    // meant to resolve out of, which is the backwards sequence the doc comment
+    // above describes.
+    //
+    // Hidden rather than absent, because the caller sizes this from the image's
+    // own dimensions (`w-auto`, `max-h-[28rem]`): an empty box would collapse and
+    // the transcript would jump when the effect arrived.
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={alt} className={className} style={{ visibility: "hidden" }} />
+    );
   }
 
   return (
