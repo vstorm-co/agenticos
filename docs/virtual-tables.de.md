@@ -1,5 +1,5 @@
 ---
-source_sha: "552f799bfde6"
+source_sha: "91403fa2b33e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -244,10 +244,13 @@ Der Sweep schreibt einen Audit-Eintrag je Organisation, der die Klasse (`table_r
 `table_outbox`, `table_history`) und die Anzahl nennt. Es sind Einstellungen des Deployments,
 keine je Organisation. Die Datensätze selbst und die Tabellen entfernt er nie.
 
-Ein Durchlauf entfernt so viel wie ein Tag an Schreibzugriffen bei
-`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` für jede der drei Klassen, je Organisation - genug,
-dass ein höheres Rate Limit auch anhebt, was ein täglicher Durchlauf entfernen kann, sodass
-ein Mitglied, das ununterbrochen schreibt, dem Sweep nie davonläuft. Ein Rückstand darüber
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` ist ein Kontingent je *Mitglied*, daher skaliert das
+Budget eines Durchlaufs für jede der drei Klassen sowohl damit als auch mit der Anzahl der
+aktiven Mitglieder der Organisation, mit Spielraum, damit ein bestehender Rückstand schrumpft
+statt nur gehalten zu werden - jedes Mitglied, das gleichzeitig ununterbrochen schreibt, läuft
+dem Sweep nie davon, bis zu einer großzügigen Grenze, für wie viele Mitglieder sich der
+Durchlauf einer Organisation bemisst. Die Zahlen stehen in der
+[Konfiguration](configuration.md#virtual-tables-limits-and-retention). Ein Rückstand darüber
 hinaus wird wie bei jeder anderen Klasse über mehrere Durchläufe abgearbeitet.
 
 ## Wer was darf { #who-can-do-what }

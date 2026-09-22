@@ -317,6 +317,8 @@ class TestTheSweep:
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(f"{MODULE}.retention_repo.{name}", mock)
+        # One active member, matching the budget the table-sweep tests below already assume.
+        monkeypatch.setattr(f"{MODULE}.member_repo.count_active_for_org", AsyncMock(return_value=1))
         return mocks
 
     @staticmethod

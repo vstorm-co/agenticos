@@ -1,5 +1,5 @@
 ---
-source_sha: "1a32c6a0f4ed"
+source_sha: "639af288bc2a"
 ---
 
 # Configuración { #configuration }
@@ -1165,12 +1165,16 @@ Los tres periodos de retención los aplica el [barrido de retención](governance
 diario, para cada organización; no son ajustes por organización.
 
 El presupuesto de un barrido para estas tres clases escala con
-`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` en vez de con un número fijo de lotes: un barrido
-elimina hasta lo que un día de escrituras a ese ritmo produce en cada clase, por
-organización (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` filas, en lotes de 500), así
-que subir el límite de tasa también sube lo que un barrido diario puede eliminar. Un rezago
-por encima de ese presupuesto simplemente se trabaja en varios barridos, igual que en
-cualquier otra clase de retención.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` en vez de con un número fijo de lotes - pero ese límite es
+por *miembro* (`limit_table_write` cuenta las escrituras de cada miembro en su propia cuota),
+así que el presupuesto también escala con cuántos miembros activos tiene la organización:
+hasta `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` filas por miembro activo al día, en
+lotes de 500.
+
+Esa cifra se duplica como margen, para que un rezago ya existente se reduzca en vez de
+solo mantenerse plano, y se limita a 50 miembros, para que una organización inusualmente
+grande no haga crecer su propio barrido sin límite - igualmente se drena, solo en más
+barridos, como cualquier otra clase de retención cuando un rezago supera su presupuesto.
 
 ## Un worker cuyo bucle de eventos ha dejado de girar { #a-worker-whose-event-loop-has-stopped-turning }
 

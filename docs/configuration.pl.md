@@ -1,5 +1,5 @@
 ---
-source_sha: "1a32c6a0f4ed"
+source_sha: "639af288bc2a"
 ---
 
 # Konfiguracja { #configuration }
@@ -1153,11 +1153,15 @@ Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention)
 każdej organizacji; nie są ustawieniami per organizacja.
 
 Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
-zamiast ze stałej liczby batchy: jeden przebieg usuwa aż tyle, ile jeden dzień zapisów przy
-tym tempie dla każdej klasy, per organizacja (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24`
-wierszy, w batchach po 500), więc podniesienie rate limitu podnosi też to, co jeden dzienny
-przebieg potrafi usunąć. Zaległość ponad ten budżet jest po prostu usuwana w kilku
-przebiegach, tak jak w każdej innej klasie retencji.
+zamiast ze stałej liczby batchy - ale ten limit jest per *członek* (`limit_table_write` liczy
+zapisy każdego członka na jego własnym koncie), więc budżet skaluje się też z liczbą aktywnych
+członków organizacji: aż do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` wierszy na
+aktywnego członka dziennie, w batchach po 500.
+
+Ta liczba jest podwajana dla zapasu, żeby istniejąca zaległość się kurczyła, a nie tylko
+utrzymywała na stałym poziomie, i ograniczona do 50 członków, żeby jedna nietypowo duża
+organizacja nie rozrastała własnego przebiegu bez końca - nadal się drenuje, tylko w kilku
+przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie swój budżet.
 
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 

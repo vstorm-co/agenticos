@@ -1,5 +1,5 @@
 ---
-source_sha: "552f799bfde6"
+source_sha: "91403fa2b33e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -229,11 +229,13 @@ Sweep zapisuje jeden wpis audytu na organizację, nazywający klasę (`table_rec
 `table_outbox`, `table_history`) i liczbę. To ustawienia wdrożenia, a nie per organizacja.
 Samych rekordów i tabel sweep nigdy nie usuwa.
 
-Jeden przebieg usuwa aż tyle, ile jeden dzień zapisów przy `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
-dla każdej z trzech klas, per organizacja - wystarczająco, by podniesienie rate limitu
-podniosło też to, co jeden dzienny przebieg potrafi usunąć, więc member piszący bez przerwy
-nigdy nie wyprzedza sweepa. Zaległość ponad to jest usuwana w kilku kolejnych przebiegach,
-tak jak w każdej innej klasie.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` to przydział *per member*, więc budżet jednego przebiegu
+dla każdej z trzech klas skaluje się zarówno z nim, jak i z liczbą aktywnych członków
+organizacji, z zapasem, żeby istniejąca zaległość się kurczyła, a nie tylko utrzymywała na
+stałym poziomie - każdy member piszący bez przerwy naraz nigdy nie wyprzedza sweepa, aż do
+hojnego limitu na to, dla ilu członków budżet jednego przebiegu organizacji się skaluje.
+Liczby są w [konfiguracji](configuration.md#virtual-tables-limits-and-retention). Zaległość
+ponad to jest usuwana w kilku kolejnych przebiegach, tak jak w każdej innej klasie.
 
 ## Kto co może { #who-can-do-what }
 

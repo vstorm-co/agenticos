@@ -1127,12 +1127,16 @@ The three retention periods are applied by the daily
 per-organization settings.
 
 The sweep's per-pass budget for these three classes scales with
-`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` rather than a fixed number of batches: one pass drains
-up to a day's worth of writes at that rate for each class, per organization
-(`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` rows, in batches of 500), so raising the
-write limit raises what one daily pass can remove along with it and a member writing flat
-out never outpaces the sweep. A backlog beyond that budget is simply worked off over more
-than one pass, the same as every other retention class.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` rather than a fixed number of batches - but that limit is
+per *member* (`limit_table_write` counts each member's writes on their own allowance), so the
+budget also scales with how many active members the organization has: up to
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` rows per active member per day, in batches of
+500.
+
+That figure is doubled for headroom, so a pre-existing backlog shrinks rather than merely
+holding level, and capped at 50 members' worth so one unusually large organization cannot make
+its own pass grow without bound - it still drains, just over more passes, the same as every
+other retention class once a backlog outgrows its budget.
 
 ## A worker whose event loop has stopped turning
 

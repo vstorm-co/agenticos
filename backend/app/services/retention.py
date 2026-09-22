@@ -50,7 +50,7 @@ from app.core.retention import (
     known_periods,
     policy_conflicts,
 )
-from app.repositories import deployment_settings_repo, retention_repo
+from app.repositories import deployment_settings_repo, member_repo, retention_repo
 from app.schemas.retention import RetentionRead, RetentionUpdate
 
 if TYPE_CHECKING:
@@ -69,7 +69,34 @@ turn. A backlog is worked off over several sweeps rather than in one that runs
 for an hour and blocks every other periodic flow behind it."""
 
 
-def _table_sweep_max_batches() -> int:
+SWEEP_BACKLOG_HEADROOM = 2
+"""How many days' worth of steady-state writes one table-sweep pass can absorb.
+
+At exactly 1 the budget only ever keeps pace with today's production, so an organization
+that ever falls behind - a sweep that missed a day, traffic that briefly spiked - stays
+behind forever. At 2, a pass that finds no backlog still has a full day's capacity spare,
+which is what actually drains one: a backlog shrinks by roughly one day's production per
+pass until it is gone, rather than being merely held level."""
+
+MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET = 50
+"""The member count `_table_sweep_max_batches` will scale a budget by, however many an
+organization actually has.
+
+The bug this caps: multiplying the per-member rate by an organization's real member count,
+uncapped, means one organization with an unusual number of members turns into one pass
+issuing an unusually large number of DELETE statements for that organization alone - and
+while `commit_each` means that never blocks *another* organization's production writes
+(each organization's row locks and audit-chain lock are released at its own commit, not
+held until the whole sweep ends), it does mean the flow reaches later organizations in the
+same run later. Fifty active members, each sustaining the full per-member write rate all
+day, is already a very heavy tenant; past that, more members are not assumed to add
+further sustained load worth sizing a single pass's duration around - the same judgement
+`MAX_BATCHES` already makes for the older classes, extended to a dimension (member count)
+that did not exist when that bound was chosen. An organization that is genuinely heavier
+than this drains its backlog over more passes instead of one, exactly like any other."""
+
+
+def _table_sweep_max_batches(active_members: int) -> int:
     """How many batches one Virtual Tables class may take in one organization's pass.
 
     `MAX_BATCHES` bounds an older class at `BATCH * MAX_BATCHES` = 20,000 rows a pass, which
@@ -80,16 +107,24 @@ def _table_sweep_max_batches() -> int:
     fall behind any organization writing anywhere near that rate - the backlog growing without
     end rather than draining, which is the whole defect this exists to close.
 
-    So the three table classes get their own budget: the most one organization could have
-    queued for removal since the last sweep, at the deployment's *own* rate limit rather than
-    a number baked in here, so raising `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` raises the budget
-    with it. `max(MAX_BATCHES, ...)` keeps a deployment that has lowered the write limit no
-    worse off than an older class. A backlog beyond even this is still worked off over several
-    sweeps, exactly as an older class is - this only makes "one pass drains one day's worth"
-    true again; it does not promise more.
+    That rate is per *member*, though - `limit_table_write` keys the write limit on
+    `org:{org_id}:user:{user_id}`, so each active member gets an independent allowance, and an
+    organization with several members writing near the limit at once produces that many times
+    the volume a budget sized for one member could ever drain. So the three table classes get a
+    budget sized off the organization's own active member count as well as the deployment's rate
+    limit: the most that many members could plausibly have queued for removal since the last
+    sweep, with `SWEEP_BACKLOG_HEADROOM` days of spare capacity so a real backlog is worked down
+    rather than merely held level, and `MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET` capping how large a
+    single organization's own pass can grow. `max(MAX_BATCHES, ...)` keeps a deployment that has
+    lowered the write limit, or an organization with no active members left, no worse off than
+    an older class. A backlog beyond even this is still worked off over several sweeps, exactly
+    as an older class is - this only makes "one pass keeps up with real usage" true again; it
+    does not promise a single pass drains an unbounded backlog.
     """
-    per_organization_per_day = settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24
-    return max(MAX_BATCHES, -(-per_organization_per_day // BATCH))
+    members = min(active_members, MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET)
+    per_organization_per_day = settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24 * members
+    with_headroom = per_organization_per_day * SWEEP_BACKLOG_HEADROOM
+    return max(MAX_BATCHES, -(-with_headroom // BATCH))
 
 
 @dataclass
@@ -286,7 +321,10 @@ class RetentionService:
                 moment - timedelta(days=settings.TABLES_HISTORY_RETENTION_DAYS),
             ),
         )
-        max_batches = _table_sweep_max_batches()
+        active_members = await member_repo.count_active_for_org(
+            self.db, organization_id=organization_id
+        )
+        max_batches = _table_sweep_max_batches(active_members)
         for name, delete_batch, cutoff in sweeps:
             try:
                 for _ in range(max_batches):

@@ -1,5 +1,5 @@
 ---
-source_sha: "552f799bfde6"
+source_sha: "91403fa2b33e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -230,11 +230,14 @@ El barrido escribe una entrada de auditoría por organización, que nombra la cl
 (`table_receipts`, `table_outbox`, `table_history`) y el recuento. Son ajustes del
 deployment, no por organización. Los registros y las tablas nunca los elimina.
 
-Un barrido elimina hasta lo que un día de escrituras a `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
-produce en cada una de las tres clases, por organización - suficiente para que subir el
-límite de tasa suba también lo que un barrido diario puede eliminar, de modo que un miembro
-que escribe sin parar nunca adelanta al barrido. Un rezago mayor se trabaja en varios
-barridos más, igual que en cualquier otra clase.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` es una cuota *por miembro*, así que el presupuesto de
+un barrido para cada una de las tres clases escala tanto con ese límite como con el número
+de miembros activos de la organización, con margen para que un rezago existente se reduzca
+en vez de solo mantenerse plano - cada miembro que escribe sin parar a la vez nunca adelanta
+al barrido, hasta un límite generoso de para cuántos miembros se dimensiona el barrido de una
+organización. Las cifras están en
+[configuración](configuration.md#virtual-tables-limits-and-retention). Un rezago mayor se
+trabaja en varios barridos más, igual que en cualquier otra clase.
 
 ## Quién puede hacer qué { #who-can-do-what }
 

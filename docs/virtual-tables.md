@@ -218,10 +218,13 @@ The sweep writes one audit entry per organization, naming the class (`table_rece
 `table_outbox`, `table_history`) and the count. These are deployment settings, not
 per-organization ones. The records themselves and the tables are never removed by it.
 
-One pass removes up to a day's worth of writes at `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` for
-each of the three classes, per organization - enough that raising the rate limit raises what
-one daily pass can drain along with it, so a member writing flat out never outpaces the
-sweep. A backlog beyond that is worked off over several passes, the same as any other class.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` is a *per-member* allowance, so one pass's budget for
+each of the three classes scales with both it and the organization's own active member
+count, with headroom so a pre-existing backlog is worked down rather than merely held level
+- every member writing flat out at once never outpaces the sweep, up to a generous cap on
+how many members one organization's own pass sizes itself for. See
+[configuration](configuration.md#virtual-tables-limits-and-retention) for the numbers. A
+backlog beyond that is worked off over several passes, the same as any other class.
 
 ## Who can do what { #who-can-do-what }
 

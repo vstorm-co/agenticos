@@ -10,19 +10,21 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import func, select, text
 
 from app.core.config import settings
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.organization import OrganizationMember
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableOutbox,
     VirtualTableReceipt,
     VirtualTableRecordHistory,
 )
-from app.repositories import retention_repo
+from app.repositories import member_repo, retention_repo
 from app.services import retention as retention_module
 from app.services.retention import RetentionService
 from tests.integration.virtual_table_support import make_org, make_table, make_user
@@ -458,6 +460,18 @@ async def test_a_class_that_removed_nothing_before_failing_is_not_reported_as_re
     assert (await _audited(db, org))["failed"] == ["table_outbox"]
 
 
+async def _add_active_member(db, org):
+    """One more member whose account can sign in - what the sweep budget scales by."""
+    member = await make_user(db)
+    db.add(
+        OrganizationMember(
+            id=uuid.uuid4(), organization_id=org.id, user_id=member.id, role="member"
+        )
+    )
+    await db.flush()
+    return member
+
+
 async def test_a_table_class_drains_a_backlog_bigger_than_the_older_classes_cap_in_one_pass(
     db, monkeypatch
 ):
@@ -477,12 +491,111 @@ async def test_a_table_class_drains_a_backlog_bigger_than_the_older_classes_cap_
     assert await _count(db, VirtualTableReceipt, org) == 0
 
 
+async def test_a_fresh_organization_has_exactly_its_owner_as_an_active_member(db):
+    """The common case the old single-member assumption happened to get right."""
+    owner, org, _table = await _tenant(db)
+
+    assert await member_repo.count_active_for_org(db, org.id) == 1
+    assert owner.id
+
+
+async def test_a_deactivated_members_membership_does_not_count_toward_the_budget(db):
+    owner, org, _table = await _tenant(db)
+    deactivated = await _add_active_member(db, org)
+    deactivated.is_active = False
+    await db.flush()
+
+    assert await member_repo.count_active_for_org(db, org.id) == 1
+
+
+async def test_an_organizations_active_member_count_reaches_the_sweep_budget(db, monkeypatch):
+    """The wiring this round fixes: the sweep must ask for *this* organization's own active
+    member count and use it, not assume one member regardless of how many an organization has.
+    A single-member organization keeps exactly the old, unaffected behaviour: a remainder.
+    """
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    monkeypatch.setattr(
+        retention_module, "_table_sweep_max_batches", lambda active_members: active_members * 2
+    )
+    single_owner, single_member_org, _t1 = await _tenant(db, "one-member-org")
+    busy_owner, busy_org, _t2 = await _tenant(db, "three-member-org")
+    await _add_active_member(db, busy_org)
+    await _add_active_member(db, busy_org)
+    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    db.add_all(
+        [_receipt(single_member_org, single_owner, f"s{n}", age=expired) for n in range(5)]
+        + [_receipt(busy_org, busy_owner, f"b{n}", age=expired) for n in range(5)]
+    )
+    await db.flush()
+
+    single_result, busy_result = await _sweep(db)
+
+    # One member: budget is 1 * 2 = 2 batches of 2 rows = 4, one of the five rows survives -
+    # unchanged from before this fix, because this organization always had one member.
+    assert single_result.removed == {"table_receipts": 4}
+    assert await _count(db, VirtualTableReceipt, single_member_org) == 1
+    # Three members: budget is 3 * 2 = 6 batches of 2 rows = 12, comfortably draining all five
+    # in the same pass - the fix, since the old code would have sized this the same as above.
+    assert busy_result.removed == {"table_receipts": 5}
+    assert await _count(db, VirtualTableReceipt, busy_org) == 0
+
+
+async def test_the_member_count_actually_queried_is_what_the_budget_is_sized_by(db, monkeypatch):
+    """Pins the wiring itself, independent of the budget formula: patching what
+    count_active_for_org answers changes what the sweep asks _table_sweep_max_batches for."""
+    owner, org, _table = await _tenant(db)
+    seen: list[int] = []
+    real_max_batches = retention_module._table_sweep_max_batches
+
+    def spy(active_members):
+        seen.append(active_members)
+        return real_max_batches(active_members)
+
+    monkeypatch.setattr(retention_module, "_table_sweep_max_batches", spy)
+    monkeypatch.setattr(member_repo, "count_active_for_org", AsyncMock(return_value=7))
+    db.add(_receipt(org, owner, "k", age=timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)))
+    await db.flush()
+
+    await _sweep(db)
+
+    assert seen == [7]
+
+
+async def test_a_backlog_bigger_than_one_days_production_shrinks_rather_than_holds_flat(
+    db, monkeypatch
+):
+    """The point of SWEEP_BACKLOG_HEADROOM: a budget sized to exactly one day's steady-state
+    production would remove today's rows and never touch yesterday's - the backlog held flat
+    forever. Sized with headroom, the surplus capacity each pass eats into what is left over,
+    so a real backlog is gone within a couple of passes even as production continues.
+    """
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    # A stand-in for "one day's production capacity, doubled by headroom": four rows is what
+    # steady-state alone would produce and remove in a day: with headroom, eight rows drain.
+    monkeypatch.setattr(retention_module, "_table_sweep_max_batches", lambda active_members: 4)
+    owner, org, _table = await _tenant(db)
+    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    # A pre-existing backlog of ten, as if several days had gone unswept.
+    db.add_all([_receipt(org, owner, f"old{n}", age=expired) for n in range(10)])
+    await db.flush()
+
+    first = (await _sweep(db))[0]
+    # A day passes: four more rows arrive at steady state and expire before the next sweep.
+    db.add_all([_receipt(org, owner, f"new{n}", age=expired) for n in range(4)])
+    await db.flush()
+    second = (await _sweep(db))[0]
+
+    assert first.removed == {"table_receipts": 8}
+    assert second.removed == {"table_receipts": 6}  # the 2 left over, plus all 4 new arrivals
+    assert await _count(db, VirtualTableReceipt, org) == 0
+
+
 async def test_a_smaller_table_sweep_budget_leaves_the_remainder_for_the_next_pass(db, monkeypatch):
     """The budget is derived from the write-rate setting; lowering it lowers what one pass
     drains, exactly as MAX_BATCHES already does for the older classes."""
     owner, org, _table = await _tenant(db)
     monkeypatch.setattr(retention_module, "BATCH", 2)
-    monkeypatch.setattr(retention_module, "_table_sweep_max_batches", lambda: 2)
+    monkeypatch.setattr(retention_module, "_table_sweep_max_batches", lambda active_members: 2)
     expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
     db.add_all([_receipt(org, owner, f"k{n}", age=expired) for n in range(5)])
     await db.flush()
@@ -495,12 +608,33 @@ async def test_a_smaller_table_sweep_budget_leaves_the_remainder_for_the_next_pa
     assert await _count(db, VirtualTableReceipt, org) == 0
 
 
-def test_the_table_sweep_budget_scales_with_the_write_rate_setting(monkeypatch):
+def test_the_table_sweep_budget_scales_with_the_write_rate_and_member_count(monkeypatch):
+    """`limit_table_write` keys the write limit per member, so the budget has to scale with
+    how many active members an organization has, not assume exactly one - the bug this fixes."""
     monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 60)
     monkeypatch.setattr(retention_module, "BATCH", 500)
     monkeypatch.setattr(retention_module, "MAX_BATCHES", 40)
 
-    assert retention_module._table_sweep_max_batches() == 173  # ceil(60*60*24 / 500)
+    # ceil(60 * 60 * 24 * 1 * SWEEP_BACKLOG_HEADROOM / 500), the headroom doubling one day's
+    # steady-state production so a real backlog is worked down and not merely held level.
+    assert retention_module._table_sweep_max_batches(1) == 346
+    # Three members write three times the volume, and the budget scales with them.
+    assert retention_module._table_sweep_max_batches(3) == 1037
+    assert (
+        retention_module._table_sweep_max_batches(3)
+        == retention_module._table_sweep_max_batches(1) * 3 - 1
+    )  # ceiling division only rounds the single-member figure up, not the tripled one
+
+    # The multiplier is capped: an organization far past MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET
+    # is budgeted the same as one exactly at the cap, so one outsized organization cannot make
+    # its own pass grow without bound.
+    at_the_cap = retention_module._table_sweep_max_batches(
+        retention_module.MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET
+    )
+    far_past_it = retention_module._table_sweep_max_batches(
+        retention_module.MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET * 20
+    )
+    assert at_the_cap == far_past_it
 
     monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 1)
-    assert retention_module._table_sweep_max_batches() == 40  # never below MAX_BATCHES
+    assert retention_module._table_sweep_max_batches(1) == 40  # never below MAX_BATCHES

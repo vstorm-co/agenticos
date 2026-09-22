@@ -1,5 +1,5 @@
 ---
-source_sha: "1a32c6a0f4ed"
+source_sha: "639af288bc2a"
 ---
 
 # Konfiguration { #configuration }
@@ -1231,12 +1231,17 @@ Die drei Fristen wendet der tägliche [Aufbewahrungs-Sweep](governance.md#retent
 jede Organisation an; es sind keine Einstellungen je Organisation.
 
 Das Budget eines Durchlaufs für diese drei Klassen skaliert mit
-`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` statt mit einer festen Anzahl Batches: Ein Durchlauf
-entfernt so viel wie ein Tag an Schreibzugriffen bei diesem Tempo für jede Klasse, je
-Organisation (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` Zeilen, in Batches von 500),
-sodass ein höheres Rate Limit auch anhebt, was ein täglicher Durchlauf entfernen kann. Ein
-Rückstand über dieses Budget hinaus wird einfach über mehrere Durchläufe abgearbeitet, wie
-bei jeder anderen Aufbewahrungsklasse.
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` statt mit einer festen Anzahl Batches - aber dieses Limit
+gilt je *Mitglied* (`limit_table_write` zählt die Schreibzugriffe jedes Mitglieds auf sein
+eigenes Kontingent), sodass das Budget auch mit der Anzahl der aktiven Mitglieder der
+Organisation skaliert: bis zu `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` Zeilen je aktivem
+Mitglied und Tag, in Batches von 500.
+
+Dieser Wert wird für Spielraum verdoppelt, sodass ein bestehender Rückstand schrumpft statt
+nur gehalten zu werden, und bei 50 Mitgliedern gedeckelt, damit eine ungewöhnlich große
+Organisation ihren eigenen Durchlauf nicht unbegrenzt wachsen lässt - er wird trotzdem
+abgearbeitet, nur über mehr Durchläufe, genau wie bei jeder anderen Aufbewahrungsklasse, wenn
+ein Rückstand ihr Budget übersteigt.
 
 ## Ein Worker, dessen Event Loop sich nicht mehr dreht { #a-worker-whose-event-loop-has-stopped-turning }
 
