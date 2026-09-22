@@ -70,6 +70,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import ColumnDef
@@ -105,6 +106,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _missing_version_problems(graph, definitions)
     problems += _scope_access_problems(graph, definitions)
     problems += _config_schema_problems(graph, definitions)
+    problems += _binding_target_field_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
 
     node_scope = _node_scope_map(graph)
@@ -337,7 +339,11 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
         try:
             definition.config_schema.model_validate(node.config)
         except PydanticValidationError as exc:
-            problems.append((f"nodes.{node.id}.config", str(exc)))
+            root = f"nodes.{node.id}.config"
+            for problem in field_problems(
+                exc.errors(include_url=False, include_input=False), root=root
+            ):
+                problems.append((problem["field"], problem["message"]))
     return problems
 
 
@@ -446,13 +452,23 @@ def _scope_owner(graph: WorkflowGraph, scope_node_id: UUID) -> UUID:
 def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
     problems: Problems = []
     for edge in graph.edges:
-        source_schema = _port_schema(
-            definitions.get(edge.source_node_id), edge.source_port, "output"
-        )
-        target_schema = _port_schema(
-            definitions.get(edge.target_node_id), edge.target_port, "input"
-        )
-        if source_schema is _UNKNOWN or target_schema is _UNKNOWN:
+        source_definition = definitions.get(edge.source_node_id)
+        target_definition = definitions.get(edge.target_node_id)
+        if source_definition is None or target_definition is None:
+            # Unresolvable definition is already reported by
+            # `_missing_version_problems`; nothing more to say here.
+            continue
+        source_schema = _port_schema(source_definition, edge.source_port, "output")
+        if source_schema is _UNKNOWN:
+            problems.append(
+                (f"edges.{edge.id}", "This edge's source port does not exist on that node")
+            )
+            continue
+        target_schema = _port_schema(target_definition, edge.target_port, "input")
+        if target_schema is _UNKNOWN:
+            problems.append(
+                (f"edges.{edge.id}", "This edge's target port does not exist on that node")
+            )
             continue
         if not _shapes_compatible(source_schema, target_schema):
             problems.append(
@@ -481,12 +497,29 @@ def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap)
     return problems
 
 
+def _binding_target_field_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """Every binding's `target_field` must be a real field of the target node.
+
+    `Binding`'s own docstring (`app.workflows.contracts.io`) promises this
+    module confirms the field, the node and the source all agree; the type
+    check above only reaches this for a `NodeOutputRef` source, so a literal,
+    file or table binding naming a field that does not exist on the target's
+    `input_schema`/`config_schema` passed unnoticed.
+    """
+    problems: Problems = []
+    for index, binding in enumerate(graph.bindings):
+        target_definition = definitions.get(binding.target_node_id)
+        if target_definition is None:
+            continue
+        if _field_type(target_definition, binding.target_field) is _UNKNOWN:
+            problems.append((f"bindings.{index}", "This field does not exist on the target node"))
+    return problems
+
+
 _UNKNOWN = object()
 
 
-def _port_schema(definition: NodeDefinition | None, port_id: str, kind: str) -> Any:
-    if definition is None:
-        return _UNKNOWN
+def _port_schema(definition: NodeDefinition, port_id: str, kind: str) -> Any:
     for port in definition.ports:
         if port.id == port_id and port.kind == kind:
             return port.schema
@@ -695,6 +728,13 @@ def _rule_4_branch_local_availability(
             continue
         source_id = binding.source.node_id
         target_id = binding.target_node_id
+        if source_id == target_id:
+            # A node dominates itself (`_dominators` always folds `node_id`
+            # into its own set), so the membership check below would call
+            # this available - it never is, since the node has not run yet
+            # at the point it would need its own output.
+            problems.append((f"bindings.{index}", "This binding reads the node's own output"))
+            continue
         target_dom = dominators.get(target_id)
         if target_dom is None:
             continue
@@ -727,6 +767,12 @@ def _rule_5_exclusive_merge(
         branches = predecessors.get(node.id, [])
         if len(branches) < 2:
             continue
+        distinct_branches = set(branches)
+        if len(distinct_branches) != len(branches):
+            problems.append(
+                (f"nodes.{node.id}", "This merge has more than one edge from the same branch")
+            )
+            continue
         common = _nearest_common_dominator(branches, dominators)
         if common is None:
             problems.append((f"nodes.{node.id}", "This merge's branches share no common dominator"))
@@ -736,7 +782,43 @@ def _rule_5_exclusive_merge(
             problems.append(
                 (f"nodes.{node.id}", "A merge's branches must come from one logic.if's branches")
             )
+            continue
+        if not _branches_diverge_at(common, distinct_branches, graph, dominators):
+            problems.append(
+                (
+                    f"nodes.{node.id}",
+                    "This merge's branches are not mutually exclusive - they leave the "
+                    "logic.if through the same port",
+                )
+            )
     return problems
+
+
+def _branches_diverge_at(
+    common: UUID,
+    branches: set[UUID],
+    graph: WorkflowGraph,
+    dominators: dict[UUID, frozenset[UUID]],
+) -> bool:
+    """Whether each branch is reachable from `common` through a distinct port.
+
+    A shared dominator is not enough: rule 8 lets a control node fan one port
+    out to more than one target, so two branches leaving `common` through the
+    *same* port can both run together (or neither run) - not the mutually
+    exclusive pair `logic.merge` is built to wait on.
+    """
+    seen_ports: set[str] = set()
+    for branch in branches:
+        branch_dom = dominators.get(branch, frozenset())
+        feeding_ports = {
+            edge.source_port
+            for edge in graph.edges
+            if edge.source_node_id == common and edge.target_node_id in branch_dom
+        }
+        if feeding_ports & seen_ports:
+            return False
+        seen_ports |= feeding_ports
+    return True
 
 
 def _nearest_common_dominator(

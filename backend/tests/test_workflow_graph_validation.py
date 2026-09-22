@@ -354,6 +354,38 @@ async def test_a_binding_field_path_that_does_not_exist_is_refused(mock_db_sessi
     assert any("field path" in f["message"] for f in excinfo.value.details["fields"])
 
 
+async def test_a_binding_naming_a_target_field_that_does_not_exist_is_refused(mock_db_session):
+    """A literal binding has no `NodeOutputRef` for rule 3 to type-check, so
+    only this - the field's own existence - ever catches a typo'd target."""
+    a, b = _echo_node(), _echo_node()
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(
+        target_node_id=b.id, target_field="no_such_field", source=LiteralValue(value="hi")
+    )
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == "bindings.0" for f in excinfo.value.details["fields"])
+
+
+async def test_a_binding_to_a_node_with_an_unresolvable_definition_is_left_to_that_refusal(
+    mock_db_session,
+):
+    """The unresolvable node is already refused by rule 0; the field-existence
+    check has nothing to compare against and stays quiet rather than piling
+    on a second, less useful error about the same node."""
+    a = _echo_node()
+    b = _echo_node().model_copy(update={"definition_version": 99})
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="message", source=LiteralValue(value="hi"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    fields = excinfo.value.details["fields"]
+    assert any(f"nodes.{b.id}" == f["field"] for f in fields)
+    assert not any(f["field"] == "bindings.0" for f in fields)
+
+
 # Rule 4 - branch-local data availability
 
 
@@ -380,6 +412,28 @@ async def test_a_binding_to_a_node_not_on_every_path_is_refused(mock_db_session,
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(f["field"] == "bindings.0" for f in excinfo.value.details["fields"])
+
+
+async def test_a_binding_to_the_nodes_own_output_is_refused(mock_db_session, registered_node):
+    """A node dominates itself, so the membership check alone would call this
+    available - it never is, since the node has not run yet at the point it
+    would need its own output."""
+    self_ref = registered_node(_action_definition("test.self_ref"))
+    c = NodeInstance(
+        id=uuid4(), definition_id=self_ref.id, definition_version=1, config={}, layout=_pos()
+    )
+    binding = Binding(
+        target_node_id=c.id,
+        target_field="value",
+        source=NodeOutputRef(node_id=c.id, port="out", field_path=("value",)),
+    )
+    graph = WorkflowGraph(entry_node_id=c.id, nodes=(c,), bindings=(binding,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == "bindings.0" and "own output" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
 
 
 async def test_a_binding_to_a_node_on_every_path_publishes(mock_db_session, registered_node):
@@ -461,6 +515,80 @@ async def test_a_merge_from_one_logic_if_publishes(mock_db_session, registered_n
     )
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert validated.entry_node_id == entry.id
+
+
+async def test_a_merges_branches_from_the_same_if_port_are_refused(
+    mock_db_session, registered_node
+):
+    """Rule 8 lets a control node fan one port out to more than one target,
+    so both legs here share `logic.if`'s `then` port - they run together or
+    not at all, never exclusively, even though they share a dominator."""
+    branch_if = registered_node(
+        NodeDefinition(
+            id="logic.if",
+            version=1,
+            name="If",
+            category="logic",
+            description="branches",
+            kind="control",
+            config_schema=None,
+            input_schema=None,
+            output_schema=None,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="then", label="Then", kind="output"),
+                Port(id="otherwise", label="Otherwise", kind="output"),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    merge = registered_node(_action_definition("logic.merge", requires_input=False))
+    entry = _echo_node()
+    branch_node = NodeInstance(
+        id=uuid4(), definition_id=branch_if.id, definition_version=1, config={}, layout=_pos()
+    )
+    then_leg = _echo_node()
+    other_leg = _echo_node()
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+    )
+    edges = (
+        _edge(entry.id, "out", branch_node.id, "in"),
+        _edge(branch_node.id, "then", then_leg.id, "in"),
+        _edge(branch_node.id, "then", other_leg.id, "in"),
+        _edge(then_leg.id, "out", merge_node.id, "in"),
+        _edge(other_leg.id, "out", merge_node.id, "in"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, branch_node, then_leg, other_leg, merge_node),
+        edges=edges,
+    )
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == f"nodes.{merge_node.id}" and "same port" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_merge_with_two_edges_from_the_same_branch_is_refused(
+    mock_db_session, registered_node
+):
+    merge = registered_node(_action_definition("logic.merge", requires_input=False))
+    a = _echo_node()
+    c = NodeInstance(
+        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+    )
+    edges = (_edge(a.id, "out", c.id, "in"), _edge(a.id, "out", c.id, "in"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, c), edges=edges)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == f"nodes.{c.id}" and "same branch" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
 
 
 # Rule 6 - nested scope boundaries

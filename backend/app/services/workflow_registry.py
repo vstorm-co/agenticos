@@ -8,8 +8,10 @@ compare-and-set runs before the graph is even looked at.
 """
 
 import re
+from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -32,6 +34,7 @@ from app.schemas.workflow import (
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.workflows._registry import all_node_definitions
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 
@@ -101,10 +104,23 @@ def _read(workflow: Workflow) -> WorkflowRead:
     )
 
 
+def _parse_draft_graph(raw: dict[str, Any]) -> WorkflowGraph | None:
+    """`raw` as a `WorkflowGraph`, or `None` for a draft nobody has edited yet.
+
+    `Workflow.draft_graph` starts at `{}` (no `entry_node_id`, no `nodes`),
+    which is not a valid `WorkflowGraph` - reported as "no graph yet" rather
+    than surfaced as a parse failure.
+    """
+    try:
+        return WorkflowGraph.model_validate(raw)
+    except PydanticValidationError:
+        return None
+
+
 def _detail(workflow: Workflow) -> WorkflowDetail:
     return WorkflowDetail(
         **_read(workflow).model_dump(),
-        draft_graph=WorkflowGraph.model_validate(workflow.draft_graph),
+        draft_graph=_parse_draft_graph(workflow.draft_graph),
     )
 
 
@@ -279,9 +295,12 @@ class WorkflowRegistryService:
         self._ensure_editable(workflow)
         self._check_revision(workflow, data.expected_revision)
 
-        graph = await validate_graph(
-            self.db, ctx, WorkflowGraph.model_validate(workflow.draft_graph)
-        )
+        draft_graph = _parse_draft_graph(workflow.draft_graph)
+        if draft_graph is None:
+            raise GraphValidationError(
+                [("draft_graph", "This workflow has no graph yet - add at least one node")]
+            )
+        graph = await validate_graph(self.db, ctx, draft_graph)
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(
             self.db,

@@ -92,6 +92,10 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("workflows_pkey")),
         sa.UniqueConstraint("organization_id", "slug", name="uq_workflow_org_slug"),
+        # What `workflow_versions`' composite foreign key points at, so a
+        # version cannot name a workflow from another organization than its
+        # own `organization_id`.
+        sa.UniqueConstraint("organization_id", "id", name="uq_workflow_org_id"),
     )
     op.create_index(
         op.f("workflows_organization_id_idx"), "workflows", ["organization_id"], unique=False
@@ -122,21 +126,18 @@ def upgrade() -> None:
             "version >= 1", name=op.f("workflow_versions_ck_workflow_version_number_check")
         ),
         sa.ForeignKeyConstraint(
-            ["organization_id"],
-            ["organizations.id"],
-            name=op.f("workflow_versions_organization_id_fkey"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
             ["published_by_user_id"],
             ["users.id"],
             name=op.f("workflow_versions_published_by_user_id_fkey"),
             ondelete="SET NULL",
         ),
+        # Composite, not a plain FK per column: pins `organization_id` to the
+        # one `workflow_id` actually belongs to, so the two cannot disagree -
+        # the same guard `virtual_table_records_org_table_fkey` gives records.
         sa.ForeignKeyConstraint(
-            ["workflow_id"],
-            ["workflows.id"],
-            name=op.f("workflow_versions_workflow_id_fkey"),
+            ["organization_id", "workflow_id"],
+            ["workflows.organization_id", "workflows.id"],
+            name="workflow_versions_org_workflow_fkey",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("workflow_versions_pkey")),

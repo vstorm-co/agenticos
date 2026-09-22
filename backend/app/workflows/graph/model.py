@@ -113,6 +113,15 @@ class WorkflowGraph(BaseModel):
     bindings: tuple[Binding, ...] = ()
     scopes: tuple[ScopeBoundary, ...] = ()
 
+    @model_validator(mode="after")
+    def _no_duplicate_node_ids(self) -> "WorkflowGraph":
+        seen: set[UUID] = set()
+        for node in self.nodes:
+            if node.id in seen:
+                raise ValueError(f"Duplicate node id: {node.id}")
+            seen.add(node.id)
+        return self
+
     @property
     def node_by_id(self) -> dict[UUID, NodeInstance]:
         return {node.id: node for node in self.nodes}

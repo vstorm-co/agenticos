@@ -104,6 +104,17 @@ def test_a_graph_rejects_an_unknown_top_level_field():
         WorkflowGraph.model_validate(payload)
 
 
+def test_a_graph_rejects_two_nodes_sharing_an_id():
+    """`node_by_id` folds duplicates into one entry silently; every rule that
+    reads it would see only one of the two - refused here instead, before
+    that view is ever built."""
+    shared_id = uuid4()
+    first = _node(id=shared_id)
+    second = _node(id=shared_id)
+    with pytest.raises(ValidationError):
+        WorkflowGraph(entry_node_id=shared_id, nodes=(first, second))
+
+
 def test_layout_differences_alone_do_not_change_the_graphs_edges_or_bindings():
     """AC3: layout moves do not alter execution semantics.
 

@@ -183,20 +183,29 @@ async def test_a_table_binding_with_no_named_columns_means_every_live_column(
     assert validated.bindings == (binding,)
 
 
-async def test_an_edge_naming_a_port_the_definition_does_not_declare_is_ignored_by_rule_3(
+async def test_an_edge_naming_a_port_the_definition_does_not_declare_is_refused(
     mock_db_session,
 ):
-    """Rule 3 cannot compare a shape it cannot resolve; an unknown port name
-    is left to whatever rule actually owns "does this port exist" (out of
-    scope for #1786's port-shape check) rather than crashing."""
+    """An unknown port name is not "unknown shape, skip it" - the edge does
+    not connect to anything real, and rule 3 refuses it rather than the
+    silent no-op an unresolvable *definition* still gets."""
     a, b = _echo_node(), _echo_node()
     edge = _edge(a.id, "no_such_port", b.id, "in")
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
-    # No rule-3 problem is raised for the edge itself; rule 8 still applies
-    # (`a` sends through exactly one port here, so this graph is otherwise
-    # valid) and the graph publishes.
-    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
-    assert validated.edges == (edge,)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"edges.{edge.id}" for f in excinfo.value.details["fields"])
+
+
+async def test_an_edge_naming_a_target_port_the_definition_does_not_declare_is_refused(
+    mock_db_session,
+):
+    a, b = _echo_node(), _echo_node()
+    edge = _edge(a.id, "out", b.id, "no_such_port")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"edges.{edge.id}" for f in excinfo.value.details["fields"])
 
 
 async def test_a_binding_naming_a_node_not_in_the_graph_is_refused(mock_db_session):

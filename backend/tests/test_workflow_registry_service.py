@@ -171,6 +171,18 @@ class TestGet:
             found = await WorkflowRegistryService(_db()).get(ctx, workflow.id)
         assert found.id == workflow.id
 
+    async def test_a_never_edited_workflow_reports_no_draft_graph_instead_of_crashing(self):
+        """`draft_graph` starts at `{}` - not a valid `WorkflowGraph` - so a
+        workflow nobody has edited yet used to raise a raw `ValidationError`
+        the first time it was read."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, draft_graph={})
+
+        with patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)):
+            found = await WorkflowRegistryService(_db()).get(ctx, workflow.id)
+
+        assert found.draft_graph is None
+
 
 class TestUpdateDraft:
     async def test_updating_bumps_the_revision_and_stores_the_graph(self):
@@ -329,6 +341,29 @@ class TestPublish:
             await WorkflowRegistryService(_db()).publish(
                 ctx, workflow.id, WorkflowPublish(expected_revision=0)
             )
+        create_version.assert_not_called()
+
+    async def test_publishing_a_never_edited_workflow_is_refused_not_crashed(self):
+        """`draft_graph` starts at `{}`; publishing it used to raise a raw
+        `ValidationError` instead of the actionable `GraphValidationError`
+        every other publish-time refusal gives."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, draft_graph={})
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.create_version", new=AsyncMock()
+            ) as create_version,
+            pytest.raises(GraphValidationError) as refused,
+        ):
+            await WorkflowRegistryService(_db()).publish(
+                ctx, workflow.id, WorkflowPublish(expected_revision=0)
+            )
+        assert any(f["field"] == "draft_graph" for f in refused.value.details["fields"])
         create_version.assert_not_called()
 
     async def test_a_stale_revision_is_refused_before_the_graph_is_even_validated(self):

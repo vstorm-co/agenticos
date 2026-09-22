@@ -102,6 +102,9 @@ v1_router.include_router(
 )
 v1_router.include_router(sharing.table_sharing_router, prefix="/tables", tags=["tables:sharing"])
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
+v1_router.include_router(
+    sharing.workflow_sharing_router, prefix="/workflows", tags=["workflows:sharing"]
+)
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])
 

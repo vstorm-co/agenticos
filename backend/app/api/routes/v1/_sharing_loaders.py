@@ -18,6 +18,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
 from app.db.models.virtual_table import VirtualTable
+from app.db.models.workflow import Workflow
 
 
 async def load_agent(db: AsyncSession, agent_id: UUID, organization_id: UUID) -> Agent:
@@ -64,3 +65,10 @@ async def load_secret(
     if secret is None or secret.organization_id != organization_id:
         raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
     return secret
+
+
+async def load_workflow(db: AsyncSession, workflow_id: UUID, organization_id: UUID) -> Workflow:
+    workflow = await db.get(Workflow, workflow_id)
+    if workflow is None or workflow.organization_id != organization_id:
+        raise NotFoundError(message="Workflow not found", details={"workflow_id": str(workflow_id)})
+    return workflow

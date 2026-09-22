@@ -16,7 +16,16 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -99,6 +108,11 @@ class Workflow(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "slug", name="uq_workflow_org_slug"),
+        # Not a second key: it is what `WorkflowVersion`'s composite foreign key
+        # points at, so a version cannot name a workflow from another
+        # organization than its own `organization_id` - the same guard
+        # `uq_virtual_table_org_id` gives `virtual_tables`.
+        UniqueConstraint("organization_id", "id", name="uq_workflow_org_id"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_workflow_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_workflow_visibility"),
         CheckConstraint("draft_revision >= 0", name="ck_workflow_draft_revision"),
@@ -125,13 +139,16 @@ class WorkflowVersion(Base, TimestampMixin):
     )
     workflow_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("workflows.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
+    # No plain `ForeignKey("organizations.id")` here: the composite constraint
+    # below is what ties this to `workflows`, and pins `organization_id` to
+    # the one its `workflow_id` actually belongs to - a bare FK on each column
+    # separately would let the two disagree, the same gap
+    # `virtual_table_records_org_table_fkey` closes for `VirtualTableRecord`.
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -155,6 +172,12 @@ class WorkflowVersion(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("workflow_id", "version", name="uq_workflow_version_number"),
         CheckConstraint("version >= 1", name="ck_workflow_version_number"),
+        ForeignKeyConstraint(
+            ["organization_id", "workflow_id"],
+            ["workflows.organization_id", "workflows.id"],
+            ondelete="CASCADE",
+            name="workflow_versions_org_workflow_fkey",
+        ),
     )
 
     def __repr__(self) -> str:

@@ -34,9 +34,15 @@ class WorkflowRead(BaseSchema):
 
 
 class WorkflowDetail(WorkflowRead):
-    """A workflow plus the graph currently being edited."""
+    """A workflow plus the graph currently being edited.
 
-    draft_graph: WorkflowGraph
+    `draft_graph` is `None` for a workflow nobody has ever edited: the row's
+    `draft_graph` column starts at `{}`, which is not a valid `WorkflowGraph`
+    (`entry_node_id` and `nodes` are required) - there is no meaningful empty
+    graph to report instead, only the absence of one.
+    """
+
+    draft_graph: WorkflowGraph | None
 
 
 class WorkflowList(BaseSchema):
