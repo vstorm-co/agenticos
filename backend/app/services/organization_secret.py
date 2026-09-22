@@ -218,11 +218,12 @@ class OrganizationSecretService:
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
         )
+        notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
         # below reaches for a `users` row that `admin_delete` takes first
         # and the chain second (#1763).
-        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
+        audience = await notifications.hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -233,7 +234,7 @@ class OrganizationSecretService:
             # The value never reaches the audit log; the hint is what identifies it.
             details={"name": name, "kind": value.kind.value, "hint": sealed.hint},
         )
-        await NotificationService(self.db).security_event(entry)
+        await notifications.security_event(entry, recipients=audience)
         return secret
 
     async def update(
@@ -278,11 +279,12 @@ class OrganizationSecretService:
         secret = await organization_secret_repo.update(
             self.db, secret=secret, update_data=update_data
         )
+        notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
         # below reaches for a `users` row that `admin_delete` takes first
         # and the chain second (#1763).
-        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
+        audience = await notifications.hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -292,7 +294,7 @@ class OrganizationSecretService:
             target_id=str(secret.id),
             details={"name": secret.name, "kind": secret.kind, "hint": secret.hint},
         )
-        await NotificationService(self.db).security_event(entry)
+        await notifications.security_event(entry, recipients=audience)
         return secret
 
     async def delete(self, ctx: AuthContext, secret_id: UUID) -> None:
@@ -307,11 +309,12 @@ class OrganizationSecretService:
         await organization_secret_repo.delete(
             self.db, secret_id, organization_id=ctx.organization_id
         )
+        notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
         # below reaches for a `users` row that `admin_delete` takes first
         # and the chain second (#1763).
-        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
+        audience = await notifications.hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -321,7 +324,7 @@ class OrganizationSecretService:
             target_id=str(secret_id),
             details={"name": secret.name, "kind": secret.kind},
         )
-        await NotificationService(self.db).security_event(entry)
+        await notifications.security_event(entry, recipients=audience)
 
     async def resolve_for_bindings(
         self, ctx: AuthContext, secret_ids: list[UUID]

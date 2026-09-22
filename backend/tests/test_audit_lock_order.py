@@ -18,9 +18,9 @@ request.
 The fix is an order rather than a lock: `hold_security_audience` /
 `hold_configuration_audience` take the key-share locks the notification is about
 to need, immediately before `record_audit` rather than after it. That is a
-convention no type can express, so this reads the source: a module that writes a
-mandatory notification after an audit entry must hold the audience first, as
-many times as it audits.
+convention no type can express, so this reads the source - per function, because
+a hold belonging to the function above would otherwise vouch for an audit below
+it, which is exactly the regression this exists to catch.
 
 Static, for the reason `test_security_marker.py` is: a runtime check would need
 two concurrent transactions and a deadlock to observe, and would pass vacuously
@@ -30,6 +30,7 @@ whenever it did not get one.
 from __future__ import annotations
 
 import ast
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -43,73 +44,94 @@ PAIRS = {
 }
 
 
-def _method_calls(tree: ast.AST, name: str) -> int:
-    return sum(
-        1
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == name
+@cache
+def _parsed() -> tuple[tuple[Path, ast.Module], ...]:
+    """Every application module, parsed once for the whole session.
+
+    `notifications.py` is skipped: it defines these methods, and a definition is
+    not a call site.
+    """
+    return tuple(
+        (path, ast.parse(path.read_text()))
+        for path in sorted(APP_ROOT.rglob("*.py"))
+        if path.name != "notifications.py"
     )
 
 
-def _modules_writing(notification: str) -> list[Path]:
-    """Every module that calls that notification on a service instance.
+def _functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    return [
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    ]
 
-    `notifications.py` itself defines it and is skipped: a definition is not a
-    call site, and it is the module the hold lives in.
-    """
-    found = []
-    for path in sorted(APP_ROOT.rglob("*.py")):
-        if path.name == "notifications.py":
-            continue
-        tree = ast.parse(path.read_text())
-        if _method_calls(tree, notification):
-            found.append(path)
-    return found
+
+def _method_calls(node: ast.AST, name: str) -> list[ast.Call]:
+    return [
+        call
+        for call in ast.walk(node)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == name
+    ]
+
+
+def _plain_calls(node: ast.AST, name: str) -> list[ast.Call]:
+    return [
+        call
+        for call in ast.walk(node)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == name
+    ]
+
+
+def _functions_writing(
+    notification: str,
+) -> list[tuple[Path, ast.FunctionDef | ast.AsyncFunctionDef]]:
+    """Every function that writes that notification, with the file it is in."""
+    return [
+        (path, function)
+        for path, tree in _parsed()
+        for function in _functions(tree)
+        if _method_calls(function, notification)
+    ]
 
 
 @pytest.mark.parametrize("notification,hold", sorted(PAIRS.items()))
 class TestEveryAuditedNotificationHoldsItsAudienceFirst:
-    def test_some_module_writes_it(self, notification: str, hold: str) -> None:
+    def test_some_function_writes_it(self, notification: str, hold: str) -> None:
         """Guards the sweep itself: no call sites would pass everything."""
-        assert _modules_writing(notification)
+        assert _functions_writing(notification)
 
-    def test_each_module_holds_the_audience_as_often_as_it_audits(
+    def test_each_one_holds_the_audience_in_the_same_function(
         self, notification: str, hold: str
     ) -> None:
-        for path in _modules_writing(notification):
-            tree = ast.parse(path.read_text())
-            writes = _method_calls(tree, notification)
-            holds = _method_calls(tree, hold)
-            assert holds >= writes, (
-                f"{path.relative_to(APP_ROOT.parent)}: {writes} {notification} write(s) "
-                f"and {holds} {hold}() call(s). Take the audience's row locks before "
+        for path, function in _functions_writing(notification):
+            assert _method_calls(function, hold), (
+                f"{path.relative_to(APP_ROOT.parent)}:{function.lineno} writes {notification} "
+                f"and never calls {hold}(). Take the audience's row locks before "
                 "`record_audit`, not after it - see app/core/audit.py (#1763)."
             )
 
-    def test_the_hold_comes_before_the_audit_entry(self, notification: str, hold: str) -> None:
-        """Holding it afterwards serializes nothing: the chain lock is already
-        taken, which is the whole of the cycle."""
-        for path in _modules_writing(notification):
-            source = path.read_text()
-            tree = ast.parse(source)
-            for node in ast.walk(tree):
-                if not (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "record_audit"
-                ):
-                    continue
-                before = [
-                    call.lineno
-                    for call in ast.walk(tree)
-                    if isinstance(call, ast.Call)
-                    and isinstance(call.func, ast.Attribute)
-                    and call.func.attr == hold
-                    and call.lineno < node.lineno
-                ]
-                assert before, (
-                    f"{path.relative_to(APP_ROOT.parent)}:{node.lineno}: `record_audit` with "
-                    f"no {hold}() before it in this module (#1763)."
+    def test_the_hold_comes_before_the_audit_entry_it_notifies_about(
+        self, notification: str, hold: str
+    ) -> None:
+        """Per function, and by line: holding it afterwards serializes nothing,
+        because the chain lock is already taken - which is the whole cycle."""
+        for path, function in _functions_writing(notification):
+            first_hold = min(call.lineno for call in _method_calls(function, hold))
+            for audit in _plain_calls(function, "record_audit"):
+                assert first_hold < audit.lineno, (
+                    f"{path.relative_to(APP_ROOT.parent)}:{audit.lineno}: `record_audit` runs "
+                    f"before this function's {hold}() (#1763)."
+                )
+
+    def test_the_write_takes_the_audience_that_was_locked(
+        self, notification: str, hold: str
+    ) -> None:
+        """Resolving the audience a second time inside the write is how an admin
+        promoted between the two arrives as a recipient whose row nothing
+        holds - the cycle, reopened one row wide."""
+        for path, function in _functions_writing(notification):
+            for call in _method_calls(function, notification):
+                assert any(keyword.arg == "recipients" for keyword in call.keywords), (
+                    f"{path.relative_to(APP_ROOT.parent)}:{call.lineno}: {notification} is "
+                    f"written without the set {hold}() locked (#1763)."
                 )

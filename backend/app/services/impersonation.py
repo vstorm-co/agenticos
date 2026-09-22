@@ -178,11 +178,12 @@ class ImpersonationService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
+        notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
         # below reaches for a `users` row that `admin_delete` takes first
         # and the chain second (#1763).
-        await NotificationService(self.db).hold_security_audience(None)
+        audience = await notifications.hold_security_audience(None)
         entry = await record_audit(
             self.db,
             actor_user_id=admin.id,
@@ -196,7 +197,7 @@ class ImpersonationService:
             },
             ip_address=ip_address,
         )
-        await NotificationService(self.db).security_event(entry)
+        await notifications.security_event(entry, recipients=audience)
 
         settings_service = DeploymentSettingsService(self.db)
         if await settings_service.notifies_impersonated_users():
@@ -315,11 +316,12 @@ class ImpersonationService:
         if active is None:
             raise BadRequestError(message="This session is not an impersonation")
         await session_repo.deactivate(self.db, active.session_id)
+        notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
         # chain lock to the end of the transaction, and the notification
         # below reaches for a `users` row that `admin_delete` takes first
         # and the chain second (#1763).
-        await NotificationService(self.db).hold_security_audience(None)
+        audience = await notifications.hold_security_audience(None)
         entry = await record_audit(
             self.db,
             actor_user_id=active.impersonator_id,
@@ -329,7 +331,7 @@ class ImpersonationService:
             details={"session_id": str(active.session_id)},
             ip_address=ip_address,
         )
-        await NotificationService(self.db).security_event(entry)
+        await notifications.security_event(entry, recipients=audience)
 
 
 async def _notify_target(*, to: str, name: str, admin_email: str, app_name: str) -> None:

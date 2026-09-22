@@ -707,6 +707,17 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
+        # The same set `admin_delete` locks, and first for the same reason. This
+        # route updates a `users` row and then audits; a concurrent delete locks
+        # every app-admin row and then audits. Without a shared first lock the
+        # two take the target row and the admin set in opposite orders, and the
+        # deadlock aborts a whole PATCH rather than one notification (#1763).
+        #
+        # `FOR UPDATE` rather than the key-share the notification audience
+        # takes: this transaction goes on to *write* the target row, and taking
+        # a weaker lock on a set it then upgrades inside is its own ABBA - two
+        # PATCHes of different admins would each hold the other's key share.
+        await user_repo.app_admin_ids_for_update(self.db)
         return await self.update(user_id, user_in)
 
     async def admin_delete(self, user_id: UUID, *, acting_admin_id: UUID) -> User:
