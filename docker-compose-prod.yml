@@ -190,11 +190,16 @@ services:
     # membership answers - all of which are rebuildable, none of which is worth
     # an OOM. `allkeys-lru` because everything here has a TTL anyway; the policy
     # only decides what goes first if one is ever forgotten.
+    #
+    # `--save ''` and no volume: nothing in here is worth keeping across a
+    # restart, and keeping it is what took production down in #1830 - Valkey 8
+    # forks Redis 7.2 and refuses the RDB format version 12 that redis:7-alpine
+    # left behind, so the container crash-looped and every service that waits on
+    # it stayed in `Created`. A cache that cannot be reloaded is a cache that
+    # cannot be corrupted.
     command: >-
       valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-      --maxmemory 384mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
+      --maxmemory 384mb --maxmemory-policy allkeys-lru --save ''
     networks:
       - data
     healthcheck:
@@ -393,5 +398,4 @@ networks:
 volumes:
   media_data:
   postgres_data:
-  redis_data:
   prefect_data:

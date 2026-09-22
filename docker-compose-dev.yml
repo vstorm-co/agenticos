@@ -117,9 +117,12 @@ services:
 
   redis:
     image: valkey/valkey:8-alpine
-    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-    volumes:
-      - redis_data:/data
+    # `--save ''` and no volume: everything here is rebuildable and carries a
+    # TTL, and a persisted snapshot is what a Valkey upgrade refuses to read
+    # (#1830).
+    command: >-
+      valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --save ''
     networks:
       - backend
     healthcheck:
@@ -330,5 +333,4 @@ networks:
 volumes:
   media_data:
   postgres_data:
-  redis_data:
   prefect_data:
