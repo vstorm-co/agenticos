@@ -1,5 +1,5 @@
 ---
-source_sha: "2f11ca35d96a"
+source_sha: "65df12b25237"
 ---
 
 # Governance { #governance }
@@ -1239,10 +1239,19 @@ arriba, y la regla de exclusión de abajo se sigue aplicando a todo lo que se
 puede apagar.
 
 Pero no sin límite: cada uno está limitado a veinte escrituras por minuto por
-actor y tipo de evento, así que una cuenta que hace cambios rápidos ve el
-resto descartado en silencio, en lugar de inundar a cada admin — la entrada
-de audit detrás de cada uno se registra de todos modos, en el propio trail
-([Audit](#audit)), sin importar si la notificación sobrevivió al límite.
+actor y tipo de evento, así que una cuenta que hace cambios rápidos no puede
+inundar a cada admin — la entrada de audit detrás de cada uno se registra de
+todos modos, en el propio trail ([Audit](#audit)), sin importar si la
+notificación sobrevivió al límite.
+
+Pasado ese tope la bandeja no se queda callada. En lugar del resto llega un
+aviso por actor y por minuto, que dice que el minuto ha tenido más movimiento
+del que la bandeja puede listar y que todos esos eventos están en el trail. Eso
+importa porque estos dos no se pueden desactivar: un actor podría gastar el
+margen en veinte ediciones inofensivas y hacer después lo único que merece la
+pena vigilar, sin que nada lo dijera. El aviso no lleva un recuento — contar
+significaría reescribirlo en cada evento posterior, que es justo la inundación
+que el tope existe para evitar.
 
 Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre
