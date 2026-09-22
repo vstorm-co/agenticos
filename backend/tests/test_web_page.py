@@ -1,5 +1,9 @@
 """One page read into text and links (`app/services/rag/connectors/web_page.py`, #984)."""
 
+from html.parser import HTMLParser
+
+import pytest
+
 from app.services.rag.connectors.web_page import parse_page
 
 URL = "https://docs.example.com/guide/intro"
@@ -82,10 +86,28 @@ def test_a_link_urljoin_cannot_parse_is_dropped_not_raised() -> None:
     assert page.links == ("https://docs.example.com/guide/ok",)
 
 
-def test_markup_the_parser_refuses_keeps_what_came_before_it() -> None:
-    page = parse_page("<p>Kept.</p><![foo[ junk ]]><p>Lost.</p>", URL)
+def test_an_unknown_marked_section_does_not_fail_the_page() -> None:
+    """Up to 3.12.9 `html.parser` raises on `<![foo[`; later patch releases read
+    past it. Either way the page keeps its text and nothing escapes."""
+    page = parse_page("<p>Kept.</p><![foo[ junk ]]><p>After.</p>", URL)
 
-    assert page.markdown == "Kept."
+    assert page.markdown.startswith("Kept.")
+
+
+def test_markup_the_parser_refuses_keeps_what_came_before_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refusal itself, driven directly: which input triggers it depends on
+    the interpreter's patch release, and the handler must hold on all of them."""
+    original = HTMLParser.feed
+
+    def feed_then_refuse(self: HTMLParser, data: str) -> None:
+        original(self, data)
+        raise AssertionError("unknown status keyword 'foo' in marked section")
+
+    monkeypatch.setattr(HTMLParser, "feed", feed_then_refuse)
+
+    assert parse_page("<p>Kept.</p>", URL).markdown == "Kept."
 
 
 def test_a_page_with_no_title_has_none() -> None:
