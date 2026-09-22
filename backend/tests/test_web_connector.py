@@ -48,8 +48,14 @@ class _Site(httpx2.AsyncBaseTransport):
         self._pages = pages
         self.requested: list[str] = []
         self.dialled: list[str] = []
+        self._hosts: set[str] = set()
+
+    def hosts(self) -> set[str]:
+        """Every `Host` a request was sent for - the name, not the dialled address."""
+        return self._hosts
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
+        self._hosts.add(request.headers["host"])
         key = request.headers["host"] + request.url.raw_path.decode()
         self.requested.append(key)
         self.dialled.append(request.url.host)
@@ -116,7 +122,8 @@ class TestWhereACrawlGoes:
             "web://docs.example.com/guide/install",
         ]
         assert listing.complete
-        assert not any("blog" in r or "evil" in r for r in site.requested)
+        assert site.hosts() == {"docs.example.com"}
+        assert not any(r.startswith("docs.example.com/blog/") for r in site.requested)
 
     async def test_depth_bounds_how_far_links_are_followed(self) -> None:
         site = _Site(
@@ -160,7 +167,7 @@ class TestWhereACrawlGoes:
         listing = await _list(site)
 
         assert [f.id for f in listing.files] == ["https://docs.example.com/guide/"]
-        assert not any(r.startswith("evil.example.net") for r in site.requested)
+        assert site.hosts() == {"docs.example.com"}
         assert listing.complete
 
     async def test_a_redirect_within_the_site_is_listed_under_where_it_landed(self) -> None:
@@ -485,7 +492,7 @@ class TestTheSitemap:
         listing = await _list(site, sitemap_url="https://docs.example.com/sitemap.xml")
 
         assert len(listing.files) == 2
-        assert not any(r.startswith("evil") for r in site.requested)
+        assert site.hosts() == {"docs.example.com"}
 
     async def test_a_sitemap_declaring_a_dtd_is_refused(self) -> None:
         bomb = (
