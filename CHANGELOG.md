@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.483] - 2026-09-22
+
 ### Fixed
 
 - **A deploy no longer fails on the health status a container had before it was
