@@ -65,11 +65,18 @@ dependencies = [
     # flow are `httpx2` now, so an SDK-built request reaches a client that can
     # send it and a malformed endpoint raises an exception our refusals catch.
     #
+    # **Floored at 2, not merely uncapped.** `app/agents/mcp.py` imports
+    # `create_mcp_http_client` and `streamable_http_client` unconditionally, and
+    # both are 2.x names - 1.x spelled the transport `streamablehttp_client` and
+    # had no client factory at all. A non-frozen install that resolved back to
+    # 1.x would fail every streamable probe at import time; the image installs
+    # the lock verbatim, but nothing else does.
+    #
     # The rest of this codebase stays on `httpx` deliberately. The boundary is
     # wherever an object crosses into or out of a vendor SDK, and nothing else
     # here does: the portals, the channels, `model_catalog` and the web-research
     # search all build and send their own requests.
-    "mcp",
+    "mcp>=2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the

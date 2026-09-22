@@ -123,7 +123,7 @@ requires-dist = [
     { name = "liteparse", specifier = ">=2.14.4" },
     { name = "llama-cloud", specifier = ">=2.16.0" },
     { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.1.0" },
-    { name = "mcp" },
+    { name = "mcp", specifier = ">=2" },
     { name = "mem0ai", specifier = ">=2.1.0" },
     { name = "odfpy", specifier = ">=1.4.1" },
     { name = "olefile", specifier = ">=0.47" },
