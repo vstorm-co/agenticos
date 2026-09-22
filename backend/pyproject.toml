@@ -805,6 +805,10 @@ include = [
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
     "app/api/routes/v1/_path_convertors.py",
+    # Node contracts, registry and graph validation (#1786). Mirrors the
+    # capability registry's split: typed definitions in code, a graph checked
+    # against them before it can be published.
+    "app/workflows/**",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1176,6 +1180,10 @@ include = [
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
     "app/api/routes/v1/_path_convertors.py",
+    # Node contracts, registry and graph validation (#1786). Mirrors the
+    # capability registry's split: typed definitions in code, a graph checked
+    # against them before it can be published.
+    "app/workflows/**",
 ]
 branch = true
 omit = [
