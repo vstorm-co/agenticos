@@ -233,11 +233,15 @@ use this, not reproduce the lab's recursion:
 - Autosave, undo/redo and publish need **no scope-aware branching** — a scope
   switch is a display change only, simpler than the lab needed since there
   is no separate body graph to splice back.
-- **Open question for #1786**: whether `body_node_ids` is client-authored
-  (written when a node is dropped inside a `foreach`'s view) or
-  server-derived from edge topology at save time — decides whether adding a
-  loop-body node is a local store update or something the client must not
-  compute itself.
+- **Resolved by #1786** (round 1 of this review: this section was still
+  calling it an open question after #1786 had already answered it):
+  `body_node_ids` is server-derived from edge topology, never
+  client-authored. Dropping a node inside a `foreach`'s scoped view is
+  still a local store update for the editor's own purposes — it draws
+  edges and positions like any other node placement — but the client never
+  writes `body_node_ids` itself, and a draft save that implied a different
+  membership than what the server recomputes from the graph's actual edges
+  has that implication silently overwritten, not honored.
 
 ## Autosave, `expected_revision`, and the conflict banner
 

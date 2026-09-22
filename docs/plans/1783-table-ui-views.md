@@ -23,9 +23,14 @@ is the human-facing surface only.
 New route tree under `frontend/src/app/[locale]/(dashboard)/tables/`:
 
 - `page.tsx` — the table catalog. A `DataTable`/`ListCard` list of
-  `TableSummary` rows (name, visibility badge, schema version, updated_at),
+  `TableSummary` rows (name, visibility badge, schema version, `created_at`),
   search via `ListControls`, `PaginationBar`, and a "New table" button gated
   on `Perm.TABLES_CREATE`. Mirrors `agents/page.tsx`'s catalog shape.
+  **`TableSummary` needs `updated_at` added** for a "most recently changed"
+  sort or display (round 1 of this review: the real schema on #1782's
+  branch has `updated_at` only on `TableRead`, not `TableSummary` — a small
+  additive field, not a behavior change, since every list-serving query
+  already selects the row).
 - `[id]/page.tsx` — one table. Header (name, description, visibility badge,
   a "Share" button opening `SharingPanel`), a "Columns" button opening
   `schema-editor-dialog.tsx`, a view-kind switcher (`Tabs`: Table / Kanban /

@@ -129,22 +129,28 @@ unbound collection rather than erroring. The result,
 ### Reaching the service: two new `AgentDeps` fields
 
 No existing capability writes through a transactional, `AsyncSession`-backed
-service mid-run, so `AgentDeps` gains:
+service mid-run, so `AgentDeps` gains a `run_auth: AuthContext | None`
+field — but **not** the run's own `db` session (round 1 of this review
+rejected an earlier draft that shared it). `AgentRunnerService._run`
+explicitly commits *before* the model call precisely so no connection is
+held open across it (`CLAUDE.md`'s hard boundary), and
+`AgentDeps.clone_for_subagent`'s own docstring already warns the shared
+session is not concurrency-safe. Handing that same session to a tool would
+both reopen the transaction the boundary exists to keep closed during a
+model call and hand an unsafe-for-concurrent-use object to code that can run
+concurrently with other tool calls in the same turn.
 
-```python
-db: AsyncSession | None = None        # the run's own session
-run_auth: AuthContext | None = None   # built once from the run's own ctx
-```
-
-`AgentRunnerService._run`/`ChatAgentRunner.run` already hold that session for
-the run's duration and already commit it explicitly around the model call
-(`CLAUDE.md`'s hard boundary) — handing the *same* session to `db` means a
-table write joins the run's existing transaction. `run_auth` is an immutable
-copy of the run's own `AuthContext` for the principal the run executes as
-(the publisher), following the same rule `organization_id`/`user_id` already
-do on `AgentDeps`; `clone_for_subagent` passes both through unchanged, since a
-delegate acts as the same principal. `_access.py` wraps the two checks above
-into one helper every tool body calls.
+Each tool call instead opens its own short-lived session via
+`get_db_context()` (the pattern `app/services/virtual_tables/quotas.py`
+already uses for an out-of-request write), used only for the duration of
+that one tool body and closed before returning — a table write is its own
+small transaction, not a participant in the run's. `run_auth` is an
+immutable copy of the run's own `AuthContext` for the principal the run
+executes as (the publisher), following the same rule
+`organization_id`/`user_id` already do on `AgentDeps`; `clone_for_subagent`
+passes it through unchanged, since a delegate acts as the same principal.
+`_access.py` wraps the two checks above into one helper every tool body
+calls.
 
 ### Approval
 

@@ -50,9 +50,14 @@ follows, so implementation isn't blocked on further discussion:
    bind time against the table's *current* schema version the way a graph's
    other typed bindings are, not a generic placeholder.
 3. **`expected_revision` is reused, not reinvented.** Same field name, same
-   validation ordering (revision check before any other refusal), same
    conflict/required error shape as #1782's `RevisionConflictError` /
-   `RevisionRequiredError`, applied to `Workflow` draft writes.
+   `RevisionRequiredError`, applied to `Workflow` draft writes. Same
+   ordering too, precisely: authorization and lifecycle checks run first
+   (round 1 of this review caught "revision before any other refusal"
+   overstating this — read literally it would check revision before
+   authorization, which #1782's real `update_record` never does), *then*
+   the revision compare-and-set runs before payload/value validation or
+   any mutation.
 4. **`Perm.WORKFLOWS_VIEW` / `WORKFLOWS_EDIT` / `WORKFLOWS_CREATE` /
    `WORKFLOWS_RUN` and a `ResourceType WORKFLOW` are added in #1786**,
    mirroring #1782's `TABLES_VIEW`/`TABLES_EDIT`/`TABLES_CREATE` and

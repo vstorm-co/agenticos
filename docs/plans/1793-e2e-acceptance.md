@@ -180,8 +180,12 @@ nor missing either run.
 
 Exercises #1782/#1783's real `/api/v1/tables/{id}/records` route, #1785 (the
 outbox consumer, atomic admission, causation tracking), #1789's `agent.run`
-plus `http.request` or `notification.send`, #1784's `table.record.update`
-node. A "leads" table with a `record.created` trigger; a record is created
+plus `http.request` or `notification.send`, #1784's `table.record.upsert`
+node (round 1 of this review: an earlier draft named `table.record.update`,
+which #1784 explicitly defers to a follow-up and does not build in this
+milestone — `upsert` against the lead's known `external_id` is the node
+that actually exists and fits "write the score back to a record already
+known by id"). A "leads" table with a `record.created` trigger; a record is created
 through the table's own already-real API route — deliberately **not**
 through #1792's workflow-invocation API adapter, which cannot ship for real
 yet (#1792 names the public-API auth gap as its own open dependency, the
@@ -190,13 +194,14 @@ tracked as #1795 outside this milestone). **This journey's "API" leg is the
 table-record API, which is real today; a "create a lead by invoking a
 workflow directly" variant stays blocked until the public-API effort
 lands.** The trigger runs `agent.run` (score), `http.request`/
-`notification.send` (act on it), then `table.record.update` writes the
-score back.
+`notification.send` (act on it), then `table.record.upsert` (matching
+the lead's `external_id`, `expected_revision` set from the value the
+graph read) writes the score back.
 
 Assertions: exactly one `WorkflowRun`/`TableTriggerAdmission` (`QUEUED`) per
 record under a concurrent-poller race, the loser resolving via the
 `(trigger_id, outbox_event_id)` constraint; the workflow's own
-`table.record.update` write does **not** re-fire the trigger
+`table.record.upsert` write does **not** re-fire the trigger
 (`visited_trigger_ids` blocks the re-entry, asserted against the admission
 history, not inferred from record state); the create API's `201` response
 never carries a `workflow_run_id` or any hint a trigger fired, per #1792's
@@ -216,10 +221,14 @@ scanned PDF (no text layer), one corrupt DOCX.
 
 Assertions: `item_error_policy="collect"` yields a four-slot result — the
 scanned PDF's slot `Failed(code="text_extraction_needs_ocr")`, the corrupt
-DOCX's `Failed(code="document_corrupt")`, both clean files complete, the
-report enumerating all four; each upsert's `external_id` is per-file, so
-four distinct rows exist with zero `REVISION_CONFLICT`s under sequential
-(rule 8) iteration; a kill between iteration 3's `code.python.sandbox`
+DOCX's `Failed(code="document_corrupt")` (neither reaches `table.record.upsert`;
+a failed item's own chain stops at its `Failed` result, per #1790's
+item-error policy), both clean files complete, the report enumerating all
+four slots; each upsert's `external_id` is per-file, so **two** distinct
+rows exist (round 1 of this review caught this claiming "four" while the
+same sentence says only the two clean files complete — the two that fail
+never reach the upsert node at all) with zero `REVISION_CONFLICT`s under
+sequential (rule 8) iteration; a kill between iteration 3's `code.python.sandbox`
 result persisting and the loop's advance-or-finish commit resumes at
 iteration 4 on restart, re-dispatching neither iteration 3 nor a duplicate
 sandbox session (checked by session count on the deterministic key, not
@@ -243,12 +252,12 @@ Saved views surviving a schema change: a kanban view grouped on a
 `single_select` column must still resolve after a nullable column is added
 or an *unrelated* column is archived (§1783's "rename the grouping column"
 test extended). A schema change archiving the view's own `group_by` column
-is where the dependency-checker gap (finding 4) bites: since none of
-#1783/#1784/#1785 registers against it today, this archive currently
-**succeeds**, silently breaking the view. The fixture asserts the intended
-behavior (refusal, naming the view) and, until registration lands, is
-marked `xfail` with a comment pointing at this section — not dropped, so it
-flips green the day the gap closes.
+is where the dependency-checker registration (finding 4, now resolved —
+round 1 of this review caught this section still describing the
+pre-resolution state and marking the fixture `xfail` on that stale premise)
+is exercised directly: #1783's checker refuses the archive, naming the
+view, so this fixture asserts the refusal as a normal passing test, not an
+`xfail`.
 
 ## Revision conflicts surfaced consistently
 
@@ -266,26 +275,27 @@ independently-designed resources converged on one conflict contract.
 This is the dependency-checker hook's first real exercise (finding 4, above)
 — #1782 shipped `register_dependency_checker`/`find_dependents` with nobody
 registered, "so that the day one does, archiving a column it reads is
-refused instead of silently breaking it." #1793 is that day. What needs
-registering, by whichever issue's implementation lands it (most naturally
-#1784 for workflow bindings and table-node graphs, #1785 for trigger
-filters/input-mappings, #1783 for saved views — three checkers, not one,
-matching the hook's own multi-registrant design):
+refused instead of silently breaking it." #1793 is that day, and the three
+registrants already exist (round 1 of this review caught this section still
+proposing its own guessed `kind` names as if registration were undone —
+`1783-table-ui-views.md`, `1784-table-agent-tools.md` and
+`1785-table-created-trigger.md` each already have a "registers a
+`DependencyChecker`" section; #1793's job is to exercise all three
+together, not to design them a second time):
 
-- A checker walking every **published** `WorkflowVersion.graph` (draft graphs
+- **#1784**, over every **published** `WorkflowVersion.graph` (draft graphs
   are not yet live, so they do not block an archive) for `TableIORef`
-  bindings naming the table/column, returning `Dependent(kind="workflow",
-  id=workflow_id)`.
-- A checker over `VirtualTableTrigger.filter` and `input_mapping` naming the
-  table/column, returning `Dependent(kind="trigger", id=trigger_id)`.
-- A checker over `TableView.config` (`group_by`, `visible_columns`,
-  `filters`) naming the column, returning `Dependent(kind="view",
-  id=view_id)`.
+  bindings naming the table/column: `Dependent(kind="workflow_version",
+  id=version.id)`.
+- **#1785**, over `VirtualTableTrigger.filter` and `input_mapping` naming
+  the table/column: `Dependent(kind="table_trigger", id=trigger.id)`.
+- **#1783**, over `TableView.config` (`group_by`, `visible_columns`,
+  `filters`) naming the column: `Dependent(kind="table_view", id=view.id)`.
 
 #1793's test: archive a column bound by each of the three, assert
-`SchemaDependencyError` naming the right `kind`/`id` for each, then archive
-an *unbound* column on the same table and assert it succeeds — proving the
-check is column-scoped, not table-wide.
+`SchemaDependencyError` naming the exact `kind`/`id` pair each checker
+returns, then archive an *unbound* column on the same table and assert it
+succeeds — proving the check is column-scoped, not table-wide.
 
 ## Publication and version pinning
 
@@ -305,16 +315,24 @@ content before/after the v2 publish).
 
 Whether spend comes from a workflow's `agent.run` node or a bare agent chat
 run, the same `BudgetGuard`/`SpendLedger` applies — no second ledger.
-Fixture: an org budget low enough that Journey 2's two-`agent.run` graph
-exceeds it on the second call; assert `budget_exceeded` (a pre-call refusal,
-never a `NodeResult`), the first agent's spend retained on
-`WorkflowRun.spent_cost`, and the identical cap hit by a direct chat call to
-the same agent producing the same `BudgetExceeded` through
-`AgentRunnerService` unmodified. Because #1786 defines no workflow-level
-budget field while #1788 refers to "the published workflow's own budget
-block" (finding 5), the fixture exercises only the org-level cap it can
-actually configure and documents workflow-scoped tightening as untestable
-until that field exists.
+Two fixtures, not one (round 1 of this review caught this section still
+documenting the workflow-level cap as untestable after finding 5 resolved
+it — `WorkflowVersion.budget_limit` exists now, so it gets its own test,
+not a permanent gap):
+
+- **Org-level cap.** An org budget low enough that Journey 2's
+  two-`agent.run` graph exceeds it on the second call; assert
+  `budget_exceeded` (a pre-call refusal, never a `NodeResult`), the first
+  agent's spend retained on `WorkflowRun.spent_cost`, and the identical cap
+  hit by a direct chat call to the same agent producing the same
+  `BudgetExceeded` through `AgentRunnerService` unmodified.
+- **Workflow-level tightening.** An org budget generous enough alone, but a
+  published `WorkflowVersion.budget_limit` set below what Journey 2's graph
+  spends; assert the same `budget_exceeded` refusal fires from the
+  workflow's own tighter cap, not the org's, and that republishing with a
+  higher `budget_limit` (a new version, per "published definitions remain
+  unchanged after draft edits") is the only way to raise it for a workflow
+  already running under the old one.
 
 ## Cancellation
 

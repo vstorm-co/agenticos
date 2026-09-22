@@ -47,11 +47,27 @@ another's claim batch.
 Claiming and admitting are two separate commits, mirroring #1788's "outbox
 row exists" vs. "handler ran" split: a claim marks a row with a fencing
 token and lease (#1788's `claimed_by`/`lease_expires_at` shape) in its own
-transaction, and **`dispatched_at` is set only once admission's transaction
-has committed a `WorkflowRun` or a recorded filter/block/fail decision —
-never at claim time.** A crash between claim and admission leaves the row
+transaction. A crash between claim and admission leaves the row
 `dispatched_at IS NULL` with an expired lease, reclaimed by the poller
 exactly as #1788's dispatcher reclaims a stale outbox lease.
+
+**One event, several triggers: `dispatched_at` is set only after every
+active trigger on that table has been evaluated, not after the first.**
+Round 1 of this review caught this underspecified: a table can have several
+active triggers (§ Trigger configuration), each evaluated independently
+against the same outbox row and each producing its own
+`TableTriggerAdmission` via the `(trigger_id, outbox_event_id)` key, but the
+row's own `dispatched_at IS NULL` predicate is what the pending-index
+consumer uses to find work at all — setting it after only the first
+trigger's admission commits would make the consumer never revisit that row,
+silently skipping every other trigger on the table for that event. The
+claimed consumer pass therefore loops: read every active
+`VirtualTableTrigger` for the claimed row's `table_id`, run one admission
+transaction per trigger (so a crash mid-loop leaves the completed triggers'
+admissions intact, read back via the unique constraint on retry, and only
+the unevaluated remainder re-runs), and set `dispatched_at` in a final,
+separate small transaction once the loop has evaluated all of them — never
+inside any individual trigger's own admission transaction.
 
 ## Trigger configuration
 
@@ -72,6 +88,21 @@ class VirtualTableTrigger(Base, TimestampMixin):
     activated_at: datetime                  # the watermark — see subscription boundary
     created_by_user_id: UUID | None
 ```
+
+**The creation snapshot a filter and `input_mapping` evaluate against is the
+record's `create` history row, not the outbox payload.** Round 1 of this
+review checked #1782's real `add_outbox` call and found the outbox
+`payload` carries only `{table_id, record_id, external_id, schema_version,
+revision}` — no cell values, no `author_user_id` — so a filter naming an
+actual column, or an `input_mapping` naming `author_user_id`, cannot be
+evaluated from the outbox row alone as an earlier draft of this document
+assumed. The consumer instead loads
+`VirtualTableRecordHistory` by `(record_id, revision)` from the outbox
+payload's own fields, `operation = "create"`: its `after` column holds the
+exact merged values `add_history` wrote at creation, and its
+`actor_user_id` is the creating user — both already durable, already
+tied to that one revision, and exactly the "creation snapshot" the issue
+asks for, since a record later edited still has that history row unchanged.
 
 **The filter reuses #1782's `RecordFilter`/`FilterOp`/`FilterValue` types
 directly** (`app/schemas/virtual_table.py`) — no second filter DSL. It is
@@ -275,7 +306,7 @@ trigger, rather than leaving it silently matching nothing or mapping a gap.
 |---|---|
 | AC1 — one run per trigger/event under duplicate delivery | Two concurrent consumer passes over one insert (a lease race) yield exactly one `QUEUED` admission and one `WorkflowRun`; the second resolves via the `(trigger_id, outbox_event_id)` constraint. |
 | AC2 — updates, upsert-update, failed transactions, duplicate writes do not trigger created | Covered upstream by #1782 (the event is written only on insert; an update or rolled-back write produces no outbox row); this test only confirms the consumer never sees a row for those cases. |
-| AC3 — filters use the creation snapshot; revoked access blocks execution | A filter evaluates against the outbox payload's own snapshot (`table_id`, `record_id`, `external_id`, `schema_version`, `revision` at creation), never a live re-read, so a later edit cannot retroactively change whether a past event matched. A principal revoked between activation and the event produces `FAILED`, no run. |
+| AC3 — filters use the creation snapshot; revoked access blocks execution | A filter evaluates against the record's own values *at creation*, not a live re-read, so a later edit cannot retroactively change whether a past event matched. A principal revoked between activation and the event produces `FAILED`, no run. |
 | AC4 — self-triggering and A→B→A chains stopped and visible without leaking record data | A write node re-entering its own trigger, and a two-trigger A→B→A cycle, both resolve to `BLOCKED` via the visited-trigger-id check; the admission history shows `status=blocked` and a reason string, never the record payload. |
 
 ## Open dependencies this design does not resolve

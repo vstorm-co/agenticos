@@ -92,7 +92,9 @@ DispatchOutbox                                  # what is ready to run next, and
   available_at: timestamptz                     # future for a scheduled retry
   claimed_by: uuid | None                        # a fencing token, not a Prefect flow-run identity
   lease_expires_at: timestamptz | None
-  status: {pending, claimed, done}
+  status: {pending, claimed, done, cancelled}    # cancelled: round 1 of this review found cancellation
+                                                  # writing a status the model didn't have
+  UNIQUE (node_run_id) WHERE status IN ('pending', 'claimed')   # see "Resuming an approval" below
 
 WorkflowEvent                                    # append-only, drives #1787's run-history UI
   id, organization_id, workflow_run_id, seq (bigint, from next_event_seq), kind, node_run_id | None
@@ -142,14 +144,28 @@ reduced to scheduling, backoff and worker fan-out per unit of work — the
 same shape `ingest_document_flow` already has. Three deployments:
 
 - **`workflow-dispatch-node`** — takes `(workflow_run_id, node_run_id)`.
-  Claims the `DispatchOutbox` row with a lease (`UPDATE ... SET claimed_by
-  = :token, lease_expires_at = now() + :ttl WHERE status = 'pending' AND
-  (claimed_by IS NULL OR lease_expires_at < now())` — the same `SELECT ...
-  FOR UPDATE SKIP LOCKED`-shaped claim every queue table here uses),
-  commits, runs the node handler *outside any transaction*, then opens a
-  **second** short transaction to persist the `NodeAttempt`, transition the
-  `NodeRun`, append a `WorkflowEvent`, and — on `Completed` unblocking
-  downstream nodes — insert their outbox rows, all in that one commit.
+  Three phases, not two (round 1 of this review caught the two-phase
+  version contradicting the Reconciler section below, which requires an
+  `in_flight` `NodeAttempt` committed *before* the handler runs — without
+  it, a crash mid-call leaves no row for the reconciler to find, and the
+  run silently stalls):
+  1. **Claim.** `UPDATE ... SET claimed_by = :token, lease_expires_at =
+     now() + :ttl, status = 'claimed' WHERE status = 'pending' OR
+     (status = 'claimed' AND lease_expires_at < now())` — reclaiming a
+     lease-expired row needs the `status = 'claimed'` branch explicitly;
+     `status = 'pending'` alone can never match a row this same claim
+     already transitioned to `claimed`, which is what the first draft's
+     predicate did, permanently stranding a run the instant its worker died
+     mid-lease. Commits.
+  2. **Record `in_flight`.** A second, short transaction inserts the
+     `NodeAttempt` row with `status = 'in_flight'` and its
+     `idempotency_key`, and commits *before* the handler is called — the
+     row the reconciler needs to exist no matter what happens next.
+  3. **Run and settle.** The node handler runs *outside any transaction*.
+     A third transaction persists the attempt's terminal `status`/`result`,
+     transitions the `NodeRun`, appends a `WorkflowEvent`, and — on
+     `Completed` unblocking downstream nodes — inserts their outbox rows,
+     all in that one commit.
 - **`workflow-dispatch-poll`** — an interval deployment that finds
   `pending` or lease-expired outbox rows and triggers
   `workflow-dispatch-node` for each. Starting or resuming a run also
@@ -225,8 +241,22 @@ stored `agent_run_id` — never `run` again, which would silently drop the
 approved call by re-sending the original prompt to a fresh agent. If the
 direct wake is lost, `workflow-reconcile` is the backstop: it finds
 `NodeRun`s waiting on an `agent_runs` row no longer `awaiting_approval` and
-dispatches them. `ApprovalService.decide` already refuses a second decision
-on the same approval, so a double wake cannot resume twice.
+dispatches them.
+
+`ApprovalService.decide` refusing a second *decision* on the same approval
+is not the same guarantee as refusing a second *dispatch* for the same
+`NodeRun` — round 1 of this review found a real race the "cannot resume
+twice" line glossed over: the direct wake can insert its outbox row, and
+before anything claims it, `workflow-reconcile` can independently see the
+same now-decided `agent_runs` row and insert a *second* outbox row for that
+`NodeRun`, since nothing before this fix distinguished "already has a
+pending dispatch" from "needs one." Two separate outbox rows can each be
+claimed and each call `resume` on the same `agent_run_id` concurrently. The
+partial unique index above, `UNIQUE (node_run_id) WHERE status IN
+('pending', 'claimed')`, closes it structurally: the reconciler's insert
+hits the constraint and is read back as "already dispatched" the same way
+#1785's admission insert reads back a constraint violation as "already
+admitted," rather than needing the reconciler to remember to check first.
 
 "Rechecks decision authority": before issuing `resume`, the dispatcher
 re-checks the approving member's *current* authority via the same

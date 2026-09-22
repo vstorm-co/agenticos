@@ -132,10 +132,20 @@ class TableIORef(BaseModel):
 ```
 
 Two more `kind`-discriminated variants complete `BindingSource`:
-`NodeOutputRef{node_id: UUID, port: str}` (another node's output) and
-`LiteralValue{value: Any}` (a constant typed by the target field). `Binding
-{target_node_id: UUID, target_field: str, source: BindingSource}` is what a
-`NodeInstance.config` field actually resolves to — see the graph model below.
+`NodeOutputRef{node_id: UUID, port: str, field_path: tuple[str, ...] = ()}`
+and `LiteralValue{value: Any}` (a constant typed by the target field).
+`field_path` was missing in the first draft (round 1 of this review: without
+it, `NodeOutputRef` can only bind a *whole* port's payload, so `agent.run`'s
+`AgentRunOutput` output could never satisfy a `str`-typed field like another
+node's `prompt` — exactly #1793's two-agents-in-sequence journey, the
+milestone's second acceptance criterion). Empty means "the whole port
+value", matching the old behavior; a non-empty path walks `output_schema`'s
+nested `model_fields` (`("text",)` off `AgentRunOutput` for its `text: str`)
+and rule 3 (type compatibility) resolves the *path's* terminal type, not the
+port's, refusing a path that does not exist on the schema or names a
+non-leaf model where a scalar was bound. `Binding{target_node_id: UUID,
+target_field: str, source: BindingSource}` is what a `NodeInstance.config`
+field actually resolves to — see the graph model below.
 
 A `TableIORef` is validated at bind time, inside `validate_graph`'s
 resource-resolution pass, not merely at parse time: the service loads the
@@ -190,7 +200,7 @@ every `TableIORef` binding must resolve and stay live, as above; every
 | # | Rule | Algorithm |
 |---|---|---|
 | 1 | Exactly one input | `entry_node_id` must name a node with in-degree 0. Refused if missing or if any edge targets it. |
-| 2 | Reachable outputs | BFS/DFS forward from `entry_node_id`, treating each scope body as one opaque node reached only via its `entry_port`/`exit_port`. Every sink (out-degree 0) must be visited; unvisited sinks are named. |
+| 2 | Reachable outputs | BFS/DFS forward from `entry_node_id`, treating each scope body as one opaque node reached only via its `entry_port`/`exit_port`. **Every top-level node must be visited, not only sinks** (fixed in round 1 of this review: checking only sinks lets a second, unreachable zero-in-degree source — or an unreachable island connected only to itself — pass both rule 1 and the old rule 2 undetected, since rule 1 only proves the *named* entry has in-degree 0, not that it is the *only* one). Any node the forward walk does not reach is named in the refusal, sinks and non-sinks alike. |
 | 3 | Type compatibility | Per edge, compare the source port's `output_schema` field descriptor against the target port's `input_schema` descriptor — a shallow structural comparison (base type, and for `FileRef`/`TableIORef`/nested models, the model name) from `model_fields`, not full unification. |
 | 4 | Branch-local data availability | Dominator check. Process nodes in topological order (rule 7 runs first); `Dom(entry)={entry}`; `Dom(n)={n} ∪ ⋂ Dom(p)` over predecessors `p`. A binding to `NodeOutputRef(node_id=M)` on node `N` is refused unless `M ∈ Dom(N)`. |
 | 5 | Exclusive merge | For `logic.merge` with predecessors `A1..Ak`, compute their nearest common dominator `F` from rule 4's tree. Refused unless `F.definition_id == "logic.if"` and each `Ai` is dominated by a distinct immediate child of `F` — one branch port each, never both. |
@@ -281,6 +291,16 @@ admission and again at resume (#1785, #1792), while the editor and publish
 routes stay on `WORKFLOWS_EDIT`. Resource-scoped like `VIEW`/`EDIT`, not
 global like `CREATE`: a grant can hand someone the right to trigger one
 specific workflow without handing them edit access to its graph.
+
+`_PERM_MIN_GRANT[Perm.WORKFLOWS_RUN] = GrantLevel.USE` in `access.py` (round
+1 of this review: the permission was added to the enum, the role tables and
+`resolve_access`'s resource check, but not to this map — without it, a
+caller relying on a resource *grant* rather than role scope would always be
+refused, since `_PERM_MIN_GRANT.get(perm)` decides what grant level
+satisfies a resource-scoped permission and an absent entry means none does).
+`Perm.AGENTS_RUN: GrantLevel.USE` is the exact precedent — same shape,
+already shipped, for the same "may invoke, may not edit" distinction on
+agents.
 
 ## Migration
 

@@ -149,9 +149,16 @@ class FileWriteConfig(BaseModel):
 Only the field matching `parse_as`/`format` is populated; a decode failure
 (bad UTF-8, malformed JSON, a ragged CSV) is
 `Failed(code="file_parse_failed", details={"parse_as"})`, never a truncated
-best-effort value. `retry_guarantee="idempotent"` on both — reading
-naturally, and writing mints a fresh `WorkflowFile` per attempt, so a retry
-is a harmless extra row.
+best-effort value. `retry_guarantee` splits by direction: `file.read` is
+`"idempotent"` — reading has no side effect to duplicate. `file.write` is
+`"at_least_once"`, not `"idempotent"` (round 1 of this review caught the
+first draft claiming `idempotent` while its own text said a retry mints a
+*fresh* `WorkflowFile` row — minting a new row per attempt is definitionally
+not idempotent, and #1788's reconciler treats `idempotent` as "safe to
+auto-retry once assuming it converges on the same effect," which a fresh row
+per attempt does not). An `at_least_once` write is not wrong to retry, but a
+caller downstream of it must not assume exactly one row exists per logical
+write; #1793's crash-injection matrix exercises this distinction directly.
 
 ## `text.extract` — and the typed OCR refusal
 
@@ -196,8 +203,10 @@ need a runtime-chosen output shape no `output_schema` can express, and rule 3
   `Failed(code="page_out_of_range")`.
 
 `effect_kind="write"` for the two that mint storage
-(`text_to_file`/`pdf_to_png`), `"pure"` for the two reshapes;
-`retry_guarantee="idempotent"` throughout.
+(`text_to_file`/`pdf_to_png`), `"pure"` for the two reshapes.
+`retry_guarantee`: `"idempotent"` for the two pure reshapes,
+`"at_least_once"` for `text_to_file`/`pdf_to_png` — the same "mints a fresh
+row per attempt" reasoning `file.write` above carries, not `"idempotent"`.
 
 ## `image.transform` — bounded before it allocates
 
@@ -224,7 +233,10 @@ details={"decoded_pixels", "limit"})` before the full-size buffer exists,
 the "check before decode" discipline `config.py` already states, applied
 here to a `FileRef` instead of a `ChatFile`. Metadata (EXIF, ICC) is dropped
 by never forwarding `image.info` into the write call. `retry_guarantee=
-"idempotent"` — a deterministic transform of already-fetched bytes.
+"at_least_once"`, not `"idempotent"` — the transform itself is
+deterministic over already-fetched bytes, but its output is a fresh
+`WorkflowFile` per attempt like every other write node here, so the same
+correction applies.
 
 ## `code.python`: two node kinds, not one
 
