@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.490] - 2026-09-22
+
 ### Added
 
 - **Somewhere for `organizational_unit` to come from.** The dimension shipped
