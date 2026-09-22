@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay`, and it stops at a page limit. A page is
+  re-embedded only when its text changes, not when its markup does, so a nightly
+  sync of an unchanged site costs no embeddings. Transient failures are retried
+  three times. A page that still cannot be read counts as a failed file and is
+  named on the sync log (#984).
+
+### Changed
+
+- **A sync now removes what its source no longer holds.** A page taken off a
+  site, a file deleted from a Drive folder or an object removed from a bucket
+  used to stay searchable for good. Each sync now removes the documents its own
+  source brought in earlier and no longer lists, and counts them in the sync
+  log's new `removed` column. It removes nothing after a listing that stopped
+  short, such as a crawl at its page limit or one that could not read a page: it
+  says so in the log, and the next complete sync catches up. Documents are
+  matched to the source that brought them in through the new
+  `rag_documents.sync_source_id` (migration `0095_sync_removal.py`). Uploads,
+  and documents another source brought into the same collection, are never
+  touched (#984).
+- `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
+  the files, whether that is all of them, and what could not be read.
+
 ## [0.0.492] - 2026-09-22
 
 ### Fixed

@@ -4264,6 +4264,7 @@
     "orgIntegrations": "Organisations-Integrationen",
     "orgIntegrationsLoadFailed": "Bestehende Workspace-Integrationen konnten nicht geladen werden; Sie können trotzdem eine neue Quelle anlegen.",
     "pickExistingOrgIntegration": "Wählen Sie eine bestehende Organisations-Integration für diese Wissensdatenbank. Ihre Zugangsdaten werden unabhängig kopiert — den Zeitplan können Sie getrennt anpassen.",
+    "removedCount": "{count} entfernt",
     "schedule": "Zeitplan",
     "search": {
       "allBases": "Alle Wissensdatenbanken",

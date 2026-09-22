@@ -1,19 +1,22 @@
 ---
-source_sha: "482d37ce9407"
+source_sha: "86345131ee3a"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
 
 Źródła synchronizacji samodzielnie pobierają dokumenty z usług zewnętrznych
-(Google Drive, S3/MinIO) do kolekcji wiedzy. Każde źródło przechowuje typ
-connectora, kolekcję docelową, ustawienia właściwe dla connectora, tryb
-synchronizacji, opcjonalny harmonogram oraz id
-[sekretu w vault](../secrets.md), który je uwierzytelnia.
+(Google Drive, S3/MinIO, publiczna strona internetowa) do kolekcji wiedzy. Każde
+źródło przechowuje typ connectora, kolekcję docelową, ustawienia właściwe dla
+connectora, tryb synchronizacji, opcjonalny harmonogram oraz id
+[sekretu w vault](../secrets.md), który je uwierzytelnia - strona internetowa
+żadnego nie potrzebuje.
 
 Gdy synchronizacja się uruchamia, connector wypisuje zdalne pliki, pobiera je do
 katalogu tymczasowego i przepuszcza przez standardowy potok przetwarzania
-(parsowanie, dzielenie na fragmenty, embedowanie, zapis). Wpis `SyncLog`
-odnotowuje wynik każdej operacji synchronizacji.
+(parsowanie, dzielenie na fragmenty, embedowanie, zapis). Gdy lista jest
+kompletna, dokumenty, które źródło wprowadziło wcześniej, a których już nie
+wypisuje, zostają usunięte. Wpis `SyncLog` odnotowuje wynik każdej operacji
+synchronizacji.
 
 ### Architektura w skrócie { #architecture-at-a-glance }
 
@@ -86,8 +89,9 @@ liście `rag-sources`.
 
 1. Przejdź do **Knowledge Base** i otwórz zakładkę **Sync**.
 2. Kliknij **"+ Add Source"**.
-3. Wybierz typ connectora (Google Drive, S3). Pola formularza są
-   generowane ze schematu JSON Schema z `CONFIG_MODEL` connectora.
+3. Wybierz typ connectora (Google Drive, S3, Website). Pola formularza są
+   generowane ze schematu JSON Schema z `CONFIG_MODEL` connectora. Strona
+   internetowa nie ma kroku poświadczenia.
 4. Wypełnij pola konfiguracji właściwe dla connectora (na przykład folder ID,
    nazwę bucketa).
 5. Wybierz kolekcję docelową, tryb synchronizacji i interwał harmonogramu.
@@ -112,6 +116,24 @@ w interfejsie, zrobisz też przez `curl` lub dowolnego klienta HTTP.
     najszybsza synchronizacja przyrostowa. `update_only` odświeża istniejące
     dokumenty, nie dodając nowych; `full` to za każdym razem czysty import
     od nowa.
+
+### Co usuwa synchronizacja { #what-a-sync-removes }
+
+W każdym trybie synchronizacja usuwa dokumenty, które jej źródło wprowadziło
+wcześniej, a których już nie wypisuje: stronę zdjętą z witryny, plik skasowany z
+folderu na Drive, obiekt usunięty z bucketa. Log synchronizacji liczy je w polu
+`removed`.
+
+Nie usuwa niczego, jeśli lista nie była **kompletna**. Crawl, który zatrzymał się
+na limicie stron albo nie zdołał odczytać jednej z nich, nie widział tego, czego
+nie wypisuje. Taki przebieg zachowuje wszystkie dokumenty i mówi o tym w
+komunikacie logu synchronizacji. Następna synchronizacja z kompletną listą usuwa
+to, czego już nie ma.
+
+Usuwane są wyłącznie dokumenty samego źródła. Przesłany plik ani dokument, który
+do tej samej kolekcji wprowadziło inne źródło, nigdy nie są ruszane. Dokument
+przetworzony, zanim źródło zaczęło to odnotowywać (wrzesień 2026), zostaje
+zachowany, dopóki źródło nie przetworzy go ponownie.
 
 ## Harmonogram { #schedule }
 
@@ -219,6 +241,66 @@ W MinIO endpoint ma zwykle postać `http://minio:9000` (Docker) albo
 | `bucket` | string | Tak | -- | Nazwa bucketa S3 |
 | `prefix` | string | Nie | `""` | Prefiks kluczy zawężający zakres synchronizacji (np. `documents/legal/`). Zostaw pusty, aby objąć cały bucket. |
 
+## Konfiguracja strony internetowej { #website-setup }
+
+Źródło `web` czyta publiczną stronę internetową, zwykle witrynę z dokumentacją
+produktu. Nie potrzebuje poświadczenia ani wpisu w vault. Podaj mu początkowy
+adres URL, a będzie albo podążać za linkami z tej strony, albo czytać strony
+wypisane w sitemapie.
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Product docs" \
+  --type web \
+  --org 0c8f2b1e-... \
+  --collection product-docs \
+  --config '{"root_url": "https://docs.example.com/guide/", "max_depth": 3}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+### Pola konfiguracji connectora strony internetowej { #website-connector-config-fields }
+
+| Pole | Typ | Wymagane | Domyślnie | Opis |
+|-------|------|----------|---------|-------------|
+| `root_url` | string | Tak | -- | Strona, od której zaczyna się crawl. Jej host jest jedynym hostem, który źródło czyta. |
+| `max_depth` | integer | Nie | `2` | Na ile linków od początkowego adresu URL podążać, od `0` do `10`. `0` czyta tylko stronę początkową. |
+| `path_prefix` | string | Nie | folder początkowego adresu URL | Czytane są tylko strony, których ścieżka zaczyna się od tej wartości. `https://docs.example.com/guide/intro` domyślnie czyta `/guide/`; ustaw `/`, aby objąć cały host. |
+| `sitemap_url` | string | Nie | -- | Czyta strony wypisane w tej sitemapie zamiast podążać za linkami. Musi leżeć na hoście początkowego adresu URL. Indeks sitemap jest rozwijany do jego sitemap. |
+| `max_pages` | integer | Nie | `500` | Crawl zatrzymuje się po odczytaniu tylu stron, od `1` do `5000`. |
+
+### Co ogranicza crawl { #what-bounds-a-crawl }
+
+- **Jeden host i jedna ścieżka.** Linki do innych hostów i do ścieżek spoza
+  `path_prefix` nie są śledzone. Przekierowanie, które je opuszcza, także nie.
+- **Sieć deploymentu jest poza zasięgiem.** Każde żądanie - robots.txt, sitemapa,
+  każda strona i każde przekierowanie - jest sprawdzane według tej samej polityki
+  SSRF co webhooki i serwery MCP. Wysyłane jest na adres, który przeszedł
+  sprawdzenie. Początkowy adres URL, który rozwiązuje się na adres prywatny,
+  loopback, link-local albo metadanych chmury, jest odrzucany przy zapisie źródła.
+- **robots.txt jest przestrzegany**, łącznie z `Crawl-delay` do dziesięciu sekund.
+  Crawler przedstawia się jako `AgenticOS-Crawler`. Między żądaniami czeka co
+  najmniej pół sekundy, a strona oznaczona `noindex` lub `nofollow` jest
+  respektowana.
+- **Rozmiar.** Strona większa niż 5 MB nie jest czytana. Crawl zatrzymuje się na
+  `max_pages`.
+
+Każda strona jest zapisywana jako dokument Markdown zawierający jej tekst i adres
+URL, z którego pochodzi. Nawigacja, nagłówki, stopki i skrypty są pomijane. Strona
+jest embedowana ponownie tylko wtedy, gdy zmieni się jej tekst. Nowy znacznik
+builda albo skrypt śledzący w znacznikach HTML nie liczy się jako zmiana.
+
+### Kto może czytać to, co importuje { #who-can-read-what-it-imports }
+
+Źródło strony internetowej nie ma poświadczenia, więc jego zasięg to wszystko, co
+strona pokazuje każdemu w internecie. Nigdy nie przechodzi przez logowanie.
+Wszystko, co importuje, może przeszukiwać każdy, kto może przeszukiwać zasilaną
+przez nie kolekcję, tak jak w przypadku każdego innego źródła. Zobacz
+[kto ostatecznie może czytać to, co źródło przetworzyło](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Importowane są wyłącznie strony HTML. PDF ani inny plik podlinkowany ze strony nie
+jest pobierany.
+
 ## Dokumentacja API { #api-reference }
 
 Wszystkie endpointy źródeł synchronizacji leżą pod `/api/v1/rag/sync/`.
@@ -322,8 +404,9 @@ Każda synchronizacja tworzy wpis `SyncLog` z następującymi polami:
 | `ingested` | Poprawnie przetworzone (nowe) |
 | `updated` | Poprawnie przetworzone ponownie (zastąpione) |
 | `skipped` | Pominięte (już obecne lub bez zmian) |
-| `failed` | Nieudane przetworzenie |
-| `error_message` | Szczegóły błędu (gdy `status` to `error`) |
+| `failed` | Nieudane przetworzenie, łącznie ze stronami lub plikami, których lista nie zdołała odczytać |
+| `removed` | Usunięte, bo źródło już ich nie wypisuje (zobacz [co usuwa synchronizacja](#what-a-sync-removes)) |
+| `error_message` | Co poszło nie tak albo dlaczego nic nie usunięto. Przebieg może mieć status `done` i mimo to komunikat, na przykład gdy crawl zatrzymał się na limicie stron |
 | `started_at` | Kiedy synchronizacja się zaczęła |
 | `completed_at` | Kiedy synchronizacja się skończyła |
 
@@ -366,6 +449,7 @@ Podany typ connectora nie występuje w `CONNECTOR_REGISTRY`. Sprawdź dostępne
 typy poleceniem `rag-sources` albo `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) jest dostępny.
 S3 (`s3`) jest dostępny.
+Strona internetowa (`web`) jest dostępna.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -396,6 +480,46 @@ potrzebuje co najmniej dostępu Viewer.
 Sprawdź, czy `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` i `S3_RAG_ENDPOINT` są
 poprawnie ustawione w `.env`. W MinIO upewnij się, że endpoint zawiera port
 (na przykład `http://localhost:9000`).
+
+### Website: "resolves to private/internal address" { #website-resolves-to-privateinternal-address }
+
+Początkowy adres URL albo sitemapa wskazuje do wnętrza sieci deploymentu albo
+jego nazwa się tam rozwiązuje. Źródło strony internetowej czyta wyłącznie adresy
+publiczne. Aby zaindeksować wewnętrzną witrynę, opublikuj jej strony gdzieś
+publicznie albo prześlij pliki bezpośrednio.
+
+### Website: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
+
+`/robots.txt` na hoście początkowego adresu URL trzy razy z rzędu przekroczył
+limit czasu albo odpowiedział błędem serwera (5xx). Crawler nie zgaduje, na co
+pozwoliłby nieosiągalny robots.txt, więc przebieg się zatrzymuje. Brakujący
+robots.txt (404) albo zabroniony (403) oznacza brak reguł i crawl rusza.
+
+### Website: "The start URL … did not lead to an HTML page" { #website-the-start-url-did-not-lead-to-an-html-page }
+
+Początkowy adres URL odpowiedział 404, przekierował na inny host albo poza
+`path_prefix`, albo zwrócił coś innego niż HTML. Otwórz go w przeglądarce, a
+potem użyj adresu, pod którym się kończy, jako `root_url`.
+
+### Website: "robots.txt does not allow the start URL" { #website-robotstxt-does-not-allow-the-start-url }
+
+Witryna prosi crawlery, by trzymały się z dala od tej ścieżki. Wybierz początkowy
+adres URL, na który witryna pozwala, albo poproś jej właściciela o dopuszczenie
+`AgenticOS-Crawler`.
+
+### Website: "… answered HTTP 403" or "… could not be reached" { #website-answered-http-403-or-could-not-be-reached }
+
+Strona wymaga logowania albo witryna odmówiła crawlerowi. Jeśli odpowiedzią był
+przekroczony limit czasu, 429 albo 5xx, strona zawiodła po trzech próbach. Każda
+taka strona liczy się jako nieudany plik. W tym przebiegu nic nie jest usuwane, bo
+strony za nią nie zostały zobaczone.
+
+### "The source could not be listed completely, so documents it may no longer hold were kept" { #the-source-could-not-be-listed-completely-so-documents-it-may-no-longer-hold-were-kept }
+
+Lista urwała się przed końcem: crawl osiągnął `max_pages` albo części stron nie
+udało się odczytać. To, co znaleziono, zostało przetworzone, a nic nie usunięto.
+Zwiększ `max_pages` albo zawęź crawl przez `path_prefix`, aż przebieg skończy się
+bez tego komunikatu.
 
 ### Zaplanowane synchronizacje nie działają { #scheduled-syncs-are-not-running }
 

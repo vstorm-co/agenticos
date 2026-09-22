@@ -1,5 +1,5 @@
 ---
-source_sha: "c77ba9c268b8"
+source_sha: "7999a1202c63"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }
@@ -17,6 +17,7 @@ pipeline de RAG.
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Clase base abstracta de todos los connectors |
 | `remote_names` | `app/services/rag/remote_names.py` | Dónde se puede escribir un nombre remoto, y qué puede llegar a una consulta |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Modelo Pydantic que describe un archivo remoto |
+| `RemoteListing` | `app/services/rag/connectors/__init__.py` | Lo que responde `list_files()`: los archivos, y si son todos |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Por qué una configuración no es aceptable, y qué campo de ella |
 | `CONFIG_MODEL` | el módulo del propio connector | Un modelo Pydantic de sus campos de configuración; el listado publica su JSON Schema y el asistente lo dibuja |
 | `EmptyConfig` | `app/services/rag/connectors/__init__.py` | El `CONFIG_MODEL` por defecto de la clase base, para un connector que no configura nada |
@@ -31,22 +32,25 @@ pipeline de RAG.
 flowchart TD
     A[a SyncSource: connector type, config, collection, secret id] --> B[a sync is triggered - API, CLI or schedule]
     B --> C["the caller unseals the vault secret and hands it in"]
-    C --> D["list_files() -> list[RemoteFile]"]
+    C --> D["list_files() -> RemoteListing"]
     D --> E["download_file() resolves the name and confirms containment"]
     E --> F["_fetch(dest_path) writes the bytes"]
     F --> G[the ingestion pipeline parses, chunks, embeds, stores]
-    G --> H[a SyncLog row records the result]
+    G --> R["a complete listing: remove what it no longer names"]
+    R --> H[a SyncLog row records the result]
 ```
 
 1. Alguien crea una **SyncSource** (tipo de connector + configuración + nombre de
    la collection + el id del secreto del vault que la autentica)
 2. Alguien lanza un **sync** (por la API, la CLI o una tarea programada)
 3. Quien ejecuta el sync desprecinta ese secreto y lo pasa; el `list_files()` del
-   connector devuelve `list[RemoteFile]`
+   connector devuelve un `RemoteListing`
 4. Para cada archivo, `BaseSyncConnector.download_file()` decide dónde puede
    aterrizar y llama al `_fetch()` del connector para escribirlo ahí
 5. El pipeline de ingesta analiza, trocea, embebe y almacena cada archivo
-6. Una entrada de **SyncLog** deja constancia del resultado
+6. Si el listado estaba completo, los documentos que esta source trajo antes y
+   que el listado ya no nombra se eliminan de la collection
+7. Una entrada de **SyncLog** deja constancia del resultado
 
 ### Un connector no elige el destino { #a-connector-does-not-choose-the-destination }
 
@@ -83,6 +87,22 @@ autenticarse.
     el `folder_id` de un inquilino elige qué se lee bajo la identidad del
     *operador*.
 
+### Un listado dice si es la source entera { #a-listing-says-whether-it-is-the-whole-source }
+
+Un sync elimina lo que la source trajo antes y ya no lista, así que un listado es
+también una afirmación de que todo lo que falta en él ha desaparecido.
+`RemoteListing.complete` es esa afirmación. Un connector cuyo listado o termina o
+lanza una excepción - Drive, S3 - lo deja en su valor por defecto, `True`. Un
+connector que puede detenerse a medias y aun así tiene algo que merece la pena
+ingerir - un crawl que alcanzó su límite de páginas, o que no pudo leer una
+página - devuelve lo que encontró con `complete=False`. Ese run no elimina nada,
+en lugar de eliminar todo lo que no alcanzó.
+
+`RemoteListing.problems` lleva una frase por cada cosa que el listado no pudo
+leer. El sync cuenta cada una como un archivo fallido y la muestra en el log del
+sync, así que escríbela con tus propias palabras: un host y un código de estado,
+nunca el texto del sistema remoto.
+
 ## Paso a paso: un connector de Notion { #step-by-step-a-notion-connector }
 
 Este ejemplo implementa un connector de Notion que trae páginas de un workspace
@@ -106,6 +126,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,7 +185,7 @@ class NotionConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List Notion pages available for sync."""
         database_id = config.get("database_id", "")
 
@@ -203,7 +224,8 @@ class NotionConnector(BaseSyncConnector):
 
             return files
 
-        return await asyncio.to_thread(_list)
+        # Complete by default: the listing either returned every page or raised.
+        return RemoteListing(files=await asyncio.to_thread(_list))
 
     async def _fetch(
         self,
@@ -390,12 +412,13 @@ class WorkspaceConnector(BaseSyncConnector):
 ```
 
 `workspace` no tiene valor por defecto, así que es el único campo obligatorio;
-los dos connectors que vienen incluidos (`GoogleDriveConfig`, `S3Config`) son los
-modelos que copiar.
+los connectors que vienen incluidos (`GoogleDriveConfig`, `S3Config`,
+`WebConfig`) son los modelos que copiar.
 
 ## Consejos { #tips }
 
-- Pon en `RemoteFile.source_path` un URI único (por ejemplo, `notion://page_id`) — sirve para deduplicar entre syncs
+- Pon en `RemoteFile.source_path` un URI único (por ejemplo, `notion://page_id`) — sirve para deduplicar entre syncs, y es lo que compara la eliminación: un documento cuyo `source_path` ya no nombra un listado completo se elimina
+- Devuelve `complete=False` desde un listado que se quedó corto, y nunca lances una excepción por uno que todavía puedes usar en parte
 - Envuelve con `asyncio.to_thread()` las llamadas bloqueantes de un SDK para que no bloqueen el event loop
 - Implementa `validate_config()` para rechazar una configuración que el asistente todavía puede arreglar — una `ConfigRefusal` que nombra un `field` es lo que hace que marque ese campo de entrada en lugar de mostrar una frase sobre cuatro de ellos. Ve la configuración y no la credencial, así que "puede esta clave llegar al servicio" es una pregunta para el primer sync, no para este método
 - Declara `SECRET_KIND` y lee la credencial del argumento `credential`. Una credencial no va nunca en `CONFIG_MODEL`, y no hay ningún recurso de reserva a escala de deployment al que recurrir

@@ -1,5 +1,5 @@
 ---
-source_sha: "c77ba9c268b8"
+source_sha: "7999a1202c63"
 ---
 
 # Dodaj konektor synchronizacji { #add-a-sync-connector }
@@ -17,6 +17,7 @@ ich do pipeline'u RAG.
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstrakcyjna klasa bazowa dla wszystkich konektorów |
 | `remote_names` | `app/services/rag/remote_names.py` | Gdzie zdalna nazwa może zostać zapisana i co może trafić do zapytania |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Model Pydantica opisujący zdalny plik |
+| `RemoteListing` | `app/services/rag/connectors/__init__.py` | To, co zwraca `list_files()`: pliki oraz informacja, czy to już wszystkie |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Dlaczego konfiguracja nie jest akceptowalna i które jej pole za to odpowiada |
 | `CONFIG_MODEL` | własny moduł konektora | Model Pydantica jego pól konfiguracyjnych; listing publikuje jego JSON Schema, a kreator go rysuje |
 | `EmptyConfig` | `app/services/rag/connectors/__init__.py` | Domyślny `CONFIG_MODEL` klasy bazowej, dla konektora, który nie ma nic do skonfigurowania |
@@ -31,11 +32,12 @@ ich do pipeline'u RAG.
 flowchart TD
     A[a SyncSource: connector type, config, collection, secret id] --> B[a sync is triggered - API, CLI or schedule]
     B --> C["the caller unseals the vault secret and hands it in"]
-    C --> D["list_files() -> list[RemoteFile]"]
+    C --> D["list_files() -> RemoteListing"]
     D --> E["download_file() resolves the name and confirms containment"]
     E --> F["_fetch(dest_path) writes the bytes"]
     F --> G[the ingestion pipeline parses, chunks, embeds, stores]
-    G --> H[a SyncLog row records the result]
+    G --> R["a complete listing: remove what it no longer names"]
+    R --> H[a SyncLog row records the result]
 ```
 
 1. Użytkownik tworzy **SyncSource** (typ konektora + config + nazwa kolekcji +
@@ -43,11 +45,13 @@ flowchart TD
 2. Użytkownik wyzwala **synchronizację** (przez API, CLI albo zaplanowane
    zadanie)
 3. Ten, kto uruchamia synchronizację, odpieczętowuje ten sekret i podaje go
-   dalej; `list_files()` konektora zwraca `list[RemoteFile]`
+   dalej; `list_files()` konektora zwraca `RemoteListing`
 4. Dla każdego pliku `BaseSyncConnector.download_file()` decyduje, gdzie może on
    wylądować, i woła `_fetch()` konektora, żeby go tam zapisać
 5. Pipeline ingestii parsuje, dzieli na chunki, embeduje i zapisuje każdy plik
-6. Wpis **SyncLog** zapisuje wynik
+6. Jeśli listing był kompletny, dokumenty, które to źródło wprowadziło wcześniej,
+   a których listing już nie wymienia, są usuwane z kolekcji
+7. Wpis **SyncLog** zapisuje wynik
 
 ### Konektor nie wybiera miejsca docelowego { #a-connector-does-not-choose-the-destination }
 
@@ -85,6 +89,22 @@ z `config` niczego, czym miałby się uwierzytelnić.
     mechanizm zapasowy oznacza, że `folder_id` jednego tenanta wybiera, co jest
     czytane pod tożsamością *operatora*.
 
+### Listing mówi, czy obejmuje całe źródło { #a-listing-says-whether-it-is-the-whole-source }
+
+Synchronizacja usuwa to, co źródło wprowadziło wcześniej, a czego już nie
+wypisuje, więc listing jest też twierdzeniem, że wszystkiego, czego w nim brak,
+już nie ma. `RemoteListing.complete` jest tym twierdzeniem. Konektor, którego
+listing albo dobiega końca, albo rzuca wyjątek - Drive, S3 - zostawia wartość
+domyślną, `True`. Konektor, który może zatrzymać się w połowie i nadal ma coś
+wartego ingestii - crawl, który doszedł do limitu stron albo nie zdołał odczytać
+jednej z nich - zwraca to, co znalazł, z `complete=False`. Taki run nie usuwa
+wtedy niczego, zamiast usunąć wszystko, do czego nie dotarł.
+
+`RemoteListing.problems` niesie po jednym zdaniu dla każdej rzeczy, której
+listing nie zdołał odczytać. Synchronizacja liczy każdą z nich jako plik, który
+się nie powiódł, i pokazuje ją w logu synchronizacji, więc pisz je własnymi
+słowami: host i kod statusu, nigdy tekst ze zdalnego systemu.
+
 ## Krok po kroku: konektor do Notion { #step-by-step-a-notion-connector }
 
 Ten przykład implementuje konektor do Notion, który pobiera strony z workspace'u
@@ -108,6 +128,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,7 +187,7 @@ class NotionConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List Notion pages available for sync."""
         database_id = config.get("database_id", "")
 
@@ -205,7 +226,8 @@ class NotionConnector(BaseSyncConnector):
 
             return files
 
-        return await asyncio.to_thread(_list)
+        # Complete by default: the listing either returned every page or raised.
+        return RemoteListing(files=await asyncio.to_thread(_list))
 
     async def _fetch(
         self,
@@ -390,13 +412,14 @@ class WorkspaceConnector(BaseSyncConnector):
     CONFIG_MODEL: ClassVar[type[BaseModel]] = WorkspaceConfig
 ```
 
-`workspace` nie ma wartości domyślnej, więc jest jedynym polem wymaganym; dwa
-dostarczane konektory (`GoogleDriveConfig`, `S3Config`) to modele, z których
-warto kopiować.
+`workspace` nie ma wartości domyślnej, więc jest jedynym polem wymaganym;
+dostarczane konektory (`GoogleDriveConfig`, `S3Config`, `WebConfig`) to modele,
+z których warto kopiować.
 
 ## Wskazówki { #tips }
 
-- Ustaw `RemoteFile.source_path` na unikalny URI (np. `notion://page_id`) — jest on używany do deduplikacji między synchronizacjami
+- Ustaw `RemoteFile.source_path` na unikalny URI (np. `notion://page_id`) — jest on używany do deduplikacji między synchronizacjami i to jego porównuje usuwanie: dokument, którego `source_path` kompletny listing już nie wymienia, jest usuwany
+- Zwracaj `complete=False` z listingu, który zatrzymał się przed końcem, i nigdy nie rzucaj wyjątku z takiego, z którego możesz jeszcze częściowo skorzystać
 - Używaj `asyncio.to_thread()`, żeby opakować blokujące wywołania SDK, tak by nie blokowały pętli zdarzeń
 - Zaimplementuj `validate_config()`, żeby odrzucić konfigurację, którą kreator może jeszcze poprawić — `ConfigRefusal` nazywające `field` jest tym, co każe kreatorowi zaznaczyć to wejście, zamiast pokazywać zdanie nad czterema z nich. Metoda ta widzi konfigurację, a nie poświadczenie, więc „czy ten klucz dosięgnie usługi" to pytanie na pierwszą synchronizację, a nie na tę metodę
 - Zadeklaruj `SECRET_KIND` i czytaj poświadczenie z argumentu `credential`. Poświadczenie nigdy nie trafia do `CONFIG_MODEL` i nie ma żadnego mechanizmu zapasowego na poziomie wdrożenia, na który można by spaść

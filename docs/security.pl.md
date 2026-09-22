@@ -1,5 +1,5 @@
 ---
-source_sha: "e5ee0101434e"
+source_sha: "273797bb8155"
 ---
 
 # Bezpieczeństwo { #security }
@@ -33,6 +33,7 @@ danych.
 | API → PostgreSQL / Redis | Zapytania i odczyty z cache, po TLS, gdy jest skonfigurowany | Tak — magazyn należy do operatora; co chroni w spoczynku, jest pod „Co jest gdzie szyfrowane” |
 | API / worker → providerzy modeli, kanały, serwery MCP, dostawcy wyszukiwania, Logfire | Prompty, wywołania narzędzi, zapytania, odpowiedzi, trace'y | Nie — to strony trzecie; co do nich trafia, jest decyzją per agent, z wyjątkiem tracingu na poziomie całego wdrożenia (poniżej) |
 | Worker → konektory (Google Drive, S3, …) | Poświadczenia odpieczętowane z vaultu, pobrane dokumenty | Nie — poświadczenie konektora to sekret w vault wskazywany po id |
+| Worker → publiczne strony internetowe (konektor `web`) | Żądania GET o strony, sitemapy i robots.txt; bez poświadczenia | Nie — początkowy adres URL wpisuje tenant, a każdy kolejny link wybiera strona, więc każde żądanie i przekierowanie przechodzi sprawdzenie SSRF, jest wysyłane na sprawdzony adres (`app/core/pinned_http.py`) i pozostaje na jednym hoście |
 
 Władza wewnątrz tenanta nigdy nie jest nazwą roli na route'cie: to wiersz
 członkostwa plus katalog uprawnień (`app/core/permissions.py`), rozstrzygany per

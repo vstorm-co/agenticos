@@ -45,7 +45,7 @@ from app.services.ingestion_config import (
 )
 from app.services.notifications import NotificationService
 from app.services.rag.config import DocumentExtensions
-from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -783,6 +783,7 @@ async def _open_document_row(
     image_description_model: str | None,
     embedding_model: str | None,
     organizational_unit: str | None = None,
+    sync_source_id: UUID | None = None,
 ) -> str:
     """Record a document a sync is about to ingest, and answer its row id.
 
@@ -810,6 +811,7 @@ async def _open_document_row(
             filesize=filesize,
             filetype=Path(filename).suffix.lstrip(".").lower(),
             source_path=source_path,
+            sync_source_id=sync_source_id,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=ingestion_config,
@@ -908,6 +910,74 @@ async def _notify_sync_start_failure(
         collection_id=kb.id if kb else None,
         error=message,
     )
+
+
+# How many of a listing's problems a sync log names before it counts the rest.
+_NAMED_PROBLEMS = 3
+
+
+async def _remove_unlisted(
+    ingester: IngestionService,
+    *,
+    listing: RemoteListing,
+    source_id: UUID,
+    collection_name: str,
+    notes: list[str],
+) -> int:
+    """Remove what this source brought in earlier and no longer lists; answer how many.
+
+    Only against a complete listing. A partial one - a crawl stopped at its page
+    ceiling, a page that timed out - did not see what it does not name, and
+    removing on its word would empty a collection because of one bad night; it
+    says so in `notes` instead, and the next complete run catches up.
+
+    Vectors first, then the row, one document at a time: a vector delete that
+    fails keeps its row, so the document is still visible, deletable, and tried
+    again by the next run - the other order leaves searchable chunks nothing
+    tracks (#992).
+    """
+    if not listing.complete:
+        # First, so it is never among the notes the summary counts rather than names.
+        notes.insert(
+            0,
+            "The source could not be listed completely, so documents it may no longer "
+            "hold were kept. They are removed by the next complete sync.",
+        )
+        return 0
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        unlisted = await RAGDocumentService(db).unlisted_by_source(
+            sync_source_id=source_id,
+            collection_name=collection_name,
+            listed={file.source_path for file in listing.files},
+        )
+        targets = [(str(row.id), row.vector_document_id) for row in unlisted]
+    removed = 0
+    for row_id, vector_document_id in targets:
+        if vector_document_id and not await ingester.remove_document(
+            collection_name, vector_document_id
+        ):
+            continue
+        async with get_worker_db_context() as db:
+            await RAGDocumentService(db).forget_document(row_id)
+        removed += 1
+    if removed < len(targets):
+        notes.append(
+            f"{len(targets) - removed} documents the source no longer lists could not be "
+            "removed and will be tried again by the next sync."
+        )
+    return removed
+
+
+def _sync_summary(failed: int, notes: list[str]) -> str | None:
+    """The sentence a finished sync stores beside its counts, or `None` when there is nothing to say."""
+    named = notes[:_NAMED_PROBLEMS]
+    rest = len(notes) - len(named)
+    parts = ([f"{failed} files failed."] if failed else []) + named
+    if rest:
+        parts.append(f"And {rest} more.")
+    return " ".join(parts) or None
 
 
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
@@ -1040,16 +1110,23 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
     connector = connector_cls()
 
-    ingested = updated = skipped = failed = 0
+    ingested = updated = skipped = failed = removed = 0
     total = 0
+    # What the sync log says beyond its counts: the pages a listing could not
+    # read, a removal skipped because the listing was partial, or why the whole
+    # run stopped. Sentences this repository wrote, like every stored failure.
+    notes: list[str] = []
     ledger = SpendLedger(organization_id=organization_id)
 
     async with _ingestion_service(
         processor=processor, organization_id=organization_id, tenant=tenant
     ) as ingester:
         try:
-            files = await connector.list_files(config, credential)
+            listing = await connector.list_files(config, credential)
+            files = listing.files
             total = len(files)
+            failed += len(listing.problems)
+            notes.extend(listing.problems)
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 for remote_file in files:
@@ -1114,6 +1191,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             # The same default the ingest stamps on the chunks, so
                             # the tracked row says what the vectors carry (#1777).
                             organizational_unit=source.organizational_unit,
+                            sync_source_id=UUID(source_id),
                         )
 
                         with metered_by(ledger):
@@ -1179,9 +1257,21 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                     error_message=failure_summary(e, stage=IngestionStage.INGEST),
                                 ),
                             )
+
+            removed = await _remove_unlisted(
+                ingester,
+                listing=listing,
+                source_id=UUID(source_id),
+                collection_name=collection_name,
+                notes=notes,
+            )
         except Exception as e:
-            logger.error("Source sync failed for %s: %s", source_id, e)
+            logger.exception("Source sync failed for %s", source_id)
             failed = max(failed, 1)
+            # Through `failure_summary`: a connector's own refusal - robots.txt
+            # unreachable, a credential of the wrong kind - is ours and kept
+            # whole, and anything else is reduced to its type (#423).
+            notes.append(failure_summary(e, stage=IngestionStage.SYNC))
 
     await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 
@@ -1190,6 +1280,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         source_svc = SyncSourceService(db)
         try:
             status = "done" if not failed else "error"
+            summary = _sync_summary(failed, notes)
             log = await sync_svc.complete_sync(
                 log_id,
                 status=status,
@@ -1198,11 +1289,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 updated=updated,
                 skipped=skipped,
                 failed=failed,
+                removed=removed,
+                error_message=summary,
             )
             await source_svc.update_after_sync(
                 source_id,
                 status=status,
-                error=f"{failed} files failed" if failed else None,
+                error=summary if failed else None,
             )
             if log is not None:
                 # Attached to `complete_sync` above, not to `update_after_sync`:
@@ -1240,7 +1333,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             occurrence_id=occurrence_id,
                             collection_name=collection_name,
                             collection_id=kb.id if kb else None,
-                            error=f"{failed} files failed",
+                            error=summary or f"{failed} files failed",
                         )
                 except Exception:
                     logger.exception(
@@ -1250,13 +1343,15 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d, "
+        "removed=%d",
         source_id,
         total,
         ingested,
         updated,
         skipped,
         failed,
+        removed,
     )
     return {
         "status": "done" if not failed else "error",

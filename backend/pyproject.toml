@@ -608,6 +608,10 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -936,6 +940,10 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",

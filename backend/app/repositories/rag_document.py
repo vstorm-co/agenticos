@@ -112,6 +112,7 @@ async def create(
     filetype: str,
     storage_path: str,
     source_path: str | None = None,
+    sync_source_id: UUID | None = None,
     status: DocumentStatus = DocumentStatus.PROCESSING,
     organization_id: UUID | None = None,
     knowledge_base_id: UUID | None = None,
@@ -130,6 +131,7 @@ async def create(
         filetype=filetype,
         storage_path=storage_path,
         source_path=source_path,
+        sync_source_id=sync_source_id,
         status=status,
         organization_id=organization_id,
         knowledge_base_id=knowledge_base_id,
@@ -276,6 +278,30 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     )
     await db.flush()
     return int(result.rowcount or 0)
+
+
+async def get_settled_for_sync_source(
+    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+) -> list[RAGDocument]:
+    """The settled rows one sync source brought into one collection.
+
+    `PROCESSING` is left out for the reason `discard_failed` gives: such a row
+    belongs to an attempt that may still be running - an overlapping sync of the
+    same source - and removing it would strand the vectors that attempt is about
+    to write.
+
+    Scoped to the source's *current* collection: rows it brought into one it was
+    repointed away from are that collection's now, and a sync of the new one has
+    no business reaching them.
+    """
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.sync_source_id == sync_source_id,
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.status != DocumentStatus.PROCESSING,
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:

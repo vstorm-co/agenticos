@@ -30,7 +30,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.rag.connectors import RemoteFile
+from app.services.rag.connectors import RemoteFile, RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 from app.worker.tasks import rag_tasks
@@ -85,9 +85,9 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
 
     return MagicMock(
         list_files=AsyncMock(
-            return_value=[
-                RemoteFile(id="file-1", name="handbook.md", source_path=SOURCE_PATH),
-            ]
+            return_value=RemoteListing(
+                files=[RemoteFile(id="file-1", name="handbook.md", source_path=SOURCE_PATH)]
+            )
         ),
         download_file=AsyncMock(side_effect=download),
     )
@@ -128,6 +128,7 @@ async def _syncing(
         create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
+        unlisted_by_source=AsyncMock(return_value=[]),
     )
 
     @asynccontextmanager
@@ -577,6 +578,7 @@ class TestAListingTheStoreCannotAnswer:
                     create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
                     complete_ingestion=AsyncMock(),
                     fail_ingestion=AsyncMock(),
+                    unlisted_by_source=AsyncMock(return_value=[]),
                 ),
             ),
         ):
@@ -607,6 +609,7 @@ class TestTheLocalDirectorySync:
             create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
             complete_ingestion=AsyncMock(),
             fail_ingestion=AsyncMock(),
+            unlisted_by_source=AsyncMock(return_value=[]),
         )
 
         @asynccontextmanager

@@ -41,6 +41,26 @@ class RemoteFile(BaseModel):
     source_path: str  # Dedup key: "gdrive://file_id", "s3://bucket/key"
 
 
+class RemoteListing(BaseModel):
+    """What a source holds, and whether a sync may treat the answer as the whole of it.
+
+    `complete` is what removal hangs on. A sync removes the documents its source
+    brought in earlier and no longer lists, and that is only safe against a
+    listing that is known to be everything: a crawl that stopped at its page
+    ceiling, or could not read one page of a site, did not see the pages behind
+    it, and removing those would empty a collection because of one timeout.
+    Drive and S3 answer a listing whole or raise, so theirs is always complete.
+
+    `problems` are sentences this repository wrote - a URL's host, a status
+    code, never a page's own text - so the sync log can show them. Each one is a
+    page the source could not read, and counts as a failed file.
+    """
+
+    files: list[RemoteFile]
+    complete: bool = True
+    problems: list[str] = []
+
+
 class ConfigRefusal(BaseModel):
     """Why a connector will not accept a config, and which of its fields.
 
@@ -90,7 +110,7 @@ class BaseSyncConnector(ABC):
     @abstractmethod
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List files available for sync from this source.
 
         `credential` is the unsealed vault secret, or `None` when the source has
@@ -98,6 +118,10 @@ class BaseSyncConnector(ABC):
         raises rather than reaching for a deployment-wide fallback: there is no
         such thing here, and inventing one would let a source read under the
         operator's identity rather than its own.
+
+        A listing that cannot vouch for being everything says so with
+        `complete=False` rather than raising, so what it did find is still
+        ingested - see `RemoteListing`.
         """
 
     async def download_file(
@@ -156,3 +180,6 @@ CONNECTOR_REGISTRY["gdrive"] = GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
 
 CONNECTOR_REGISTRY["s3"] = S3Connector
+from app.services.rag.connectors.web import WebConnector
+
+CONNECTOR_REGISTRY["web"] = WebConnector

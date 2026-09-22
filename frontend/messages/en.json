@@ -4398,6 +4398,7 @@
     "orgIntegrations": "Org integrations",
     "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
+    "removedCount": "{count} removed",
     "schedule": "Schedule",
     "search": {
       "allBases": "All knowledge bases",

@@ -1,5 +1,5 @@
 ---
-source_sha: "a40ae2358eec"
+source_sha: "09b31f0626e6"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1351,6 +1351,17 @@ niespodzianką, a nie funkcją:
   wciąż pełne skanowanie
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), więc konektor
   przynoszący tysiące plików czyni tę paginację pilną, a nie porządkową.
+- **Listing, który wie, czy jest pełny.** Synchronizacja usuwa dokumenty, które
+  jej source wprowadził wcześniej, a których już nie wypisuje, więc `list_files`
+  zwraca `RemoteListing`, którego `complete` mówi, czy to, co wymienia, to
+  wszystko. Listing, który dobiega końca albo rzuca wyjątek, jest kompletny
+  z samej konstrukcji. Taki, który może zatrzymać się w połowie - crawler webowy
+  na limicie stron albo za stroną, która przekroczyła limit czasu - zgłasza
+  `complete=False`, a ten run niczego nie usuwa
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Usuwanie jest
+  zawężone przez `rag_documents.sync_source_id`, a nie przez `source_path`: dwa
+  source'y mogą zasilać jedną kolekcję i żaden nie może usunąć tego, co
+  wprowadził drugi.
 
 **Konektor synchronizacji to nie serwer MCP.** MCP to sposób, w jaki agent sięga
 po produkt *na żywo*, w trakcie runu; source synchronizacji to zaplanowane
@@ -1362,8 +1373,10 @@ przed napisaniem któregokolwiek, jest to, którą połowę się buduje — zoba
 
 O tym, które konektory są budowane i w jakiej kolejności, rozstrzyga
 [#938](https://github.com/vstorm-co/agenticos/issues/938): crawler webowy
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint
-i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)),
+([#984](https://github.com/vstorm-co/agenticos/issues/984), dostarczony jako
+konektor `web` - zobacz
+[konfigurację strony internetowej](howto/configure-sync-sources.md#website-setup)),
+SharePoint i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)),
 Confluence ([#986](https://github.com/vstorm-co/agenticos/issues/986)),
 dokumentacja repozytorium gita
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), a potem Azure Blob

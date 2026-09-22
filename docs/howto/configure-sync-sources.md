@@ -1,14 +1,16 @@
 # Configure sync sources
 
-Sync sources pull documents from external services (Google Drive, S3/MinIO) into
-knowledge collections on their own. Each source stores a connector type, a target
-collection, connector-specific settings, a sync mode, an optional schedule, and
-the id of the [vault secret](../secrets.md) that authenticates it.
+Sync sources pull documents from external services (Google Drive, S3/MinIO, a
+public website) into knowledge collections on their own. Each source stores a
+connector type, a target collection, connector-specific settings, a sync mode, an
+optional schedule, and the id of the [vault secret](../secrets.md) that
+authenticates it - a website needs none.
 
 When a sync runs, the connector lists remote files, downloads them to a
 temporary directory, and feeds them through the standard ingestion pipeline
-(parse, chunk, embed, store). A `SyncLog` entry records the outcome of
-every sync operation.
+(parse, chunk, embed, store). When the listing is complete, documents the source
+brought in earlier and no longer lists are removed. A `SyncLog` entry records the
+outcome of every sync operation.
 
 ### Architecture at a glance
 
@@ -81,8 +83,9 @@ in the `rag-sources` listing.
 
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
 2. Click **"+ Add Source"**.
-3. Select a connector type (Google Drive, S3). The form fields are
-   generated from the JSON Schema of the connector's `CONFIG_MODEL`.
+3. Select a connector type (Google Drive, S3, Website). The form fields are
+   generated from the JSON Schema of the connector's `CONFIG_MODEL`. A website
+   has no credential step.
 4. Fill in the connector-specific config fields (e.g. folder ID, bucket
    name).
 5. Choose a target collection, sync mode, and schedule interval.
@@ -106,6 +109,22 @@ in the UI you can also do with `curl` or any HTTP client.
     It adds new files and updates modified ones while skipping unchanged files,
     which is the fastest incremental sync. `update_only` refreshes existing
     documents without adding new ones; `full` is a clean re-import every time.
+
+### What a sync removes
+
+In every mode, a sync removes the documents its source brought in earlier and no
+longer lists: a page taken off the site, a file deleted from the Drive folder, an
+object removed from the bucket. The sync log counts them under `removed`.
+
+It removes nothing unless the listing was **complete**. A crawl that stopped at its
+page limit, or could not read one of the pages, has not seen what it does not list.
+That run keeps every document and says so in the sync log's message. The next sync
+with a complete listing removes what is gone.
+
+Only the source's own documents are removed. An upload, or a document another
+source brought into the same collection, is never touched. A document ingested
+before its source recorded this (September 2026) is kept until the source
+ingests it again.
 
 ## Schedule
 
@@ -211,6 +230,63 @@ For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 | `bucket` | string | Yes | -- | S3 bucket name |
 | `prefix` | string | No | `""` | Key prefix to limit sync scope (e.g. `documents/legal/`). Leave empty for the entire bucket. |
 
+## Website setup
+
+A `web` source reads a public website, usually a product's documentation site. It
+needs no credential and no vault entry. Give it a start URL, and it either
+follows links from that page or reads the pages a sitemap lists.
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Product docs" \
+  --type web \
+  --org 0c8f2b1e-... \
+  --collection product-docs \
+  --config '{"root_url": "https://docs.example.com/guide/", "max_depth": 3}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+### Website connector config fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `root_url` | string | Yes | -- | The page the crawl starts from. Its host is the only host the source reads. |
+| `max_depth` | integer | No | `2` | How many links away from the start URL to follow, `0` to `10`. `0` reads the start page only. |
+| `path_prefix` | string | No | the start URL's folder | Only pages whose path starts with this are read. `https://docs.example.com/guide/intro` reads `/guide/` by default; set `/` for the whole host. |
+| `sitemap_url` | string | No | -- | Read the pages this sitemap lists instead of following links. It must be on the start URL's host. A sitemap index is followed to its sitemaps. |
+| `max_pages` | integer | No | `500` | The crawl stops after reading this many pages, `1` to `5000`. |
+
+### What bounds a crawl
+
+- **One host and one path.** Links to other hosts, and to paths outside
+  `path_prefix`, are not followed. A redirect that leaves them is not followed
+  either.
+- **The deployment's network is out of reach.** Every request - robots.txt, the
+  sitemap, each page and each redirect - is checked against the same SSRF policy as
+  webhooks and MCP servers. It is sent to the address that passed the check. A start
+  URL that resolves to a private, loopback, link-local or cloud-metadata address is
+  refused when you save the source.
+- **robots.txt is obeyed**, including `Crawl-delay` up to ten seconds. The crawler
+  identifies itself as `AgenticOS-Crawler`. It waits at least half a second
+  between requests, and a page that says `noindex` or `nofollow` is honoured.
+- **Size.** A page larger than 5 MB is not read. The crawl stops at `max_pages`.
+
+Each page is stored as a Markdown document holding its text and the URL it came
+from. Navigation, headers, footers and scripts are left out. A page is re-embedded
+only when its text changes. A new build stamp or tracking script in the markup does
+not count as a change.
+
+### Who can read what it imports
+
+A website source has no credential, so its reach is what the site shows to anyone
+on the internet. It never gets past a login. Everything it imports is searchable by
+everyone who can search the collection it feeds, as with any other source. See
+[who ends up able to read what a source ingested](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Only HTML pages are imported. A PDF or other file linked from a page is not
+downloaded.
+
 ## API reference
 
 All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
@@ -314,8 +390,9 @@ Every sync creates a `SyncLog` entry with the following fields:
 | `ingested` | Successfully ingested (new) |
 | `updated` | Successfully re-ingested (replaced) |
 | `skipped` | Skipped (already present or unchanged) |
-| `failed` | Failed to ingest |
-| `error_message` | Error details (if `status` is `error`) |
+| `failed` | Failed to ingest, including pages or files the listing could not read |
+| `removed` | Removed because the source no longer lists them (see [what a sync removes](#what-a-sync-removes)) |
+| `error_message` | What went wrong, or why nothing was removed. A run can be `done` and still have a message, for example when a crawl stopped at its page limit |
 | `started_at` | When the sync started |
 | `completed_at` | When the sync finished |
 
@@ -358,6 +435,7 @@ The connector type you specified is not in `CONNECTOR_REGISTRY`. Check
 available types with `rag-sources` or `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) is available.
 S3 (`s3`) is available.
+Website (`web`) is available.
 
 ### Google Drive: "this source has no credential"
 
@@ -387,6 +465,43 @@ service account needs at least Viewer access.
 Verify that `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY`, and
 `S3_RAG_ENDPOINT` are set correctly in `.env`. For MinIO, ensure the
 endpoint includes the port (e.g. `http://localhost:9000`).
+
+### Website: "resolves to private/internal address"
+
+The start URL, or the sitemap, points inside the deployment's network, or its name
+resolves there. A website source reads only public addresses. To index an internal
+site, publish its pages somewhere public, or upload the files directly.
+
+### Website: "The site's robots.txt could not be read, so it was not crawled"
+
+`/robots.txt` on the start URL's host timed out or answered with a server error
+(5xx) three times in a row. The crawler does not guess what an unreachable
+robots.txt would allow, so the run stops. A missing robots.txt (404) or a
+forbidden one (403) means no rules, and the crawl goes ahead.
+
+### Website: "The start URL … did not lead to an HTML page"
+
+The start URL answered 404, redirected to another host or outside `path_prefix`,
+or served something other than HTML. Open it in a browser, then use the address
+it ends at as `root_url`.
+
+### Website: "robots.txt does not allow the start URL"
+
+The site asks crawlers to stay out of that path. Choose a start URL the site
+allows, or ask the site's owner to allow `AgenticOS-Crawler`.
+
+### Website: "… answered HTTP 403" or "… could not be reached"
+
+The page needs a login, or the site refused the crawler. It failed after three
+attempts if the answer was a timeout, 429 or 5xx. Each page like this counts as a
+failed file. Nothing is removed on that run, because the pages behind it were not
+seen.
+
+### "The source could not be listed completely, so documents it may no longer hold were kept"
+
+The listing stopped short: a crawl reached `max_pages`, or some pages could not
+be read. What was found was ingested, and nothing was removed. Raise `max_pages`,
+or narrow the crawl with `path_prefix`, until a run finishes without this message.
 
 ### Scheduled syncs are not running
 

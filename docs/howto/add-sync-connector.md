@@ -12,6 +12,7 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base class for all connectors |
 | `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
+| `RemoteListing` | `app/services/rag/connectors/__init__.py` | What `list_files()` answers: the files, and whether that is all of them |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which field of it |
 | `CONFIG_MODEL` | the connector's own module | A Pydantic model of its config fields; the listing publishes its JSON Schema and the wizard draws it |
 | `EmptyConfig` | `app/services/rag/connectors/__init__.py` | The base class's default `CONFIG_MODEL`, for a connector with nothing to configure |
@@ -26,22 +27,25 @@ Sync connectors are pluggable adapters that fetch files from external systems
 flowchart TD
     A[a SyncSource: connector type, config, collection, secret id] --> B[a sync is triggered - API, CLI or schedule]
     B --> C["the caller unseals the vault secret and hands it in"]
-    C --> D["list_files() -> list[RemoteFile]"]
+    C --> D["list_files() -> RemoteListing"]
     D --> E["download_file() resolves the name and confirms containment"]
     E --> F["_fetch(dest_path) writes the bytes"]
     F --> G[the ingestion pipeline parses, chunks, embeds, stores]
-    G --> H[a SyncLog row records the result]
+    G --> R["a complete listing: remove what it no longer names"]
+    R --> H[a SyncLog row records the result]
 ```
 
 1. User creates a **SyncSource** (connector type + config + collection name +
    the id of the vault secret that authenticates it)
 2. User triggers a **sync** (via API, CLI, or scheduled task)
 3. Whoever runs the sync unseals that secret and hands it in; the connector's
-   `list_files()` returns `list[RemoteFile]`
+   `list_files()` returns a `RemoteListing`
 4. For each file, `BaseSyncConnector.download_file()` decides where it may land
    and calls the connector's `_fetch()` to write it there
 5. The ingestion pipeline parses, chunks, embeds, and stores each file
-6. A **SyncLog** entry records the result
+6. If the listing was complete, the documents this source brought in earlier and
+   the listing no longer names are removed from the collection
+7. A **SyncLog** entry records the result
 
 ### A connector does not choose the destination
 
@@ -76,6 +80,21 @@ authenticate with.
     credential it names or it does not run, because a fallback means one tenant's
     `folder_id` chooses what is read under the *operator's* identity.
 
+### A listing says whether it is the whole source
+
+A sync removes what the source brought in earlier and no longer lists, so a
+listing is also a claim that everything missing from it is gone.
+`RemoteListing.complete` is that claim. A connector whose listing either
+finishes or raises - Drive, S3 - leaves it at its default, `True`. A connector
+that can stop part-way and still has something worth ingesting - a crawl that hit
+its page ceiling, or could not read one page - returns what it found with
+`complete=False`. That run then removes nothing, rather than removing everything
+it did not reach.
+
+`RemoteListing.problems` carries a sentence for each thing the listing could not
+read. The sync counts each one as a failed file and shows it on the sync log, so
+write it in your own words: a host and a status code, never the remote's text.
+
 ## Step by step: a Notion connector
 
 This example implements a Notion connector that fetches pages from a Notion
@@ -99,6 +118,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,7 +177,7 @@ class NotionConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List Notion pages available for sync."""
         database_id = config.get("database_id", "")
 
@@ -196,7 +216,8 @@ class NotionConnector(BaseSyncConnector):
 
             return files
 
-        return await asyncio.to_thread(_list)
+        # Complete by default: the listing either returned every page or raised.
+        return RemoteListing(files=await asyncio.to_thread(_list))
 
     async def _fetch(
         self,
@@ -380,12 +401,13 @@ class WorkspaceConnector(BaseSyncConnector):
     CONFIG_MODEL: ClassVar[type[BaseModel]] = WorkspaceConfig
 ```
 
-`workspace` has no default, so it is the one required field; the two shipped
-connectors (`GoogleDriveConfig`, `S3Config`) are the models to copy.
+`workspace` has no default, so it is the one required field; the shipped
+connectors (`GoogleDriveConfig`, `S3Config`, `WebConfig`) are the models to copy.
 
 ## Tips
 
-- Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
+- Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs, and it is what removal compares: a document whose `source_path` a complete listing no longer names is removed
+- Return `complete=False` from a listing that stopped short, and never raise for one you can still partly use
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
 - Implement `validate_config()` to refuse a config the wizard can still fix — a `ConfigRefusal` naming a `field` is what makes it mark that input rather than show a sentence over four of them. It sees the config and not the credential, so "can this key reach the service" is a question for the first sync, not for this method
 - Declare `SECRET_KIND` and read the credential from the `credential` argument. A credential never goes in `CONFIG_MODEL`, and there is no deployment-wide fallback to fall back to

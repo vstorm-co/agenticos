@@ -1,5 +1,5 @@
 ---
-source_sha: "e5ee0101434e"
+source_sha: "273797bb8155"
 ---
 
 # Sicherheit { #security }
@@ -36,6 +36,7 @@ Anfrage auf ihrem Weg zu den Daten überschreitet.
 | API → PostgreSQL / Redis | Queries und Cache-Lesezugriffe, über TLS, wenn konfiguriert | Ja — der Speicher gehört dem Betreiber; was er im Ruhezustand schützt, steht unter „Was wo verschlüsselt ist“ |
 | API / Worker → Modell-Provider, Kanäle, MCP-Server, Suchanbieter, Logfire | Prompts, Tool-Aufrufe, Anfragen, Antworten, Traces | Nein — das sind Dritte; was sie erreicht, ist eine Entscheidung pro Agent, außer beim deploymentweiten Tracing (unten) |
 | Worker → Konnektoren (Google Drive, S3, …) | Aus dem Vault entsiegelte Credentials, abgerufene Dokumente | Nein — ein Konnektor-Credential ist ein Secret im Vault, referenziert über seine id |
+| Worker → öffentliche Websites (der `web`-Konnektor) | GET-Anfragen nach Seiten, Sitemaps und robots.txt; kein Credential | Nein — die Start-URL tippt ein Mandant ein, und jeden Link danach wählt die Website, also wird jede Anfrage und jede Weiterleitung auf SSRF geprüft, an der geprüften Adresse angewählt (`app/core/pinned_http.py`) und bleibt auf einem Host |
 
 Autorität innerhalb eines Mandanten ist nie ein Rollenname auf einer Route: sie
 ist eine Mitgliedschaftszeile plus der Berechtigungskatalog

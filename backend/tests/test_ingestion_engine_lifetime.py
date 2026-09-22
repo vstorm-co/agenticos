@@ -30,6 +30,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.services.rag.connectors import RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
@@ -270,7 +271,7 @@ class TestAConnectorSyncsEngine:
             update_after_sync=AsyncMock(),
             trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         )
-        connector = MagicMock(list_files=AsyncMock(return_value=[]))
+        connector = MagicMock(list_files=AsyncMock(return_value=RemoteListing(files=[])))
 
         async with _worker(ledger):
             with (
@@ -278,6 +279,10 @@ class TestAConnectorSyncsEngine:
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+                patch(
+                    "app.services.rag_document.RAGDocumentService",
+                    return_value=MagicMock(unlisted_by_source=AsyncMock(return_value=[])),
+                ),
             ):
                 await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
 
