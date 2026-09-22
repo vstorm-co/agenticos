@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.487] - 2026-09-22
+
 ### Fixed
 
 - **An audited security write and an admin deletion can no longer deadlock each
