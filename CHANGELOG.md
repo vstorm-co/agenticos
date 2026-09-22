@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.492] - 2026-09-22
+
 ### Fixed
 
 - **The unread badge and "mark all read" no longer stop at five hundred rows
