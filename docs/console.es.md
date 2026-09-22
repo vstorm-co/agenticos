@@ -1,5 +1,5 @@
 ---
-source_sha: "21ff1da0ee8a"
+source_sha: "7504a1c844e6"
 ---
 
 # La consola { #the-console }
@@ -74,6 +74,11 @@ espera a que se recargue la página. **Mark all read** barre por lotes hasta
 cinco mil filas no leídas y luego vuelve a pedir el contador — así que con un
 atraso mayor la insignia sigue mostrando lo que queda por leer y un clic más
 termina el resto, en lugar de anunciar una bandeja que solo trabajó en parte.
+
+Cada clic avanza siempre, incluso cuando todo el lote eran filas que quien lee
+ya no puede ver: el barrido marca lo que ha leído y no solo lo que podía
+mostrar — una fila oculta a su destinataria no va a mostrársele nunca, y dejarla
+sin leer ataría cada clic posterior a esas mismas cinco mil.
 
 Tanto el contador como el barrido dicen cuándo se han parado en ese límite y no
 al final de la bandeja — `approximate` en `GET /notifications/unread-count` y

@@ -1,5 +1,5 @@
 ---
-source_sha: "21ff1da0ee8a"
+source_sha: "7504a1c844e6"
 ---
 
 # Konsola { #the-console }
@@ -75,6 +75,12 @@ read** zbiera partiami nawet pięć tysięcy nieprzeczytanych wierszy, a potem p
 o licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
 to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zamiast
 żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
+
+Każde kliknięcie zawsze posuwa sprawę dalej, nawet gdy cała partia to wiersze,
+których czytający już nie widzi: zamiatanie oznacza to, co przeczytało, a nie
+tylko to, co mogło pokazać — wiersz ukryty przed swoim odbiorcą i tak nigdy mu
+się nie wyświetli, a pozostawienie go nieprzeczytanym przypinałoby każde kolejne
+kliknięcie do tych samych pięciu tysięcy.
 
 I licznik, i zamiatanie mówią, kiedy zatrzymały się na tej granicy, a nie na końcu skrzynki
 — `approximate` w `GET /notifications/unread-count` i `remaining` w

@@ -1782,6 +1782,46 @@ class TestUnreadCountAndMarkRead:
         assert unread.approximate is False
         assert (await service.mark_all_read(ctx)).marked == 1
 
+    async def test_a_scan_window_of_nothing_but_hidden_rows_still_advances(self, db, monkeypatch):
+        """A demoted recipient can have a whole scan window of rows the gate
+        hides, with the visible ones behind them. Marking only what they can see
+        marked nothing, reported `remaining`, and rescanned the identical prefix
+        on every retry - so the button never reached anything however often it
+        was pressed. The sweep marks what it scanned, so the second press starts
+        past the first."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        monkeypatch.setattr(notification_center, "_UNREAD_SCAN_LIMIT", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-under-the-backlog",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        # Newer than it, and more of them than one scan window holds.
+        for index in range(2):
+            await service.write(
+                recipients=[member.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-wall-{index}",
+                summary="A secret was rotated",
+                organization_id=org.id,
+            )
+        ctx = _ctx(member, org, role="member")
+
+        first = await service.mark_all_read(ctx)
+        assert first.marked == 0
+        assert first.remaining is True
+
+        second = await service.mark_all_read(ctx)
+        assert second.marked == 1
+        assert second.remaining is False
+        assert (await service.unread_count(ctx)).count == 0
+
 
 class TestDismissAndClear:
     """Clearing the inbox - `dismissed_at`, not a delete.

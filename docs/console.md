@@ -69,6 +69,11 @@ for the count again, so a backlog larger than that leaves the badge showing what
 is still unread and a further click finishes it, rather than the badge claiming
 an inbox it only partly worked through.
 
+Each click always gets further, even where the whole batch was rows the reader
+can no longer see: a sweep marks what it read rather than only what it could
+show, because a row hidden from its recipient is one they will never be shown,
+and leaving it unread would pin every later click to the same five thousand.
+
 Both the count and the sweep say when they stopped on that bound rather than on
 the end of the inbox -
 `approximate` on `GET /notifications/unread-count`, `remaining` on

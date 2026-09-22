@@ -31,7 +31,17 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /notifications/unread-count` carries `approximate` and
   `POST /notifications/mark-all-read` carries `remaining`, because a count of
   exactly the bound and a genuine count of exactly the bound were otherwise the
-  same number. (#1761)
+  same number, and a sweep's own batch ends full whether or not anything is
+  behind it - so one row past the bound is asked for before either is called
+  partial.
+
+  A repeated click always gets further, which is what makes `remaining` an
+  instruction rather than a description: the sweep marks every row it read, not
+  only the rows it could show. A row the read-time gate hides is one its
+  recipient will never be shown, and leaving it unread pinned every later sweep
+  to the same prefix - so a recipient demoted out of an audience, with a whole
+  scan window of hidden rows in front of the visible ones, could press the
+  button forever and reach nothing. (#1761)
 
 ## [0.0.481] - 2026-09-22
 
