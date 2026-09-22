@@ -299,10 +299,17 @@ method, safely retried). A `ReadTimeout`/`RemoteProtocolError` *after* the
 body was sent, for a non-idempotent method with no `idempotency_key_header`
 set, returns `Uncertain(detail="request sent; no response received")` — the
 handler cannot tell whether the far side acted, and #1788's reconciler
-decides whether a fresh attempt is safe. `retry_guarantee`: `GET` →
+decides whether a fresh attempt is safe.
+
+`http.request`'s `NodeDefinition.retry_guarantee` is `"at_least_once"`, the
+conservative static default. Per call, the handler writes the real answer
+into `NodeAttempt.retry_guarantee` (#1788's per-attempt override, added in
+round 2 of this review once the static field proved unable to express a
+per-config decision on one node kind) before the request goes out: `GET` →
 `"idempotent"`; a write method with `idempotency_key_header` set (from the
-`NodeAttempt`'s own stable key, per #1788) → `"idempotent"`; otherwise
-`"at_least_once"`.
+`NodeAttempt`'s own stable key, per #1788) → `"idempotent"`; otherwise the
+static `"at_least_once"` stands. The reconciler reads the attempt's
+override, never guesses from the method itself.
 
 ### `notification.send` — acceptance is not delivery
 

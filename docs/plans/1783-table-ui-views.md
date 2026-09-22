@@ -236,6 +236,20 @@ The frontend reads `table.can_edit` directly, the way `agents/[id]/page.tsx`
 reads `agent.can_run`, and feeds it to `<SharingPanel resourceType="table"
 resourceId={id} canManage={table.can_edit} />`.
 
+**A saved view's own edit/delete controls key off `view.can_manage`, a
+second server-resolved boolean, never `table.can_edit`** (round 2 of this
+review: gating view controls on table-edit alone would show a
+resource-granted table editor delete/edit buttons on another user's shared
+view that always fail server-side — §4 already restricts changing a view
+to its `owner_user_id` or a caller whose `TABLES_EDIT` scope is `ALL`,
+which `table.can_edit` alone does not distinguish). `TableViewRead` gets
+`can_manage: bool`, set the same way: `view.owner_user_id == ctx.user_id
+or resolve_access(..., Perm.TABLES_EDIT, resource_type=TABLE).scope ==
+Scope.ALL`. The view `Select` and its rename/delete affordances read
+`view.can_manage`; the table-level "New view" action still only needs
+`table.can_edit`, since creating a view is a table-edit action, not a
+per-view one.
+
 Sharing is a small, concrete gap this issue closes on the frontend side: the
 backend already mounts `table_sharing_router` at `/tables/{id}/sharing`
 (`backend/app/api/routes/v1/sharing.py`), but the frontend never wired it up

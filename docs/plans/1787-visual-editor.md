@@ -380,17 +380,21 @@ contracts exist.
 
 ## Open questions for #1786
 
+Two of this section's original four items are resolved, not open (round 2
+of this review: this list still stated them as open after they were
+answered earlier in this same document — `Port.kind` and `ScopeBoundary`
+authorship, both per #1786's contract). What remains:
+
 - **`target_field` path syntax** for a binding-aware leaf nested inside an
   array-of-rows or object — this document proposes JSON-Pointer-style
   `a/0/b`; needs confirmation before the form renderer and validator commit.
-- **`Port.kind`** (input/output/error) — not yet in #1786's model; the
-  editor infers direction from port id today, fragile once a real node
-  library exists.
-- **`ScopeBoundary` authorship** — client-written or server-derived from
-  edge topology at save time.
 - **A per-instance node label** — `NodeInstance` has none; the canvas shows
   the catalog's static name, which will not scale to two `debug.echo` nodes
   doing different things.
-- **Table/column picker** depends on #1784's list/describe routes,
-  themselves gated on #1786 — designable now, buildable only once #1784
-  ships them.
+
+The table/column picker is buildable **now**, not gated on #1784: it reads
+#1782's own already-real `GET /api/v1/tables` and `GET
+/api/v1/tables/{id}` (round 2 of this review: an earlier draft named
+#1784's list/describe *tools and nodes* as the dependency, but those wrap
+the same service for agents and workflow runs — they add no HTTP route the
+picker needs, and #1782's routes exist today).

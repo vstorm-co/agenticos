@@ -62,6 +62,7 @@ WorkflowRun
   id, organization_id, workflow_id, workflow_version_id (frozen graph, #1786)
   status: RunStatus (below)
   triggered_by: {api, websocket, webhook, chat, schedule, table_created}
+  execution_principal_user_id: uuid           # pinned at admission; see below
   budget_limit, spent_cost, cost_is_partial   # budget_limit copied from WorkflowVersion.budget_limit at start
   deadline_at: datetime | None
   next_event_seq: bigint default 0            # see Events
@@ -83,6 +84,7 @@ NodeRun                                        # one row per (run, node instance
 NodeAttempt                                     # append-only; one row per try, never mutated after terminal
   id, organization_id, node_run_id, attempt_no
   idempotency_key: text                         # see Reconciler — stable across attempts of the SAME logical op
+  retry_guarantee: {none, idempotent, at_least_once} | None   # see below
   status: {in_flight, completed, failed, uncertain}
   result: jsonb, cost: numeric, cost_is_partial: bool
   started_at, ended_at
@@ -110,6 +112,18 @@ cost," and the issue requires retaining that. `DispatchOutbox` is a
 transactional outbox — a row is created in the **same transaction** that
 records the `NodeResult` which made the next node runnable, so "the result
 is durable" and "the next step is scheduled" can never disagree.
+
+`WorkflowRun.execution_principal_user_id` was missing from the first draft
+(round 2 of this review): #1784 already assumes a node handler builds its
+`AuthContext` from "the workflow's own owning principal," and #1785/#1792
+each pin a principal at admission, but nothing on the persisted run itself
+recorded which one. It is set once, at admission, by whichever adapter
+created the run — the invoking member for API/WebSocket/chat, the pinned
+principal for webhook/schedule (#1792) and table triggers (#1785) — and
+never re-resolved from the request afterward, so a handler running hours
+into a `waiting_approval` pause, or the reconciler resuming after a crash,
+builds the same `AuthContext` from this column that admission itself
+checked, not from a request that no longer exists.
 
 `WorkflowRun`'s four causation columns (`root_run_id`, `causation_run_id`,
 `visited_trigger_ids`, `depth`) exist because #1785's cycle-protection
@@ -312,7 +326,19 @@ is also why `in_flight` is written **before** the call, in its own
 committed transaction — written after, a crash mid-call would leave no row
 at all, and the reconciler would have nothing to find; the run would just
 stop, silently, with no `needs_attention` anywhere. `workflow-reconcile`
-finds `NodeAttempt` rows `in_flight` whose owning outbox lease expired:
+finds `NodeAttempt` rows `in_flight` whose owning outbox lease expired, and
+decides by `NodeAttempt.retry_guarantee ?? NodeDefinition.retry_guarantee`
+— the attempt's own value when the handler set one, the definition's
+static value otherwise. The override exists because a guarantee is
+sometimes a property of the *call*, not the node kind: #1789's
+`http.request` is one `NodeDefinition` whose safety to retry depends on
+the method and whether an idempotency header was actually sent (round 2 of
+this review: registering the whole node kind `idempotent` risks replaying
+an unkeyed `POST`; registering it `at_least_once` needlessly gives up safe
+auto-recovery for a `GET` or a keyed write). The handler decides once, in
+phase 2 of the dispatch sequence above, and writes it into the same
+`in_flight` row the reconciler already needs to exist before the call —
+no extra write, no new failure window.
 
 - If `retry_guarantee` is `idempotent` — the target system dedupes on the
   `idempotency_key` this attempt sent (`f"{organization_id}:

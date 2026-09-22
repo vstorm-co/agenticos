@@ -164,15 +164,22 @@ exposed before admission commits; a disconnect/reconnect with
 Exercises #1789's `agent.run` twice and #1786's rule 3 (type-compatibility)
 binding one agent's output into the next agent's input. Graph: `core.input →
 agent.run(A, v1) → agent.run(B, v1) → core.output`, B's prompt bound to
-`NodeOutputRef{node_id: A, port: "out"}` — A's `text` (`str`) into B's
-`prompt` (`str`), the case rules 3 and 4 must both accept.
+`NodeOutputRef{node_id: A, port: "out", field_path: ("text",)}` — A's
+`text` (`str`) into B's `prompt` (`str`), the case rules 3 and 4 must both
+accept. `field_path` is not optional here (round 2 of this review: an
+earlier draft left it empty, which under #1786's resolved contract denotes
+the *whole* `AgentRunOutput`, not its `text` field, so this flagship
+binding would itself have been refused by the very rule it exists to
+prove).
 
 Assertions: two distinct `agent_runs` rows in causal order, each pinned to
 its own `agent_version_id`; B's `NodeAttempt` input snapshot holds A's
-literal output, not a re-derived value; a variant binding B's input to A's
-`sources` (`tuple[SourceRef, ...]`) instead is refused at publish with a
-rule-3 `GraphValidationError` naming the edge — the negative case that
-proves the check runs; `WorkflowRun.spent_cost` equals the sum of both
+literal `text`, not a re-derived value; a variant binding B's input to
+`NodeOutputRef{node_id: A, port: "out", field_path: ("sources",)}`
+(`tuple[SourceRef, ...]`) instead is refused at publish with a rule-3
+`GraphValidationError` naming the edge — the negative case that proves the
+check runs on the resolved *path's* type, not just on whether a path was
+given; `WorkflowRun.spent_cost` equals the sum of both
 `agent_runs.spent_cost` under `for_delegate` attribution, neither doubled
 nor missing either run.
 

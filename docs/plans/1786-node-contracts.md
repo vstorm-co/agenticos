@@ -244,13 +244,20 @@ is the only way to change it, consistent with "published definitions remain
 unchanged after draft edits."
 
 **Draft write** (`PATCH .../{id}/draft`, body `{graph, expected_revision}`)
-mirrors `RecordOperations.update_record`: load the row `for_update=True`,
-compare `draft_revision` to `expected_revision` *before* any other check,
-raise `RevisionConflictError` on mismatch (#1782's fields, retargeted to
-`workflow_id`) — 409, `{"message": "...changed by someone else...", "details":
-{"workflow_id", "expected_revision", "current_revision"}}` — otherwise store
-`draft_graph` and increment `draft_revision`. `#1787`'s autosave reads
-`current_revision` off the 409 and retries with it.
+mirrors `RecordOperations.update_record`: `resolve_access(ctx, workflow,
+Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW)` and the archived-lifecycle
+check run first (round 2 of this review: "before any other check" repeated
+the same overstatement `56-shared-contracts.md` already corrected for the
+record-write path — literally read, it would answer an unauthorized caller
+with a 409 carrying `current_revision` instead of the normal access
+refusal, a resource/revision oracle). Only then, load the row
+`for_update=True` and compare `draft_revision` to `expected_revision`
+*before payload validation*, raising `RevisionConflictError` on mismatch
+(#1782's fields, retargeted to `workflow_id`) — 409, `{"message":
+"...changed by someone else...", "details": {"workflow_id",
+"expected_revision", "current_revision"}}` — otherwise store `draft_graph`
+and increment `draft_revision`. `#1787`'s autosave reads `current_revision`
+off the 409 and retries with it.
 
 **Publish** (`POST .../{id}/publish`) is also `expected_revision`-gated, so a
 publish racing a draft edit cannot promote a stale draft: same revision
