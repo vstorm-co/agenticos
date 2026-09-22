@@ -130,6 +130,33 @@ _MANDATORY_WRITE_LIMIT = rate_limit.Limit(attempts=20, window_seconds=60)
 # unbounded.
 _MAX_INBOX_FETCH_ROUNDS = 5
 _UNREAD_CANDIDATE_CAP = 500
+# What one "clear" sweeps: how many rows it will *dismiss*, and how many it
+# will *read* to find them. Two numbers because they are two different costs,
+# and conflating them is what made the first version stall.
+#
+# Larger than the unread cap because it walks read rows too - clearing an inbox
+# is exactly the thing somebody does when it has grown long - and still
+# bounded, for the same reason the other two are: each candidate takes its own
+# permission check (Decision 7), which no `UPDATE ... WHERE` can express.
+_DISMISS_CANDIDATE_CAP = 1000
+# How far the scan will read looking for those rows. Separate from the cap
+# above because the rows it passes over are not free and are not dismissed: a
+# recipient demoted out of an audience keeps every `security_event` ever
+# addressed to them, stored and invisible, and those sit *newer* than whatever
+# they can still see. The scan has to get past them.
+#
+# Bounded rather than exhaustive, and this is a deliberate refusal of the
+# obvious fix. An unbounded scan makes one `DELETE /notifications` walk however
+# large the table has grown, which is a per-request cost the caller does not
+# control and the deployment cannot predict. Dismissing the hidden rows instead
+# would be worse: `dismissed_at` records that the recipient cleared something,
+# and they were never shown it - re-promote them and it is gone.
+#
+# So: twenty thousand rows read per call, and a backlog of invisible rows
+# deeper than that leaves the visible ones behind it unreachable from this
+# button. They still age out on the retention sweep, and the honest answer if
+# that ever happens to somebody is a narrower query, not a longer walk.
+_DISMISS_SCAN_LIMIT = 20_000
 
 
 def encode_cursor(created_at: datetime, notification_id: uuid.UUID) -> str:
@@ -626,6 +653,95 @@ class NotificationCenterService:
         return await notification_repo.mark_ids_read(
             self.db, ids=visible_ids, read_at=datetime.now(UTC)
         )
+
+    async def dismiss_one(self, ctx: AuthContext, notification_id: uuid.UUID) -> None:
+        """Clear one row out of the caller's own inbox.
+
+        404s a row they may not - or may no longer - see, and a row already
+        dismissed, which `get_own` no longer returns: clearing something twice
+        is not an error a person can act on, but it is also not a row this
+        request found, and inventing a 204 for it would have the route claim
+        an id it never resolved.
+        """
+        notification = await self._own_visible(ctx, notification_id)
+        await notification_repo.dismiss(self.db, notification, dismissed_at=datetime.now(UTC))
+
+    async def clear_inbox(self, ctx: AuthContext) -> int:
+        """Clear everything the caller can currently see, read or not.
+
+        Bounded by `_DISMISS_CANDIDATE_CAP` rather than unbounded, and the
+        count returned is what was actually dismissed - so a caller can tell an
+        emptied inbox from a truncated one and ask again, which is the same
+        distinction `mark_all_read` draws with its own cap.
+
+        Deliberately the *listing's* rows, not the unread ones: what "clear"
+        means to somebody looking at the panel is everything in the panel.
+
+        It **pages**, for the reason `list_inbox` does. A single capped fetch
+        starting at `after=None` is the same page every time, so a recipient
+        whose newest thousand rows all fail the read-time gate - somebody
+        demoted out of an audience, whose security notifications are still
+        stored and no longer visible - would clear nothing, and every retry
+        would re-read the same invisible page while the visible rows behind it
+        stayed put. Walking the cursor is what reaches them.
+
+        How far it walks is `_DISMISS_SCAN_LIMIT`, which is a different number
+        from the dismissal cap and says so there: a backlog of invisible rows
+        deeper than that leaves the visible ones behind it out of this button's
+        reach, and neither an unbounded walk nor dismissing rows the gate hid
+        is a better answer than saying so.
+        """
+        user_id = self._require_caller(ctx)
+        visible_ids: list[uuid.UUID] = []
+        cursor: tuple[datetime, uuid.UUID] | None = None
+        scanned = 0
+        while scanned < _DISMISS_SCAN_LIMIT:
+            batch = await notification_repo.list_inbox_page(
+                self.db,
+                recipient_id=user_id,
+                organization_id=ctx.organization_id,
+                is_app_admin=ctx.is_app_admin,
+                after=cursor,
+                limit=_DISMISS_CANDIDATE_CAP,
+            )
+            if not batch:
+                break
+            scanned += len(batch)
+            cache = await self._build_gate_cache(ctx, batch)
+            for row in batch:
+                gate = await self.gate_for(ctx, row, cache)
+                if gate.visible:
+                    visible_ids.append(row.id)
+            # Enough to dismiss, or the listing is exhausted. A short batch is
+            # the end of it; a full one is not, however many were visible.
+            if len(visible_ids) >= _DISMISS_CANDIDATE_CAP or len(batch) < _DISMISS_CANDIDATE_CAP:
+                break
+            cursor = (batch[-1].created_at, batch[-1].id)
+        return await notification_repo.dismiss_ids(
+            self.db, ids=visible_ids, dismissed_at=datetime.now(UTC)
+        )
+
+    async def _own_visible(self, ctx: AuthContext, notification_id: uuid.UUID) -> Notification:
+        """One of the caller's own rows, or `NotFoundError`.
+
+        Both halves of "not found" answer the same way, and that is the point:
+        a row belonging to somebody else and a row this reader's *current*
+        standing no longer passes (Decision 7) are indistinguishable from
+        outside, so neither leaks the fact that the other exists.
+        """
+        user_id = self._require_caller(ctx)
+        notification = await notification_repo.get_own(
+            self.db,
+            notification_id=notification_id,
+            recipient_id=user_id,
+            organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
+        )
+        if notification is None or not (await self.gate_for(ctx, notification)).visible:
+            raise NotFoundError(
+                message="Notification not found", details={"notification_id": str(notification_id)}
+            )
+        return notification
 
     # -- preferences (Decision 4) -----------------------------------------
 

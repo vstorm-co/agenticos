@@ -40,6 +40,31 @@ describe("the two sidebars", () => {
     expect(useChatSidebarStore.getState().isOpen).toBe(false);
     expect(useSidebarStore.getState().isOpen).toBe(false);
   });
+
+  it("collapses the desktop column without touching the phone's drawer", () => {
+    // Two different questions about one sidebar: whether a slide-over is open
+    // on a phone, and whether the column is a rail on a desktop. They are
+    // never both on screen, and only the second is worth remembering.
+    useSidebarStore.setState({ isOpen: false, isCollapsed: false });
+
+    useSidebarStore.getState().toggleCollapsed();
+    expect(useSidebarStore.getState().isCollapsed).toBe(true);
+    expect(useSidebarStore.getState().isOpen).toBe(false);
+
+    useSidebarStore.getState().toggleCollapsed();
+    expect(useSidebarStore.getState().isCollapsed).toBe(false);
+  });
+
+  it("remembers the collapse and nothing else about itself", () => {
+    // A preference that resets on every load is one nobody sets twice - but
+    // restoring `isOpen` would open a drawer over a page somebody just
+    // loaded, so only one of the two is persisted.
+    useSidebarStore.setState({ isOpen: true, isCollapsed: true });
+
+    const persisted = JSON.parse(window.localStorage.getItem("agenticos.sidebar") ?? "{}");
+
+    expect(persisted.state).toEqual({ isCollapsed: true });
+  });
 });
 
 describe("the file preview panel", () => {

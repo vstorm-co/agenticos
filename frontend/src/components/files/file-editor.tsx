@@ -35,7 +35,7 @@ export function FileEditor({
   onDelete,
   footer,
   header,
-  initialMode = "preview",
+  initialMode = "source",
   placeholder,
   className,
 }: {

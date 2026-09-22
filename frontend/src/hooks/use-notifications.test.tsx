@@ -12,6 +12,8 @@ vi.mock("@/lib/notifications-api", () => ({
   getUnreadNotificationCount: vi.fn(),
   markNotificationRead: vi.fn(),
   markAllNotificationsRead: vi.fn(),
+  dismissNotification: vi.fn(),
+  clearNotifications: vi.fn(),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -334,5 +336,93 @@ describe("useNotificationInbox", () => {
     await act(async () => result.current.markRead("n1"));
 
     await waitFor(() => expect(result.current.notifications[0]?.read_at).not.toBeNull());
+  });
+
+  it("takes a dismissed row out of the list and off the badge", async () => {
+    vi.mocked(api.listNotifications).mockResolvedValue(
+      page([notification({ id: "n1" }), notification({ id: "n2" })]),
+    );
+    vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(2);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function TestWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
+    await waitFor(() => expect(countHook.result.current).toBe(2));
+    const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
+    await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
+
+    await act(async () => inboxHook.result.current.dismiss("n1"));
+
+    await waitFor(() =>
+      expect(inboxHook.result.current.notifications.map((n) => n.id)).toEqual(["n2"]),
+    );
+    // A row nothing on screen can reach must not go on counting towards a
+    // badge that nothing left can clear.
+    await waitFor(() => expect(countHook.result.current).toBe(1));
+  });
+
+  it("does not decrement the badge for a row that was already read", async () => {
+    vi.mocked(api.listNotifications).mockResolvedValue(
+      page([notification({ id: "n1", read_at: "2026-09-01T01:00:00Z" })]),
+    );
+    vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function TestWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
+    await waitFor(() => expect(countHook.result.current).toBe(3));
+    const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
+    await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
+
+    await act(async () => inboxHook.result.current.dismiss("n1"));
+
+    await waitFor(() => expect(inboxHook.result.current.notifications).toEqual([]));
+    expect(countHook.result.current).toBe(3);
+  });
+
+  it("empties every loaded page when the inbox is cleared, then asks again", async () => {
+    // Every page, not only the first: the panel may have paged back through
+    // several, and the sweep took all of them. And then a refetch, because
+    // the sweep is capped - here the server still has four rows to report,
+    // which is what tells a truncated inbox from an emptied one.
+    vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
+    vi.mocked(api.clearNotifications).mockResolvedValue(1);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(5).mockResolvedValue(4);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function TestWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
+    await waitFor(() => expect(countHook.result.current).toBe(5));
+    const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
+    await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
+
+    vi.mocked(api.listNotifications).mockResolvedValue(page([]));
+    await act(async () => inboxHook.result.current.clearAll());
+
+    await waitFor(() => expect(inboxHook.result.current.notifications).toEqual([]));
+    await waitFor(() => expect(countHook.result.current).toBe(4));
+  });
+
+  it("clears an inbox nothing has loaded yet without inventing a cache", async () => {
+    // `enabled: false`, so there is no cache to patch - the writes have to be
+    // no-ops rather than seeding an empty one the next open would serve.
+    vi.mocked(api.clearNotifications).mockResolvedValue(0);
+    vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(0);
+
+    const { result } = renderHook(() => useNotificationInbox(false), { wrapper });
+
+    await act(async () => result.current.clearAll());
+    await act(async () => result.current.dismiss("n1"));
+
+    expect(result.current.notifications).toEqual([]);
   });
 });

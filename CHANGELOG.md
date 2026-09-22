@@ -34,6 +34,132 @@ Two things are versioned separately from this file and worth knowing about:
   queue approves the *oldest* waiting run, which is how a fortnight-old commit
   reached the server. (#1832)
 
+## [0.0.481] - 2026-09-22
+
+### Added
+
+- **Figures that roll rather than blink, where somebody is watching one
+  change.** The spend headline on the dashboard, the summary strip's runs,
+  spend and people, and a chat thread's running cost are drawn by an odometer:
+  one wheel per digit, re-aimed when the value moves, so a number that changed
+  looks like a number that changed. Vendored from
+  [Rare UI](https://github.com/swamimalode07/rare-ui) (MIT) rather than
+  installed, because that project distributes components by copying a file into
+  the tree; the copy carries a header saying what was changed and why, and the
+  attribution is in both `NOTICE` files and `licenses/components.toml`. It is
+  deliberately not everywhere: a number that merely sits on a page gains
+  nothing from a wheel per digit and still goes through `formatUsd`. The
+  grouping and the decimal point come from the reader's locale, so a Polish
+  page shows `1 234,56`; the currency does not, because the ledger is in
+  dollars in every language. `prefers-reduced-motion` sets the wheels instead
+  of rolling them.
+- **The bell swings when the count goes up**, and the badge's digits roll with
+  it - the same MIT source, with its five literal hex colours replaced by the
+  accent, ink and destructive roles a deployment can retheme, and its English
+  label replaced by one the caller passes.
+- **A step completing in a plan is drawn as an event.** The dashed ring fades,
+  the disc scales up under it, the tick draws along its own path and the rule
+  sweeps across the text. Rebuilt from the same project's task list rather than
+  used as it stands: that one is an interactive checkbox with two states, and a
+  plan is neither - the agent owns these rows, nobody may click one, and
+  `blocked` and `cancelled` are outcomes a checkbox cannot say. Nothing
+  reorders, because the order *is* the plan.
+- **The sidebar collapses to a rail**, remembered across visits in
+  `localStorage` - a property of the browser rather than of the account, so
+  signing out leaves it alone. Every destination keeps its name in a `title`
+  and an `aria-label` rather than losing it, and the group headings become a
+  rule, which says "a different kind of thing starts here" without an
+  abbreviation claiming to say which.
+
+### Changed
+
+- **The inbox can be cleared.** A cross on a hovered row takes it out;
+  **Clear** in the header takes out everything listed, read and unread alike.
+  `DELETE /notifications/{id}` and `DELETE /notifications` are the two routes,
+  and neither deletes anything: `notifications` is its own dedup anchor, so a
+  deleted row is one a retried producer writes again - an alert somebody
+  dismissed would come back on the next budget check. `dismissed_at` is what
+  the three inbox read paths filter on, and a dismissed row is marked read with
+  it, because a row nothing on screen can reach must not go on counting towards
+  the badge. The sweep is capped at a thousand and reports what it took, the
+  same bargain `mark_all_read` makes with its own cap.
+  `0092_notification_dismissed` adds the column and re-cuts the two partial
+  indexes around it; nothing backfills, because the column is null for every
+  row already written.
+- **A document that indexes cleanly no longer notifies anybody.** It used to
+  write a row each, and the ordinary use of that feature is dropping thirty
+  files into a collection at once - so the ordinary result was thirty
+  interruptions saying nothing had gone wrong, burying the rows worth reading.
+  `ingestion_failed` still fires, and a connector run still reports its
+  whole-attempt figure through `sync_completed`, which is an answer to a
+  question somebody asked by starting the sync. The event type stays, since
+  the sync path still writes it, so no data moves.
+- **The console is flat, and its surfaces are one colour each.** Every layer
+  carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every panel,
+  faint on one and cumulative across a page of them. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  frosted glass is gone with it: `.glass` was a translucent
+  `backdrop-filter: blur(24px)` pane, so the chat composer over a transcript,
+  the same composer over the empty state and a dropdown over a table were three
+  different greys and none of them was a token. It is `.panel` now - a name
+  that is what it is - and the four fixed radial washes behind everything went
+  too, having had nothing left to be for.
+- **The composer is one row of controls under the text**, where it was four
+  bands: a usage strip above the message, the text, a cluster of buttons
+  floating *beside* it, a rule, and a row of pickers under that. The buttons
+  beside the textarea meant the send button drifted to the vertical middle of a
+  tall message. Readings drop out on the composer's own width through a
+  container query rather than on the window's - at 900px with the conversation
+  list open the box is 360px, and a viewport breakpoint kept a reading there
+  that had nowhere to go.
+- **A red badge is tinted, not filled, and its text is `foreground`.** Measured
+  rather than judged: `text-destructive` on `bg-destructive/15` - red on red,
+  which is what it looks like it should be - is **2.70:1** on the dark card,
+  under every floor there is. The same tint with `text-foreground` is 12.18:1
+  dark and 16.45:1 light. A solid red pill also contradicted the rule written
+  two lines above it in `badge.tsx`: metadata set in a bold accent chip competes
+  with the content it annotates.
+- **A run's transcript renders its markdown**, through the same
+  `MarkdownContent` the chat uses. Activity is the page built for reading back
+  what an agent said and it was the one place saying it in source - `## Poland`,
+  `**Official name:**`, tables as pipes. Each block now carries a copy button
+  too, because half of reading a run back is taking something out of it.
+- **A file opens on its source.** The viewer and the editor both opened on the
+  rendered half; somebody who opens a file in a console is usually there to read
+  what it *says* - the front matter, the line that will not parse - and the
+  preview is what hides it. A kind with no source view (an image, a PDF) still
+  opens on its preview rather than on a tab that does not exist.
+- **A dashboard card that is waiting says so quietly.** On a young deployment
+  fourteen of them are on one page, each a full-height card reporting that
+  nothing has happened at the same contrast as the cards carrying numbers. They
+  are dimmed now, each with its own subject's glyph in a dashed plate, and they
+  brighten under the pointer so "waiting" does not read as "disabled".
+- **Recent failures groups runs that failed the same way.** Five rows of one
+  sentence, truncated at the same word, became one row per distinct failure with
+  a count - grouped on the message itself, because picking `(RuntimeError)` out
+  of the backend's prose is a guess about a format nothing guarantees.
+
+### Removed
+
+- **The "All runs" / "Slow runs" presets**, and the `took_over_ms` filter behind
+  them - route, repository, export audit and query key. Two buttons for one
+  question the Took column's own sort already answers, and "slow" was a fixed
+  thirty seconds, which is a definition rather than a question.
+- **The "Recent runs" card on an agent's page.** Its history is Activity, which
+  is where the card's own link pointed.
+
+- **The console's surfaces are neutral, and there are four of them.** Every
+  layer carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every
+  panel in the product, faint on one and cumulative across a page of them, and
+  visibly cold beside the accent it was meant to support. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  sidebar is now a token of its own rather than a translucent card over a blur,
+  which had made its apparent depth depend on whatever was behind it and cost a
+  compositor layer the width of the window on every scroll. Measured, not
+  judged: muted text is 6.04:1 on a dark card where it was 5.71:1, and 6.60:1
+  on a light one; borders step back from 1.40:1 to 1.29:1, which is what a
+  separator that is never the only thing marking a control can afford.
+
 ## [0.0.480] - 2026-09-22
 
 ### Added

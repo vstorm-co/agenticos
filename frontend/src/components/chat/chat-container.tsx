@@ -514,9 +514,8 @@ function ChatUI({
   // input costs nothing extra - and appears when a conversation is *opened* rather than
   // after the next turn reports one.
   const { workspace } = useConversationWorkspace(conversationId);
-  // The composer floats over the transcript so the glass has something to blur,
-  // which means the scroll area must end where the dock begins or the last
-  // message hides behind it. The dock's height is not a constant - attachments,
+  // The composer floats over the transcript, which means the scroll area must
+  // end where the dock begins or the last message hides behind it. The dock's height is not a constant - attachments,
   // banners and a growing textarea all change it - so it is measured.
   // A callback ref rather than `useRef`, because the portal has to re-render once
   // the node exists: a ref object mutating tells React nothing.
@@ -569,14 +568,16 @@ function ChatUI({
             <div ref={messagesEndRef} />
           </div>
         </div>
-        {/* The floating dock: banners, the glass composer, the caption. Over
-            the transcript, not under it - the messages scrolling beneath are
-            what the blur works on. `pointer-events-none` on the wrapper so the
-            transparent gutters beside the column do not swallow clicks and the
-            scrollbar's bottom stays draggable; each child takes its own
+        {/* The floating dock: banners, the composer, the caption. Over the
+            transcript, not under it. `pointer-events-none` on the wrapper so
+            the transparent gutters beside the column do not swallow clicks and
+            the scrollbar's bottom stays draggable; each child takes its own
             pointer-events back. */}
         {/* z-20: a message avatar carries z-10 of its own, and without a higher
-            index here it rides over the glass instead of blurring under it. */}
+            index here it rides over the composer instead of passing behind
+            it - which, now that the composer is opaque, is the difference
+            between a message sliding under the dock and one drawn on top of
+            it. */}
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
           {personalGaps.length > 0 && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
@@ -640,23 +641,25 @@ function ChatUI({
               >
                 <div
                   data-tour="chat-composer"
-                  className="glass focus-within:border-foreground/30 rounded-2xl transition-colors"
+                  // `@container`, so the readings below drop out on the
+                  // composer's own width rather than on the window's. They are
+                  // not the same question: at 900px with the conversation list
+                  // open this box is 360px wide, and a viewport breakpoint
+                  // showed a reading there that had nowhere to go.
+                  className="panel focus-within:border-foreground/30 @container rounded-2xl transition-colors"
                 >
-                  <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+                  <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
                     {isArchived && (
                       <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
                         {t("conversationArchived")}
                       </p>
                     )}
-                    {/* Under the input rather than over the transcript: it is about
-                  the turn that just finished, and a strip above the messages
-                  would move the conversation every time a number changed. */}
-                    <UsageStrip
-                      usage={lastUsage}
-                      workspace={workspace}
-                      total={conversationCost}
-                      contextWindow={contextWindow}
-                    />
+                    {/* One row under the text, not three bands around it. The
+                        connection pill and the readings go left, who-answers
+                        and how go right, and `ChatInput` puts the microphone
+                        and the send button after them - the send button has to
+                        stay inside its own `<form>`, which is what decides
+                        that this is a slot rather than a row of our own. */}
                     <ChatInput
                       onSend={sendMessage}
                       disabled={
@@ -671,49 +674,71 @@ function ChatUI({
                       commands={slashCommands}
                       attachmentSlot={attachmentSlot}
                       mic={mic}
+                      statusSlot={
+                        <>
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
+                          >
+                            <span
+                              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                isConnected ? "bg-success" : "bg-destructive"
+                              }`}
+                            />
+                            {/* The dot is the status; the word only names it.
+                                In a composer too narrow for both, the dot is
+                                what survives. */}
+                            <span className="hidden @[26rem]:inline">
+                              {isConnected ? tc("live") : tc("offline")}
+                            </span>
+                          </span>
+                          {/* The readings used to sit above the text, where a
+                              number changing pushed the caret down a line.
+                              Hidden below `sm`, where the row has the agent
+                              picker and five buttons to fit already. */}
+                          <span className="hidden min-w-0 @[34rem]:flex">
+                            <UsageStrip
+                              usage={lastUsage}
+                              workspace={workspace}
+                              total={conversationCost}
+                              contextWindow={contextWindow}
+                              quiet
+                            />
+                          </span>
+                        </>
+                      }
+                      controlsSlot={
+                        <>
+                          {/* Who answers, first and largest: it is the most
+                              consequential choice in the composer and it was a
+                              tab inside a popover. */}
+                          <AgentPicker />
+                          <div data-tour="chat-model-picker">
+                            <ChatControls
+                              onModelProfileChange={onModelProfileChange}
+                              onApprovalModeChange={onApprovalModeChange}
+                              agentModel={agentModel}
+                            />
+                          </div>
+                          {/* Chat is the one surface with no PageHeader, so the
+                              "?" that replays a page's tips has nowhere else to
+                              live here - except in a composer this narrow,
+                              where it is the first thing that can go. */}
+                          <span className="hidden @[30rem]:block">
+                            <RestartTourButton />
+                          </span>
+                        </>
+                      }
                     />
-                  </div>
-                  {/* `gap-2` and a shrinkable right group, because at 390px the
-                  three controls are 358px wide and used to run 27px past the
-                  composer's own edge - measured on an iPhone 15 viewport. The
-                  connection pill keeps its size (it is two words) and the group
-                  that can give way does. */}
-                  <div className="border-foreground/8 flex items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
-                      >
-                        <span
-                          className={`inline-block h-1.5 w-1.5 rounded-full ${
-                            isConnected ? "bg-success" : "bg-destructive"
-                          }`}
-                        />
-                        {isConnected ? tc("live") : tc("offline")}
-                      </span>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      {/* Who answers, first and largest: it is the most consequential
-                    choice in the composer and it was a tab inside a popover. */}
-                      <AgentPicker />
-                      <div data-tour="chat-model-picker">
-                        <ChatControls
-                          onModelProfileChange={onModelProfileChange}
-                          onApprovalModeChange={onApprovalModeChange}
-                          agentModel={agentModel}
-                        />
-                      </div>
-                      {/* Chat is the one surface with no PageHeader, so the "?" that
-                      replays a page's tips has nowhere else to live here. */}
-                      <RestartTourButton />
-                    </div>
                   </div>
                 </div>
               </Beam>
             </VoiceGlow>
             {/* Text floating over a transcript needs its own pane behind it,
-                or it collides with whatever scrolls past. */}
+                or it collides with whatever scrolls past. Opaque, like every
+                other surface: a translucent chip took its colour from whatever
+                line of the transcript happened to be under it. */}
             <p className="text-center">
-              <span className="text-foreground/40 bg-background/55 mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase backdrop-blur-md">
+              <span className="text-foreground/40 bg-background mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase">
                 {t("aiCanMakeMistakes")}
               </span>
             </p>

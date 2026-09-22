@@ -5,6 +5,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { StatusList, type StatusRow, type StatusTone } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
+import { Repeat } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 import { usePermissions, useRuns } from "@/hooks";
@@ -78,7 +80,11 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
       {isError ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Repeat}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <StatusList rows={rows} />
       )}

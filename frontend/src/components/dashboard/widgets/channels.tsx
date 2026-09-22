@@ -6,6 +6,8 @@ import { useChannelBots } from "@/hooks";
 import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
+import { MessagesSquare } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -39,7 +41,11 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
       {error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : bots.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={MessagesSquare}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <StatusList
           rows={bots.map((bot) => ({

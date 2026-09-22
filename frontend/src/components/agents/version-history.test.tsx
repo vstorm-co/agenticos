@@ -53,7 +53,14 @@ vi.mock("@/hooks", () => ({
       ? { versions: [], total: 0, isLoading: false }
       : { versions: served.versions, total: served.total, isLoading: false },
   VERSIONS_PAGE_SIZE: 10,
+  // The publisher column looks a person up here, and falls back to the stored
+  // address when the list does not hold them - an account that has since left
+  // the organization, which is most of what this fixture serves.
+  useMembers: () => ({ members: knownMembers }),
 }));
+
+/** Who the member list knows about, per test. Empty is the fallback path. */
+let knownMembers: Array<{ user_id: string; email: string; full_name?: string | null }> = [];
 
 function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
   return {
@@ -74,6 +81,7 @@ function version(n: number, overrides: Partial<AgentVersion> = {}): AgentVersion
     id: `v${n}-id`,
     version: n,
     note: `Change ${n}`,
+    published_by_user_id: "u-1",
     published_by_email: "kacper@example.com",
     created_at: "2026-07-30T10:00:00Z",
     ...overrides,
@@ -126,6 +134,7 @@ beforeEach(() => {
   specs.set("v1-id", spec({ instructions: "Be terse." }));
   specs.set("v2-id", spec());
   loading.value = false;
+  knownMembers = [];
 });
 
 describe("the version timeline", () => {
@@ -148,10 +157,29 @@ describe("the version timeline", () => {
     expect(screen.getByText("No note")).toBeInTheDocument();
   });
 
-  it("names the author, and says so when it does not know one", () => {
-    mount({ versions: [version(1, { published_by_email: null })] });
+  it("says so when it knows no author at all", () => {
+    mount({ versions: [version(1, { published_by_user_id: null, published_by_email: null })] });
 
     expect(screen.getByText(/unknown author/)).toBeInTheDocument();
+  });
+
+  it("draws the publisher as a person, the way every other list does", () => {
+    // The row showed a bare address, repeated down the table, where the members
+    // list and the run table both draw a face and a name.
+    knownMembers = [{ user_id: "u-1", email: "kacper@example.com", full_name: "Kacper W" }];
+    mount({ versions: [version(1)] });
+
+    expect(screen.getByText("Kacper W")).toBeInTheDocument();
+  });
+
+  it("falls back to the stored address for somebody who has left", () => {
+    // `published_by_email` is frozen on the version, so it outlives the
+    // membership - which is the one case where the address is the answer
+    // rather than a worse way of writing a name.
+    knownMembers = [];
+    mount({ versions: [version(1)] });
+
+    expect(screen.getByText(/kacper@example.com/)).toBeInTheDocument();
   });
 
   it("survives a version with no publish timestamp", () => {

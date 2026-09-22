@@ -16,6 +16,7 @@ export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
+export { useMounted } from "./use-mounted";
 export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";

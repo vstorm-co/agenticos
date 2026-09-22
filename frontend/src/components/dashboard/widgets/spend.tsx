@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { DeltaChip, Figure } from "@/components/ui";
+import { AnimatedAmount, DeltaChip, Figure } from "@/components/ui";
 
 import { useSpend } from "@/hooks";
 import { deltaPercent, formatUsd } from "../format";
@@ -41,7 +41,16 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
           return (
             <div className="flex h-full flex-col justify-between gap-3">
               <Figure
-                value={formatUsd(cost?.period_usd)}
+                // The one figure on this card somebody watches change: the
+                // filter moves and the bill moves with it. The bars and the
+                // month-to-date line below stay formatted text - they are read
+                // once, not watched.
+                value={
+                  <AnimatedAmount
+                    value={cost?.period_usd}
+                    label={t("spentLabel", { amount: formatUsd(cost?.period_usd) })}
+                  />
+                }
                 unit={t("unit")}
                 delta={
                   delta !== null ? (

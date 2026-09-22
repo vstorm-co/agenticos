@@ -80,9 +80,20 @@ def _default_decision_model(
     extra. The provider takes the key resolved from this deployment's vault rather
     than reading `TYPESAFE_API_KEY` from the environment, so the credential
     follows the agent and never the process.
+
+    The `except` is not decoration, and it was missing: `open_page` guards its
+    own `cdp-use` import and answers with `MISSING_EXTRA`, so a deployment
+    without the extra was told what to install - unless the decision model was
+    built first, which it is. The half of the extra that fails first decides
+    what a person sees, and this half raised a bare `ImportError` that came out
+    of the run as "the agent could not finish this turn (ImportError)". Both
+    halves of one extra owe the same sentence.
     """
-    from pydantic_ai.models.typesafe import TypeSafeModel
-    from pydantic_ai.providers.typesafe import TypeSafeProvider
+    try:
+        from pydantic_ai.models.typesafe import TypeSafeModel
+        from pydantic_ai.providers.typesafe import TypeSafeProvider
+    except ImportError as exc:
+        raise RuntimeError(MISSING_EXTRA) from exc
 
     provider = TypeSafeProvider(api_key=api_key, base_url=base_url)
     return TypeSafeModel(model_name, provider=provider)
