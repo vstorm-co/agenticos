@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.488] - 2026-09-22
+
 ### Changed
 
 - **The MCP SDK is uncapped again, on `httpx2`.** `mcp` was held below 2.0
