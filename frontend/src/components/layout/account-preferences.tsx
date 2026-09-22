@@ -1,11 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Check, Globe, Monitor, Moon, Sun } from "lucide-react";
+import { Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
 import {
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -33,6 +35,12 @@ import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-stor
  * Submenus rather than a flat list of seven rows: the account menu's own
  * entries are the organization, the profile and signing out, and burying those
  * under three themes and three languages inverts what it is for.
+ *
+ * Each choice is a Radix `RadioItem`, not a `<button role="menuitemradio">`.
+ * The hand-rolled version looked identical and was unreachable: Radix builds a
+ * roving-focus collection from its own primitives, so a plain button inside a
+ * menu is skipped by the arrow keys while the menu suppresses Tab - which made
+ * both of these keyboard-inaccessible the moment they moved in here.
  */
 
 const THEME_ICON: Record<Theme, LucideIcon> = {
@@ -75,25 +83,20 @@ export function AppearanceMenu() {
         ) : null}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-40">
-        {(["light", "dark", "system"] as const).map((option) => {
-          const Icon = THEME_ICON[option];
-          return (
-            <button
-              key={option}
-              type="button"
-              role="menuitemradio"
-              aria-checked={mounted && current === option}
-              onClick={() => setTheme(option)}
-              className="hover:bg-accent focus-visible:bg-accent flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none"
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="flex-1">{t(THEME_LABEL[option])}</span>
-              {mounted && current === option ? (
-                <Check className="h-4 w-4 shrink-0" aria-hidden />
-              ) : null}
-            </button>
-          );
-        })}
+        <DropdownMenuRadioGroup
+          value={mounted ? current : undefined}
+          onValueChange={(next) => setTheme(next as Theme)}
+        >
+          {(["light", "dark", "system"] as const).map((option) => {
+            const Icon = THEME_ICON[option];
+            return (
+              <DropdownMenuRadioItem key={option} value={option} className="gap-2">
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                {t(THEME_LABEL[option])}
+              </DropdownMenuRadioItem>
+            );
+          })}
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );
@@ -126,25 +129,22 @@ export function LanguageMenu() {
         <span className="text-muted-foreground text-xs">{getLocaleLabel(locale)}</span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-44">
-        {locales.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="menuitemradio"
-            aria-checked={option === locale}
-            // Through `locale-navigation`, never `next/navigation`: the locale
-            // lives in a cookie as well as in the path, and a switch that only
-            // rewrites the URL survives exactly one navigation.
-            onClick={() => router.push(pathname, { locale: option })}
-            className="hover:bg-accent focus-visible:bg-accent flex w-full cursor-pointer items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-sm outline-none"
-          >
-            <span aria-hidden className="text-base leading-none">
-              {getLocaleFlag(option)}
-            </span>
-            <span className="flex-1">{getLocaleLabel(option)}</span>
-            {option === locale ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : null}
-          </button>
-        ))}
+        <DropdownMenuRadioGroup
+          value={locale}
+          // Through `locale-navigation`, never `next/navigation`: the locale
+          // lives in a cookie as well as in the path, and a switch that only
+          // rewrites the URL survives exactly one navigation.
+          onValueChange={(next) => router.push(pathname, { locale: next as Locale })}
+        >
+          {locales.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option} className="gap-2.5">
+              <span aria-hidden className="text-base leading-none">
+                {getLocaleFlag(option)}
+              </span>
+              {getLocaleLabel(option)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

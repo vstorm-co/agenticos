@@ -1215,7 +1215,8 @@
     "browserResize": "Breite der Browser-Ansicht ändern",
     "browserOpenPanel": "In der Seitenleiste öffnen",
     "browserOpenFull": "Im Vollbild öffnen",
-    "conversationActions": "Aktionen der Konversation"
+    "conversationActions": "Aktionen der Konversation",
+    "imageNotLoaded": "Bild (nicht geladen)"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

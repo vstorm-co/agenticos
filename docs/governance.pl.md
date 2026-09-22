@@ -1,5 +1,5 @@
 ---
-source_sha: "a3bb05a301b0"
+source_sha: "2f11ca35d96a"
 ---
 
 # Governance { #governance }
@@ -675,7 +675,6 @@ początku.
 | `environment_id` | Runy na wersji, którą przypina to środowisko. **Nigdy zdelegowany run:** wersja delegata pochodzi z przypięcia, więc kolumna celowo nigdy nie jest na nim zapisywana, a zawężenie do `production` odrzuca każdą delegację. Powierzchnia, która włącza delegacje, musi to powiedzieć |
 | `exposure_id` | Runy wpuszczone przez jedno powiązanie. Null dla dashboardu i dla API |
 | `agent_version_id` | Runy, które wykonały jeden zamrożony spec — „pokaż mi wiersze stojące za tą liczbą” z paska wersji |
-| `took_over_ms` | Tylko runy wolniejsze niż to. Run, który się nie skończył, nie ma czasu trwania i jest wykluczany, a nie liczony jako zero |
 | `rated` | `down` albo `up` — runy, w których ktoś ocenił wiadomość wyprodukowaną przez ten run |
 | `order_by`, `descending` | `started_at` (domyślnie, od najnowszych), `duration`, `cost` albo `tokens` |
 
@@ -748,10 +747,6 @@ tego samego zapytania:
   obok niego i jak każdy sortowalny nagłówek w produkcie — więc kliknięcie
   porządkuje historię według `duration`, a nie według dwudziestu pięciu wierszy
   na ekranie.
-- Gotowy widok **„slow runs”** to to sortowanie plus próg `took_over_ms` (30 s) w
-  jednym kliknięciu. **„All runs”** zdejmuje oba, z powrotem do sortowania od
-  najnowszych — w obrębie okna, które akurat jest widoczne, bo okno to osobna oś,
-  ustawiana przez link p95 i przez zakres dat.
 - **Liczba p95 na dashboardzie linkuje tutaj**, posortowana według czasu trwania
   w tym samym oknie: `?sort=duration` razem z `started_from` / `started_to`
   danego okresu.

@@ -121,10 +121,25 @@ describe("AnimatedCounter - the number, however it got there", () => {
     expect(spoken(container)).toBe("42 US dollars");
   });
 
-  it("draws the prefix and suffix it is given", () => {
+  it("draws the prefix and suffix it is given, and reads them out", () => {
+    // Without a label the affixes are the only thing naming the unit, so they
+    // stay readable.
     const { container } = render(<AnimatedCounter value={9} prefix="$" suffix="/mo" />);
     expect(container.textContent).toContain("$");
     expect(container.textContent).toContain("/mo");
+    expect(container.querySelector('[aria-hidden="true"].inline-block')).toBeNull();
+  });
+
+  it("hides the affixes from a reader when the label already contains them", () => {
+    // Every `AnimatedAmount` passes `prefix="$"` and a label like "$12.50
+    // spent". Read together that is "dollar, 12 dollars 50 spent".
+    const { container } = render(
+      <AnimatedCounter value={12.5} decimals={2} prefix="$" label="$12.50 spent" />,
+    );
+
+    const affix = [...container.querySelectorAll("span")].find((node) => node.textContent === "$");
+    expect(affix).toHaveAttribute("aria-hidden", "true");
+    expect(spoken(container)).toBe("$12.50 spent");
   });
 
   it("re-aims its wheels when the value moves, in either direction", () => {

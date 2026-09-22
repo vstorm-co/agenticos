@@ -1228,7 +1228,8 @@
     "browserResize": "Resize the browser view",
     "browserOpenPanel": "Open in the side panel",
     "browserOpenFull": "Open full screen",
-    "conversationActions": "Conversation actions"
+    "conversationActions": "Conversation actions",
+    "imageNotLoaded": "Image (not loaded)"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

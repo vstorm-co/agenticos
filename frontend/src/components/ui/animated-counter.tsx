@@ -208,9 +208,13 @@ const fades = (reduced: boolean) => ({
   exit: { opacity: 0, transition: reduced ? INSTANT : LEAVE },
 });
 
-function Fixed({ children, ...slot }: SlotProps & { children: ReactNode }) {
+function Fixed({
+  children,
+  hidden = false,
+  ...slot
+}: SlotProps & { children: ReactNode; hidden?: boolean }) {
   return (
-    <motion.span {...shifts(slot)} className="inline-block">
+    <motion.span {...shifts(slot)} aria-hidden={hidden || undefined} className="inline-block">
       {children}
     </motion.span>
   );
@@ -344,7 +348,17 @@ export function AnimatedCounter({
       className={cn("inline-flex items-center tabular-nums", className)}
       {...props}
     >
-      {prefix != null && <Fixed {...slot}>{prefix}</Fixed>}
+      {/* The affixes are hidden from a reader whenever `label` is doing the
+          talking, because a complete label already contains them: every
+          `AnimatedAmount` passes `prefix="$"` *and* a label like "$12.50
+          spent", which without this is announced as "dollar, 12 dollars 50
+          spent". Without a label they are the only thing naming the unit, so
+          they stay readable. */}
+      {prefix != null && (
+        <Fixed {...slot} hidden={label !== undefined}>
+          {prefix}
+        </Fixed>
+      )}
 
       <span className="sr-only">{label ?? `${negative ? NEGATIVE : ""}${chars}`}</span>
 
@@ -368,7 +382,11 @@ export function AnimatedCounter({
         </AnimatePresence>
       </span>
 
-      {suffix != null && <Fixed {...slot}>{suffix}</Fixed>}
+      {suffix != null && (
+        <Fixed {...slot} hidden={label !== undefined}>
+          {suffix}
+        </Fixed>
+      )}
     </span>
   );
 }

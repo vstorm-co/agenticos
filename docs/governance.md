@@ -630,7 +630,6 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
-| `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
 | `rated` | `down` or `up` — runs where somebody rated a message the run produced |
 | `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
 
@@ -695,10 +694,6 @@ Activity surfaces that duration three ways, and all three lead to the same query
 - The **Took** column header is a sort control — like the Started header beside it,
   and like every sortable header in the product — so a click reorders history by
   `duration` rather than by the twenty-five rows on screen.
-- A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold (30s)
-  as one click. **"All runs"** drops both, back to newest-first — within whatever
-  window is in view, since the window is a separate axis the p95 link and the date
-  range set.
 - The dashboard's **p95 figure links here**, sorted by duration over the same
   window: `?sort=duration` with the period's `started_from` / `started_to`.
 

@@ -292,7 +292,7 @@ function TimelineTurn({
                 {/* The model's own reasoning is markdown too - it writes lists
                     and headings in here exactly as it does in an answer. */}
                 <div className="mt-1">
-                  <MarkdownContent content={part.content ?? ""} />
+                  <MarkdownContent content={part.content ?? ""} inertImages />
                 </div>
               </details>
             ) : part.type === "ask_user" ? (
@@ -315,7 +315,7 @@ function TimelineTurn({
               // the one place it was unreadable.
               <CopyablePanel key={part.id} text={part.content ?? ""} bare>
                 <div className="text-sm">
-                  <MarkdownContent content={part.content ?? ""} />
+                  <MarkdownContent content={part.content ?? ""} inertImages />
                 </div>
               </CopyablePanel>
             ),

@@ -1,5 +1,5 @@
 ---
-source_sha: "a3bb05a301b0"
+source_sha: "2f11ca35d96a"
 ---
 
 # Governance { #governance }
@@ -664,7 +664,6 @@ anónimo de entrada.
 | `environment_id` | Runs sobre la versión que fija ese entorno. **Nunca un run delegado:** la versión de un delegado viene de un pin, así que la columna deliberadamente no se escribe nunca en uno, y acotar a `production` descarta cada delegación. Una superficie que incluya delegaciones tiene que decirlo |
 | `exposure_id` | Runs admitidos por un binding. Nulo para el dashboard y la API |
 | `agent_version_id` | Runs que ejecutaron un spec congelado — el "enséñame las filas detrás de este número" de la tira de versiones |
-| `took_over_ms` | Solo runs más lentos que esto. Un run que no ha terminado no tiene duración y queda excluido, no contado como cero |
 | `rated` | `down` o `up` — runs en los que alguien valoró un mensaje que produjo el run |
 | `order_by`, `descending` | `started_at` (el valor por defecto, más recientes primero), `duration`, `cost` o `tokens` |
 
@@ -733,10 +732,6 @@ Activity saca esa duración de tres maneras, y las tres llevan a la misma consul
 - La cabecera de la columna **Took** es un control de orden — como la cabecera Started
   a su lado, y como cada cabecera ordenable del producto — así que un clic reordena el
   historial por `duration` y no por las veinticinco filas en pantalla.
-- Una vista predefinida de **"slow runs"** es ese orden más un umbral `took_over_ms`
-  (30 s) en un solo clic. **"All runs"** quita ambos, de vuelta a más recientes
-  primero — dentro de la ventana que esté a la vista, ya que la ventana es un eje
-  aparte que fijan el enlace del p95 y el rango de fechas.
 - La cifra **p95 del dashboard enlaza aquí**, ordenada por duración sobre la misma
   ventana: `?sort=duration` con el `started_from` / `started_to` del periodo.
 

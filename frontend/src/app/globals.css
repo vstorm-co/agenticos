@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* A device with no pointer that can hover - a phone, a tablet.
+ *
+ * Declared because it was being *used* and did not exist: `touch:` appeared in
+ * the conversation row and compiled to nothing, so a control that reveals
+ * itself on hover had no second route on the one class of device that cannot
+ * hover. Tailwind v4 takes variants from CSS rather than from a config file,
+ * and there is no config file here, so this is where it goes.
+ *
+ * `hover: none` rather than `pointer: coarse`: the question is whether hover
+ * can reveal something, not how precise the pointer is. A stylus is coarse and
+ * hovers; a touchscreen laptop reports both and keeps the hover route. */
+@custom-variant touch (@media (hover: none));
+
 /* =========================================================================
    Design tokens.
 

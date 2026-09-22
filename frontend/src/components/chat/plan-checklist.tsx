@@ -65,14 +65,16 @@ const STRIKE_STYLE: CSSProperties = {
   WebkitBoxDecorationBreak: "clone",
 };
 
-function TaskCheck({ done, timing }: { done: boolean; timing: (t: Transition) => Transition }) {
+function TaskCheck({ timing }: { timing: (t: Transition) => Transition }) {
+  // Only ever drawn for a step that has completed - `LOOK.completed` is the one
+  // row carrying no icon, which is what routes it here - so there is no
+  // "not done" state and no `done` prop. That matters beyond tidiness: the
+  // first version took one and drew `done ? 1 : 0` with `initial={false}`,
+  // which meant every branch of it was dead *and* nothing ever animated. The
+  // component mounts at the moment the step finishes, replacing the spinner,
+  // so the animation is an entry: `initial` is the ring, `animate` is the tick.
   return (
-    <motion.svg
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="text-success h-3.5 w-3.5 shrink-0"
-      initial={false}
-    >
+    <motion.svg viewBox="0 0 24 24" aria-hidden className="text-success h-3.5 w-3.5 shrink-0">
       <motion.circle
         cx="12"
         cy="12"
@@ -82,8 +84,8 @@ function TaskCheck({ done, timing }: { done: boolean; timing: (t: Transition) =>
         strokeWidth="2"
         strokeLinecap="round"
         strokeDasharray={RING_DASH}
-        initial={false}
-        animate={{ opacity: done ? 0 : 1 }}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 0 }}
         transition={timing(FILL)}
       />
       <motion.circle
@@ -92,8 +94,8 @@ function TaskCheck({ done, timing }: { done: boolean; timing: (t: Transition) =>
         r="12"
         fill="currentColor"
         style={{ transformBox: "view-box", transformOrigin: "12px 12px" }}
-        initial={false}
-        animate={{ scale: done ? 1 : 0 }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
         transition={timing(FILL)}
       />
       <motion.path
@@ -106,8 +108,8 @@ function TaskCheck({ done, timing }: { done: boolean; timing: (t: Transition) =>
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"
-        initial={false}
-        animate={{ pathLength: done ? 1 : 0, opacity: done ? 1 : 0 }}
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
         transition={timing(TICK)}
       />
     </motion.svg>
@@ -159,7 +161,7 @@ export function PlanChecklist({
               )}
             >
               {Icon === null ? (
-                <TaskCheck done={done} timing={timing} />
+                <TaskCheck timing={timing} />
               ) : (
                 <Icon
                   className={cn("h-3.5 w-3.5", step.status === "in_progress" && "animate-spin")}

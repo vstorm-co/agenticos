@@ -295,7 +295,8 @@
     "browserResize": "Zmień szerokość widoku przeglądarki",
     "browserOpenPanel": "Otwórz w panelu bocznym",
     "browserOpenFull": "Otwórz na pełnym ekranie",
-    "conversationActions": "Akcje konwersacji"
+    "conversationActions": "Akcje konwersacji",
+    "imageNotLoaded": "Obraz (niezaładowany)"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

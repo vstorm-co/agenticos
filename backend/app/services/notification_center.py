@@ -655,22 +655,37 @@ class NotificationCenterService:
 
         Deliberately the *listing's* rows, not the unread ones: what "clear"
         means to somebody looking at the panel is everything in the panel.
+
+        It **pages**, for the reason `list_inbox` does. A single capped fetch
+        starting at `after=None` is the same page every time, so a recipient
+        whose newest thousand rows all fail the read-time gate - somebody
+        demoted out of an audience, whose security notifications are still
+        stored and no longer visible - would clear nothing, and every retry
+        would re-read the same invisible page while the visible rows behind it
+        stayed put. Walking the cursor is what reaches them.
         """
         user_id = self._require_caller(ctx)
-        candidates = await notification_repo.list_inbox_page(
-            self.db,
-            recipient_id=user_id,
-            organization_id=ctx.organization_id,
-            is_app_admin=ctx.is_app_admin,
-            after=None,
-            limit=_DISMISS_CANDIDATE_CAP,
-        )
-        cache = await self._build_gate_cache(ctx, candidates)
-        visible_ids = []
-        for row in candidates:
-            gate = await self.gate_for(ctx, row, cache)
-            if gate.visible:
-                visible_ids.append(row.id)
+        visible_ids: list[uuid.UUID] = []
+        cursor: tuple[datetime, uuid.UUID] | None = None
+        for _ in range(_MAX_INBOX_FETCH_ROUNDS):
+            batch = await notification_repo.list_inbox_page(
+                self.db,
+                recipient_id=user_id,
+                organization_id=ctx.organization_id,
+                is_app_admin=ctx.is_app_admin,
+                after=cursor,
+                limit=_DISMISS_CANDIDATE_CAP,
+            )
+            if not batch:
+                break
+            cache = await self._build_gate_cache(ctx, batch)
+            for row in batch:
+                gate = await self.gate_for(ctx, row, cache)
+                if gate.visible:
+                    visible_ids.append(row.id)
+            if len(visible_ids) >= _DISMISS_CANDIDATE_CAP or len(batch) < _DISMISS_CANDIDATE_CAP:
+                break
+            cursor = (batch[-1].created_at, batch[-1].id)
         return await notification_repo.dismiss_ids(
             self.db, ids=visible_ids, dismissed_at=datetime.now(UTC)
         )

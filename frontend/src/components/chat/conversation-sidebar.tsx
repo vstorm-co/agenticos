@@ -184,7 +184,11 @@ function ConversationItem({
             // Width rather than `hidden`, because `hidden` takes it out of the
             // tab order: a keyboard user reaches this by tabbing, and
             // `focus-visible` is what opens it for them. `touch:` keeps it
-            // permanently sized where there is no hover at all.
+            // permanently sized where there is no hover at all - a phone cannot
+            // reveal a zero-width target, and this menu is the only way to
+            // reach Rename, Share, Archive and Delete. That variant is declared
+            // in `globals.css`; it was in use here and undeclared, which
+            // compiled to nothing.
             "h-8 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
             "w-0 opacity-0",
             "group-hover:w-8 group-hover:opacity-100",

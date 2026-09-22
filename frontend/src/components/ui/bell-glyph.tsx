@@ -379,6 +379,11 @@ export function BellGlyph({
     <button
       type="button"
       data-slot="bell-glyph"
+      // The name as an attribute, not as an `sr-only` child: this element is
+      // ours, so the direct label is both the cleaner announcement and the one
+      // a test can read off the DOM. The `asChild` branch above cannot do that
+      // - it does not own the element - and keeps the hidden span instead.
+      aria-label={label}
       className={cn(
         "focus-visible:ring-ring relative grid place-items-center rounded-full transition-transform outline-none focus-visible:ring-2 active:scale-90 motion-reduce:active:scale-100",
         SURFACE,
@@ -388,7 +393,6 @@ export function BellGlyph({
       style={{ width: size, height: size, ...style }}
       {...props}
     >
-      {spoken}
       <BellIcon side={size * ICON} swing={swing} clapper={clapper} />
       {badge}
     </button>

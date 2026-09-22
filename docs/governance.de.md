@@ -1,5 +1,5 @@
 ---
-source_sha: "a3bb05a301b0"
+source_sha: "2f11ca35d96a"
 ---
 
 # Governance { #governance }
@@ -722,7 +722,6 @@ anonym.
 | `environment_id` | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen |
 | `exposure_id` | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API |
 | `agent_version_id` | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste |
-| `took_over_ms` | Nur Runs, die langsamer als dies sind. Ein Run, der nicht fertig ist, hat keine Dauer und wird ausgeschlossen, nicht als null gezählt |
 | `rated` | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat |
 | `order_by`, `descending` | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens` |
 
@@ -797,10 +796,6 @@ Abfrage:
   Überschrift Started daneben und wie jede sortierbare Überschrift im Produkt —,
   sodass ein Klick die Historie nach `duration` neu ordnet und nicht die
   fünfundzwanzig Zeilen auf dem Bildschirm.
-- Eine fertige Ansicht **„slow runs"** ist diese Sortierung plus ein Schwellwert
-  `took_over_ms` (30 s) in einem Klick. **„All runs"** lässt beides fallen, zurück
-  zu neueste zuerst — innerhalb des Fensters, das gerade in Sicht ist, denn das
-  Fenster ist eine eigene Achse, die der p95-Link und der Datumsbereich setzen.
 - Die **p95-Zahl des Dashboards verlinkt hierher**, nach Dauer sortiert über
   dasselbe Fenster: `?sort=duration` mit dem `started_from` / `started_to` des
   Zeitraums.

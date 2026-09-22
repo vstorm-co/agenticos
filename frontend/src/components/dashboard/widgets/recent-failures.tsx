@@ -13,6 +13,12 @@ import { TriangleAlert } from "lucide-react";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
+/** How many runs to ask for, against the five groups the card has room for. */
+const FAILURE_CANDIDATES = 25;
+
+/** How many grouped rows the card draws. */
+const SHOWN_GROUPS = 5;
+
 /** One agent failing the same way, however many times it did it. */
 interface FailureGroup {
   key: string;
@@ -81,14 +87,20 @@ export function RecentFailuresWidget({ title, hint, seeAll, options }: Dashboard
   const t = useTranslations("dashboard.widgets.recent-failures");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const { failures, isLoading, error, refetch } = useRecentFailures(5);
+  // Ask for more than the five rows this card draws, because the grouping
+  // happens *here*: five runs that all failed the same way collapse to one
+  // row, and if five is all that was fetched the four rows that frees stay
+  // empty while four genuinely different failures sit unread on the next page.
+  // Twenty-five is the run list's own page size, so this costs no extra round
+  // trip shape - and what is drawn is still five groups.
+  const { failures, isLoading, error, refetch } = useRecentFailures(FAILURE_CANDIDATES);
   const { agents } = useAgents();
   const names = new Map(agents.map((agent) => [agent.id, agent.name]));
   const groups = useMemo(
     () =>
       groupFailures(failures, (run) =>
         run.status === "budget_exceeded" ? t("budgetExceeded") : (run.error ?? t("failed")),
-      ),
+      ).slice(0, SHOWN_GROUPS),
     [failures, t],
   );
 
