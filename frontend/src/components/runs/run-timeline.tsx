@@ -412,8 +412,17 @@ function CopyablePanel({
   return (
     <div className={cn("group/copy relative", !bare && "bg-muted/40 rounded-md p-3")}>
       {children}
-      <div className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/copy:opacity-100 focus-within:opacity-100">
-        <CopyButton text={text} />
+      {/* The wrapper owns the reveal, so the button is told to stop hiding
+          itself. `CopyButton` carries its own `opacity-0 group-hover:…`, which
+          listens for an *unnamed* `.group` ancestor - this one is `group/copy`,
+          so the button's own rule never fired and the control stayed invisible
+          at every state. `opacity-100` here wins because `cn` merges it last.
+
+          `touch:` because a device that cannot hover raises no
+          `focus-visible` on a tap either: without it there is nothing to
+          reveal the control and nothing to tell somebody where to tap. */}
+      <div className="touch:opacity-100 absolute top-1 right-1 opacity-0 transition-opacity group-hover/copy:opacity-100 focus-within:opacity-100">
+        <CopyButton text={text} className="opacity-100" />
       </div>
     </div>
   );

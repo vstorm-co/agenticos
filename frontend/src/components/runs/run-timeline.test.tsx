@@ -395,6 +395,20 @@ describe("what the model was actually handed", () => {
 });
 
 describe("taking something out of a run", () => {
+  it("actually shows the copy button rather than leaving it transparent", async () => {
+    // `CopyButton` hides itself with `opacity-0 group-hover:opacity-100`, which
+    // watches an *unnamed* `.group`. The wrapper here is `group/copy`, so that
+    // rule never fires and the control shipped invisible at every state -
+    // `getByRole` finds an `opacity-0` element perfectly well, which is why the
+    // first version of these tests passed against a broken feature.
+    serve({ items: [turn({ role: "user", content: "explore the wikipedia page" })] });
+    renderTimeline();
+
+    const copy = (await screen.findAllByRole("button", { name: /copy/i }))[0];
+    expect(copy).toHaveClass("opacity-100");
+    expect(copy).not.toHaveClass("opacity-0");
+  });
+
   it("offers to copy what the person asked", async () => {
     // Half of reading a run back is *taking* something from it - the prompt to
     // try again, the answer to paste into a ticket. None of it was reachable
