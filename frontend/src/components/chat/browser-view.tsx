@@ -122,7 +122,7 @@ export function Viewport({ browse, inset = false }: { browse: Browse; inset?: bo
         className="block w-full"
       />
       {running && !inset && (
-        <span className="bg-background/70 text-foreground/80 supports-[backdrop-filter]:bg-background/45 absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[10px] tabular-nums backdrop-blur-md">
+        <span className="bg-background text-foreground/80 border-border absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] tabular-nums">
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
           {progress}
         </span>

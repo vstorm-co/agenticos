@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
 import {
+  clearNotifications,
+  dismissNotification,
   getUnreadNotificationCount,
   listNotifications,
   markAllNotificationsRead,
@@ -46,6 +48,10 @@ interface UseNotificationInboxResult {
   refetch: () => void;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  /** Take one row out of the inbox for good. */
+  dismiss: (id: string) => Promise<void>;
+  /** Take everything currently listed out of it. */
+  clearAll: () => Promise<void>;
 }
 
 /**
@@ -167,6 +173,55 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     await queryClient.invalidateQueries({ queryKey: qk.notifications.unreadCount() });
   };
 
+  const dismiss = async (id: string) => {
+    await dismissNotification(id);
+    await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
+    await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
+    // Same read-the-cache-fresh rule `markRead` explains above, for the same
+    // race: two clicks on the same row share one render, so a snapshot taken
+    // at render time has both see it unread and decrement the badge twice.
+    const cached = queryClient.getQueryData<InboxCache>(qk.notifications.inbox());
+    const wasUnread = cached?.pages.some((page) =>
+      page.items.some((item) => item.id === id && item.read_at === null),
+    );
+    queryClient.setQueryData<InboxCache>(qk.notifications.inbox(), (prev) =>
+      prev
+        ? {
+            ...prev,
+            pages: prev.pages.map((page) => ({
+              ...page,
+              items: page.items.filter((item) => item.id !== id),
+            })),
+          }
+        : prev,
+    );
+    // A dismissed row is read as well as gone - the server marks it so, and a
+    // badge still counting a row nobody can reach is a badge that cannot be
+    // cleared.
+    if (wasUnread) {
+      queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
+        Math.max(0, (prev ?? 1) - 1),
+      );
+    }
+  };
+
+  const clearAll = async () => {
+    await clearNotifications();
+    await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
+    await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
+    // Every page, not just the first: the panel may have paged back through
+    // several, and the sweep took all of them.
+    queryClient.setQueryData<InboxCache>(qk.notifications.inbox(), (prev) =>
+      prev ? { ...prev, pages: prev.pages.map((page) => ({ ...page, items: [] })) } : prev,
+    );
+    queryClient.setQueryData<number>(qk.notifications.unreadCount(), 0);
+    // Then ask, because the sweep is capped: an inbox longer than the cap is
+    // partly cleared, and the refetch is what distinguishes that from an empty
+    // one. Same bargain `markAllRead` makes with its own cap.
+    await queryClient.invalidateQueries({ queryKey: qk.notifications.inbox() });
+    await queryClient.invalidateQueries({ queryKey: qk.notifications.unreadCount() });
+  };
+
   return {
     notifications,
     isLoading,
@@ -177,5 +232,7 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     refetch: () => void refetch(),
     markRead,
     markAllRead,
+    dismiss,
+    clearAll,
   };
 }

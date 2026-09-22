@@ -8,6 +8,8 @@ import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
+import { Boxes } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -38,7 +40,11 @@ export function SandboxCapacityWidget({ title, hint, seeAll, options }: Dashboar
       ) : error !== null ? (
         <WidgetErrorBody onRetry={() => void refresh()} />
       ) : hosts.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Boxes}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="flex h-full flex-col justify-between gap-3">
           <ul className="space-y-3">

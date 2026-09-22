@@ -1,5 +1,5 @@
 ---
-source_sha: "dd8410f601c7"
+source_sha: "15ab128f02d8"
 ---
 
 # La consola { #the-console }
@@ -74,6 +74,22 @@ espera a que se recargue la página. **Mark all read** barre hasta quinientas
 filas no leídas de una vez y luego vuelve a pedir el contador — así que con un
 atraso mayor la insignia sigue mostrando lo que queda por leer y un clic más
 termina el resto, en lugar de anunciar una bandeja que solo trabajó en parte.
+
+Leída no es lo mismo que fuera, y se ofrecen las dos cosas. Pasar el cursor por
+una fila revela una cruz que la saca de la lista; **Clear** en la cabecera saca
+todo lo que está listado ahora mismo, leído y no leído por igual. Limpiar algo
+no leído lo marca además como leído, porque una fila que nada en pantalla puede
+alcanzar no debe seguir contando para la insignia. Como «Mark all read», una
+limpieza está acotada — mil filas — y un atraso más largo pide un segundo clic.
+
+Lo que una fila limpiada *no* hace es volver. La notificación se conserva y deja
+de listarse, en lugar de borrarse, y eso es lo que lo hace cierto: la bandeja
+reconoce una repetición por el hecho que describe, así que una fila borrada
+sería una que la siguiente comprobación de budget o el siguiente reintento
+volverían a escribir. Descartar un aviso del que ya te has ocupado es, por
+tanto, definitivo — para esa ocurrencia; uno *nuevo*, sobre un hecho nuevo,
+sigue llegando. Las filas también caen solas: noventa días después de
+escribirse si fueron leídas, y un año pase lo que pase.
 
 Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde

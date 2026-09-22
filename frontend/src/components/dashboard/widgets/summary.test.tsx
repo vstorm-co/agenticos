@@ -64,7 +64,11 @@ describe("the summary strip", () => {
     withUsage();
     renderWidget(<SummaryWidget title="At a glance" hint="" period={PERIOD} />);
 
-    expect(screen.getByText("$12.50")).toBeVisible();
+    // The spend rolls to its value rather than being printed, so the digits on
+    // screen are wheel faces and the figure is spelled out once, in the line a
+    // screen reader is given - which is also the only one jsdom can read,
+    // since it computes no transforms.
+    expect(screen.getByText("$12.50 spent")).toBeVisible();
     expect(screen.getByText("of 23 members")).toBeVisible();
     // One query, the same one every other composed-response card reads.
     expect(useUsageStatsMock).toHaveBeenCalledTimes(1);

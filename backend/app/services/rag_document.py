@@ -400,20 +400,12 @@ class RAGDocumentService:
                 vector_document_id=replaced_document_id,
                 keep_id=doc.id,
             )
-        try:
-            await NotificationService(self.db).ingestion_completed(
-                doc, attempt=attempt, chunk_count=chunk_count
-            )
-        except Exception:
-            # Best-effort past this point, the same contract `write()`'s own
-            # `use_savepoint` gives its other callers - but the audience
-            # resolution here runs *before* that savepoint opens, so a
-            # failure in it (not in the write itself) would otherwise
-            # propagate out of a settlement that already recorded a
-            # successfully vectorized document, and `_run_ingestion`'s own
-            # `except Exception` would mark it `ERROR` for a notification
-            # that has nothing to do with whether ingestion succeeded.
-            logger.exception("Failed to notify about a completed ingestion for %s", doc_id)
+        # No notification on the way out. A document that indexed cleanly is
+        # not news: the collection already shows its status, and one row per
+        # file made the ordinary case - thirty files dropped in at once -
+        # thirty interruptions that buried the rows worth reading.
+        # `ingestion_failed` still fires, and a connector run still reports its
+        # whole-attempt figure through `sync_completed`.
 
     async def _retire_superseded(
         self, *, collection_name: str, vector_document_id: str, keep_id: UUID

@@ -117,14 +117,30 @@ describe("what the header says about a file", () => {
  * a table hides which delimiter a CSV used, so that counts too.
  */
 describe("the views a file offers", () => {
-  it("offers the characters as well, for a file whose preview transforms it", async () => {
+  it("opens on the characters, for a file whose preview transforms them", async () => {
+    // Source first, where there is one: a console shows a file to answer a
+    // question about its contents, and the rendered view is what hides it.
     open({ name: "report.md" });
 
-    expect(await screen.findByTestId("markdown")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Source" }));
-
+    expect(await screen.findByText("# Report")).toBeInTheDocument();
     expect(screen.queryByTestId("markdown")).toBeNull();
-    expect(screen.getByText("# Report")).toBeInTheDocument();
+  });
+
+  it("renders it once the preview is asked for", async () => {
+    open({ name: "report.md" });
+    await screen.findByText("# Report");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
+
+    expect(await screen.findByTestId("markdown")).toBeInTheDocument();
+  });
+
+  it("still opens on the preview where there is no source to open on", () => {
+    // An image has nothing to fall back from, so defaulting it to a tab that
+    // does not exist would leave the dialog on no tab at all.
+    open({ name: "handbook.pdf" });
+
+    expect(screen.queryByRole("tab", { name: "Source" })).toBeNull();
   });
 
   it("offers it for an HTML page too", () => {

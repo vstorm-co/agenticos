@@ -42,14 +42,20 @@ test.describe("Sidebar", () => {
     await page.goto("/dashboard");
 
     const sidebar = column(page);
+    // The column's own row is the two *actions*: find something, and see what
+    // happened. The language and the theme are settings, and they moved into
+    // the account menu below - which is where somebody looks for a preference,
+    // and where each one can be named rather than being an unlabelled glyph.
     await expect(sidebar.getByRole("button", { name: "Search" })).toBeVisible();
-    await expect(sidebar.getByRole("button", { name: "Language" })).toBeVisible();
-    await expect(sidebar.getByRole("button", { name: /^Switch theme/ })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: /notifications/i })).toBeVisible();
     await expect(sidebar.getByRole("button", { name: ACCOUNT })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: "Language" })).toHaveCount(0);
 
-    // The organization is still reachable, one level in.
+    // The organization, the language and the theme are all one level in.
     await sidebar.getByRole("button", { name: ACCOUNT }).click();
     await expect(page.getByRole("menuitem", { name: "Manage organizations" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /Appearance/ })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /Language/ })).toBeVisible();
     await page.keyboard.press("Escape");
 
     // The point of the move: a 56px strip carrying one logo, on every page, is

@@ -59,7 +59,7 @@ export function MobileTabBar() {
     <nav
       role="navigation"
       aria-label={t("primary")}
-      className="border-foreground/10 bg-background/95 supports-[backdrop-filter]:bg-background/85 fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="border-foreground/10 bg-background fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {items.map((item) => {
         const active = isActive(item);

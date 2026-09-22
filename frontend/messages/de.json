@@ -88,7 +88,6 @@
     "addedFirstMessageEach": "Wird der ersten Nachricht jeder Unterhaltung hinzugefügt. Es ersetzt nie die eigenen Instruktionen des Agents.",
     "agent": "Agent",
     "agentCount": "{count, plural, =1 {1 Agent} other {# Agents}}",
-    "agentHasNotRun": "Dieser Agent ist noch nicht gelaufen. Veröffentlichen Sie ihn und schicken Sie ihm eine Nachricht, oder testen Sie ihn über die Kopfzeile.",
     "alertApprovals": "Freigabeanfragen",
     "alertApprovalsTrigger": "Ein Tool-Aufruf wurde geparkt, und der Run wartet auf die Entscheidung eines Menschen.",
     "alertAudience": "{alert}: {audience}",
@@ -337,7 +336,6 @@
     "model2": "Modell",
     "modelIdOpenRouterHint": "Nach Herkunft benannt, so wie OpenRouter es listet – openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "So, wie der Provider es nennt. Freitext, weil sie neue schneller ausliefern, als eine Liste hier gepflegt werden könnte.",
-    "modelTheseRunsHad": "Für ein Modell in diesen Runs gab es keinen Preis, dies ist also eine Untergrenze.",
     "modelsCouldNotBeListed": "Modelle konnten nicht gelistet werden",
     "modelsCouldNotBeListedHint": "Dieser Bereich ist leer, weil die Anfrage nach den Modellen dieser Organisation nicht geantwortet hat, nicht weil sie keine hätte.",
     "moreActionsFor": "Weitere Aktionen für {name}",
@@ -377,7 +375,6 @@
     "notList": "nicht in der Liste",
     "notPublishedAnySite": "Noch auf keiner Site veröffentlicht.",
     "notSet": "Nicht gesetzt",
-    "notStarted": "nicht begonnen",
     "nothingToShareWithDelegates": "Dieser Agent ist an nichts weiter gebunden, es gibt also nichts weiterzugeben.",
     "offRemovesShellEntirely": "Aus entfernt die Shell vollständig, statt vor jedem Befehl zu fragen.",
     "oneAtTime": "Eines nach dem anderen",
@@ -435,7 +432,7 @@
     "platform": "Plattform",
     "polling": "Abfrage",
     "production": "Produktion",
-    "promote": "Heraufstufen auf …",
+    "promote": "Hochstufen",
     "promoteSpecialist": "Zu einem Entwurfs-Agent machen",
     "promoteSpecialistDetail": "Erzeugt aus diesem Spezialisten einen Entwurfs-Agent. Er wird nicht veröffentlicht, nicht als Delegat festgesetzt, und dieser Spezialist bleibt, wo er ist.",
     "promoteVersionTo": "v{version} heraufstufen auf …",
@@ -511,7 +508,6 @@
     "secretMissingFromVault": "Das hier gewählte Secret liegt nicht im Vault dieser Organisation – es wurde gelöscht, oder der Spec wurde für eine andere Organisation geschrieben. Das Veröffentlichen lehnt es ab.",
     "secretOfWrongKind": "„{name}“ ist von der Art {kind}; diese Capability braucht {needed}. Das Veröffentlichen lehnt es ab.",
     "secretUnchanged": "Leer lassen, um das gespeicherte Secret zu behalten",
-    "seeEveryRunActivity": "Jeden Run unter Aktivität ansehen",
     "separateWithCommas": "Mit Kommas trennen",
     "separatesStagingTrafficFrom": "Trennt Staging-Verkehr im selben Projekt vom echten.",
     "traceContent": "Trace-Inhalt",
@@ -557,7 +553,6 @@
     "specialistUnnamed": "Neuer Spezialist",
     "specialistsHeading": "Eingebettete Spezialisten",
     "specialistsNotVersioned": "Hier definiert, nicht veröffentlicht: Ein Spezialist hat keine Version, lässt sich nicht festsetzen und ändert sich, sobald dieser Agent bearbeitet wird.",
-    "spent": "Ausgegeben",
     "startsAsDraftNothing": "Er beginnt als Entwurf. Nichts läuft, bis Sie ihn veröffentlichen.",
     "statusArchived": "archiviert",
     "statusDraft": "Entwurf",
@@ -1219,7 +1214,9 @@
     },
     "browserResize": "Breite der Browser-Ansicht ändern",
     "browserOpenPanel": "In der Seitenleiste öffnen",
-    "browserOpenFull": "Im Vollbild öffnen"
+    "browserOpenFull": "Im Vollbild öffnen",
+    "conversationActions": "Aktionen der Konversation",
+    "imageNotLoaded": "Bild (nicht geladen)"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -1341,7 +1338,8 @@
         "empty": {
           "title": "In diesem Zeitraum lief nichts",
           "description": "Wählen Sie ein größeres Fenster, oder geben Sie einem Agent eine Oberfläche, dann beginnen die Zahlen hier."
-        }
+        },
+        "spendLabel": "{amount} ausgegeben"
       },
       "active-users": {
         "empty": {
@@ -1578,7 +1576,8 @@
         "open": "Runs öffnen",
         "title": "Letzte Fehlschläge",
         "unknownAgent": "Unbekannter Agent",
-        "description": "Runs, die fehlgeschlagen sind oder kein Budget mehr hatten, neueste zuerst."
+        "description": "Runs, die fehlgeschlagen sind oder kein Budget mehr hatten, neueste zuerst.",
+        "timesFailed": "× {count}"
       },
       "runs": {
         "delta": "gegenüber dem Vorzeitraum",
@@ -1680,7 +1679,8 @@
         "title": "Ausgaben",
         "unit": "in diesem Zeitraum",
         "description": "Was der Zeitraum gekostet hat und was dieser Kalendermonat bisher. Die Monatszahl stimmt mit der Rechnung überein und ignoriert den Zeitraumfilter deshalb absichtlich.",
-        "split": "{models} auf Modelle · {ingestion} auf Indexierung"
+        "split": "{models} auf Modelle · {ingestion} auf Indexierung",
+        "spentLabel": "{amount} ausgegeben"
       },
       "surfaces": {
         "empty": {
@@ -2599,7 +2599,9 @@
     "allOrganizations": "Alle Organisationen",
     "context": "Kontext",
     "deploymentSettings": "Deployment",
-    "routines": "Routinen"
+    "routines": "Routinen",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3402,7 +3404,6 @@
       "perMonth": "${amount} pro Monat",
       "publish": "Veröffentlichen",
       "publishAgentChatWith": "Veröffentlichen Sie diesen Agent, um mit ihm zu chatten – der Chat führt die veröffentlichte Version aus",
-      "recentRuns": "Letzte Runs",
       "removesAgentEveryVersion": "Das entfernt den Agent, jede seiner Versionen und jede Freigabe, die auf ihn zeigt. Seine bisherigen Runs bleiben fürs Protokoll erhalten. Archivieren Sie ihn stattdessen, wenn er nur aufhören soll.",
       "removesAgentEveryVersion2": "Das entfernt den Agent, jede seiner Versionen und jede Freigabe, die auf ihn zeigt. Seine bisherigen Runs bleiben fürs Protokoll erhalten. Archivieren Sie ihn stattdessen, wenn er nur aufhören soll.",
       "replaceAvatar": "Avatar ersetzen",
@@ -3430,7 +3431,6 @@
       "versions": "Versionen",
       "visualMap": "Visuelle Karte",
       "whatAgentCanDo": "Was dieser Agent tun kann und wo er aufbewahrt, was er hervorbringt. Alles, was auf die Außenwelt wirkt, braucht vor der Ausführung eine Freigabe durch einen Menschen.",
-      "whetherAgentWorkingWhat": "Ob dieser Agent arbeitet und was er gekostet hat. Die vollständige Historie – Oberflächen, Token, die Version, die jeder Run ausgeführt hat – liegt unter Aktivität, statt hier halb nachgebaut zu werden.",
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
@@ -3792,7 +3792,6 @@
       "agentColumn": "Agent",
       "agentFilter": "Nach Agent filtern",
       "agentsAreRunningWithout": "Agents laufen, ohne Sie zu brauchen.",
-      "allRuns": "Alle Runs",
       "answered": "Antwort erhalten",
       "anyAgent": "Alle Agents",
       "anyModel": "Beliebiges Modell",
@@ -3922,7 +3921,6 @@
       "showArguments": "Argumente",
       "showEveryAgent": "Jeden Agent anzeigen",
       "showingTheNewestOf": "{shown, plural, =1 {Der neueste von {total} in diesem Zeitraum entschiedenen wird angezeigt} other {Die neuesten # von {total} in diesem Zeitraum entschiedenen werden angezeigt}}. Exportieren Sie die CSV für den ganzen Datensatz.",
-      "slowRuns": "Langsame Runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 Run in diesem Zeitraum ließ sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze} other {# Runs in diesem Zeitraum ließen sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze}}",
       "specialistHasNoAgent": "Innerhalb des Eltern-Agents definiert statt eigenständig veröffentlicht, es gibt also keine Agent-Seite zum Öffnen.",
       "spend": "Ausgaben",
@@ -4744,7 +4742,11 @@
     "systemTheme": "Systemdesign",
     "systemTheme2": "Systemdesign",
     "themeTitle": "Design: {theme}",
-    "toggleTheme": "Design umschalten"
+    "toggleTheme": "Design umschalten",
+    "appearance": "Darstellung",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
   },
   "time": {
     "daysAgo": "{count, plural, other {vor # T}}",
@@ -5169,6 +5171,8 @@
     "empty": {
       "title": "Noch keine Benachrichtigungen",
       "description": "Budget-Warnungen, Freigaben, fehlgeschlagene Runs und mehr erscheinen hier."
-    }
+    },
+    "clearAll": "Alle löschen",
+    "dismissRow": "Ausblenden"
   }
 }

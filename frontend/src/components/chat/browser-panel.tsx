@@ -110,7 +110,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
       // width to drag, so only the second carries the handle.
       style={full ? undefined : { width }}
       className={cn(
-        "bg-background/80 supports-[backdrop-filter]:bg-background/60 fixed z-50 flex flex-col shadow-2xl backdrop-blur-2xl",
+        "bg-popover fixed z-50 flex flex-col shadow-2xl",
         full ? "inset-0 h-full w-full" : "border-border top-0 right-0 h-full border-l",
       )}
     >

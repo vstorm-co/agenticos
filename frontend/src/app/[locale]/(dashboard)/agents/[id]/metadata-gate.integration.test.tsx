@@ -112,7 +112,6 @@ vi.mock("@/components/agents/stale-references", () => ({ StaleReferences: () => 
 vi.mock("@/components/agents/model-profile-picker", () => ({ ModelProfilePicker: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
-vi.mock("@/components/agents/run-summary", () => ({ RunSummary: () => null }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

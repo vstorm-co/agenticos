@@ -69,6 +69,21 @@ count again, so a backlog larger than that leaves the badge showing what is
 still unread and a further click finishes it, rather than the badge claiming an
 inbox it only partly worked through.
 
+Read is not the same as gone, and both are offered. Hovering a row reveals a
+cross that takes it out of the list; **Clear** in the header takes out
+everything currently listed, read and unread alike. Clearing something unread
+also marks it read, because a row nothing on screen can reach must not go on
+counting towards the badge. Like "Mark all read", one clear is bounded - a
+thousand rows - and a longer backlog takes a second click.
+
+What a cleared row does *not* do is come back. The notification is kept and
+stops being listed rather than being deleted, which is what makes that true:
+the inbox recognises a repeat by the fact it describes, so a deleted row is one
+the next budget check or the next retry would write again. Dismissing an alert
+you have dealt with is therefore final, for that occurrence - a *new* one, about
+a new fact, still arrives. Rows also age out on their own: ninety days after
+being written if they were read, a year regardless.
+
 What lands here and what can be turned off is [Governance's](governance.md#alerts)
 to explain — this page is only the two places you read it: the bell for what
 just happened, the dashboard card for a handful of the most recent, the next
