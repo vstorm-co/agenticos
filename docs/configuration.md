@@ -1118,7 +1118,8 @@ with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the c
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Records in one table |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialized size of one record's values, in bytes. Minimum `1`. It also bounds what a create's and a delete's history row and a receipt hold; a record already over the limit still deletes, keeping a byte-count marker instead of its values |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
-| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept. Undispatched rows are never removed |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | How long an undispatched outbox row is kept. No consumer exists yet (#1785), so this is a dead-letter cutoff, not a claim the event was delivered - past it, the row and the event it carried are gone |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | How long a record's history is kept, counted from the change, for a deleted record as well |
 | `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | How many quota-refusal audit entries this process writes at once, so a burst of refusals cannot open an unbounded number of database connections. The rest of a burst waits on this bound instead |
 

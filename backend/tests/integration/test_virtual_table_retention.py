@@ -66,8 +66,10 @@ def _history(org, table, *, age: timedelta) -> VirtualTableRecordHistory:
     )
 
 
-def _outbox(org, table, *, dispatched_age: timedelta | None) -> VirtualTableOutbox:
-    return VirtualTableOutbox(
+def _outbox(
+    org, table, *, dispatched_age: timedelta | None, created_age: timedelta | None = None
+) -> VirtualTableOutbox:
+    row = VirtualTableOutbox(
         organization_id=org.id,
         table_id=table.id,
         record_id=uuid.uuid4(),
@@ -75,6 +77,9 @@ def _outbox(org, table, *, dispatched_age: timedelta | None) -> VirtualTableOutb
         payload={},
         dispatched_at=None if dispatched_age is None else NOW - dispatched_age,
     )
+    if created_age is not None:
+        row.created_at = NOW - created_age
+    return row
 
 
 async def _count(db, model, org) -> int:
@@ -134,16 +139,42 @@ async def test_only_dispatched_outbox_rows_leave_and_only_after_their_window(db)
     assert survivors == {rows["pending"].id, rows["recent"].id}
 
 
-async def test_an_undispatched_outbox_row_survives_however_old(db):
+async def test_an_undispatched_outbox_row_is_a_dead_letter_past_its_own_much_longer_window(db):
+    """No consumer sets dispatched_at (#1785), so this is the only thing that ever removes
+    one - a deliberate dead-letter cutoff, not a claim the event was delivered."""
     _owner, org, table = await _tenant(db)
-    stale = _outbox(org, table, dispatched_age=None)
-    stale.created_at = NOW - timedelta(days=3650)
-    db.add(stale)
+    window = timedelta(days=settings.TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS)
+    fresh = _outbox(org, table, dispatched_age=None, created_age=window - timedelta(hours=1))
+    stale = _outbox(org, table, dispatched_age=None, created_age=window + timedelta(hours=1))
+    db.add_all([fresh, stale])
     await db.flush()
 
-    assert await _sweep(db) == []
+    (result,) = await _sweep(db)
 
-    assert await _count(db, VirtualTableOutbox, org) == 1
+    assert result.removed == {"table_outbox": 1}
+    survivors = set(await db.scalars(select(VirtualTableOutbox.id)))
+    assert survivors == {fresh.id}
+
+
+async def test_a_dispatched_outbox_rows_own_shorter_window_is_unaffected_by_the_dead_letter_one(
+    db,
+):
+    """The two cutoffs are independent: a row dispatched a moment ago is still bound by
+    TABLES_OUTBOX_RETENTION_DAYS regardless of how generous the undispatched window is."""
+    _owner, org, table = await _tenant(db)
+    old_but_dispatched = _outbox(
+        org,
+        table,
+        dispatched_age=timedelta(days=settings.TABLES_OUTBOX_RETENTION_DAYS + 1),
+        created_age=timedelta(days=settings.TABLES_OUTBOX_RETENTION_DAYS + 1),
+    )
+    db.add(old_but_dispatched)
+    await db.flush()
+
+    (result,) = await _sweep(db)
+
+    assert result.removed == {"table_outbox": 1}
+    assert await _count(db, VirtualTableOutbox, org) == 0
 
 
 async def test_history_follows_its_window_for_a_live_or_deleted_record_alike(db):
@@ -317,7 +348,12 @@ async def test_receipts_and_outbox_are_removed_only_from_the_organization_asked_
     scope = {"organization_id": ours.id, "cutoff": NOW - timedelta(days=1), "limit": 100}
 
     assert await retention_repo.delete_table_receipts(db, **scope) == 1
-    assert await retention_repo.delete_table_outbox(db, **scope) == 1
+    assert (
+        await retention_repo.delete_table_outbox(
+            db, **scope, undispatched_cutoff=NOW - timedelta(days=1)
+        )
+        == 1
+    )
 
     assert await _count(db, VirtualTableReceipt, theirs) == 1
     assert await _count(db, VirtualTableOutbox, theirs) == 1

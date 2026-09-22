@@ -442,6 +442,15 @@ class Settings(BaseSettings):
     # How long a dispatched outbox row is kept. Undispatched rows are never
     # removed: they are events nobody has consumed yet.
     TABLES_OUTBOX_RETENTION_DAYS: int = Field(default=3, gt=0)
+    # How long an *undispatched* outbox row is kept before it is dropped anyway.
+    # No consumer of this outbox exists yet (#1785), so nothing will ever set
+    # `dispatched_at` on these rows, and TABLES_OUTBOX_RETENTION_DAYS alone would
+    # never remove a single one of them - a lifetime accumulation of one row per
+    # created record. This is a dead-letter cutoff, not a claim the event was
+    # delivered: past it, the row is gone and nothing can replay it. Long and
+    # deliberately disclosed rather than short, so a consumer built later has a
+    # generous window to catch up on a backlog before this starts discarding it.
+    TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS: int = Field(default=30, gt=0)
     # How long a record's history is kept, counted from the change, for a deleted
     # record as much as a live one.
     TABLES_HISTORY_RETENTION_DAYS: int = Field(default=365, gt=0)

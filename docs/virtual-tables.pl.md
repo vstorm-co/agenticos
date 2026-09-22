@@ -1,5 +1,5 @@
 ---
-source_sha: "91403fa2b33e"
+source_sha: "f28d8933fd03"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -184,8 +184,10 @@ Traktuj wszystkie trzy jako dane osobowe, jeśli takie są komórki; zobacz
 [limity i retencję](#limits-and-retention).
 
 Wiersz outbox to przekazanie temu, co reaguje na nowy rekord. Na razie nic go nie
-konsumuje. Konsument pobiera niedostarczone wiersze we własnej sesji i oznacza je jako
-dostarczone.
+konsumuje, więc nic go nigdy nie oznacza jako dostarczonego - przyszły konsument będzie
+pobierał niedostarczone wiersze we własnej sesji i oznaczał je jako wysłane. Do tego czasu
+niewysłany wiersz jest usuwany tylko przez własne, znacznie dłuższe okno retencji (poniżej)
+- to dead-letter cutoff, a nie deklaracja, że zdarzenie zostało kiedykolwiek odebrane.
 
 ## Limity i retencja { #limits-and-retention }
 
@@ -222,7 +224,8 @@ twardo i partiami, dla każdej organizacji:
 | Co | Usuwane, gdy | Ustawienie |
 |---|---|---|
 | Receipts | Starsze niż 24 godziny | `TABLES_RECEIPT_TTL_HOURS` |
-| Wiersze outbox | Wysłane ponad 3 dni temu. Wiersz, którego nikt nie skonsumował, zostaje | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Wiersze outbox | Wysłane ponad 3 dni temu | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Niewysłane wiersze outbox | Nigdy niewysłane i mające 30 dni. Nic jeszcze nie konsumuje tego outbox, więc każdy wiersz w końcu dociera do tego okna - zobacz niżej | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | History | Starsza niż 365 dni, dla usuniętego rekordu tak samo jak dla żywego | `TABLES_HISTORY_RETENTION_DAYS` |
 
 Sweep zapisuje jeden wpis audytu na organizację, nazywający klasę (`table_receipts`,
@@ -310,4 +313,7 @@ robi go sesja żądania, a worker ma własny zakres sesji.
   użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
   uzgodnione.
 - Narzędzia agenta, węzły workflow i ekrany konsoli, które będą wywoływać ten serwis.
-- Konsumenci outbox oraz checkery zależności dla workflow, widoków i triggerów.
+- Konsument outbox. Dopóki nie powstanie, każde zdarzenie utworzenia rekordu dociera do
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` i jest odrzucane zamiast dostarczone - jawny
+  dead letter, a nie kolejka, którą coś dziś opróżnia.
+- Checkery zależności dla workflow, widoków i triggerów.

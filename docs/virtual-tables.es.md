@@ -1,5 +1,5 @@
 ---
-source_sha: "91403fa2b33e"
+source_sha: "f28d8933fd03"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -185,8 +185,10 @@ consulta [protección de datos](data-protection.md#the-database) y
 [límites y retención](#limits-and-retention).
 
 La fila de outbox es el traspaso a lo que reaccione a un registro nuevo. Por ahora nada
-la consume. Un consumidor reclama las filas sin entregar en su propia sesión y las marca
-como entregadas.
+la consume, así que nada la marca nunca como entregada - un futuro consumidor reclamará las
+filas sin despachar en su propia sesión y las marcará como despachadas. Hasta entonces, una
+fila sin despachar solo se elimina por su propia ventana de retención, mucho más larga (más
+abajo) - un corte de carta muerta, no una afirmación de que el evento llegó a recogerse.
 
 ## Límites y retención { #limits-and-retention }
 
@@ -223,7 +225,8 @@ datos de las tablas, de verdad y por lotes, para cada organización:
 | Qué | Se elimina cuando | Ajuste |
 |---|---|---|
 | Receipts | Más antiguos de 24 horas | `TABLES_RECEIPT_TTL_HOURS` |
-| Filas de outbox | Despachadas hace más de 3 días. Una fila que nadie ha consumido se conserva | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Filas de outbox | Despachadas hace más de 3 días | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Filas de outbox sin despachar | Nunca despachadas y con 30 días. Nada consume aún este outbox, así que toda fila llega tarde o temprano a esta ventana - ver más abajo | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | Historial | Más antiguo de 365 días, para un registro borrado igual que para uno vivo | `TABLES_HISTORY_RETENTION_DAYS` |
 
 El barrido escribe una entrada de auditoría por organización, que nombra la clase
@@ -314,5 +317,7 @@ sesión.
   está aún por acordar.
 - Las herramientas del agent, los nodos de workflow y las pantallas de la consola, que
   llamarán a este servicio.
-- Consumidores del outbox y comprobadores de dependencias para workflows, vistas y
-  triggers.
+- Un consumidor del outbox. Hasta que exista uno, cada evento de registro creado llega a
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` y se descarta en vez de entregarse - una
+  carta muerta declarada, no una cola que algo vacíe hoy.
+- Comprobadores de dependencias para workflows, vistas y triggers.

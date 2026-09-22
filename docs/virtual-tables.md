@@ -174,8 +174,10 @@ ids. Treat all three as personal data if the cells are; see
 [limits and retention](#limits-and-retention).
 
 The outbox row is the hand-off to whatever reacts to a new record. Nothing consumes
-it yet. A consumer claims undelivered rows in its own session and marks them
-delivered.
+it yet, so nothing ever marks one delivered - a future consumer claims undelivered rows in
+its own session and marks them dispatched. Until then, an undispatched row is removed only
+by its own much longer retention window (below), a dead-letter cutoff rather than a claim
+that the event was ever collected.
 
 ## Limits and retention { #limits-and-retention }
 
@@ -211,7 +213,8 @@ data, hard-deleting in batches, for every organization:
 | What | Removed when | Setting |
 |---|---|---|
 | Receipts | Older than 24 hours | `TABLES_RECEIPT_TTL_HOURS` |
-| Outbox rows | Dispatched more than 3 days ago. A row nobody has consumed is kept | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Outbox rows | Dispatched more than 3 days ago | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Undispatched outbox rows | Never dispatched and 30 days old. Nothing consumes this outbox yet, so every row reaches this window eventually - see below | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | History | Older than 365 days, for a deleted record as much as a live one | `TABLES_HISTORY_RETENTION_DAYS` |
 
 The sweep writes one audit entry per organization, naming the class (`table_receipts`,
@@ -298,4 +301,7 @@ commits: the request's session does, and a worker owns its own session scope.
 - **A principal for API keys.** Access, receipts and history all name a signed-in
   user. How an API key acts on a table for the external API is still to be agreed.
 - Agent tools, workflow nodes and the console screens, which will call this service.
-- Consumers of the outbox and dependency checkers for workflows, views and triggers.
+- A consumer of the outbox. Until one exists, every created-record event reaches
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` and is discarded rather than delivered - a
+  disclosed dead letter, not a queue anything can drain today.
+- Dependency checkers for workflows, views and triggers.

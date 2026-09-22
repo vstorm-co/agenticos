@@ -1,5 +1,5 @@
 ---
-source_sha: "91403fa2b33e"
+source_sha: "f28d8933fd03"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -198,8 +198,11 @@ drei als personenbezogene Daten, wenn es die Zellen sind; siehe
 [Limits und Aufbewahrung](#limits-and-retention).
 
 Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert.
-Bisher konsumiert sie nichts. Ein Konsument holt sich nicht zugestellte Zeilen in einer
-eigenen Session und markiert sie als zugestellt.
+Bisher konsumiert sie nichts, also markiert auch nichts eine Zeile als zugestellt - ein
+künftiger Konsument holt sich nicht zugestellte Zeilen in einer eigenen Session und
+markiert sie als versendet. Bis dahin wird eine nicht zugestellte Zeile nur durch ihr
+eigenes, viel längeres Aufbewahrungsfenster entfernt (unten) - eine Dead-Letter-Frist, keine
+Behauptung, das Ereignis sei je abgeholt worden.
 
 ## Limits und Aufbewahrung { #limits-and-retention }
 
@@ -237,7 +240,8 @@ Tabellendaten, hart und in Batches, für jede Organisation:
 | Was | Entfernt, wenn | Einstellung |
 |---|---|---|
 | Receipts | Älter als 24 Stunden | `TABLES_RECEIPT_TTL_HOURS` |
-| Outbox-Zeilen | Vor mehr als 3 Tagen zugestellt. Eine Zeile, die niemand konsumiert hat, bleibt | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Outbox-Zeilen | Vor mehr als 3 Tagen zugestellt | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Nicht zugestellte Outbox-Zeilen | Nie zugestellt und 30 Tage alt. Bisher konsumiert nichts diese Outbox, also erreicht jede Zeile irgendwann dieses Fenster - siehe unten | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | Historie | Älter als 365 Tage, für einen gelöschten Datensatz ebenso wie für einen lebenden | `TABLES_HISTORY_RETENTION_DAYS` |
 
 Der Sweep schreibt einen Audit-Eintrag je Organisation, der die Klasse (`table_receipts`,
@@ -329,4 +333,7 @@ Session-Scope.
   muss noch abgestimmt werden.
 - Agent-Tools, Workflow-Knoten und die Konsolenansichten, die diesen Service aufrufen
   werden.
-- Konsumenten der Outbox und Dependency-Checker für Workflows, Views und Trigger.
+- Ein Konsument der Outbox. Bis es einen gibt, erreicht jedes Created-Record-Ereignis
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` und wird verworfen statt zugestellt - ein
+  offengelegter Dead Letter, keine Warteschlange, die heute irgendetwas leert.
+- Dependency-Checker für Workflows, Views und Trigger.

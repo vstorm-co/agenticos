@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, case, delete, func, literal, select
+from sqlalchemy import CursorResult, and_, case, delete, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -380,21 +380,41 @@ async def delete_table_receipts(
 
 
 async def delete_table_outbox(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    cutoff: datetime,
+    undispatched_cutoff: datetime,
+    limit: int,
 ) -> int:
-    """Drop the oldest outbox rows dispatched before `cutoff`.
+    """Drop the oldest outbox rows: dispatched before `cutoff`, or never dispatched and
+    older than `undispatched_cutoff`.
 
-    Only rows with a `dispatched_at`: an undispatched row is an event nobody has
-    consumed, and deleting it would lose it rather than retire it.
+    The second half is a dead-letter cutoff, not a claim the event was delivered: no
+    consumer of this outbox exists yet (#1785), so nothing sets `dispatched_at`, and
+    without it an undispatched row would sit here for as long as the record that created
+    it did not - one permanent row per create, for an event nobody will ever collect.
+    `undispatched_cutoff` is ordinarily far later than `cutoff`, so this reaches an
+    undispatched row only long after a dispatched one of the same age would already be
+    gone; sorting by `created_at` (rather than `dispatched_at`, which an undispatched row
+    has none of) still takes the oldest of whichever kind a batch happens to find.
     """
     expiring = (
         select(VirtualTableOutbox.id)
         .where(
             VirtualTableOutbox.organization_id == organization_id,
-            VirtualTableOutbox.dispatched_at.is_not(None),
-            VirtualTableOutbox.dispatched_at < cutoff,
+            or_(
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_not(None),
+                    VirtualTableOutbox.dispatched_at < cutoff,
+                ),
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_(None),
+                    VirtualTableOutbox.created_at < undispatched_cutoff,
+                ),
+            ),
         )
-        .order_by(VirtualTableOutbox.dispatched_at)
+        .order_by(VirtualTableOutbox.created_at)
         .limit(limit)
         .scalar_subquery()
     )

@@ -27,6 +27,7 @@ again.
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -300,9 +301,17 @@ class RetentionService:
         Not a class an organization sets a period on: how long a retry can be replayed and
         how long a change is remembered are properties of the deployment
         (`TABLES_RECEIPT_TTL_HOURS`, `TABLES_OUTBOX_RETENTION_DAYS`,
-        `TABLES_HISTORY_RETENTION_DAYS`), and the sweep, the batching, the per-class failure
-        handling and the one audit entry per organization are this mechanism's. Counts go
-        under `table_receipts`, `table_outbox` and `table_history`, never content.
+        `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`), and the
+        sweep, the batching, the per-class failure handling and the one audit entry per
+        organization are this mechanism's. Counts go under `table_receipts`, `table_outbox`
+        and `table_history`, never content.
+
+        The outbox delete removes a dispatched row past `TABLES_OUTBOX_RETENTION_DAYS` and,
+        separately, an undispatched one past the much longer
+        `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` - a dead-letter cutoff for an event no
+        consumer exists yet to collect (#1785), not a claim that it was delivered. Bound with
+        `functools.partial` rather than a fourth loop variable: only this one class needs a
+        second cutoff, and the batch loop below calls every class the same way.
         """
         sweeps = (
             (
@@ -312,7 +321,11 @@ class RetentionService:
             ),
             (
                 "table_outbox",
-                retention_repo.delete_table_outbox,
+                functools.partial(
+                    retention_repo.delete_table_outbox,
+                    undispatched_cutoff=moment
+                    - timedelta(days=settings.TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS),
+                ),
                 moment - timedelta(days=settings.TABLES_OUTBOX_RETENTION_DAYS),
             ),
             (

@@ -1,5 +1,5 @@
 ---
-source_sha: "639af288bc2a"
+source_sha: "a3f754bf06f0"
 ---
 
 # Konfiguracja { #configuration }
@@ -1145,7 +1145,8 @@ kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
-| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox. Niewysłane wiersze nigdy nie są usuwane |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Jak długo trzymany jest niewysłany wiersz outbox. Nie ma jeszcze konsumenta (#1785), więc to jest dead-letter cutoff, a nie deklaracja, że zdarzenie zostało dostarczone - po tym czasie wiersz i zdarzenie, które niósł, znikają |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
 | `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Ile wpisów audytu odmowy limitu ten proces zapisuje naraz, żeby seria odmów nie otwierała nieograniczonej liczby połączeń do bazy. Reszta serii czeka na to ograniczenie |
 
