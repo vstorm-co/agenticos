@@ -1,5 +1,5 @@
 ---
-source_sha: "d2ae58f6e26e"
+source_sha: "581fad10a861"
 ---
 
 # Permisos { #permissions }
@@ -268,7 +268,7 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 
 La tabla es deliberadamente genérica - `resource_type` + `resource_id`, sin clave
 foránea al objetivo - porque los agents, las colecciones, los skills, los
-archivos de contexto, las [tablas](virtual-tables.md) y las claves guardadas comparten todos las mismas reglas. La
+archivos de contexto, las [tablas](virtual-tables.md), los workflows y las claves guardadas comparten todos las mismas reglas. La
 contrapartida es que la base de datos no puede borrar en cascada una concesión
 cuando su objetivo desaparece, así que los servicios borran las concesiones junto
 al recurso.
