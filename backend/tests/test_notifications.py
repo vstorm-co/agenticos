@@ -982,8 +982,9 @@ class TestSecurityEventAndConfigurationChanged:
     `actor_user_id` through to `NotificationCenterService.write`, which
     already carries the per-`(actor_user_id, event_type)` mandatory-write
     limit (built in phase 2, `tests/integration/test_notification_center.py`
-    - `test_a_rate_limited_mandatory_write_writes_nothing` and its sibling).
-    What belongs here is that the id reaches that call correctly."""
+    - `test_a_rate_limited_mandatory_write_coalesces_rather_than_dropping` and
+    its siblings). What belongs here is that the id reaches that call
+    correctly."""
 
     @pytest.mark.anyio
     async def test_an_org_scoped_entry_reaches_that_organizations_admins(self, written):

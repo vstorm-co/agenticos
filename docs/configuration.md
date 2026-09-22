@@ -255,6 +255,16 @@ on the same port, so the settings below, the `redis://` scheme and the `redis` s
 name are unchanged, and a deployment that points these at a managed Redis, Valkey or
 Elasticache instead works exactly as before.
 
+It is run as a cache and nothing else: `--save ''`, no volume, so it starts empty
+after every restart. Everything the platform keeps here - rate-limit buckets,
+channel dedupe claims, membership answers - carries a TTL and rebuilds itself.
+
+A snapshot bought nothing and cost one outage: Valkey 8 forks Redis 7.2 and refuses
+an RDB written by Redis 7.4, so the first deploy onto a host that had run
+`redis:7-alpine` crash-looped and took every service that waits on the cache with
+it. A managed instance that does persist is fine; the platform does not rely on
+it either way.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REDIS_HOST` | `localhost` | Redis host |

@@ -10,6 +10,7 @@ from app.services.notification_catalog import (
     content_gate_for,
     is_mandatory,
 )
+from app.services.notification_center import _COALESCED_SUMMARY
 
 
 class TestMandatoryEventTypes:
@@ -51,3 +52,19 @@ class TestContentGate:
         }
         for event_type, gate in expected.items():
             assert content_gate_for(event_type) is gate
+
+
+class TestEveryMandatoryEventCanCoalesce:
+    def test_each_one_has_a_sentence_for_its_own_overflow(self):
+        """A mandatory event past its write budget is replaced by a coalesced
+        row rather than dropped (#1762), and the replacement is looked up by
+        event type. A third mandatory type added with no sentence would raise
+        on the one path that exists to keep the guarantee."""
+        assert set(_COALESCED_SUMMARY) == MANDATORY_EVENT_TYPES
+
+    def test_no_other_event_type_has_one(self):
+        """Nothing else is rate limited on the way in, so a sentence for it
+        would be copy nobody can reach."""
+        for event_type in NotificationEventType:
+            if not is_mandatory(event_type):
+                assert event_type not in _COALESCED_SUMMARY
