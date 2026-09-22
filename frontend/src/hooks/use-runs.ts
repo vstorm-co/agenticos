@@ -39,11 +39,11 @@ import type {
  * and the obvious reading of the pair was wrong by three years (#198). Any figure
  * drawn next to money passes one.
  *
- * `orderBy`/`descending`/`tookOverMs` are how the Took column sorts and the
- * "slow runs" view filters - both computed in SQL over the whole narrowed set,
- * because sorting one page of twenty-five sorts the wrong set. Only a departure
- * from the feed is put on the wire: the default order is the server's, so an
- * unfiltered call stays bodyless and keeps the same cache entry it always had.
+ * `orderBy`/`descending` are how the Took column sorts - computed in SQL over
+ * the whole narrowed set, because sorting one page of twenty-five sorts the
+ * wrong set. Only a departure from the feed is put on the wire: the default
+ * order is the server's, so an unfiltered call stays bodyless and keeps the
+ * same cache entry it always had.
  */
 export function useRuns(
   agentId?: string,
@@ -58,7 +58,6 @@ export function useRuns(
     startedTo?: string;
     orderBy?: "started_at" | "duration" | "cost" | "tokens";
     descending?: boolean;
-    tookOverMs?: number;
     rated?: "down" | "up";
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
@@ -87,7 +86,6 @@ export function useRuns(
     startedTo,
     orderBy,
     descending,
-    tookOverMs,
     rated,
     statuses,
     surface,
@@ -104,7 +102,6 @@ export function useRuns(
       startedTo,
       orderBy,
       descending,
-      tookOverMs,
       rated,
       statuses,
       surface,
@@ -124,7 +121,6 @@ export function useRuns(
       if (startedTo) params.started_to = startedTo;
       if (orderBy && orderBy !== "started_at") params.order_by = orderBy;
       if (descending === false) params.descending = "false";
-      if (tookOverMs !== undefined) params.took_over_ms = String(tookOverMs);
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;

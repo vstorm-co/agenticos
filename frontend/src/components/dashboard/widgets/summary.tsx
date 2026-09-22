@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { DeltaChip, Figure } from "@/components/ui";
+import { AnimatedAmount, AnimatedTally, DeltaChip, Figure } from "@/components/ui";
 
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { deltaPercent, formatUsd } from "../format";
@@ -53,7 +53,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
             <div className="grid flex-1 grid-cols-2 gap-5 lg:grid-cols-4">
               <Figure
                 label={t("runs")}
-                value={runs.toLocaleString()}
+                value={<AnimatedTally value={runs} />}
                 delta={
                   runsDelta !== null ? (
                     <DeltaChip delta={runsDelta} label={t("delta")} />
@@ -69,7 +69,12 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
               />
               <Figure
                 label={t("spend")}
-                value={formatUsd(usage.cost?.period_usd)}
+                value={
+                  <AnimatedAmount
+                    value={usage.cost?.period_usd}
+                    label={t("spendLabel", { amount: formatUsd(usage.cost?.period_usd) })}
+                  />
+                }
                 delta={
                   spendDelta !== null ? (
                     <DeltaChip delta={spendDelta} label={t("delta")} rising="bad" />
@@ -79,7 +84,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
               />
               <Figure
                 label={t("people")}
-                value={active.toLocaleString()}
+                value={<AnimatedTally value={active} />}
                 caption={t("ofMembers", { total: usage.active_users?.total_members ?? 0 })}
               />
             </div>

@@ -11,51 +11,64 @@
  *
  * The order is not arbitrary:
  *
- * - **The organization is first, and does not scroll.** Every agent, key and
- *   run below it is scoped by it, so the wrong one selected means every screen
- *   in the product is quietly the wrong screen. That control cannot be a small
- *   thing next to an avatar in a corner.
- * - **Search sits under it** rather than in the destination list: it is an
- *   action, not a place, and what it finds is scoped by the organization
- *   directly above it.
- * - **The destinations are the whole column.** Nothing sits above them: the
+ * - **Search and the bell are the footer's actions**, and the only things in
+ *   that row. It held four icons: those two plus the language and the theme,
+ *   which put "find anything in this organization" beside "switch to German"
+ *   under four unlabelled glyphs. Both settings are named rows in the account
+ *   menu now, where somebody looks for a preference.
+ * - **The destinations are the whole middle.** Nothing sits above them: the
  *   organization moved into the account's menu, where "who am I and where am
  *   I" is one question with one answer instead of two controls at opposite
  *   ends of the sidebar.
- * - **The footer strip carries what is not a destination** - language, theme,
- *   search and the bell, four icons the width of one row. Search keeps its
- *   shortcut beside it, because the chip is what teaches the shortcut.
  * - **The account is last.** Least used, and where every comparable product
- *   puts it.
+ *   puts it. The control that collapses the column is not here at all: it sits
+ *   on the column's own title bar beside the brand (`AppSidebar`), which is
+ *   where a collapsible panel's handle belongs.
  *
  * It takes the nav as `children` so the desktop column and the slide-over pass
  * their own (the drawer needs its links to close it). Neither surface can end
  * up with controls the other lacks - the phone would lose the ability to switch
  * organization or sign out, and nobody reports that, because each surface looks
  * complete on its own.
+ *
+ * `collapsed` is the desktop rail only. The slide-over never passes it: a
+ * drawer somebody deliberately opened has the width, and a rail inside one
+ * would be 56px of icons floating in a 288px sheet.
  */
 
 import type { ReactNode } from "react";
 
-import { LanguageSwitcherIcon } from "@/components/language-switcher";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
-import { ThemeToggle } from "@/components/theme";
+import { cn } from "@/lib/utils";
 
-export function SidebarShell({ children }: { children: ReactNode }) {
+export function SidebarShell({
+  children,
+  collapsed = false,
+}: {
+  children: ReactNode;
+  collapsed?: boolean;
+}) {
   return (
     <>
       <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">{children}</div>
 
-      <div className="flex flex-col gap-1 border-t px-3 py-2">
-        <div className="flex items-center gap-0.5">
-          <LanguageSwitcherIcon />
-          <ThemeToggle className="text-muted-foreground hover:text-foreground hover:bg-accent h-9 w-9 rounded-lg [&_svg]:size-[1.1rem]" />
+      <div
+        className={cn(
+          "flex flex-col gap-1 border-t py-2",
+          collapsed ? "items-center px-1" : "px-3",
+        )}
+      >
+        {/* Two actions, and only actions. The language and the theme used to be
+            here too, which filed "set this once" beside "find something" under
+            four unlabelled glyphs; they are named rows in the account menu
+            below now. */}
+        <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           <SidebarSearch variant="icon" />
           <NotificationBell variant="icon" />
         </div>
-        <SidebarUser />
+        <SidebarUser compact={collapsed} />
       </div>
     </>
   );

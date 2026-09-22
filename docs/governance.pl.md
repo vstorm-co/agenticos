@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8bdc69bd29"
+source_sha: "2f11ca35d96a"
 ---
 
 # Governance { #governance }
@@ -675,7 +675,6 @@ początku.
 | `environment_id` | Runy na wersji, którą przypina to środowisko. **Nigdy zdelegowany run:** wersja delegata pochodzi z przypięcia, więc kolumna celowo nigdy nie jest na nim zapisywana, a zawężenie do `production` odrzuca każdą delegację. Powierzchnia, która włącza delegacje, musi to powiedzieć |
 | `exposure_id` | Runy wpuszczone przez jedno powiązanie. Null dla dashboardu i dla API |
 | `agent_version_id` | Runy, które wykonały jeden zamrożony spec — „pokaż mi wiersze stojące za tą liczbą” z paska wersji |
-| `took_over_ms` | Tylko runy wolniejsze niż to. Run, który się nie skończył, nie ma czasu trwania i jest wykluczany, a nie liczony jako zero |
 | `rated` | `down` albo `up` — runy, w których ktoś ocenił wiadomość wyprodukowaną przez ten run |
 | `order_by`, `descending` | `started_at` (domyślnie, od najnowszych), `duration`, `cost` albo `tokens` |
 
@@ -748,10 +747,6 @@ tego samego zapytania:
   obok niego i jak każdy sortowalny nagłówek w produkcie — więc kliknięcie
   porządkuje historię według `duration`, a nie według dwudziestu pięciu wierszy
   na ekranie.
-- Gotowy widok **„slow runs”** to to sortowanie plus próg `took_over_ms` (30 s) w
-  jednym kliknięciu. **„All runs”** zdejmuje oba, z powrotem do sortowania od
-  najnowszych — w obrębie okna, które akurat jest widoczne, bo okno to osobna oś,
-  ustawiana przez link p95 i przez zakres dat.
 - **Liczba p95 na dashboardzie linkuje tutaj**, posortowana według czasu trwania
   w tym samym oknie: `?sort=duration` razem z `started_from` / `started_to`
   danego okresu.
@@ -1240,10 +1235,20 @@ Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
 zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
-błąd runa, zakończenie albo błąd ingestii dokumentu oraz własne ogłoszenie
-administratora aplikacji - `POST /admin/announcements`, jeszcze bez strony w
-konsoli - adresowane do organizacji i, opcjonalnie, do roli, oraz ograniczone
-do jednego albo obu kanałów.
+błąd runa, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+konektora oraz własne ogłoszenie administratora aplikacji -
+`POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
+organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu
+kanałów.
+
+Dokument, który zaindeksował się czysto, nie zapisuje nic, i to jest celowe.
+Kiedyś zapisywał wiersz na dokument, co w zwykłym przypadku - folder plików
+dodanych naraz - oznaczało powiadomienie na plik mówiące, że nic się nie stało,
+i grzebało te, które trzeba było przeczytać. Zwykła ingestia jest teraz
+raportowana tam, gdzie ma sens: przez własny status dokumentu w kolekcji oraz,
+dla przebiegu konektora, przez jedną linię, którą `sync_completed` zapisuje po
+zakończeniu całej próby. Błąd nadal trafia do tego, kto wgrał plik, albo do
+administratorów organizacji, jeśli nie wgrał go nikt.
 
 Jedyny wyjątek to tygodniowe i miesięczne raporty użycia konfigurowane na
 agencie, opisane niżej: oba dzielą jedno, starsze ustawienie e-maila, więc
@@ -1271,9 +1276,13 @@ Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
 jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
 otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
 otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
-wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek — a zamiatanie
+wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek. Zamiatanie
 mailowe nie wyśle wiersza, który już przekroczył tę granicę, więc worker
 wracający po długiej przerwie nie rozśle powiadomień w drodze do ich usunięcia.
+
+[Wyczyszczenie](console.md#the-bell) to co innego, nie to samo: człowiek
+natychmiast wyjmuje wiersz z własnej listy, a sam wiersz zostaje zachowany,
+dopóki nie sięgnie po niego to zamiatanie.
 
 To, co przetrwa dłużej, zależy od tego, czego powiadomienie dotyczyło. Zdarzenie
 bezpieczeństwa, zmiana konfiguracji i własne ogłoszenie administratora zaczynają

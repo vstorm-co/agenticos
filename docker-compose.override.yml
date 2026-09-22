@@ -80,6 +80,16 @@ services:
       - ./backend/app:/app/app:ro
     environment:
       - DEBUG=true
+      # Four deployments tick every sixty seconds, and every run is a fresh
+      # Python process that imports the whole application before doing about
+      # two tenths of a second of work - roughly seven seconds of import per
+      # run, four at a time. On a server that is the cost of a schedule nobody
+      # has to trust; on the machine you are also writing code on it is a core
+      # and a half, permanently. Ten minutes is still far below the latency
+      # any of them is about, and a trigger that needs to fire now can be run
+      # from the Prefect UI on :4200. Override it to `0` here to get the
+      # production cadence back locally.
+      - WORKER_MIN_INTERVAL_SECONDS=${WORKER_MIN_INTERVAL_SECONDS:-600}
 
   frontend:
     build:

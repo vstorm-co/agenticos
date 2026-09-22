@@ -1,5 +1,5 @@
 ---
-source_sha: "dd8410f601c7"
+source_sha: "15ab128f02d8"
 ---
 
 # Die Konsole { #the-console }
@@ -80,6 +80,24 @@ dann die Zählung erneut ab - bei einem größeren Rückstau zeigt das Badge
 also weiter, was noch ungelesen ist, und ein weiterer Klick beendet den Rest,
 statt dass das Badge einen Posteingang behauptet, den es nur teilweise
 abgearbeitet hat.
+
+Gelesen ist nicht dasselbe wie weg, und beides wird angeboten. Fährt man über
+eine Zeile, erscheint ein Kreuz, das sie aus der Liste nimmt; **Clear** in der
+Kopfzeile nimmt alles heraus, was gerade gelistet ist - gelesen wie ungelesen.
+Wird etwas Ungelesenes geleert, gilt es zugleich als gelesen, denn eine Zeile,
+die nichts auf dem Bildschirm mehr erreicht, darf nicht weiter auf das Badge
+zählen. Wie „Mark all read" ist ein Leeren begrenzt - tausend Zeilen - und ein
+längerer Rückstau braucht einen zweiten Klick.
+
+Was eine geleerte Zeile *nicht* tut, ist wiederkommen. Die Benachrichtigung
+wird behalten und nur nicht mehr gelistet, statt gelöscht zu werden, und genau
+das macht es wahr: der Posteingang erkennt eine Wiederholung an dem Sachverhalt,
+den sie beschreibt, eine gelöschte Zeile wäre also eine, die die nächste
+Budgetprüfung oder der nächste Versuch erneut schriebe. Einen Alarm zu
+verwerfen, um den Sie sich gekümmert haben, ist damit endgültig - für dieses
+Vorkommnis; ein *neuer*, über einen neuen Sachverhalt, kommt weiterhin an.
+Zeilen fallen auch von selbst heraus: neunzig Tage nach dem Schreiben, wenn sie
+gelesen wurden, und ein Jahr danach unabhängig davon.
 
 Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 [Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,

@@ -60,6 +60,24 @@ from app.worker.tasks.trigger_tasks import (
 logger = logging.getLogger(__name__)
 
 
+def _every(seconds: float) -> IntervalSchedule:
+    """The interval a deployment declares, never faster than the configured floor.
+
+    `WORKER_MIN_INTERVAL_SECONDS` is `0` on a deployment, so this is the
+    declared interval and nothing else. It exists for the machine that is also
+    running an editor: every run here is a separate Python process that imports
+    the whole application, so four minute-ticks cost far more in imports than
+    the work they do - see the setting's own note for the measurement.
+
+    A floor rather than a multiplier, so raising it lengthens only what is
+    already faster than it: the daily sweeps stay daily whatever it is set to,
+    which a multiplier would silently turn into weeks.
+    """
+    return IntervalSchedule(
+        interval=timedelta(seconds=max(seconds, settings.WORKER_MIN_INTERVAL_SECONDS))
+    )
+
+
 async def main() -> None:
     """Register all deployments and serve them."""
     # The worker runs ingestion, syncs and reports - the code most likely to log a
@@ -73,7 +91,7 @@ async def main() -> None:
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
+            schedules=[_every(60)],
         )
     )
     # On-demand: one fired run per due trigger, submitted by the heartbeat below.
@@ -90,7 +108,7 @@ async def main() -> None:
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
+            schedules=[_every(60)],
         )
     )
     # Daily: drop sandbox operations past the retention window. The window is
@@ -99,7 +117,7 @@ async def main() -> None:
     deployments.append(
         await sweep_sandbox_operations_flow.ato_deployment(
             name="sandbox-log-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
+            schedules=[_every(86400)],
         )
     )
     # Every minute: read the connected accounts nobody pushes to. A separate
@@ -109,7 +127,7 @@ async def main() -> None:
     deployments.append(
         await poll_portal_grants_flow.ato_deployment(
             name="portal-poll",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
+            schedules=[_every(60)],
         )
     )
     # Every 15 minutes: often enough that a dead grant is noticed within one
@@ -119,7 +137,7 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=900))],
+            schedules=[_every(900)],
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
@@ -128,7 +146,7 @@ async def main() -> None:
     deployments.append(
         await approval_expiry_sweep_flow.ato_deployment(
             name="approval-expiry-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
+            schedules=[_every(3600)],
         )
     )
     # Hourly for the same reason as the approval sweep: the invitation TTL is
@@ -136,7 +154,7 @@ async def main() -> None:
     deployments.append(
         await invitation_expiry_sweep_flow.ato_deployment(
             name="invitation-expiry-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
+            schedules=[_every(3600)],
         )
     )
     # Hourly like the sweeps above, and for the same arithmetic: the ceiling is
@@ -145,7 +163,7 @@ async def main() -> None:
     deployments.append(
         await stale_run_sweep_flow.ato_deployment(
             name="stale-run-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
+            schedules=[_every(3600)],
         )
     )
     # Hourly, against a threshold measured in hours: a teardown reservation whose
@@ -155,7 +173,7 @@ async def main() -> None:
     deployments.append(
         await teardown_reservation_sweep_flow.ato_deployment(
             name="teardown-reservation-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
+            schedules=[_every(3600)],
         )
     )
     # Daily: apply every organization's retention policy. Every period is
@@ -166,7 +184,7 @@ async def main() -> None:
     deployments.append(
         await retention_sweep_flow.ato_deployment(
             name="retention-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
+            schedules=[_every(86400)],
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only
@@ -176,13 +194,13 @@ async def main() -> None:
     deployments.append(
         await weekly_usage_report_flow.ato_deployment(
             name="weekly-usage-report",
-            schedules=[IntervalSchedule(interval=timedelta(days=7))],
+            schedules=[_every(7 * 86_400)],
         )
     )
     deployments.append(
         await monthly_usage_report_flow.ato_deployment(
             name="monthly-usage-report",
-            schedules=[IntervalSchedule(interval=timedelta(days=30))],
+            schedules=[_every(30 * 86_400)],
         )
     )
     # Every minute, matching the other frequent sweeps here: defining the flow
@@ -191,7 +209,7 @@ async def main() -> None:
     deployments.append(
         await notification_delivery_sweep_flow.ato_deployment(
             name="notification-delivery-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
+            schedules=[_every(60)],
         )
     )
     # Daily, matching the sandbox-log sweep above: drop notifications past their
@@ -201,7 +219,7 @@ async def main() -> None:
     deployments.append(
         await notification_retention_sweep_flow.ato_deployment(
             name="notification-retention-sweep",
-            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
+            schedules=[_every(86400)],
         )
     )
     logger.info(
