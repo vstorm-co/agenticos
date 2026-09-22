@@ -115,6 +115,18 @@ def test_a_graph_rejects_two_nodes_sharing_an_id():
         WorkflowGraph(entry_node_id=shared_id, nodes=(first, second))
 
 
+@pytest.mark.parametrize("coordinate", [float("inf"), float("-inf"), float("nan")])
+def test_a_layout_position_rejects_a_non_finite_coordinate(coordinate):
+    """`model_dump(mode="json")` still carries a Python `inf`/`nan` float
+    through to the `draft_graph` JSONB column, where PostgreSQL - unlike
+    Python's own `json.dumps` - refuses the `Infinity`/`NaN` tokens that
+    would produce; refused here instead of surfacing as a database error."""
+    with pytest.raises(ValidationError):
+        NodePosition(x=coordinate, y=0.0)
+    with pytest.raises(ValidationError):
+        NodePosition(x=0.0, y=coordinate)
+
+
 def test_layout_differences_alone_do_not_change_the_graphs_edges_or_bindings():
     """AC3: layout moves do not alter execution semantics.
 

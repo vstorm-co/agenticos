@@ -22,6 +22,7 @@ from app.workflows.graph.model import Edge, NodeInstance, NodePosition, Workflow
 from app.workflows.graph.validate import (
     _kahn,
     _nearest_common_dominator,
+    _node_scope_map,
     derive_scopes,
     validate_graph,
 )
@@ -157,6 +158,65 @@ def test_a_scope_body_with_a_diamond_and_a_loop_back_edge_is_derived_once_each(r
     derived = derive_scopes(graph)
     scope = next(s for s in derived.scopes if s.scope_node_id == loop_node.id)
     assert scope.body_node_ids == frozenset({b1.id, b2.id, b3.id})
+
+
+def _foreach_def(node_id: str) -> NodeDefinition:
+    return NodeDefinition(
+        id=node_id,
+        version=1,
+        name=node_id,
+        category="control",
+        description="iterates a body",
+        kind="control",
+        config_schema=None,
+        input_schema=None,
+        output_schema=None,
+        ports=(
+            Port(id="in", label="In", kind="input"),
+            Port(id="body", label="Body", kind="output"),
+            Port(id="done", label="Done", kind="output"),
+        ),
+        effect_kind="pure",
+        retry_guarantee="idempotent",
+    )
+
+
+def test_nested_scope_ownership_resolves_to_the_innermost_regardless_of_node_order(
+    registered_node,
+):
+    """An outer scope's body BFS only refuses to re-enter its own
+    `scope_node_id` - it walks straight through a nested loop into that
+    loop's own body, so both boundaries list the shared interior node.
+    `_node_scope_map` must resolve ownership to the inner loop either way,
+    not to whichever of the two scopes happens to come last in
+    `graph.scopes` because of `graph.nodes`' own order."""
+    outer_def = registered_node(_foreach_def("control.foreach_outer"))
+    inner_def = registered_node(_foreach_def("control.foreach_inner"))
+    entry = _echo_node()
+    outer = NodeInstance(
+        id=uuid4(), definition_id=outer_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    inner = NodeInstance(
+        id=uuid4(), definition_id=inner_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    inner_body = _echo_node()
+    edges = (
+        _edge(entry.id, "out", outer.id, "in"),
+        _edge(outer.id, "body", inner.id, "in"),
+        _edge(inner.id, "body", inner_body.id, "in"),
+        _edge(inner_body.id, "out", inner.id, "in"),
+        _edge(inner.id, "done", outer.id, "in"),
+    )
+
+    for nodes in (
+        (entry, outer, inner, inner_body),
+        (entry, inner, outer, inner_body),
+    ):
+        graph = WorkflowGraph(entry_node_id=entry.id, nodes=nodes, edges=edges)
+        derived = derive_scopes(graph)
+        owner = _node_scope_map(derived)
+        assert owner[inner_body.id] == inner.id
+        assert owner[inner.id] == outer.id
 
 
 async def test_a_table_binding_with_no_named_columns_means_every_live_column(

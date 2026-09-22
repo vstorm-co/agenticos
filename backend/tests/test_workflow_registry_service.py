@@ -24,7 +24,7 @@ from app.services.workflow_registry import (
     slugify,
 )
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.model import NodeInstance, NodePosition, ScopeBoundary, WorkflowGraph
 
 REGISTRY_PATH = "app.services.workflow_registry"
 
@@ -226,6 +226,44 @@ class TestUpdateDraft:
             )
         assert result.draft_revision == 1
         assert workflow.draft_graph == graph.model_dump(mode="json")
+
+    async def test_a_client_authored_scopes_claim_is_stripped_before_it_is_stored(self):
+        """`scopes` is server-derived by contract - `derive_scopes`'s own
+        docstring - but `update_draft` used to store whatever a client sent
+        verbatim, readable by a `GET` until the next publish silently
+        replaced it. A graph with no control node at all derives no scopes,
+        so a fabricated claim here can only survive if nothing strips it."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        graph = _empty_graph()
+        fake_node_id = uuid.uuid4()
+        payload = graph.model_dump(mode="json")
+        payload["scopes"] = [
+            ScopeBoundary(
+                scope_node_id=fake_node_id,
+                body_node_ids=frozenset({fake_node_id}),
+                entry_port="body",
+                exit_node_id=fake_node_id,
+                exit_port="done",
+            ).model_dump(mode="json")
+        ]
+
+        async def _update(db, *, workflow, update_data):
+            for field, value in update_data.items():
+                setattr(workflow, field, value)
+            return workflow
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(side_effect=_update)),
+        ):
+            await WorkflowRegistryService(_db()).update_draft(
+                ctx, workflow.id, WorkflowDraftUpdate(graph=payload, expected_revision=0)
+            )
+        assert workflow.draft_graph["scopes"] == []
 
     async def test_a_stale_revision_is_refused_before_anything_is_written(self):
         ctx = _ctx(OrgRoleName.OWNER.value)

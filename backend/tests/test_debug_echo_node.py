@@ -28,10 +28,13 @@ async def test_handle_prefers_a_bound_input_over_the_configured_message():
     assert result.output.echoed == "bound"
 
 
-async def test_handle_falls_back_to_config_when_the_bound_input_is_empty():
+async def test_handle_prefers_a_bound_empty_input_over_the_configured_message():
+    """Presence, not truthiness: the `in` port is bound to something either
+    way, and an empty string is a value a graph author can deliberately
+    wire in - not the absence the config fallback exists for."""
     result = await handle(DebugEchoConfig(message="default"), DebugEchoConfig(message=""))
     assert isinstance(result, Completed)
-    assert result.output.echoed == "default"
+    assert result.output.echoed == ""
 
 
 async def test_handle_with_no_config_and_no_input_echoes_the_empty_string():

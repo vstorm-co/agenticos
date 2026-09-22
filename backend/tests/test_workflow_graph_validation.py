@@ -191,6 +191,38 @@ async def test_config_that_fails_its_schema_is_refused(mock_db_session):
     assert "12345" not in rendered
 
 
+async def test_config_on_a_node_that_declares_no_config_schema_is_refused(
+    mock_db_session, registered_node
+):
+    """`config_schema=None` used to skip validation outright, regardless of
+    `node.config`'s contents - a typo'd or misplaced field silently reached
+    nobody, since the handler receives `config=None` for a node like this."""
+    consumer = registered_node(_action_definition("test.no_config", requires_input=False))
+    node = NodeInstance(
+        id=uuid4(),
+        definition_id=consumer.id,
+        definition_version=1,
+        config={"unexpected": "value"},
+        layout=_pos(),
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"nodes.{node.id}.config" for f in excinfo.value.details["fields"])
+
+
+async def test_an_empty_config_on_a_node_with_no_config_schema_publishes(
+    mock_db_session, registered_node
+):
+    consumer = registered_node(_action_definition("test.no_config_ok", requires_input=False))
+    node = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.entry_node_id == node.id
+
+
 def _config_bound_consumer(registered_node) -> NodeDefinition:
     return registered_node(
         NodeDefinition(

@@ -221,11 +221,27 @@ def _forward_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
 
 
 def _node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
-    """Which scope owns each node, for nodes inside one at all."""
+    """Which scope owns each node, for nodes inside one at all.
+
+    Nested scopes overlap: an outer scope's body BFS (`_body_reachable_from`)
+    only refuses to re-enter its own `scope_node_id`, so it walks straight
+    through a nested control node into that scope's body too - both
+    boundaries list the same interior nodes. Ownership must resolve to the
+    innermost one regardless of `graph.scopes`' own order (which follows
+    `graph.nodes`, an editor's or a client's to reorder) - the smallest body
+    containing a node is always the more deeply nested one, since a nested
+    body is by construction a subset of everything that reaches it from
+    outside.
+    """
     owner: dict[UUID, UUID] = {}
+    owner_body_size: dict[UUID, int] = {}
     for scope in graph.scopes:
+        body_size = len(scope.body_node_ids)
         for node_id in scope.body_node_ids:
-            owner[node_id] = scope.scope_node_id
+            current_size = owner_body_size.get(node_id)
+            if current_size is None or body_size < current_size:
+                owner[node_id] = scope.scope_node_id
+                owner_body_size[node_id] = body_size
     return owner
 
 
@@ -351,7 +367,11 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
 
     for node in graph.nodes:
         definition = definitions[node.id]
-        if definition is None or definition.config_schema is None:
+        if definition is None:
+            continue
+        if definition.config_schema is None:
+            if node.config:
+                problems.append((f"nodes.{node.id}.config", "This node declares no configuration"))
             continue
         bound_fields = bound_fields_by_node.get(node.id, set()) & set(
             definition.config_schema.model_fields

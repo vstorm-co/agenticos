@@ -21,12 +21,20 @@ from app.workflows.contracts.io import Binding
 
 
 class NodePosition(BaseModel):
-    """Where the editor draws a node. Never read by validation or execution."""
+    """Where the editor draws a node. Never read by validation or execution.
+
+    `allow_inf_nan=False` on both fields: an unconstrained `float` accepts
+    a JSON coordinate like `1e400` (parsed as infinity) or a literal
+    `Infinity`/`NaN` token, which `model_dump(mode="json")` still carries as
+    a Python `float`. PostgreSQL's `jsonb` follows the JSON RFC and has no
+    such tokens, so that value reaching the `draft_graph` column turns an
+    otherwise valid draft write into a database error instead of a 422.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    x: float
-    y: float
+    x: float = Field(allow_inf_nan=False)
+    y: float = Field(allow_inf_nan=False)
 
 
 class NodeInstance(BaseModel):

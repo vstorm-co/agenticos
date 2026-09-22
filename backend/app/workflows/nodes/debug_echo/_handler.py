@@ -40,7 +40,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     with nothing bound to `in` still runs with.
     """
     message = config.message if isinstance(config, DebugEchoConfig) else ""
-    if isinstance(node_input, DebugEchoConfig) and node_input.message:
+    if isinstance(node_input, DebugEchoConfig):
+        # Presence, not truthiness: a binding that produces an empty string
+        # is still bound, and still wins over the config fallback - an
+        # `and node_input.message` here would fall through to the configured
+        # value instead of the one the graph actually wired in.
         message = node_input.message
     return Completed[DebugEchoOutput](
         output=DebugEchoOutput(echoed=message, received_at=datetime.now(UTC))

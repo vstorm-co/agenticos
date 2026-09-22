@@ -38,7 +38,7 @@ from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.workflows._registry import all_node_definitions
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
-from app.workflows.graph.validate import validate_graph
+from app.workflows.graph.validate import derive_scopes, validate_graph
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -141,9 +141,15 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     `WorkflowGraph` field, so FastAPI's own request parsing cannot validate
     it ahead of those checks and turn an authorized, current write's
     malformed graph into a 422 in place of the 403/404/409 they promise.
+
+    `derive_scopes` runs here too, not only at publish: `scopes` is
+    server-derived by contract (see its own docstring), and a draft written
+    without this step would store whatever a client claimed about scope
+    membership until the next publish silently replaced it - readable by a
+    `GET` in between, and by the editor, as if it were real.
     """
     try:
-        return WorkflowGraph.model_validate(raw)
+        graph = WorkflowGraph.model_validate(raw)
     except PydanticValidationError as exc:
         raise GraphValidationError(
             [
@@ -153,6 +159,7 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
                 )
             ]
         ) from exc
+    return derive_scopes(graph)
 
 
 def _detail(workflow: Workflow) -> WorkflowDetail:
