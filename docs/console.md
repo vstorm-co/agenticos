@@ -70,9 +70,10 @@ is still unread and a further click finishes it, rather than the badge claiming
 an inbox it only partly worked through.
 
 Each click always gets further, even where the whole batch was rows the reader
-can no longer see: a sweep marks what it read rather than only what it could
-show, because a row hidden from its recipient is one they will never be shown,
-and leaving it unread would pin every later click to the same five thousand.
+can no longer see. It never marks those: the check is against *current*
+permissions, so somebody demoted for a week and restored would find that week's
+security notices already read. Instead a truncated sweep says where it stopped,
+and the next click resumes from there.
 
 Both the count and the sweep say when they stopped on that bound rather than on
 the end of the inbox -

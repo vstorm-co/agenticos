@@ -1826,11 +1826,24 @@ class TestUnreadCountAndMarkRead:
         first = await service.mark_all_read(ctx)
         assert first.marked == 0
         assert first.remaining is True
+        assert first.resume is not None
 
-        second = await service.mark_all_read(ctx)
+        # Asking again from the top would read the same hidden window forever;
+        # from the cursor it reaches the visible row behind it. The hidden rows
+        # are left unread, because the gate reads current permissions and a
+        # restored role must not find them already read.
+        second = await service.mark_all_read(ctx, after=first.resume)
         assert second.marked == 1
         assert second.remaining is False
         assert (await service.unread_count(ctx)).count == 0
+        hidden = await notification_repo.list_unread(
+            db,
+            recipient_id=member.id,
+            organization_id=org.id,
+            is_app_admin=False,
+            cap=10,
+        )
+        assert len(hidden) == 2
 
 
 class TestDismissAndClear:

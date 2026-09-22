@@ -1,5 +1,5 @@
 ---
-source_sha: "7504a1c844e6"
+source_sha: "5b981aaf60d8"
 ---
 
 # La consola { #the-console }
@@ -76,9 +76,10 @@ atraso mayor la insignia sigue mostrando lo que queda por leer y un clic más
 termina el resto, en lugar de anunciar una bandeja que solo trabajó en parte.
 
 Cada clic avanza siempre, incluso cuando todo el lote eran filas que quien lee
-ya no puede ver: el barrido marca lo que ha leído y no solo lo que podía
-mostrar — una fila oculta a su destinataria no va a mostrársele nunca, y dejarla
-sin leer ataría cada clic posterior a esas mismas cinco mil.
+ya no puede ver. Nunca las marca: la comprobación es sobre los permisos
+*actuales*, así que a quien estuviera degradado una semana y luego restituido le
+aparecerían ya leídos los avisos de seguridad de esa semana. En su lugar, un
+barrido truncado dice dónde se paró y el siguiente clic arranca desde ahí.
 
 Tanto el contador como el barrido dicen cuándo se han parado en ese límite y no
 al final de la bandeja — `approximate` en `GET /notifications/unread-count` y

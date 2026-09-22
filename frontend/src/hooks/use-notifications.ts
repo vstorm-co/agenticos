@@ -14,6 +14,7 @@ import {
   markNotificationRead,
   type Notification,
   type NotificationPage,
+  type UnreadCount,
 } from "@/lib/notifications-api";
 import { qk } from "@/lib/query-keys";
 
@@ -21,19 +22,40 @@ import { qk } from "@/lib/query-keys";
 // interval `useBrandingNotice` picked for the same reason.
 const UNREAD_COUNT_POLL_MS = 60_000;
 
+// How many bounded windows one click will sweep. A ceiling rather than a
+// `while`: the server bounds each sweep, and a client that loops until the
+// server says stop is a client one very large inbox can keep busy.
+const MAX_SWEEPS = 10;
+
 /**
  * The bell's badge (#1598). Its own query, separate from the list below: it
  * has to stay live while the popover is closed, and the list only has to be
  * current once it is open.
  */
-export function useUnreadNotificationCount(enabled = true): number {
+export function useUnreadNotificationCount(enabled = true): UnreadCount {
   const { data } = useQuery({
     queryKey: qk.notifications.unreadCount(),
     queryFn: getUnreadNotificationCount,
     enabled,
     refetchInterval: UNREAD_COUNT_POLL_MS,
   });
-  return data ?? 0;
+  return data ?? EMPTY_UNREAD;
+}
+
+/** A stable identity, so a consumer's effects do not fire on every render. */
+const EMPTY_UNREAD: UnreadCount = { count: 0, approximate: false };
+
+/**
+ * The badge after `removed` rows stopped being unread.
+ *
+ * `approximate` is carried through rather than cleared: what a bounded scan
+ * could not see is still unseen after some of what it could see was marked, and
+ * dropping the flag here would hide the sweep that reaches the rest until the
+ * next poll (#1761).
+ */
+function countAfter(prev: UnreadCount | undefined, removed: number): UnreadCount {
+  const before = prev ?? { count: removed, approximate: false };
+  return { count: Math.max(0, before.count - removed), approximate: before.approximate };
 }
 
 type InboxCache = { pages: NotificationPage[]; pageParams: unknown[] };
@@ -145,14 +167,26 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     );
     patchItems(updated.read_at ?? new Date().toISOString(), (item) => item.id === id);
     if (wasUnread) {
-      queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
-        Math.max(0, (prev ?? 1) - 1),
+      queryClient.setQueryData<UnreadCount>(qk.notifications.unreadCount(), (prev) =>
+        countAfter(prev, 1),
       );
     }
   };
 
   const markAllRead = async () => {
-    const marked = await markAllNotificationsRead();
+    // One sweep per bounded window, following the cursor the last one answered
+    // with. A window can be entirely rows the read-time gate hides - a
+    // recipient demoted out of an audience - and those are never marked on
+    // their behalf, so without the cursor the next sweep would re-read the
+    // same prefix and the button would never reach the rows behind it.
+    let marked = 0;
+    let cursor: string | undefined;
+    for (let sweep = 0; sweep < MAX_SWEEPS; sweep++) {
+      const result = await markAllNotificationsRead(cursor);
+      marked += result.marked;
+      if (!result.remaining || result.next_cursor === null) break;
+      cursor = result.next_cursor;
+    }
     await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
     await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
     patchItems(new Date().toISOString(), (item) => item.read_at === null);
@@ -161,8 +195,8 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     // a backlog past that bound leaves some rows genuinely still unread -
     // `marked` is what the server actually did, where `0` would claim it
     // cleared a badge it only partly worked through.
-    queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
-      Math.max(0, (prev ?? marked) - marked),
+    queryClient.setQueryData<UnreadCount>(qk.notifications.unreadCount(), (prev) =>
+      countAfter(prev, marked),
     );
     // Then ask, because the subtraction cannot be right past the bound either:
     // `unread_count` stops at the same one, so an inbox with more than that
@@ -201,8 +235,8 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     // badge still counting a row nobody can reach is a badge that cannot be
     // cleared.
     if (wasUnread) {
-      queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
-        Math.max(0, (prev ?? 1) - 1),
+      queryClient.setQueryData<UnreadCount>(qk.notifications.unreadCount(), (prev) =>
+        countAfter(prev, 1),
       );
     }
   };
@@ -216,7 +250,7 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     queryClient.setQueryData<InboxCache>(qk.notifications.inbox(), (prev) =>
       prev ? { ...prev, pages: prev.pages.map((page) => ({ ...page, items: [] })) } : prev,
     );
-    queryClient.setQueryData<number>(qk.notifications.unreadCount(), 0);
+    queryClient.setQueryData<UnreadCount>(qk.notifications.unreadCount(), EMPTY_UNREAD);
     // Then ask, because the sweep is capped: an inbox longer than the cap is
     // partly cleared, and the refetch is what distinguishes that from an empty
     // one. Same bargain `markAllRead` makes with its own cap.

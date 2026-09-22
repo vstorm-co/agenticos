@@ -36,7 +36,7 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
   const tNotifications = useTranslations("notifications");
-  const unread = useUnreadNotificationCount();
+  const { count: unread, approximate } = useUnreadNotificationCount();
   const label = unread > 0 ? tNotifications("unreadCount", { count: unread }) : t("notifications");
 
   return (
@@ -71,7 +71,7 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
         align="start"
         className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <NotificationPanel open={open} unread={unread} />
+        <NotificationPanel open={open} unread={unread} approximate={approximate} />
       </PopoverContent>
     </Popover>
   );
@@ -91,7 +91,15 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-function NotificationPanel({ open, unread }: { open: boolean; unread: number }) {
+function NotificationPanel({
+  open,
+  unread,
+  approximate,
+}: {
+  open: boolean;
+  unread: number;
+  approximate: boolean;
+}) {
   const tNav = useTranslations("nav");
   const t = useTranslations("notifications");
   const {
@@ -111,7 +119,10 @@ function NotificationPanel({ open, unread }: { open: boolean; unread: number }) 
   // unpaged older page still holds an unread row, and "mark all read" must
   // stay offered until the same unread-count query the badge itself reads
   // says there is nothing left.
-  const hasUnread = unread > 0;
+  // `approximate` counts too: a bounded scan whose whole window was rows the
+  // read-time gate hides reports zero with rows still behind it, and hiding the
+  // sweep on that number is hiding the only control that reaches them (#1761).
+  const hasUnread = unread > 0 || approximate;
   // Clearing, unlike marking read, is about what is *listed* - so this one is
   // answered by the page on screen, which is the thing the button empties.
   const hasAny = notifications.length > 0;

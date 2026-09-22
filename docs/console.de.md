@@ -1,5 +1,5 @@
 ---
-source_sha: "7504a1c844e6"
+source_sha: "5b981aaf60d8"
 ---
 
 # Die Konsole { #the-console }
@@ -82,10 +82,11 @@ statt dass das Badge einen Posteingang behauptet, den es nur teilweise
 abgearbeitet hat.
 
 Jeder Klick kommt weiter, selbst wenn der ganze Stapel aus Zeilen bestand, die
-der Lesende nicht mehr sehen kann: Der Durchlauf markiert, was er gelesen hat,
-und nicht nur, was er zeigen konnte - eine vor ihrer Empfängerin verborgene
-Zeile wird ihr ohnehin nie angezeigt, und sie ungelesen zu lassen würde jeden
-weiteren Klick an dieselben fünftausend binden.
+der Lesende nicht mehr sehen kann. Markiert werden sie nie: geprüft werden die
+*aktuellen* Rechte, und wer eine Woche lang herabgestuft und dann wieder
+eingesetzt wird, fände die Sicherheitshinweise dieser Woche sonst bereits
+gelesen vor. Stattdessen sagt ein abgeschnittener Durchlauf, wo er aufgehört
+hat, und der nächste Klick setzt dort an.
 
 Sowohl die Zählung als auch der Durchlauf sagen, wenn sie an
 dieser Grenze statt am Ende des Posteingangs aufgehört haben - `approximate` bei

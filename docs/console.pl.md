@@ -1,5 +1,5 @@
 ---
-source_sha: "7504a1c844e6"
+source_sha: "5b981aaf60d8"
 ---
 
 # Konsola { #the-console }
@@ -77,10 +77,10 @@ to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zam
 żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
 
 Każde kliknięcie zawsze posuwa sprawę dalej, nawet gdy cała partia to wiersze,
-których czytający już nie widzi: zamiatanie oznacza to, co przeczytało, a nie
-tylko to, co mogło pokazać — wiersz ukryty przed swoim odbiorcą i tak nigdy mu
-się nie wyświetli, a pozostawienie go nieprzeczytanym przypinałoby każde kolejne
-kliknięcie do tych samych pięciu tysięcy.
+których czytający już nie widzi. Nigdy ich nie oznacza: sprawdzenie dotyczy
+*bieżących* uprawnień, więc ktoś zdegradowany na tydzień i przywrócony zastałby
+powiadomienia bezpieczeństwa z tego tygodnia już przeczytane. Zamiast tego
+ucięte zamiatanie mówi, gdzie się zatrzymało, a kolejne kliknięcie rusza stamtąd.
 
 I licznik, i zamiatanie mówią, kiedy zatrzymały się na tej granicy, a nie na końcu skrzynki
 — `approximate` w `GET /notifications/unread-count` i `remaining` w

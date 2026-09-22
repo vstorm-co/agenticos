@@ -36,12 +36,16 @@ Two things are versioned separately from this file and worth knowing about:
   partial.
 
   A repeated click always gets further, which is what makes `remaining` an
-  instruction rather than a description: the sweep marks every row it read, not
-  only the rows it could show. A row the read-time gate hides is one its
-  recipient will never be shown, and leaving it unread pinned every later sweep
-  to the same prefix - so a recipient demoted out of an audience, with a whole
-  scan window of hidden rows in front of the visible ones, could press the
-  button forever and reach nothing. (#1761)
+  instruction rather than a description: a truncated sweep answers with a
+  `next_cursor`, and the next one resumes from there instead of re-reading the
+  window already covered. Rows the read-time gate hides are never marked to
+  force that progress - the gate reads *current* permissions, so a recipient
+  demoted for a week and restored would find that week's security notices
+  already read and out of their badge. `marked` is what the request changed
+  rather than what it looked at, so two overlapping sweeps cannot both claim the
+  same rows, and the console keeps `approximate`: a truncated count of zero
+  still has a sweep worth offering, which is exactly the case a demoted
+  recipient lands in. (#1761)
 
 ## [0.0.481] - 2026-09-22
 

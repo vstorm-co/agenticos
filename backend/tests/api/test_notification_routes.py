@@ -268,7 +268,7 @@ class TestMarkAllRead:
             async with client() as http:
                 response = await http.post(_url("/mark-all-read"))
         assert response.status_code == 200
-        assert response.json() == {"marked": 3, "remaining": False}
+        assert response.json() == {"marked": 3, "remaining": False, "next_cursor": None}
 
     async def test_a_sweep_that_ran_out_of_scan_says_rows_were_left(
         self, client: OpenClient, monkeypatch
@@ -290,7 +290,42 @@ class TestMarkAllRead:
         ):
             async with client() as http:
                 response = await http.post(_url("/mark-all-read"))
-        assert response.json() == {"marked": 2, "remaining": True}
+        body = response.json()
+        assert body["marked"] == 2
+        assert body["remaining"] is True
+        # The window this sweep covered, so asking again starts past it rather
+        # than re-reading the same rows.
+        assert body["next_cursor"]
+
+    async def test_a_cursor_carries_the_sweep_past_the_window_it_covered(
+        self, client: OpenClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A run of rows the read-time gate hides is never marked on the
+        recipient's behalf - the gate reads current permissions, and a restored
+        role would find them already read. The cursor is what gets past them."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        monkeypatch.setattr(notification_center, "_UNREAD_SCAN_LIMIT", 2)
+        seen: list[object] = []
+
+        async def listing(_db, **kwargs):
+            seen.append(kwargs.get("after"))
+            return [_row(), _row()]
+
+        with (
+            patch(f"{NOTIFICATION_PATH}.notification_repo.list_unread", new=listing),
+            patch(
+                f"{NOTIFICATION_PATH}.notification_repo.mark_ids_read",
+                new=AsyncMock(return_value=2),
+            ),
+        ):
+            async with client() as http:
+                first = await http.post(_url("/mark-all-read"))
+                cursor = first.json()["next_cursor"]
+                await http.post(_url(f"/mark-all-read?cursor={cursor}"))
+
+        assert seen[0] is None
+        # The second sweep opens where the first stopped.
+        assert seen[-1] is not None
 
 
 class TestDismissOne:

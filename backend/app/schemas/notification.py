@@ -60,19 +60,23 @@ class UnreadCountRead(BaseSchema):
 
 
 class MarkAllReadResult(BaseSchema):
-    """How many rows one "mark all read" marked.
+    """How many rows one "mark all read" marked, and where to carry on from.
+
+    `marked` is what this request changed, not what it looked at, so two
+    overlapping sweeps cannot both claim the same rows.
 
     `remaining` is true when the sweep ran out of scan rather than out of
     inbox, so a caller that treats `marked` as "the inbox is now clear" would
-    hide the button that finishes the job. Asking again finishes it whenever
-    `marked` is above zero: those rows are no longer unread, so the next sweep
-    reaches further. A sweep that marked nothing and reports `remaining` has
-    run its whole scan through rows the read-time gate hides, and repeating it
-    reaches the same place - the bound `clear_inbox` states for its own scan.
+    hide the button that finishes the job. `next_cursor` is what finishes it:
+    pass it back and the next sweep starts past the window this one covered,
+    which is what gets a caller past a run of rows the read-time gate hides -
+    those are never marked on their behalf, because the gate reads current
+    permissions and a restored role would find them already read.
     """
 
     marked: int
     remaining: bool = False
+    next_cursor: str | None = None
 
 
 class ClearInboxResult(BaseSchema):

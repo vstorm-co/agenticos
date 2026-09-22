@@ -41,21 +41,21 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("useUnreadNotificationCount", () => {
   it("reports the fetched count", async () => {
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 3, approximate: false });
     const { result } = renderHook(() => useUnreadNotificationCount(), { wrapper });
 
-    await waitFor(() => expect(result.current).toBe(3));
+    await waitFor(() => expect(result.current.count).toBe(3));
   });
 
   it("reads zero before the first answer arrives", () => {
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 3, approximate: false });
     const { result } = renderHook(() => useUnreadNotificationCount(), { wrapper });
 
-    expect(result.current).toBe(0);
+    expect(result.current.count).toBe(0);
   });
 
   it("does not fetch while disabled", () => {
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 3, approximate: false });
     renderHook(() => useUnreadNotificationCount(false), { wrapper });
 
     expect(api.getUnreadNotificationCount).not.toHaveBeenCalled();
@@ -123,14 +123,14 @@ describe("useNotificationInbox", () => {
     vi.mocked(api.markNotificationRead).mockResolvedValue(
       notification({ id: "n1", read_at: "2026-09-02T00:00:00Z" }),
     );
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(2);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 2, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(2));
+    await waitFor(() => expect(countHook.result.current.count).toBe(2));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
@@ -143,7 +143,7 @@ describe("useNotificationInbox", () => {
       ),
     );
     expect(inboxHook.result.current.notifications.find((n) => n.id === "n2")?.read_at).toBeNull();
-    await waitFor(() => expect(countHook.result.current).toBe(1));
+    await waitFor(() => expect(countHook.result.current.count).toBe(1));
   });
 
   it("marks every unread row read and zeroes the count", async () => {
@@ -153,18 +153,24 @@ describe("useNotificationInbox", () => {
         notification({ id: "n2", read_at: "2026-09-01T01:00:00Z" }),
       ]),
     );
-    vi.mocked(api.markAllNotificationsRead).mockResolvedValue(1);
+    vi.mocked(api.markAllNotificationsRead).mockResolvedValue({
+      marked: 1,
+      remaining: false,
+      next_cursor: null,
+    });
     // The count the server reports before the call, then after it - the
     // mutation refetches, and a constant mock would answer the refetch with
     // the pre-write number.
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(1).mockResolvedValue(0);
+    vi.mocked(api.getUnreadNotificationCount)
+      .mockResolvedValueOnce({ count: 1, approximate: false })
+      .mockResolvedValue({ count: 0, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(1));
+    await waitFor(() => expect(countHook.result.current.count).toBe(1));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
@@ -178,7 +184,34 @@ describe("useNotificationInbox", () => {
     expect(inboxHook.result.current.notifications.find((n) => n.id === "n2")?.read_at).toBe(
       "2026-09-01T01:00:00Z",
     );
-    await waitFor(() => expect(countHook.result.current).toBe(0));
+    await waitFor(() => expect(countHook.result.current.count).toBe(0));
+  });
+
+  it("follows the cursor until the sweep runs out of inbox rather than out of scan", async () => {
+    // A window can be entirely rows the read-time gate hides, and those are
+    // never marked on the recipient's behalf - so without the cursor the next
+    // sweep re-reads the same prefix and the button never reaches what is
+    // behind it (#1761).
+    vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
+    vi.mocked(api.markAllNotificationsRead)
+      .mockResolvedValueOnce({ marked: 0, remaining: true, next_cursor: "c1" })
+      .mockResolvedValueOnce({ marked: 2, remaining: false, next_cursor: null });
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({
+      count: 2,
+      approximate: false,
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    function TestWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    const { result } = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => result.current.markAllRead());
+
+    expect(api.markAllNotificationsRead).toHaveBeenNthCalledWith(1, undefined);
+    expect(api.markAllNotificationsRead).toHaveBeenNthCalledWith(2, "c1");
   });
 
   it("refetches the badge after a capped sweep rather than trusting the subtraction", async () => {
@@ -188,21 +221,27 @@ describe("useNotificationInbox", () => {
     // next minute-long poll. Only asking again tells a truncated inbox from
     // an emptied one; here the server still has 100 to report.
     vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
-    vi.mocked(api.markAllNotificationsRead).mockResolvedValue(500);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(500).mockResolvedValue(100);
+    vi.mocked(api.markAllNotificationsRead).mockResolvedValue({
+      marked: 500,
+      remaining: false,
+      next_cursor: null,
+    });
+    vi.mocked(api.getUnreadNotificationCount)
+      .mockResolvedValueOnce({ count: 500, approximate: false })
+      .mockResolvedValue({ count: 100, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(500));
+    await waitFor(() => expect(countHook.result.current.count).toBe(500));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
     await act(async () => inboxHook.result.current.markAllRead());
 
-    await waitFor(() => expect(countHook.result.current).toBe(100));
+    await waitFor(() => expect(countHook.result.current.count).toBe(100));
   });
 
   it("does not double-decrement when the same row is marked read twice before the cache updates", async () => {
@@ -221,14 +260,14 @@ describe("useNotificationInbox", () => {
     // Three, not one - a clamp at zero would make a correct single decrement
     // and an incorrect double decrement land on the same number starting
     // from one, and hide the very bug this test exists to catch.
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 3, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(3));
+    await waitFor(() => expect(countHook.result.current.count).toBe(3));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
@@ -241,7 +280,7 @@ describe("useNotificationInbox", () => {
       await secondCall;
     });
 
-    await waitFor(() => expect(countHook.result.current).toBe(2));
+    await waitFor(() => expect(countHook.result.current.count).toBe(2));
   });
 
   it("cancels the in-flight count and inbox reads before writing, so a stale poll cannot win", async () => {
@@ -253,7 +292,7 @@ describe("useNotificationInbox", () => {
     vi.mocked(api.markNotificationRead).mockResolvedValue(
       notification({ id: "n1", read_at: "2026-09-02T00:00:00Z" }),
     );
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(1);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 1, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const cancelSpy = vi.spyOn(client, "cancelQueries");
@@ -305,7 +344,11 @@ describe("useNotificationInbox", () => {
 
   it("marks every row read without crashing when the badge query has never run", async () => {
     vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
-    vi.mocked(api.markAllNotificationsRead).mockResolvedValue(1);
+    vi.mocked(api.markAllNotificationsRead).mockResolvedValue({
+      marked: 1,
+      remaining: false,
+      next_cursor: null,
+    });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -343,14 +386,14 @@ describe("useNotificationInbox", () => {
       page([notification({ id: "n1" }), notification({ id: "n2" })]),
     );
     vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(2);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 2, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(2));
+    await waitFor(() => expect(countHook.result.current.count).toBe(2));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
@@ -361,7 +404,7 @@ describe("useNotificationInbox", () => {
     );
     // A row nothing on screen can reach must not go on counting towards a
     // badge that nothing left can clear.
-    await waitFor(() => expect(countHook.result.current).toBe(1));
+    await waitFor(() => expect(countHook.result.current.count).toBe(1));
   });
 
   it("does not decrement the badge for a row that was already read", async () => {
@@ -369,21 +412,21 @@ describe("useNotificationInbox", () => {
       page([notification({ id: "n1", read_at: "2026-09-01T01:00:00Z" })]),
     );
     vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(3);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 3, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(3));
+    await waitFor(() => expect(countHook.result.current.count).toBe(3));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
     await act(async () => inboxHook.result.current.dismiss("n1"));
 
     await waitFor(() => expect(inboxHook.result.current.notifications).toEqual([]));
-    expect(countHook.result.current).toBe(3);
+    expect(countHook.result.current.count).toBe(3);
   });
 
   it("empties every loaded page when the inbox is cleared, then asks again", async () => {
@@ -393,14 +436,16 @@ describe("useNotificationInbox", () => {
     // which is what tells a truncated inbox from an emptied one.
     vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
     vi.mocked(api.clearNotifications).mockResolvedValue(1);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValueOnce(5).mockResolvedValue(4);
+    vi.mocked(api.getUnreadNotificationCount)
+      .mockResolvedValueOnce({ count: 5, approximate: false })
+      .mockResolvedValue({ count: 4, approximate: false });
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     function TestWrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     }
     const countHook = renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
-    await waitFor(() => expect(countHook.result.current).toBe(5));
+    await waitFor(() => expect(countHook.result.current.count).toBe(5));
     const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
     await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
 
@@ -408,7 +453,7 @@ describe("useNotificationInbox", () => {
     await act(async () => inboxHook.result.current.clearAll());
 
     await waitFor(() => expect(inboxHook.result.current.notifications).toEqual([]));
-    await waitFor(() => expect(countHook.result.current).toBe(4));
+    await waitFor(() => expect(countHook.result.current.count).toBe(4));
   });
 
   it("clears an inbox nothing has loaded yet without inventing a cache", async () => {
@@ -416,7 +461,7 @@ describe("useNotificationInbox", () => {
     // no-ops rather than seeding an empty one the next open would serve.
     vi.mocked(api.clearNotifications).mockResolvedValue(0);
     vi.mocked(api.dismissNotification).mockResolvedValue(undefined);
-    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(0);
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue({ count: 0, approximate: false });
 
     const { result } = renderHook(() => useNotificationInbox(false), { wrapper });
 
