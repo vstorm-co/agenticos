@@ -279,3 +279,27 @@ class TestTmpdirCancellationSafety:
         # mkdtemp ran to completion under the shield, and the created dir was removed.
         assert created
         assert removed == created
+
+
+async def test_nothing_is_staged_until_a_converter_slot_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The chat path writes a copy of the upload - up to
+    `CHAT_MAX_UPLOAD_SIZE_MB` - before it can convert anything. Staging that
+    outside the admission bound let a burst queued behind slow RAG conversions
+    accumulate an unbounded number of those copies in the temporary directory,
+    which the concurrency bound exists to prevent (#1767)."""
+    staged: list[str] = []
+
+    def _staging() -> str:
+        staged.append("made")
+        raise AssertionError("staged before a slot was held")
+
+    monkeypatch.setattr(office_convert, "_make_tmpdir", _staging)
+    # No slot will ever come free inside the budget.
+    monkeypatch.setattr(manager, "_semaphore", lambda: asyncio.Semaphore(0))
+
+    text = await office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=0.05)
+
+    assert text is None
+    assert staged == []

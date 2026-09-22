@@ -52,11 +52,14 @@ import sys
 import tempfile
 import uuid
 import weakref
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import cast
 
-from app.core.blocking import create_cancel_safe, delete_cancel_safe
+from app.core.blocking import create_cancel_safe, delete_cancel_safe, run_blocking
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -143,13 +146,66 @@ def _semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
+@dataclass(frozen=True)
+class Slot:
+    """A held converter slot and the deadline the whole call is measured against.
+
+    Handed out by `reserve` so a caller can put its *own* staging inside the
+    admission bound. The chat path writes a copy of the upload - up to
+    `CHAT_MAX_UPLOAD_SIZE_MB` - before it can convert anything, and doing that
+    outside the semaphore lets a burst queued behind slow RAG conversions
+    accumulate an unbounded number of those copies in the temporary directory,
+    which the concurrency bound exists to prevent (#1767).
+    """
+
+    deadline: float
+
+    def remaining(self) -> float:
+        """What is left of the caller's budget, now."""
+        return self.deadline - asyncio.get_running_loop().time()
+
+
+@asynccontextmanager
+async def reserve(timeout_seconds: float, *, what: str) -> AsyncIterator[Slot]:
+    """Hold a converter slot for the body, refusing if none frees up in time.
+
+    `timeout_seconds` is the ceiling on everything inside, the wait included:
+    started after the semaphore it measured nothing a caller was waiting on,
+    and with both slots held by RAG conversions of up to 600s each a chat
+    conversion asking for 60s could sit for ten minutes before its own timer
+    began (#1767).
+
+    Args:
+        timeout_seconds: The whole call's budget.
+        what: What is being converted, for the refusal - a filename, never a
+            temporary path, since this message reaches a stored `error_message`.
+
+    Raises:
+        OfficeConversionTimeout: no slot came free inside the budget.
+    """
+    loop = asyncio.get_running_loop()
+    slot = Slot(deadline=loop.time() + timeout_seconds)
+    semaphore = _semaphore()
+    try:
+        await asyncio.wait_for(semaphore.acquire(), timeout=timeout_seconds)
+    except TimeoutError:
+        raise OfficeConversionTimeout(
+            f"Converting {what} exceeded {timeout_seconds:g}s waiting for a converter"
+        ) from None
+    try:
+        yield slot
+    finally:
+        semaphore.release()
+
+
 async def convert(
     source: Path,
     out_dir: Path,
     *,
     convert_to: str,
     extension: str,
-    timeout_seconds: float,
+    timeout_seconds: float | None = None,
+    slot: Slot | None = None,
     output_max_bytes: int = 0,
 ) -> Path:
     """Convert `source` into `out_dir` and return the produced file's path.
@@ -161,18 +217,18 @@ async def convert(
         extension: The suffix the produced file carries, so the caller does not
             have to parse `convert_to` back apart.
         timeout_seconds: The ceiling on the whole call, **including the wait for
-            a converter slot**. What is left of it after the wait is what the
-            subprocess gets, and the child's CPU limit is set five seconds above
-            that, so a runaway is stopped by the kernel even if the wait is
-            somehow not reached.
+            a converter slot**. Give this or `slot`, not both.
+        slot: A slot already held through `reserve`, when the caller had staging
+            of its own to put inside the admission bound. Its deadline is the
+            one honoured, so the budget covers that staging too.
         output_max_bytes: `RLIMIT_FSIZE` for the child, or `0` for no limit.
 
     Returns:
         `out_dir / f"{source.stem}.{extension}"`.
 
     Raises:
-        OfficeConversionTimeout: The call exceeded `timeout_seconds`, waiting for
-            a slot or converting; a started process group has been terminated.
+        OfficeConversionTimeout: The call exceeded its budget, waiting for a
+            slot or converting; a started process group has been terminated.
         OfficeConversionError: LibreOffice is not installed, exited non-zero, or
             produced no output.
     """
@@ -181,33 +237,27 @@ async def convert(
         raise OfficeConversionError(
             f"Cannot convert {source.name}: LibreOffice (soffice) is not installed"
         )
-    # The deadline is the caller's, and the queue is inside it. Started only
-    # after the semaphore, `timeout_seconds` measured nothing a caller was
-    # waiting on: with two slots held by RAG conversions of up to 600s each, a
-    # chat conversion asking for 60s could sit for ten minutes before its own
-    # timer began, and the RAG parser's whole-document deadline could be blown
-    # in the same queue (#1767).
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout_seconds
-    semaphore = _semaphore()
-    try:
-        await asyncio.wait_for(semaphore.acquire(), timeout=timeout_seconds)
-    except TimeoutError:
-        raise OfficeConversionTimeout(
-            f"Converting {source.name} exceeded {timeout_seconds:g}s waiting for a converter"
-        ) from None
-    try:
+    if slot is not None:
         return await _convert(
             command,
             source,
             out_dir,
             convert_to=convert_to,
             extension=extension,
-            timeout_seconds=deadline - loop.time(),
+            slot=slot,
             output_max_bytes=output_max_bytes,
         )
-    finally:
-        semaphore.release()
+    assert timeout_seconds is not None, "convert() takes a budget or a held slot"
+    async with reserve(timeout_seconds, what=source.name) as reserved:
+        return await _convert(
+            command,
+            source,
+            out_dir,
+            convert_to=convert_to,
+            extension=extension,
+            slot=reserved,
+            output_max_bytes=output_max_bytes,
+        )
 
 
 async def convert_to_pdf(source: Path, out_dir: Path, *, timeout_seconds: float) -> Path:
@@ -228,7 +278,7 @@ async def _convert(
     *,
     convert_to: str,
     extension: str,
-    timeout_seconds: float,
+    slot: Slot,
     output_max_bytes: int,
 ) -> Path:
     # LibreOffice refuses to run two instances that share a user profile, so a
@@ -246,6 +296,10 @@ async def _convert(
         partial(profile_dir.mkdir, 0o700),
         partial(shutil.rmtree, profile_dir, True),
     )
+    # Read after the profile exists, not before: the create runs on a shared
+    # file pool and can itself wait, and a budget computed ahead of it would
+    # hand the subprocess time the call has already spent (#1767).
+    timeout_seconds = slot.remaining()
     try:
         proc = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -300,7 +354,11 @@ async def _convert(
             raise OfficeConversionError(f"LibreOffice could not convert {source.name}")
 
         produced = out_dir / f"{source.stem}.{extension}"
-        if not produced.exists():
+        # On the file pool like every other filesystem call here: the chat path
+        # offloads its own `stat` and read for exactly this reason, and a
+        # contended temporary filesystem must not stall unrelated requests on
+        # one existence check.
+        if not await run_blocking(produced.exists):
             raise OfficeConversionError(f"LibreOffice produced no output for {source.name}")
         return produced
     finally:

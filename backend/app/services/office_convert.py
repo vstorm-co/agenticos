@@ -20,9 +20,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from app.core.blocking import create_cancel_safe, run_blocking
+from app.core.blocking import create_cancel_safe, delete_cancel_safe, run_blocking
 from app.core.config import settings
-from app.core.office_convert import OfficeConversionError, convert
+from app.core.office_convert import OfficeConversionError, Slot, convert, reserve
 
 logger = logging.getLogger(__name__)
 
@@ -32,50 +32,72 @@ async def libreoffice_convert(data: bytes, *, suffix: str, timeout: float) -> st
 
     Returns the extracted text, or `None` when LibreOffice is absent, the
     conversion fails or times out, or the output is missing or oversized.
+
+    **The converter slot is taken before anything is staged.** Writing the copy
+    first put an up-to-`CHAT_MAX_UPLOAD_SIZE_MB` file on disk for every queued
+    request, so a burst arriving behind slow RAG conversions could fill the
+    worker's temporary volume while the concurrency bound looked like it was
+    holding (#1767). `timeout` covers the wait, the staging and the conversion -
+    all of it is time the caller is waiting.
     """
-    # The temp-dir create, the source write (up to CHAT_MAX_UPLOAD_SIZE_MB), the
-    # output read (up to CHAT_CONVERT_OUTPUT_MAX_BYTES) and the cleanup are all
-    # blocking filesystem syscalls; they run on the dedicated file pool rather
-    # than the request loop, the same rule `parse_content` and `file_storage`
-    # follow, so a slow or contended container filesystem cannot stall unrelated
-    # requests (#1108, #1591).
-    #
-    # Created cancellation-safe: `run_blocking` cannot interrupt a submitted job,
-    # so a task cancelled while `mkdtemp` was in flight would leave
-    # `/tmp/chatconv-*` created but never assigned and never cleaned, and
-    # repeated cancelled DOC uploads would leak temp storage. `create_cancel_safe`
-    # shields the create and, on cancellation, removes what it made before the
-    # cancel propagates - the holder carries the generated path out, since it
-    # returns None (#1654).
-    holder: list[str] = []
-    await create_cancel_safe(
-        lambda: holder.append(_make_tmpdir()),
-        lambda: shutil.rmtree(holder[0], ignore_errors=True) if holder else None,
-    )
-    tmp = holder[0]
     try:
-        tmpdir = Path(tmp)
-        source = tmpdir / f"input{suffix}"
-        await run_blocking(source.write_bytes, data)
-        try:
-            produced = await convert(
-                source,
-                tmpdir,
-                convert_to="txt:Text",
-                extension="txt",
-                timeout_seconds=timeout,
-                output_max_bytes=settings.CHAT_CONVERT_OUTPUT_MAX_BYTES,
+        async with reserve(timeout, what=f"the attachment{suffix}") as slot:
+            # The temp-dir create, the source write (up to
+            # CHAT_MAX_UPLOAD_SIZE_MB), the output read (up to
+            # CHAT_CONVERT_OUTPUT_MAX_BYTES) and the cleanup are all blocking
+            # filesystem syscalls; they run on the dedicated file pool rather
+            # than the request loop, the same rule `parse_content` and
+            # `file_storage` follow, so a slow or contended container filesystem
+            # cannot stall unrelated requests (#1108, #1591).
+            #
+            # Created cancellation-safe: `run_blocking` cannot interrupt a
+            # submitted job, so a task cancelled while `mkdtemp` was in flight
+            # would leave `/tmp/chatconv-*` created but never assigned and never
+            # cleaned, and repeated cancelled DOC uploads would leak temp
+            # storage. `create_cancel_safe` shields the create and, on
+            # cancellation, removes what it made before the cancel propagates -
+            # the holder carries the generated path out, since it returns None
+            # (#1654).
+            holder: list[str] = []
+            await create_cancel_safe(
+                lambda: holder.append(_make_tmpdir()),
+                lambda: shutil.rmtree(holder[0], ignore_errors=True) if holder else None,
             )
-        except OfficeConversionError as exc:
-            # Never a raise for this caller: the model is told the text could not
-            # be extracted, which is an answer, where a 500 on an attachment is
-            # not. The manager's own message is a controlled string naming the
-            # file, so it is safe in the log line.
-            logger.warning("libreoffice_convert_failed", extra={"reason": str(exc)})
-            return None
-        return await run_blocking(_read_output, produced)
-    finally:
-        await run_blocking(shutil.rmtree, tmp, True)
+            tmp = holder[0]
+            try:
+                return await _convert_staged(Path(tmp), data, suffix=suffix, slot=slot)
+            finally:
+                # Shielded: this runs while a cancellation may already be
+                # propagating, and a plain `run_blocking` would be cancelled
+                # before it submitted anything and leave the tree behind.
+                await delete_cancel_safe(shutil.rmtree, tmp, True)
+    except OfficeConversionError as exc:
+        # Never a raise for this caller: the model is told the text could not be
+        # extracted, which is an answer, where a 500 on an attachment is not.
+        # The manager's own messages are controlled strings naming the file, so
+        # they are safe in the log line.
+        logger.warning("libreoffice_convert_failed", extra={"reason": str(exc)})
+        return None
+
+
+async def _convert_staged(tmpdir: Path, data: bytes, *, suffix: str, slot: Slot) -> str | None:
+    """Write the upload into `tmpdir`, convert it there, and read the text back.
+
+    Raises `OfficeConversionError` rather than answering `None` for a failed
+    conversion: the caller above turns every one of them into `None` in one
+    place, so the two paths cannot disagree about what a failure looks like.
+    """
+    source = tmpdir / f"input{suffix}"
+    await run_blocking(source.write_bytes, data)
+    produced = await convert(
+        source,
+        tmpdir,
+        convert_to="txt:Text",
+        extension="txt",
+        slot=slot,
+        output_max_bytes=settings.CHAT_CONVERT_OUTPUT_MAX_BYTES,
+    )
+    return await run_blocking(_read_output, produced)
 
 
 def _make_tmpdir() -> str:

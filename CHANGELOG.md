@@ -37,9 +37,13 @@ Two things are versioned separately from this file and worth knowing about:
   subprocess. It used to start after the semaphore, so with both slots held by
   RAG conversions of up to 600s each, a chat conversion asking for 60s could sit
   for ten minutes before its own timer began. A caller that cannot be served
-  inside its deadline is now refused inside it. The per-call user profile is also
-  made and removed on the file pool rather than on the event loop, the rule the
-  chat path already followed for its own temporary tree. (#1767)
+  inside its deadline is now refused inside it, and the budget covers the
+  caller's own staging as well: the chat path holds its converter slot before it
+  writes the upload's copy to disk, so a burst queued behind slow conversions
+  cannot fill the worker's temporary volume while the concurrency bound looks
+  like it is holding. The per-call user profile is also made and removed on the
+  file pool rather than on the event loop, the rule the chat path already
+  followed for its own temporary tree. (#1767)
 
 ## [0.0.481] - 2026-09-22
 

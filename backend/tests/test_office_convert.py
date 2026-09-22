@@ -472,3 +472,85 @@ async def test_the_profile_directory_is_made_and_removed_off_the_loop(
     assert offloaded == ["create", "delete"]
     # And nothing is left behind: the profile is the only thing this made there.
     assert list(temp_root.iterdir()) == []
+
+
+async def test_setup_that_drags_comes_out_of_the_conversion_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The profile is made on a shared file pool, which can itself wait. A
+    budget computed before that would hand the subprocess time the call has
+    already spent, and both slots could be held past the caller's deadline."""
+    temp_root = tmp_path / "temp"
+    temp_root.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "gettempdir", lambda: str(temp_root))
+    real_create = office_convert.create_cancel_safe
+
+    async def slow_create(*args: object) -> None:
+        await asyncio.sleep(0.3)
+        await real_create(*args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(office_convert, "create_cancel_safe", slow_create)
+    script = _write_fake_soffice(tmp_path, "time.sleep(30)\n")
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    with pytest.raises(OfficeConversionTimeout):
+        await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=0.4)
+
+
+async def test_the_output_probe_runs_on_the_file_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A contended temporary filesystem must not stall unrelated requests on one
+    existence check - the chat caller offloads its own `stat` and read for the
+    same reason."""
+    offloaded: list[str] = []
+    real_blocking = office_convert.run_blocking
+
+    async def spying(fn, *args: object):  # type: ignore[no-untyped-def]
+        offloaded.append(getattr(fn, "__name__", repr(fn)))
+        return await real_blocking(fn, *args)
+
+    monkeypatch.setattr(office_convert, "run_blocking", spying)
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
+
+    assert "exists" in offloaded
+
+
+async def test_a_held_slot_is_honoured_rather_than_taken_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`reserve` is what lets a caller put its own staging inside the admission
+    bound; `convert` must then not queue for a second slot and deadlock against
+    the one already held."""
+    gate = asyncio.Semaphore(1)
+    monkeypatch.setattr(office_convert, "_semaphore", lambda: gate)
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    async with office_convert.reserve(10, what="quarterly.xlsx") as slot:
+        assert gate.locked()
+        produced = await office_convert.convert(
+            tmp_path / "quarterly.xlsx",
+            out_dir,
+            convert_to="pdf",
+            extension="pdf",
+            slot=slot,
+        )
+
+    assert produced.exists()
+    assert not gate.locked()
