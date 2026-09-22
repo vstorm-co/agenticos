@@ -301,12 +301,17 @@ class RecordOperations(Operations):
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
+            if data.external_id is not None:
+                # Before the quota is consulted: a full table must still answer an id that
+                # exists with ALREADY_EXISTS, not with a quota refusal about a record that would
+                # never have been written. Taking the count lock first also lets a concurrent
+                # create of the same id commit before this looks.
+                await quotas.lock_record_count(self.db, table)
+                if await self._lookup(ctx, table, data.external_id) is not None:
+                    raise self._already_exists(data.external_id)
             record = await self._insert(ctx, table, data.external_id, data.values)
             if record is None:
-                raise AlreadyExistsError(
-                    message="A record with this external id already exists in the table",
-                    details={"external_id": data.external_id},
-                )
+                raise self._already_exists(data.external_id)
             return self._outcome(record, created=True)
 
         return await self._write(
@@ -488,6 +493,13 @@ class RecordOperations(Operations):
         except _Unchanged as unchanged:
             return RecordWrite(record=unchanged.record, created=False, replayed=False)
         return RecordWrite(record=outcome.record, created=outcome.created, replayed=replayed)
+
+    @staticmethod
+    def _already_exists(external_id: str | None) -> AlreadyExistsError:
+        return AlreadyExistsError(
+            message="A record with this external id already exists in the table",
+            details={"external_id": external_id},
+        )
 
     async def _lookup(
         self, ctx: AuthContext, table: VirtualTable, external_id: str

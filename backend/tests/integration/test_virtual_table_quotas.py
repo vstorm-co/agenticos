@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import settings
+from app.core.exceptions import AlreadyExistsError
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.virtual_table import VirtualTableRecord
 from app.schemas.virtual_table import (
@@ -382,3 +383,34 @@ async def test_an_upsert_waiting_on_a_rival_for_the_last_slot_updates_it_when_th
         await waiting
     assert await _records(factory) == 1
     assert await _refusals(factory, ctx) == []
+
+
+async def test_a_duplicate_id_on_a_full_table_is_already_exists_not_a_quota_refusal(
+    engine: AsyncEngine, monkeypatch
+):
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 2)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    for external_id in ("a", "b"):
+        await _call(
+            factory,
+            lambda service, e=external_id: service.create_record(
+                ctx, table.id, RecordCreate(external_id=e, values={})
+            ),
+        )
+
+    with pytest.raises(AlreadyExistsError):
+        await _call(
+            factory,
+            lambda service: service.create_record(
+                ctx, table.id, RecordCreate(external_id="a", values={})
+            ),
+        )
+    assert await _refusals(factory, ctx) == []
+
+    for new in (RecordCreate(external_id="c", values={}), RecordCreate(values={})):
+        with pytest.raises(QuotaExceededError):
+            await _call(factory, lambda service, new=new: service.create_record(ctx, table.id, new))
+    assert len(await _refusals(factory, ctx)) == 2
+    assert await _records(factory) == 2
