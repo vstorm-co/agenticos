@@ -218,6 +218,11 @@ class OrganizationSecretService:
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
         )
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -273,6 +278,11 @@ class OrganizationSecretService:
         secret = await organization_secret_repo.update(
             self.db, secret=secret, update_data=update_data
         )
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -297,6 +307,11 @@ class OrganizationSecretService:
         await organization_secret_repo.delete(
             self.db, secret_id, organization_id=ctx.organization_id
         )
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

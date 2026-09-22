@@ -181,6 +181,11 @@ class SandboxConnectionService:
             await sandbox_connection_repo.clear_default(
                 self.db, organization_id=ctx.organization_id, except_id=row.id
             )
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -226,6 +231,11 @@ class SandboxConnectionService:
         """
         row = await self.get(ctx, connection_id)
         await sandbox_connection_repo.delete(self.db, connection=row)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(ctx.organization_id)
         entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

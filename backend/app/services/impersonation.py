@@ -178,6 +178,11 @@ class ImpersonationService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(None)
         entry = await record_audit(
             self.db,
             actor_user_id=admin.id,
@@ -310,6 +315,11 @@ class ImpersonationService:
         if active is None:
             raise BadRequestError(message="This session is not an impersonation")
         await session_repo.deactivate(self.db, active.session_id)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        await NotificationService(self.db).hold_security_audience(None)
         entry = await record_audit(
             self.db,
             actor_user_id=active.impersonator_id,

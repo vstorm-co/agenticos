@@ -86,6 +86,11 @@ async def update_user(
     # are what the trail is for; the values are on the row. `model_fields_set`
     # rather than `model_dump`, so the plaintext is not even built to be thrown
     # away.
+    # Before the audit entry, never after it: `record_audit` holds the
+    # chain lock to the end of the transaction, and the notification
+    # below reaches for a `users` row that `admin_delete` takes first
+    # and the chain second (#1763).
+    await NotificationService(db).hold_security_audience(None)
     entry = await record_audit(
         db,
         actor_user_id=admin.id,
@@ -165,6 +170,11 @@ async def delete_user(
     details: dict[str, Any] = {"email": target.email}
     if reason is not None:
         details["reason"] = reason
+    # Before the audit entry, never after it: `record_audit` holds the
+    # chain lock to the end of the transaction, and the notification
+    # below reaches for a `users` row that `admin_delete` takes first
+    # and the chain second (#1763).
+    await NotificationService(db).hold_security_audience(None)
     entry = await record_audit(
         db,
         actor_user_id=admin.id,

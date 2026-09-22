@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **An audited security write and an admin deletion can no longer deadlock each
+  other.** `record_audit` holds a transaction-scoped lock on the organization's
+  audit chain, and the mandatory security notification written straight after it
+  takes a key-share lock on every recipient's user row — while
+  `UserService.admin_delete` locks every app admin's row exclusively *first* and
+  reaches for the same chain lock second. Two transactions, the same two locks,
+  opposite orders: Postgres aborts one, and depending on which loses, either the
+  deletion has to be retried or the surviving transaction's mandatory
+  security-event notification is discarded inside its own savepoint while the
+  audit entry commits regardless. The twelve sites that audit and then notify now
+  take the audience's row locks immediately *before* the audit entry, so every
+  transaction takes user rows first and the chain last. The order is a convention
+  no type can express, so a static test holds the sites to it. (#1763)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added

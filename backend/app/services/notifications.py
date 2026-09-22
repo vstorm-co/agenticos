@@ -64,6 +64,7 @@ from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
+from app.repositories import user as user_repo
 from app.services.notification_center import NotificationCenterService
 from app.services.spend import organization_spend_since
 
@@ -464,6 +465,36 @@ class NotificationService:
             organization_id=organization_id,
             use_savepoint=True,
         )
+
+    async def hold_security_audience(self, organization_id: UUID | None) -> None:
+        """Lock the rows `security_event` is about to reference, before the
+        audit chain lock is taken.
+
+        Called immediately *before* the `record_audit` whose entry this will
+        notify about, and never after it. `record_audit` holds a
+        transaction-scoped lock on the organization's audit chain, and the
+        notification write that follows reaches for a key-share lock on every
+        recipient's `users` row - while `UserService.admin_delete` takes those
+        rows exclusively *first* and the chain lock second. Two transactions,
+        the same two locks, opposite orders: Postgres aborts one, and the side
+        that loses can lose its mandatory security notification inside the
+        per-recipient savepoint while the audit entry commits regardless
+        (#1763).
+
+        The audience depends on the organization alone, so it can be resolved
+        before the entry exists. That costs one extra query on an
+        administrator's action, which is the price of the order being total
+        rather than conventional.
+        """
+        await user_repo.hold_key_share(
+            self.db, sorted(await self._security_audience(organization_id))
+        )
+
+    async def hold_configuration_audience(self) -> None:
+        """The same, for `configuration_changed`, whose audience is always the
+        deployment's app admins - which is exactly the set `admin_delete` locks
+        exclusively, so this is the half of #1763 with the shortest cycle."""
+        await user_repo.hold_key_share(self.db, await member_repo.list_app_admin_ids(self.db))
 
     async def security_event(self, entry: AppAdminAuditLog) -> None:
         """A privileged or access-changing action just landed in the audit
