@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Three loose ends in the notice a dropped socket puts up.** It is drawn on
+  the drop now rather than on the way back up, so a reader who loses
+  connectivity outright is told the agent is finishing the turn and saving it
+  instead of watching a composer spin — the copy was always as true offline as
+  online. It belongs to the conversation the drop happened in: opening another
+  thread during a reconnect used to draw the notice over one that was never
+  interrupted, and re-read that one instead of the thread still being written.
+  And a reader who gives up waiting and asks something else keeps a notice, now
+  saying the earlier answer is still being written and will land below the
+  question they have just asked - which is what happens, and what nothing said.
+  (#1775)
+
 ### Added
 
 - **Figures that roll rather than blink, where somebody is watching one
