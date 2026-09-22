@@ -37,6 +37,7 @@ def test_a_workflow_graph_with_a_scope_boundary_round_trips_body_node_ids():
                 scope_node_id=scope_owner,
                 body_node_ids=frozenset({body_a, body_b}),
                 entry_port="body",
+                exit_node_id=scope_owner,
                 exit_port="done",
             ),
         ),
@@ -44,6 +45,38 @@ def test_a_workflow_graph_with_a_scope_boundary_round_trips_body_node_ids():
     restored = WorkflowGraph.model_validate(graph.model_dump(mode="json"))
     assert restored.scopes[0].body_node_ids == frozenset({body_a, body_b})
     assert restored.scopes[0].scope_node_id == scope_owner
+    assert restored.scopes[0].exit_node_id == scope_owner
+
+
+def test_a_scope_boundary_may_designate_a_body_interior_node_as_its_exit():
+    """#1790's `control.foreach`/`loop.yield` shape: the scope's real exit
+    can live on a body-interior node, not on the control node itself, as
+    long as that node is a member of `body_node_ids`."""
+    scope_owner = uuid4()
+    body_a, loop_yield = uuid4(), uuid4()
+    boundary = ScopeBoundary(
+        scope_node_id=scope_owner,
+        body_node_ids=frozenset({body_a, loop_yield}),
+        entry_port="body",
+        exit_node_id=loop_yield,
+        exit_port="out",
+    )
+    assert boundary.exit_node_id == loop_yield
+    assert boundary.exit_node_id in boundary.body_node_ids
+
+
+def test_a_scope_boundary_rejects_an_exit_node_outside_the_scope():
+    scope_owner = uuid4()
+    body_a = uuid4()
+    outsider = uuid4()
+    with pytest.raises(ValidationError):
+        ScopeBoundary(
+            scope_node_id=scope_owner,
+            body_node_ids=frozenset({body_a}),
+            entry_port="body",
+            exit_node_id=outsider,
+            exit_port="out",
+        )
 
 
 def test_a_graph_with_a_nested_node_output_ref_binding_round_trips():

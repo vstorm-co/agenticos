@@ -17,7 +17,7 @@ from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.model import Edge, NodeInstance, NodePosition, ScopeBoundary, WorkflowGraph
 from app.workflows.graph.validate import derive_scopes, validate_graph
 
 pytestmark = pytest.mark.anyio
@@ -538,6 +538,120 @@ async def test_the_two_declared_boundary_edges_are_sanctioned(mock_db_session, r
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     scope = next(s for s in validated.scopes if s.scope_node_id == loop_node.id)
     assert scope.body_node_ids == frozenset({body_node.id})
+
+
+def _yield_definition() -> NodeDefinition:
+    """`loop.yield`, per #1790: `kind="control"` but not `control.*`-namespaced,
+    so `_owns_a_scope` never treats it as a scope owner - it is the body's
+    own exit point instead, per the settled `ScopeBoundary.exit_node_id`
+    reading `1786-node-contracts.md` and `1790-error-foreach.md` agree on.
+    """
+    return NodeDefinition(
+        id="loop.yield",
+        version=1,
+        name="Yield",
+        category="control",
+        description="the body's exit point",
+        kind="control",
+        config_schema=None,
+        input_schema=None,
+        output_schema=None,
+        ports=(
+            Port(id="in", label="In", kind="input"),
+            Port(id="out", label="Out", kind="output"),
+        ),
+        effect_kind="pure",
+        retry_guarantee="idempotent",
+    )
+
+
+async def test_a_scope_exit_owned_by_a_body_interior_node_publishes(
+    mock_db_session, registered_node, monkeypatch
+):
+    """#1790's actual shape: `loop.yield`'s own outgoing edge is the scope's
+    exit, not `control.foreach`'s. No real `control.foreach` ships in #1786,
+    so `derive_scopes` cannot discover this on its own yet - this hand-builds
+    the `ScopeBoundary` it will eventually derive and confirms every rule
+    that reads `exit_port` already honors `exit_node_id` naming a
+    body-interior node, not only `scope_node_id` itself.
+    """
+    loop_def = registered_node(_loop_definition())
+    yield_def = registered_node(_yield_definition())
+    entry = _echo_node()
+    loop_node = NodeInstance(
+        id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    body_node = _echo_node()
+    yield_node = NodeInstance(
+        id=uuid4(), definition_id=yield_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    after = _echo_node()
+    edges = (
+        _edge(entry.id, "out", loop_node.id, "in"),
+        _edge(loop_node.id, "body", body_node.id, "in"),
+        _edge(body_node.id, "out", yield_node.id, "in"),
+        # The real exit edge: sourced at `yield_node`, not `loop_node`.
+        _edge(yield_node.id, "out", after.id, "in"),
+    )
+    scope = ScopeBoundary(
+        scope_node_id=loop_node.id,
+        body_node_ids=frozenset({body_node.id, yield_node.id}),
+        entry_port="body",
+        exit_node_id=yield_node.id,
+        exit_port="out",
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, loop_node, body_node, yield_node, after),
+        edges=edges,
+        scopes=(scope,),
+    )
+    monkeypatch.setattr("app.workflows.graph.validate.derive_scopes", lambda g: g)
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.entry_node_id == entry.id
+    assert validated.scopes[0].exit_node_id == yield_node.id
+
+
+async def test_a_body_member_other_than_the_designated_exit_node_still_cannot_leave_the_scope(
+    mock_db_session, registered_node, monkeypatch
+):
+    """Designating `yield_node` as the exit does not also sanction some other
+    body member leaving directly - only the edge sourced at `exit_node_id`
+    with `source_port == exit_port` is the scope's declared exit."""
+    loop_def = registered_node(_loop_definition())
+    yield_def = registered_node(_yield_definition())
+    entry = _echo_node()
+    loop_node = NodeInstance(
+        id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    body_node = _echo_node()
+    yield_node = NodeInstance(
+        id=uuid4(), definition_id=yield_def.id, definition_version=1, config={}, layout=_pos()
+    )
+    after = _echo_node()
+    edges = (
+        _edge(entry.id, "out", loop_node.id, "in"),
+        _edge(loop_node.id, "body", body_node.id, "in"),
+        # Forbidden: `body_node` is a body member but not `exit_node_id`.
+        _edge(body_node.id, "out", after.id, "in"),
+    )
+    scope = ScopeBoundary(
+        scope_node_id=loop_node.id,
+        body_node_ids=frozenset({body_node.id, yield_node.id}),
+        entry_port="body",
+        exit_node_id=yield_node.id,
+        exit_port="out",
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, loop_node, body_node, yield_node, after),
+        edges=edges,
+        scopes=(scope,),
+    )
+    monkeypatch.setattr("app.workflows.graph.validate.derive_scopes", lambda g: g)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any("crosses a scope boundary" in f["message"] for f in excinfo.value.details["fields"])
 
 
 def test_derive_scopes_does_not_absorb_what_is_downstream_of_the_loop(registered_node):

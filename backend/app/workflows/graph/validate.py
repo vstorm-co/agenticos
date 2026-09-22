@@ -20,22 +20,43 @@ never trusted, only overwritten.
 
 No control node ships in #1786 (`debug.echo` is `kind="action"`), so the
 scope-deriving and scope-checking rules below are exercised only by
-synthetic, test-registered `kind="control"` definitions. Two conventions they
-assume, for whichever issue adds the first real ones:
+synthetic, test-registered `kind="control"` definitions. Two conventions,
+settled against `1786-node-contracts.md` and `1790-error-foreach.md` (#1790
+is the first issue to register a real `control.foreach` plus a body-interior
+`loop.item`/`loop.yield`, and its design was written independently of this
+module - `loop.yield` owning the scope's real exit corroborates the second
+convention below rather than being reconciled with it after the fact):
 
-- Only a node whose id is in the `control.*` namespace owns a scope at all -
-  `logic.if` branches without owning a body, and only a looping construct
-  like `control.foreach` does. Counting output ports alone cannot tell the
-  two apart, since a branching node can equally have two or more.
-- A scope-owning node's **first** declared output port is its `entry_port`
-  (the body starts there) and its **second** is its `exit_port` (the body
-  ends there, and this is what continues the outer graph) - both ports of
-  the control node itself, never of a node inside the body. A `control.*`
-  node with fewer than two output ports gets no derived scope.
+- **Only a node whose id is in the `control.*` namespace owns a scope at
+  all** - `logic.if` branches without owning a body, and only a looping
+  construct like `control.foreach` does. Counting output ports alone cannot
+  tell the two apart, since a branching node can equally have two or more.
+  #1790's own `loop.item`/`loop.yield` corroborate this rather than
+  complicating it: both are `kind="control"` (rule 10 needs them inside a
+  scope, not owning one), and neither is `control.*`-namespaced - they sit
+  in the `loop.*` namespace precisely because they are body-interior helpers
+  of a scope, never scope owners themselves.
+- **A scope-owning node's `entry_port` is always its own port** - the
+  control node is the single node a client wires into and out of in the
+  editor, and the body's reachability walk starts from the control node's
+  own declared output ports. `exit_port`, however, is **not** always the
+  control node's own port: it belongs to `ScopeBoundary.exit_node_id`, which
+  may be the control node itself (every scope `derive_scopes` below computes
+  today, since #1786 registers no control node whose exit lives elsewhere)
+  or a body-interior node designated as the scope's real exit -
+  `control.foreach`'s `loop.yield`, per #1790, whose own outgoing edge (not
+  `control.foreach`'s) is what continues the outer graph. `ScopeBoundary`
+  carries `exit_node_id` precisely so #1790 needs no second schema change to
+  express this; `_scope_exit_edges` below is what lets rules 2 and 7 treat
+  that edge as if it left the control node, exactly as rule 6 already does
+  per-edge.
 
-The second convention is the most direct reading of `ScopeBoundary` that
-keeps both ports on `scope_node_id`, the only node the schema actually
-names; confirm both against whatever #1789 registers as `control.foreach`.
+An earlier draft of this module kept both ports on `scope_node_id`, the only
+node `ScopeBoundary` named at the time - the most direct reading available
+before `exit_node_id` existed, but one `1786-node-contracts.md` itself
+contradicted in its own derive-scopes walkthrough (see that document's
+"ScopeBoundary: the settled shape" section) and one #1790's `loop.yield`
+could not be expressed against at all.
 """
 
 from __future__ import annotations
@@ -133,6 +154,16 @@ def derive_scopes(graph: WorkflowGraph) -> WorkflowGraph:
                 scope_node_id=node.id,
                 body_node_ids=frozenset(body),
                 entry_port=entry_port,
+                # No registered control node designates a body-interior exit
+                # (#1790's `loop.yield` does not exist here), so the only
+                # sound derivation is the control node's own port. See the
+                # module docstring: `exit_node_id` need not always equal
+                # `scope_node_id`, but discovering a value other than the
+                # control node's own id from topology alone is exactly the
+                # circular problem `1786-node-contracts.md` warns about, and
+                # would require metadata #1790's real `control.foreach` does
+                # not exist yet to define.
+                exit_node_id=node.id,
                 exit_port=exit_port,
             )
         )
@@ -193,6 +224,31 @@ def _node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
         for node_id in scope.body_node_ids:
             owner[node_id] = scope.scope_node_id
     return owner
+
+
+def _scope_exit_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
+    """A scope's exit edges, keyed by `scope_node_id`, as the outer graph must see them.
+
+    Only populated when `exit_node_id` differs from `scope_node_id` - #1790's
+    `loop.yield`, body-interior: the real edge is sourced at the interior
+    node, but rules 2 and 7 treat a whole scope as one opaque node wired
+    through `scope_node_id` alone, so they consult this instead of
+    `graph.edges` directly for that one edge. When the two coincide (every
+    scope `derive_scopes` produces today), the real edge is already
+    `scope_node_id`'s own and these rules find it there without help.
+    """
+    result: dict[UUID, list[Edge]] = {}
+    for scope in graph.scopes:
+        if scope.exit_node_id == scope.scope_node_id:
+            continue
+        matches = [
+            edge
+            for edge in graph.edges
+            if edge.source_node_id == scope.exit_node_id and edge.source_port == scope.exit_port
+        ]
+        if matches:
+            result[scope.scope_node_id] = matches
+    return result
 
 
 # Pass 0 - resource resolution
@@ -350,6 +406,7 @@ def _rule_2_reachable_outputs(
         return []
     top_level = [node.id for node in graph.nodes if node.id not in node_scope]
     adjacency = _forward_edges(graph)
+    exit_edges = _scope_exit_edges(graph)
     seen: set[UUID] = set()
     queue: deque[UUID] = deque([graph.entry_node_id])
     while queue:
@@ -364,6 +421,14 @@ def _rule_2_reachable_outputs(
             )
             if target not in seen:
                 queue.append(target)
+        # A scope whose exit lives on a body-interior node (#1790's
+        # `loop.yield`) has no edge of its own in `adjacency[current]` above;
+        # its real exit edge is sourced elsewhere, so it is found here instead.
+        # Unconditional, like the loop above would be without its own
+        # dedup-on-append - `if current in seen: continue` at the top of the
+        # `while` already makes a repeat enqueue harmless.
+        for exit_edge in exit_edges.get(current, ()):
+            queue.append(exit_edge.target_node_id)
     unreached = [node_id for node_id in top_level if node_id not in seen]
     return [
         (f"nodes.{node_id}", "This node is not reachable from the entry node")
@@ -498,6 +563,16 @@ def _rule_7_no_cycles(
         for edge in graph.edges
         if edge.source_node_id not in node_scope and edge.target_node_id not in node_scope
     ]
+    # A scope's exit edge sourced at a body-interior node (#1790's
+    # `loop.yield`) has one endpoint inside `node_scope` and is dropped by
+    # the filter above; the outer pass still needs to see it, as if it left
+    # `scope_node_id` - the one node the outer graph is actually wired to.
+    # A target that turns out to be inside another scope is `_kahn`'s to
+    # ignore, the same way it already ignores any edge naming a node outside
+    # the node list it was given.
+    for scope_node_id, exit_edges in _scope_exit_edges(graph).items():
+        for exit_edge in exit_edges:
+            top_level_edges.append(exit_edge.model_copy(update={"source_node_id": scope_node_id}))
     top_level_nodes = [node.id for node in graph.nodes if node.id not in node_scope]
     predecessors, order, cyclic = _kahn(top_level_nodes, top_level_edges)
     problems: Problems = [
@@ -689,14 +764,15 @@ def _nearest_common_dominator(
 
 
 def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID, UUID]) -> Problems:
-    boundary_by_scope = {scope.scope_node_id: scope for scope in graph.scopes}
+    entry_boundary_by_node = {scope.scope_node_id: scope for scope in graph.scopes}
+    exit_boundary_by_node = {scope.exit_node_id: scope for scope in graph.scopes}
     problems: Problems = []
     for edge in graph.edges:
         source_scope = node_scope.get(edge.source_node_id)
         target_scope = node_scope.get(edge.target_node_id)
         if source_scope == target_scope:
             continue
-        if _is_sanctioned_boundary_edge(edge, boundary_by_scope):
+        if _is_sanctioned_boundary_edge(edge, entry_boundary_by_node, exit_boundary_by_node):
             continue
         problems.append((f"edges.{edge.id}", "This edge crosses a scope boundary"))
     for index, binding in enumerate(graph.bindings):
@@ -707,17 +783,24 @@ def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID,
     return problems
 
 
-def _is_sanctioned_boundary_edge(edge: Edge, boundary_by_scope: dict[UUID, ScopeBoundary]) -> bool:
+def _is_sanctioned_boundary_edge(
+    edge: Edge,
+    entry_boundary_by_node: dict[UUID, ScopeBoundary],
+    exit_boundary_by_node: dict[UUID, ScopeBoundary],
+) -> bool:
     """Whether `edge` is one of the two edges a `ScopeBoundary` declares.
 
-    Both live on `scope_node_id` under this module's convention: the entry
-    edge (`source_port == entry_port`, target inside the body) and the exit
-    edge (`source_port == exit_port`, target outside it).
+    The entry edge (`source_port == entry_port`) always sources at
+    `scope_node_id`. The exit edge (`source_port == exit_port`) sources at
+    `exit_node_id`, which is `scope_node_id` for every scope #1786 derives
+    today but may be a body-interior node - #1790's `loop.yield` - once a
+    real `control.foreach` registers one.
     """
-    scope = boundary_by_scope.get(edge.source_node_id)
-    if scope is None:
-        return False
-    return edge.source_port in (scope.entry_port, scope.exit_port)
+    entry_scope = entry_boundary_by_node.get(edge.source_node_id)
+    if entry_scope is not None and edge.source_port == entry_scope.entry_port:
+        return True
+    exit_scope = exit_boundary_by_node.get(edge.source_node_id)
+    return exit_scope is not None and edge.source_port == exit_scope.exit_port
 
 
 # Rule 8 - no parallel fan-out (v1)

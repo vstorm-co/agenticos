@@ -15,7 +15,7 @@ why a plain forward walk is not enough.
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.workflows.contracts.io import Binding
 
@@ -56,12 +56,30 @@ class Edge(BaseModel):
 class ScopeBoundary(BaseModel):
     """A control node and the body it owns, as the server has computed it.
 
-    `entry_port` is the port of `scope_node_id` whose outgoing edges start the
-    body. `exit_port` is the port - on whichever node the walk reaches it -
-    whose outgoing edges leave the body and are not themselves part of it;
-    the node that owns `exit_port` is itself still a body member (it is
-    typically the body's last node), but nothing reachable only by crossing
-    *out of* `exit_port` is.
+    `entry_port` is always a port of `scope_node_id` itself: the control node
+    is the single node a client wires into and out of in the editor, and the
+    body's own reachability walk starts from `scope_node_id`'s outgoing
+    `entry_port` edges - never ambiguous, never delegated.
+
+    `exit_port` belongs to `exit_node_id`, which is **not** always
+    `scope_node_id`. For the simplest scope owners the two coincide - every
+    scope `app.workflows.graph.validate.derive_scopes` computes today sets
+    `exit_node_id = scope_node_id`, since #1786 ships no control node whose
+    body needs a distinct exit point. But the shape exists for a node whose
+    body ends at an explicit, referenceable point rather than at the control
+    node's own second port: `#1790`'s `control.foreach` is the concrete case
+    - its body's last node, `loop.yield`, owns the scope's real exit, and
+    `loop.yield`'s own outgoing edge (not `control.foreach`'s) is what
+    continues the outer graph. See `1786-node-contracts.md`'s "ScopeBoundary:
+    the settled shape" section for the two contradictory readings this
+    resolves.
+
+    `exit_node_id` is either `scope_node_id` itself, or a member of
+    `body_node_ids` - never a node outside the scope, and never a *different*
+    scope's node. Whichever it is, it is itself still a body member when it
+    is not the control node (it is typically the body's last node), but
+    nothing reachable only by crossing *out of* `exit_port`'s own outgoing
+    edges is.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -69,7 +87,14 @@ class ScopeBoundary(BaseModel):
     scope_node_id: UUID
     body_node_ids: frozenset[UUID]
     entry_port: str
+    exit_node_id: UUID
     exit_port: str
+
+    @model_validator(mode="after")
+    def _exit_node_is_the_control_node_or_a_body_member(self) -> "ScopeBoundary":
+        if self.exit_node_id != self.scope_node_id and self.exit_node_id not in self.body_node_ids:
+            raise ValueError("exit_node_id must be scope_node_id or a member of body_node_ids")
+        return self
 
 
 class WorkflowGraph(BaseModel):
