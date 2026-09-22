@@ -217,7 +217,13 @@ export function useChat(options: UseChatOptions = {}) {
   // answer is still being written and will arrive in the transcript out of
   // order. Without it, that answer lands after the later question with nothing
   // anywhere having said it would.
-  const [detachedFor, setDetachedFor] = useState<ConversationRef | null>(null);
+  // A *set*, because a reader can leave one detached turn behind and collect
+  // another: interrupted in A, ask something else, switch to B, dropped again.
+  // One slot would have taken A's warning down while A's answer was still on
+  // its way, which is the one thing that warning exists to say.
+  const [detachedThreads, setDetachedThreads] = useState<ReadonlySet<string | null>>(
+    () => new Set(),
+  );
   // Which conversation the drop happened in, or `null` for no drop at all. Read
   // on the way back up, in a ref because the flip to disconnected and the flip
   // to connected are two runs of one effect and `isProcessing` has been cleared
@@ -228,12 +234,16 @@ export function useChat(options: UseChatOptions = {}) {
   // because reaching for state inside a setter's updater is how a side effect
   // ends up running twice.
   const interruptedForRef = useRef<ConversationRef | null>(null);
+  // How many answers the interrupted thread had finished at the moment its
+  // socket went. The turn landing takes it past this, which is the only signal
+  // this client has that the turn it lost is over.
+  const finishedWhenInterrupted = useRef(0);
   // Both notices belong to the thread the turn was interrupted in. Opening
   // another one while a reconnect is in flight used to draw the notice over a
   // thread that was never interrupted, and re-read that thread instead of the
   // one still being written.
   const interrupted = interruptedFor !== null && interruptedFor.id === activeConversationId;
-  const detachedTurnPending = detachedFor !== null && detachedFor.id === activeConversationId;
+  const detachedTurnPending = detachedThreads.has(activeConversationId);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -761,7 +771,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (waiting !== null) {
         interruptedForRef.current = null;
         setInterruptedFor(null);
-        setDetachedFor(waiting);
+        setDetachedThreads((threads) => new Set(threads).add(waiting.id));
       }
       // A new question ends whatever the agent was saying, and it is the only
       // boundary that always holds. `complete` clears this on every ordinary
@@ -1247,7 +1257,14 @@ export function useChat(options: UseChatOptions = {}) {
     endTurnLocally();
   }, [sendMessage, endTurnLocally]);
 
-  const acknowledgeDetachedTurn = useCallback(() => setDetachedFor(null), []);
+  const acknowledgeDetachedTurn = useCallback(() => {
+    setDetachedThreads((threads) => {
+      if (!threads.has(activeConversationId)) return threads;
+      const next = new Set(threads);
+      next.delete(activeConversationId);
+      return next;
+    });
+  }, [activeConversationId]);
 
   // A socket that dropped mid-answer, and came back.
   //
@@ -1283,6 +1300,14 @@ export function useChat(options: UseChatOptions = {}) {
       interruptedForRef.current = thread;
       endTurnLocally();
       setInterruptedFor(thread);
+      // The baseline the effect below watches. Taken here, after
+      // `endTurnLocally` has stopped the half-written answer streaming: that
+      // stop makes it *finished* by the count's own definition, so a baseline
+      // read a moment earlier would be one short and the notice would clear
+      // itself immediately.
+      finishedWhenInterrupted.current = useChatStore
+        .getState()
+        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
     }
     const thread = interruptedRef.current;
     if (!returned || thread === null) return;
@@ -1294,8 +1319,16 @@ export function useChat(options: UseChatOptions = {}) {
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
+  //
+  // Gated on there being *any* unresolved interruption, not on the notice being
+  // the one on screen. The notice is scoped to its thread; the queue is not, and
+  // holding it is about a turn still running server-side rather than about what
+  // the reader is looking at. Scoped, switching away from an interrupted thread
+  // released its own queued message into whichever thread was opened next -
+  // this effect runs before the one that clears the queue on a switch, and the
+  // send it schedules cannot be called back (#1775).
   useEffect(() => {
-    if (interrupted) return;
+    if (interruptedFor !== null) return;
     if (isConnected && !isProcessing && messageQueueRef.current.length > 0) {
       const next = messageQueueRef.current.shift();
       setQueuedMessages([...messageQueueRef.current]);
@@ -1305,7 +1338,30 @@ export function useChat(options: UseChatOptions = {}) {
         setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
       }
     }
-  }, [isProcessing, isConnected, interrupted, doSend]);
+  }, [isProcessing, isConnected, interruptedFor, doSend]);
+
+  // The interrupted turn's answer landing is the only thing that actually
+  // resolves it, and the transcript is where it lands - not the socket this
+  // client no longer has. So the count of finished answers in the thread is the
+  // signal: a re-read that brings one back clears the notice and releases the
+  // queue, rather than leaving a reader told an answer is still coming while
+  // they are looking at it (#1775).
+  //
+  // Counted rather than matched on an id: the turn was interrupted before it
+  // had one, and the count is the same question asked in a way this client can
+  // answer.
+  const finishedTurns = messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming,
+  ).length;
+  useEffect(() => {
+    const thread = interruptedForRef.current;
+    // Only for the thread it happened in: `messages` is replaced wholesale on a
+    // switch, so a busier thread would otherwise read as this one's answer.
+    if (thread === null || thread.id !== activeConversationId) return;
+    if (finishedTurns <= finishedWhenInterrupted.current) return;
+    interruptedForRef.current = null;
+    setInterruptedFor(null);
+  }, [finishedTurns, activeConversationId]);
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.
