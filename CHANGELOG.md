@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A Deploy run left at the approval gate no longer stops the pipeline in
+  silence.** A run waiting for an approval counts as in flight and holds the
+  `deploy-production` concurrency group, so every later run sat `pending` with
+  no jobs and was cancelled by the next one. Thirteen days of merges went that
+  way: no failed run, no notification, and a production host a fortnight behind
+  `main`, because a pending run with nothing to click on reads as a broken
+  workflow and a `cancelled` run reads as somebody's decision. `deploy-queue.yml`
+  now runs every six hours, cancels a Deploy run that has waited more than
+  twelve, and opens an issue naming the run and how far `main` has drifted from
+  the last successful deploy. It approves nothing and deploys nothing — it
+  drains the queue so the next merge reaches the gate, and says that it did.
+  `docs/deploy.md` also now warns that approving from the environment's own
+  queue approves the *oldest* waiting run, which is how a fortnight-old commit
+  reached the server. (#1832)
+
 ## [0.0.480] - 2026-09-22
 
 ### Added

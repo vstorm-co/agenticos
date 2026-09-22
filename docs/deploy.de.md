@@ -1,5 +1,5 @@
 ---
-source_sha: "ff2d54edf633"
+source_sha: "4bee5fec92eb"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -418,6 +418,22 @@ Einmal einrichten:
     Ein Deploy, gegen den Sie sich entschieden haben, wird also abgebrochen und nicht
     stehen gelassen. Einer, der auf einem überholten Commit wartete, hat hier drei
     spätere Läufe blockiert, bevor jemand die Warteschlange statt der Läufe bemerkte.
+
+    `deploy-queue.yml` ist das, was passiert, wenn er trotzdem stehen bleibt: alle
+    sechs Stunden bricht es einen Deploy-Lauf ab, der länger als zwölf auf eine
+    Freigabe gewartet hat, und legt ein Issue an, das den Lauf benennt und sagt,
+    wie weit `main` vom letzten erfolgreichen Deploy abgedriftet ist. Es gibt
+    nichts frei und deployt nichts — es leert die Warteschlange, damit der nächste
+    Merge das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
+    `gh workflow run deploy-queue.yml`.
+
+!!! danger "Eine Freigabe aus der Warteschlange der Environment gibt den **ältesten** Lauf frei"
+
+    Also den veralteten. Eine späte Freigabe dort deployt den Commit von dem
+    Moment, in dem die Warteschlange stecken blieb, und nicht den gerade
+    gepushten — so kam ein zwei Wochen alter Commit auf diesen Server. Geben Sie
+    von der Seite des Laufs frei, den Sie meinen, oder starten Sie mit
+    `gh workflow run deploy.yml --ref main` einen neuen und geben Sie den frei.
 
 | Secret | Was |
 |---|---|

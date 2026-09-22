@@ -385,6 +385,21 @@ Set it up once:
     on a superseded commit blocked three later runs here before anybody noticed
     the queue rather than the runs.
 
+    `deploy-queue.yml` is what happens when it is left anyway: every six hours it
+    cancels a Deploy run that has waited more than twelve for an approval, and
+    opens an issue naming the run and how far `main` has drifted from the last
+    successful deploy. It approves nothing and deploys nothing — it drains the
+    queue so the next merge reaches the gate, and says that it did. Run it by
+    hand with `gh workflow run deploy-queue.yml`.
+
+!!! danger "Approving from the environment's queue approves the **oldest** run"
+
+    Which is the stale one. A late approval given there deploys the commit from
+    whenever the queue jammed, not the commit that was just pushed — that is how
+    a fortnight-old commit reached this server. Approve from the run page of the
+    commit you mean, or start a fresh one with
+    `gh workflow run deploy.yml --ref main` and approve that.
+
 | Secret | What |
 |---|---|
 | `DEPLOY_HOST` | The host's address |

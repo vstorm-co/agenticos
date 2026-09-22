@@ -30,7 +30,9 @@ on:
 # The sharp edge is a run that has not started: one sitting at the approval gate
 # holds this group too, and holds it until somebody approves or cancels it. So a
 # deploy decided against is cancelled rather than left - `docs/deploy.md` says so
-# where an operator will read it.
+# where an operator will read it - and when it is left anyway, `deploy-queue.yml`
+# cancels it after twelve hours and opens an issue saying it did. Thirteen days
+# of merges were swallowed by that gap before anything said so (#1832).
 concurrency:
   group: deploy-production
   cancel-in-progress: false

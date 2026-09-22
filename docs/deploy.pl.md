@@ -1,5 +1,5 @@
 ---
-source_sha: "ff2d54edf633"
+source_sha: "4bee5fec92eb"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -395,6 +395,22 @@ Skonfiguruj to raz:
     Więc wdrożenie, przeciw któremu się zdecydowałeś, anulujesz, a nie zostawiasz.
     Jedno zostawione w oczekiwaniu na nieaktualny commit zablokowało tutaj trzy
     późniejsze uruchomienia, zanim ktokolwiek zauważył kolejkę, a nie uruchomienia.
+
+    `deploy-queue.yml` jest tym, co dzieje się, kiedy mimo wszystko zostanie
+    zostawione: co sześć godzin anuluje uruchomienie Deploy czekające na
+    zatwierdzenie dłużej niż dwanaście i zakłada zgłoszenie z nazwą tego
+    uruchomienia oraz z tym, jak daleko `main` odjechał od ostatniego udanego
+    wdrożenia. Niczego nie zatwierdza i niczego nie wdraża — opróżnia kolejkę, żeby
+    następny merge dotarł do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
+    przez `gh workflow run deploy-queue.yml`.
+
+!!! danger "Zatwierdzanie z kolejki środowiska zatwierdza **najstarsze** uruchomienie"
+
+    Czyli to nieaktualne. Późne zatwierdzenie wydane tam wdraża commit z chwili,
+    w której kolejka się zakleszczyła, a nie ten dopiero co wypchnięty — tak właśnie
+    na ten serwer trafił commit sprzed dwóch tygodni. Zatwierdzaj ze strony
+    uruchomienia dla commita, o który ci chodzi, albo zacznij nowe przez
+    `gh workflow run deploy.yml --ref main` i zatwierdź je.
 
 | Sekret | Co |
 |---|---|

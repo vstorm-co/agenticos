@@ -1,0 +1,172 @@
+# Is the deploy queue still moving?
+#
+# `deploy.yml` serializes on `deploy-production` and never cancels a run in
+# flight, because half a deploy is a stack whose API has been rebuilt and whose
+# migrations have not. A run parked at the `production` environment's
+# required-reviewers gate counts as in flight and holds that group for as long
+# as nobody answers it - so every later run sits `pending` with **zero jobs**,
+# and each new one supersedes the one before it, which GitHub records as
+# `cancelled`.
+#
+# The result is a deploy pipeline that stops deploying and looks fine doing it.
+# It happened: the run holding the group had been waiting thirteen days, `main`
+# had thirteen days of merges on it, and the evidence was a column of
+# `cancelled` runs - no failure, no notification, and a production host on a
+# commit from a fortnight earlier. `Images`, `CI` and `CodeQL` were green
+# throughout; they have their own groups.
+#
+# Two things make that state unreadable from the outside, and this workflow
+# answers both:
+#
+#   - a pending run with no jobs has nothing to click on, so it reads as a
+#     broken workflow rather than as a blocked queue. This cancels the run that
+#     is holding the group once it has waited longer than anyone intended to
+#     leave it, which lets the next merge through.
+#   - a `cancelled` run reads as somebody's decision rather than as a symptom.
+#     This says what happened, in an issue, naming the run it cancelled and how
+#     far the server has fallen behind `main`.
+#
+# It deliberately does **not** approve anything or start a deploy of its own. An
+# approval is a person deciding to change a server; the defect here is the
+# silence, not the waiting.
+name: Deploy queue
+
+on:
+  schedule:
+    # Every six hours. The threshold below is what decides when a run is stale;
+    # this only decides how soon after that it is noticed.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      stale_after_hours:
+        description: "Cancel a Deploy run that has waited longer than this"
+        required: false
+        default: "12"
+        type: string
+
+# Its own group, and not `deploy-production`: a workflow that watches the queue
+# must not join it.
+concurrency:
+  group: deploy-queue
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    name: Unblock and report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # To cancel a Deploy run that has been waiting too long.
+      actions: write
+      # To say that it did.
+      issues: write
+    steps:
+      - name: Look at the queue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Through the environment rather than `${{ }}` inside the script: the
+          # expression is substituted into the source before Node parses it.
+          STALE_AFTER_HOURS: ${{ inputs.stale_after_hours || '12' }}
+        with:
+          script: |
+            const staleAfterHours = Number(process.env.STALE_AFTER_HOURS) || 12;
+            const staleAfterMs = staleAfterHours * 60 * 60 * 1000;
+            const { owner, repo } = context.repo;
+            const workflow_id = 'deploy.yml';
+
+            const runsOf = async (status) => {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id, status, per_page: 100,
+              });
+              return data.workflow_runs;
+            };
+
+            // `waiting` is the status of a run parked at an environment's
+            // approval gate. `queued` and `pending` are the ones behind it,
+            // which have no jobs and nothing to cancel usefully - they clear
+            // themselves once the group is free.
+            const waiting = await runsOf('waiting');
+            const now = Date.now();
+            const stale = waiting.filter((run) => now - Date.parse(run.created_at) > staleAfterMs);
+
+            const cancelled = [];
+            for (const run of stale) {
+              await github.rest.actions.cancelWorkflowRun({ owner, repo, run_id: run.id });
+              cancelled.push(run);
+              core.warning(
+                `Cancelled Deploy run ${run.id} (${run.head_sha.slice(0, 7)}), ` +
+                `waiting for approval since ${run.created_at}`,
+              );
+            }
+
+            // How far the server is behind, measured against the last Deploy
+            // that actually finished rather than against the last one started.
+            const succeeded = (await runsOf('success'))[0];
+            let behind = null;
+            if (succeeded) {
+              const { data } = await github.rest.repos.compareCommitsWithBasehead({
+                owner, repo, basehead: `${succeeded.head_sha}...main`,
+              });
+              behind = data.ahead_by;
+            }
+
+            if (cancelled.length === 0) {
+              core.info(
+                waiting.length > 0
+                  ? `${waiting.length} Deploy run(s) waiting, none older than ${staleAfterHours}h.`
+                  : 'No Deploy run is waiting for approval.',
+              );
+              if (behind !== null) core.info(`main is ${behind} commit(s) ahead of the last successful deploy.`);
+              return;
+            }
+
+            const run = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              `The Deploy queue was blocked. ${cancelled.length} run(s) had been waiting for`,
+              `approval longer than ${staleAfterHours} hours, and a run at that gate holds the`,
+              '`deploy-production` concurrency group - so every merge to `main` since then',
+              'produced a run with no jobs that the next merge cancelled.',
+              '',
+              'Cancelled here, so the next merge reaches the gate:',
+              '',
+              ...cancelled.map(
+                (r) => `- [\`${r.head_sha.slice(0, 7)}\`](${r.html_url}) - waiting since ${r.created_at}`,
+              ),
+              '',
+              behind === null
+                ? 'No successful Deploy run to compare against.'
+                : `\`main\` is **${behind} commit(s)** ahead of the last successful deploy ` +
+                  `(\`${succeeded.head_sha.slice(0, 7)}\`).`,
+              '',
+              'Nothing was deployed and nothing was approved. To put the current head of',
+              '`main` on the server, run the Deploy workflow and approve *that* run - not',
+              "an older one from the environment's queue, which is what approving from",
+              'there gives you:',
+              '',
+              '```bash',
+              `gh workflow run deploy.yml --repo ${owner}/${repo} --ref main`,
+              '```',
+              '',
+              `Detected by: ${run}`,
+            ].join('\n');
+
+            const open = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'deploy-queue',
+            });
+            if (open.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: open.data[0].number, body,
+              });
+              return;
+            }
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title: 'A Deploy run waiting for approval blocked the queue',
+              body,
+              labels: ['deploy-queue', 'ci'],
+            });
