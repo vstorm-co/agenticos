@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.482] - 2026-09-22
+
 ### Fixed
 
 - **The cache no longer persists, so a Valkey upgrade cannot take the stack
