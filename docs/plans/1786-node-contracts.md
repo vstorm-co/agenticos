@@ -161,9 +161,50 @@ one, and confirms every id in `column_ids` names a live column — reusing
 str, definition_version: int, config: dict[str, Any], layout: NodePosition}`;
 `Edge{id, source_node_id, source_port: str, target_node_id, target_port: str}`;
 `ScopeBoundary{scope_node_id: UUID, body_node_ids: frozenset[UUID],
-entry_port: str, exit_port: str}` (a `control.foreach` instance plus the body
-it owns); and `WorkflowGraph{entry_node_id: UUID, nodes: tuple[NodeInstance, ...],
-edges: tuple[Edge, ...], bindings: tuple[Binding, ...], scopes: tuple[ScopeBoundary, ...] = ()}`.
+entry_port: str, exit_node_id: UUID, exit_port: str}` (a `control.foreach`
+instance plus the body it owns); and `WorkflowGraph{entry_node_id: UUID,
+nodes: tuple[NodeInstance, ...], edges: tuple[Edge, ...], bindings:
+tuple[Binding, ...], scopes: tuple[ScopeBoundary, ...] = ()}`.
+
+### ScopeBoundary: the settled shape
+
+An earlier draft of this document contradicted itself here: the field list
+above once had no `exit_node_id`, implying both ports belong to
+`scope_node_id`, while the derive-scopes walkthrough below described "the
+node that owns `exit_port`" as `loop.yield` — a body-interior node — without
+the schema having anywhere to name it. Settled as follows, checked against
+[1790-error-foreach.md](1790-error-foreach.md)'s independently-written
+`control.foreach`/`loop.yield` design, which corroborates rather than merely
+tolerates this shape:
+
+- **`entry_port` is always a port of `scope_node_id` itself.** The control
+  node is the single node a client wires into and out of in the editor, and
+  the body's reachability walk starts from the control node's own declared
+  output ports. This was never ambiguous.
+- **`exit_port` belongs to `exit_node_id`, which is not always
+  `scope_node_id`.** For the simplest scope owners the two coincide, and
+  every scope #1786's own `derive_scopes` computes sets `exit_node_id =
+  scope_node_id` — #1786 registers no control node whose exit lives
+  elsewhere, so discovering one from topology alone would be unfounded
+  guessing. But the field exists because #1790's `control.foreach` needs
+  something different: its body's last node, `loop.yield`, owns the scope's
+  real exit, and `loop.yield`'s own outgoing edge — not `control.foreach`'s
+  — is what continues the outer graph. `exit_node_id` lets `1790-error-foreach.md`
+  express that directly, against this same `ScopeBoundary`, with no second
+  schema change.
+- **`exit_node_id` is either `scope_node_id` itself, or a member of
+  `body_node_ids`** — never a node outside the scope. When it is not the
+  control node, it is itself still a body member (typically the body's last
+  node), but nothing reachable only by crossing *out of* `exit_port`'s own
+  outgoing edges is.
+- **Only a node whose id is in the `control.*` namespace owns a scope at
+  all** — confirmed, not merely assumed: #1790's own `loop.item`/`loop.yield`
+  corroborate it, since both are `kind="control"` (rule 10 needs them inside
+  a scope, not owning one) and neither is `control.*`-namespaced — they sit
+  in the `loop.*` namespace precisely because they are body-interior helpers
+  of a scope, never scope owners themselves. `logic.if` branches without
+  owning a body for the same reason a plain branching node's output-port
+  count cannot be the test: it can equally have two or more.
 
 `body_node_ids` is **server-derived, never client-authored** (#1793 found this
 unresolved and #1790 built on top of it without answering it either): the
@@ -180,13 +221,17 @@ since the only path from the outer `entry_node_id` to, say, `core.output`
 in a linear graph is *through* the loop's `entry_port` — the same
 condition the derivation checks for body membership. `core.output` and the
 rest of the outer graph would be absorbed into the loop's own body).
-Concretely: the walk may include the node that owns `exit_port` itself
-(`loop.yield`, the body's last node) but never traverses *out of*
-`exit_port`'s own outgoing edges — those lead back into the outer graph and
-are what makes the `foreach` node's own downstream edges resolvable at all.
-A client that claimed a different membership would have its claim silently
-overwritten by the recomputed one, not validated against it — this is safer
-than trusting a client-supplied set (which could misrepresent the
+Concretely: the walk may include the node that owns `exit_port` itself —
+`exit_node_id`, typically the body's last node — but never traverses *out
+of* `exit_port`'s own outgoing edges — those lead back into the outer graph
+and are what makes the `foreach` node's own downstream edges resolvable at
+all, whether that edge is literally sourced at `scope_node_id` (every scope
+#1786 derives today) or at a body-interior `exit_node_id` like `loop.yield`
+(#1790's shape, which the validation rules already support generically even
+though #1786's own `derive_scopes` has no real control node to derive one
+against). A client that claimed a different membership would have its claim
+silently overwritten by the recomputed one, not validated against it — this
+is safer than trusting a client-supplied set (which could misrepresent the
 nested-scope-boundary rule) and asks nothing of #1787 beyond drawing edges.
 
 `layout` carries only `NodePosition`; nothing execution-relevant reads it.

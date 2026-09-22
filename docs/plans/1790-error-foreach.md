@@ -141,18 +141,24 @@ caught.
 
 **Representation, checked against #1786.** #1786's `graph/model.py` already
 ships `ScopeBoundary{scope_node_id, body_node_ids: frozenset[UUID],
-entry_port, exit_port}` — inline `NodeInstance`s in `graph.nodes`, tagged
-into a scope by `body_node_ids` membership, not a nested `WorkflowGraph`
-under `config`. #1790 uses this as-is: no second graph representation. It
-matches rule 6 (crossing edges refused unless declared) and rule 7 (bodies
-collapsed for the outer cycle pass) exactly as written; a nested-graph value
-would need its own copy of both. #1789 has no design document yet, so there
-is no second assumption to reconcile against — #1786's shape is consistent
-and sufficient.
+entry_port, exit_node_id, exit_port}` — inline `NodeInstance`s in
+`graph.nodes`, tagged into a scope by `body_node_ids` membership, not a
+nested `WorkflowGraph` under `config`. #1790 uses this as-is: no second graph
+representation. It matches rule 6 (crossing edges refused unless declared)
+and rule 7 (bodies collapsed for the outer cycle pass) exactly as written; a
+nested-graph value would need its own copy of both. #1789 has no design
+document yet, so there is no second assumption to reconcile against —
+#1786's shape is consistent and sufficient. `exit_node_id` is exactly what
+lets `loop.yield`, not `control.foreach` itself, own the scope's real exit —
+see `1786-node-contracts.md`'s "ScopeBoundary: the settled shape" section,
+settled against this document's own `loop.yield` paragraph below.
 
 `control.foreach`'s config binds `items` and `item_error_policy` (below);
-its `entry_port`/`exit_port` connect to `loop.item`'s output and
-`loop.yield`'s input, the two boundary edges rule 6 sanctions.
+its `entry_port` connects to `loop.item`, the body's first node, whose
+output every other body node binds its per-iteration item from. Its exit is
+`loop.yield`: `ScopeBoundary.exit_node_id` names `loop.yield`'s own
+`NodeInstance`, not `control.foreach`'s, and `exit_port` names `loop.yield`'s
+one output port — the two boundary edges rule 6 sanctions.
 
 **`loop.item`**: `kind="control"`, `handler=None` *permanently* — not
 "until an execution issue supplies one" like every other node, structurally
@@ -163,9 +169,11 @@ be referenced: at scope entry the dispatcher synthesizes that iteration's
 the ordinary `NodeRun` lookup, no special case in the binding resolver.
 
 **`loop.yield`**: `kind="control"`, one input bound to the iteration's
-result, one output edge (the scope's `exit_port`); handler is identity.
-Exists as an explicit node so the body has one referenceable "iteration
-done" point and one sink for rule 2.
+result, one output edge — `ScopeBoundary.exit_node_id` names this node and
+`exit_port` names that output port, so this edge, not one sourced at
+`control.foreach`, is what continues the outer graph. Exists as an explicit
+node so the body has one referenceable "iteration done" point and one sink
+for rule 2.
 
 ## Freezing the input list, persistence, checkpoints
 
