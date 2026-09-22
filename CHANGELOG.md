@@ -31,6 +31,8 @@ Two things are versioned separately from this file and worth knowing about:
   question they have just asked - which is what happens, and what nothing said.
   (#1775)
 
+## [0.0.481] - 2026-09-22
+
 ### Added
 
 - **Figures that roll rather than blink, where somebody is watching one
