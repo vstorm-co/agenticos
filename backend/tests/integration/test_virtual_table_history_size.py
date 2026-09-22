@@ -133,3 +133,40 @@ async def test_the_create_and_delete_snapshots_are_bounded_by_the_record_limit(d
     )
     assert receipt <= limit + 1_000
     assert await db.scalar(select(func.count()).select_from(VirtualTableReceipt)) == 1
+
+
+async def test_deleting_a_record_over_the_limit_succeeds_and_keeps_only_a_marker(db, monkeypatch):
+    """A record written before the limit was lowered is still deletable, without a huge copy."""
+    from app.services.virtual_tables import quotas
+
+    service, ctx, table, ids = await _setup(db)
+    written = await service.create_record(ctx, table.id, RecordCreate(values={ids["Body"]: BIG}))
+    size = quotas.record_size(written.record.values)
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 100)
+
+    await service.delete_record(ctx, table.id, written.record.id, expected_revision=1)
+
+    (row,) = (
+        await db.scalars(
+            select(VirtualTableRecordHistory).where(VirtualTableRecordHistory.operation == "delete")
+        )
+    ).all()
+    assert row.before == {"omitted": {"bytes": size, "limit": 100}}
+    assert row.after is None
+    assert min(await _history_bytes(db, "delete")) < 200
+
+
+async def test_deleting_a_record_at_or_under_the_limit_keeps_its_whole_before(db, monkeypatch):
+    from app.services.virtual_tables import quotas
+
+    service, ctx, table, ids = await _setup(db)
+    values = {ids["Status"]: "draft"}
+    written = await service.create_record(ctx, table.id, RecordCreate(values=values))
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", quotas.record_size(values))
+
+    await service.delete_record(ctx, table.id, written.record.id, expected_revision=1)
+
+    row = await db.scalar(
+        select(VirtualTableRecordHistory).where(VirtualTableRecordHistory.operation == "delete")
+    )
+    assert row.before == values

@@ -424,6 +424,11 @@ class RecordOperations(Operations):
     ) -> None:
         """Delete a record, if it is still at `expected_revision`. Its history stays.
 
+        The delete always succeeds, whatever the record's size. The history row keeps the whole
+        record unless it is over the size limit (one that predates the limit, or written before
+        it was lowered), in which case it keeps only a marker with the size; see
+        `quotas.delete_snapshot`.
+
         With an operation key a retry of a delete that already succeeded returns
         normally instead of reporting the record missing.
         """
@@ -442,7 +447,7 @@ class RecordOperations(Operations):
                 revision=record.revision + 1,
                 operation="delete",
                 actor_user_id=ctx.subject_id,
-                before=dict(record.values),
+                before=quotas.delete_snapshot(record.values),
                 after=None,
             )
             await virtual_table_repo.delete_record(self.db, record)

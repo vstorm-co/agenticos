@@ -195,7 +195,9 @@ class VirtualTableRecordHistory(Base):
     - `create`: `before` is empty and `after` is the whole record.
     - `update`: only the cells that changed. `before` holds their earlier values and
       `after` their new ones, and a column absent from one side was empty there.
-    - `delete`: `before` is the whole record and `after` is empty.
+    - `delete`: `before` is the whole record and `after` is empty. A record over the size limit
+      (one that predates it, or was written before it was lowered) keeps no values: `before`
+      is `{"omitted": {"bytes": <its size>, "limit": <the limit>}}`.
 
     `record_id` is deliberately not a foreign key: a hard delete removes the row
     and must leave this behind, until the retention window removes it.

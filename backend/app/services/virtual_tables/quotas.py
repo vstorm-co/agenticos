@@ -17,7 +17,7 @@ the check, so the check and the insert are one step (`app.db.locks`).
 """
 
 import json
-from typing import NoReturn
+from typing import Any, NoReturn
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +40,23 @@ def record_size(values: dict[str, CellValue]) -> int:
     a receipt, which is what the ceiling exists to bound.
     """
     return len(json.dumps(values, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def delete_snapshot(values: dict[str, Any]) -> dict[str, Any]:
+    """What a delete's history row keeps of the record: its values, or a bounded marker.
+
+    The record limit caps what a create and an update can write, but a record that predates
+    the limit, or was written before `TABLES_MAX_RECORD_BYTES` was lowered, can be larger than
+    it. Copying it whole would put an oversized snapshot in history on the way out, so an
+    over-limit record is replaced by `{"omitted": {"bytes": <its size>, "limit": <the limit>}}`.
+    A key `omitted` cannot be a column id, so it cannot be mistaken for a value. The delete
+    itself is never refused for this.
+    """
+    size = record_size(values)
+    limit = settings.TABLES_MAX_RECORD_BYTES
+    if size <= limit:
+        return dict(values)
+    return {"omitted": {"bytes": size, "limit": limit}}
 
 
 async def refuse(
