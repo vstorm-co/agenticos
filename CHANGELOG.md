@@ -17,8 +17,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.485] - 2026-09-22
-
 ### Fixed
 
 - **A mandatory security event past its write budget is coalesced, not
@@ -37,6 +35,10 @@ Two things are versioned separately from this file and worth knowing about:
   protecting, kept. It carries no running count, because counting would mean
   rewriting that row on every further event, which is the write the limit is
   there to stop. (#1762)
+
+## [0.0.485] - 2026-09-22
+
+### Fixed
 
 - **Three loose ends in the notice a dropped socket puts up.** It is drawn on
   the drop now rather than on the way back up, so a reader who loses
