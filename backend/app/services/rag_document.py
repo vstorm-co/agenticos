@@ -27,6 +27,7 @@ from app.schemas.rag import (
     RAGTrackedDocumentItem,
     RAGTrackedDocumentList,
 )
+from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
 from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
@@ -64,6 +65,7 @@ def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
         image_description_model=doc.image_description_model,
         embedding_model=doc.embedding_model,
         was_overridden=doc.ingestion_override is not None,
+        organizational_unit=doc.organizational_unit,
     )
 
 
@@ -130,6 +132,7 @@ class RAGDocumentService:
         ingestion_override: IngestionOverride | None = None,
         image_description_model: str | None = None,
         embedding_model: str | None = None,
+        organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
@@ -150,6 +153,13 @@ class RAGDocumentService:
         (#1598) - `dispatch_upload` passes its caller's; a sync or a CLI ingest
         passes none, and their `ingestion_completed`/`ingestion_failed` falls
         back to the organization's administrators instead.
+
+        `organizational_unit` is which part of the organization this document
+        belongs to - the FA-039 retrieval dimension. It is stored on the row so
+        the worker reads what this upload decided rather than a flow parameter a
+        queued run would not carry, exactly as the resolved `ingestion_config`
+        is. `None` leaves the dimension absent, which is what every chunk
+        carried before anything wrote it (#1777).
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -175,6 +185,7 @@ class RAGDocumentService:
             ),
             image_description_model=image_description_model,
             embedding_model=embedding_model,
+            organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
         )
 
@@ -190,6 +201,7 @@ class RAGDocumentService:
         override: IngestionOverride | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
+        organizational_unit: str | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -210,8 +222,8 @@ class RAGDocumentService:
           3. resolution of the image-description model, so a bad profile id in
              an override is refused here and not in a worker an hour later;
           4. permanent storage via `FileStorage`;
-          5. a RAGDocument recording the resolved configuration and the override
-             that produced it;
+          5. a RAGDocument recording the resolved configuration, the override
+             that produced it and the organizational unit this upload named;
           6. lazy creation of the target vector collection;
           7. tmp-copy under `MEDIA_DIR/_rag_tmp` (shared with worker container);
           8. dispatch of the ingestion task on the configured task backend.
@@ -277,6 +289,7 @@ class RAGDocumentService:
             ingestion_override=override,
             image_description_model=image_model,
             embedding_model=collection.embedding_model,
+            organizational_unit=blank_is_absent(organizational_unit),
             initiated_by_user_id=ctx.user_id,
         )
         doc_id = rag_doc.id

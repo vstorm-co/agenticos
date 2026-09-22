@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 from mcp.client.auth import PKCEParameters
 from mcp.client.auth.exceptions import OAuthFlowError
 from mcp.client.auth.oauth2 import (
@@ -58,22 +58,22 @@ logger = logging.getLogger(__name__)
 TOKEN_EXPIRY_SKEW_SECS = 60.0
 FLOW_TTL_SECS = 600.0
 _MAX_REDIRECTS = 5
-_HTTP_TIMEOUT = httpx.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
+_HTTP_TIMEOUT = httpx2.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SECS)
 
 
 class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
 
 
-def _unusable_url(exc: httpx.InvalidURL, what: str) -> OAuthError:
+def _unusable_url(exc: httpx2.InvalidURL, what: str) -> OAuthError:
     """The refusal for an endpoint no request can be built for.
 
-    `httpx.InvalidURL` derives from `Exception` rather than from
-    `httpx.HTTPError`, so a catch written for a request that failed does not see
+    `httpx2.InvalidURL` derives from `Exception` rather than from
+    `httpx2.HTTPError`, so a catch written for a request that failed does not see
     one that was never made - and a discovery document naming
     `https://host:client_secret=sh-key/token` answered 500 with an empty body
     instead of the refusal every other malformed document gets (#889). No check
-    written here could have reached it: `httpx` gives up while parsing the URL,
+    written here could have reached it: `httpx2` gives up while parsing the URL,
     above both `PinnedAsyncClient` and `app.core.sanitize`.
 
     Deliberately not the blocked-address refusal :func:`_send` raises, the same
@@ -91,10 +91,10 @@ def _unusable_url(exc: httpx.InvalidURL, what: str) -> OAuthError:
     return OAuthError(f"This server named {what} that cannot be requested - it is malformed.")
 
 
-_DISCOVERY_FAILURES = (httpx.HTTPError, httpx.InvalidURL, OAuthError)
+_DISCOVERY_FAILURES = (httpx2.HTTPError, httpx2.InvalidURL, OAuthError)
 """What ends one discovery candidate rather than the whole flow.
 
-`httpx.InvalidURL` is named because it is not an `httpx.HTTPError` and a catch
+`httpx2.InvalidURL` is named because it is not an `httpx2.HTTPError` and a catch
 that omits it is #889 again - see :func:`_unusable_url`.
 """
 
@@ -103,7 +103,7 @@ def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     """The sentence a failed OAuth step may show, for an exception it may not.
 
     Three of these refusals used to be built by interpolating whatever raised.
-    `httpx` puts the failing request in its message, and the requests this flow
+    `httpx2` puts the failing request in its message, and the requests this flow
     makes are a token grant and a client registration - so that message carries
     the token endpoint, and a token endpoint is reached with credentials in the
     body. A pydantic `ValidationError` over the token payload is worse again:
@@ -141,7 +141,7 @@ def _validation_detail(exc: ValueError) -> str:
     )
 
 
-def _client(transport: httpx.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
+def _client(transport: httpx2.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
     """The only client this flow talks through.
 
     `PinnedAsyncClient` checks each request's URL and then dials the address
@@ -156,7 +156,7 @@ def _client(transport: httpx.AsyncBaseTransport | None = None) -> PinnedAsyncCli
     return PinnedAsyncClient(timeout=_HTTP_TIMEOUT, transport=transport)
 
 
-async def _send(client: PinnedAsyncClient, request: httpx.Request) -> httpx.Response:
+async def _send(client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
     """Send *request*, following redirects one checked-and-pinned hop at a time.
 
     Discovery and token endpoints are chosen by the remote server, so the URL
@@ -363,12 +363,12 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         request = create_client_registration_request(
             server.metadata, metadata, server.authorization_endpoint
         )
-    except httpx.InvalidURL as exc:
+    except httpx2.InvalidURL as exc:
         raise _unusable_url(exc, "a registration endpoint") from exc
     async with _client() as client:
         try:
             info = await handle_registration_response(await _send(client, request))
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             logger.exception("MCP dynamic client registration failed at %s", request.url)
             raise OAuthError(
                 _flow_failed(
@@ -407,7 +407,7 @@ def authorization_url(
     }
     if server.scope:
         params["scope"] = server.scope
-    query = httpx.QueryParams(params)
+    query = httpx2.QueryParams(params)
     sep = "&" if "?" in server.authorization_endpoint else "?"
     return f"{server.authorization_endpoint}{sep}{query}"
 
@@ -473,11 +473,11 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
                 data=data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-        except httpx.InvalidURL as exc:
+        except httpx2.InvalidURL as exc:
             raise _unusable_url(exc, "a token endpoint") from exc
         try:
             response = await _send(client, request)
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             logger.exception("MCP token request to %s failed", token_endpoint)
             raise OAuthError(
                 _flow_failed(

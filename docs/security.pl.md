@@ -1,5 +1,5 @@
 ---
-source_sha: "d4f84c8f84f8"
+source_sha: "e5ee0101434e"
 ---
 
 # Bezpieczeństwo { #security }
@@ -187,6 +187,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Polityka rejestracji bramkuje SSO tak samo jak formularz | `check_may_register` wewnątrz `get_or_create_oauth_user` — `invite_only` i lista dozwolonych domen odmawiają też logowaniu przez dostawcę (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
 | Mapowanie grup na role, SAML, SCIM | **Jeszcze nie** — ludzie logują się przez dostawcę, a administrator ich umieszcza | — |
 | Limitowanie prób logowania | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Zmieniony adres e-mail jest dowodzony, zanim poczta za nim pójdzie | `PATCH /users/me` odkłada adres w `users.pending_email` i wysyła na niego jednorazowy, godzinny link; konto do powrotu tego linku odbiera wszystko pod dotychczasowym adresem, a ten dotychczasowy dostaje informację, że o zmianę poproszono. Link niesie wersję poświadczeń konta, więc zmiana albo reset hasła — to, do czego wzywa tamta informacja — unieważnia go, a naprawa adresu przez administratora czyści odłożoną zmianę. Ponowna prośba o już odłożony adres nie wysyła nic, a liczba różnych adresów na konto jest ograniczona w ciągu godziny. I żądanie, i potwierdzenie trafiają do audytu (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
 | Odtworzony refresh token kończy swój łańcuch i zostaje zapisany | Rotacja zachowuje zastąpiony hash; refresh, który do niego pasuje, to przypadek ponownego użycia z RFC 6819 §5.2.2.3 - zamyka tę sesję i zostawia wpis w audycie (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
 
 ### Kontrole audytowe · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }

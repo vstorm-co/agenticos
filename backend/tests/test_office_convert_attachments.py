@@ -22,6 +22,7 @@ from typing import Any
 import pytest
 
 from app.core import config as config_module
+from app.core import office_convert as manager
 from app.services import office_convert
 
 pytestmark = pytest.mark.anyio
@@ -81,19 +82,17 @@ def _exec(
 @pytest.fixture
 def present(monkeypatch):
     """LibreOffice is on PATH."""
-    monkeypatch.setattr(office_convert.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(manager.shutil, "which", lambda name: f"/usr/bin/{name}")
 
 
 async def _convert(monkeypatch, proc: FakeProc, *, output: bytes | None = None, timeout: float = 5):
-    monkeypatch.setattr(
-        office_convert.asyncio, "create_subprocess_exec", _exec(proc, output=output)
-    )
+    monkeypatch.setattr(manager.asyncio, "create_subprocess_exec", _exec(proc, output=output))
     return await office_convert.libreoffice_convert(b"doc-bytes", suffix=".doc", timeout=timeout)
 
 
 class TestTheHappyAndFailurePaths:
     async def test_absent_libreoffice_degrades_to_none(self, monkeypatch):
-        monkeypatch.setattr(office_convert.shutil, "which", lambda _name: None)
+        monkeypatch.setattr(manager.shutil, "which", lambda _name: None)
 
         assert await office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=1) is None
 
@@ -129,9 +128,7 @@ class TestTheHappyAndFailurePaths:
 class TestTeardown:
     async def test_a_timeout_kills_and_returns_none(self, monkeypatch, present):
         killed: list[tuple[int, int]] = []
-        monkeypatch.setattr(
-            office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
-        )
+        monkeypatch.setattr(manager.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
 
         result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
 
@@ -141,8 +138,8 @@ class TestTeardown:
 
     async def test_a_wedged_child_is_escalated_to_kill(self, monkeypatch, present):
         signals: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: signals.append(sig))
+        monkeypatch.setattr(manager.os, "getpgid", lambda _pid: 999)
+        monkeypatch.setattr(manager.os, "killpg", lambda _pgid, sig: signals.append(sig))
         monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.01)
 
         result = await _convert(
@@ -150,8 +147,8 @@ class TestTeardown:
         )
 
         assert result is None
-        assert office_convert.signal.SIGTERM in signals
-        assert office_convert.signal.SIGKILL in signals
+        assert manager.signal.SIGTERM in signals
+        assert manager.signal.SIGKILL in signals
 
     async def test_the_group_is_signalled_from_the_spawn_time_pgid(self, monkeypatch, present):
         """The pgid is captured at spawn, so a leader reaped before teardown - which
@@ -162,10 +159,8 @@ class TestTeardown:
         def _gone(_pid: int) -> int:
             raise ProcessLookupError
 
-        monkeypatch.setattr(office_convert.os, "getpgid", _gone)
-        monkeypatch.setattr(
-            office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
-        )
+        monkeypatch.setattr(manager.os, "getpgid", _gone)
+        monkeypatch.setattr(manager.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
 
         result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
 
@@ -175,10 +170,10 @@ class TestTeardown:
 
     async def test_cancellation_kills_the_group_and_propagates(self, monkeypatch, present):
         killed: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: killed.append(sig))
+        monkeypatch.setattr(manager.os, "getpgid", lambda _pid: 999)
+        monkeypatch.setattr(manager.os, "killpg", lambda _pgid, sig: killed.append(sig))
         monkeypatch.setattr(
-            office_convert.asyncio,
+            manager.asyncio,
             "create_subprocess_exec",
             _exec(FakeProc(hang_stderr=True)),
         )
@@ -198,8 +193,8 @@ class TestTeardown:
         final group KILL is sent regardless of the leader, so the child cannot outlive
         the timeout the group kill promises (#1591)."""
         signals: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: signals.append(sig))
+        monkeypatch.setattr(manager.os, "getpgid", lambda _pid: 999)
+        monkeypatch.setattr(manager.os, "killpg", lambda _pgid, sig: signals.append(sig))
         monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 5)
 
         # The drain hangs (the convert times out), but the leader exits promptly - no
@@ -207,8 +202,8 @@ class TestTeardown:
         result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
 
         assert result is None
-        assert office_convert.signal.SIGTERM in signals
-        assert office_convert.signal.SIGKILL in signals
+        assert manager.signal.SIGTERM in signals
+        assert manager.signal.SIGKILL in signals
 
 
 class TestStderrBounding:
@@ -219,9 +214,9 @@ class TestStderrBounding:
         # over-cap chunks are dropped rather than retained.
         proc = FakeProc(returncode=0, stderr=b"x" * 200_000)
 
-        captured = await office_convert._drain(proc)
+        captured = await manager._drain(proc)
 
-        assert len(captured) == office_convert._STDERR_MAX_BYTES
+        assert len(captured) == manager._STDERR_MAX_BYTES
 
 
 class TestConcurrency:
@@ -230,7 +225,7 @@ class TestConcurrency:
     ):
         seen: list[tuple[Any, ...]] = []
         monkeypatch.setattr(
-            office_convert.asyncio,
+            manager.asyncio,
             "create_subprocess_exec",
             _exec(FakeProc(returncode=0), output=b"ok", seen=seen),
         )
@@ -257,7 +252,7 @@ class TestTmpdirCancellationSafety:
         created: list[str] = []
         removed: list[str] = []
         real_mkdtemp = office_convert.tempfile.mkdtemp
-        real_rmtree = office_convert.shutil.rmtree
+        real_rmtree = manager.shutil.rmtree
 
         def slow_mkdtemp(**kwargs: object) -> str:
             time.sleep(0.1)
@@ -270,7 +265,7 @@ class TestTmpdirCancellationSafety:
             real_rmtree(str(path), ignore_errors=True)
 
         monkeypatch.setattr(office_convert.tempfile, "mkdtemp", slow_mkdtemp)
-        monkeypatch.setattr(office_convert.shutil, "rmtree", recording_rmtree)
+        monkeypatch.setattr(manager.shutil, "rmtree", recording_rmtree)
 
         task = asyncio.ensure_future(
             office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=10)
@@ -284,3 +279,27 @@ class TestTmpdirCancellationSafety:
         # mkdtemp ran to completion under the shield, and the created dir was removed.
         assert created
         assert removed == created
+
+
+async def test_nothing_is_staged_until_a_converter_slot_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The chat path writes a copy of the upload - up to
+    `CHAT_MAX_UPLOAD_SIZE_MB` - before it can convert anything. Staging that
+    outside the admission bound let a burst queued behind slow RAG conversions
+    accumulate an unbounded number of those copies in the temporary directory,
+    which the concurrency bound exists to prevent (#1767)."""
+    staged: list[str] = []
+
+    def _staging() -> str:
+        staged.append("made")
+        raise AssertionError("staged before a slot was held")
+
+    monkeypatch.setattr(office_convert, "_make_tmpdir", _staging)
+    # No slot will ever come free inside the budget.
+    monkeypatch.setattr(manager, "_semaphore", lambda: asyncio.Semaphore(0))
+
+    text = await office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=0.05)
+
+    assert text is None
+    assert staged == []

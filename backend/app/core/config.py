@@ -60,12 +60,19 @@ class Settings(BaseSettings):
     # startup rather than producing an unbounded conversion or a zero-page cap.
     #
     # DOC (and other legacy office) conversion runs a managed `soffice` subprocess
-    # (`app/services/office_convert.py`); these bound it. The timeout is far below
+    # (`app/core/office_convert.py`); these bound it. The timeout is far below
     # RAG's 600s because an interactive upload cannot wait that long, the
     # concurrency semaphore caps how many LibreOffice processes run at once (the
     # subprocess bypasses the `run_blocking` admission gate), the grace is the
     # TERM->KILL window, and the output cap is checked before the converted file is
     # read back.
+    #
+    # Three of the four now bound *every* LibreOffice conversion rather than only
+    # chat's: the two managers were collapsed into one (#1767), and the semaphore
+    # and the kill grace belong to the manager. The `CHAT_` prefix is kept because
+    # renaming a setting silently stops an operator's env file applying; only
+    # `CHAT_CONVERT_TIMEOUT_SECONDS` and `CHAT_CONVERT_OUTPUT_MAX_BYTES` are still
+    # read by the chat caller alone.
     CHAT_CONVERT_TIMEOUT_SECONDS: int = Field(default=60, gt=0)
     CHAT_CONVERT_MAX_CONCURRENCY: int = Field(default=2, gt=0)
     CHAT_CONVERT_KILL_GRACE_SECONDS: float = Field(default=5, gt=0)

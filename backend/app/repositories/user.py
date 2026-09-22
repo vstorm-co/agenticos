@@ -1,5 +1,6 @@
 """User repository."""
 
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
@@ -36,6 +37,34 @@ async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User |
         select(User).where(User.id == user_id).with_for_update(key_share=True)
     )
     return result.scalar_one_or_none()
+
+
+async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
+    """Take the weakest row lock on each of `user_ids`, in id order.
+
+    `FOR KEY SHARE` is exactly what a foreign key referencing these rows takes
+    when it is inserted, so this acquires nothing extra - it only acquires it
+    *earlier*. That is the whole purpose: `record_audit` holds a
+    transaction-scoped lock on the audit chain, and a write that reaches for a
+    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`,
+    which takes its rows first and the chain second (#1763). A caller about to
+    write notifications inside an audited transaction takes them here instead,
+    before the chain lock, so every transaction takes user rows first.
+
+    `ORDER BY id`, for the same reason `app_admin_ids_for_update` orders: two
+    callers taking overlapping sets take them in the same order and one waits
+    rather than both holding half. Key share conflicts with nothing another
+    audited write does, so this queues only against an exclusive locker - an
+    admin deletion, which is the other side of the cycle.
+    """
+    if not user_ids:
+        return
+    await db.execute(
+        select(User.id)
+        .where(User.id.in_(sorted(user_ids)))
+        .order_by(User.id)
+        .with_for_update(read=True, key_share=True)
+    )
 
 
 async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:

@@ -173,6 +173,54 @@ class PreferenceItem:
 # notification is skipped over the limit.
 _MANDATORY_WRITE_LIMIT = rate_limit.Limit(attempts=20, window_seconds=60)
 
+# What goes to the inbox instead, once that budget is spent.
+#
+# Dropping the event outright is what this used to do, and it defeated the
+# guarantee the mandatory event types exist for (#1762): an actor can exhaust
+# the shared bucket with twenty benign edits inside a minute and then do the one
+# thing an admin is watching for - a secret deleted, an impersonation starting -
+# and that event reaches neither the inbox nor email. It is still in the audit
+# log, but a mandatory, un-optable-out-of notification exists precisely because
+# the audit log is not what admins watch.
+#
+# So the overflow writes one coalesced row per actor per window instead. Its
+# `occurrence_id` is the window, so the second and every later overflow inside
+# it are an `ON CONFLICT DO NOTHING` that creates no delivery - which is what
+# keeps the fan-out bounded, and is the whole of what the limit was protecting.
+#
+# It carries no running count. A count would mean rewriting the row on every
+# event past the limit, which is the write the limit exists to stop; what the
+# reader needs is to know the minute was busier than the inbox can show, and
+# where all of it is.
+_COALESCED_SUMMARY: dict[NotificationEventType, str] = {
+    NotificationEventType.SECURITY_EVENT: (
+        "More security events arrived in one minute than this inbox lists "
+        "individually. Every one of them is in the audit log."
+    ),
+    NotificationEventType.CONFIGURATION_CHANGED: (
+        "The deployment's settings were changed more times in one minute than "
+        "this inbox lists individually. Every change is in the audit log."
+    ),
+}
+
+# One coalesced write per window, claimed before the fan-out rather than
+# deduplicated inside it.
+#
+# `ON CONFLICT DO NOTHING` stops a second row and a second delivery; it does not
+# stop the savepoint and the insert attempted for every recipient, and those are
+# the work the write budget exists to bound. Without this claim an actor past
+# the budget still drives one statement per admin per request, on routes the
+# console leaves unmetered - the same amplification with the rows removed.
+#
+# Keyed on the coalesced occurrence itself, so the Redis key rotates exactly
+# with the window the row is written for, and `INCR` is what makes the claim
+# atomic across the four workers. It fails open with Redis, like every other
+# limit here - but so does the budget above, so an unreachable Redis means
+# nothing is ever refused and this path is not reached at all.
+_COALESCED_WRITE_CLAIM = rate_limit.Limit(
+    attempts=1, window_seconds=_MANDATORY_WRITE_LIMIT.window_seconds
+)
+
 # Bounds on the app-side work the gate-aware read paths do, since Decision 7's
 # recheck cannot be pushed into a plain `COUNT`/`UPDATE` - each candidate row
 # needs its own permission check. Generous enough that an ordinary inbox never
@@ -365,7 +413,16 @@ class NotificationCenterService:
                     "notification_write_rate_limited",
                     extra={"event_type": event_type.value, "actor_user_id": str(actor_user_id)},
                 )
-                return []
+                return await self._write_coalesced(
+                    recipients=recipients,
+                    event_type=event_type,
+                    actor_user_id=actor_user_id,
+                    context_url=context_url,
+                    render_context=render_context,
+                    organization_id=organization_id,
+                    channels=channels,
+                    use_savepoint=use_savepoint,
+                )
 
         kwargs: dict[str, Any] = {
             "recipients": recipients,
@@ -381,6 +438,71 @@ class NotificationCenterService:
             "use_savepoint": use_savepoint,
         }
         return await self._write_rows(**kwargs)
+
+    async def _write_coalesced(
+        self,
+        *,
+        recipients: list[uuid.UUID],
+        event_type: NotificationEventType,
+        actor_user_id: uuid.UUID | None,
+        context_url: str | None,
+        render_context: dict[str, Any] | None,
+        organization_id: uuid.UUID | None,
+        channels: set[NotificationChannel] | None,
+        use_savepoint: bool,
+    ) -> list[Notification]:
+        """One row saying the minute was busier than the inbox can list.
+
+        Written in place of an event the mandatory-write budget refused, so
+        that a mandatory event type keeps the guarantee it exists for: the
+        inbox says *something* happened even when it cannot say each thing.
+        `_COALESCED_SUMMARY` above has the whole reasoning, including why there
+        is no count.
+
+        The window is a wall-clock bucket of the limit's own length rather than
+        the limiter's window, which starts at whenever its first attempt landed
+        and is not readable from here. The two are the same length and can be
+        offset from each other, so a burst straddling a boundary writes two
+        coalesced rows rather than one - which is a row too many, not an event
+        too few, and is the direction to err in.
+
+        The event type, the audience, the organization and the link are the
+        refused write's own: this is the same event, said less precisely, and a
+        row that reached a different audience or a different tenant would be a
+        second defect rather than a fix for this one.
+
+        The tenant is in the occurrence id for the same reason. Dedup is
+        `(recipient, event_type, occurrence_id)`, so one actor overflowing in two
+        organizations inside one minute would otherwise give somebody who
+        administers both only the first organization's notice - the second row a
+        no-op, carrying a different tenant and a different link nobody ever sees.
+
+        The write is claimed once per window before the fan-out starts, never
+        left to the conflict clause: see `_COALESCED_WRITE_CLAIM`.
+        """
+        window = int(datetime.now(UTC).timestamp()) // _MANDATORY_WRITE_LIMIT.window_seconds
+        scope = organization_id or "deployment"
+        occurrence_id = f"coalesced:{scope}:{actor_user_id or 'system'}:{window}"
+        claim = await rate_limit.consume(
+            surface="notification_coalesced_write",
+            caller=f"{event_type.value}:{occurrence_id}",
+            limit=_COALESCED_WRITE_CLAIM,
+        )
+        if not claim.allowed:
+            return []
+        return await self._write_rows(
+            recipients=recipients,
+            event_type=event_type,
+            occurrence_id=occurrence_id,
+            summary=_COALESCED_SUMMARY[event_type],
+            context_url=context_url,
+            render_context=render_context,
+            organization_id=organization_id,
+            announcement_id=None,
+            mandatory=True,
+            channels=channels,
+            use_savepoint=use_savepoint,
+        )
 
     async def _write_rows(
         self,

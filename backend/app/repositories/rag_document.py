@@ -119,6 +119,7 @@ async def create(
     ingestion_override: dict[str, object] | None = None,
     image_description_model: str | None = None,
     embedding_model: str | None = None,
+    organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record."""
@@ -136,6 +137,7 @@ async def create(
         ingestion_override=ingestion_override,
         image_description_model=image_description_model,
         embedding_model=embedding_model,
+        organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
     )
     db.add(doc)
