@@ -281,7 +281,11 @@ class TestWhatTheConnectorsDeclare:
 
         kinds = {name: cls.SECRET_KIND.value for name, cls in CONNECTOR_REGISTRY.items()}
 
-        assert kinds == {"gdrive": "gcp_service_account", "s3": "aws_credentials", "git": "api_key"}
+        assert kinds == {
+            "gdrive": "gcp_service_account",
+            "s3": "aws_credentials",
+            "git": "git_token",
+        }
 
     def test_no_connector_config_schema_carries_a_credential_field(self):
         """The `secret: true` marker is gone, and with it `_mask_config`,

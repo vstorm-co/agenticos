@@ -1,5 +1,5 @@
 ---
-source_sha: "1c539a892212"
+source_sha: "e5efeab8ec54"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -149,9 +149,16 @@ Każda synchronizacja po pierwszej robi tak mało, jak pozwala na to źródło:
 - **Usunięty plik zostaje usunięty.** Po zakończonym wypisaniu listy dokument,
   który źródło wcześniej przetworzyło, a którego już nie wypisuje, jest usuwany
   z kolekcji — najpierw wektory, potem jego wiersz — i liczony jako `removed`.
-  Wypisanie listy, które się nie powiodło, niczego nie usuwa. Tak działają
+  Wypisanie listy, które się nie powiodło, niczego nie usuwa. Kandydatami są
+  wyłącznie dokumenty samego źródła: dwa źródła zasilające jedną kolekcję nigdy
+  nie usuwają sobie nawzajem dokumentów, a źródło, któremu zmieniono
+  repozytorium albo gałąź, wycofuje to, co przeczytało wcześniej. Tak działają
   źródła Git; źródła Google Drive i S3 zachowują każdy przetworzony dokument,
   dopóki ktoś nie usunie go ręcznie.
+- **Jeden przebieg źródła naraz.** Drugi przebieg źródła, które wciąż się
+  synchronizuje, nie startuje, a jego log to odnotowuje. Inaczej dwa nakładające
+  się przebiegi mogłyby sprawić, że starsza lista usunie to, co nowszy przebieg
+  właśnie przetworzył.
 
 Przebieg z plikiem, którego nie udało się przetworzyć, nie zapisuje stanu, więc
 następny przebieg czyta źródło w całości i ponawia próbę.
@@ -288,9 +295,17 @@ token w tym samym sekrecie w vault.
 
 ### 2. Dodaj go do vault { #2-add-it-to-the-vault }
 
-Dodaj token do vault jako **API key** i wybierz go w kroku poświadczenia źródła.
-Jest wysyłany jako nagłówek HTTP `Authorization`, nigdy w adresie URL i nigdy
+Dodaj token do vault jako **Git access token**, razem z **hostem**, do którego
+należy: `github.com`, `gitlab.com` albo własny serwer, na przykład
+`git.example.com:8443`. Potem wybierz go w kroku poświadczenia źródła. Jest
+wysyłany jako nagłówek HTTP `Authorization`, nigdy w adresie URL i nigdy
 w wierszu poleceń, który mógłby odczytać inny proces.
+
+**Host należy do tokena, nie do źródła.** Adres URL repozytorium wybiera ten,
+kto edytuje źródło, a token jest wysyłany wyłącznie do hosta, z którym został
+dodany. Edycja źródła nie może więc skierować tokena organizacji na inny serwer,
+a żadnego innego rodzaju klucza, na przykład klucza API dostawcy modelu, nie da
+się w ogóle wybrać dla źródła Git.
 
 ### 3. Pola konfiguracji connectora Git { #3-git-connector-config-fields }
 
@@ -533,6 +548,23 @@ token wystawiony dla innego repozytorium wygląda właśnie tak.
 
 Pole `branch` wskazuje gałąź, której repozytorium nie ma. Domyślnie jest to
 `main`; w starszym repozytorium gałęzią domyślną może być `master`.
+
+### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
+
+Repozytorium źródła jest na innym hoście niż ten, z którym dodano jego token.
+Albo adres URL jest błędny, albo źródło potrzebuje tokena dodanego dla tego
+hosta. Do hosta repozytorium nic nie zostało wysłane.
+
+### Git: "A Git source needs a Git access token" { #git-a-git-source-needs-a-git-access-token }
+
+Źródło wskazuje sekret innego rodzaju, na przykład API key. Dodaj token jako
+**Git access token**, razem z jego hostem, i wybierz właśnie ten.
+
+### "Another sync of this source is still running" { #another-sync-of-this-source-is-still-running }
+
+Przebieg został wyzwolony, gdy trwał inny przebieg tego samego źródła, więc nie
+wystartował. Trwający przebieg kończy się normalnie; wyzwól synchronizację
+ponownie po nim, jeśli źródło w międzyczasie się zmieniło.
 
 ### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
 

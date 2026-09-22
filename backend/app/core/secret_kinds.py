@@ -79,6 +79,7 @@ class SecretKind(StrEnum):
     GITHUB_OAUTH_APP = "github_oauth_app"
     GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
+    GIT_TOKEN = "git_token"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -260,6 +261,46 @@ class GcpServiceAccountSecret(_SecretBase):
         return email[-4:]
 
 
+class GitTokenSecret(_SecretBase):
+    """An access token for git over HTTPS, and the one host it may be sent to.
+
+    A kind of its own rather than an `api_key`, because a Git source sends its
+    token to a URL the source's editor types. With any API key eligible, a member
+    who could edit a source could pick the organization's model key, point the
+    source at a server of their own and read the key out of the basic-auth header
+    (#987). Here the host is part of what the vault holds - set by whoever added
+    the token, sealed with it - and the connector refuses to send the token
+    anywhere else.
+    """
+
+    kind: Literal[SecretKind.GIT_TOKEN] = SecretKind.GIT_TOKEN
+    token: CredentialStr = Field(
+        title="Access token",
+        description="A token that can read the repository, e.g. a fine-grained GitHub token",
+    )
+    host: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]{1,5})?$",
+        title="Host",
+        description="Where the token may be sent, e.g. github.com or gitlab.example.com:8443",
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.token.get_secret_value()[-4:]
+
+    def allows(self, hostname: str, port: int | None) -> bool:
+        """Whether a repository at this host and port may be sent the token.
+
+        `hostname` as `urlsplit` answers it: lower-cased, and an IPv6 literal
+        without its brackets - which the stored host keeps, as a URL writes it.
+        """
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        expected = host if port in (None, 443) else f"{host}:{port}"
+        return self.host.lower().removesuffix(":443") == expected.lower()
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -362,7 +403,8 @@ StorableSecret = Annotated[
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
     | GithubAppSecret
-    | GoogleOAuthAppSecret,
+    | GoogleOAuthAppSecret
+    | GitTokenSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -375,7 +417,8 @@ SecretValue = Annotated[
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
     | GithubAppSecret
-    | GoogleOAuthAppSecret,
+    | GoogleOAuthAppSecret
+    | GitTokenSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -456,6 +499,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
     SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
+    SecretKind.GIT_TOKEN: GitTokenSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -486,6 +530,10 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
     SecretKind.GOOGLE_OAUTH_APP: (
         "Google OAuth client",
         "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
+    ),
+    SecretKind.GIT_TOKEN: (
+        "Git access token",
+        "A token that reads repositories over HTTPS, and the one host it may be sent to.",
     ),
 }
 

@@ -35,7 +35,7 @@ from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 BODY = b"the handbook, unchanged since last night"
 BODY_HASH = hashlib.sha256(BODY).hexdigest()
@@ -90,10 +90,10 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
             ]
         ),
         download_file=AsyncMock(side_effect=download),
-        # What Drive inherits from the base: no version to stop early on, and no
-        # listing root to delete under.
+        # What Drive inherits from the base: no version to stop early on, and it
+        # deletes nothing it stops listing.
         remote_version=AsyncMock(return_value=None),
-        listing_root=MagicMock(return_value=None),
+        REMOVES_UNLISTED=False,
         aclose=AsyncMock(),
     )
 

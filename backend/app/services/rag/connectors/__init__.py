@@ -86,6 +86,13 @@ class BaseSyncConnector(ABC):
     # whoever is running the sync (#937). A connector that needs none says
     # `SecretKind.NONE` - a public docs crawler, when there is one.
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.NONE
+    # Whether a sync deletes what this source no longer lists. After a listing
+    # that completed, a document this source brought in (`sync_source_id`) that
+    # the listing does not name is removed, vectors and row. Off by default,
+    # which keeps every document once ingested - what Drive and S3 have always
+    # done. Turn it on only where a listing is the whole of the source: a
+    # connector that lists a page of it would delete the rest.
+    REMOVES_UNLISTED: ClassVar[bool] = False
 
     @abstractmethod
     async def list_files(
@@ -146,21 +153,6 @@ class BaseSyncConnector(ABC):
         `None`, the default, means the source cannot say, and every run lists.
         A connector that answers must answer a *different* value whenever any
         listed file's bytes, or the listing itself, could have changed.
-        """
-        return None
-
-    def listing_root(self, config: ConnectorConfig) -> str | None:
-        """The prefix every `source_path` this source lists starts with, if it has one.
-
-        A connector answering one opts into deletion: after a listing that
-        completed, a document in the collection under this prefix that the listing
-        no longer names is removed, vectors and row. `None`, the default, keeps a
-        document for ever once ingested, which is what every connector did before
-        this existed.
-
-        The prefix has to be this source's alone. A Drive `source_path` is a file
-        id with no folder in it, so Drive cannot answer one; a repository and
-        branch can.
         """
         return None
 

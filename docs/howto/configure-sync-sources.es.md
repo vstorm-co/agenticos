@@ -1,5 +1,5 @@
 ---
-source_sha: "1c539a892212"
+source_sha: "e5efeab8ec54"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -150,9 +150,15 @@ permite:
 - **Un archivo borrado se elimina.** Tras un listado completo, un documento que
   la fuente ingirió antes y que ya no aparece en el listado se borra de la
   colección —primero los vectores, luego su fila— y se cuenta como `removed`. Un
-  listado que falla no elimina nada. Las fuentes Git lo hacen; las fuentes de
-  Google Drive y S3 conservan todos los documentos que han ingerido hasta que
-  alguien los borra a mano.
+  listado que falla no elimina nada. Solo los documentos propios de la fuente son
+  candidatos: dos fuentes que alimentan una colección nunca eliminan los de la
+  otra, y una fuente cuyo repositorio o rama ha cambiado retira lo que leyó antes.
+  Las fuentes Git lo hacen; las fuentes de Google Drive y S3 conservan todos los
+  documentos que han ingerido hasta que alguien los borra a mano.
+- **Una ejecución de una fuente a la vez.** Una segunda ejecución de una fuente
+  que todavía se está sincronizando no arranca, y su registro lo dice. De lo
+  contrario, dos ejecuciones solapadas podrían hacer que el listado más antiguo
+  borrara lo que la ejecución más reciente acababa de ingerir.
 
 Una ejecución con un archivo fallido no registra ningún estado, así que la
 siguiente lee la fuente entera y vuelve a intentarlo.
@@ -290,9 +296,17 @@ token nuevo en el mismo secreto del vault.
 
 ### 2. Añádelo al vault { #2-add-it-to-the-vault }
 
-Añade el token al vault como **API key** y elígelo en el paso de credencial de la
-fuente. Se envía en una cabecera HTTP `Authorization`, nunca en la URL ni en una
-línea de comandos que otro proceso pueda leer.
+Añade el token al vault como **Git access token**, con el **host** al que
+pertenece: `github.com`, `gitlab.com` o tu propio servidor, como
+`git.example.com:8443`. Después elígelo en el paso de credencial de la fuente. Se
+envía en una cabecera HTTP `Authorization`, nunca en la URL ni en una línea de
+comandos que otro proceso pueda leer.
+
+**El host es del token, no de la fuente.** Quien edita una fuente elige la URL de
+su repositorio, y un token solo se envía al host con el que se añadió. Así que
+editar una fuente no puede dirigir el token de la organización a otro servidor, y
+ningún otro tipo de clave, como la API key de un provider de modelos, puede
+elegirse para una fuente de Git.
 
 ### 3. Campos de configuración del connector de Git { #3-git-connector-config-fields }
 
@@ -541,6 +555,23 @@ fine-grained emitido para otro repositorio se ve así.
 El campo `branch` nombra una rama que el repositorio no tiene. Su valor por
 defecto es `main`; la rama por defecto de un repositorio más antiguo puede ser
 `master`.
+
+### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
+
+El repositorio de la fuente está en un host distinto de aquel con el que se añadió
+su token. O la URL es incorrecta, o la fuente necesita un token añadido para ese
+host. No se envió nada al host del repositorio.
+
+### Git: "A Git source needs a Git access token" { #git-a-git-source-needs-a-git-access-token }
+
+La fuente nombra un secreto de otro kind, como una API key. Añade el token como
+**Git access token**, con su host, y elige ese.
+
+### "Another sync of this source is still running" { #another-sync-of-this-source-is-still-running }
+
+Se lanzó una ejecución mientras había otra de la misma fuente en curso, así que no
+arrancó. La ejecución en curso termina con normalidad; vuelve a lanzarla después
+si la fuente ha cambiado entretanto.
 
 ### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
 

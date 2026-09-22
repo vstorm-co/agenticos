@@ -1116,9 +1116,10 @@ been shared. The fallback is gone; the setting now serves only the
     deployment-wide fallback, because a fallback means one tenant's folder id
     choosing what is read under the operator's identity.
 
-What the source names in `secret_id` is a `gcp_service_account` for Drive or an
-`aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
-offered to the wizard as `secret_kind` on the connector listing.
+What the source names in `secret_id` is a `gcp_service_account` for Drive, an
+`aws_credentials` pair for S3 or a `git_token` for a Git repository, declared by
+the connector as `SECRET_KIND` and offered to the wizard as `secret_kind` on the
+connector listing.
 
 It used to be in `config`, encrypted by `app/core/crypto.py` — one
 deployment-wide Fernet key over every tenant's credential, which is the weakness

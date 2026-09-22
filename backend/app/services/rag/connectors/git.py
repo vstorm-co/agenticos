@@ -1,9 +1,11 @@
 """Git sync connector: a repository's documentation, over HTTPS, with a token.
 
 GitHub and GitLab are one connector, because what it needs is a clone URL and a
-token rather than either platform's API (#987). The token is an `ApiKeySecret`
+token rather than either platform's API (#987). The token is a `GitTokenSecret`
 in the organization's vault, sent as a basic-auth header - both platforms take a
-personal access token as the password under any user name.
+personal access token as the password under any user name - and only to the host
+that secret names. The URL is typed by whoever edits the source; the host is set
+by whoever added the token, so editing a source cannot aim the token elsewhere.
 
 **What a sync costs.** The expensive half of a sync is parsing and embedding, and
 the content hash already spares an unchanged file both (#990). What is left is
@@ -32,11 +34,14 @@ git configuration is read.
 
 import asyncio
 import base64
+import ipaddress
 import logging
 import os
 import re
 import shutil
+import signal
 import tempfile
+from contextlib import suppress
 from pathlib import Path, PurePosixPath
 from typing import ClassVar
 from urllib.parse import urlsplit
@@ -45,7 +50,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.core.sanitize import PinnedAddress, UrlRefusedError, resolve_pinned_url
-from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
+from app.core.secret_kinds import GitTokenSecret, SecretKind, StorableSecret
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -140,6 +145,17 @@ class GitConfig(BaseModel):
             raise ValueError("The repository URL must not have a query string or a fragment.")
         if not parts.path.strip("/"):
             raise ValueError("The repository URL must name a repository, not only a host.")
+        # A name the resolver cannot encode - a label over 63 characters, say -
+        # raises `UnicodeError` from `getaddrinfo`, which is no refusal of ours;
+        # asked here it is one, on the field that caused it.
+        try:
+            parts.hostname.encode("idna")
+        except UnicodeError:
+            raise ValueError("The repository URL's host is not a valid host name.") from None
+        try:
+            _ = parts.port
+        except ValueError:
+            raise ValueError("The repository URL's port is not a valid port.") from None
         return value.strip()
 
     @field_validator("branch")
@@ -200,8 +216,11 @@ class GitConnector(BaseSyncConnector):
 
     CONNECTOR_TYPE: ClassVar[str] = "git"
     DISPLAY_NAME: ClassVar[str] = "Git repository"
-    SECRET_KIND: ClassVar[SecretKind] = SecretKind.API_KEY
+    SECRET_KIND: ClassVar[SecretKind] = SecretKind.GIT_TOKEN
     CONFIG_MODEL: ClassVar[type[BaseModel]] = GitConfig
+    # A clone of a branch is the whole of what the source reads, so a file it no
+    # longer lists was deleted or moved upstream, or fell outside the patterns.
+    REMOVES_UNLISTED: ClassVar[bool] = True
 
     def __init__(self) -> None:
         self._workdir: Path | None = None
@@ -301,14 +320,14 @@ class GitConnector(BaseSyncConnector):
         staged = await self._git("ls-files", "-z", "--stage", env=env, timeout=60.0, cwd=checkout)
         return await asyncio.to_thread(self._listing, checkout, staged, parsed)
 
-    def listing_root(self, config: ConnectorConfig) -> str:
+    @staticmethod
+    def source_root(parsed: GitConfig) -> str:
         """What every `source_path` this source lists begins with.
 
         The branch is part of it, so two sources reading two branches of one
         repository into one collection address different documents rather than
         replacing each other's.
         """
-        parsed = GitConfig.model_validate(config)
         root = f"git://{parsed.repository()}@{parsed.branch}/"
         return f"{root}{parsed.path_prefix}/" if parsed.path_prefix else root
 
@@ -349,7 +368,7 @@ class GitConnector(BaseSyncConnector):
         like any other document - so the mode comes from `ls-files --stage` and
         only the working tree says which entries the patterns checked out.
         """
-        root = self.listing_root(parsed.model_dump())
+        root = self.source_root(parsed)
         prefix = f"{parsed.path_prefix}/" if parsed.path_prefix else ""
         files: list[RemoteFile] = []
         for entry in staged.split("\0"):
@@ -383,19 +402,31 @@ class GitConnector(BaseSyncConnector):
         `GIT_CONFIG_NOSYSTEM`), and `HOME` is not the worker's either.
 
         Raises:
-            BadRequestError: no credential, or one that is not an API key.
-            BadRequestError: the repository's host resolves inside the network.
+            BadRequestError: no credential, one that is not a Git access token, a
+                repository on a host the token was not added for, or a host that
+                resolves inside the network.
         """
         if credential is None:
             raise BadRequestError(
                 message=(
                     "This Git source has no credential. Add an access token to the Vault "
-                    "as an API key and choose it as the source's credential."
+                    "as a Git access token and choose it as the source's credential."
                 )
             )
-        if not isinstance(credential, ApiKeySecret):
+        if not isinstance(credential, GitTokenSecret):
             raise BadRequestError(
-                message="A Git source needs an API key, and the one it names is not one."
+                message="A Git source needs a Git access token, and the one it names is not one."
+            )
+        parts = urlsplit(parsed.repository_url)
+        hostname = parts.hostname or ""
+        if not credential.allows(hostname, parts.port):
+            # Refused before anything is resolved or sent. The two hosts are
+            # named because neither is secret and they are the whole answer.
+            raise BadRequestError(
+                message=(
+                    f"This token was added for {credential.host}, and the repository is on "
+                    f"{parts.netloc}. A token is sent only to the host it was added for."
+                )
             )
 
         settings: list[tuple[str, str]] = [
@@ -421,8 +452,11 @@ class GitConnector(BaseSyncConnector):
             # be stored - as a `ValueError` it would reach the sync log as a
             # class name.
             raise BadRequestError(message=str(exc)) from exc
-        settings.append(("http.curloptResolve", _curl_resolve(pinned)))
-        token = credential.api_key.get_secret_value()
+        if not _is_address(pinned.hostname):
+            # A literal address is pinned by the URL itself, and `CURLOPT_RESOLVE`
+            # cannot express an IPv6 one as a host: the entry would not parse.
+            settings.append(("http.curloptResolve", _curl_resolve(pinned)))
+        token = credential.token.get_secret_value()
         basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
         settings.append(("http.extraHeader", f"Authorization: Basic {basic}"))
 
@@ -467,7 +501,9 @@ class GitConnector(BaseSyncConnector):
         git's stderr is logged and never raised: it quotes the URL it failed on,
         and what reaches a sync log goes through `failure_summary`, which keeps an
         `AppException`'s message whole. The process is killed on a timeout and on
-        cancellation - it must not outlive the sync that started it.
+        cancellation - it must not outlive the sync that started it - and so are
+        its helpers: git runs `git-remote-https` and `index-pack` as children, so
+        it is started as a process group and the group is what is killed.
 
         Raises:
             BadRequestError: the token was refused, or the repository or branch
@@ -484,6 +520,7 @@ class GitConnector(BaseSyncConnector):
                 stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
             )
         except FileNotFoundError as exc:
             raise ConfigurationError(
@@ -527,6 +564,14 @@ def _make_workdir() -> Path:
     return Path(tempfile.mkdtemp(prefix="git-sync-"))
 
 
+def _is_address(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
 def _curl_resolve(pinned: PinnedAddress) -> str:
     """`host:port:addr[,addr]`, the `CURLOPT_RESOLVE` entry that pins every approved address."""
     addresses = ",".join(f"[{ip}]" if ":" in ip else ip for ip in pinned.ips)
@@ -534,7 +579,13 @@ def _curl_resolve(pinned: PinnedAddress) -> str:
 
 
 async def _reap(proc: asyncio.subprocess.Process) -> None:
-    """Kill a git that has to stop, and wait for it so it is not left a zombie."""
-    if proc.returncode is None:
-        proc.kill()
+    """Kill a git that has to stop, with its helpers, and wait so none is left a zombie.
+
+    The whole group, even when the leader has already gone: a helper it started
+    can still be holding the connection and the environment that carries the
+    token. `start_new_session=True` made the leader the group's leader, so the
+    group id is its pid.
+    """
+    with suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
     await asyncio.shield(proc.wait())

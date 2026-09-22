@@ -20,6 +20,7 @@ import base64
 import os
 import shutil
 import subprocess
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -35,7 +36,7 @@ from app.core.exceptions import (
     ExternalServiceError,
 )
 from app.core.sanitize import PinnedAddress, SSRFBlockedError
-from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret
+from app.core.secret_kinds import ApiKeySecret, GitTokenSecret
 from app.services.rag.connectors import RemoteFile
 from app.services.rag.connectors import git as git_module
 from app.services.rag.connectors.git import GitConfig, GitConnector
@@ -113,8 +114,8 @@ def local_transport(repo: Path) -> Iterator[None]:
         yield
 
 
-def _token() -> ApiKeySecret:
-    return ApiKeySecret(api_key=SecretStr(TOKEN))
+def _token(host: str = "git.test") -> GitTokenSecret:
+    return GitTokenSecret(token=SecretStr(TOKEN), host=host)
 
 
 def _config(**overrides: object) -> dict[str, object]:
@@ -234,14 +235,15 @@ class TestTheChangeSignal:
         finally:
             await connector.aclose()
 
-    def test_the_listing_root_names_repository_branch_and_prefix(self) -> None:
-        connector = GitConnector()
+    def test_the_source_root_names_repository_branch_and_prefix(self) -> None:
+        def root(**overrides: object) -> str:
+            return GitConnector.source_root(GitConfig.model_validate(_config(**overrides)))
 
-        assert connector.listing_root(_config()) == "git://git.test/acme/handbook@main/"
-        assert (
-            connector.listing_root(_config(branch="v2", path_prefix="docs"))
-            == "git://git.test/acme/handbook@v2/docs/"
-        )
+        assert root() == "git://git.test/acme/handbook@main/"
+        assert root(branch="v2", path_prefix="docs") == "git://git.test/acme/handbook@v2/docs/"
+
+    def test_a_git_source_deletes_what_it_no_longer_lists(self) -> None:
+        assert GitConnector.REMOVES_UNLISTED is True
 
 
 class TestWhatGitIsTold:
@@ -264,6 +266,19 @@ class TestWhatGitIsTold:
         assert env["GIT_CONFIG_GLOBAL"] != str(Path.home() / ".gitconfig")
         assert TOKEN not in " ".join(k for k in env if not k.startswith("GIT_CONFIG_VALUE_"))
 
+    async def test_a_literal_address_is_not_given_a_resolve_entry(self) -> None:
+        """`CURLOPT_RESOLVE` cannot name an IPv6 host, and a literal is pinned already."""
+        url = "https://[2606:4700::1111]/acme/handbook.git"
+        pinned = PinnedAddress(hostname="2606:4700::1111", port=443, ips=("2606:4700::1111",))
+        with patch.object(git_module, "resolve_pinned_url", return_value=pinned):
+            env = await GitConnector()._environment(
+                GitConfig.model_validate(_config(repository_url=url)),
+                _token(host="[2606:4700::1111]"),
+            )
+
+        keys = {env[f"GIT_CONFIG_KEY_{i}"] for i in range(int(env["GIT_CONFIG_COUNT"]))}
+        assert "http.curloptResolve" not in keys
+
     def test_an_ipv6_address_is_bracketed_for_curl(self) -> None:
         pinned = PinnedAddress(hostname="git.test", port=443, ips=("2606:4700::1", "93.184.216.34"))
 
@@ -281,46 +296,82 @@ class TestWhatGitIsTold:
         with pytest.raises(BadRequestError, match="no credential"):
             await GitConnector().remote_version(_config(), None)
 
-    async def test_a_credential_of_the_wrong_kind_is_refused(self) -> None:
-        pair = AwsCredentialsSecret(
-            aws_access_key_id="AKIAEXAMPLE",
-            aws_secret_access_key=SecretStr("wJalrXUtnFEMI"),
-            region_name="us-east-1",
-        )
-        with pytest.raises(BadRequestError, match="needs an API key"):
-            await GitConnector().remote_version(_config(), pair)
+    async def test_an_api_key_is_not_a_git_token(self) -> None:
+        """Any API key used to be eligible - the organization's model key included -
+        and the URL is the editor's to choose, so the key went wherever they pointed
+        it. A Git source now takes only a token that names its own host."""
+        model_key = ApiKeySecret(api_key=SecretStr("sk-model-provider-key"))
+        with pytest.raises(BadRequestError, match="needs a Git access token"):
+            await GitConnector().remote_version(_config(), model_key)
+
+    async def test_a_token_is_never_sent_to_a_host_it_was_not_added_for(self) -> None:
+        spawned: list[object] = []
+
+        async def spawn(*args: object, **_: object) -> None:
+            spawned.append(args)
+
+        with (
+            patch.object(git_module, "resolve_pinned_url", return_value=PINNED),
+            patch.object(git_module.asyncio, "create_subprocess_exec", new=spawn),
+            pytest.raises(BadRequestError, match=r"added for github\.com") as caught,
+        ):
+            await GitConnector().remote_version(_config(), _token(host="github.com"))
+
+        assert spawned == []
+        assert TOKEN not in caught.value.message
+
+    @pytest.mark.parametrize(
+        ("host", "url", "allowed"),
+        [
+            ("GitHub.com", "https://github.com/a/b.git", True),
+            ("github.com:443", "https://github.com/a/b.git", True),
+            ("git.example.com:8443", "https://git.example.com:8443/a/b.git", True),
+            ("git.example.com", "https://git.example.com:8443/a/b.git", False),
+            ("github.com", "https://github.com.evil.test/a/b.git", False),
+            ("[2606:4700::1]", "https://[2606:4700::1]/a/b.git", True),
+        ],
+    )
+    def test_the_host_is_matched_exactly_with_its_port(
+        self, host: str, url: str, allowed: bool
+    ) -> None:
+        parts = git_module.urlsplit(url)
+
+        assert _token(host=host).allows(parts.hostname or "", parts.port) is allowed
+
+    def test_the_vault_hint_is_the_tokens_last_four_and_not_the_host(self) -> None:
+        assert _token().hint == TOKEN[-4:]
 
 
 class _Process:
     """A git that says what it is told to, or never answers."""
 
+    pid = 424242
+
     def __init__(self, *, returncode: int = 0, stderr: bytes = b"", hang: bool = False) -> None:
         self.returncode: int | None = None if hang else returncode
         self._stderr = stderr
         self._hang = hang
-        self.killed = False
 
     async def communicate(self, _input: bytes | None = None) -> tuple[bytes, bytes]:
         if self._hang:
             await asyncio.sleep(3600)
         return b"", self._stderr
 
-    def kill(self) -> None:
-        self.killed = True
-        self.returncode = -9
-
     async def wait(self) -> int:
         return self.returncode or 0
 
 
 class TestWhatAFailureSays:
-    @staticmethod
-    async def _fail_with(process: _Process, *, timeout: float = 5.0) -> AppException:
+    killed: list[int]
+
+    async def _fail_with(self, process: _Process, *, timeout: float = 5.0) -> AppException:
         async def spawn(*_: object, **__: object) -> _Process:
             return process
 
+        self.killed = []
         with (
             patch.object(git_module.asyncio, "create_subprocess_exec", new=spawn),
+            patch.object(git_module.os, "killpg", new=lambda pgid, _sig: self.killed.append(pgid)),
             pytest.raises(AppException) as caught,
         ):
             await GitConnector()._git("ls-remote", env={}, timeout=timeout)
@@ -360,7 +411,27 @@ class TestWhatAFailureSays:
         refusal = await self._fail_with(process, timeout=0.05)
 
         assert isinstance(refusal, ExternalServiceError)
-        assert process.killed
+        assert self.killed == [_Process.pid]
+
+    async def test_a_timeout_kills_the_helpers_git_started_as_well(self, tmp_path: Path) -> None:
+        """A real process tree: an alias that starts a child, as `clone` starts
+        `git-remote-https`. Killing only the leader left the child running with the
+        environment that carries the token."""
+        pidfile = tmp_path / "child.pid"
+        env = {
+            "PATH": os.environ["PATH"],
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "alias.stall",
+            "GIT_CONFIG_VALUE_0": f"!sleep 60 & echo $! > {pidfile}; wait",
+        }
+
+        with pytest.raises(ExternalServiceError):
+            await GitConnector()._git("stall", env=env, timeout=1.0, cwd=tmp_path)
+
+        child = int(pidfile.read_text())
+        assert await asyncio.to_thread(_gone_within, child, 5.0)
 
     async def test_a_worker_without_git_is_a_configuration_problem(self) -> None:
         async def missing(*_: object, **__: object) -> _Process:
@@ -371,6 +442,18 @@ class TestWhatAFailureSays:
             pytest.raises(ConfigurationError, match="git is not installed"),
         ):
             await GitConnector()._git("ls-remote", env={}, timeout=1.0)
+
+
+def _gone_within(pid: int, seconds: float) -> bool:
+    """Whether `pid` stops existing within `seconds` - a SIGKILL is not instant."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 class TestWhatTheFormAccepts:
@@ -395,6 +478,8 @@ class TestWhatTheFormAccepts:
             ({"repository_url": f"https://{TOKEN}@github.com/acme/x.git"}, "repository_url"),
             ({"repository_url": "https://github.com/acme/x.git?ref=main"}, "repository_url"),
             ({"repository_url": "https://github.com/"}, "repository_url"),
+            ({"repository_url": f"https://{'a' * 64}.example.com/x.git"}, "repository_url"),
+            ({"repository_url": "https://github.com:99999/acme/x.git"}, "repository_url"),
             (_config(branch="--upload-pack=touch /tmp/x"), "branch"),
             (_config(branch="main..dev"), "branch"),
             (_config(path_prefix="../secrets"), "path_prefix"),

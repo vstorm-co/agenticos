@@ -22,10 +22,11 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.sync_source import SyncSource
-from app.db.session import get_worker_db_context
+from app.db.session import get_worker_connection, get_worker_db_context
 from app.repositories import (
     collection_teardown_repo,
     ingestion_spend_repo,
@@ -783,6 +784,7 @@ async def _open_document_row(
     image_description_model: str | None,
     embedding_model: str | None,
     organizational_unit: str | None = None,
+    sync_source_id: UUID | None = None,
 ) -> str:
     """Record a document a sync is about to ingest, and answer its row id.
 
@@ -816,6 +818,7 @@ async def _open_document_row(
             image_description_model=image_description_model,
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
+            sync_source_id=sync_source_id,
         )
         return str(row.id)
 
@@ -910,12 +913,52 @@ async def _notify_sync_start_failure(
     )
 
 
+OVERLAPPING_RUN = "Another sync of this source is still running, so this one did not start."
+
+
+@asynccontextmanager
+async def _exclusive_source_run(source_id: str) -> AsyncIterator[bool]:
+    """Whether this run is the only one of its source, held for as long as it runs.
+
+    A connection of its own, kept open for the whole sync, because the lock
+    lives on it and is released when it closes - including when the worker dies
+    mid-run.
+    """
+    async with get_worker_connection() as connection:
+        yield await try_hold_subject_on_connection(
+            connection, LockScope.SYNC_SOURCE_RUN, UUID(source_id)
+        )
+
+
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
     """Core sync logic for connector-based sources (shared between all task frameworks).
 
     Fetches files from a remote connector (e.g. Google Drive, S3), downloads them
     to a temporary directory, and ingests each into the vector store.
+
+    **One run of a source at a time.** A manual trigger is not refused while a
+    run is going, and the scheduler can dispatch a due source twice, because
+    `last_sync_at` moves only when a run finishes. Two overlapping runs are
+    harmless until one of them deletes: the older listing does not name a file
+    the newer run just ingested, and would remove it (#987). So the second run
+    does not start, and says so on its log.
     """
+    async with _exclusive_source_run(source_id) as held:
+        if held:
+            return await _sync_source(source_id, sync_log_id)
+    from app.services.rag_sync import RAGSyncService
+
+    if sync_log_id is not None:
+        async with get_worker_db_context() as db:
+            await RAGSyncService(db).complete_sync(
+                sync_log_id, status="error", error_message=OVERLAPPING_RUN
+            )
+    logger.info("Sync of source %s not started: another run holds it", source_id)
+    return {"status": "skipped", "message": OVERLAPPING_RUN}
+
+
+async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any]:
+    """One run of a source, which `_run_source_sync` has made the only one."""
     from app.services.rag_sync import RAGSyncService
 
     async with get_worker_db_context() as db:
@@ -1131,6 +1174,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             # The same default the ingest stamps on the chunks, so
                             # the tracked row says what the vectors carry (#1777).
                             organizational_unit=source.organizational_unit,
+                            # What this source's later runs delete by (#987).
+                            sync_source_id=source.id,
                         )
 
                         with metered_by(ledger):
@@ -1200,16 +1245,18 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             # Only here, after a listing that completed: a listing that raised
             # is not evidence that anything was deleted upstream, and acting on
             # one would empty the collection on a network blip.
-            root = None if unchanged else connector.listing_root(config)
-            if root is not None:
-                removed = await _remove_unlisted(
+            if connector.REMOVES_UNLISTED and not unchanged:
+                removed, unremoved = await _remove_unlisted(
                     ingester,
+                    sync_source_id=source.id,
                     collection_name=collection_name,
-                    knowledge_base_id=knowledge_base_id,
-                    organization_id=organization_id,
-                    source_root=root,
                     listed={remote_file.source_path for remote_file in files},
                 )
+                # A document whose vectors would not delete is a failure of this
+                # run, not a detail: counted, the run records no state, so the
+                # next one lists again and retries it rather than stopping early
+                # at the same commit and leaving the document searchable.
+                failed += unremoved
         except Exception as e:
             logger.exception("Source sync failed for %s", source_id)
             sync_error = failure_summary(e, stage=IngestionStage.SYNC)
@@ -1318,13 +1365,16 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 async def _remove_unlisted(
     ingester: IngestionService,
     *,
+    sync_source_id: UUID,
     collection_name: str,
-    knowledge_base_id: UUID | None,
-    organization_id: UUID | None,
-    source_root: str,
     listed: set[str],
-) -> int:
-    """Delete what this source ingested before and no longer lists, and count it.
+) -> tuple[int, int]:
+    """Delete what this source ingested before and no longer lists.
+
+    Answers how many documents went and how many could not. It reads the
+    source's own rows - by id, not by address, so another source reading the
+    same repository keeps what only it lists, and a source whose repository or
+    branch was edited still retires what it read under the old one.
 
     Vectors first, then the row - the order that can be retried. A row removed
     before its vectors, with the vector delete then failing, leaves chunks
@@ -1333,27 +1383,25 @@ async def _remove_unlisted(
     `remove_document` answers `False` rather than raising, which is that case.
     """
     async with get_worker_db_context() as db:
-        rows = await rag_document_repo.list_settled_under(
-            db,
-            collection_name=collection_name,
-            knowledge_base_id=knowledge_base_id,
-            organization_id=organization_id,
-            source_root=source_root,
+        rows = await rag_document_repo.list_settled_for_source(
+            db, sync_source_id=sync_source_id, collection_name=collection_name
         )
     gone: list[UUID] = []
+    unremoved = 0
     for row in rows:
         if row.source_path in listed:
             continue
         if row.vector_document_id and not await ingester.remove_document(
             collection_name, row.vector_document_id
         ):
+            unremoved += 1
             continue
         gone.append(row.id)
     if gone:
         async with get_worker_db_context() as db:
             for row_id in gone:
                 await rag_document_repo.delete(db, row_id)
-    return len(gone)
+    return len(gone), unremoved
 
 
 @flow(name="retention-sweep", log_prints=True)

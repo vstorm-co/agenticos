@@ -35,7 +35,7 @@ from app.services.rag_document import RAGDocumentService
 from app.worker.tasks import rag_tasks
 from app.worker.tasks.rag_tasks import _run_ingestion
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 
 def _create(**overrides: object) -> SyncSourceCreate:
@@ -199,7 +199,7 @@ async def _connector_sync(
         ),
         download_file=AsyncMock(side_effect=download),
         remote_version=AsyncMock(return_value=None),
-        listing_root=MagicMock(return_value=None),
+        REMOVES_UNLISTED=False,
         aclose=AsyncMock(),
     )
     store = MagicMock(get_documents=AsyncMock(return_value=[]))

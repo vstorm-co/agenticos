@@ -33,7 +33,7 @@ import pytest
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 
 class EngineLedger:
@@ -273,7 +273,7 @@ class TestAConnectorSyncsEngine:
         connector = MagicMock(
             list_files=AsyncMock(return_value=[]),
             remote_version=AsyncMock(return_value=None),
-            listing_root=MagicMock(return_value=None),
+            REMOVES_UNLISTED=False,
             aclose=AsyncMock(),
         )
 
@@ -309,7 +309,7 @@ class TestAConnectorSyncsEngine:
         connector = MagicMock(
             list_files=AsyncMock(side_effect=RuntimeError("drive refused")),
             remote_version=AsyncMock(return_value=None),
-            listing_root=MagicMock(return_value=None),
+            REMOVES_UNLISTED=False,
             aclose=AsyncMock(),
         )
 

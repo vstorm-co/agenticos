@@ -1,5 +1,5 @@
 ---
-source_sha: "c3009780bc10"
+source_sha: "6adea52c1e3d"
 ---
 
 # Einen Sync-Connector hinzufügen { #add-a-sync-connector }
@@ -88,24 +88,26 @@ liest zum Authentifizieren nichts aus `config`.
 
 ### Drei optionale Hooks: Änderung, Löschung, Aufräumen { #three-optional-hooks-change-deletion-cleanup }
 
-`list_files()` und `_fetch()` sind alles, was ein Connector schreiben muss. Drei
-weitere Methoden haben Vorgaben, mit denen ein Connector so arbeitet wie Drive
-und S3, und ein Connector überschreibt eine davon, wenn seine Quelle die Frage
-beantworten kann, die sie stellt. `GitConnector` in
+`list_files()` und `_fetch()` sind alles, was ein Connector schreiben muss. Zwei
+weitere Methoden und ein Flag haben Vorgaben, mit denen ein Connector so arbeitet
+wie Drive und S3, und ein Connector überschreibt eine davon, wenn seine Quelle
+die Frage beantworten kann, die sie stellt. `GitConnector` in
 `app/services/rag/connectors/git.py` überschreibt alle drei.
 
 | Hook | Vorgabe | Überschreiben, wenn |
 |------|---------|---------------------|
 | `remote_version(config, credential)` | `None`: jeder Lauf listet auf | Die Quelle kann günstig sagen, auf welchem Stand ihr gesamter Inhalt ist, etwa ein Commit oder ein Change-Token. Nach einem Lauf ohne fehlgeschlagene Datei speichert der Sync den Wert zusammen mit einem Fingerabdruck der Konfiguration. Der nächste Lauf, der dasselbe Paar vorfindet, hält vor `list_files()` an. Der Wert muss sich ändern, sobald sich eine aufgelistete Datei oder die Auflistung selbst geändert haben könnte. |
-| `listing_root(config)` | `None`: nie wird etwas gelöscht | Jeder `source_path`, den die Quelle auflistet, beginnt mit einem Präfix, das allein dieser Quelle gehört. Nach einer vollständigen Auflistung wird ein Dokument unter diesem Präfix, das die Auflistung nicht mehr nennt, gelöscht: zuerst die Vektoren, dann die Zeile. |
+| `REMOVES_UNLISTED` | `False`: nie wird etwas gelöscht | Eine Auflistung ist die gesamte Quelle. Nach einer vollständigen Auflistung wird ein Dokument, das diese Quelle aufgenommen hat und das die Auflistung nicht mehr nennt, gelöscht: zuerst die Vektoren, dann die Zeile. |
 | `aclose()` | nichts | Der Connector hält zwischen `list_files()` und den Downloads etwas vor, etwa einen Klon oder eine Session. Es wird aufgerufen, sobald der Sync vorbei ist, ob er erfolgreich war oder nicht. |
 
-!!! warning "Ein mit einer anderen Quelle geteiltes Root löscht deren Dokumente"
+!!! warning "Löschen nur einschalten, wo eine Auflistung vollständig ist"
 
-    Das Präfix ist das Einzige, was die Dokumente dieser Quelle vom Rest der
-    Collection unterscheidet. Ein Drive-`source_path` ist eine Datei-ID ohne
-    Ordner darin, deshalb antwortet Drive mit `None`. Repository und Branch
-    gehören eindeutig zu einer Quelle, also antwortet eine Git-Quelle mit beiden.
+    Ein Connector, der eine Seite seiner Quelle auflistet oder überspringt, was
+    er nicht lesen kann, würde bei jedem Lauf den Rest löschen. Welche Dokumente
+    einer Quelle gehören, entscheidet nicht der Connector: Jede Zeile, die ein
+    Sync anlegt, trägt `sync_source_id`, und das Löschen liest nur diese. Zwei
+    Quellen, die dasselbe Repository in eine Collection lesen, löschen deshalb nie
+    die Dokumente der jeweils anderen.
 
 ## Schritt für Schritt: ein Notion-Connector { #step-by-step-a-notion-connector }
 

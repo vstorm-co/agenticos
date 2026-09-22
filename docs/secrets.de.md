@@ -1,5 +1,5 @@
 ---
-source_sha: "da79e004aa8d"
+source_sha: "4372ff3656a5"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -102,6 +102,7 @@ existieren.
 | `aws_credentials` | Access Key ID, Secret Access Key, Region, optionales Session-Token |
 | `gcp_service_account` | Das JSON des Service-Accounts, beim Hineingeben validiert |
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
+| `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
@@ -112,6 +113,11 @@ werden nie stillschweigend für die Verbindung der ganzen Organisation verwendet
 und bei zwei gespeicherten org-sichtbaren Apps wird die Verbindung abgelehnt
 (unter Nennung beider), statt an denjenigen Namen gebunden zu werden, der zuerst
 sortiert.
+
+`git_token` trägt seinen Host, weil eine Git-Sync-Quelle das Token an eine URL
+sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es
+abgelegt wurde, lässt sich das Token durch Bearbeiten der Quelle nicht auf einen
+anderen Server richten, und kein anderer Schlüssel kann an seine Stelle treten.
 
 `aws_credentials` ist der klarste Fall dafür, dass es Arten überhaupt gibt: die
 Access Key ID ist nicht geheim und der Secret Access Key ist es, und ein einzelnes

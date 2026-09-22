@@ -121,6 +121,7 @@ async def create(
     embedding_model: str | None = None,
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
+    sync_source_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record."""
     doc = RAGDocument(
@@ -139,6 +140,7 @@ async def create(
         embedding_model=embedding_model,
         organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
+        sync_source_id=sync_source_id,
     )
     db.add(doc)
     await db.flush()
@@ -278,35 +280,25 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     return int(result.rowcount or 0)
 
 
-async def list_settled_under(
-    db: AsyncSession,
-    *,
-    collection_name: str,
-    knowledge_base_id: UUID | None,
-    organization_id: UUID | None,
-    source_root: str,
+async def list_settled_for_source(
+    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
 ) -> list[RAGDocument]:
-    """The settled rows a sync source filed under `source_root` in one collection.
+    """The settled rows one sync source filed in the collection it syncs into.
 
-    Scoped by the knowledge base and the organization as well as the collection
-    name, because a name is not unique across tenants (#1684) and a sync must
-    not reach another organization's rows that happen to share its prefix.
+    By the source's id, not by an address prefix: two sources can read the same
+    repository and branch with different include patterns, and a prefix would
+    have each delete what only the other lists. The id also follows a source
+    whose repository or branch was edited, so what it read under the old one is
+    still its own to retire (#987).
 
     `PROCESSING` rows are left out for the reason `discard_failed` gives: they
-    belong to an attempt still running - an overlapping trigger of the same
-    source - and removing one would leave that attempt's vectors tracked by
-    nothing.
+    belong to an attempt still running, and removing one would leave that
+    attempt's vectors tracked by nothing.
     """
     result = await db.execute(
         select(RAGDocument).where(
+            RAGDocument.sync_source_id == sync_source_id,
             RAGDocument.collection_name == collection_name,
-            RAGDocument.knowledge_base_id.is_(None)
-            if knowledge_base_id is None
-            else RAGDocument.knowledge_base_id == knowledge_base_id,
-            RAGDocument.organization_id.is_(None)
-            if organization_id is None
-            else RAGDocument.organization_id == organization_id,
-            RAGDocument.source_path.startswith(source_root, autoescape=True),
             RAGDocument.status != DocumentStatus.PROCESSING,
         )
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "a40ae2358eec"
+source_sha: "601a886ebb20"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1258,9 +1258,10 @@ seiner eigenen Shell ausführt.
     Ordner-Id eines Tenants wählt, was unter der Identität des Betreibers gelesen
     wird.
 
-Was die Source in `secret_id` nennt, ist ein `gcp_service_account` für Drive oder
-ein `aws_credentials`-Paar für S3, vom Connector als `SECRET_KIND` deklariert und
-dem Assistenten als `secret_kind` in der Connector-Auflistung angeboten.
+Was die Source in `secret_id` nennt, ist ein `gcp_service_account` für Drive,
+ein `aws_credentials`-Paar für S3 oder ein `git_token` für ein Git-Repository,
+vom Connector als `SECRET_KIND` deklariert und dem Assistenten als `secret_kind`
+in der Connector-Auflistung angeboten.
 
 Früher stand es in `config`, verschlüsselt von `app/core/crypto.py` — ein
 deploymentweiter Fernet-Schlüssel über den Zugangsdaten jedes Tenants, und das ist

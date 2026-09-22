@@ -111,6 +111,19 @@ class RAGDocument(TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # Which sync source brought this document in, when one did. It is what a
+    # sync deletes by: a document its source no longer lists is removed, and
+    # "its source" has to be this row's own rather than an address prefix -
+    # two sources can read one repository with different patterns, and a
+    # source whose repository or branch was edited still owns what it read
+    # under the old one (#987). SET NULL: deleting the source keeps what it
+    # ingested, as it always has.
+    sync_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("sync_sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Who to notify about this document's outcome (#1598) - set from the
     # caller's AuthContext at upload time, an upload always has one. SET NULL:
     # deleting the uploader must not delete their document, only make its

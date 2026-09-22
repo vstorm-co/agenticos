@@ -134,6 +134,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        sync_source_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -153,6 +154,10 @@ class RAGDocumentService:
         (#1598) - `dispatch_upload` passes its caller's; a sync or a CLI ingest
         passes none, and their `ingestion_completed`/`ingestion_failed` falls
         back to the organization's administrators instead.
+
+        `sync_source_id` is the sync source that brought the file in - what
+        that source's later runs delete by when it stops listing the file
+        (#987). An upload and a local sync pass none.
 
         `organizational_unit` is which part of the organization this document
         belongs to - the FA-039 retrieval dimension. It is stored on the row so
@@ -187,6 +192,7 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            sync_source_id=sync_source_id,
         )
 
     async def dispatch_upload(

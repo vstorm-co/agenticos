@@ -141,8 +141,14 @@ A sync after the first one does as little as the source lets it:
 - **A deleted file is removed.** After a listing that completed, a document the
   source ingested earlier and no longer lists is deleted from the collection —
   vectors first, then its row — and counted as `removed`. A listing that failed
-  removes nothing. Git sources do this; Google Drive and S3 sources keep every
-  document they have ingested until it is deleted by hand.
+  removes nothing. Only the source's own documents are candidates: two sources
+  feeding one collection never remove each other's, and a source whose
+  repository or branch was changed retires what it read before. Git sources do
+  this; Google Drive and S3 sources keep every document they have ingested until
+  it is deleted by hand.
+- **One run of a source at a time.** A second run of a source that is still
+  syncing does not start, and its log says so. Two overlapping runs could
+  otherwise have the older listing delete what the newer run had just ingested.
 
 A run with a failed file records no state, so the next run reads the source in
 full and retries it.
@@ -276,9 +282,17 @@ vault secret.
 
 ### 2. Add it to the Vault
 
-Add the token to the Vault as an **API key** and choose it on the source's
-credential step. It is sent as an HTTP `Authorization` header, never in the URL,
-and never in a command line another process can read.
+Add the token to the Vault as a **Git access token**, with the **host** it
+belongs to: `github.com`, `gitlab.com`, or your own server such as
+`git.example.com:8443`. Then choose it on the source's credential step. It is sent
+as an HTTP `Authorization` header, never in the URL, and never in a command line
+another process can read.
+
+**The host is the token's, not the source's.** Whoever edits a source chooses
+its repository URL, and a token is sent only to the host it was added with. So
+editing a source cannot aim the organization's token at another server, and no
+other kind of key, such as a model provider's API key, can be chosen for a Git
+source at all.
 
 ### 3. Git connector config fields
 
@@ -518,6 +532,23 @@ different repository reads as this.
 
 The `branch` field names a branch the repository does not have. Its default is
 `main`; an older repository's default branch may be `master`.
+
+### Git: "This token was added for …, and the repository is on …"
+
+The source's repository is on a different host from the one its token was added
+with. Either the URL is wrong, or the source needs a token added for that host.
+Nothing was sent to the repository's host.
+
+### Git: "A Git source needs a Git access token"
+
+The source names a secret of another kind, such as an API key. Add the token as a
+**Git access token**, with its host, and choose that one.
+
+### "Another sync of this source is still running"
+
+A run was triggered while another run of the same source was in progress, so it
+did not start. The run in progress finishes normally; trigger again after it if
+the source changed meanwhile.
 
 ### Git: "… resolves to a private address"
 

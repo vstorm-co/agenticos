@@ -7,9 +7,12 @@ Three behaviours `_run_source_sync` gained for connectors that can answer them:
   that finds the same pair skip listing entirely - for a repository, one
   `ls-remote` instead of a clone.
 - **A file the source no longer lists is removed**, vectors then row, but only
-  after a listing that completed and only under the connector's `listing_root`.
+  after a listing that completed, only for a connector that opts in with
+  `REMOVES_UNLISTED`, and only among the rows this source brought in.
 - **A sync that stopped says why.** It used to record "1 files failed" about a
   run that never reached a file.
+- **One run of a source at a time**, because an older listing overlapping a
+  newer run would delete what the newer one had just ingested.
 
 The connector here is a real `BaseSyncConnector` subclass, so the hooks it does
 not override are the base's own answers rather than a mock's.
@@ -41,24 +44,24 @@ CONFIG = {"repository_url": "https://git.test/acme/handbook.git"}
 ROOT = "fake://handbook@main/"
 KB_ID = uuid.uuid4()
 ORG_ID = uuid.uuid4()
+SOURCE_ID = uuid.uuid4()
 
 
 class _Connector(BaseSyncConnector):
     """A source whose version, listing and failures a test decides."""
 
     CONNECTOR_TYPE = "fake"
+    REMOVES_UNLISTED = True
 
     def __init__(
         self,
         *,
         files: list[str],
         version: str | None = "sha-2",
-        root: str | None = ROOT,
         listing_error: Exception | None = None,
     ) -> None:
         self.files = files
         self.version = version
-        self.root = root
         self.listing_error = listing_error
         self.listed = 0
         self.closed = 0
@@ -76,9 +79,6 @@ class _Connector(BaseSyncConnector):
             raise self.listing_error
         return [RemoteFile(id=name, name=name, source_path=f"{ROOT}{name}") for name in self.files]
 
-    def listing_root(self, config: ConnectorConfig) -> str | None:
-        return self.root
-
     async def aclose(self) -> None:
         self.closed += 1
 
@@ -90,6 +90,12 @@ class _Connector(BaseSyncConnector):
         credential: StorableSecret | None,
     ) -> None:
         dest_path.write_text(f"contents of {file.id}")
+
+
+class _KeepingConnector(_Connector):
+    """What Drive and S3 are: a source that deletes nothing it stops listing."""
+
+    REMOVES_UNLISTED = False
 
 
 def _row(
@@ -110,6 +116,7 @@ class _Run:
     ingest: AsyncMock
     complete: AsyncMock
     after: AsyncMock
+    documents: MagicMock
     removed_vectors: list[str] = field(default_factory=list)
     deleted_rows: list[uuid.UUID] = field(default_factory=list)
     listed_rows_scope: dict[str, Any] | None = None
@@ -137,8 +144,11 @@ async def _sync(
     rows: list[MagicMock] | None = None,
     vector_delete_fails: set[str] | None = None,
     ingest_status: IngestionStatus = IngestionStatus.DONE,
+    held: bool = True,
+    sync_log_id: str | None = "log-1",
 ) -> _Run:
     source = MagicMock(
+        id=SOURCE_ID,
         connector_type="fake",
         config=dict(CONFIG),
         collection_name="docs",
@@ -161,7 +171,19 @@ async def _sync(
             error_message=None if ingest_status is IngestionStatus.DONE else "parse failed",
         )
     )
-    run = _Run(answer={}, connector=connector, ingest=ingest, complete=complete, after=after)
+    documents = MagicMock(
+        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        complete_ingestion=AsyncMock(),
+        fail_ingestion=AsyncMock(),
+    )
+    run = _Run(
+        answer={},
+        connector=connector,
+        ingest=ingest,
+        complete=complete,
+        after=after,
+        documents=documents,
+    )
     failing = vector_delete_fails or set()
 
     async def remove_document(_self: Any, _collection: str, document_id: str, *_: Any) -> bool:
@@ -178,10 +200,15 @@ async def _sync(
     async def _db() -> AsyncIterator[MagicMock]:
         yield MagicMock()
 
+    @asynccontextmanager
+    async def _lock(_source_id: str) -> AsyncIterator[bool]:
+        yield held
+
     with (
         patch.object(rag_tasks, "VectorStore", return_value=store),
         patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
         patch.object(rag_tasks, "get_worker_db_context", new=_db),
+        patch.object(rag_tasks, "_exclusive_source_run", new=_lock),
         patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
         patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
@@ -199,7 +226,7 @@ async def _sync(
         patch.object(rag_tasks.IngestionService, "remove_document", new=remove_document),
         patch.object(
             rag_tasks.rag_document_repo,
-            "list_settled_under",
+            "list_settled_for_source",
             new=AsyncMock(return_value=rows or []),
         ) as listed_rows,
         patch.object(rag_tasks.rag_document_repo, "delete", new=delete_row),
@@ -207,20 +234,11 @@ async def _sync(
         patch(
             "app.services.rag_sync.RAGSyncService", return_value=MagicMock(complete_sync=complete)
         ),
-        patch(
-            "app.services.rag_document.RAGDocumentService",
-            return_value=MagicMock(
-                create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-                complete_ingestion=AsyncMock(),
-                fail_ingestion=AsyncMock(),
-            ),
-        ),
+        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
         config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
-        run.answer = await rag_tasks._run_source_sync(
-            str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
-        )
+        run.answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=sync_log_id)
         run.listed_rows_scope = listed_rows.await_args.kwargs if listed_rows.await_args else None
     return run
 
@@ -293,22 +311,33 @@ class TestAFileTheSourceNoLongerListsIsRemoved:
         assert run.complete.await_args.kwargs["removed"] == 1
 
     async def test_the_rows_read_are_this_sources_own(self) -> None:
+        """By the source's id: another source reading the same repository with other
+        patterns, or this one before its branch was edited, is not an address prefix."""
         run = await _sync(_Connector(files=[]), rows=[])
 
-        assert run.listed_rows_scope == {
-            "collection_name": "docs",
-            "knowledge_base_id": KB_ID,
-            "organization_id": ORG_ID,
-            "source_root": ROOT,
-        }
+        assert run.listed_rows_scope == {"sync_source_id": SOURCE_ID, "collection_name": "docs"}
 
-    async def test_a_row_whose_vectors_would_not_delete_is_kept_for_the_next_run(self) -> None:
+    async def test_every_row_a_sync_opens_is_stamped_with_its_source(self) -> None:
+        run = await _sync(_Connector(files=["a.md"]))
+
+        assert run.documents.create_document.await_args.kwargs["sync_source_id"] == SOURCE_ID
+
+    async def test_a_row_whose_vectors_would_not_delete_is_kept_and_fails_the_run(self) -> None:
+        """Failed, the run records no state - so the next one, at the same commit,
+        lists again and retries rather than stopping early for good."""
         gone = _row("gone.md")
 
-        run = await _sync(_Connector(files=[]), rows=[gone], vector_delete_fails={"vec-gone.md"})
+        run = await _sync(
+            _Connector(files=[]),
+            rows=[gone],
+            vector_delete_fails={"vec-gone.md"},
+            stored_state=_state("sha-1"),
+        )
 
         assert run.deleted_rows == []
         assert run.answer["removed"] == 0
+        assert run.answer["status"] == "error"
+        assert run.stored_state is None
 
     async def test_a_failed_attempt_with_no_vectors_is_removed_as_a_row(self) -> None:
         failed = _row("broken.md", vector_id=None, status=DocumentStatus.ERROR)
@@ -334,11 +363,12 @@ class TestAFileTheSourceNoLongerListsIsRemoved:
 
         assert run.deleted_rows == []
 
-    async def test_a_connector_with_no_root_never_deletes(self) -> None:
-        """Drive and S3 answer no root, and keep every document they ever ingested."""
-        run = await _sync(_Connector(files=[], root=None), rows=[_row("a.md")])
+    async def test_a_connector_that_does_not_opt_in_never_deletes(self) -> None:
+        """Drive and S3 keep every document they ever ingested."""
+        run = await _sync(_KeepingConnector(files=[]), rows=[_row("a.md")])
 
         assert run.deleted_rows == []
+        assert run.listed_rows_scope is None
 
 
 class TestASyncThatStoppedSaysWhy:
@@ -376,3 +406,25 @@ class TestASyncThatStoppedSaysWhy:
         await _sync(broken)
 
         assert (ok.closed, broken.closed) == (1, 1)
+
+
+class TestOneRunOfASourceAtATime:
+    async def test_a_run_that_cannot_take_the_lock_reads_nothing_and_says_why(self) -> None:
+        connector = _Connector(files=["a.md"])
+
+        run = await _sync(connector, held=False, rows=[_row("a.md")])
+
+        assert connector.listed == 0
+        assert run.deleted_rows == []
+        assert run.answer["status"] == "skipped"
+        assert run.complete.await_args.kwargs == {
+            "status": "error",
+            "error_message": rag_tasks.OVERLAPPING_RUN,
+        }
+        run.after.assert_not_awaited()
+
+    async def test_a_scheduler_dispatch_with_no_log_writes_none(self) -> None:
+        run = await _sync(_Connector(files=["a.md"]), held=False, sync_log_id=None)
+
+        assert run.answer["status"] == "skipped"
+        run.complete.assert_not_awaited()

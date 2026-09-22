@@ -1,5 +1,5 @@
 ---
-source_sha: "c3009780bc10"
+source_sha: "6adea52c1e3d"
 ---
 
 # Dodaj konektor synchronizacji { #add-a-sync-connector }
@@ -87,24 +87,26 @@ z `config` niczego, czym miałby się uwierzytelnić.
 
 ### Trzy opcjonalne hooki: zmiana, usunięcie, sprzątanie { #three-optional-hooks-change-deletion-cleanup }
 
-`list_files()` i `_fetch()` to wszystko, co konektor musi napisać. Trzy kolejne
-metody mają wartości domyślne, dzięki którym konektor działa tak jak Drive i S3,
-a konektor nadpisuje którąś z nich, gdy jego źródło potrafi odpowiedzieć na
-pytanie, które ta metoda zadaje. `GitConnector` w
+`list_files()` i `_fetch()` to wszystko, co konektor musi napisać. Dwie kolejne
+metody i jedna flaga mają wartości domyślne, dzięki którym konektor działa tak
+jak Drive i S3, a konektor nadpisuje którąś z nich, gdy jego źródło potrafi
+odpowiedzieć na pytanie, które ta metoda zadaje. `GitConnector` w
 `app/services/rag/connectors/git.py` nadpisuje wszystkie trzy.
 
 | Hook | Domyślnie | Nadpisz go, gdy |
 |------|---------|------------------|
 | `remote_version(config, credential)` | `None`: każdy przebieg wypisuje listę | Źródło potrafi tanio powiedzieć, w jakim stanie jest cała jego zawartość, na przykład przez commit albo token zmian. Po przebiegu, w którym nic nie zakończyło się błędem, synchronizacja zapisuje tę wartość razem z odciskiem konfiguracji. Następny przebieg, który zastanie tę samą parę, zatrzymuje się przed `list_files()`. Wartość musi się zmienić zawsze, gdy mógł się zmienić którykolwiek wypisany plik albo sama lista. |
-| `listing_root(config)` | `None`: nic nigdy nie jest usuwane | Każde `source_path`, które wypisuje źródło, zaczyna się od prefiksu należącego wyłącznie do tego źródła. Po zakończonym wypisaniu listy dokument pod tym prefiksem, którego lista już nie wymienia, jest usuwany: najpierw wektory, potem wiersz. |
+| `REMOVES_UNLISTED` | `False`: nic nigdy nie jest usuwane | Lista obejmuje całe źródło. Po zakończonym wypisaniu listy dokument wprowadzony przez to źródło, którego lista już nie wymienia, jest usuwany: najpierw wektory, potem wiersz. |
 | `aclose()` | nic | Konektor przechowuje coś między `list_files()` a pobraniami, na przykład klon albo sesję. Jest wywoływana po zakończeniu synchronizacji, niezależnie od tego, czy się powiodła. |
 
-!!! warning "Prefiks współdzielony z innym źródłem usuwa dokumenty tamtego źródła"
+!!! warning "Włączaj usuwanie tylko tam, gdzie lista jest kompletna"
 
-    Prefiks to jedyne, co odróżnia dokumenty tego źródła od reszty kolekcji.
-    `source_path` na Drive to id pliku bez żadnego folderu, dlatego Drive
-    odpowiada `None`. Repozytorium i gałąź są unikalne dla jednego źródła, więc
-    źródło Git odpowiada obydwoma.
+    Konektor, który wypisuje jedną stronę swojego źródła albo pomija to, czego
+    nie potrafi odczytać, usuwałby resztę przy każdym przebiegu. O tym, które
+    dokumenty należą do źródła, nie decyduje konektor: każdy wiersz otwarty
+    przez synchronizację niesie `sync_source_id`, a usuwanie czyta tylko te
+    wiersze. Dwa źródła czytające to samo repozytorium do jednej kolekcji nigdy
+    więc nie usuwają sobie nawzajem dokumentów.
 
 ## Krok po kroku: konektor do Notion { #step-by-step-a-notion-connector }
 

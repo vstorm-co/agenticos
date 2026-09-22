@@ -1,5 +1,5 @@
 ---
-source_sha: "1c539a892212"
+source_sha: "e5efeab8ec54"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -151,8 +151,15 @@ Ein Sync nach dem ersten tut so wenig, wie die Quelle es zulässt:
   wird ein Dokument, das die Quelle früher aufgenommen hat und nicht mehr
   auflistet, aus der Collection gelöscht — zuerst die Vektoren, dann seine Zeile —
   und als `removed` gezählt. Eine fehlgeschlagene Auflistung entfernt nichts.
-  Git-Quellen tun das; Google-Drive- und S3-Quellen behalten jedes aufgenommene
-  Dokument, bis es von Hand gelöscht wird.
+  Infrage kommen nur die eigenen Dokumente der Quelle: Zwei Quellen, die eine
+  Collection speisen, entfernen nie die Dokumente der jeweils anderen, und eine
+  Quelle, deren Repository oder Branch geändert wurde, räumt ab, was sie vorher
+  gelesen hat. Git-Quellen tun das; Google-Drive- und S3-Quellen behalten jedes
+  aufgenommene Dokument, bis es von Hand gelöscht wird.
+- **Immer nur ein Lauf pro Quelle.** Ein zweiter Lauf einer Quelle, die noch
+  synchronisiert, startet nicht, und sein Log sagt das. Sonst könnten zwei sich
+  überschneidende Läufe dazu führen, dass die ältere Auflistung löscht, was der
+  neuere Lauf gerade aufgenommen hat.
 
 Ein Lauf mit einer fehlgeschlagenen Datei hält keinen Stand fest, sodass der
 nächste Lauf die Quelle vollständig liest und die Datei erneut versucht.
@@ -292,10 +299,18 @@ neues Token im selben Vault-Secret.
 
 ### 2. Es im Vault ablegen { #2-add-it-to-the-vault }
 
-Legen Sie das Token als **API key** im Vault ab und wählen Sie es im
-Credential-Schritt der Quelle aus. Es wird als HTTP-Header `Authorization`
-gesendet, nie in der URL und nie in einer Befehlszeile, die ein anderer Prozess
-lesen kann.
+Legen Sie das Token als **Git-Zugriffstoken** im Vault ab, zusammen mit dem
+**Host**, zu dem es gehört: `github.com`, `gitlab.com` oder Ihr eigener Server
+wie `git.example.com:8443`. Wählen Sie es dann im Credential-Schritt der Quelle
+aus. Es wird als HTTP-Header `Authorization` gesendet, nie in der URL und nie in
+einer Befehlszeile, die ein anderer Prozess lesen kann.
+
+**Der Host gehört zum Token, nicht zur Quelle.** Wer eine Quelle bearbeitet,
+wählt ihre Repository-URL, und ein Token wird nur an den Host gesendet, mit dem
+es abgelegt wurde. Das Bearbeiten einer Quelle kann das Token der Organisation
+also nicht auf einen anderen Server richten, und keine andere Art von Schlüssel,
+etwa der API key eines Modell-Providers, lässt sich für eine Git-Quelle
+überhaupt auswählen.
 
 ### 3. Konfigurationsfelder des Git-Connectors { #3-git-connector-config-fields }
 
@@ -547,6 +562,24 @@ auf diese Weise.
 Das Feld `branch` nennt einen Branch, den das Repository nicht hat. Die Vorgabe
 ist `main`; der Standard-Branch eines älteren Repositorys heißt womöglich
 `master`.
+
+### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
+
+Das Repository der Quelle liegt auf einem anderen Host als dem, mit dem ihr Token
+abgelegt wurde. Entweder ist die URL falsch, oder die Quelle braucht ein Token,
+das für diesen Host abgelegt wurde. An den Host des Repositorys wurde nichts
+gesendet.
+
+### Git: "A Git source needs a Git access token" { #git-a-git-source-needs-a-git-access-token }
+
+Die Quelle nennt ein Secret einer anderen Art, etwa einen API key. Legen Sie das
+Token als **Git-Zugriffstoken** mit seinem Host ab und wählen Sie dieses aus.
+
+### "Another sync of this source is still running" { #another-sync-of-this-source-is-still-running }
+
+Ein Lauf wurde ausgelöst, während ein anderer Lauf derselben Quelle noch im Gang
+war, also ist er nicht gestartet. Der laufende Lauf endet regulär; lösen Sie
+danach erneut aus, falls sich die Quelle in der Zwischenzeit geändert hat.
 
 ### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
 

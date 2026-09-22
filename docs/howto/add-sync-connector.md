@@ -78,23 +78,25 @@ authenticate with.
 
 ### Three optional hooks: change, deletion, cleanup
 
-`list_files()` and `_fetch()` are all a connector has to write. Three more
-methods have defaults that keep a connector working the way Drive and S3 do, and
-a connector overrides one when its source can answer the question it asks.
-`GitConnector` in `app/services/rag/connectors/git.py` overrides all three.
+`list_files()` and `_fetch()` are all a connector has to write. Two more
+methods and one flag have defaults that keep a connector working the way Drive
+and S3 do, and a connector overrides one when its source can answer the question
+it asks. `GitConnector` in `app/services/rag/connectors/git.py` overrides all
+three.
 
 | Hook | Default | Override it when |
 |------|---------|------------------|
 | `remote_version(config, credential)` | `None`: every run lists | The source can say cheaply what its whole content is at, such as a commit or a change token. After a run with nothing failed, the sync stores the value with a fingerprint of the configuration. The next run that finds the same pair stops before `list_files()`. The value must change whenever any listed file, or the listing itself, could have changed. |
-| `listing_root(config)` | `None`: nothing is ever deleted | Every `source_path` the source lists starts with a prefix that belongs to this source alone. After a listing that completed, a document under that prefix that the listing no longer names is deleted: vectors first, then the row. |
+| `REMOVES_UNLISTED` | `False`: nothing is ever deleted | A listing is the whole of the source. After a listing that completed, a document this source brought in that the listing no longer names is deleted: vectors first, then the row. |
 | `aclose()` | nothing | The connector keeps something between `list_files()` and the downloads, such as a clone or a session. It is called once the sync is over, whether the sync succeeded or not. |
 
-!!! warning "A root shared with another source deletes that source's documents"
+!!! warning "Turn deletion on only where a listing is complete"
 
-    The prefix is the only thing that tells this source's documents from the
-    rest of the collection. A Drive `source_path` is a file id with no folder in
-    it, which is why Drive answers `None`. A repository and branch are unique to
-    one source, so a Git source answers with both.
+    A connector that lists one page of its source, or skips what it cannot
+    read, would delete the rest on every run. Which documents are a source's own
+    is not the connector's to decide: every row a sync opens carries
+    `sync_source_id`, and deletion reads only those. Two sources reading the same
+    repository into one collection therefore never delete each other's documents.
 
 ## Step by step: a Notion connector
 

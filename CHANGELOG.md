@@ -28,10 +28,18 @@ Two things are versioned separately from this file and worth knowing about:
   a shallow, sparse clone of the documentation only. The repository's host is
   checked and pinned like any other tenant-chosen address, and an internal host
   is refused (#987).
+- **A Git access token is a vault secret kind of its own, bound to its host.**
+  A Git source takes only a `git_token`, and sends it only to the host it was
+  added with, so editing a source cannot aim the organization's token, or any
+  other key, at a server of the editor's choosing.
 - **A file deleted from a Git source is deleted from the collection.** After a
-  listing that completed, a document the source no longer lists is removed,
-  vectors first, then its row. The sync history counts these as `removed`.
-  Google Drive and S3 sources still keep what they ingested.
+  listing that completed, a document the source brought in and no longer lists
+  is removed, vectors first, then its row. Documents now record which source
+  brought them in, so two sources feeding one collection never remove each
+  other's. The sync history counts these as `removed`. Google Drive and S3
+  sources still keep what they ingested.
+- **One run of a sync source at a time.** A run triggered while the same source
+  is still syncing does not start, and its log says why.
 
 ### Fixed
 

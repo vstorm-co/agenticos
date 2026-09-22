@@ -1,5 +1,5 @@
 ---
-source_sha: "c3009780bc10"
+source_sha: "6adea52c1e3d"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }
@@ -86,23 +86,24 @@ autenticarse.
 ### Tres hooks opcionales: cambio, borrado, limpieza { #three-optional-hooks-change-deletion-cleanup }
 
 `list_files()` y `_fetch()` son todo lo que un connector tiene que escribir. Otros
-tres métodos tienen valores por defecto que hacen funcionar un connector como lo
-hacen Drive y S3, y un connector sobrescribe uno cuando su source puede responder
-a la pregunta que plantea. `GitConnector`, en `app/services/rag/connectors/git.py`,
+dos métodos y un flag tienen valores por defecto que hacen funcionar un connector
+como lo hacen Drive y S3, y un connector sobrescribe uno cuando su source puede
+responder a la pregunta que plantea. `GitConnector`, en `app/services/rag/connectors/git.py`,
 sobrescribe los tres.
 
 | Hook | Por defecto | Sobrescríbelo cuando |
 |------|---------|------------------|
 | `remote_version(config, credential)` | `None`: cada ejecución lista | La source puede decir de forma barata en qué punto está todo su contenido, como un commit o un token de cambios. Tras una ejecución sin ningún fallo, el sync guarda el valor junto con una huella de la configuración. La siguiente ejecución que encuentra el mismo par se detiene antes de `list_files()`. El valor tiene que cambiar siempre que haya podido cambiar cualquier archivo listado, o el propio listado. |
-| `listing_root(config)` | `None`: nunca se borra nada | Todo `source_path` que lista la source empieza por un prefijo que pertenece solo a esa source. Tras un listado completo, un documento bajo ese prefijo que el listado ya no nombra se borra: primero los vectores, luego la fila. |
+| `REMOVES_UNLISTED` | `False`: nunca se borra nada | Un listado es la source entera. Tras un listado completo, un documento que esta source incorporó y que el listado ya no nombra se borra: primero los vectores, luego la fila. |
 | `aclose()` | nada | El connector conserva algo entre `list_files()` y las descargas, como un clon o una sesión. Se llama una vez terminado el sync, tanto si ha salido bien como si no. |
 
-!!! warning "Una raíz compartida con otra source borra los documentos de esa source"
+!!! warning "Activa el borrado solo donde un listado está completo"
 
-    El prefijo es lo único que distingue los documentos de esta source del resto
-    de la collection. Un `source_path` de Drive es un id de archivo sin ninguna
-    carpeta dentro, y por eso Drive responde `None`. Un repositorio y una rama son
-    únicos de una source, así que una source de Git responde con ambos.
+    Un connector que lista una sola página de su source, o que omite lo que no
+    puede leer, borraría el resto en cada ejecución. Qué documentos son propios de
+    una source no lo decide el connector: cada fila que abre un sync lleva
+    `sync_source_id`, y el borrado solo lee esas. Por eso dos sources que leen el
+    mismo repositorio en una collection nunca borran los documentos de la otra.
 
 ## Paso a paso: un connector de Notion { #step-by-step-a-notion-connector }
 
