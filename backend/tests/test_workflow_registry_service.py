@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
@@ -264,6 +265,38 @@ class TestUpdateDraft:
                 ctx, workflow.id, WorkflowDraftUpdate(graph=payload, expected_revision=0)
             )
         assert workflow.draft_graph["scopes"] == []
+
+    async def test_an_oversized_draft_is_refused_before_it_is_persisted(self, monkeypatch):
+        """The node/edge/binding ceiling exists to keep publish's dominator
+        computation bounded, but it is checked here too - refusing an
+        oversized graph before it is ever written is cheaper than refusing
+        it only once someone later tries to publish it."""
+        monkeypatch.setattr(settings, "WORKFLOW_GRAPH_MAX_NODES", 1)
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        graph = _empty_graph()
+        second = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="debug.echo",
+            definition_version=1,
+            config={"message": "hi"},
+            layout=NodePosition(x=0, y=0),
+        )
+        payload = graph.model_dump(mode="json")
+        payload["nodes"].append(second.model_dump(mode="json"))
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock()) as update,
+            pytest.raises(GraphValidationError),
+        ):
+            await WorkflowRegistryService(_db()).update_draft(
+                ctx, workflow.id, WorkflowDraftUpdate(graph=payload, expected_revision=0)
+            )
+        update.assert_not_called()
 
     async def test_a_stale_revision_is_refused_before_anything_is_written(self):
         ctx = _ctx(OrgRoleName.OWNER.value)

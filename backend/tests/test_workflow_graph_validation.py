@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import BaseModel, ConfigDict
 
+from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import virtual_table_repo
 from app.workflows._registry import REGISTRY, register
@@ -129,6 +130,47 @@ async def test_a_single_node_graph_with_no_bindings_publishes(mock_db_session):
     _, graph = _one_node_graph()
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert validated.entry_node_id == graph.entry_node_id
+
+
+# Graph size ceiling - checked before anything else, including derive_scopes
+
+
+async def test_a_graph_over_the_node_ceiling_is_refused_before_anything_else(
+    mock_db_session, monkeypatch
+):
+    """The ceiling exists to keep `_dominators`' O(n^2) retained dominator
+    sets bounded, so it is checked ahead of every other pass - a graph this
+    oversized never even reaches `derive_scopes`' own per-scope BFS."""
+    monkeypatch.setattr(settings, "WORKFLOW_GRAPH_MAX_NODES", 1)
+    a, b = _echo_node(), _echo_node()
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == "nodes" and "at most 1" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
+async def test_a_graph_over_the_edge_ceiling_is_refused(mock_db_session, monkeypatch):
+    monkeypatch.setattr(settings, "WORKFLOW_GRAPH_MAX_EDGES", 0)
+    a, b = _echo_node(), _echo_node()
+    edge = _edge(a.id, "out", b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == "edges" for f in excinfo.value.details["fields"])
+
+
+async def test_a_graph_over_the_binding_ceiling_is_refused(mock_db_session, monkeypatch):
+    monkeypatch.setattr(settings, "WORKFLOW_GRAPH_MAX_BINDINGS", 0)
+    a, b = _echo_node(), _echo_node()
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="message", source=LiteralValue(value="hi"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == "bindings" for f in excinfo.value.details["fields"])
 
 
 # Pass 0 - resource resolution

@@ -38,7 +38,7 @@ from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.workflows._registry import all_node_definitions
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
-from app.workflows.graph.validate import derive_scopes, validate_graph
+from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -147,6 +147,11 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     without this step would store whatever a client claimed about scope
     membership until the next publish silently replaced it - readable by a
     `GET` in between, and by the editor, as if it were real.
+
+    `graph_size_problems` also runs here, not only at publish: an oversized
+    graph is worth refusing before it is ever persisted, not only before the
+    quadratic dominator computation that graph's own `graph_size_problems`
+    docstring explains.
     """
     try:
         graph = WorkflowGraph.model_validate(raw)
@@ -159,6 +164,9 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
                 )
             ]
         ) from exc
+    size_problems = graph_size_problems(graph)
+    if size_problems:
+        raise GraphValidationError(size_problems)
     return derive_scopes(graph)
 
 

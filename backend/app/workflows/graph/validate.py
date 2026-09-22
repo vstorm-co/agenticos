@@ -69,6 +69,7 @@ from pydantic import BaseModel, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext
@@ -86,6 +87,33 @@ Problems = list[tuple[str, str]]
 DefinitionMap = dict[UUID, NodeDefinition | None]
 
 
+def graph_size_problems(graph: WorkflowGraph) -> Problems:
+    """A hard ceiling on one graph's node/edge/binding counts.
+
+    Checked first, ahead of even `derive_scopes`: `_dominators` below
+    retains a full dominator set per node, up to O(n^2) total memberships
+    for a linear chain of n nodes, and the console routes a graph reaches
+    through are explicitly unmetered (SECURITY.md's hardening checklist) -
+    an unbounded graph is a resource-exhaustion vector, not only a slow
+    request. `WorkflowRegistryService` calls this before a draft is even
+    persisted, not only here at publish.
+    """
+    problems: Problems = []
+    if len(graph.nodes) > settings.WORKFLOW_GRAPH_MAX_NODES:
+        problems.append(
+            ("nodes", f"A graph holds at most {settings.WORKFLOW_GRAPH_MAX_NODES} nodes")
+        )
+    if len(graph.edges) > settings.WORKFLOW_GRAPH_MAX_EDGES:
+        problems.append(
+            ("edges", f"A graph holds at most {settings.WORKFLOW_GRAPH_MAX_EDGES} edges")
+        )
+    if len(graph.bindings) > settings.WORKFLOW_GRAPH_MAX_BINDINGS:
+        problems.append(
+            ("bindings", f"A graph holds at most {settings.WORKFLOW_GRAPH_MAX_BINDINGS} bindings")
+        )
+    return problems
+
+
 async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph) -> WorkflowGraph:
     """Check every publish-time rule and return the graph with derived scopes.
 
@@ -93,6 +121,9 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
         GraphValidationError: One or more rules failed. `details["fields"]`
             names every violation, not only the first.
     """
+    size_problems = graph_size_problems(graph)
+    if size_problems:
+        raise GraphValidationError(size_problems)
     graph = derive_scopes(graph)
     definitions = _resolve_definitions(graph)
 

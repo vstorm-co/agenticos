@@ -467,6 +467,18 @@ class Settings(BaseSettings):
     # it should be able to run something over the file. The ceiling is where
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
+
+    # A hard ceiling on one workflow graph. `_dominators` (app.workflows.graph.validate)
+    # retains a full dominator set per node - up to O(n^2) total memberships for a
+    # linear chain of n nodes, ~330 MiB of traced allocation at 4,000 nodes in an
+    # isolated benchmark - and the console routes that accept a graph are explicitly
+    # unmetered (SECURITY.md's hardening checklist), so an unbounded graph is a
+    # resource-exhaustion vector rather than only a slow request. Checked before a
+    # draft is even persisted, not only at publish.
+    WORKFLOW_GRAPH_MAX_NODES: int = Field(default=500, gt=0)
+    WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
+    WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and
