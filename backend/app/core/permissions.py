@@ -54,6 +54,18 @@ class Perm(StrEnum):
     TABLES_VIEW = "tables:view"
     TABLES_EDIT = "tables:edit"
     TABLES_CREATE = "tables:create"
+    # A workflow is a shared resource shaped like a table: an owner, a
+    # visibility, grants, and its own `CREATE` because a role may reasonably be
+    # allowed to work in a workflow somebody shared without adding to the
+    # organization's set of them. `WORKFLOWS_RUN` is separate from `EDIT`
+    # because "may change this workflow's graph" and "may cause a published
+    # version of it to execute" are genuinely different authorities - a
+    # trigger or an exposure invokes through it, checked at admission and
+    # again at resume, while the editor and publish routes stay on `EDIT`.
+    WORKFLOWS_VIEW = "workflows:view"
+    WORKFLOWS_EDIT = "workflows:edit"
+    WORKFLOWS_CREATE = "workflows:create"
+    WORKFLOWS_RUN = "workflows:run"
     # A stored key is a shared resource like any other: it has an owner, a
     # visibility and grants. `connections:manage` used to gate the whole vault,
     # which made "can see every key in the organization" and "can add a bot"
@@ -102,6 +114,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.CONTEXT_EDIT,
         Perm.TABLES_VIEW,
         Perm.TABLES_EDIT,
+        Perm.WORKFLOWS_VIEW,
+        Perm.WORKFLOWS_EDIT,
+        Perm.WORKFLOWS_RUN,
         Perm.SECRETS_VIEW,
         Perm.SECRETS_EDIT,
     }
@@ -206,6 +221,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.TABLES_VIEW: Scope.ALL,
         Perm.TABLES_EDIT: Scope.ALL,
+        Perm.WORKFLOWS_VIEW: Scope.ALL,
+        Perm.WORKFLOWS_EDIT: Scope.ALL,
+        Perm.WORKFLOWS_RUN: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -224,6 +242,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.TABLES_VIEW: Scope.ALL,
         Perm.TABLES_EDIT: Scope.ALL,
+        Perm.WORKFLOWS_VIEW: Scope.ALL,
+        Perm.WORKFLOWS_EDIT: Scope.ALL,
+        Perm.WORKFLOWS_RUN: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -241,6 +262,10 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.TABLES_VIEW: Scope.ALL,
         Perm.TABLES_EDIT: Scope.SHARED,
         Perm.TABLES_CREATE: Scope.ALL,
+        Perm.WORKFLOWS_VIEW: Scope.ALL,
+        Perm.WORKFLOWS_EDIT: Scope.SHARED,
+        Perm.WORKFLOWS_CREATE: Scope.ALL,
+        Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.MCP_MANAGE: Scope.ALL,
@@ -265,6 +290,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.TABLES_VIEW: Scope.ALL,
+        Perm.WORKFLOWS_VIEW: Scope.ALL,
+        Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
@@ -286,6 +313,10 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.TABLES_VIEW: Scope.SHARED,
         Perm.TABLES_EDIT: Scope.OWN,
         Perm.TABLES_CREATE: Scope.ALL,
+        Perm.WORKFLOWS_VIEW: Scope.SHARED,
+        Perm.WORKFLOWS_EDIT: Scope.OWN,
+        Perm.WORKFLOWS_CREATE: Scope.ALL,
+        Perm.WORKFLOWS_RUN: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
@@ -295,6 +326,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.SHARED,
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
+        Perm.WORKFLOWS_VIEW: Scope.SHARED,
         Perm.TABLES_VIEW: Scope.SHARED,
     },
 }

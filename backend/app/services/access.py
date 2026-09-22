@@ -65,6 +65,7 @@ AGENT = ResourceType(key="agent", view=Perm.AGENTS_VIEW, edit=Perm.AGENTS_EDIT)
 SKILL = ResourceType(key="skill", view=Perm.SKILLS_VIEW, edit=Perm.SKILLS_EDIT)
 CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_EDIT)
 TABLE = ResourceType(key="table", view=Perm.TABLES_VIEW, edit=Perm.TABLES_EDIT)
+WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORKFLOWS_EDIT)
 # A stored key. The same rules as everything else here on purpose: a personal
 # key is private to its owner, a team key reaches whoever holds a grant, and an
 # organization key is everybody's - decided per row rather than by one
@@ -86,6 +87,14 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.CONTEXT_EDIT: GrantLevel.EDIT,
     Perm.TABLES_VIEW: GrantLevel.READ,
     Perm.TABLES_EDIT: GrantLevel.EDIT,
+    Perm.WORKFLOWS_VIEW: GrantLevel.READ,
+    Perm.WORKFLOWS_EDIT: GrantLevel.EDIT,
+    # Same shape as `AGENTS_RUN`: "may invoke" is a `USE` grant, distinct from
+    # "may edit", which needs `EDIT`. Without this entry a caller relying on a
+    # resource grant rather than role scope would always be refused, since
+    # `_PERM_MIN_GRANT.get(perm)` decides what grant level satisfies a
+    # resource-scoped permission and an absent entry means none does.
+    Perm.WORKFLOWS_RUN: GrantLevel.USE,
     Perm.SECRETS_VIEW: GrantLevel.READ,
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
 }
