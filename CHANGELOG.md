@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The MCP SDK is uncapped again, on `httpx2`.** `mcp` was held below 2.0
+  because 2.0 moved the whole SDK from `httpx` to `httpx2` — a different
+  distribution with its own `Request`, `Response`, `AsyncClient` and exception
+  hierarchy — and the one path where this platform's code and the SDK exchange
+  HTTP objects could not carry both: an SDK-built request handed to
+  `PinnedAsyncClient` was refused, and a malformed endpoint raised an exception
+  written for the other library, which is #889 in a form no catch could see.
+  `PinnedAsyncClient` and the MCP OAuth flow are `httpx2` now, so the check and
+  the request are made by the same library, and the streamable transport is
+  called the way 2.0 spells it — a client carrying the connection's headers
+  rather than a `headers` argument, and two yielded values rather than three. A
+  rename alone would have compiled and silently dropped every `Authorization` a
+  private MCP server is reached with. The other fourteen modules that speak HTTP
+  stay on `httpx` deliberately: the boundary is wherever an object crosses into
+  or out of a vendor SDK, and none of them does. (#1820)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added
