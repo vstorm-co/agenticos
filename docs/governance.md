@@ -1175,10 +1175,17 @@ documents: it is the same inbox the agent-configured alerts above land in, and
 the opt-out rule below still applies to everything that can be turned off.
 
 Not unbounded, though: each is capped at twenty writes a minute per actor and
-event type, so one account making rapid changes has the rest silently dropped
-rather than flooding every admin - the audit entry behind each one is
-recorded regardless, on the trail itself ([Audit](#audit)), whether or not the
-notification survived the limit.
+event type, so one account making rapid changes cannot flood every admin - the
+audit entry behind each one is recorded regardless, on the trail itself
+([Audit](#audit)), whether or not the notification survived the limit.
+
+Past that cap the inbox does not simply go quiet. One notice per actor per
+minute takes the place of the rest, saying the minute was busier than the inbox
+lists and that every one of those events is on the trail. That matters because
+these two cannot be turned off: an actor could otherwise spend the allowance on
+twenty harmless edits and then do the one thing worth watching for, and nothing
+would say so. The notice carries no count - counting would mean rewriting it on
+every further event, which is the flood the cap exists to prevent.
 
 A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from

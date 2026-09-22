@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A mandatory security event past its write budget is coalesced, not
+  dropped.** The per-actor limit on `security_event` and
+  `configuration_changed` exists so that an ordinary write access cannot turn
+  into an unmetered fan-out against every admin — but over the limit the write
+  returned nothing at all, and nothing took its place. An actor could exhaust
+  the shared bucket with twenty benign edits inside a minute and then rotate or
+  delete a real secret, and that event reached neither the inbox nor email. It
+  was still in the audit log, which is exactly what a mandatory,
+  un-optable-out-of notification exists because admins do not watch. The
+  overflow now writes one coalesced row per actor per window instead, saying the
+  minute was busier than the inbox lists and that every one of those events is
+  on the trail. Its `occurrence_id` is the window, so the second and every later
+  overflow inside it writes no row and no delivery — the bound the limit was
+  protecting, kept. It carries no running count, because counting would mean
+  rewriting that row on every further event, which is the write the limit is
+  there to stop. (#1762)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added
