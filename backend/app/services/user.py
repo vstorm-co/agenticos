@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -18,6 +19,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.security import (
+    create_email_change_token,
     create_magic_link_token,
     create_password_reset_token,
     get_password_hash,
@@ -373,8 +375,14 @@ class UserService:
 
     async def update_current(
         self, user: User, user_in: UserUpdate, *, current_session_id: UUID | None = None
-    ) -> User:
+    ) -> tuple[User, str | None]:
         """A user updating their own row through `/users/me`.
+
+        Returns the updated row and, when the patch asked for a new email
+        address, the token to mail to it - the same split
+        `issue_password_reset_token` draws, and for the same reason: this
+        service has no mail provider and should not acquire one to write a
+        column.
 
         `UserUpdate` carries `is_active`, and this route reaches the same column
         the admin route does - so without the same refusal an app admin could
@@ -397,7 +405,115 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        return await self.update(user.id, user_in, current_session_id=current_session_id)
+        # The address is staged, never written here, and the rest of the patch
+        # applies as it always did. `request_email_change` has the reasoning;
+        # the token comes back so the route can mail it, the same split
+        # `issue_password_reset_token` already draws - this service has no mail
+        # provider and should not acquire one to write a column.
+        email = user_in.email
+        if email is None:
+            return await self.update(user.id, user_in, current_session_id=current_session_id), None
+        updated = await self.update(
+            user.id,
+            user_in.model_copy(update={"email": None}),
+            current_session_id=current_session_id,
+        )
+        return await self.request_email_change(updated, email)
+
+    async def request_email_change(self, user: User, new_email: str) -> tuple[User, str | None]:
+        """Stage an address change and mint the proof it waits for.
+
+        Returns the user and the token to mail to the new address, or a `None`
+        token when there is nothing to prove - the address asked for is the one
+        the account already has, which clears any staging rather than raising:
+        a form submitted twice is not an error a person can act on.
+
+        Nothing is written to `users.email` here. Every mail this deployment
+        sends goes to that column, so an address accepted without proof turns
+        the deployment's own sender into a relay for whoever set it, and points
+        this account's next password-reset link at them (#1772). The old address
+        keeps receiving everything until the new one is confirmed, and is told
+        that a change was asked for - which is what makes a takeover visible to
+        the person losing the account.
+
+        Raises:
+            AlreadyExistsError: another account already holds that address. The
+                check is best-effort by construction - the winner is decided by
+                the unique constraint at confirmation, not here - and exists so
+                the ordinary typo is refused at the moment it is made.
+        """
+        if new_email == user.email:
+            return await user_repo.update(
+                self.db, db_user=user, update_data={"pending_email": None}
+            ), None
+        existing = await user_repo.get_by_email(self.db, new_email)
+        if existing is not None:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": new_email}
+            )
+        updated = await user_repo.update(
+            self.db, db_user=user, update_data={"pending_email": new_email}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=user.id,
+            action="user.email_change_requested",
+            target_type="user",
+            target_id=str(user.id),
+            details={"pending_email": new_email},
+        )
+        return updated, create_email_change_token(subject=str(user.id), new_email=new_email)
+
+    async def confirm_email_change(self, token: str) -> User:
+        """Move a staged address across, once its own link comes back.
+
+        Single-use without a second table: the move clears `pending_email`, so a
+        replayed token finds nothing staged and is refused by the same branch a
+        cancelled change is. The address in the token is checked against the
+        staged one as well, so a token minted for one address cannot confirm a
+        different one staged after it.
+
+        Raises:
+            AuthenticationError: the link is invalid, expired, replayed, or for
+                an address no longer staged.
+            AlreadyExistsError: somebody else took the address in the meantime.
+        """
+        payload = verify_special_token(token, expected_type="email_change")
+        if payload is None or "sub" not in payload or "new" not in payload:
+            raise AuthenticationError(message="This link is invalid or has expired")
+        try:
+            user_id = UUID(str(payload["sub"]))
+        except (TypeError, ValueError) as exc:
+            raise AuthenticationError(message="This link is invalid or has expired") from exc
+
+        # Locked for the whole move: two confirmations of the same staging must
+        # not both read a pending address and both write it.
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if user is None:
+            raise AuthenticationError(message="This link is invalid or has expired")
+        if user.pending_email is None or user.pending_email != payload["new"]:
+            raise AuthenticationError(message="This link is invalid or has expired")
+
+        taken = await user_repo.get_by_email(self.db, user.pending_email)
+        if taken is not None:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": user.pending_email}
+            )
+        previous = user.email
+        updated = await user_repo.update(
+            self.db,
+            db_user=user,
+            update_data={"email": user.pending_email, "pending_email": None},
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=user.id,
+            action="user.email_changed",
+            target_type="user",
+            target_id=str(user.id),
+            details={"previous_email": previous, "email": updated.email},
+        )
+        return updated
 
     async def change_password(
         self, user: User, *, current_password: str, new_password: str

@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A changed email address is proved before mail follows it.**
+  `PATCH /users/me` accepted a new address and started using it immediately, and
+  nothing showed the person asking could read it. Every mail this deployment
+  sends goes to that column — an invitation, a magic link, a password reset, an
+  approval request, a budget alert, and every notification queued for the email
+  channel — so an account whose address had been changed to somewhere its owner
+  cannot read is an account whose password-reset link goes to somebody else, and
+  one changed to an address that never signed up here turns the deployment's own
+  sender into a relay for whoever set it. The request is now *staged*: the
+  account keeps its current address, a single-use hour-long link goes to the new
+  one, and the old one is told a change was asked for — which is what makes a
+  takeover visible to the person losing the account. Confirming the link moves
+  the address across and clears the staging, so a replayed link finds nothing to
+  move; a contested address is decided at confirmation by the unique constraint,
+  not at the request. Both the request and the confirmation are audited.
+  Migration `0093_pending_email` adds the column, nullable, with no backfill:
+  nobody has a change in flight when it runs. (#1772)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added

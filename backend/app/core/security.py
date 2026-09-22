@@ -143,6 +143,29 @@ def create_password_reset_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def create_email_change_token(
+    subject: str | Any,
+    new_email: str,
+    expires_delta: timedelta | None = None,
+) -> str:
+    """Proof that whoever holds it can read `new_email`. Short-lived (1h).
+
+    The address rides in the token as well as being staged on the row, and both
+    are checked at confirmation: a token minted for one address must not confirm
+    a different one staged after it. Single-use comes from the row rather than
+    from here - confirming clears `users.pending_email`, so a replayed token
+    finds nothing to move (#1772).
+    """
+    expire = datetime.now(UTC) + (expires_delta or timedelta(hours=1))
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "email_change",
+        "new": new_email,
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def create_magic_link_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
