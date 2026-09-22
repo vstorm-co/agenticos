@@ -109,6 +109,26 @@ class Settings(BaseSettings):
     # (#1591 review).
     CHAT_TURN_INLINE_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
 
+    # A published artifact is one self-contained page, and these bound it. The
+    # size is per version: a report with its charts and a library inlined fits
+    # in a few megabytes, and a page past this one is an export, which belongs in
+    # the workspace. The version count is per artifact - a report republished
+    # every hour would otherwise grow storage for ever between retention sweeps.
+    ARTIFACT_MAX_BYTES: int = Field(default=5 * 1024 * 1024, gt=0)
+    ARTIFACT_MAX_VERSIONS: int = Field(default=20, ge=1)
+    # How long a signed content address stays valid. The console and the public
+    # page ask for a fresh one every time they draw the frame, so this is only
+    # the window in which an address copied out of a frame still opens - and the
+    # window in which access revoked a moment ago still reaches a page that was
+    # already open.
+    ARTIFACT_VIEW_TTL_SECONDS: int = Field(default=300, gt=0, le=3600)
+    # Where artifact content is served from. Unset, it is the API's own public
+    # address, and isolation rests on the `sandbox` policy every content
+    # response carries, which gives the page an opaque origin. Set to a host on
+    # a separate registrable domain that routes to this API, it also puts the
+    # page on another site, which a security review may ask for.
+    ARTIFACT_ORIGIN: str | None = None
+
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
     # member uploading a fifty-megabyte export is somebody the organization

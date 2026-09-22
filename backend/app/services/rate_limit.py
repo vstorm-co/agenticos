@@ -221,6 +221,21 @@ async def hosted_admission_allowed(public_key: str) -> Decision:
     )
 
 
+async def public_artifact_allowed(public_key: str) -> Decision:
+    """Whether a public artifact link may be opened again right now.
+
+    Keyed on the link, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own. What it bounds is one
+    link being hammered into database reads; the key's 192 bits are what make
+    finding one by guessing a non-strategy.
+    """
+    return await consume(
+        surface="public_artifact",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
 async def hosted_logo_allowed(public_key: str) -> Decision:
     """Whether this hosted page's logo may be served again right now.
 

@@ -273,6 +273,11 @@ class RetentionService:
             return removed
         if name == "workspaces":
             return await retention_repo.delete_workspaces(self.db, **scope)
+        if name == "artifacts":
+            # Bytes before rows, for the reason conversations give above.
+            paths = await retention_repo.stored_paths_for_expiring_artifacts(self.db, **scope)
+            await self._unlink(paths)
+            return await retention_repo.delete_artifacts(self.db, **scope)
         if name == "memory":
             return await retention_repo.delete_memory(self.db, **scope)
         # `audit` resolves to a period and is reported, and an organization is
