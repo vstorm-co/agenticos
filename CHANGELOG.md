@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.485] - 2026-09-22
+
 ### Fixed
 
 - **A mandatory security event past its write budget is coalesced, not
