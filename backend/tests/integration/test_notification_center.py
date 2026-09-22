@@ -1901,6 +1901,77 @@ class TestDismissAndClear:
             == 1
         )
 
+    async def test_clearing_pages_past_rows_the_gate_hides(self, db, monkeypatch):
+        """The whole reason `clear_inbox` walks a cursor.
+
+        A single capped fetch starting at `after=None` is the same page every
+        time. A recipient whose *newest* rows all fail the read-time gate -
+        somebody demoted out of an audience, whose security notifications are
+        still stored and no longer visible - would clear nothing, and every
+        retry would re-read that same invisible page while the visible rows
+        behind it stayed in the inbox for good.
+
+        The caps are lowered rather than the fixture grown: one gated row and
+        one visible row prove the cursor advanced, where the real 1,000 would
+        need a thousand.
+        """
+        monkeypatch.setattr(notification_center, "_DISMISS_CANDIDATE_CAP", 1)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        # Written first so it is the *older* row: the listing is newest-first,
+        # so the gated one below lands on page one and this one only becomes
+        # reachable once the cursor moves past it.
+        [visible] = await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-behind-the-gate",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-hides-it",
+            summary="A secret was rotated",
+            organization_id=org.id,
+        )
+        ctx = _ctx(member, org, role="member")
+
+        assert await service.clear_inbox(ctx) == 1
+
+        stored = await db.scalar(select(Notification).where(Notification.id == visible.id))
+        assert stored is not None
+        assert stored.dismissed_at is not None
+
+    async def test_clearing_stops_after_its_allotted_rounds(self, db, monkeypatch):
+        """A backlog of gated rows must run the loop to its bound rather than
+        forever. Nothing is cleared, and that is the honest answer: there was
+        nothing this reader could see.
+
+        Named "rounds" rather than "budget": in this codebase a budget is money,
+        and `tests/test_security_marker.py` sweeps that word to find refusal
+        tests - a loop's iteration cap borrowing it is a collision, not a
+        refusal.
+        """
+        monkeypatch.setattr(notification_center, "_DISMISS_CANDIDATE_CAP", 1)
+        monkeypatch.setattr(notification_center, "_MAX_INBOX_FETCH_ROUNDS", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(3):
+            await service.write(
+                recipients=[member.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-rounds-{index}",
+                summary="A secret was rotated",
+                organization_id=org.id,
+            )
+
+        assert await service.clear_inbox(_ctx(member, org, role="member")) == 0
+
     async def test_a_dismissed_row_does_not_come_back_on_a_later_page(self, db):
         """The cursor walks `list_inbox_page`, which filters dismissed rows out
         - so paging past a cleared row must not resurface it."""
