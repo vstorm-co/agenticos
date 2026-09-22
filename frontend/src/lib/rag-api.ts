@@ -179,6 +179,8 @@ export interface RAGSyncLog {
   ingested: number;
   updated: number;
   skipped: number;
+  /** Documents deleted because the source no longer lists them. */
+  removed: number;
   failed: number;
   error_message: string | null;
   started_at: string | null;

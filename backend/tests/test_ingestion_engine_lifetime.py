@@ -270,7 +270,12 @@ class TestAConnectorSyncsEngine:
             update_after_sync=AsyncMock(),
             trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         )
-        connector = MagicMock(list_files=AsyncMock(return_value=[]))
+        connector = MagicMock(
+            list_files=AsyncMock(return_value=[]),
+            remote_version=AsyncMock(return_value=None),
+            listing_root=MagicMock(return_value=None),
+            aclose=AsyncMock(),
+        )
 
         async with _worker(ledger):
             with (
@@ -301,7 +306,12 @@ class TestAConnectorSyncsEngine:
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
         )
-        connector = MagicMock(list_files=AsyncMock(side_effect=RuntimeError("drive refused")))
+        connector = MagicMock(
+            list_files=AsyncMock(side_effect=RuntimeError("drive refused")),
+            remote_version=AsyncMock(return_value=None),
+            listing_root=MagicMock(return_value=None),
+            aclose=AsyncMock(),
+        )
 
         async with _worker(ledger):
             with (

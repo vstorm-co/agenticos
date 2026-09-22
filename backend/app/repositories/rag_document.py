@@ -278,6 +278,41 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     return int(result.rowcount or 0)
 
 
+async def list_settled_under(
+    db: AsyncSession,
+    *,
+    collection_name: str,
+    knowledge_base_id: UUID | None,
+    organization_id: UUID | None,
+    source_root: str,
+) -> list[RAGDocument]:
+    """The settled rows a sync source filed under `source_root` in one collection.
+
+    Scoped by the knowledge base and the organization as well as the collection
+    name, because a name is not unique across tenants (#1684) and a sync must
+    not reach another organization's rows that happen to share its prefix.
+
+    `PROCESSING` rows are left out for the reason `discard_failed` gives: they
+    belong to an attempt still running - an overlapping trigger of the same
+    source - and removing one would leave that attempt's vectors tracked by
+    nothing.
+    """
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.knowledge_base_id.is_(None)
+            if knowledge_base_id is None
+            else RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.organization_id.is_(None)
+            if organization_id is None
+            else RAGDocument.organization_id == organization_id,
+            RAGDocument.source_path.startswith(source_root, autoescape=True),
+            RAGDocument.status != DocumentStatus.PROCESSING,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:
     """Delete a RAG document by ID."""
     doc = await db.get(RAGDocument, doc_id)

@@ -1,12 +1,12 @@
 ---
-source_sha: "482d37ce9407"
+source_sha: "1c539a892212"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
 
 Źródła synchronizacji samodzielnie pobierają dokumenty z usług zewnętrznych
-(Google Drive, S3/MinIO) do kolekcji wiedzy. Każde źródło przechowuje typ
-connectora, kolekcję docelową, ustawienia właściwe dla connectora, tryb
+(Google Drive, S3/MinIO, repozytoria Git) do kolekcji wiedzy. Każde źródło
+przechowuje typ connectora, kolekcję docelową, ustawienia właściwe dla connectora, tryb
 synchronizacji, opcjonalny harmonogram oraz id
 [sekretu w vault](../secrets.md), który je uwierzytelnia.
 
@@ -33,7 +33,7 @@ odnotowuje wynik każdej operacji synchronizacji.
 ### Wypisz dostępne typy connectorów { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -63,6 +63,23 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Dodaj źródło Git -- dokumentacja repozytorium, co noc { #add-a-git-source-a-repositorys-docs-nightly }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Następnie wybierz jego token dostępu jako poświadczenie źródła w interfejsie albo
+wyślij `secret_id` metodą `PATCH` — zobacz
+[Konfiguracja repozytorium Git](#git-repository-setup).
+
 ### Wyzwól synchronizację ręcznie { #trigger-sync-manually }
 
 ```bash
@@ -86,7 +103,7 @@ liście `rag-sources`.
 
 1. Przejdź do **Knowledge Base** i otwórz zakładkę **Sync**.
 2. Kliknij **"+ Add Source"**.
-3. Wybierz typ connectora (Google Drive, S3). Pola formularza są
+3. Wybierz typ connectora (Google Drive, S3, Git repository). Pola formularza są
    generowane ze schematu JSON Schema z `CONFIG_MODEL` connectora.
 4. Wypełnij pola konfiguracji właściwe dla connectora (na przykład folder ID,
    nazwę bucketa).
@@ -112,6 +129,32 @@ w interfejsie, zrobisz też przez `curl` lub dowolnego klienta HTTP.
     najszybsza synchronizacja przyrostowa. `update_only` odświeża istniejące
     dokumenty, nie dodając nowych; `full` to za każdym razem czysty import
     od nowa.
+
+### Co robi druga synchronizacja { #what-a-second-sync-does }
+
+Każda synchronizacja po pierwszej robi tak mało, jak pozwala na to źródło:
+
+- **Niezmieniony plik kosztuje pobranie, nie embedowanie.** Jego SHA-256 zgadza
+  się ze skrótem zapisanego dokumentu, więc jest liczony jako `skipped` i nigdy
+  nie jest ponownie parsowany ani embedowany.
+- **Niezmienione źródło kosztuje jedno zapytanie.** Connector, który potrafi
+  powiedzieć, w jakim stanie jest cała jego zawartość — w przypadku gałęzi Git
+  jest to jej commit na czubku (head) — zapisuje tę wartość po każdym przebiegu,
+  który zakończył się bez żadnego błędu. Następny przebieg `new_only` albo
+  `update_only`, który zastanie tę samą wartość przy tej samej konfiguracji,
+  zatrzymuje się, zanim cokolwiek wypisze: jego log nie pokazuje żadnych
+  przetworzonych plików. Zmiana konfiguracji, kolekcji albo trybu sprawia, że
+  następny przebieg czyta wszystko od nowa, a `full` nigdy nie kończy się
+  wcześniej.
+- **Usunięty plik zostaje usunięty.** Po zakończonym wypisaniu listy dokument,
+  który źródło wcześniej przetworzyło, a którego już nie wypisuje, jest usuwany
+  z kolekcji — najpierw wektory, potem jego wiersz — i liczony jako `removed`.
+  Wypisanie listy, które się nie powiodło, niczego nie usuwa. Tak działają
+  źródła Git; źródła Google Drive i S3 zachowują każdy przetworzony dokument,
+  dopóki ktoś nie usunie go ręcznie.
+
+Przebieg z plikiem, którego nie udało się przetworzyć, nie zapisuje stanu, więc
+następny przebieg czyta źródło w całości i ponawia próbę.
 
 ## Harmonogram { #schedule }
 
@@ -219,6 +262,80 @@ W MinIO endpoint ma zwykle postać `http://minio:9000` (Docker) albo
 | `bucket` | string | Tak | -- | Nazwa bucketa S3 |
 | `prefix` | string | Nie | `""` | Prefiks kluczy zawężający zakres synchronizacji (np. `documents/legal/`). Zostaw pusty, aby objąć cały bucket. |
 
+## Konfiguracja repozytorium Git { #git-repository-setup }
+
+Źródło `git` czyta dokumentację repozytorium przez HTTPS — z GitHuba, GitLaba
+albo dowolnego innego hosta, który serwuje git przez HTTPS. Potrzebuje adresu
+URL do klonowania i tokena dostępu, a nie API którejkolwiek z tych platform.
+
+### 1. Wystaw token dla jednego repozytorium { #1-issue-a-token-for-the-one-repository }
+
+**Zasięg tokena to zasięg źródła.** Wszystko, co źródło przetworzy, staje się
+możliwe do przeszukania przez każdego, kto może czytać kolekcję, więc token,
+który może czytać każde prywatne repozytorium swojego właściciela, to token,
+który może je wszystkie opublikować tym odbiorcom. Zobacz
+[kto ostatecznie może czytać to, co przetworzyło
+źródło](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** fine-grained personal access token, *Only select repositories*,
+  z tym jednym repozytorium i **Contents: Read-only** jako jedynym uprawnieniem.
+- **GitLab:** project access token w tym jednym projekcie, rola **Reporter**,
+  wyłącznie zakres **`read_repository`**.
+
+Nadaj mu datę wygaśnięcia. Gdy wygaśnie, następna synchronizacja źródła kończy
+się błędem *the repository refused the source's token*, a naprawą jest nowy
+token w tym samym sekrecie w vault.
+
+### 2. Dodaj go do vault { #2-add-it-to-the-vault }
+
+Dodaj token do vault jako **API key** i wybierz go w kroku poświadczenia źródła.
+Jest wysyłany jako nagłówek HTTP `Authorization`, nigdy w adresie URL i nigdy
+w wierszu poleceń, który mógłby odczytać inny proces.
+
+### 3. Pola konfiguracji connectora Git { #3-git-connector-config-fields }
+
+| Pole | Typ | Wymagane | Domyślnie | Opis |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Tak | -- | Adres URL klonowania przez HTTPS, np. `https://github.com/acme/handbook.git`. Bez nazwy użytkownika i tokena. |
+| `branch` | string | Nie | `main` | Gałąź do odczytu. |
+| `path_prefix` | string | Nie | -- | Katalog wewnątrz repozytorium, np. `docs`. Zostaw pusty, aby objąć całe repozytorium. |
+| `include` | lista stringów | Nie | `**/*.md`, `**/*.txt` | Które pliki przetwarzać, jako wzorce w stylu `.gitignore` względem `path_prefix`. |
+
+Domyślnie jest to dokumentacja, a nie całe drzewo: kod źródłowy repozytorium nie
+jest korpusem, a jego przetworzenie wypełnia bazę wiedzy kodem, którego nikt nie
+chciał przeszukiwać. Dodaj wzorzec taki jak `**/*.pdf` dla innego formatu, który
+czyta parser kolekcji. Wzorzec nie może zaczynać się od `!`.
+
+Każdy plik jest dokumentem o adresie
+`git://<host>/<owner>/<repo>@<branch>/<path>`. Gałąź jest częścią adresu, więc
+dwa źródła czytające dwie gałęzie jednego repozytorium do jednej kolekcji mają
+osobne dokumenty.
+
+### 4. Co przesyła synchronizacja { #4-what-a-sync-transfers }
+
+Pierwszym zapytaniem każdej synchronizacji jest `git ls-remote` dla gałęzi —
+około kilobajta. Gdy commit na czubku gałęzi nie przesunął się od ostatniego
+czystego przebiegu, synchronizacja na tym się kończy. Gdy się przesunął,
+connector wykonuje płytki, częściowy i rzadki (sparse) klon: jeden commit
+i wyłącznie pliki pasujące do wzorców `include`. Dokumentacja monorepo kosztuje
+więc tyle, co dokumentacja, a nie całe drzewo źródeł.
+
+Dowiązania symboliczne i submoduły nie są śledzone, a dowiązanie nie jest
+przetwarzane jako dokument.
+
+### Reguły sieciowe { #network-rules }
+
+Adres URL musi zaczynać się od `https://`. Jego host jest rozwiązywany raz
+i sprawdzany tak jak każdy inny adres wybrany przez tenanta: host, który
+rozwiązuje się na adres prywatny, loopback albo link-local, jest odrzucany przy
+zapisie źródła i ponownie przy synchronizacji, a git łączy się wyłącznie
+z adresami, które ta kontrola zatwierdziła. Przekierowania nie są śledzone.
+Deployment za proxy wyjściowym (`HTTPS_PROXY`) nadal z niego korzysta; proxy
+rozwiązuje wtedy host samo.
+
+Obraz workera zawiera `git`. Worker zbudowany z innego obrazu potrzebuje `git`
+w wersji 2.37 lub nowszej na swoim `PATH`.
+
 ## Dokumentacja API { #api-reference }
 
 Wszystkie endpointy źródeł synchronizacji leżą pod `/api/v1/rag/sync/`.
@@ -322,8 +439,9 @@ Każda synchronizacja tworzy wpis `SyncLog` z następującymi polami:
 | `ingested` | Poprawnie przetworzone (nowe) |
 | `updated` | Poprawnie przetworzone ponownie (zastąpione) |
 | `skipped` | Pominięte (już obecne lub bez zmian) |
+| `removed` | Usunięte, bo źródło już ich nie wypisuje |
 | `failed` | Nieudane przetworzenie |
-| `error_message` | Szczegóły błędu (gdy `status` to `error`) |
+| `error_message` | Dlaczego synchronizacja się zatrzymała albo ile plików się nie powiodło (gdy `status` to `error`) |
 | `started_at` | Kiedy synchronizacja się zaczęła |
 | `completed_at` | Kiedy synchronizacja się skończyła |
 
@@ -366,6 +484,7 @@ Podany typ connectora nie występuje w `CONNECTOR_REGISTRY`. Sprawdź dostępne
 typy poleceniem `rag-sources` albo `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) jest dostępny.
 S3 (`s3`) jest dostępny.
+Git (`git`) jest dostępny.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -396,6 +515,41 @@ potrzebuje co najmniej dostępu Viewer.
 Sprawdź, czy `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` i `S3_RAG_ENDPOINT` są
 poprawnie ustawione w `.env`. W MinIO upewnij się, że endpoint zawiera port
 (na przykład `http://localhost:9000`).
+
+### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
+
+Token wygasł, został unieważniony albo nie może czytać tego repozytorium. Wystaw
+nowy zgodnie z opisem w [Konfiguracja repozytorium Git](#git-repository-setup)
+i podmień wartość sekretu w vault, którego używa źródło; każde źródło korzystające
+z tego sekretu pobierze ją przy następnej synchronizacji.
+
+### Git: "The repository was not found, or the source's token cannot see it" { #git-the-repository-was-not-found-or-the-sources-token-cannot-see-it }
+
+Najpierw sprawdź adres URL klonowania. Prywatne repozytorium odpowiada tokenowi,
+który nie może go czytać, *not found* zamiast *forbidden*, więc fine-grained
+token wystawiony dla innego repozytorium wygląda właśnie tak.
+
+### Git: "The repository has no branch named …" { #git-the-repository-has-no-branch-named }
+
+Pole `branch` wskazuje gałąź, której repozytorium nie ma. Domyślnie jest to
+`main`; w starszym repozytorium gałęzią domyślną może być `master`.
+
+### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
+
+Host repozytorium rozwiązuje się na adres wewnątrz sieci deploymentu, więc
+źródło jest odrzucane. Źródło synchronizacji nie może dotrzeć do
+samodzielnie hostowanego serwera Git pod adresem wewnętrznym.
+
+### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
+
+Worker działa z obrazu bez `git`. Dostarczany `backend/Dockerfile` go instaluje;
+do własnego obrazu trzeba go dodać.
+
+### Git: synchronizacja zakończyła się bez przetworzonych plików { #git-a-sync-finished-with-no-files-processed }
+
+Commit na czubku gałęzi jest tym samym, który przeczytał ostatni czysty
+przebieg, przy tej samej konfiguracji, więc nie było nic do zrobienia. Przełącz
+źródło na `full` na jeden przebieg, aby mimo to przeczytać wszystko od nowa.
 
 ### Zaplanowane synchronizacje nie działają { #scheduled-syncs-are-not-running }
 

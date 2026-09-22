@@ -27,6 +27,8 @@ class SyncLog(TimestampMixin, Base):
     ingested: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Documents deleted because the source no longer lists them (#987).
+    removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(

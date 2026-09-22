@@ -76,6 +76,26 @@ authenticate with.
     credential it names or it does not run, because a fallback means one tenant's
     `folder_id` chooses what is read under the *operator's* identity.
 
+### Three optional hooks: change, deletion, cleanup
+
+`list_files()` and `_fetch()` are all a connector has to write. Three more
+methods have defaults that keep a connector working the way Drive and S3 do, and
+a connector overrides one when its source can answer the question it asks.
+`GitConnector` in `app/services/rag/connectors/git.py` overrides all three.
+
+| Hook | Default | Override it when |
+|------|---------|------------------|
+| `remote_version(config, credential)` | `None`: every run lists | The source can say cheaply what its whole content is at, such as a commit or a change token. After a run with nothing failed, the sync stores the value with a fingerprint of the configuration. The next run that finds the same pair stops before `list_files()`. The value must change whenever any listed file, or the listing itself, could have changed. |
+| `listing_root(config)` | `None`: nothing is ever deleted | Every `source_path` the source lists starts with a prefix that belongs to this source alone. After a listing that completed, a document under that prefix that the listing no longer names is deleted: vectors first, then the row. |
+| `aclose()` | nothing | The connector keeps something between `list_files()` and the downloads, such as a clone or a session. It is called once the sync is over, whether the sync succeeded or not. |
+
+!!! warning "A root shared with another source deletes that source's documents"
+
+    The prefix is the only thing that tells this source's documents from the
+    rest of the collection. A Drive `source_path` is a file id with no folder in
+    it, which is why Drive answers `None`. A repository and branch are unique to
+    one source, so a Git source answers with both.
+
 ## Step by step: a Notion connector
 
 This example implements a Notion connector that fetches pages from a Notion

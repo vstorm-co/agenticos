@@ -56,7 +56,7 @@ from app.services.rag.provenance import iso_doc_date
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
-from app.services.sync_source import SyncSourceService
+from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -962,6 +962,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id
+        stored_state = source.sync_state
+        fingerprint = sync_fingerprint(config, collection_name=collection_name, sync_mode=sync_mode)
         # The credential, unsealed from this organization's vault while there is
         # still a session. It travels beside the config rather than inside it:
         # `config` says how to find the documents and holds nothing that has to
@@ -1040,15 +1042,30 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
     connector = connector_cls()
 
-    ingested = updated = skipped = failed = 0
+    ingested = updated = skipped = removed = failed = 0
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
+    # Why the sync as a whole stopped, when it did - a refused token, a missing
+    # branch. Without it the log said "1 files failed" about a run that never
+    # reached a file, which is no answer to "is it the credential?".
+    sync_error: str | None = None
+    version: str | None = None
 
     async with _ingestion_service(
         processor=processor, organization_id=organization_id, tenant=tenant
     ) as ingester:
         try:
-            files = await connector.list_files(config, credential)
+            # Asked before anything is listed: the same version under the same
+            # configuration as the last clean run means nothing upstream moved,
+            # and for a repository that is one `ls-remote` in place of a clone.
+            # `full` promises a re-import every time, so it never stops here.
+            version = await connector.remote_version(config, credential)
+            unchanged = (
+                version is not None
+                and sync_mode != "full"
+                and stored_state == SyncState(version=version, fingerprint=fingerprint).model_dump()
+            )
+            files = [] if unchanged else await connector.list_files(config, credential)
             total = len(files)
 
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1179,9 +1196,26 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                     error_message=failure_summary(e, stage=IngestionStage.INGEST),
                                 ),
                             )
+
+            # Only here, after a listing that completed: a listing that raised
+            # is not evidence that anything was deleted upstream, and acting on
+            # one would empty the collection on a network blip.
+            root = None if unchanged else connector.listing_root(config)
+            if root is not None:
+                removed = await _remove_unlisted(
+                    ingester,
+                    collection_name=collection_name,
+                    knowledge_base_id=knowledge_base_id,
+                    organization_id=organization_id,
+                    source_root=root,
+                    listed={remote_file.source_path for remote_file in files},
+                )
         except Exception as e:
-            logger.error("Source sync failed for %s: %s", source_id, e)
+            logger.exception("Source sync failed for %s", source_id)
+            sync_error = failure_summary(e, stage=IngestionStage.SYNC)
             failed = max(failed, 1)
+        finally:
+            await connector.aclose()
 
     await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 
@@ -1190,6 +1224,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         source_svc = SyncSourceService(db)
         try:
             status = "done" if not failed else "error"
+            error = sync_error or (f"{failed} files failed" if failed else None)
             log = await sync_svc.complete_sync(
                 log_id,
                 status=status,
@@ -1197,12 +1232,22 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 ingested=ingested,
                 updated=updated,
                 skipped=skipped,
+                removed=removed,
                 failed=failed,
+                error_message=error,
             )
             await source_svc.update_after_sync(
                 source_id,
                 status=status,
-                error=f"{failed} files failed" if failed else None,
+                error=error,
+                # Only a clean run is a state worth stopping early on: one with a
+                # failed file has to be read again in full, or that file waits
+                # for the next upstream change to be retried.
+                sync_state=(
+                    SyncState(version=version, fingerprint=fingerprint)
+                    if status == "done" and version is not None
+                    else None
+                ),
             )
             if log is not None:
                 # Attached to `complete_sync` above, not to `update_after_sync`:
@@ -1240,7 +1285,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             occurrence_id=occurrence_id,
                             collection_name=collection_name,
                             collection_id=kb.id if kb else None,
-                            error=f"{failed} files failed",
+                            error=error or f"{failed} files failed",
                         )
                 except Exception:
                     logger.exception(
@@ -1250,12 +1295,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, removed=%d, failed=%d",
         source_id,
         total,
         ingested,
         updated,
         skipped,
+        removed,
         failed,
     )
     return {
@@ -1264,8 +1310,50 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         "ingested": ingested,
         "updated": updated,
         "skipped": skipped,
+        "removed": removed,
         "failed": failed,
     }
+
+
+async def _remove_unlisted(
+    ingester: IngestionService,
+    *,
+    collection_name: str,
+    knowledge_base_id: UUID | None,
+    organization_id: UUID | None,
+    source_root: str,
+    listed: set[str],
+) -> int:
+    """Delete what this source ingested before and no longer lists, and count it.
+
+    Vectors first, then the row - the order that can be retried. A row removed
+    before its vectors, with the vector delete then failing, leaves chunks
+    searchable and nothing that names them; the other way round, a failed
+    vector delete keeps the row, and the next run finds it and tries again.
+    `remove_document` answers `False` rather than raising, which is that case.
+    """
+    async with get_worker_db_context() as db:
+        rows = await rag_document_repo.list_settled_under(
+            db,
+            collection_name=collection_name,
+            knowledge_base_id=knowledge_base_id,
+            organization_id=organization_id,
+            source_root=source_root,
+        )
+    gone: list[UUID] = []
+    for row in rows:
+        if row.source_path in listed:
+            continue
+        if row.vector_document_id and not await ingester.remove_document(
+            collection_name, row.vector_document_id
+        ):
+            continue
+        gone.append(row.id)
+    if gone:
+        async with get_worker_db_context() as db:
+            for row_id in gone:
+                await rag_document_repo.delete(db, row_id)
+    return len(gone)
 
 
 @flow(name="retention-sweep", log_prints=True)

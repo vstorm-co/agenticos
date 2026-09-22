@@ -90,6 +90,11 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
             ]
         ),
         download_file=AsyncMock(side_effect=download),
+        # What Drive inherits from the base: no version to stop early on, and no
+        # listing root to delete under.
+        remote_version=AsyncMock(return_value=None),
+        listing_root=MagicMock(return_value=None),
+        aclose=AsyncMock(),
     )
 
 

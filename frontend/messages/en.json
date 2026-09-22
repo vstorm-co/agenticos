@@ -4415,6 +4415,7 @@
       "searching": "Searching..."
     },
     "skippedCount": "{count} skipped",
+    "removedCount": "{count} removed",
     "sourceName": "Source name",
     "stepConfigure": "Configure",
     "stepCredential": "Credential",

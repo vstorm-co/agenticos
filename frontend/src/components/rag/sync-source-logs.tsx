@@ -58,6 +58,7 @@ function LogRow({ log }: { log: RAGSyncLog }) {
             {log.ingested > 0 && t("ingestedCount", { count: log.ingested })}
             {log.updated > 0 && ` · ${t("updatedCount", { count: log.updated })}`}
             {log.skipped > 0 && ` · ${t("skippedCount", { count: log.skipped })}`}
+            {log.removed > 0 && ` · ${t("removedCount", { count: log.removed })}`}
             {log.failed > 0 && ` · ${t("failedCount", { count: log.failed })}`}
             {log.total_files === 0 && log.ingested === 0 && t("noFilesProcessed")}
           </p>

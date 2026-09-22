@@ -198,6 +198,9 @@ async def _connector_sync(
             return_value=[RemoteFile(id="f1", name="handbook.md", source_path="gdrive://f1")]
         ),
         download_file=AsyncMock(side_effect=download),
+        remote_version=AsyncMock(return_value=None),
+        listing_root=MagicMock(return_value=None),
+        aclose=AsyncMock(),
     )
     store = MagicMock(get_documents=AsyncMock(return_value=[]))
     store.find_existing_document = AsyncMock(return_value=None)

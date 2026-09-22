@@ -29,6 +29,7 @@ def _as_item(log: SyncLog) -> RAGSyncLogItem:
         ingested=log.ingested,
         updated=log.updated,
         skipped=log.skipped,
+        removed=log.removed,
         failed=log.failed,
         error_message=log.error_message,
         started_at=log.started_at.isoformat(),
@@ -139,6 +140,7 @@ class RAGSyncService:
         ingested: int = 0,
         updated: int = 0,
         skipped: int = 0,
+        removed: int = 0,
         failed: int = 0,
         error_message: str | None = None,
     ) -> SyncLog | None:
@@ -162,6 +164,7 @@ class RAGSyncService:
             ingested=ingested,
             updated=updated,
             skipped=skipped,
+            removed=removed,
             failed=failed,
             error_message=error_message,
             completed_at=datetime.now(UTC),

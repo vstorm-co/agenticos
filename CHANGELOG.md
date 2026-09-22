@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A Git repository can feed a knowledge base.** A `git` sync source reads a
+  repository's documentation over HTTPS from GitHub, GitLab or any host that
+  serves git, with an access token from the Vault. By default it reads
+  Markdown and plain text, not the source tree. Scheduled syncs are cheap: a
+  sync first asks for the branch's head commit, and when that has not moved
+  since the last clean run, it stops there. When the commit has moved, it makes
+  a shallow, sparse clone of the documentation only. The repository's host is
+  checked and pinned like any other tenant-chosen address, and an internal host
+  is refused (#987).
+- **A file deleted from a Git source is deleted from the collection.** After a
+  listing that completed, a document the source no longer lists is removed,
+  vectors first, then its row. The sync history counts these as `removed`.
+  Google Drive and S3 sources still keep what they ingested.
+
+### Fixed
+
+- **A sync that stopped before reaching a file says why.** A refused
+  credential, a missing branch or an unreachable host used to be logged as
+  "1 files failed". The sync log and the source now carry the reason.
+
 ## [0.0.492] - 2026-09-22
 
 ### Fixed

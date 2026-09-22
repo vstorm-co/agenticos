@@ -53,6 +53,8 @@ const CONNECTOR_BRANDS: Record<string, BrandName> = {
   gdrive: "gdrive",
   drive: "gdrive",
   github: "github",
+  // A repository on any host - GitHub is the mark most of them will be.
+  git: "github",
   notion: "notion",
   slack: "slack",
   dropbox: "dropbox",

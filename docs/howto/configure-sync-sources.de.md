@@ -1,14 +1,14 @@
 ---
-source_sha: "482d37ce9407"
+source_sha: "1c539a892212"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
 
-Sync-Quellen holen Dokumente aus externen Diensten (Google Drive, S3/MinIO)
-selbsttätig in Knowledge-Collections. Jede Quelle speichert einen Connector-Typ,
-eine Ziel-Collection, connector-spezifische Einstellungen, einen Sync-Modus, einen
-optionalen Zeitplan und die id des [Vault-Secrets](../secrets.md), das sie
-authentifiziert.
+Sync-Quellen holen Dokumente aus externen Diensten (Google Drive, S3/MinIO,
+Git-Repositories) selbsttätig in Knowledge-Collections. Jede Quelle speichert
+einen Connector-Typ, eine Ziel-Collection, connector-spezifische Einstellungen,
+einen Sync-Modus, einen optionalen Zeitplan und die id des
+[Vault-Secrets](../secrets.md), das sie authentifiziert.
 
 Läuft ein Sync, listet der Connector die entfernten Dateien auf, lädt sie in ein
 temporäres Verzeichnis herunter und schickt sie durch die übliche
@@ -33,7 +33,7 @@ Ingestion-Pipeline (parsen, chunken, einbetten, speichern). Ein Eintrag in
 ### Verfügbare Connector-Typen auflisten { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -63,6 +63,23 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Eine Git-Quelle anlegen -- die Doku eines Repositorys, jede Nacht { #add-a-git-source-a-repositorys-docs-nightly }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Wählen Sie anschließend in der Oberfläche sein Access-Token als Credential der
+Quelle aus, oder senden Sie `secret_id` mit einem `PATCH` — siehe
+[Git-Repository einrichten](#git-repository-setup).
+
 ### Einen Sync von Hand auslösen { #trigger-sync-manually }
 
 ```bash
@@ -86,8 +103,9 @@ in der Auflistung von `rag-sources` steht.
 
 1. Öffnen Sie **Knowledge Base** und dort den Tab **Sync**.
 2. Klicken Sie auf **"+ Add Source"**.
-3. Wählen Sie einen Connector-Typ (Google Drive, S3). Die Formularfelder werden
-   aus dem JSON Schema des `CONFIG_MODEL` des Connectors erzeugt.
+3. Wählen Sie einen Connector-Typ (Google Drive, S3, Git repository). Die
+   Formularfelder werden aus dem JSON Schema des `CONFIG_MODEL` des Connectors
+   erzeugt.
 4. Füllen Sie die connector-spezifischen Konfigurationsfelder aus (etwa Folder-ID,
    Bucket-Name).
 5. Wählen Sie eine Ziel-Collection, einen Sync-Modus und ein Zeitintervall.
@@ -113,6 +131,31 @@ HTTP-Client tun.
     übersprungen werden — das ist der schnellste inkrementelle Sync.
     `update_only` frischt vorhandene Dokumente auf, ohne neue hinzuzunehmen;
     `full` ist jedes Mal ein sauberer Neuimport.
+
+### Was ein zweiter Sync tut { #what-a-second-sync-does }
+
+Ein Sync nach dem ersten tut so wenig, wie die Quelle es zulässt:
+
+- **Eine unveränderte Datei kostet einen Download, keine Einbettung.** Ihr
+  SHA-256 stimmt mit dem des gespeicherten Dokuments überein, also wird sie als
+  `skipped` gezählt und weder erneut geparst noch eingebettet.
+- **Eine unveränderte Quelle kostet eine Anfrage.** Ein Connector, der sagen
+  kann, auf welchem Stand sein gesamter Inhalt ist — der Head-Commit eines
+  Git-Branches —, hält diesen Stand nach jedem Lauf fest, der ohne
+  fehlgeschlagene Datei endete. Der nächste Lauf mit `new_only` oder
+  `update_only`, der unter derselben Konfiguration denselben Wert vorfindet, hält
+  an, bevor er irgendetwas auflistet: Sein Protokoll zeigt keine verarbeiteten
+  Dateien. Eine Änderung der Konfiguration, der Collection oder des Modus lässt
+  den nächsten Lauf wieder alles lesen, und `full` hält nie vorzeitig an.
+- **Eine gelöschte Datei wird entfernt.** Nach einer vollständigen Auflistung
+  wird ein Dokument, das die Quelle früher aufgenommen hat und nicht mehr
+  auflistet, aus der Collection gelöscht — zuerst die Vektoren, dann seine Zeile —
+  und als `removed` gezählt. Eine fehlgeschlagene Auflistung entfernt nichts.
+  Git-Quellen tun das; Google-Drive- und S3-Quellen behalten jedes aufgenommene
+  Dokument, bis es von Hand gelöscht wird.
+
+Ein Lauf mit einer fehlgeschlagenen Datei hält keinen Stand fest, sodass der
+nächste Lauf die Quelle vollständig liest und die Datei erneut versucht.
 
 ## Zeitplan { #schedule }
 
@@ -222,6 +265,83 @@ Bei MinIO lautet der Endpunkt üblicherweise `http://minio:9000` (Docker) oder
 | `bucket` | string | Ja | -- | Name des S3-Buckets |
 | `prefix` | string | Nein | `""` | Key-Präfix, das den Sync eingrenzt (etwa `documents/legal/`). Für den ganzen Bucket leer lassen. |
 
+## Git-Repository einrichten { #git-repository-setup }
+
+Eine `git`-Quelle liest die Dokumentation eines Repositorys über HTTPS — von
+GitHub, GitLab oder jedem anderen Host, der git über HTTPS ausliefert. Sie
+braucht die Clone-URL und ein Access-Token, nicht die API der jeweiligen
+Plattform.
+
+### 1. Ein Token für genau ein Repository ausstellen { #1-issue-a-token-for-the-one-repository }
+
+**Die Reichweite des Tokens ist die Reichweite der Quelle.** Alles, was die
+Quelle aufnimmt, wird für jeden durchsuchbar, der die Collection lesen darf. Ein
+Token, das jedes private Repository seines Besitzers lesen kann, kann also alle
+davon diesem Publikum zugänglich machen. Siehe [wer am Ende lesen kann, was eine
+Quelle aufgenommen
+hat](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** ein fine-grained Personal Access Token, *Only select repositories*,
+  mit dem einen Repository und **Contents: Read-only** als einziger Berechtigung.
+- **GitLab:** ein Project Access Token auf dem einen Projekt, Rolle **Reporter**,
+  nur mit dem Scope **`read_repository`**.
+
+Geben Sie ihm ein Ablaufdatum. Läuft es ab, schlägt der nächste Sync der Quelle
+mit *the repository refused the source's token* fehl, und die Abhilfe ist ein
+neues Token im selben Vault-Secret.
+
+### 2. Es im Vault ablegen { #2-add-it-to-the-vault }
+
+Legen Sie das Token als **API key** im Vault ab und wählen Sie es im
+Credential-Schritt der Quelle aus. Es wird als HTTP-Header `Authorization`
+gesendet, nie in der URL und nie in einer Befehlszeile, die ein anderer Prozess
+lesen kann.
+
+### 3. Konfigurationsfelder des Git-Connectors { #3-git-connector-config-fields }
+
+| Feld | Typ | Pflicht | Vorgabe | Beschreibung |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Ja | -- | Die HTTPS-Clone-URL, etwa `https://github.com/acme/handbook.git`. Ohne Benutzername oder Token darin. |
+| `branch` | string | Nein | `main` | Der zu lesende Branch. |
+| `path_prefix` | string | Nein | -- | Ein Verzeichnis im Repository, etwa `docs`. Für das ganze Repository leer lassen. |
+| `include` | list of strings | Nein | `**/*.md`, `**/*.txt` | Welche Dateien aufgenommen werden, als Muster im Stil von `.gitignore` relativ zu `path_prefix`. |
+
+Die Vorgabe ist die Dokumentation, nicht der ganze Baum: Der Quellcode eines
+Repositorys ist kein Korpus, und ihn aufzunehmen füllt eine Knowledge Base mit
+Code, den niemand durchsuchen wollte. Ergänzen Sie ein Muster wie `**/*.pdf` für
+ein weiteres Format, das der Parser der Collection liest. Ein Muster darf nicht
+mit `!` beginnen.
+
+Jede Datei ist ein Dokument mit der Adresse
+`git://<host>/<owner>/<repo>@<branch>/<path>`. Der Branch ist Teil der Adresse,
+sodass zwei Quellen, die zwei Branches eines Repositorys in eine Collection
+lesen, getrennte Dokumente behalten.
+
+### 4. Was ein Sync überträgt { #4-what-a-sync-transfers }
+
+Die erste Anfrage jedes Syncs ist `git ls-remote` für den Branch — etwa ein
+Kilobyte. Hat sich der Head-Commit seit dem letzten sauberen Lauf nicht bewegt,
+hält der Sync dort an. Hat er sich bewegt, erstellt der Connector einen flachen,
+partiellen, sparse Klon: ein Commit und nur die Dateien, auf die die
+Include-Muster passen. Die Dokumentation eines Monorepos kostet daher ihre
+Dokumentation, nicht seinen Quellbaum.
+
+Symbolischen Links und Submodulen wird nicht gefolgt, und ein Link wird nicht als
+Dokument aufgenommen.
+
+### Netzwerkregeln { #network-rules }
+
+Die URL muss `https://` sein. Ihr Host wird einmal aufgelöst und wie jede andere
+Adresse geprüft, die ein Mandant wählt: Ein Host, der auf eine private,
+Loopback- oder Link-Local-Adresse auflöst, wird beim Speichern der Quelle
+abgelehnt und beim Sync erneut, und git verbindet sich nur mit den Adressen, die
+diese Prüfung zugelassen hat. Weiterleitungen wird nicht gefolgt. Ein Deployment
+hinter einem Egress-Proxy (`HTTPS_PROXY`) nutzt ihn weiterhin; der Proxy löst
+den Host dann selbst auf.
+
+Das Worker-Image enthält `git`. Ein Worker aus einem anderen Image braucht `git`
+2.37 oder neuer in seinem `PATH`.
+
 ## API-Referenz { #api-reference }
 
 Alle Endpunkte für Sync-Quellen liegen unter `/api/v1/rag/sync/`. Das Auflisten
@@ -327,8 +447,9 @@ Jeder Sync erzeugt einen `SyncLog`-Eintrag mit den folgenden Feldern:
 | `ingested` | Erfolgreich aufgenommen (neu) |
 | `updated` | Erfolgreich erneut aufgenommen (ersetzt) |
 | `skipped` | Übersprungen (bereits vorhanden oder unverändert) |
+| `removed` | Gelöscht, weil die Quelle sie nicht mehr auflistet |
 | `failed` | Aufnahme fehlgeschlagen |
-| `error_message` | Einzelheiten zum Fehler (wenn `status` gleich `error` ist) |
+| `error_message` | Warum der Sync anhielt oder wie viele Dateien fehlschlugen (wenn `status` gleich `error` ist) |
 | `started_at` | Wann der Sync begann |
 | `completed_at` | Wann der Sync endete |
 
@@ -372,6 +493,7 @@ Der angegebene Connector-Typ steht nicht in `CONNECTOR_REGISTRY`. Prüfen Sie di
 verfügbaren Typen mit `rag-sources` oder `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) ist verfügbar.
 S3 (`s3`) ist verfügbar.
+Git (`git`) ist verfügbar.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -404,6 +526,45 @@ Viewer-Zugriff.
 Prüfen Sie, ob `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` und `S3_RAG_ENDPOINT` in
 der `.env` richtig gesetzt sind. Achten Sie bei MinIO darauf, dass der Endpunkt
 den Port enthält (etwa `http://localhost:9000`).
+
+### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
+
+Das Token ist abgelaufen, wurde widerrufen oder kann dieses Repository nicht
+lesen. Stellen Sie ein neues aus, wie unter
+[Git-Repository einrichten](#git-repository-setup) beschrieben, und ersetzen Sie
+den Wert des Vault-Secrets, das die Quelle nutzt; jede Quelle mit diesem Secret
+übernimmt ihn bei ihrem nächsten Sync.
+
+### Git: "The repository was not found, or the source's token cannot see it" { #git-the-repository-was-not-found-or-the-sources-token-cannot-see-it }
+
+Prüfen Sie zuerst die Clone-URL. Ein privates Repository antwortet einem Token,
+das es nicht lesen kann, mit *not found* statt mit *forbidden*, deshalb zeigt
+sich ein fine-grained Token, das für ein anderes Repository ausgestellt wurde,
+auf diese Weise.
+
+### Git: "The repository has no branch named …" { #git-the-repository-has-no-branch-named }
+
+Das Feld `branch` nennt einen Branch, den das Repository nicht hat. Die Vorgabe
+ist `main`; der Standard-Branch eines älteren Repositorys heißt womöglich
+`master`.
+
+### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
+
+Der Host des Repositorys löst innerhalb des Netzwerks des Deployments auf, also
+wird die Quelle abgelehnt. Ein selbst betriebener Git-Server unter einer internen
+Adresse ist für eine Sync-Quelle nicht erreichbar.
+
+### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
+
+Der Worker läuft aus einem Image ohne `git`. Das mitgelieferte
+`backend/Dockerfile` installiert es; einem eigenen Image muss es hinzugefügt
+werden.
+
+### Git: ein Sync endete ohne verarbeitete Dateien { #git-a-sync-finished-with-no-files-processed }
+
+Der Head-Commit des Branches ist derjenige, den der letzte saubere Lauf unter
+derselben Konfiguration gelesen hat, also gab es nichts zu tun. Stellen Sie die
+Quelle für einen Lauf auf `full`, um ungeachtet dessen wieder alles zu lesen.
 
 ### Geplante Syncs laufen nicht { #scheduled-syncs-are-not-running }
 

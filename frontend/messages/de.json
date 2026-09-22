@@ -4281,6 +4281,7 @@
       "searching": "Wird gesucht …"
     },
     "skippedCount": "{count} übersprungen",
+    "removedCount": "{count} entfernt",
     "sourceName": "Name der Quelle",
     "stepConfigure": "Konfigurieren",
     "stepCredential": "Zugangsdaten",

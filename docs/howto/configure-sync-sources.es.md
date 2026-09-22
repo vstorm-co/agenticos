@@ -1,14 +1,14 @@
 ---
-source_sha: "482d37ce9407"
+source_sha: "1c539a892212"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
 
 Las fuentes de sincronización traen documentos de servicios externos (Google
-Drive, S3/MinIO) a las colecciones de conocimiento por su cuenta. Cada fuente
-guarda un tipo de connector, una colección de destino, opciones propias del
-connector, un modo de sincronización, un horario opcional y el id del
-[secreto del vault](../secrets.md) que la autentica.
+Drive, S3/MinIO, repositorios Git) a las colecciones de conocimiento por su
+cuenta. Cada fuente guarda un tipo de connector, una colección de destino,
+opciones propias del connector, un modo de sincronización, un horario opcional y
+el id del [secreto del vault](../secrets.md) que la autentica.
 
 Cuando se ejecuta una sincronización, el connector lista los archivos remotos,
 los descarga a un directorio temporal y los pasa por la cadena de ingesta
@@ -33,7 +33,7 @@ constancia del resultado de cada operación de sincronización.
 ### Listar los tipos de connector disponibles { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -63,6 +63,23 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Añadir una fuente de Git -- la documentación de un repositorio, cada noche { #add-a-git-source-a-repositorys-docs-nightly }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Después elige su token de acceso como credencial de la fuente en la interfaz, o
+envía `secret_id` con un `PATCH` — consulta
+[Configurar un repositorio Git](#git-repository-setup).
+
 ### Lanzar una sincronización a mano { #trigger-sync-manually }
 
 ```bash
@@ -86,8 +103,8 @@ el listado de `rag-sources`.
 
 1. Ve a **Knowledge Base** y abre la pestaña **Sync**.
 2. Pulsa **"+ Add Source"**.
-3. Elige un tipo de connector (Google Drive, S3). Los campos del formulario se
-   generan a partir del JSON Schema del `CONFIG_MODEL` del connector.
+3. Elige un tipo de connector (Google Drive, S3, Git repository). Los campos del
+   formulario se generan a partir del JSON Schema del `CONFIG_MODEL` del connector.
 4. Rellena los campos de configuración propios del connector (por ejemplo, el
    ID de la carpeta o el nombre del bucket).
 5. Elige una colección de destino, un modo de sincronización y un intervalo de
@@ -114,6 +131,31 @@ cualquier cliente HTTP.
     no han cambiado, que es la sincronización incremental más rápida.
     `update_only` refresca los documentos existentes sin añadir ninguno nuevo;
     `full` es una reimportación limpia cada vez.
+
+### Qué hace una segunda sincronización { #what-a-second-sync-does }
+
+Una sincronización posterior a la primera hace tan poco como la fuente le
+permite:
+
+- **Un archivo sin cambios cuesta una descarga, no un embedding.** Su SHA-256
+  coincide con el del documento almacenado, así que se cuenta como `skipped` y
+  no se vuelve a parsear ni a embeber.
+- **Una fuente sin cambios cuesta una petición.** Un connector capaz de decir en
+  qué punto está todo su contenido —el commit de cabeza de una rama de Git— lo
+  registra después de cada ejecución que termina sin ningún fallo. La siguiente
+  ejecución `new_only` o `update_only` que encuentra el mismo valor, con la misma
+  configuración, se detiene antes de listar nada: su registro no muestra ningún
+  archivo procesado. Cambiar la configuración, la colección o el modo hace que la
+  siguiente ejecución lo vuelva a leer todo, y `full` nunca se detiene antes.
+- **Un archivo borrado se elimina.** Tras un listado completo, un documento que
+  la fuente ingirió antes y que ya no aparece en el listado se borra de la
+  colección —primero los vectores, luego su fila— y se cuenta como `removed`. Un
+  listado que falla no elimina nada. Las fuentes Git lo hacen; las fuentes de
+  Google Drive y S3 conservan todos los documentos que han ingerido hasta que
+  alguien los borra a mano.
+
+Una ejecución con un archivo fallido no registra ningún estado, así que la
+siguiente lee la fuente entera y vuelve a intentarlo.
 
 ## Horario { #schedule }
 
@@ -221,6 +263,82 @@ En MinIO, el endpoint suele ser `http://minio:9000` (Docker) o
 | `bucket` | string | Sí | -- | Nombre del bucket de S3 |
 | `prefix` | string | No | `""` | Prefijo de clave que acota el alcance de la sincronización (por ejemplo, `documents/legal/`). Déjalo vacío para el bucket entero. |
 
+## Configurar un repositorio Git { #git-repository-setup }
+
+Una fuente `git` lee la documentación de un repositorio por HTTPS: GitHub, GitLab
+o cualquier otro host que sirva git por HTTPS. Necesita la URL de clonado y un
+token de acceso, no la API de ninguna de las dos plataformas.
+
+### 1. Emite un token para ese único repositorio { #1-issue-a-token-for-the-one-repository }
+
+**El alcance del token es el alcance de la fuente.** Todo lo que la fuente
+ingiere pasa a poder buscarlo cualquiera que pueda leer la colección, así que un
+token capaz de leer todos los repositorios privados que puede leer su dueño es un
+token capaz de publicarlos todos para ese público. Consulta [quién acaba pudiendo
+leer lo que ingirió una
+fuente](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** un personal access token de tipo fine-grained, con *Only select
+  repositories*, ese único repositorio y **Contents: Read-only** como único
+  permiso.
+- **GitLab:** un project access token en ese único proyecto, con el rol
+  **Reporter** y solo el scope **`read_repository`**.
+
+Ponle una fecha de caducidad. Cuando caduque, la siguiente sincronización de la
+fuente falla con *the repository refused the source's token*, y la solución es un
+token nuevo en el mismo secreto del vault.
+
+### 2. Añádelo al vault { #2-add-it-to-the-vault }
+
+Añade el token al vault como **API key** y elígelo en el paso de credencial de la
+fuente. Se envía en una cabecera HTTP `Authorization`, nunca en la URL ni en una
+línea de comandos que otro proceso pueda leer.
+
+### 3. Campos de configuración del connector de Git { #3-git-connector-config-fields }
+
+| Campo | Tipo | Obligatorio | Valor por defecto | Descripción |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Sí | -- | La URL de clonado HTTPS, por ejemplo `https://github.com/acme/handbook.git`. Sin nombre de usuario ni token. |
+| `branch` | string | No | `main` | La rama que se lee. |
+| `path_prefix` | string | No | -- | Un directorio dentro del repositorio, por ejemplo `docs`. Déjalo vacío para el repositorio entero. |
+| `include` | lista de strings | No | `**/*.md`, `**/*.txt` | Qué archivos se ingieren, como patrones al estilo de `.gitignore` relativos a `path_prefix`. |
+
+El valor por defecto es la documentación, no el árbol entero: el código fuente de
+un repositorio no es un corpus, e ingerirlo llena la base de conocimiento de
+código que nadie ha pedido buscar. Añade un patrón como `**/*.pdf` para otro
+formato que lea el parser de la colección. Un patrón no puede empezar por `!`.
+
+Cada archivo es un documento cuya dirección es
+`git://<host>/<owner>/<repo>@<branch>/<path>`. La rama forma parte de la
+dirección, así que dos fuentes que leen dos ramas de un mismo repositorio en una
+misma colección mantienen documentos separados.
+
+### 4. Qué transfiere una sincronización { #4-what-a-sync-transfers }
+
+La primera petición de cada sincronización es `git ls-remote` para la rama: más o
+menos un kilobyte. Si el commit de cabeza no se ha movido desde la última
+ejecución limpia, la sincronización se detiene ahí. Si se ha movido, el connector
+hace un clonado superficial, parcial y disperso (shallow, partial, sparse): un
+solo commit, y solo los archivos que casan con los patrones de inclusión. Por eso
+la documentación de un monorepo cuesta lo que su documentación, no lo que su
+árbol de código.
+
+Los enlaces simbólicos y los submódulos no se siguen, y un enlace no se ingiere
+como documento.
+
+### Reglas de red { #network-rules }
+
+La URL tiene que ser `https://`. Su host se resuelve una sola vez y se comprueba
+como cualquier otra dirección que elige un inquilino: un host que resuelve a una
+dirección privada, de loopback o link-local se rechaza al guardar la fuente y de
+nuevo al sincronizar, y git solo se conecta a las direcciones que esa
+comprobación aprobó. Las redirecciones no se siguen. Un deployment detrás de un
+proxy de salida (`HTTPS_PROXY`) lo sigue usando; en ese caso el proxy resuelve el
+host por su cuenta.
+
+La imagen del worker incluye `git`. Un worker construido a partir de otra imagen
+necesita `git` 2.37 o posterior en su `PATH`.
+
 ## Referencia de la API { #api-reference }
 
 Todos los endpoints de las fuentes de sincronización viven bajo
@@ -325,8 +443,9 @@ Cada sincronización crea una entrada de `SyncLog` con estos campos:
 | `ingested` | Ingestados correctamente (nuevos) |
 | `updated` | Reingestados correctamente (reemplazados) |
 | `skipped` | Omitidos (ya presentes o sin cambios) |
+| `removed` | Borrados porque la fuente ya no los lista |
 | `failed` | No se pudieron ingestar |
-| `error_message` | Detalle del error (si `status` es `error`) |
+| `error_message` | Por qué se detuvo la sincronización, o cuántos archivos fallaron (si `status` es `error`) |
 | `started_at` | Cuándo empezó la sincronización |
 | `completed_at` | Cuándo terminó la sincronización |
 
@@ -372,6 +491,7 @@ los tipos disponibles con `rag-sources` o con
 `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) está disponible.
 S3 (`s3`) está disponible.
+Git (`git`) está disponible.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -402,6 +522,42 @@ La cuenta de servicio necesita al menos acceso Viewer.
 Comprueba que `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` y `S3_RAG_ENDPOINT` están
 bien puestos en el `.env`. En MinIO, asegúrate de que el endpoint incluye el
 puerto (por ejemplo, `http://localhost:9000`).
+
+### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
+
+El token ha caducado, se ha revocado o no puede leer este repositorio. Emite uno
+nuevo como se describe en [Configurar un repositorio Git](#git-repository-setup)
+y sustituye el valor del secreto del vault que usa la fuente; todas las fuentes
+que usan ese secreto lo recogen en su siguiente sincronización.
+
+### Git: "The repository was not found, or the source's token cannot see it" { #git-the-repository-was-not-found-or-the-sources-token-cannot-see-it }
+
+Comprueba primero la URL de clonado. Un repositorio privado responde *not found*
+en lugar de *forbidden* a un token que no puede leerlo, así que un token
+fine-grained emitido para otro repositorio se ve así.
+
+### Git: "The repository has no branch named …" { #git-the-repository-has-no-branch-named }
+
+El campo `branch` nombra una rama que el repositorio no tiene. Su valor por
+defecto es `main`; la rama por defecto de un repositorio más antiguo puede ser
+`master`.
+
+### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
+
+El host del repositorio resuelve dentro de la red del deployment, así que la
+fuente se rechaza. Una fuente de sincronización no puede llegar a un servidor Git
+autoalojado en una dirección interna.
+
+### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
+
+El worker se ejecuta desde una imagen sin `git`. El `backend/Dockerfile` que se
+distribuye lo instala; a una imagen propia hay que añadírselo.
+
+### Git: una sincronización terminó sin ningún archivo procesado { #git-a-sync-finished-with-no-files-processed }
+
+El commit de cabeza de la rama es el mismo que leyó la última ejecución limpia,
+con la misma configuración, así que no había nada que hacer. Cambia la fuente a
+`full` durante una ejecución para volver a leerlo todo de todos modos.
 
 ### Las sincronizaciones programadas no se ejecutan { #scheduled-syncs-are-not-running }
 
