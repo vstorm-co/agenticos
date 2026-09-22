@@ -25,7 +25,10 @@ What one conversion is held to, all of it from the two it replaced:
 - a **per-call user profile**, because LibreOffice refuses a second instance
   sharing one, so without it concurrent conversions fail on its lock;
 - a **semaphore**, because the subprocess runs outside the `run_blocking`
-  admission gate and N uploads would otherwise be N LibreOffice processes;
+  admission gate and N uploads would otherwise be N LibreOffice processes -
+  with the wait for a slot inside the caller's deadline rather than extra to it,
+  since two RAG conversions holding both slots for their own 600s would
+  otherwise make a chat conversion's 60s mean ten minutes;
 - **OS resource limits**, applied in a fresh single-threaded Python launcher
   rather than an unsafe `preexec_fn` - arbitrary Python between fork and exec is
   documented-unsafe in a multithreaded process;
@@ -47,10 +50,13 @@ import shutil
 import signal
 import sys
 import tempfile
+import uuid
 import weakref
+from functools import partial
 from pathlib import Path
 from typing import cast
 
+from app.core.blocking import create_cancel_safe, delete_cancel_safe
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -154,17 +160,19 @@ async def convert(
         convert_to: LibreOffice's own `--convert-to` value - `pdf`, `txt:Text`.
         extension: The suffix the produced file carries, so the caller does not
             have to parse `convert_to` back apart.
-        timeout_seconds: The ceiling on the conversion. The child's CPU limit is
-            set five seconds above it, so a runaway is stopped by the kernel
-            even if the wait is somehow not reached.
+        timeout_seconds: The ceiling on the whole call, **including the wait for
+            a converter slot**. What is left of it after the wait is what the
+            subprocess gets, and the child's CPU limit is set five seconds above
+            that, so a runaway is stopped by the kernel even if the wait is
+            somehow not reached.
         output_max_bytes: `RLIMIT_FSIZE` for the child, or `0` for no limit.
 
     Returns:
         `out_dir / f"{source.stem}.{extension}"`.
 
     Raises:
-        OfficeConversionTimeout: The conversion exceeded `timeout_seconds`; its
-            process group has been terminated.
+        OfficeConversionTimeout: The call exceeded `timeout_seconds`, waiting for
+            a slot or converting; a started process group has been terminated.
         OfficeConversionError: LibreOffice is not installed, exited non-zero, or
             produced no output.
     """
@@ -173,16 +181,33 @@ async def convert(
         raise OfficeConversionError(
             f"Cannot convert {source.name}: LibreOffice (soffice) is not installed"
         )
-    async with _semaphore():
+    # The deadline is the caller's, and the queue is inside it. Started only
+    # after the semaphore, `timeout_seconds` measured nothing a caller was
+    # waiting on: with two slots held by RAG conversions of up to 600s each, a
+    # chat conversion asking for 60s could sit for ten minutes before its own
+    # timer began, and the RAG parser's whole-document deadline could be blown
+    # in the same queue (#1767).
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_seconds
+    semaphore = _semaphore()
+    try:
+        await asyncio.wait_for(semaphore.acquire(), timeout=timeout_seconds)
+    except TimeoutError:
+        raise OfficeConversionTimeout(
+            f"Converting {source.name} exceeded {timeout_seconds:g}s waiting for a converter"
+        ) from None
+    try:
         return await _convert(
             command,
             source,
             out_dir,
             convert_to=convert_to,
             extension=extension,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=deadline - loop.time(),
             output_max_bytes=output_max_bytes,
         )
+    finally:
+        semaphore.release()
 
 
 async def convert_to_pdf(source: Path, out_dir: Path, *, timeout_seconds: float) -> Path:
@@ -209,7 +234,18 @@ async def _convert(
     # LibreOffice refuses to run two instances that share a user profile, so a
     # per-call profile directory is what lets concurrent conversions run at the
     # same time instead of the second one failing to acquire the lock.
-    profile_dir = Path(tempfile.mkdtemp(prefix="soffice-profile-"))
+    #
+    # Made and removed on the file pool, not on the loop: this is the same
+    # blocking filesystem work the chat path already offloads around it, and
+    # LibreOffice writes into the profile, so on a contended temporary
+    # filesystem the create and the recursive removal both stall unrelated
+    # requests (#1108, #1591). The name is chosen here rather than by `mkdtemp`
+    # so the undo has a path to remove whether or not the create got that far.
+    profile_dir = Path(tempfile.gettempdir()) / f"soffice-profile-{uuid.uuid4().hex}"
+    await create_cancel_safe(
+        partial(profile_dir.mkdir, 0o700),
+        partial(shutil.rmtree, profile_dir, True),
+    )
     try:
         proc = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -268,7 +304,11 @@ async def _convert(
             raise OfficeConversionError(f"LibreOffice produced no output for {source.name}")
         return produced
     finally:
-        shutil.rmtree(profile_dir, ignore_errors=True)
+        # Shielded, because this runs while a cancellation is propagating out of
+        # the block above: a plain `run_blocking` here would be cancelled before
+        # it submitted anything and leave the profile behind on every torn-down
+        # collection and drained worker.
+        await delete_cancel_safe(shutil.rmtree, profile_dir, True)
 
 
 async def _drain(proc: asyncio.subprocess.Process) -> bytes:
