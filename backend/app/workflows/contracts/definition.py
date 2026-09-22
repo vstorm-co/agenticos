@@ -69,8 +69,3 @@ class NodeDefinition:
     retry_guarantee: Literal["none", "idempotent", "at_least_once"]
     scopes: frozenset[str] = frozenset()
     handler: NodeHandler | None = None
-
-    @property
-    def key(self) -> tuple[str, int]:
-        """The identity a graph pins and the registry keys on."""
-        return (self.id, self.version)
