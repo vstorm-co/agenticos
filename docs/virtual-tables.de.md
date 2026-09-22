@@ -1,5 +1,5 @@
 ---
-source_sha: "7d4c12a83afc"
+source_sha: "552f799bfde6"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -222,10 +222,14 @@ Mitglied und Organisation begrenzt, in der Konsole ebenso wie über die API; ein
 darüber erhält ein 429 mit `Retry-After`. Siehe [Konfiguration](configuration.md#rate-limiting).
 
 **Was die Historie aufbewahrt.** Ein Create hält den ganzen Datensatz in `after`, ein Delete
-den ganzen Datensatz in `before`; das Datensatzlimit begrenzt beides. Ein Update hält nur die
-Zellen, die sich geändert haben: `before` enthält ihre früheren Werte und `after` die neuen,
-und eine Spalte, die auf einer Seite fehlt, war dort leer. Das Bearbeiten einer Zelle eines
-großen Datensatzes kostet daher eine Zelle, wie oft es auch wiederholt wird.
+den ganzen Datensatz in `before`; das Datensatzlimit begrenzt beides. Ein Datensatz, der
+älter als das Limit ist oder geschrieben wurde, bevor `TABLES_MAX_RECORD_BYTES` gesenkt
+wurde, kann immer noch darüber liegen - sein Delete hält `before` dann als
+`{"omitted": {"bytes": <seine Größe>, "limit": <das Limit>}}` statt der Werte, und gelingt
+trotzdem. Ein Update hält nur die Zellen, die sich geändert haben: `before` enthält ihre
+früheren Werte und `after` die neuen, und eine Spalte, die auf einer Seite fehlt, war dort
+leer. Das Bearbeiten einer Zelle eines großen Datensatzes kostet daher eine Zelle, wie oft
+es auch wiederholt wird.
 
 **Aufbewahrung.** Der tägliche [Aufbewahrungs-Sweep](governance.md#retention) entfernt auch
 Tabellendaten, hart und in Batches, für jede Organisation:
@@ -239,6 +243,12 @@ Tabellendaten, hart und in Batches, für jede Organisation:
 Der Sweep schreibt einen Audit-Eintrag je Organisation, der die Klasse (`table_receipts`,
 `table_outbox`, `table_history`) und die Anzahl nennt. Es sind Einstellungen des Deployments,
 keine je Organisation. Die Datensätze selbst und die Tabellen entfernt er nie.
+
+Ein Durchlauf entfernt so viel wie ein Tag an Schreibzugriffen bei
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` für jede der drei Klassen, je Organisation - genug,
+dass ein höheres Rate Limit auch anhebt, was ein täglicher Durchlauf entfernen kann, sodass
+ein Mitglied, das ununterbrochen schreibt, dem Sweep nie davonläuft. Ein Rückstand darüber
+hinaus wird wie bei jeder anderen Klasse über mehrere Durchläufe abgearbeitet.
 
 ## Wer was darf { #who-can-do-what }
 

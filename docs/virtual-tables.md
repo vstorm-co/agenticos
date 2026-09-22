@@ -197,10 +197,13 @@ and organization, in the console as much as over the API; a member over it gets 
 `Retry-After`. See [configuration](configuration.md#rate-limiting).
 
 **What history keeps.** A create keeps the whole record in `after`, and a delete keeps the
-whole record in `before`; the record limit bounds both. An update keeps only the cells
-that changed: `before` holds their earlier values and `after` their new ones, and a column
-missing from one side was empty there. Editing one cell of a large record therefore costs
-one cell, however often it is repeated.
+whole record in `before`; the record limit bounds both. A record that predates the limit,
+or was written before `TABLES_MAX_RECORD_BYTES` was lowered, can still be over it - its
+delete then keeps `before` as `{"omitted": {"bytes": <its size>, "limit": <the limit>}}`
+instead of the values, and still succeeds. An update keeps only the cells that changed:
+`before` holds their earlier values and `after` their new ones, and a column missing from
+one side was empty there. Editing one cell of a large record therefore costs one cell,
+however often it is repeated.
 
 **Retention.** The daily [retention sweep](governance.md#retention) also removes table
 data, hard-deleting in batches, for every organization:
@@ -214,6 +217,11 @@ data, hard-deleting in batches, for every organization:
 The sweep writes one audit entry per organization, naming the class (`table_receipts`,
 `table_outbox`, `table_history`) and the count. These are deployment settings, not
 per-organization ones. The records themselves and the tables are never removed by it.
+
+One pass removes up to a day's worth of writes at `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` for
+each of the three classes, per organization - enough that raising the rate limit raises what
+one daily pass can drain along with it, so a member writing flat out never outpaces the
+sweep. A backlog beyond that is worked off over several passes, the same as any other class.
 
 ## Who can do what { #who-can-do-what }
 

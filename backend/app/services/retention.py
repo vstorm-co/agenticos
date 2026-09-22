@@ -69,6 +69,29 @@ turn. A backlog is worked off over several sweeps rather than in one that runs
 for an hour and blocks every other periodic flow behind it."""
 
 
+def _table_sweep_max_batches() -> int:
+    """How many batches one Virtual Tables class may take in one organization's pass.
+
+    `MAX_BATCHES` bounds an older class at `BATCH * MAX_BATCHES` = 20,000 rows a pass, which
+    is generous for conversations or runs - nobody writes tens of thousands of those a day -
+    but not for a receipt or a history row. At the default `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+    one member can write up to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` of them a day,
+    432,000 at the shipped default, and a daily sweep held to the older classes' bound would
+    fall behind any organization writing anywhere near that rate - the backlog growing without
+    end rather than draining, which is the whole defect this exists to close.
+
+    So the three table classes get their own budget: the most one organization could have
+    queued for removal since the last sweep, at the deployment's *own* rate limit rather than
+    a number baked in here, so raising `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` raises the budget
+    with it. `max(MAX_BATCHES, ...)` keeps a deployment that has lowered the write limit no
+    worse off than an older class. A backlog beyond even this is still worked off over several
+    sweeps, exactly as an older class is - this only makes "one pass drains one day's worth"
+    true again; it does not promise more.
+    """
+    per_organization_per_day = settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24
+    return max(MAX_BATCHES, -(-per_organization_per_day // BATCH))
+
+
 @dataclass
 class SweepResult:
     """What one organization's sweep removed, and what it could not."""
@@ -263,9 +286,10 @@ class RetentionService:
                 moment - timedelta(days=settings.TABLES_HISTORY_RETENTION_DAYS),
             ),
         )
+        max_batches = _table_sweep_max_batches()
         for name, delete_batch, cutoff in sweeps:
             try:
-                for _ in range(MAX_BATCHES):
+                for _ in range(max_batches):
                     # Per batch, for the reason `_purge` gives.
                     async with self.db.begin_nested():
                         took = await delete_batch(

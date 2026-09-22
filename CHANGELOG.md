@@ -48,7 +48,13 @@ Two things are versioned separately from this file and worth knowing about:
   `TABLES_HISTORY_RETENTION_DAYS`), with one audit entry per organization naming the
   class and count. Table writes, in the console as much as over the API, are limited
   to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member and organization. A
-  retried write whose receipt has expired now executes as a new write. Migration
+  retried write whose receipt has expired now executes as a new write. A record
+  already over the size limit still deletes, keeping a byte-count marker in its
+  history row instead of the values; a duplicate external id on a full table
+  answers `ALREADY_EXISTS` rather than `QUOTA_EXCEEDED`; and the daily sweep's
+  budget for receipts, outbox rows and history now scales with
+  `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`, so one pass keeps draining a member
+  writing at the limit instead of falling behind it. Migration
   `0093_virtual_table_sweep_indexes.py`; see [Virtual Tables](docs/virtual-tables.md).
 
 ## [0.0.476] - 2026-09-21

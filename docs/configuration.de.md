@@ -1,5 +1,5 @@
 ---
-source_sha: "0f6d3de0b84c"
+source_sha: "83b750ee5cbc"
 ---
 
 # Konfiguration { #configuration }
@@ -1221,13 +1221,21 @@ einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
 |----------|---------|-------------|
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabellen je Organisation. Archivierte zählen mit, weil nichts eine Tabelle löscht |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Datensätze in einer Tabelle |
-| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten; ein bereits über dem Limit liegender Datensatz wird trotzdem gelöscht und behält nur eine Größenmarkierung statt der Werte |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird. Nicht zugestellte Zeilen werden nie entfernt |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Wie lange die History eines Datensatzes aufbewahrt wird, ab der Änderung gezählt, auch für einen gelöschten Datensatz |
 
 Die drei Fristen wendet der tägliche [Aufbewahrungs-Sweep](governance.md#retention) für
 jede Organisation an; es sind keine Einstellungen je Organisation.
+
+Das Budget eines Durchlaufs für diese drei Klassen skaliert mit
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` statt mit einer festen Anzahl Batches: Ein Durchlauf
+entfernt so viel wie ein Tag an Schreibzugriffen bei diesem Tempo für jede Klasse, je
+Organisation (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` Zeilen, in Batches von 500),
+sodass ein höheres Rate Limit auch anhebt, was ein täglicher Durchlauf entfernen kann. Ein
+Rückstand über dieses Budget hinaus wird einfach über mehrere Durchläufe abgearbeitet, wie
+bei jeder anderen Aufbewahrungsklasse.
 
 ## Ein Worker, dessen Event Loop sich nicht mehr dreht { #a-worker-whose-event-loop-has-stopped-turning }
 

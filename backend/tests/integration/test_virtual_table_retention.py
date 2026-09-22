@@ -235,20 +235,30 @@ async def test_each_organizations_rows_are_swept_on_their_own(db):
     assert ours_owner.id != theirs_owner.id
 
 
-async def test_a_backlog_is_worked_off_in_batches_over_several_sweeps(db, monkeypatch):
+async def test_an_older_classs_backlog_is_worked_off_in_batches_over_several_sweeps(
+    db, monkeypatch
+):
+    """MAX_BATCHES still bounds an older class across passes; the table classes below get
+    their own budget, sized against the write rate rather than this fixed one."""
     owner, org, _table = await _tenant(db)
+    org.retention_days = {"workspaces": 1}
     monkeypatch.setattr(retention_module, "BATCH", 2)
     monkeypatch.setattr(retention_module, "MAX_BATCHES", 2)
-    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
-    db.add_all([_receipt(org, owner, f"k{n}", age=expired) for n in range(5)])
-    await db.flush()
+    remaining = {"n": 5}
+
+    async def delete_up_to_the_batch_size(db, *, organization_id, cutoff, limit):
+        took = min(limit, remaining["n"])
+        remaining["n"] -= took
+        return took
+
+    monkeypatch.setattr(retention_repo, "delete_workspaces", delete_up_to_the_batch_size)
 
     (first,) = await _sweep(db)
     (second,) = await _sweep(db)
 
-    assert first.removed == {"table_receipts": 4}
-    assert second.removed == {"table_receipts": 1}
-    assert await _count(db, VirtualTableReceipt, org) == 0
+    assert first.removed == {"workspaces": 4}
+    assert second.removed == {"workspaces": 1}
+    assert owner.id
 
 
 async def test_a_class_that_fails_is_named_and_the_others_still_sweep(db, monkeypatch):
@@ -446,3 +456,51 @@ async def test_a_class_that_removed_nothing_before_failing_is_not_reported_as_re
 
     assert "table_outbox" not in result.removed
     assert (await _audited(db, org))["failed"] == ["table_outbox"]
+
+
+async def test_a_table_class_drains_a_backlog_bigger_than_the_older_classes_cap_in_one_pass(
+    db, monkeypatch
+):
+    """The old MAX_BATCHES=40 cap at BATCH=2 would be 80 rows; this proves a table class is no
+    longer held to that, by draining more than it in one pass at the default write-rate budget.
+    """
+    owner, org, _table = await _tenant(db)
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    over_the_old_cap = 100
+    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    db.add_all([_receipt(org, owner, f"k{n}", age=expired) for n in range(over_the_old_cap)])
+    await db.flush()
+
+    (result,) = await _sweep(db)
+
+    assert result.removed == {"table_receipts": over_the_old_cap}
+    assert await _count(db, VirtualTableReceipt, org) == 0
+
+
+async def test_a_smaller_table_sweep_budget_leaves_the_remainder_for_the_next_pass(db, monkeypatch):
+    """The budget is derived from the write-rate setting; lowering it lowers what one pass
+    drains, exactly as MAX_BATCHES already does for the older classes."""
+    owner, org, _table = await _tenant(db)
+    monkeypatch.setattr(retention_module, "BATCH", 2)
+    monkeypatch.setattr(retention_module, "_table_sweep_max_batches", lambda: 2)
+    expired = timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    db.add_all([_receipt(org, owner, f"k{n}", age=expired) for n in range(5)])
+    await db.flush()
+
+    (first,) = await _sweep(db)
+    (second,) = await _sweep(db)
+
+    assert first.removed == {"table_receipts": 4}
+    assert second.removed == {"table_receipts": 1}
+    assert await _count(db, VirtualTableReceipt, org) == 0
+
+
+def test_the_table_sweep_budget_scales_with_the_write_rate_setting(monkeypatch):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 60)
+    monkeypatch.setattr(retention_module, "BATCH", 500)
+    monkeypatch.setattr(retention_module, "MAX_BATCHES", 40)
+
+    assert retention_module._table_sweep_max_batches() == 173  # ceil(60*60*24 / 500)
+
+    monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 1)
+    assert retention_module._table_sweep_max_batches() == 40  # never below MAX_BATCHES

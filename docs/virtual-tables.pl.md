@@ -1,5 +1,5 @@
 ---
-source_sha: "7d4c12a83afc"
+source_sha: "552f799bfde6"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -208,10 +208,13 @@ przez API; członek ponad limit dostaje 429 z `Retry-After`. Zobacz
 [konfigurację](configuration.md#rate-limiting).
 
 **Co trzyma history.** Create trzyma cały rekord w `after`, a delete trzyma cały rekord w
-`before`; limit rekordu ogranicza oba. Update trzyma tylko komórki, które się zmieniły:
-`before` zawiera ich wcześniejsze wartości, a `after` nowe, a kolumna nieobecna po jednej
-stronie była tam pusta. Edycja jednej komórki dużego rekordu kosztuje więc jedną komórkę,
-choćby powtarzana bez końca.
+`before`; limit rekordu ogranicza oba. Rekord sprzed limitu, albo zapisany zanim
+`TABLES_MAX_RECORD_BYTES` obniżono, wciąż może go przekraczać - jego delete trzyma wtedy
+`before` jako `{"omitted": {"bytes": <jego rozmiar>, "limit": <limit>}}` zamiast wartości,
+i mimo to się udaje. Update trzyma tylko komórki, które się zmieniły: `before` zawiera ich
+wcześniejsze wartości, a `after` nowe, a kolumna nieobecna po jednej stronie była tam
+pusta. Edycja jednej komórki dużego rekordu kosztuje więc jedną komórkę, choćby powtarzana
+bez końca.
 
 **Retencja.** Codzienny [sweep retencji](governance.md#retention) usuwa też dane tabel,
 twardo i partiami, dla każdej organizacji:
@@ -225,6 +228,12 @@ twardo i partiami, dla każdej organizacji:
 Sweep zapisuje jeden wpis audytu na organizację, nazywający klasę (`table_receipts`,
 `table_outbox`, `table_history`) i liczbę. To ustawienia wdrożenia, a nie per organizacja.
 Samych rekordów i tabel sweep nigdy nie usuwa.
+
+Jeden przebieg usuwa aż tyle, ile jeden dzień zapisów przy `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+dla każdej z trzech klas, per organizacja - wystarczająco, by podniesienie rate limitu
+podniosło też to, co jeden dzienny przebieg potrafi usunąć, więc member piszący bez przerwy
+nigdy nie wyprzedza sweepa. Zaległość ponad to jest usuwana w kilku kolejnych przebiegach,
+tak jak w każdej innej klasie.
 
 ## Kto co może { #who-can-do-what }
 

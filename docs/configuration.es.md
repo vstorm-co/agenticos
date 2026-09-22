@@ -1,5 +1,5 @@
 ---
-source_sha: "0f6d3de0b84c"
+source_sha: "83b750ee5cbc"
 ---
 
 # Configuración { #configuration }
@@ -1155,13 +1155,21 @@ límite, nunca el contenido.
 |----------|---------|-------------|
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tablas por organización. Las archivadas cuentan, porque nada borra una tabla |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Registros en una tabla |
-| `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt; un registro ya por encima del límite igualmente se borra, conservando solo una marca con el tamaño en vez de los valores |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada. Las no despachadas nunca se eliminan |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Cuánto tiempo se conserva el history de un registro, contado desde el cambio, también para un registro borrado |
 
 Los tres periodos de retención los aplica el [barrido de retención](governance.md#retention)
 diario, para cada organización; no son ajustes por organización.
+
+El presupuesto de un barrido para estas tres clases escala con
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` en vez de con un número fijo de lotes: un barrido
+elimina hasta lo que un día de escrituras a ese ritmo produce en cada clase, por
+organización (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` filas, en lotes de 500), así
+que subir el límite de tasa también sube lo que un barrido diario puede eliminar. Un rezago
+por encima de ese presupuesto simplemente se trabaja en varios barridos, igual que en
+cualquier otra clase de retención.
 
 ## Un worker cuyo bucle de eventos ha dejado de girar { #a-worker-whose-event-loop-has-stopped-turning }
 

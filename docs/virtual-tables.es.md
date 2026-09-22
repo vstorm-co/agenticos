@@ -1,5 +1,5 @@
 ---
-source_sha: "7d4c12a83afc"
+source_sha: "552f799bfde6"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -209,10 +209,13 @@ miembro y organización, en la consola igual que por la API; un miembro por enci
 429 con `Retry-After`. Consulta [configuración](configuration.md#rate-limiting).
 
 **Qué guarda el historial.** Un create guarda el registro completo en `after`, y un delete
-guarda el registro completo en `before`; el límite del registro acota ambos. Un update guarda
-solo las celdas que cambiaron: `before` contiene sus valores anteriores y `after` los nuevos,
-y una columna ausente de un lado estaba vacía allí. Editar una celda de un registro grande
-cuesta por tanto una celda, por muchas veces que se repita.
+guarda el registro completo en `before`; el límite del registro acota ambos. Un registro
+anterior al límite, o escrito antes de que se bajara `TABLES_MAX_RECORD_BYTES`, puede seguir
+superándolo - su delete guarda entonces `before` como
+`{"omitted": {"bytes": <su tamaño>, "limit": <el límite>}}` en vez de los valores, y aun así
+se completa. Un update guarda solo las celdas que cambiaron: `before` contiene sus valores
+anteriores y `after` los nuevos, y una columna ausente de un lado estaba vacía allí. Editar
+una celda de un registro grande cuesta por tanto una celda, por muchas veces que se repita.
 
 **Retención.** El [barrido de retención](governance.md#retention) diario elimina también los
 datos de las tablas, de verdad y por lotes, para cada organización:
@@ -226,6 +229,12 @@ datos de las tablas, de verdad y por lotes, para cada organización:
 El barrido escribe una entrada de auditoría por organización, que nombra la clase
 (`table_receipts`, `table_outbox`, `table_history`) y el recuento. Son ajustes del
 deployment, no por organización. Los registros y las tablas nunca los elimina.
+
+Un barrido elimina hasta lo que un día de escrituras a `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+produce en cada una de las tres clases, por organización - suficiente para que subir el
+límite de tasa suba también lo que un barrido diario puede eliminar, de modo que un miembro
+que escribe sin parar nunca adelanta al barrido. Un rezago mayor se trabaja en varios
+barridos más, igual que en cualquier otra clase.
 
 ## Quién puede hacer qué { #who-can-do-what }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f6d3de0b84c"
+source_sha: "83b750ee5cbc"
 ---
 
 # Konfiguracja { #configuration }
@@ -1143,13 +1143,20 @@ kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść
 |----------|---------|-------------|
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
-| `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox. Niewysłane wiersze nigdy nie są usuwane |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
 
 Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention), dla
 każdej organizacji; nie są ustawieniami per organizacja.
+
+Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+zamiast ze stałej liczby batchy: jeden przebieg usuwa aż tyle, ile jeden dzień zapisów przy
+tym tempie dla każdej klasy, per organizacja (`RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24`
+wierszy, w batchach po 500), więc podniesienie rate limitu podnosi też to, co jeden dzienny
+przebieg potrafi usunąć. Zaległość ponad ten budżet jest po prostu usuwana w kilku
+przebiegach, tak jak w każdej innej klasie retencji.
 
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 
