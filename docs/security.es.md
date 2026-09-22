@@ -1,5 +1,5 @@
 ---
-source_sha: "e5ee0101434e"
+source_sha: "f53826ec2974"
 ---
 
 # Seguridad { #security }
@@ -234,7 +234,8 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | TLS hacia PostgreSQL y Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` informa del estado en vivo de Postgres desde `pg_stat_ssl` | Postgres, sobre una conexión real: `test_store_tls.py`; Redis, al construir la URL y en `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Cabeceras de framing y MIME en cada respuesta; CSP en todas salvo los endpoints de la referencia de la API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), cuyos `exclude_paths` quitan la CSP — no el framing ni el MIME — para OpenAPI, Swagger y ReDoc; más la CSP propia del frontend por deployment (`frontend/src/middleware.ts`), cuyo `script-src` lleva un nonce por petición y `'strict-dynamic'` en vez de `'unsafe-inline'` | `test_security_headers.py`, incluido `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS y HSTS | Terminados en el reverse proxy — el `nginx/nginx.conf` incluido pone HSTS; la aplicación no, por diseño | Asunto del deployment; ver la lista de endurecimiento |
-| Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed y las páginas alojadas (`app/services/rate_limit.py`); límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; el límite del bot de canal está implementado, pero poco testeado |
+| Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — más `connect-src 'none'` y `frame-ancestors` nombrando solo la consola; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `artifacts.test.tsx`, `csp.test.ts` |
+| Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed, las páginas alojadas y los enlaces públicos de artefactos (`app/services/rate_limit.py`); límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; el límite del bot de canal está implementado, pero poco testeado |
 
 ### Los rechazos como conjunto { #the-refusals-as-a-set }
 

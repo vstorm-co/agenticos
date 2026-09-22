@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **An agent can publish a report or a small dashboard under a link that stays
+  put.** The new `artifacts` capability adds one tool, `publish_artifact`, which
+  takes an HTML or Markdown page from the run's workspace - read through its own
+  pydantic-ai-backend, so every sandbox backend works - or inline. The agent and
+  the page's name are its identity, so the next run of the same agent, from a
+  chat, a schedule or the API, publishes a new version behind the same link
+  instead of making a second one; identical bytes add none, and the newest
+  `ARTIFACT_MAX_VERSIONS` are kept. The chat links to the version its own run
+  wrote. A new artifact is private to the person the run was for, and a person
+  shares it the way agents and skills are shared - grants, the whole
+  organization - or turns on an "anyone with the link" address that can be
+  replaced or turned off. `artifacts:view` and `artifacts:edit` join the
+  catalog, and an **Artifacts** page, a dashboard card and a retention class
+  measured from the last publication come with it. The page is agent-authored
+  script, so it is served from a cookieless route behind a short-lived signed
+  token under a `sandbox` policy - an opaque origin with no network - and
+  `ARTIFACT_ORIGIN` can move it to a domain of its own.
+  ([#70](https://github.com/vstorm-co/agenticos/issues/70))
+
 ## [0.0.492] - 2026-09-22
 
 ### Fixed
