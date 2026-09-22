@@ -1945,18 +1945,21 @@ class TestDismissAndClear:
         assert stored is not None
         assert stored.dismissed_at is not None
 
-    async def test_clearing_stops_after_its_allotted_rounds(self, db, monkeypatch):
+    async def test_clearing_stops_once_it_has_read_its_allotted_rows(self, db, monkeypatch):
         """A backlog of gated rows must run the loop to its bound rather than
         forever. Nothing is cleared, and that is the honest answer: there was
         nothing this reader could see.
 
-        Named "rounds" rather than "budget": in this codebase a budget is money,
+        The bound is on rows *read*, not on fetches made, because those are two
+        different costs and the first version conflated them - five fetches of
+        a thousand is a scan limit written in units nobody can size.
+
+        Named "rows" rather than "budget": in this codebase a budget is money,
         and `tests/test_security_marker.py` sweeps that word to find refusal
-        tests - a loop's iteration cap borrowing it is a collision, not a
-        refusal.
+        tests - a loop's scan cap borrowing it is a collision, not a refusal.
         """
         monkeypatch.setattr(notification_center, "_DISMISS_CANDIDATE_CAP", 1)
-        monkeypatch.setattr(notification_center, "_MAX_INBOX_FETCH_ROUNDS", 2)
+        monkeypatch.setattr(notification_center, "_DISMISS_SCAN_LIMIT", 2)
         owner = await _user(db)
         org = await _org(db, owner)
         member = await _member(db, org, role="member")
