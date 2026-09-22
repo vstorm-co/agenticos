@@ -171,11 +171,15 @@ services:
     # No published port, and no egress: `data` is internal.
     networks:
       - data
+    # See docker-compose.yml for why `service_healthy` needs a grace to wait
+    # through. This is the file the deploy runs, and the one where a missing
+    # grace failed the redeploy that fixed the outage before it (#1831).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
     deploy:
       resources:
@@ -202,6 +206,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     restart: unless-stopped
     deploy:
       resources:

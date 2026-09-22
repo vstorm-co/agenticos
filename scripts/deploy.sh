@@ -162,6 +162,38 @@ done
 # reading standard input, and one that does silently truncates the deploy (#1488).
 compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 
+# `up -d`, with one retry when it gives up on a dependency's health.
+#
+# `depends_on: condition: service_healthy` reads the dependency's health status
+# the instant the container starts, and a daemon that carried the previous run's
+# `unhealthy` across the restart answers with it - before this run's first probe
+# has had a chance to replace it. So the deploy fails half a second after
+# starting the very container that fixes the problem, with the message the real
+# failure printed a moment earlier, and the next attempt passes untouched
+# (#1831). The `start_period` on those healthchecks is the half of this the
+# compose files can state; this is the half the daemon decides.
+#
+# One retry, and only for this failure: anything else is a broken deploy and
+# should stop here rather than be attempted twice.
+compose_up() {
+  local output
+  if output=$(compose "$@" up -d 2>&1); then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  printf '%s\n' "$output" >&2
+  case "$output" in
+    *"is unhealthy"*)
+      say "A dependency answered with the health status it had before this start - waiting for its first probe"
+      sleep 15
+      compose "$@" up -d
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # The API first, and its migrations before the frontend: a frontend serving a
 # schema the backend has not migrated to yet is the window this ordering closes.
 # The migrations are the `migrate` service, which `app` waits on, so `up -d` is
@@ -169,11 +201,11 @@ compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 # never comes up.
 say "Pulling and starting the API"
 compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
-compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" up -d
+compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
 say "Pulling and starting the frontend"
 compose "${FRONTEND[@]}" pull --quiet
-compose "${FRONTEND[@]}" up -d
+compose_up "${FRONTEND[@]}"
 
 # A deploy that finished is not a deploy that works. Compose returns as soon as
 # the containers are started, so without this a broken image is discovered by
@@ -181,9 +213,15 @@ compose "${FRONTEND[@]}" up -d
 # By service, through compose, not by a fixed container name: the compose files
 # carry none, so each project names its own containers and two stacks on one
 # host stop taking each other's over.
+#
+# `unhealthy` is a verdict on this run only once a probe has run since the
+# container started. Before that it is the status the previous run left behind,
+# which `compose_up` above has the whole story on: acting on it here would fail
+# the deploy for the same reason compose did, one step later and with the
+# container's old logs as the evidence.
 wait_healthy() {
   local service="$1"; shift
-  local cid attempt status
+  local cid attempt status started probed
   for attempt in $(seq 1 60); do
     # Re-read every round, and with `-a`: between restart attempts the container
     # is stopped and `ps -q` alone lists nothing, which would pin an empty id
@@ -192,7 +230,18 @@ wait_healthy() {
     status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
     case "$status" in
       healthy) echo "  $service: healthy"; return 0 ;;
-      unhealthy) echo "  $service: unhealthy" >&2; compose "$@" logs --tail 50 "$service" >&2; exit 1 ;;
+      unhealthy)
+        # `.End.Unix` is an integer out of the template; `StartedAt` is a string,
+        # so it goes through `date`. A container with no probe yet has neither,
+        # and waits.
+        started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "$cid")" +%s 2>/dev/null || echo 0)
+        probed=$(docker inspect -f '{{range .State.Health.Log}}{{.End.Unix}} {{end}}' "$cid" 2>/dev/null | awk '{print $NF}')
+        if [ -n "$probed" ] && [ "$probed" -gt "$started" ]; then
+          echo "  $service: unhealthy" >&2
+          compose "$@" logs --tail 50 "$service" >&2
+          exit 1
+        fi
+        ;;
     esac
     if [ "$attempt" -eq 60 ]; then
       echo "  $service: still $status after 120s" >&2

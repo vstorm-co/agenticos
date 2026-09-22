@@ -141,11 +141,23 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - backend
+    # `start_period` is what `depends_on: condition: service_healthy` is meant to
+    # wait through, and this healthcheck had none. Two things go wrong without
+    # it, and the second is the one that cost a deploy (#1831). A first start on
+    # an empty volume runs `initdb` before Postgres answers, and every probe
+    # until then counts toward `retries` rather than being the expected answer
+    # for a database that is still starting. And a daemon that kept the previous
+    # run's `unhealthy` across a restart answers `service_healthy` with it
+    # immediately, before this run's first probe has had a chance to replace it,
+    # so a container that was repaired fails the deploy that repaired it.
+    # Thirty seconds covers `initdb` plus the extension; `scripts/deploy.sh`
+    # covers the rest.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   redis:
@@ -164,6 +176,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # Ten seconds, for the reason `db` gives above. Valkey is ready in well
+      # under one, so this is not about a slow start: it is the grace a
+      # dependency is owed before its health status is taken as a verdict.
+      start_period: 10s
     restart: unless-stopped
 
   prefect-server:

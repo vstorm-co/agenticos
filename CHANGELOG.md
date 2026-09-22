@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A deploy no longer fails on the health status a container had before it was
+  restarted.** `depends_on: condition: service_healthy` reads that status the
+  instant the container starts, so the redeploy that repaired a crash-looping
+  cache failed half a second after starting it - with the same message the real
+  failure had printed, which makes a fix that worked read as a fix that did not.
+  The `db` and `redis` healthchecks now declare a `start_period`, which is what
+  `service_healthy` is meant to wait through, and `scripts/deploy.sh` retries
+  `up -d` once - and only for this failure - when compose gives up on a
+  dependency's health. Its own `wait_healthy` acts on `unhealthy` only once a
+  probe has run since the container started. (#1831)
+
 ## [0.0.480] - 2026-09-22
 
 ### Added
