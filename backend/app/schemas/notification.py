@@ -63,9 +63,12 @@ class MarkAllReadResult(BaseSchema):
     """How many rows one "mark all read" marked.
 
     `remaining` is true when the sweep ran out of scan rather than out of
-    inbox. Asking again makes progress - the rows just marked are no longer
-    unread - and a caller that treats `marked` as "the inbox is now clear"
-    would otherwise hide the button that finishes the job.
+    inbox, so a caller that treats `marked` as "the inbox is now clear" would
+    hide the button that finishes the job. Asking again finishes it whenever
+    `marked` is above zero: those rows are no longer unread, so the next sweep
+    reaches further. A sweep that marked nothing and reports `remaining` has
+    run its whole scan through rows the read-time gate hides, and repeating it
+    reaches the same place - the bound `clear_inbox` states for its own scan.
     """
 
     marked: int

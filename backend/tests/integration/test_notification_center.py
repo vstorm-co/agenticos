@@ -1723,6 +1723,33 @@ class TestUnreadCountAndMarkRead:
         # unread, so the next sweep starts past them.
         assert (await service.mark_all_read(ctx)).marked == 2
 
+    async def test_an_inbox_exactly_the_size_of_the_scan_is_not_called_approximate(
+        self, db, monkeypatch
+    ):
+        """It ends on a full batch, which is what a truncated scan also ends on.
+        Calling it approximate would put back the exact-boundary ambiguity these
+        two flags exist to remove, so one row beyond the bound is asked for."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        monkeypatch.setattr(notification_center, "_UNREAD_SCAN_LIMIT", 4)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(4):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-exactly-{index}",
+                summary=f"Run {index} completed",
+                organization_id=org.id,
+            )
+        ctx = _ctx(recipient, org, role="member")
+
+        unread = await service.unread_count(ctx)
+        assert unread.count == 4
+        assert unread.approximate is False
+        assert (await service.mark_all_read(ctx)).remaining is False
+
     async def test_the_sweep_reaches_visible_rows_behind_a_gated_backlog(self, db, monkeypatch):
         """The rows the gate hides are read and not marked, and they sit newer
         than the ones that are. A sweep that always started at the newest row

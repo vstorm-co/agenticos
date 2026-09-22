@@ -124,9 +124,18 @@ class UnreadCount:
 class MarkAllRead:
     """How many rows one "mark all read" marked, and whether any were left.
 
-    `remaining` says the sweep hit its scan limit rather than the end of the
-    inbox, so asking again makes further progress - the rows just marked are no
-    longer unread, so the next sweep starts past them.
+    `remaining` says the sweep ran out of scan with unread rows still behind it,
+    rather than out of inbox. Asking again finishes the job whenever this call
+    marked something: those rows are no longer unread, so the next sweep reaches
+    further with the same budget.
+
+    It does not when `marked` is zero, and that case is real rather than
+    theoretical: a recipient demoted out of an audience whose whole scan window
+    is rows the gate hides has nothing marked to shorten the next scan with, and
+    the visible rows behind them stay out of this button's reach. That is the
+    same bound `clear_inbox` states for `_DISMISS_SCAN_LIMIT`, and the same
+    answer - a per-request cost the deployment can predict is worth more than a
+    walk that reaches everything.
     """
 
     marked: int
@@ -663,7 +672,19 @@ class NotificationCenterService:
             if len(batch) < _UNREAD_CANDIDATE_CAP:
                 return visible, False
             cursor = (batch[-1].created_at, batch[-1].id)
-        return visible, True
+        # Out of scan. Whether that is also out of inbox takes one more row to
+        # answer, and it is worth the query: an inbox holding exactly the scan
+        # limit ends on a full batch, and calling that truncated would put back
+        # the exact-boundary ambiguity these two flags exist to remove.
+        beyond = await notification_repo.list_unread(
+            self.db,
+            recipient_id=user_id,
+            organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
+            after=cursor,
+            cap=1,
+        )
+        return visible, bool(beyond)
 
     async def unread_count(self, ctx: AuthContext) -> UnreadCount:
         user_id = self._require_caller(ctx)
@@ -704,8 +725,8 @@ class NotificationCenterService:
         """Mark everything unread the caller can see, and say if any was left.
 
         `remaining` is what a caller needs to tell an emptied inbox from a
-        truncated sweep: asking again makes progress, because the rows this
-        call marked are no longer unread and the next scan starts past them.
+        truncated sweep. `MarkAllRead` says what it promises and what it does
+        not - a sweep that marked nothing cannot shorten its own next scan.
         """
         user_id = self._require_caller(ctx)
         visible_ids, truncated = await self._visible_unread_ids(ctx, user_id)
