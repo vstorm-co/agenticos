@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronRight, MessagesSquare, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { FileCard, FileViewer } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -272,7 +274,13 @@ function TimelineTurn({
       </div>
 
       {item.role === "user" ? (
-        <div className="bg-muted/40 rounded-md p-3 text-sm whitespace-pre-wrap">{item.content}</div>
+        // The person's own words, kept verbatim: what they typed is evidence,
+        // and rendering their markdown would change the thing being recorded.
+        // It still gets a copy button, because a prompt is the most reached-for
+        // text on this page - it is what somebody pastes into chat to try again.
+        <CopyablePanel text={item.content}>
+          <div className="text-sm whitespace-pre-wrap">{item.content}</div>
+        </CopyablePanel>
       ) : (
         <div className="space-y-2">
           {(message.parts ?? []).map((part) =>
@@ -281,7 +289,11 @@ function TimelineTurn({
             ) : part.type === "thinking" ? (
               <details key={part.id} className="text-muted-foreground text-sm">
                 <summary className="cursor-pointer select-none">{t("reasoning")}</summary>
-                <div className="mt-1 whitespace-pre-wrap">{part.content}</div>
+                {/* The model's own reasoning is markdown too - it writes lists
+                    and headings in here exactly as it does in an answer. */}
+                <div className="mt-1">
+                  <MarkdownContent content={part.content ?? ""} />
+                </div>
               </details>
             ) : part.type === "ask_user" ? (
               <div
@@ -296,9 +308,16 @@ function TimelineTurn({
                 <div className="text-foreground/80 whitespace-pre-wrap">{part.answer}</div>
               </div>
             ) : (
-              <div key={part.id} className="text-sm whitespace-pre-wrap">
-                {part.content}
-              </div>
+              // Rendered, not printed. This is the same text the chat shows
+              // through `MarkdownContent`, and it was coming out here as raw
+              // source - `## Poland`, `**Official name:**`, tables as pipes -
+              // so the one page built for reading back what an agent said was
+              // the one place it was unreadable.
+              <CopyablePanel key={part.id} text={part.content ?? ""} bare>
+                <div className="text-sm">
+                  <MarkdownContent content={part.content ?? ""} />
+                </div>
+              </CopyablePanel>
             ),
           )}
         </div>
@@ -368,6 +387,38 @@ function TurnAttachments({ runId, files }: { runId: string; files: ChatMessageFi
  * Both blocks are copyable, because the next thing somebody does with a tool
  * input that produced a wrong answer is paste it somewhere and run it again.
  */
+/**
+ * A block of transcript with a copy button in its corner.
+ *
+ * Reading a run back is half the job; the other half is *taking* something out
+ * of it - the prompt to try again, an answer to paste into a ticket, the error
+ * to search for. None of that was reachable without selecting text by hand
+ * across a scrolling panel.
+ *
+ * The button is revealed on hover and on focus, and it is `absolute` so it
+ * costs the text no width. `bare` is for a block that already sits in the
+ * timeline's own flow and needs no second surface around it.
+ */
+function CopyablePanel({
+  text,
+  children,
+  bare = false,
+}: {
+  text: string;
+  children: ReactNode;
+  bare?: boolean;
+}) {
+  if (!text) return <>{children}</>;
+  return (
+    <div className={cn("group/copy relative", !bare && "bg-muted/40 rounded-md p-3")}>
+      {children}
+      <div className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/copy:opacity-100 focus-within:opacity-100">
+        <CopyButton text={text} />
+      </div>
+    </div>
+  );
+}
+
 function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
   const t = useTranslations("pages.runs");
   const args = JSON.stringify(toolCall.args, null, 2);

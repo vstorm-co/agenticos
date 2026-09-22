@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8bdc69bd29"
+source_sha: "a3bb05a301b0"
 ---
 
 # Governance { #governance }
@@ -1212,10 +1212,21 @@ Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés. La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que se completa o falla, y el propio
+desatendido, la ingesta de un documento que **falla**, la cifra propia de un
+ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
+escribía una fila cada uno, lo que en el caso corriente — una carpeta de
+archivos añadidos de golpe — significaba una notificación por archivo diciendo
+que nada había ido mal, sepultando las que sí había que leer. Donde se informa
+ahora de una ingesta corriente es en el propio estado del documento dentro de
+su colección y, para un ciclo de conector, en la única línea que escribe
+`sync_completed` cuando termina el intento entero. El fallo sigue llegando a
+quien subió el archivo, o a los administradores de la organización cuando no lo
+subió nadie.
 
 La única excepción son los informes de uso semanales y mensuales configurados
 en el agent, más abajo: ambos comparten una única preferencia de correo
@@ -1242,10 +1253,14 @@ Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre
 desde que se escribió, nunca desde que se leyó, así que una fila abierta el
 día antes de su límite superior desaparece junto con cualquier otra de esa
-edad. Un barrido en segundo plano, no algo que dispare una persona — y el
-barrido de correo no envía una fila que ya lo haya superado, así que un worker
-que se recupera de una caída larga no puede mandar una notificación camino de
-su borrado.
+edad. Un barrido en segundo plano, no algo que dispare una persona. El barrido
+de correo no envía una fila que ya lo haya superado, así que un worker que se
+recupera de una caída larga no puede mandar una notificación camino de su
+borrado.
+
+[Limpiar](console.md#the-bell) es lo otro, y no lo mismo: una persona saca una
+fila de su propia lista al instante, y la fila en sí se conserva hasta que este
+barrido llega a ella.
 
 Lo que sobrevive a eso depende de sobre qué era el aviso. Un evento de
 seguridad, un cambio de configuración y el anuncio propio de un admin empiezan

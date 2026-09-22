@@ -1152,9 +1152,19 @@ Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round. The same page also carries every other
 event the inbox delivers: a run finishing or failing unattended, a document's
-ingestion completing or failing, and an app admin's own broadcast - `POST
-/admin/announcements`, not yet a console page - addressed by organization
-and, optionally, role, and restricted to one or both channels.
+ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+admin's own broadcast - `POST /admin/announcements`, not yet a console page -
+addressed by organization and, optionally, role, and restricted to one or both
+channels.
+
+A document that indexed cleanly writes nothing, and that is deliberate. It used
+to write a row each, which in the ordinary case - a folder of files added at
+once - meant a notification per file saying nothing had gone wrong, burying the
+ones that needed reading. Where an ordinary ingestion is reported now is the
+document's own status in its collection, and, for a connector run, the single
+line `sync_completed` writes when the whole attempt finishes. Failure still
+reaches whoever uploaded the file, or the organization's administrators when
+nobody did.
 
 The one exception is the weekly and monthly usage reports configured on the
 agent, below: both share a single legacy email preference, so turning one
@@ -1179,9 +1189,13 @@ A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from
 when the row was written, never from when it was read, so a row opened the day
 before its outer bound ages out with every other row that old. A background
-sweep, not something a person triggers - and the email sweep will not send a
-row it has already passed, so a worker recovering from a long outage cannot
-mail out a notification on its way to being deleted.
+sweep, not something a person triggers. The email sweep will not send a row it
+has already passed, so a worker recovering from a long outage cannot mail out a
+notification on its way to being deleted.
+
+[Clearing](console.md#the-bell) is the other thing, and not the same one: a
+person takes a row out of their own list immediately, and the row itself is kept
+until this sweep reaches it.
 
 What survives past that depends on what the notice was about. A security event,
 a configuration change and an admin's own broadcast begin as an audit entry, and

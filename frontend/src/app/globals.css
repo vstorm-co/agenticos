@@ -154,15 +154,24 @@
   --color-chart-fill: oklch(84% 0.07 259);
   --color-track: oklch(95% 0.012 259);
 
-  /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
-     white sidebar sit on a faintly cooler page so the layers read without a
-     visible seam. */
-  --color-background: oklch(97.5% 0.003 250);
-  --color-foreground: oklch(15% 0 0);
+  /* Light theme - NEUTRAL near-white, and neutral is the change. The ladder
+     used to carry `0.003-0.004` of chroma at hue 250, which is a blue cast on
+     every surface in the product: faint on one panel, cumulative across a full
+     page of them, and visibly cold beside the accent it was meant to support.
+     At `0.002 265` the surfaces read as paper and the one blue thing on screen
+     is the accent.
+
+     Four layers, deepest first: the sidebar, the page, a card, a popover. The
+     sidebar is its own token rather than a translucent card, because the
+     translucency put it between the page and a card - a column whose apparent
+     depth changed with whatever it happened to be over. */
+  --color-sidebar: oklch(96.3% 0.002 265);
+  --color-background: oklch(97.8% 0.002 265);
+  --color-foreground: oklch(17.5% 0.004 265);
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(15% 0 0);
+  --color-card-foreground: oklch(17.5% 0.004 265);
   --color-popover: oklch(100% 0 0);
-  --color-popover-foreground: oklch(15% 0 0);
+  --color-popover-foreground: oklch(17.5% 0.004 265);
   /* `primary` is INK, not the accent: the platform's primary action is a
      near-black button (white in dark themes), the way OpenAI's and
      ElevenLabs' consoles draw theirs. The accent keeps the quieter jobs -
@@ -173,12 +182,16 @@
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-secondary: oklch(94% 0.004 250);
-  --color-secondary-foreground: oklch(20% 0 0);
-  --color-muted: oklch(94% 0.004 250);
-  --color-muted-foreground: oklch(45% 0 0);
-  --color-accent: oklch(94% 0.004 250);
-  --color-accent-foreground: oklch(20% 0 0);
+  --color-secondary: oklch(95.5% 0.002 265);
+  --color-secondary-foreground: oklch(22% 0.004 265);
+  --color-muted: oklch(95.5% 0.002 265);
+  --color-muted-foreground: oklch(47.8% 0.006 265);
+  /* Deeper than `muted`, where the two used to be the same value. `accent` is
+     what paints a selected nav row and a hover, and the sidebar it paints them
+     on is now a tinted surface of its own - at the muted step the selected row
+     was a 1.01:1 difference from the column behind it, which is no difference. */
+  --color-accent: oklch(93.2% 0.003 265);
+  --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
      at 4.85:1 - above the 4.5 a label owes its button - and reads as a refusal
@@ -196,8 +209,13 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  --color-border: oklch(89% 0.004 250);
-  --color-input: oklch(89% 0.004 250);
+  /* Quieter than the 89% it replaces (1.39:1 on a white card, now 1.29:1).
+     A border here separates layers; it is never the only thing saying a
+     control is a control, which is what lets it step back. `input` stays
+     darker than `border`, because the edge of a field somebody has to find
+     and click is doing a different job from the edge of a panel. */
+  --color-border: oklch(91.5% 0.002 265);
+  --color-input: oklch(89.5% 0.003 265);
   --color-ring: var(--color-brand);
 
   /* Radius */
@@ -245,12 +263,13 @@
    third. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-background: oklch(20% 0.006 250);
-    --color-foreground: oklch(95% 0.005 250);
-    --color-card: oklch(24% 0.006 250);
-    --color-card-foreground: oklch(95% 0.005 250);
-    --color-popover: oklch(26% 0.006 250);
-    --color-popover-foreground: oklch(95% 0.005 250);
+    --color-sidebar: oklch(20.5% 0.0025 265);
+    --color-background: oklch(23.5% 0.0025 265);
+    --color-foreground: oklch(94.5% 0.003 265);
+    --color-card: oklch(26.2% 0.0025 265);
+    --color-card-foreground: oklch(94.5% 0.003 265);
+    --color-popover: oklch(28.5% 0.0025 265);
+    --color-popover-foreground: oklch(94.5% 0.003 265);
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
@@ -266,14 +285,14 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: oklch(28% 0.006 250);
+    --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: oklch(28% 0.006 250);
-    --color-muted-foreground: oklch(68% 0.008 250);
-    --color-accent: oklch(30% 0.006 250);
+    --color-muted: oklch(30% 0.0025 265);
+    --color-muted-foreground: oklch(71.2% 0.006 265);
+    --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(34% 0.008 250);
-    --color-input: oklch(32% 0.008 250);
+    --color-border: oklch(31.5% 0.0025 265);
+    --color-input: oklch(34.5% 0.0025 265);
     --color-chart: oklch(74% 0.1 259);
     --color-chart-fill: oklch(52% 0.085 259);
     --color-track: oklch(31% 0.022 259);
@@ -288,12 +307,13 @@
 }
 
 :root.dark {
-  --color-background: oklch(20% 0.006 250);
-  --color-foreground: oklch(95% 0.005 250);
-  --color-card: oklch(24% 0.006 250);
-  --color-card-foreground: oklch(95% 0.005 250);
-  --color-popover: oklch(26% 0.006 250);
-  --color-popover-foreground: oklch(95% 0.005 250);
+  --color-sidebar: oklch(20.5% 0.0025 265);
+  --color-background: oklch(23.5% 0.0025 265);
+  --color-foreground: oklch(94.5% 0.003 265);
+  --color-card: oklch(26.2% 0.0025 265);
+  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-popover: oklch(28.5% 0.0025 265);
+  --color-popover-foreground: oklch(94.5% 0.003 265);
   /* Keep in sync with the `prefers-color-scheme: dark` block above and with
      `.theme-dark` below - three places, one mapping. */
   --color-primary: oklch(96% 0.003 250);
@@ -307,14 +327,14 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: oklch(28% 0.006 250);
+  --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: oklch(28% 0.006 250);
-  --color-muted-foreground: oklch(68% 0.008 250);
-  --color-accent: oklch(30% 0.006 250);
+  --color-muted: oklch(30% 0.0025 265);
+  --color-muted-foreground: oklch(71.2% 0.006 265);
+  --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(34% 0.008 250);
-  --color-input: oklch(32% 0.008 250);
+  --color-border: oklch(31.5% 0.0025 265);
+  --color-input: oklch(34.5% 0.0025 265);
   --color-chart: oklch(74% 0.1 259);
   --color-chart-fill: oklch(52% 0.085 259);
   --color-track: oklch(31% 0.022 259);
@@ -366,13 +386,14 @@
 }
 
 .theme-dark {
-  --color-background: oklch(20% 0.006 250);
-  --color-foreground: oklch(95% 0.005 250);
-  --color-card: oklch(24% 0.006 250);
-  --color-card-foreground: oklch(95% 0.005 250);
-  --color-muted: oklch(28% 0.006 250);
-  --color-muted-foreground: oklch(68% 0.008 250);
-  --color-border: oklch(34% 0.008 250);
+  --color-sidebar: oklch(20.5% 0.0025 265);
+  --color-background: oklch(23.5% 0.0025 265);
+  --color-foreground: oklch(94.5% 0.003 265);
+  --color-card: oklch(26.2% 0.0025 265);
+  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-muted: oklch(30% 0.0025 265);
+  --color-muted-foreground: oklch(71.2% 0.006 265);
+  --color-border: oklch(31.5% 0.0025 265);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -613,14 +634,6 @@
    ========================================================================= */
 
 @layer utilities {
-  /* Pill nav floating above content */
-  .pill-nav {
-    border-radius: var(--radius-pill);
-    backdrop-filter: blur(12px);
-    background: oklch(from var(--color-background) l c h / 0.7);
-    border: 1px solid var(--color-border);
-  }
-
   /* Tiny fade+scale entrance for popovers / dropdowns. */
   @keyframes lsFadeIn {
     from {
@@ -1237,19 +1250,14 @@
   max-width: min(28rem, calc(100vw - 2rem));
   border-radius: 0.75rem;
   /* driver.css hard-codes a white card and near-black text, which reads as a light
-     popover beside the coach's own card in dark mode. Both onboarding surfaces are
-     the same material as the chat composer instead: a frosted pane over the page
-     it is describing, at the near-opaque strength dialogs use, because this one
-     also floats over a dimmed backdrop and would go murky at the lighter one.
-     Written out rather than reached for as `.glass-strong`, because driver.js owns
-     this element's class list and rebuilds it every step. */
+     popover beside the coach's own card in dark mode. Both onboarding surfaces
+     take the app's own panel instead. Written out rather than reached for as
+     `.panel-strong`, because driver.js owns this element's class list and
+     rebuilds it every step. */
   color: var(--color-popover-foreground);
-  border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
-  background: color-mix(in oklab, var(--color-card) 85%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
   box-shadow:
-    inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
     0 1px 2px 0 rgb(0 0 0 / 0.08),
     0 12px 40px -12px rgb(0 0 0 / 0.3);
   /* The caption is pinned, so the only thing that changes between steps is its
@@ -1259,12 +1267,6 @@
   transition:
     height 0.28s ease,
     width 0.28s ease;
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .driver-popover.tour-popover {
-    background: var(--color-popover);
-  }
 }
 
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
@@ -1566,123 +1568,66 @@
 }
 
 @layer utilities {
-  /* macOS-style frosted glass: a translucent card that blurs and saturates
-     whatever scrolls beneath it. It needs content behind it to read as glass -
-     over a flat background it is just a tinted card - which is why the chat
-     composer floats over the transcript rather than sitting below it. The
-     inset highlight is the pane's top edge catching light; without it the
-     blur reads as fog rather than glass. */
-  .glass {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
-    background: color-mix(in oklab, var(--color-card) 55%, transparent);
-    -webkit-backdrop-filter: blur(24px) saturate(1.8);
-    backdrop-filter: blur(24px) saturate(1.8);
-    /* Three shadows are the materiality: the top-edge highlight that says
-       "pane, not fog", a soft lift off the page, and a wide ambient drop -
-       over a light page the see-through part is nearly invisible, so the
-       separation has to come from the edges. */
+  /* A panel that floats over the page: a popover, a menu, the chat composer,
+     a drawer.
+
+     It used to be frosted glass - translucent, `backdrop-filter: blur(24px)
+     saturate(1.8)`, with a white inset highlight along the top edge to read as
+     a pane catching light. That is gone, and the reasons are in this order.
+
+     **A surface whose colour depends on what is behind it has no colour.** The
+     composer over a transcript, the same composer over the empty state and a
+     dropdown over a table were three different greys, and none of them was a
+     token - so the product had a palette in `:root` and a second one made at
+     compositing time. Codex and Grok are the register this is aiming at, and
+     both are flat: one surface value per layer, everywhere it appears.
+
+     **It was worst on the one component people use most.** The composer is
+     where somebody looks while they think, and its background shifted as the
+     conversation scrolled under it.
+
+     **And it was never free.** Each `backdrop-filter` is a compositor layer
+     that re-blurs on every frame of every scroll behind it.
+
+     What is kept is the elevation, which is the part that was doing real work:
+     a panel still has an edge and a shadow, so it still reads as above the
+     page rather than cut into it. Named `panel` rather than `glass` because
+     that is what it is now - a class called `glass` that is not glass is the
+     kind of name this codebase spends its comments avoiding. */
+  .panel {
+    border: 1px solid var(--color-border);
+    background: var(--color-popover);
     box-shadow:
-      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
       0 1px 2px 0 rgb(0 0 0 / 0.08),
       0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
-  /* The same pane, nearly opaque - for dialogs and drawers, which sit over a
-     dimmed overlay. At 55% the black scrim behind them wins: a light-mode
-     panel turns murky grey under its own dark text. 85% keeps the panel's
-     luminance while the blurred page still ghosts through the edges - the
-     macOS proportion too: menus are the translucent ones, window sheets
-     barely. */
-  .glass-strong {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
-    background: color-mix(in oklab, var(--color-card) 85%, transparent);
-    -webkit-backdrop-filter: blur(24px) saturate(1.8);
-    backdrop-filter: blur(24px) saturate(1.8);
+  /* The same panel over a dimmed overlay - a dialog, a drawer. It was the
+     nearly-opaque variant back when the ordinary one was see-through; with
+     both solid the only difference left is the surface it sits on, and a
+     sheet sits on `card` so its own contents are on the card colour they
+     would be anywhere else. */
+  .panel-strong {
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
     box-shadow:
-      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
       0 1px 2px 0 rgb(0 0 0 / 0.08),
       0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
-  /* The resting version of the same material, for a card that sits *in* the
-     page rather than floating over it - the dashboard's widgets, and anything
-     else that wants the chat composer's surface without its elevation.
-     Three differences from `.glass`, all of them because it is at rest:
-     less blur (there is no scrolling transcript under it, only the ambient
-     wash), a quieter edge, and a shadow that lifts rather than throws. At 78%
-     the card keeps its own luminance - text on it is text on a card - while
-     the wash behind still tints the corners of a page of eleven of them. */
-  .glass-card {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 9%, transparent);
-    background: color-mix(in oklab, var(--color-card) 78%, transparent);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
+  /* The resting version, for a card that sits *in* the page rather than over
+     it - the dashboard's widgets. Same surface, quieter edge, a shadow that
+     lifts rather than throws. */
+  .panel-card {
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
     box-shadow:
-      inset 0 1px 0 0 color-mix(in oklab, white 28%, transparent),
       0 1px 2px 0 rgb(0 0 0 / 0.04),
       0 8px 24px -16px rgb(0 0 0 / 0.25);
   }
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass,
-    .glass-strong,
-    .glass-card {
-      background: var(--color-card);
-    }
-  }
-
-  /* The wallpaper the glass frosts. A sidebar sits beside the content, so it
-     has nothing to blur - what macOS blurs behind its sidebars is the desktop.
-     This is that desktop: three soft washes of the one accent hue, fixed
-     behind everything (negative z, painted above the canvas background and
-     below all flow content), so a translucent column has colour to pull
-     through in both themes. Brand hue only - the surfaces stay neutral and
-     the accent stays the accent. */
-  .ambient-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: -10;
-    pointer-events: none;
-    background:
-      radial-gradient(720px circle at 8% 12%, var(--ambient-a), transparent 65%),
-      radial-gradient(860px circle at 92% 6%, var(--ambient-b), transparent 60%),
-      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%),
-      /* A fourth, low and left. The backdrop is `fixed` and the dashboard
-         scrolls its own <main>, so a card crosses this wash as the page
-         moves - three blobs left the middle of a tall page flat, and a
-         translucent card over a flat field is a tinted card. */
-        radial-gradient(900px circle at 18% 78%, var(--ambient-b), transparent 62%);
-  }
 }
 
-/* The wash per theme - luminance only, no hue. Colour was tried twice here
-   (mid-ramp blue: dirty grey on white, murky navy on black; pale pastels:
-   still read as "why is my app blue") and the clean answer is light, not
-   paint: soft neutral shading on a light page, soft neutral blooms on a dark
-   one. The frosted sidebars still have something to pull through; the page
-   stays the page's own colour. Same two-selector shape as the theme blocks
-   above.
-
-   The two are NOT the same percentage, because the same percentage is not the
-   same wash. Compositing happens in linear light, where white is far more
-   potent over a dark page than ink is over a near-white one: at 7% the dark
-   blooms measure 2.32:1 against their page and the light shading 1.07:1 - a
-   gradient in one theme and nothing at all in the other, which is exactly how
-   it looked. Light lands at 1.10:1 - enough to see, and the ceiling is lower
-   than the arithmetic suggests: 1.15:1 was tried and read as a smudged page
-   rather than as shading, which is the failure the paragraph above records
-   under a different cause. */
-:root {
-  --ambient-a: color-mix(in oklab, var(--color-foreground) 10%, transparent);
-  --ambient-b: color-mix(in oklab, var(--color-foreground) 7%, transparent);
-  --ambient-c: color-mix(in oklab, var(--color-foreground) 9%, transparent);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --ambient-a: color-mix(in oklab, white 7%, transparent);
-    --ambient-b: color-mix(in oklab, white 5%, transparent);
-    --ambient-c: color-mix(in oklab, white 6%, transparent);
-  }
-}
-:root.dark {
-  --ambient-a: color-mix(in oklab, white 7%, transparent);
-  --ambient-b: color-mix(in oklab, white 5%, transparent);
-  --ambient-c: color-mix(in oklab, white 6%, transparent);
-}
+/* There was a wallpaper here: four fixed radial washes behind everything, so a
+   frosted sidebar and a frosted composer had something to pull colour through.
+   Both are opaque now, so it had nothing left to be *for* - and on its own it
+   was a page whose corners were a different shade from its middle, which is
+   the "why is the background a gradient" every flat console avoids. The page
+   is `--color-background`, one value, everywhere. */

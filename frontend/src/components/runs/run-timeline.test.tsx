@@ -19,6 +19,15 @@ import type { RunTranscript, RunTranscriptMessage } from "@/types/runs";
 const useRunTranscriptMock = vi.fn();
 // Partial, because opening an attachment mounts the shared file viewer and that
 // reaches for several hooks of its own. Only the transcript is stood in for.
+// The renderer is tested on its own (`markdown-content.impl.test.tsx`) and the
+// real one arrives through `next/dynamic`, which never resolves in jsdom - so
+// what this file asserts on is the text handed to it. The timeline renders an
+// agent's answer as markdown rather than printing its source, which is the one
+// thing this stub has to preserve.
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
+}));
+
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
   useRunTranscript: (runId: string, scope?: string) => useRunTranscriptMock(runId, scope),

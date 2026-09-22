@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8bdc69bd29"
+source_sha: "a3bb05a301b0"
 ---
 
 # Governance { #governance }
@@ -1323,11 +1323,21 @@ Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments,
-die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins -
-`POST /admin/announcements`, noch keine Console-Seite - adressiert nach
-Organisation und, optional, nach Rolle, und beschränkt auf einen oder beide
-Kanäle.
+unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+**scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
+Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
+Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
+beschränkt auf einen oder beide Kanäle.
+
+Ein Dokument, das sauber indexiert wurde, schreibt nichts, und das ist Absicht.
+Früher schrieb es je eine Zeile, was im Normalfall - ein Ordner Dateien, auf
+einmal hinzugefügt - eine Benachrichtigung pro Datei bedeutete, die besagte,
+dass nichts schiefgegangen war, und die begrub, was gelesen werden musste. Wo
+eine gewöhnliche Ingestion jetzt gemeldet wird, ist der eigene Status des
+Dokuments in seiner Collection und, bei einem Konnektor-Lauf, die eine Zeile,
+die `sync_completed` schreibt, wenn der gesamte Versuch fertig ist. Ein
+Scheitern erreicht weiterhin den, der die Datei hochgeladen hat, oder die
+Administratoren der Organisation, wenn es niemand war.
 
 Die eine Ausnahme sind die weiter unten beschriebenen wöchentlichen und
 monatlichen Usage-Reports, die auf dem Agent konfiguriert werden: Beide
@@ -1356,10 +1366,14 @@ Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
 wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
 vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
-zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst - und der
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst. Der
 E-Mail-Sweep versendet keine Zeile, die diese Grenze bereits überschritten hat,
 sodass ein nach langem Ausfall wiederanlaufender Worker keine Benachrichtigung
 auf ihrem Weg in die Löschung verschicken kann.
+
+Das [Leeren](console.md#the-bell) ist das andere und nicht dasselbe: Ein Mensch
+nimmt eine Zeile sofort aus der eigenen Liste, und die Zeile selbst wird
+behalten, bis dieser Sweep sie erreicht.
 
 Was das übersteht, hängt davon ab, worum es in der Benachrichtigung ging. Ein
 Sicherheitsereignis, eine Konfigurationsänderung und die eigene Ankündigung

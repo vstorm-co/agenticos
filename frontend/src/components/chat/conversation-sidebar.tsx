@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCanCreateTrigger, useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
@@ -18,7 +18,7 @@ import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
-import { cn, setUrlParam } from "@/lib/utils";
+import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
@@ -72,6 +72,8 @@ function ConversationItem({
   onFavourite,
 }: ConversationItemProps) {
   const t = useTranslations("chat");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
@@ -118,12 +120,21 @@ function ConversationItem({
         />
       ) : (
         <div className="min-w-0 flex-1">
+          {/* One line. Wrapping to two was tried and is worse: it made every
+              row in the list a third taller to buy about six more characters,
+              and still ended in an ellipsis. What actually buys width is the
+              row being narrower - the icon is `h-4` in a `gap-2` row rather
+              than an avatar-sized block, and the star and the kebab only take
+              their space on hover. */}
           <span className="block truncate">{displayTitle}</span>
           <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 truncate text-[10px]">
-            {new Date(conversation.updated_at || conversation.created_at).toLocaleDateString(
-              undefined,
-              { month: "short", day: "numeric" },
-            )}
+            {/* How long ago, not which calendar day. "Sep 21" and "Sep 22" on a
+                list somebody opened this morning is a date they have to
+                subtract from today to read; "2 hours ago" is the answer. It
+                falls back to the date after a week, where the distance stops
+                being the useful part - `timeAgo` in `lib/utils`, the same
+                reading the notification rows use. */}
+            {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
             {/* Which agent this was with, as a face and nothing more. The name
                 was repeating what the picture already says, in a row that also
                 has to fit a title and a date - and it is on the hover title for
@@ -135,36 +146,51 @@ function ConversationItem({
         </div>
       )}
 
-      {/* Shown on hover, and kept on once it is starred: a control that
-          disappears is one nobody finds twice, and the star is also the only
-          thing on the row saying which band it is in. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={conversation.is_favourite ? t("unfavourite") : t("favourite")}
-        aria-pressed={conversation.is_favourite === true}
-        className={cn(
-          // `focus-visible` as well as hover: a keyboard user tabs to this, and
-          // an `opacity-0` control with focus on it is one nobody can see they
-          // have reached.
-          "touch:opacity-100 h-8 w-8 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-          conversation.is_favourite && "text-warning opacity-100",
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onFavourite(conversation.is_favourite !== true);
-        }}
-      >
-        <Star className={cn("h-4 w-4", conversation.is_favourite && "fill-current")} />
-      </Button>
+      {/* Only once it is starred. As a *button* it was redundant - the same
+          toggle is in the menu beside it, two rows down - and the redundancy
+          cost every row in the list eight characters of title, because a
+          control at `opacity-0` still takes its width. What it is not
+          redundant as is a *marker*: it is the only thing on a row saying
+          which band that row is in, so a favourited conversation keeps it and
+          everything else gets the width back. */}
+      {conversation.is_favourite ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={t("unfavourite")}
+          aria-pressed
+          className="text-warning h-8 w-8 shrink-0 p-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFavourite(false);
+          }}
+        >
+          <Star className="h-4 w-4 fill-current" />
+        </Button>
+      ) : null}
 
       <div className="relative">
         <Button
           variant="ghost"
           size="sm"
+          aria-label={t("conversationActions")}
           className={cn(
-            "touch:opacity-100 h-8 w-8 p-0 opacity-0 group-hover:opacity-100",
-            showMenu && "opacity-100",
+            // Zero *width* until it is wanted, not just transparent: an
+            // invisible control that still reserves 32px is 32px taken off
+            // every title in the list to show something nobody is looking at.
+            // The row reflows on hover and the title truncates a little
+            // earlier, which is the trade the right way round.
+            //
+            // Width rather than `hidden`, because `hidden` takes it out of the
+            // tab order: a keyboard user reaches this by tabbing, and
+            // `focus-visible` is what opens it for them. `touch:` keeps it
+            // permanently sized where there is no hover at all.
+            "h-8 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
+            "w-0 opacity-0",
+            "group-hover:w-8 group-hover:opacity-100",
+            "focus-visible:w-8 focus-visible:opacity-100",
+            "touch:w-8 touch:opacity-100",
+            showMenu && "w-8 opacity-100",
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -680,12 +706,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
   return (
     <>
-      <aside
-        className={cn(
-          "bg-background/55 hidden w-64 shrink-0 flex-col border-r backdrop-blur-2xl md:flex",
-          className,
-        )}
-      >
+      <aside className={cn("bg-sidebar hidden w-64 shrink-0 flex-col border-r md:flex", className)}>
         <div className="flex h-12 items-center justify-between border-b px-4 py-3">
           <h2 className="text-sm font-semibold">{t("conversations")}</h2>
           <Button
@@ -762,7 +783,7 @@ function CollapsedSidebar({
   return (
     <div
       className={cn(
-        "bg-background/55 hidden w-12 shrink-0 flex-col items-center border-r py-4 backdrop-blur-2xl md:flex",
+        "bg-sidebar hidden w-12 shrink-0 flex-col items-center border-r py-4 md:flex",
         className,
       )}
     >

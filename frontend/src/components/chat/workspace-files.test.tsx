@@ -207,10 +207,13 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
-    // A table, which is what the panel could not do: a CSV an agent wrote used to
-    // render as a wall of commas here and as bytes-and-a-download for every other kind.
+    // The viewer opens on the source now, so the characters are what lands
+    // first - and the table, which is what the panel could never do, is one tab
+    // away. A CSV an agent wrote used to render as a wall of commas here and as
+    // bytes-and-a-download for every other kind.
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
-    expect(screen.getByRole("dialog")).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

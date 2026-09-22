@@ -175,7 +175,7 @@ function FireRow({ run }: { run: AgentRun }) {
 /**
  * The runs list in a right-hand drawer, opened from a trigger row.
  *
- * Opaque, unlike the navigation sheets that share the primitive: `glass-strong`
+ * Opaque, unlike the navigation sheets that share the primitive: `panel-strong`
  * is right for a panel somebody glances at over a page they still want to see,
  * and wrong for one they read - behind translucency the rows of the list
  * underneath print through the middle of it. The same argument the dialog

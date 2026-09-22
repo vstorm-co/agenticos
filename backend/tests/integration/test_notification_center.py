@@ -1693,6 +1693,61 @@ class TestDismissAndClear:
         # nothing left on screen can clear.
         assert await service.unread_count(ctx) == 0
 
+    async def test_dismissing_an_already_read_row_keeps_the_time_it_was_read(self, db):
+        """Dismissing marks an *unread* row read, and only an unread one.
+
+        Overwriting the timestamp would move a row that was read last week to
+        "now", which is the one thing the read time is for - the retention
+        sweep counts from when the row was written, but a person reading the
+        inbox is told how long ago they saw it.
+        """
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-dismiss-read",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        read, _ = await service.mark_one_read(ctx, notification.id)
+        was_read_at = read.read_at
+
+        await service.dismiss_one(ctx, notification.id)
+
+        stored = await db.scalar(select(Notification).where(Notification.id == notification.id))
+        assert stored is not None
+        assert stored.read_at == was_read_at
+        assert stored.dismissed_at is not None
+
+    async def test_clearing_leaves_an_already_read_rows_timestamp_alone(self, db):
+        """The bulk path takes the same `CASE` as the single one - a clear over
+        a mostly-read inbox must not restamp every row in it."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-clear-read",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        ctx = _ctx(recipient, org, role="member")
+        read, _ = await service.mark_one_read(ctx, notification.id)
+        was_read_at = read.read_at
+
+        assert await service.clear_inbox(ctx) == 1
+
+        stored = await db.scalar(select(Notification).where(Notification.id == notification.id))
+        assert stored is not None
+        assert stored.read_at == was_read_at
+        assert stored.dismissed_at is not None
+
     async def test_the_row_survives_so_the_same_fact_cannot_be_written_twice(self, db):
         """The whole reason this is not a delete."""
         owner = await _user(db)

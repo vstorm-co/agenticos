@@ -26,6 +26,8 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Activity,
   Boxes,
   FileText,
@@ -49,7 +51,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { cn, isAppAdmin } from "@/lib/utils";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useSidebarStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 
@@ -208,10 +210,19 @@ export function isActive(
   return !hrefs.some((other) => other.length > href.length && isInside(path, other));
 }
 
-function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function NavLink({
+  item,
+  onNavigate,
+  collapsed = false,
+}: {
+  item: NavItem;
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const active = isActive(pathname, item.href);
+  const label = t(item.labelKey);
 
   return (
     <Link
@@ -219,8 +230,14 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       onClick={onNavigate}
       data-tour={item.dataTour}
       aria-current={active ? "page" : undefined}
+      // On the rail the label is the only thing naming this destination, so it
+      // moves to `title` and `aria-label` rather than disappearing - a column
+      // of eleven unlabelled icons is a column nobody can read.
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        "flex items-center rounded-lg text-sm transition-colors",
+        collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
         // Selected is a neutral raised pill with a dark label - the register
         // OpenAI's and ElevenLabs' consoles use. The accent stays out of the
         // nav so the one place it appears in content still reads as a signal.
@@ -230,7 +247,7 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       )}
     >
       <item.icon className="h-4 w-4 shrink-0" aria-hidden />
-      <span className="truncate">{t(item.labelKey)}</span>
+      {collapsed ? null : <span className="truncate">{label}</span>}
     </Link>
   );
 }
@@ -239,7 +256,13 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
  * The link list on its own, so the desktop column and the mobile slide-over
  * cannot drift into offering different destinations.
  */
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const { can } = usePermissions();
   const { user } = useAuthStore();
   const t = useTranslations("nav");
@@ -251,16 +274,29 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   })).filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
 
   return (
-    <nav aria-label={t("primary")} className="flex flex-col gap-5 px-3 py-4">
+    <nav
+      aria-label={t("primary")}
+      className={cn("flex flex-col py-4", collapsed ? "items-center gap-3 px-2" : "gap-5 px-3")}
+    >
       {groups.map((group) => (
-        <div key={group.labelKey ?? "main"} className="flex flex-col gap-0.5">
-          {group.labelKey && (
-            <div className="text-muted-foreground px-2.5 pb-1.5 text-[11px] font-medium tracking-wide uppercase">
-              {t(group.labelKey)}
-            </div>
-          )}
+        <div
+          key={group.labelKey ?? "main"}
+          className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center gap-1")}
+        >
+          {group.labelKey &&
+            // The heading is what tells the four groups apart, and on the rail
+            // there is no room for the word. A rule does the same job: it says
+            // "a different kind of thing starts here" without claiming to say
+            // which, which an abbreviation would do badly.
+            (collapsed ? (
+              <div aria-hidden className="bg-border mb-1 h-px w-5" />
+            ) : (
+              <div className="text-muted-foreground px-2.5 pb-1.5 text-[11px] font-medium tracking-wide uppercase">
+                {t(group.labelKey)}
+              </div>
+            ))}
           {group.items.map((item) => (
-            <NavLink key={item.href} item={item} onNavigate={onNavigate} />
+            <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
           ))}
         </div>
       ))}
@@ -269,19 +305,58 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppSidebar() {
+  const t = useTranslations("nav");
+  const collapsed = useSidebarStore((state) => state.isCollapsed);
+  const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
+
   return (
-    // Translucent over the ambient backdrop, the way a macOS sidebar frosts
-    // the desktop: the accent wash pulls through the blur, so the column still
-    // reads as its own panel without going flat white. The card tint keeps it
-    // a step above the page in dark mode too.
-    <aside className="bg-card/55 hidden w-[240px] shrink-0 border-r backdrop-blur-2xl md:flex md:flex-col">
+    // `bg-sidebar`, a surface of its own, where this used to be `bg-card/55`
+    // over a blur. Translucency put the column's apparent depth at the mercy of
+    // whatever was behind it - it read as one shade over the page and another
+    // over a card scrolled underneath - and the blur cost a compositor layer
+    // the width of the window on every scroll. A token is one colour, it is the
+    // deepest of the four surfaces in both themes, and a deployment can
+    // retheme it.
+    <aside
+      className={cn(
+        "bg-sidebar hidden shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col",
+        collapsed ? "w-14" : "w-[240px]",
+      )}
+    >
       {/* The brand heads the column because there is no top bar above `md` for
-          it to head instead. */}
-      <div className="flex h-14 shrink-0 items-center border-b px-3">
-        <BrandLink />
+          it to head instead, and the collapse control sits beside it: the one
+          control that is about the column rather than about anything in it,
+          on the column's own title bar - where every editor and console with a
+          collapsible panel puts one. Search and the bell are actions and live
+          with the account at the foot, where a hand rests. */}
+      <div
+        className={cn(
+          "flex h-14 shrink-0 items-center border-b",
+          collapsed ? "justify-center px-2" : "gap-1 px-3",
+        )}
+      >
+        {collapsed ? null : (
+          <div className="min-w-0 flex-1">
+            <BrandLink />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+          aria-expanded={!collapsed}
+          title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+          className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+          ) : (
+            <PanelLeftClose className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+          )}
+        </button>
       </div>
-      <SidebarShell>
-        <SidebarNav />
+      <SidebarShell collapsed={collapsed}>
+        <SidebarNav collapsed={collapsed} />
       </SidebarShell>
     </aside>
   );

@@ -4,7 +4,7 @@ import * as notifications from "./notifications-api";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 const NOTIFICATION = {
@@ -68,5 +68,25 @@ describe("notifications API", () => {
 
     await expect(notifications.markAllNotificationsRead()).resolves.toBe(3);
     expect(apiClient.post).toHaveBeenCalledWith("/notifications/mark-all-read");
+  });
+
+  it("dismisses one row, and survives the page unloading under it", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+    await expect(notifications.dismissNotification("n1")).resolves.toBeUndefined();
+
+    // `keepalive` for the same reason the mark-read call takes it: the row
+    // being cleared is often the one whose link the click is already
+    // following.
+    expect(apiClient.delete).toHaveBeenCalledWith("/notifications/n1", { keepalive: true });
+  });
+
+  it("unwraps how many the clear actually took", async () => {
+    // A number rather than a 204: the sweep is capped, so a caller has to be
+    // able to tell an emptied inbox from a truncated one.
+    vi.mocked(apiClient.delete).mockResolvedValue({ cleared: 12 });
+
+    await expect(notifications.clearNotifications()).resolves.toBe(12);
+    expect(apiClient.delete).toHaveBeenCalledWith("/notifications");
   });
 });

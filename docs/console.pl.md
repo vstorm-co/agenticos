@@ -1,5 +1,5 @@
 ---
-source_sha: "dd8410f601c7"
+source_sha: "15ab128f02d8"
 ---
 
 # Konsola { #the-console }
@@ -75,6 +75,23 @@ read** zbiera naraz do pięciuset nieprzeczytanych wierszy, a potem pyta o
 licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
 to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zamiast
 żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
+
+Przeczytane to nie to samo co usunięte i dostępne jest jedno i drugie.
+Najechanie na wiersz odsłania krzyżyk, który wyjmuje go z listy; **Clear**
+w nagłówku wyjmuje wszystko, co jest aktualnie na liście — przeczytane
+i nieprzeczytane. Wyczyszczenie nieprzeczytanego wiersza oznacza go zarazem
+jako przeczytany, bo wiersz, do którego nic na ekranie już nie sięga, nie może
+dalej liczyć się do plakietki. Tak jak „Mark all read", jedno czyszczenie ma
+granicę — tysiąc wierszy — a dłuższa zaległość wymaga drugiego kliknięcia.
+
+Czego wyczyszczony wiersz *nie* robi, to nie wraca. Powiadomienie zostaje
+zachowane i przestaje być wypisywane, zamiast zostać usunięte, i właśnie to
+sprawia, że tak jest: skrzynka rozpoznaje powtórzenie po fakcie, który opisuje,
+więc usunięty wiersz to taki, który następne sprawdzenie budżetu albo następna
+próba zapisałyby ponownie. Odrzucenie alertu, którym się już zająłeś, jest więc
+ostateczne — dla tego wystąpienia; *nowy*, o nowym fakcie, nadal przyjdzie.
+Wiersze wychodzą też same z siebie: dziewięćdziesiąt dni po zapisaniu, jeśli
+zostały przeczytane, i rok niezależnie od tego.
 
 To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#alerts)
 — ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co

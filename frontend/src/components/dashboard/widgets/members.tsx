@@ -12,6 +12,8 @@ import { seriesColor } from "@/lib/dashboard/system";
 import { BarList } from "../primitives/bar-list";
 import { StackedMeter } from "../primitives/stacked-meter";
 import { WidgetFrame } from "../widget-frame";
+import { Users } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -54,7 +56,11 @@ export function MembersWidget({ title, hint, options }: DashboardWidgetProps) {
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : total <= 1 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Users}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="flex h-full flex-col gap-4">
           <Figure value={total.toLocaleString()} unit={t("unit", { count: total })} />

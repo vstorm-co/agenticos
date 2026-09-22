@@ -15,6 +15,8 @@ import {
 import type { SandboxConnectionRecord, SandboxSession } from "@/lib/sandbox-connections-api";
 import { SandboxActivity } from "./sandbox-activity";
 import { WidgetFrame } from "../widget-frame";
+import { Boxes } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -45,9 +47,17 @@ export function SandboxSessionsWidget({ title, hint, seeAll, options }: Dashboar
       ) : error !== null ? (
         <WidgetErrorBody onRetry={() => void refresh()} />
       ) : host === null ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Boxes}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : !holdsSessions(host) ? (
-        <WidgetEmptyBody title={t("elsewhere.title")} description={t("elsewhere.description")} />
+        <WidgetEmptyBody
+          icon={Boxes}
+          title={t("elsewhere.title")}
+          description={t("elsewhere.description")}
+        />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex items-center justify-between gap-2 text-xs">
