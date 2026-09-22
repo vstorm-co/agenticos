@@ -58,6 +58,7 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_admin_org_owner.py::TestTheDetail::test_it_carries_the_members_owner_budget_and_size": "reads the budget onto an admin's page, display, no refusal",
     "tests/test_media_offload.py::TestTheBytesHaveALifetime::test_the_tenant_s_media_is_removed_with_the_tenant": "a teardown removing a prefix, not a refusal - the isolation case beside it carries the marker",
     "tests/test_codeql_workflow.py::test_the_upload_permission_is_scoped_to_the_analysing_job": "a GitHub Actions permission in a workflow file, not a runtime refusal",
+    "tests/test_deploy_queue_workflow.py::TestItCancelsAndReportsAndNothingElse::test_it_acts_only_on_a_run_that_is_waiting_for_an_approval": "'approval' names a GitHub environment gate a workflow cancels past, not a runtime refusal",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_capability_needing_no_secret_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_conditional_secret_the_default_config_does_not_need_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_non_api_key_secret_gets_no_stand_in": "picks a stand-in value for a documentation stub, no runtime secret",
