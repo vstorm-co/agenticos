@@ -135,6 +135,11 @@ class RAGTrackedDocumentItem(BaseSchema):
     image_description_model: str | None = None
     embedding_model: str | None = None
     was_overridden: bool = False
+    # Which part of the organization the document was ingested as belonging to,
+    # and so what its chunks are narrowable on. `None` for everything ingested
+    # before anything wrote the dimension, and for an upload that named no unit
+    # (#1777).
+    organizational_unit: str | None = None
 
 
 class RAGTrackedDocumentList(BaseSchema):

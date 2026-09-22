@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Somewhere for `organizational_unit` to come from.** The dimension shipped
+  with a filter, an index and a facet endpoint, and nothing that wrote it - so
+  the filter matched nothing (a chunk with no value for a filtered dimension
+  fails closed, by design) and `GET /rag/collections/{name}/filter-values`
+  answered with an empty list for every collection in every deployment. Two
+  writers now: a per-source default on a sync source, inherited by every
+  document it brings in, and a per-upload value carried in the multipart body
+  and recorded on the document's own row - the same rule the resolved ingestion
+  configuration follows, so a run queued before the field existed still binds.
+  Free text, because the vocabulary is whatever a corpus turns out to use and
+  the facet already reports what a collection holds; a blank is recorded as no
+  unit rather than as a unit named `""`. The console offers a field on the sync
+  wizard's last step and one in *How the next uploads are read and filed*, and
+  shows what a document was filed under beside its parser. Nothing is
+  backfilled: no rule can decide which unit an already-ingested document
+  belonged to, and a re-ingest picks the value up.
+  ([#1777](https://github.com/vstorm-co/agenticos/issues/1777))
+
 ## [0.0.481] - 2026-09-22
 
 ### Added
