@@ -169,12 +169,18 @@ Carried from #1781's evaluation:
 
 Found while writing the individual designs:
 
-- **#1784 proposes new dependency-injection surface**: `db: AsyncSession`
-  and `run_auth: AuthContext` fields on `AgentDeps`, and an `operation_key`
-  parameter on `VirtualTableService.create_table`. Neither exists today — no
-  existing agent capability writes through a transactional service mid-run.
-  This needs explicit sign-off before #1784 implementation starts, not just
-  design review; it changes a type every capability depends on.
+- **#1784 proposes new dependency-injection surface**: a `run_auth:
+  AuthContext` field on `AgentDeps` (an earlier draft also shared the run's
+  own `db` session; the review rounds rejected that — each tool call opens
+  its own short-lived session via `get_db_context()` instead, since sharing
+  the run's session both reopens a transaction `CLAUDE.md`'s pre-model-call
+  commit boundary exists to keep closed and hands an explicitly
+  not-concurrency-safe object to code that can run concurrently), and an
+  `operation_key` parameter on `VirtualTableService.create_table`. Neither
+  exists today — no existing agent capability writes through a
+  transactional service mid-run. `run_auth` still needs explicit sign-off
+  before #1784 implementation starts, not just design review; it changes a
+  type every capability depends on.
 - **The public-API org-scoped key mechanism #1792's API adapter needs
   doesn't exist yet** in any design document in this milestone — #1792 and
   #1793 both name it as an external dependency rather than inventing a
