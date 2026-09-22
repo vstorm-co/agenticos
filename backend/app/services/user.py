@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -17,6 +18,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     NotFoundError,
+    RateLimitError,
 )
 from app.core.security import (
     create_email_change_token,
@@ -47,6 +49,7 @@ from app.schemas.user import (
     UserCreate,
     UserUpdate,
 )
+from app.services import rate_limit
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
@@ -64,6 +67,16 @@ logger = logging.getLogger(__name__)
 # so an unknown address costs the same ~170ms as a known one and the timing no
 # longer says which addresses have accounts (#947).
 _DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
+
+_EMAIL_CHANGE_LIMIT = rate_limit.Limit(attempts=3, window_seconds=3600)
+"""How many *distinct* addresses one account may ask to move to, per hour.
+
+Asking again for the address already staged sends nothing and is not counted,
+so this bounds the mail a single account can cause rather than the times a
+profile form may be saved. `PATCH /users/me` is a console route and console
+routes are unmetered, registration is open by default, and the destination is
+the caller's to name - so without a bound here one account can send this
+deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
 
 
 class UserService:
@@ -361,6 +374,15 @@ class UserService:
             # revocation below and its session row survived (#1517).
             update_data["credential_version"] = user.credential_version + 1
 
+        # A staged address change does not survive a credential or address
+        # write. Both are recovery actions - the person acting on the notice
+        # their old address received, or an administrator repairing the account
+        # - and neither should leave an attacker's already-mailed confirmation
+        # link able to move the account afterwards. The password path is also
+        # covered by the token's `cv` claim; the admin address write is covered
+        # only here, because it bumps no version (#1772).
+        if password_changed or update_data.get("email") is not None:
+            update_data["pending_email"] = None
         updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
         if password_changed:
             # A changed password revokes the account's other sessions so a stolen
@@ -436,20 +458,45 @@ class UserService:
         that a change was asked for - which is what makes a takeover visible to
         the person losing the account.
 
+        A **repeat of the address already staged sends nothing**, and a
+        third distinct address inside the cooldown window is refused. This route
+        is a console route and so unmetered, registration is open by default,
+        and the address is the caller's to choose: without both, one account
+        could `PATCH /users/me` in a loop and flood any inbox it names with
+        verification mail sent by this deployment, at its SMTP cost and against
+        its sender reputation.
+
         Raises:
             AlreadyExistsError: another account already holds that address. The
                 check is best-effort by construction - the winner is decided by
                 the unique constraint at confirmation, not here - and exists so
                 the ordinary typo is refused at the moment it is made.
+            RateLimitError: this account has asked for too many distinct
+                addresses too quickly.
         """
         if new_email == user.email:
             return await user_repo.update(
                 self.db, db_user=user, update_data={"pending_email": None}
             ), None
+        if new_email == user.pending_email:
+            # Already staged, and the link for it is already in that inbox. A
+            # form saved twice, or a profile page patched for an unrelated
+            # field, is not a reason to send a second one.
+            return user, None
         existing = await user_repo.get_by_email(self.db, new_email)
         if existing is not None:
             raise AlreadyExistsError(
                 message="Email already registered", details={"email": new_email}
+            )
+        decision = await rate_limit.consume(
+            surface="email_change_request",
+            caller=str(user.id),
+            limit=_EMAIL_CHANGE_LIMIT,
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many email change requests. Try again shortly.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
             )
         updated = await user_repo.update(
             self.db, db_user=user, update_data={"pending_email": new_email}
@@ -462,7 +509,11 @@ class UserService:
             target_id=str(user.id),
             details={"pending_email": new_email},
         )
-        return updated, create_email_change_token(subject=str(user.id), new_email=new_email)
+        return updated, create_email_change_token(
+            subject=str(user.id),
+            new_email=new_email,
+            credential_version=user.credential_version,
+        )
 
     async def confirm_email_change(self, token: str) -> User:
         """Move a staged address across, once its own link comes back.
@@ -473,13 +524,19 @@ class UserService:
         staged one as well, so a token minted for one address cannot confirm a
         different one staged after it.
 
+        A **credential change since the link was minted invalidates it**: `cv`
+        rides in the token and is compared with the row's own version, so the
+        password change or reset that the old address's notice tells its owner
+        to make is what revokes an attacker's staged change, rather than merely
+        preceding it.
+
         Raises:
-            AuthenticationError: the link is invalid, expired, replayed, or for
-                an address no longer staged.
+            AuthenticationError: the link is invalid, expired, replayed, minted
+                before a credential change, or for an address no longer staged.
             AlreadyExistsError: somebody else took the address in the meantime.
         """
         payload = verify_special_token(token, expected_type="email_change")
-        if payload is None or "sub" not in payload or "new" not in payload:
+        if payload is None or "sub" not in payload or "new" not in payload or "cv" not in payload:
             raise AuthenticationError(message="This link is invalid or has expired")
         try:
             user_id = UUID(str(payload["sub"]))
@@ -493,6 +550,8 @@ class UserService:
             raise AuthenticationError(message="This link is invalid or has expired")
         if user.pending_email is None or user.pending_email != payload["new"]:
             raise AuthenticationError(message="This link is invalid or has expired")
+        if payload["cv"] != user.credential_version:
+            raise AuthenticationError(message="This link is invalid or has expired")
 
         taken = await user_repo.get_by_email(self.db, user.pending_email)
         if taken is not None:
@@ -500,11 +559,23 @@ class UserService:
                 message="Email already registered", details={"email": user.pending_email}
             )
         previous = user.email
-        updated = await user_repo.update(
-            self.db,
-            db_user=user,
-            update_data={"email": user.pending_email, "pending_email": None},
-        )
+        claimed = user.pending_email
+        # Two accounts can stage the same address and confirm at the same
+        # moment: each locks its own row, so neither read above sees the other,
+        # and the unique index decides. Inside a savepoint, so the loser is a
+        # 409 naming the address rather than an `IntegrityError` escaping as a
+        # 500 - and so the outer transaction survives to report it.
+        try:
+            async with self.db.begin_nested():
+                updated = await user_repo.update(
+                    self.db,
+                    db_user=user,
+                    update_data={"email": claimed, "pending_email": None},
+                )
+        except IntegrityError as exc:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": claimed}
+            ) from exc
         await record_audit(
             self.db,
             actor_user_id=user.id,
@@ -885,8 +956,13 @@ class UserService:
                 "hashed_password": await asyncio.to_thread(get_password_hash, new_password),
                 # Bumped for the same reason the self-service change bumps it: a
                 # refresh racing the revocation below must not rotate a token
-                # minted before the reset (#1517).
+                # minted before the reset (#1517). It is also what revokes an
+                # outstanding email-change link, which carries the version it
+                # was minted at (#1772).
                 "credential_version": user.credential_version + 1,
+                # And the staging itself goes, so the console stops showing an
+                # address the recovered account is no longer moving to.
+                "pending_email": None,
             },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot

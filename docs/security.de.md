@@ -1,5 +1,5 @@
 ---
-source_sha: "ac73c43abcc8"
+source_sha: "e5ee0101434e"
 ---
 
 # Sicherheit { #security }
@@ -200,7 +200,7 @@ SOC 2 CC6–CC8.
 | Die Registrierungsrichtlinie sichert SSO wie das Formular | `check_may_register` innerhalb von `get_or_create_oauth_user` — `invite_only` und die Domain-Erlaubnisliste weisen auch eine Anbieter-Anmeldung ab (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
 | Gruppen-zu-Rollen-Zuordnung, SAML, SCIM | **Noch nicht** — Menschen melden sich über den Anbieter an, eine Administratorin ordnet sie ein | — |
 | Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
-| Eine geänderte E-Mail-Adresse wird nachgewiesen, bevor Post ihr folgt | `PATCH /users/me` legt die Adresse in `users.pending_email` ab und schickt einen einmaligen Link mit einer Stunde Gültigkeit dorthin; bis der Link zurückkommt, erhält das Konto alles weiter unter seiner bisherigen Adresse, und diese wird darüber informiert, dass eine Änderung verlangt wurde. Anfrage und Bestätigung werden beide auditiert (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
+| Eine geänderte E-Mail-Adresse wird nachgewiesen, bevor Post ihr folgt | `PATCH /users/me` legt die Adresse in `users.pending_email` ab und schickt einen einmaligen Link mit einer Stunde Gültigkeit dorthin; bis der Link zurückkommt, erhält das Konto alles weiter unter seiner bisherigen Adresse, und diese wird darüber informiert, dass eine Änderung verlangt wurde. Der Link trägt die Credential-Version des Kontos, sodass ein Ändern oder Zurücksetzen des Passworts — wozu genau dieser Hinweis auffordert — ihn entwertet, und eine von einer Administratorin reparierte Adresse löscht die Vormerkung. Eine erneute Anfrage nach der bereits vorgemerkten Adresse verschickt nichts, und die Zahl unterschiedlicher Adressen pro Konto und Stunde ist begrenzt. Anfrage und Bestätigung werden beide auditiert (`app/services/user.py`, `POST /auth/email-change/confirm`) | `test_email_change.py` |
 | Ein wiedergespielter Refresh-Token beendet seine Kette und wird protokolliert | Die Rotation behält den ersetzten Hash; ein Refresh, der dazu passt, ist der Reuse-Fall aus RFC 6819 §5.2.2.3 und schließt diese Session mit einem Audit-Eintrag (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }

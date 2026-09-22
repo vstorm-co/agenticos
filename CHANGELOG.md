@@ -35,7 +35,18 @@ Two things are versioned separately from this file and worth knowing about:
   move; a contested address is decided at confirmation by the unique constraint,
   not at the request. Both the request and the confirmation are audited.
   Migration `0093_pending_email` adds the column, nullable, with no backfill:
-  nobody has a change in flight when it runs. (#1772)
+  nobody has a change in flight when it runs.
+
+  Recovery revokes an outstanding link, which is what makes the notice to the
+  old address worth acting on: the link carries the account's credential
+  version, so changing or resetting the password stops it working, and an
+  administrator repairing the address clears the staging. Asking again for the
+  address already staged sends nothing — a profile saved twice, or saved for an
+  unrelated field, is not a second verification email — and the number of
+  distinct addresses one account may ask for is capped per hour, because this
+  route is unmetered and the destination is the caller's to name. The staged
+  address is included in a personal-data export, since it is an address the
+  deployment holds. (#1772)
 
 ## [0.0.481] - 2026-09-22
 

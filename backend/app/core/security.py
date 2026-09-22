@@ -146,6 +146,7 @@ def create_password_reset_token(
 def create_email_change_token(
     subject: str | Any,
     new_email: str,
+    credential_version: int,
     expires_delta: timedelta | None = None,
 ) -> str:
     """Proof that whoever holds it can read `new_email`. Short-lived (1h).
@@ -155,6 +156,14 @@ def create_email_change_token(
     a different one staged after it. Single-use comes from the row rather than
     from here - confirming clears `users.pending_email`, so a replayed token
     finds nothing to move (#1772).
+
+    `cv` is the account's credential version, and it is what makes **recovery
+    revoke this token**. A stolen session can stage an attacker's address; the
+    notice sent to the old one tells its owner to change their password, and
+    that bumps `credential_version` - so the already-mailed link stops working
+    at the moment the person acts on the warning, rather than moving the account
+    to the attacker afterwards. It is the same claim the refresh gate uses, for
+    the same reason.
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(hours=1))
     to_encode = {
@@ -162,6 +171,7 @@ def create_email_change_token(
         "sub": str(subject),
         "type": "email_change",
         "new": new_email,
+        "cv": credential_version,
     }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
