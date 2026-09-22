@@ -361,6 +361,27 @@ describe("a tool call in the transcript", () => {
     );
   });
 
+  it("opens a published page on sight, linked to the version this run wrote", () => {
+    // The version and not the artifact: after the agent republishes, this
+    // conversation still opens what was published in it.
+    card({
+      name: "publish_artifact",
+      result: JSON.stringify({
+        kind: "artifact",
+        artifact_id: "a1",
+        version_id: "v3",
+        version: 3,
+        title: "Weekly report",
+        unchanged: false,
+      }),
+    });
+
+    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
+      "href",
+      "/artifacts/a1?version=v3",
+    );
+  });
+
   it("does not open a chart whose result never became one", () => {
     // The payoff is the only reason to open it on sight. A `create_chart` that came
     // back as an error string would otherwise put a stack of JSON where the picture

@@ -46,6 +46,17 @@ class ArtifactRead(BaseSchema):
     updated_at: datetime | None = None
 
 
+class ArtifactDetail(ArtifactRead):
+    """One artifact as its own page reads it, with what the caller may do to it."""
+
+    can_edit: bool = Field(
+        description=(
+            "Whether the caller may retitle, share, link or delete it - the role scope "
+            "and any grant on this artifact, decided by the server"
+        )
+    )
+
+
 class ArtifactList(BaseSchema):
     items: list[ArtifactRead]
     total: int

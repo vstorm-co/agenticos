@@ -41,6 +41,7 @@ from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.session import get_db_context
 from app.repositories import artifact_repo, resource_grant_repo
 from app.schemas.artifact import (
+    ArtifactDetail,
     ArtifactList,
     ArtifactRead,
     ArtifactUpdate,
@@ -424,9 +425,17 @@ class ArtifactService:
             )
         return artifact
 
-    async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactRead:
+    async def read(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
+        """One artifact, and whether the caller may manage it - decided here, grants included."""
         artifact = await self.get(ctx, artifact_id)
-        return self._read(artifact, await artifact_repo.latest_version(self.db, artifact.id))
+        can_edit = await resolve_access(
+            self.db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT
+        )
+        return await self._detail(artifact, can_edit=can_edit)
+
+    async def _detail(self, artifact: Artifact, *, can_edit: bool) -> ArtifactDetail:
+        current = await artifact_repo.latest_version(self.db, artifact.id)
+        return ArtifactDetail(**self._read(artifact, current).model_dump(), can_edit=can_edit)
 
     @staticmethod
     def _read(artifact: Artifact, current: ArtifactVersion | None) -> ArtifactRead:
@@ -493,16 +502,16 @@ class ArtifactService:
 
     async def update(
         self, ctx: AuthContext, artifact_id: UUID, data: ArtifactUpdate
-    ) -> ArtifactRead:
+    ) -> ArtifactDetail:
         """Retitle an artifact. Its content is the agent's to change, by republishing."""
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
         if data.title is not None:
             artifact = await artifact_repo.update(
                 self.db, artifact=artifact, update_data={"title": data.title}
             )
-        return self._read(artifact, await artifact_repo.latest_version(self.db, artifact.id))
+        return await self._detail(artifact, can_edit=True)
 
-    async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactRead:
+    async def set_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn on the "anyone with the link" address, or rotate it when it is on.
 
         Rotating is the same call on purpose: a link that leaked is replaced by
@@ -523,9 +532,9 @@ class ArtifactService:
             target_type="artifact",
             target_id=str(artifact.id),
         )
-        return self._read(artifact, await artifact_repo.latest_version(self.db, artifact.id))
+        return await self._detail(artifact, can_edit=True)
 
-    async def clear_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactRead:
+    async def clear_public_link(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
         """Turn the public address off. A frame already open keeps its page until its
         signed address expires, `ARTIFACT_VIEW_TTL_SECONDS` at most."""
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT)
@@ -541,7 +550,7 @@ class ArtifactService:
                 target_type="artifact",
                 target_id=str(artifact.id),
             )
-        return self._read(artifact, await artifact_repo.latest_version(self.db, artifact.id))
+        return await self._detail(artifact, can_edit=True)
 
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Delete an artifact, every version, its grants and its link.

@@ -22,8 +22,8 @@ from app.api.deps import ArtifactSvc, Auth, limit_public_artifact, require
 from app.api.routes.v1._artifact_bytes import artifact_response
 from app.core.permissions import Perm
 from app.schemas.artifact import (
+    ArtifactDetail,
     ArtifactList,
-    ArtifactRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactView,
@@ -52,12 +52,12 @@ async def list_artifacts(
     )
 
 
-@router.get("/{artifact_id}", response_model=ArtifactRead)
+@router.get("/{artifact_id}", response_model=ArtifactDetail)
 async def get_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     return await service.read(ctx, artifact_id)
 
 
-@router.patch("/{artifact_id}", response_model=ArtifactRead)
+@router.patch("/{artifact_id}", response_model=ArtifactDetail)
 async def update_artifact(
     artifact_id: UUID, data: ArtifactUpdate, service: ArtifactSvc, ctx: Auth
 ) -> Any:
@@ -88,13 +88,13 @@ async def view_artifact(
     return await service.view(ctx, artifact_id, version_id=version_id)
 
 
-@router.put("/{artifact_id}/public-link", response_model=ArtifactRead)
+@router.put("/{artifact_id}/public-link", response_model=ArtifactDetail)
 async def set_artifact_public_link(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Turn on the "anyone with the link" address, or rotate the one that is on."""
     return await service.set_public_link(ctx, artifact_id)
 
 
-@router.delete("/{artifact_id}/public-link", response_model=ArtifactRead)
+@router.delete("/{artifact_id}/public-link", response_model=ArtifactDetail)
 async def clear_artifact_public_link(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Turn the public address off. The old link stops opening anything."""
     return await service.clear_public_link(ctx, artifact_id)

@@ -24,7 +24,7 @@ from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
-from app.repositories import artifact_repo
+from app.repositories import artifact_repo, retention_repo
 from app.services import artifact as artifacts
 from app.services.file_storage import LocalFileStorage
 from app.services.retention import RetentionService
@@ -350,6 +350,7 @@ class TestListing:
         assert [item.id for item in shared] == [theirs.artifact_id]
         assert ([item.id for item in found], total) == ([theirs.artifact_id], 1)
 
+    @pytest.mark.security
     async def test_a_private_artifact_is_listed_for_its_owner_alone(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
@@ -375,6 +376,7 @@ class TestListing:
         assert (theirs, total) == ([], 0)
         assert [item.id for item in granted] == [published.artifact_id]
 
+    @pytest.mark.security
     async def test_another_organization_lists_nothing_even_with_everything_in_reach(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
@@ -447,3 +449,16 @@ class TestRetention:
             .where(ResourceGrant.resource_id == old.artifact_id)
         )
         assert grants == 0
+
+    async def test_a_sweep_with_nothing_old_enough_removes_nothing(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, user, agent = await _tenant(db)
+        await _publish(db, organization, user, agent, body="<p>fresh</p>")
+
+        removed = await retention_repo.delete_artifacts(
+            db, organization_id=organization.id, cutoff=NOW - timedelta(days=365), limit=10
+        )
+
+        assert removed == 0
+        assert await db.scalar(select(func.count()).select_from(Artifact)) == 1

@@ -191,7 +191,7 @@ class TestTheWireFormat:
 
 
 class TestRegistration:
-    def test_the_capability_reads_the_run_s_workspace_and_asks_no_approval(self) -> None:
+    def test_the_capability_reads_the_run_s_workspace_and_is_not_side_effecting(self) -> None:
         definition = registry.get("artifacts")
         assert definition.side_effecting is False
         workspace = object()

@@ -265,6 +265,8 @@ services:
       - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:8000}
       - PUBLIC_WS_URL=${PUBLIC_WS_URL:-ws://localhost:8000}
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:3000}
+      # Where artifact pages are framed from, when not the API origin above.
+      - ARTIFACT_ORIGIN=${ARTIFACT_ORIGIN:-}
       # The composer refuses a file above this before uploading it; the backend's
       # `CHAT_MAX_UPLOAD_SIZE_MB` is the limit it would hit otherwise, so the two
       # are the same name and should be given the same value.

@@ -212,6 +212,7 @@ class TestGet:
         ):
             await _service().get(_ctx(), uuid.uuid4())
 
+    @pytest.mark.security
     async def test_an_artifact_the_caller_cannot_reach_is_not_found_rather_than_forbidden(
         self,
     ) -> None:
@@ -248,9 +249,24 @@ class TestRead:
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
         ):
             read = await _service().read(ctx, artifact.id)
+        assert read.can_edit is True
         assert read.current_version is not None
         assert read.current_version.number == 3
         assert read.public_url == f"{artifacts.settings.FRONTEND_URL.rstrip('/')}/a/{'k' * 32}"
+
+    @pytest.mark.security
+    async def test_a_reader_is_told_they_may_not_manage_it(self) -> None:
+        """Decided with the grants, so the page hides what the server would refuse."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        artifact = _artifact(ctx)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(side_effect=[True, False])) as access,
+            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
+        ):
+            read = await _service().read(ctx, artifact.id)
+        assert read.can_edit is False
+        assert access.await_args_list[1].args[3] is Perm.ARTIFACTS_EDIT
 
     async def test_an_untitled_update_changes_nothing(self) -> None:
         ctx = _ctx()
@@ -426,6 +442,7 @@ class TestView:
 
 
 class TestPublicView:
+    @pytest.mark.security
     async def test_an_unknown_or_revoked_key_is_not_found(self) -> None:
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=None)),
@@ -474,6 +491,7 @@ class TestContent:
         assert document == b"<h1>hi</h1>"
         assert lookup.await_args.args[1] == version.id
 
+    @pytest.mark.security
     @pytest.mark.parametrize("kind", ["expired", "forged", "wrong-type"])
     async def test_an_address_that_is_not_one_is_not_found(self, kind: str) -> None:
         from app.core.security import create_password_reset_token
@@ -523,6 +541,7 @@ class TestRender:
 
 
 class TestThePolicy:
+    @pytest.mark.security
     def test_the_page_gets_an_opaque_origin_and_no_network(self) -> None:
         policy = artifacts.content_security_policy()
         directives = {part.split()[0]: part.split()[1:] for part in policy.split("; ")}

@@ -112,6 +112,7 @@ class TestMembers:
         assert body["items"][0]["current_version"]["number"] == 3
         assert body["items"][0]["public_url"] is None
 
+    @pytest.mark.security
     async def test_an_artifact_in_another_organization_is_not_found(
         self, client: OpenClient
     ) -> None:
@@ -201,12 +202,14 @@ class TestStrangers:
         assert response.status_code == 200
         assert set(response.json()) == {"title", "published_at", "view"}
 
+    @pytest.mark.security
     async def test_a_revoked_link_is_not_found(self, client: OpenClient) -> None:
         with patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=None)):
             async with client() as http:
                 response = await http.get(f"{settings.API_V1_STR}/public/artifacts/gone")
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_a_hammered_link_is_refused(self, client: OpenClient) -> None:
         refused = rate_limit.Decision(allowed=False, retry_after_seconds=30)
         with patch.object(
@@ -218,6 +221,7 @@ class TestStrangers:
 
 
 class TestTheContentRoute:
+    @pytest.mark.security
     async def test_the_page_is_served_in_a_sandbox_with_no_network(
         self, client: OpenClient
     ) -> None:
@@ -250,6 +254,7 @@ class TestTheContentRoute:
         assert response.headers["x-content-type-options"] == "nosniff"
         assert "set-cookie" not in response.headers
 
+    @pytest.mark.security
     async def test_an_expired_address_is_not_found(self, client: OpenClient) -> None:
         token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(seconds=-1))
         async with client() as http:
