@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 
 from app.core.permissions import AuthContext
 from app.db.models.announcement import Announcement
@@ -1802,7 +1802,11 @@ class TestUnreadCountAndMarkRead:
             summary="Run completed",
             organization_id=org.id,
         )
-        # Newer than it, and more of them than one scan window holds.
+        # More of them than one scan window holds, and newer than the visible
+        # row. `created_at` is written explicitly because `func.now()` is the
+        # *transaction's* clock: all three rows would otherwise share a
+        # timestamp, leaving the order to the uuid tiebreaker and the scan
+        # window to chance.
         for index in range(2):
             await service.write(
                 recipients=[member.id],
@@ -1811,6 +1815,12 @@ class TestUnreadCountAndMarkRead:
                 summary="A secret was rotated",
                 organization_id=org.id,
             )
+        await db.execute(
+            update(Notification)
+            .where(Notification.occurrence_id == "run-under-the-backlog")
+            .values(created_at=datetime(2020, 1, 1, tzinfo=UTC))
+        )
+        await db.flush()
         ctx = _ctx(member, org, role="member")
 
         first = await service.mark_all_read(ctx)
