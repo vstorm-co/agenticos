@@ -45,6 +45,7 @@ no spec can redirect it.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -64,6 +65,7 @@ from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
+from app.repositories import user as user_repo
 from app.services.notification_center import NotificationCenterService
 from app.services.spend import organization_spend_since
 
@@ -465,7 +467,48 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def security_event(self, entry: AppAdminAuditLog) -> None:
+    async def hold_security_audience(self, organization_id: UUID | None) -> list[UUID]:
+        """Lock the rows `security_event` is about to reference, before the
+        audit chain lock is taken, and return them.
+
+        Returned rather than resolved twice, and the write takes what is
+        returned: `FOR KEY SHARE` does not conflict with the non-key update
+        `create-app-admin` performs, so an admin promoted between the two
+        queries would appear only in the second - a recipient whose row nothing
+        had locked, which is the cycle this method exists to close, reopened one
+        row wide.
+
+        Called immediately *before* the `record_audit` whose entry this will
+        notify about, and never after it. `record_audit` holds a
+        transaction-scoped lock on the organization's audit chain, and the
+        notification write that follows reaches for a key-share lock on every
+        recipient's `users` row - while `UserService.admin_delete` takes those
+        rows exclusively *first* and the chain lock second. Two transactions,
+        the same two locks, opposite orders: Postgres aborts one, and the side
+        that loses can lose its mandatory security notification inside the
+        per-recipient savepoint while the audit entry commits regardless
+        (#1763).
+
+        The audience depends on the organization alone, so it can be resolved
+        before the entry exists. That costs one extra query on an
+        administrator's action, which is the price of the order being total
+        rather than conventional.
+        """
+        audience = sorted(await self._security_audience(organization_id))
+        await user_repo.hold_key_share(self.db, audience)
+        return audience
+
+    async def hold_configuration_audience(self) -> list[UUID]:
+        """The same, for `configuration_changed`, whose audience is always the
+        deployment's app admins - which is exactly the set `admin_delete` locks
+        exclusively, so this is the half of #1763 with the shortest cycle."""
+        audience = sorted(await member_repo.list_app_admin_ids(self.db))
+        await user_repo.hold_key_share(self.db, audience)
+        return audience
+
+    async def security_event(
+        self, entry: AppAdminAuditLog, *, recipients: Sequence[UUID] | None = None
+    ) -> None:
         """A privileged or access-changing action just landed in the audit
         trail - the security half of Decision 1's two mandatory events.
 
@@ -488,7 +531,14 @@ class NotificationService:
         audit entry, already written by the time this runs, is never affected
         by the notification being skipped.
         """
-        recipients = await self._security_audience(entry.organization_id)
+        # The set `hold_security_audience` locked, when the caller took it:
+        # resolving it a second time here is what lets an admin promoted in
+        # between arrive as a recipient whose row nothing holds (#1763).
+        recipients = (
+            list(recipients)
+            if recipients is not None
+            else sorted(await self._security_audience(entry.organization_id))
+        )
         if not recipients:
             return
         path = _SECURITY_EVENT_PATH.get(entry.target_type or "", "/admin")
@@ -515,7 +565,9 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def configuration_changed(self, entry: AppAdminAuditLog) -> None:
+    async def configuration_changed(
+        self, entry: AppAdminAuditLog, *, recipients: Sequence[UUID] | None = None
+    ) -> None:
         """The mirror of `security_event`, wired at `deployment_settings.py`'s
         three `record_audit` calls, every one of them `action=
         "deployment.settings_updated"`. Always deployment-wide - a setting
@@ -525,7 +577,13 @@ class NotificationService:
         under its own event type's bucket - an actor's settings changes never eat
         into the allowance a security event from the same actor would need.
         """
-        recipients = set(await member_repo.list_app_admin_ids(self.db))
+        # `hold_configuration_audience`'s locked set, for the reason
+        # `security_event` above gives.
+        recipients = (
+            list(recipients)
+            if recipients is not None
+            else sorted(await member_repo.list_app_admin_ids(self.db))
+        )
         if not recipients:
             return
         url = f"{self._frontend}/admin/settings"

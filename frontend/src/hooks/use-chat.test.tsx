@@ -2001,6 +2001,51 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
   });
 
+  it("says so on the drop, because a connection that never comes back never ends the turn", () => {
+    // Acting only on the way back up left a reader who lost connectivity
+    // outright with the screen this notice was written to remove: no notice, no
+    // ending, a composer that spins. The copy is as true offline as online.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+
+    socket.isConnected = false;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.interrupted).toBe(true);
+    expect(streaming()?.isStreaming).toBe(false);
+  });
+
+  it("belongs to the conversation it happened in, not to whichever one is open", () => {
+    // The window is the length of a reconnect. Opening another thread inside it
+    // used to draw the notice over one that was never interrupted, and re-read
+    // that one instead of the thread still being written.
+    const onTurnInterrupted = vi.fn();
+    let conversationId = "c-interrupted";
+    const { result, rerender } = renderHook(() => useChat({ conversationId, onTurnInterrupted }), {
+      wrapper,
+    });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+
+    socket.isConnected = false;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    conversationId = "c-other";
+    rerender();
+    expect(result.current.interrupted).toBe(false);
+
+    socket.isConnected = true;
+    rerender();
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+
+    conversationId = "c-interrupted";
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+  });
+
   it("says nothing about a socket that came back with no turn in flight", () => {
     const onTurnInterrupted = vi.fn();
     const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
@@ -2056,6 +2101,126 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(result.current.interrupted).toBe(false);
     expect(result.current.queuedMessages).toEqual([]);
     vi.useRealTimers();
+  });
+
+  it("goes on saying the earlier answer is coming once the reader asks something else", () => {
+    // The lost turn runs on under its old session, so this question loads a
+    // history without its answer and that answer lands in the transcript after
+    // it. Not corruption, and stated nowhere until now.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    act(() => result.current.sendMessage("never mind, this instead"));
+
+    expect(result.current.interrupted).toBe(false);
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    act(() => result.current.acknowledgeDetachedTurn());
+    expect(result.current.detachedTurnPending).toBe(false);
+  });
+
+  it("holds the queue after the reader opens another thread", async () => {
+    // The notice is scoped to its thread; the queue is not. Scoped, switching
+    // away released the interrupted thread's own queued message into whichever
+    // thread was opened next - the drain runs before the effect that clears the
+    // queue on a switch, and the send it schedules cannot be called back.
+    vi.useFakeTimers();
+    let conversationId = "c-interrupted";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    conversationId = "c-other";
+    rerender();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("keeps a warning per thread rather than one between them", () => {
+    // Interrupted in A, asked something else, switched to B, dropped again:
+    // one slot would have taken A's warning down while A's answer was still on
+    // its way.
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("in A"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    act(() => result.current.sendMessage("never mind, this instead"));
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    conversationId = "c-b";
+    rerender();
+    act(() => result.current.sendMessage("in B"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    act(() => result.current.sendMessage("never mind here either"));
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    conversationId = "c-a";
+    rerender();
+    expect(result.current.detachedTurnPending).toBe(true);
+  });
+
+  it("resolves itself when the answer it was waiting for lands", () => {
+    // Pressing the notice's button re-reads the transcript, and the answer
+    // arriving in it is the only signal this client has that the turn is over.
+    // Without this the reader is told an answer is still coming while they are
+    // looking at it, and the queue stays held behind a turn that has finished.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    // What a re-read brings back: the finished answer, in the transcript.
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "landed",
+        role: "assistant",
+        content: "the answer that was still being written",
+        timestamp: new Date(),
+      }),
+    );
+
+    expect(result.current.interrupted).toBe(false);
+  });
+
+  it("acknowledging a thread with nothing coming changes nothing", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.acknowledgeDetachedTurn());
+
+    expect(result.current.detachedTurnPending).toBe(false);
+  });
+
+  it("says nothing about an answer nobody was waiting for", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(result.current.detachedTurnPending).toBe(false);
   });
 });
 

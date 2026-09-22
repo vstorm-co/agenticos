@@ -173,6 +173,14 @@ async def upload_kb_document(
             "keys keep the collection's setting. Recorded on the document."
         ),
     ),
+    organizational_unit: str | None = Form(
+        default=None,
+        max_length=255,
+        description=(
+            "Which part of the organization this document belongs to. Stamped on "
+            "every chunk and narrowable on at retrieval; blank means none."
+        ),
+    ),
 ) -> Any:
     """Upload a file into the KB's underlying vector collection.
 
@@ -194,6 +202,7 @@ async def upload_kb_document(
         replace=replace,
         vector_store=vector_store,
         override=parse_override(ingestion),
+        organizational_unit=organizational_unit,
         organization_id=ctx.organization_id,
         knowledge_base_id=kb.id,
     )

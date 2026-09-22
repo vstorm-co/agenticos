@@ -23,6 +23,8 @@ from app.core.security import (
     verify_token,
 )
 from app.schemas.password_reset import (
+    EmailChangeConfirm,
+    EmailChangeConfirmResponse,
     MagicLinkRequest,
     MagicLinkVerifyRequest,
     PasswordChangeRequest,
@@ -263,6 +265,25 @@ async def confirm_password_reset(
     await enforce_auth_limit(request, surface="auth_password_reset_confirm")
     await user_service.confirm_password_reset(body.token, body.new_password)
     return PasswordResetConfirmResponse()
+
+
+@router.post("/email-change/confirm", response_model=EmailChangeConfirmResponse)
+async def confirm_email_change(
+    request: Request,
+    body: EmailChangeConfirm,
+    user_service: UserSvc,
+) -> Any:
+    """Move a staged address across, using the token mailed to it.
+
+    Unauthenticated for the reason the reset confirm beside it is: the link is
+    followed from the new address, routinely in a different browser from the one
+    that asked for the change. The token is the whole of the proof, and it is
+    refused unless the address it names is still the one staged on that account
+    (#1772).
+    """
+    await enforce_auth_limit(request, surface="auth_email_change_confirm")
+    await user_service.confirm_email_change(body.token)
+    return EmailChangeConfirmResponse()
 
 
 @router.post("/magic-link/request", response_model=PasswordResetResponse)

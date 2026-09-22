@@ -460,6 +460,27 @@ class TestChannelRestriction:
         assert deliveries == []
 
 
+def _budget_spent(counts: dict[str, int] | None = None):
+    """A limiter that refuses the mandatory-write budget and meters the claim.
+
+    Two limits now share `rate_limit.consume`, and a stub that refuses both
+    would refuse the coalesced write itself - proving nothing. The claim is
+    counted here the way Redis counts it, so a burst proves what it is meant
+    to: one coalesced write per window, however many events overflow (#1762).
+    """
+    seen = counts if counts is not None else {}
+
+    async def _consume(*, surface: str, caller: str, limit, **_kwargs):
+        if surface == "notification_mandatory_write":
+            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
+        seen[caller] = seen.get(caller, 0) + 1
+        return notification_center.rate_limit.Decision(
+            allowed=seen[caller] <= limit.attempts, retry_after_seconds=0
+        )
+
+    return _consume
+
+
 class TestMandatoryEvents:
     async def test_a_mandatory_event_ignores_preferences_on_both_channels(self, db):
         owner = await _user(db)
@@ -519,16 +540,19 @@ class TestMandatoryEvents:
         )
         assert len(written) == 1
 
-    async def test_a_rate_limited_mandatory_write_writes_nothing(self, db, monkeypatch):
+    async def test_a_rate_limited_mandatory_write_coalesces_rather_than_dropping(
+        self, db, monkeypatch
+    ):
+        """Returning nothing is what defeated the guarantee (#1762): a
+        mandatory event exists because the audit log is not what admins watch,
+        and the one event in a burst that mattered reached neither the inbox
+        nor email."""
         owner = await _user(db)
         org = await _org(db, owner)
         admin = await _member(db, org, role="admin")
         service = NotificationCenterService(db)
 
-        async def _blocked(**_kwargs):
-            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
-
-        monkeypatch.setattr(notification_center.rate_limit, "consume", _blocked)
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _budget_spent())
 
         written = await service.write(
             recipients=[admin.id],
@@ -538,7 +562,41 @@ class TestMandatoryEvents:
             organization_id=org.id,
             actor_user_id=owner.id,
         )
-        assert written == []
+        assert len(written) == 1
+        row = written[0]
+        assert row.occurrence_id.startswith(f"coalesced:{org.id}:{owner.id}:")
+        assert (
+            row.summary
+            == notification_center._COALESCED_SUMMARY[NotificationEventType.SECURITY_EVENT]
+        )
+        # Not the refused event's own words: it says the minute was busier than
+        # the inbox lists, and points at where all of it is.
+        assert "A secret was rotated" not in row.summary
+        assert row.event_type == NotificationEventType.SECURITY_EVENT.value
+        assert row.organization_id == org.id
+
+    async def test_a_burst_past_the_budget_coalesces_into_one_row(self, db, monkeypatch):
+        """One write per window, claimed before the fan-out rather than left to
+        the conflict clause. `ON CONFLICT DO NOTHING` stops a second row and a
+        second delivery; it does not stop the savepoint and the insert attempted
+        for every recipient, and those are the work the budget exists to bound."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+
+        claims: dict[str, int] = {}
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _budget_spent(claims))
+
+        for index in range(4):
+            await service.write(
+                recipients=[admin.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-burst-{index}",
+                summary="A secret was rotated",
+                organization_id=org.id,
+                actor_user_id=owner.id,
+            )
         rows = (
             (
                 await db.execute(
@@ -548,14 +606,70 @@ class TestMandatoryEvents:
             .scalars()
             .all()
         )
-        assert rows == []
+        assert len(rows) == 1
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == rows[0].id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(deliveries) == 1
+        # Four overflows, one claim allowed and three refused before any
+        # per-recipient work was done.
+        assert list(claims.values()) == [4]
 
-    async def test_a_rate_limited_mandatory_write_with_no_actor_still_writes_nothing(
+    async def test_two_organizations_overflowing_at_once_each_get_their_own_notice(
+        self, db, monkeypatch
+    ):
+        """Dedup is `(recipient, event_type, occurrence_id)`, so one key for one
+        actor would give somebody who administers both organizations only the
+        first one's notice - the second row a no-op carrying a different tenant
+        and a link nobody ever sees."""
+        actor = await _user(db)
+        first = await _org(db, actor)
+        second = await _org(db, actor)
+        admin = await _member(db, first, role="admin")
+        await db.execute(
+            OrganizationMember.__table__.insert().values(
+                id=uuid.uuid4(), organization_id=second.id, user_id=admin.id, role="admin"
+            )
+        )
+        service = NotificationCenterService(db)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _budget_spent())
+
+        for organization in (first, second):
+            await service.write(
+                recipients=[admin.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-{organization.id}",
+                summary="A secret was rotated",
+                organization_id=organization.id,
+                actor_user_id=actor.id,
+            )
+        rows = (
+            (
+                await db.execute(
+                    select(Notification).where(Notification.recipient_user_id == admin.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert {row.organization_id for row in rows} == {first.id, second.id}
+
+    async def test_a_rate_limited_write_with_no_actor_still_coalesces_under_system(
         self, db, monkeypatch
     ):
         """A system-triggered audit entry has no human actor
         (`AppAdminAuditLog.actor_user_id` is nullable), and that must still be
-        bounded, not exempted - the gap this guard exists to close."""
+        bounded, not exempted - the gap this guard exists to close. Its
+        overflow coalesces under its own key rather than any person's."""
         owner = await _user(db)
         org = await _org(db, owner)
         admin = await _member(db, org, role="admin")
@@ -563,11 +677,14 @@ class TestMandatoryEvents:
 
         calls: list[str] = []
 
-        async def _blocked(*, caller: str, **_kwargs):
-            calls.append(caller)
-            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
+        budget = _budget_spent()
 
-        monkeypatch.setattr(notification_center.rate_limit, "consume", _blocked)
+        async def _consume(*, surface: str, caller: str, **kwargs):
+            if surface == "notification_mandatory_write":
+                calls.append(caller)
+            return await budget(surface=surface, caller=caller, **kwargs)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _consume)
 
         written = await service.write(
             recipients=[admin.id],
@@ -577,8 +694,30 @@ class TestMandatoryEvents:
             organization_id=org.id,
             actor_user_id=None,
         )
-        assert written == []
         assert calls == ["user:system:security_event"]
+        assert len(written) == 1
+        assert written[0].occurrence_id.startswith(f"coalesced:{org.id}:system:")
+
+    async def test_a_rate_limited_configuration_change_says_what_it_coalesced(
+        self, db, monkeypatch
+    ):
+        """The two mandatory event types coalesce into their own sentence: a
+        settings change reported as a security event would misdescribe it."""
+        admin = await _user(db, is_app_admin=True)
+        service = NotificationCenterService(db)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _budget_spent())
+
+        written = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.CONFIGURATION_CHANGED,
+            occurrence_id="settings-9",
+            summary="The deployment's settings were updated.",
+            organization_id=None,
+            actor_user_id=admin.id,
+        )
+        assert len(written) == 1
+        assert "settings were changed more times" in written[0].summary
 
 
 class TestSavepointSafety:

@@ -111,7 +111,7 @@ names no author is in the evidence column below.
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.141.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp-slim | 3.4.7 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin |
+| fastmcp-slim | 4.0.5 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
@@ -138,7 +138,6 @@ names no author is in the evidence column below.
 | httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
 | httptools | 0.8.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
-| httpx-sse | 0.4.3 | MIT | https://github.com/florimondmanca/httpx-sse | License field |
 | httpx2 | 2.13.0 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
 | humanize | 4.16.0 | MIT | https://github.com/python-humanize/humanize | License-Expression |
@@ -171,7 +170,8 @@ names no author is in the evidence column below.
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
 | markupsafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
-| mcp | 1.30.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp-types | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
 | mem0ai | 2.1.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.1.0/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |

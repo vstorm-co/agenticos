@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-import httpx
+import httpx2
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
 from pydantic import AnyUrl, SecretStr, ValidationError
@@ -219,14 +219,54 @@ class TestTransportSelection:
         calls: list = []
         import mcp.client.streamable_http as http_mod
 
-        def streamablehttp_client(url, headers=None):
-            calls.append(("http", url, headers))
-            return _acm(("http-read", "http-write", lambda: None))
+        def streamable_http_client(url, *, http_client=None):
+            calls.append(("http", url, http_client))
+            return _acm(("http-read", "http-write"))
 
-        monkeypatch.setattr(http_mod, "streamablehttp_client", streamablehttp_client)
+        monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
         async with _mcp_transport("https://example.com/mcp", None) as (r, w):
             assert (r, w) == ("http-read", "http-write")
-        assert calls == [("http", "https://example.com/mcp", None)]
+        assert [(kind, url) for kind, url, _ in calls] == [("http", "https://example.com/mcp")]
+
+    @pytest.mark.anyio
+    async def test_the_headers_reach_the_client_the_streamable_transport_is_given(
+        self, monkeypatch
+    ):
+        """MCP 2.0 took `headers` off the transport and put a client in its
+        place, so a rename alone compiles and silently drops every
+        `Authorization` a connection carries - the whole of what reaches a
+        private server (#1820)."""
+        import mcp.client.streamable_http as http_mod
+
+        clients: list = []
+
+        def streamable_http_client(url, *, http_client=None):
+            clients.append(http_client)
+            return _acm(("http-read", "http-write"))
+
+        monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
+        async with _mcp_transport("https://example.com/mcp", {"Authorization": "Bearer sh"}):
+            pass
+
+        assert clients and clients[0].headers["authorization"] == "Bearer sh"
+
+    @pytest.mark.anyio
+    async def test_the_client_it_built_is_closed_with_the_transport(self, monkeypatch):
+        """Owned here rather than left to the SDK: a client that outlives the
+        transport is a connection pool nobody closes."""
+        import mcp.client.streamable_http as http_mod
+
+        clients: list = []
+
+        def streamable_http_client(url, *, http_client=None):
+            clients.append(http_client)
+            return _acm(("http-read", "http-write"))
+
+        monkeypatch.setattr(http_mod, "streamable_http_client", streamable_http_client)
+        async with _mcp_transport("https://example.com/mcp", None):
+            assert not clients[0].is_closed
+
+        assert clients[0].is_closed
 
 
 class TestMakeToolset:
@@ -3472,7 +3512,7 @@ class TestOAuthRequestSafety:
 
     @staticmethod
     def _client(handler) -> PinnedAsyncClient:
-        return mcp_oauth._client(httpx.MockTransport(handler))
+        return mcp_oauth._client(httpx2.MockTransport(handler))
 
     @staticmethod
     def _resolves(monkeypatch, *rounds: str) -> list[str]:
@@ -3494,9 +3534,9 @@ class TestOAuthRequestSafety:
         self._resolves(monkeypatch, "169.254.169.254")
         seen: list[str] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(str(request.url))
-            return httpx.Response(200, json={})
+            return httpx2.Response(200, json={})
 
         async with self._client(handler) as client:
             request = client.build_request("GET", "https://auth.attacker.test/.well-known/oauth")
@@ -3507,14 +3547,14 @@ class TestOAuthRequestSafety:
 
     @pytest.mark.anyio
     async def test_a_refused_hop_is_reported_without_the_url_it_refused(self, monkeypatch):
-        """The refusal crosses `httpx` out of the transport and reaches a
+        """The refusal crosses `httpx2` out of the transport and reaches a
         browser as a toast, so what it may say is the same question #861
         answered for the connection dialog. The endpoint this flow POSTs to is
         reached with credentials, and its query string is the server's to
         write."""
         self._resolves(monkeypatch, "10.0.0.9")
 
-        async with self._client(lambda request: httpx.Response(200, json={})) as client:
+        async with self._client(lambda request: httpx2.Response(200, json={})) as client:
             request = client.build_request(
                 "POST", "https://auth.attacker.test/token?client_secret=sh-secret-value"
             )
@@ -3534,11 +3574,11 @@ class TestOAuthRequestSafety:
         whatever resolves next. There is no next - the request goes to the
         address the check approved, naming the host only in `Host` and SNI."""
         asked = self._resolves(monkeypatch, "93.184.216.34", "169.254.169.254")
-        seen: list[httpx.Request] = []
+        seen: list[httpx2.Request] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(request)
-            return httpx.Response(200, json={})
+            return httpx2.Response(200, json={})
 
         async with self._client(handler) as client:
             request = client.build_request("POST", "https://token.attacker.test/token")
@@ -3553,9 +3593,9 @@ class TestOAuthRequestSafety:
     async def test_redirect_to_internal_host_is_blocked(self):
         seen: list[str] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(str(request.url))
-            return httpx.Response(
+            return httpx2.Response(
                 302, headers={"Location": "http://169.254.169.254/latest/meta-data/"}
             )
 
@@ -3573,9 +3613,9 @@ class TestOAuthRequestSafety:
         asked = self._resolves(monkeypatch, "93.184.216.34", "10.0.0.7")
         seen: list[str] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(str(request.url))
-            return httpx.Response(302, headers={"Location": "https://intranet.attacker.test/x"})
+            return httpx2.Response(302, headers={"Location": "https://intranet.attacker.test/x"})
 
         async with self._client(handler) as client:
             request = client.build_request("GET", "https://auth.attacker.test/start")
@@ -3591,13 +3631,13 @@ class TestOAuthRequestSafety:
         the dialled one, `/moved` would resolve against the IP and the hop after
         it would be checked - and cached, and TLS-verified - as a bare address."""
         self._resolves(monkeypatch, "93.184.216.34")
-        seen: list[httpx.Request] = []
+        seen: list[httpx2.Request] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(request)
             if request.url.path == "/start":
-                return httpx.Response(302, headers={"Location": "/moved"})
-            return httpx.Response(200, text="ok")
+                return httpx2.Response(302, headers={"Location": "/moved"})
+            return httpx2.Response(200, text="ok")
 
         async with self._client(handler) as client:
             request = client.build_request("GET", "https://auth.example.test/start")
@@ -3609,10 +3649,10 @@ class TestOAuthRequestSafety:
 
     @pytest.mark.anyio
     async def test_redirect_to_public_host_is_followed(self):
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             if request.url.host == "93.184.216.34":
-                return httpx.Response(302, headers={"Location": "https://93.184.216.35/moved"})
-            return httpx.Response(200, text="ok")
+                return httpx2.Response(302, headers={"Location": "https://93.184.216.35/moved"})
+            return httpx2.Response(200, text="ok")
 
         async with self._client(handler) as client:
             request = client.build_request("GET", "https://93.184.216.34/start")
@@ -3622,8 +3662,8 @@ class TestOAuthRequestSafety:
 
     @pytest.mark.anyio
     async def test_redirect_loop_gives_up(self):
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(302, headers={"Location": "https://93.184.216.34/loop"})
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            return httpx2.Response(302, headers={"Location": "https://93.184.216.34/loop"})
 
         async with self._client(handler) as client:
             request = client.build_request("GET", "https://93.184.216.34/loop")
@@ -3636,7 +3676,7 @@ class TestOAuthRequestSafety:
         service's reply must not ride along with it."""
 
         async def fake_send(client, request):
-            return httpx.Response(
+            return httpx2.Response(
                 500, text="redis: NOAUTH Authentication required", request=request
             )
 
@@ -3652,7 +3692,7 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
     """An OAuth refusal reaches the browser - as a toast since #657 - so what it
     may say is written here rather than by whatever raised.
 
-    `httpx` puts the failing request in its message, and the two requests this
+    `httpx2` puts the failing request in its message, and the two requests this
     flow makes are a token grant and a client registration: a URL in that
     message is an endpoint reached with credentials. The vendor's text is not
     deleted, it moves to the log beside the raise (#686).
@@ -3683,7 +3723,7 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         vendor_text = f"[Errno 61] Connection refused for {self._LEAKY_URL}"
 
         async def fake_send(client, request):
-            raise httpx.ConnectError(vendor_text)
+            raise httpx2.ConnectError(vendor_text)
 
         monkeypatch.setattr(mcp_oauth, "_send", fake_send)
         with (
@@ -3705,7 +3745,7 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         vendor_text = f"Server disconnected without sending a response: {self._LEAKY_URL}"
 
         async def fake_send(client, request):
-            raise httpx.ReadError(vendor_text)
+            raise httpx2.ReadError(vendor_text)
 
         monkeypatch.setattr(mcp_oauth, "_send", fake_send)
         with (
@@ -3731,7 +3771,7 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         its error type, never the value (#1626)."""
 
         async def fake_send(client, request):
-            return httpx.Response(200, json={"token": "at-secret-9f2c"}, request=request)
+            return httpx2.Response(200, json={"token": "at-secret-9f2c"}, request=request)
 
         monkeypatch.setattr(mcp_oauth, "_send", fake_send)
         with (
@@ -3764,12 +3804,12 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
 
 
 class TestAUrlNoRequestCanBeBuiltFor:
-    """A discovery document may name a URL `httpx` will not parse at all, and
+    """A discovery document may name a URL `httpx2` will not parse at all, and
     that is the third-party server being malformed rather than this platform
     being broken - so it answers the 400 every other bad document answers.
 
-    `httpx.InvalidURL` derives from `Exception` rather than from
-    `httpx.HTTPError`, so it escaped all three of this module's catches and
+    `httpx2.InvalidURL` derives from `Exception` rather than from
+    `httpx2.HTTPError`, so it escaped all three of this module's catches and
     reached the unhandled-exception handler as a 500 with an empty body (#889).
     Neither `app.core.sanitize` nor `PinnedAsyncClient` could have stopped it:
     both need a request, and this is the failure to build one.
@@ -3792,17 +3832,17 @@ class TestAUrlNoRequestCanBeBuiltFor:
     def _serving(monkeypatch, handler) -> None:
         """Point every client `discover` opens at *handler* instead of a network."""
         real = mcp_oauth._client
-        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx.MockTransport(handler)))
+        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx2.MockTransport(handler)))
 
     @classmethod
-    def _hinting_at_the_bad_port(cls, request: httpx.Request) -> httpx.Response:
+    def _hinting_at_the_bad_port(cls, request: httpx2.Request) -> httpx2.Response:
         if request.method == "POST":
-            return httpx.Response(
+            return httpx2.Response(
                 401,
                 headers={"WWW-Authenticate": f'Bearer resource_metadata="{cls._BAD_PORT}"'},
                 json={},
             )
-        return httpx.Response(404, json={})
+        return httpx2.Response(404, json={})
 
     @staticmethod
     def _metadata(token_endpoint: str) -> dict[str, object]:
@@ -3817,13 +3857,13 @@ class TestAUrlNoRequestCanBeBuiltFor:
     async def test_a_www_authenticate_hint_with_an_unusable_port_does_not_crash_discovery(
         self, monkeypatch
     ):
-        """The header is remote-controlled text that reaches `httpx.Request`
+        """The header is remote-controlled text that reaches `httpx2.Request`
         before anything here sees it. It used to raise `InvalidURL` out of
         `discover`; now the candidate is skipped and the flow gives the answer
         it gives for a server with no metadata."""
         seen: list[str] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             seen.append(str(request.url))
             return self._hinting_at_the_bad_port(request)
 
@@ -3848,9 +3888,9 @@ class TestAUrlNoRequestCanBeBuiltFor:
         `WWW-Authenticate` header badly and its well-known documents correctly
         still connects."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             if request.url.path == "/.well-known/oauth-protected-resource":
-                return httpx.Response(
+                return httpx2.Response(
                     200,
                     json={
                         "resource": "https://93.184.216.34/mcp",
@@ -3858,7 +3898,7 @@ class TestAUrlNoRequestCanBeBuiltFor:
                     },
                 )
             if request.url.path == "/.well-known/oauth-authorization-server":
-                return httpx.Response(200, json=self._metadata("https://93.184.216.35/token"))
+                return httpx2.Response(200, json=self._metadata("https://93.184.216.35/token"))
             return self._hinting_at_the_bad_port(request)
 
         self._serving(monkeypatch, handler)
@@ -3868,17 +3908,17 @@ class TestAUrlNoRequestCanBeBuiltFor:
         assert server.authorization_endpoint == "https://93.184.216.35/authorize"
 
     @pytest.mark.anyio
-    async def test_a_token_endpoint_discovery_accepted_but_httpx_will_not_build(
+    async def test_a_token_endpoint_discovery_accepted_but_httpx2_will_not_build(
         self, monkeypatch, caplog
     ):
-        """`AnyHttpUrl` has no length limit and `httpx` stops at 64 KiB, which
+        """`AnyHttpUrl` has no length limit and `httpx2` stops at 64 KiB, which
         is how an endpoint the metadata document was validated with reaches the
         vault and comes back at every refresh. The refresh path answers `None`
         on an `OAuthError` and a 500 on anything else."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             if request.url.path == "/.well-known/oauth-protected-resource":
-                return httpx.Response(
+                return httpx2.Response(
                     200,
                     json={
                         "resource": "https://93.184.216.34/mcp",
@@ -3886,8 +3926,8 @@ class TestAUrlNoRequestCanBeBuiltFor:
                     },
                 )
             if request.url.path == "/.well-known/oauth-authorization-server":
-                return httpx.Response(200, json=self._metadata(self._TOO_LONG))
-            return httpx.Response(404, json={})
+                return httpx2.Response(200, json=self._metadata(self._TOO_LONG))
+            return httpx2.Response(404, json={})
 
         self._serving(monkeypatch, handler)
         server = await mcp_oauth.discover(self._SERVER)
@@ -3905,7 +3945,7 @@ class TestAUrlNoRequestCanBeBuiltFor:
     @pytest.mark.anyio
     async def test_a_registration_endpoint_no_request_can_be_built_for_is_refused(self):
         """`create_client_registration_request` sits above the client, so this
-        one raised before the flow's `except httpx.HTTPError` was even entered."""
+        one raised before the flow's `except httpx2.HTTPError` was even entered."""
         metadata = OAuthMetadata(
             issuer=AnyUrl("https://auth.example.com"),
             authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),

@@ -1,5 +1,5 @@
 ---
-source_sha: "2f11ca35d96a"
+source_sha: "65df12b25237"
 ---
 
 # Governance { #governance }
@@ -1351,11 +1351,20 @@ Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
 weiterhin für alles, was sich abschalten lässt.
 
 Aber nicht unbegrenzt: Jedes ist auf zwanzig Schreibvorgänge pro Minute je
-Akteur und Ereignistyp begrenzt, sodass bei einem Konto mit schnellen
-Änderungen der Rest still verworfen wird, statt jeden Admin zu überfluten -
-der Audit-Eintrag dahinter wird trotzdem aufgezeichnet, auf dem Trail selbst
-([Audit](#audit)), unabhängig davon, ob die Benachrichtigung das Limit
-überstanden hat.
+Akteur und Ereignistyp begrenzt, sodass ein Konto mit schnellen Änderungen
+nicht jeden Admin überfluten kann - der Audit-Eintrag dahinter wird trotzdem
+aufgezeichnet, auf dem Trail selbst ([Audit](#audit)), unabhängig davon, ob die
+Benachrichtigung das Limit überstanden hat.
+
+Jenseits dieser Grenze wird der Posteingang nicht einfach still. An die Stelle
+des Rests tritt eine Meldung pro Akteur und Minute, die sagt, dass die Minute
+voller war, als der Posteingang auflisten kann, und dass jedes dieser
+Ereignisse auf dem Trail steht. Das zählt, weil sich diese beiden nicht
+abschalten lassen: ein Akteur könnte das Kontingent sonst auf zwanzig harmlose
+Änderungen verbrauchen und danach das eine tun, worauf es zu achten gilt, ohne
+dass irgendetwas es sagt. Die Meldung trägt keine Zählung - zählen hieße, sie
+bei jedem weiteren Ereignis neu zu schreiben, also genau die Flut, die die
+Grenze verhindern soll.
 
 Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
