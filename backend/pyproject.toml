@@ -810,6 +810,8 @@ include = [
     # against them before it can be published.
     "app/db/models/workflow.py",
     "app/repositories/workflow.py",
+    "app/schemas/workflow.py",
+    "app/services/workflow_registry.py",
     "app/workflows/**",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
@@ -1187,6 +1189,8 @@ include = [
     # against them before it can be published.
     "app/db/models/workflow.py",
     "app/repositories/workflow.py",
+    "app/schemas/workflow.py",
+    "app/services/workflow_registry.py",
     "app/workflows/**",
 ]
 branch = true
