@@ -201,7 +201,7 @@ async def test_a_subprocess_that_ignores_sigterm_is_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The grace-then-SIGKILL path: a process trapping SIGTERM still dies."""
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.2)
     script = _write_fake_soffice(
         tmp_path,
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(3600)\n",
@@ -229,7 +229,7 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
     directly, after the group is confirmed up, so nothing races an internal
     timeout.
     """
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.2)
     child = _write_fake_soffice(
         tmp_path,
         # The heartbeat is replaced rather than rewritten in place. `write_text`
@@ -266,7 +266,7 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
         await asyncio.sleep(0.02)
     assert heartbeat.exists(), "the helper never started"
 
-    await office_convert._terminate_process_group(proc)
+    await office_convert._teardown(proc, proc.pid)
 
     # Settle before sampling. `killpg` returns once the signal is queued, not
     # once it lands, so on a loaded runner the helper can still be scheduled for
@@ -314,7 +314,7 @@ async def test_tearing_down_an_already_exited_process_is_a_noop() -> None:
     )
     await proc.wait()
 
-    await office_convert._terminate_process_group(proc)
+    await office_convert._teardown(proc, proc.pid)
     # The group is gone; signalling it again must still not raise.
     office_convert._signal_group(proc.pid, signal.SIGTERM)
 
@@ -328,7 +328,7 @@ async def test_teardown_kills_the_group_even_when_cancelled_again(
     waits out the grace period; if that skipped the kill, a SIGTERM-ignoring
     soffice would survive - the exact orphan this guards against.
     """
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 30.0)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 30.0)
     script = _write_fake_soffice(
         tmp_path,
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
@@ -350,7 +350,7 @@ async def test_teardown_kills_the_group_even_when_cancelled_again(
             break
         await asyncio.sleep(0.02)
 
-    task = asyncio.ensure_future(office_convert._terminate_process_group(proc))
+    task = asyncio.ensure_future(office_convert._teardown(proc, proc.pid))
     await asyncio.sleep(0.2)  # let it send SIGTERM and settle into the grace wait
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

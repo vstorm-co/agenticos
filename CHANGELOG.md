@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **One LibreOffice manager instead of two.** The RAG parser's office → PDF
+  converter and the chat attachment path's DOC → text converter each wrapped the
+  same `soffice` binary, arrived within a week of each other from opposite ends
+  of the product, and each carried a safety property the other lacked — so a
+  deployment running both paths had one converter that could be flooded and one
+  that could not, and a reader had to know which was which. There is one manager
+  now, with the union: a process group killed on timeout *and* on cancellation, a
+  per-call user profile, a concurrency semaphore, OS resource limits applied in a
+  fresh single-threaded launcher, and a bounded stderr drain. Both callers are
+  thin — the RAG one returns a PDF path, the chat one returns text. Nothing was
+  broken before this; it was duplication, and each path now gets the protections
+  only the other had. (#1767)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added
