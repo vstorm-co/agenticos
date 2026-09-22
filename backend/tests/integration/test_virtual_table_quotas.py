@@ -24,7 +24,7 @@ from app.schemas.virtual_table import (
     RecordUpsert,
     TableCreate,
 )
-from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables import VirtualTableService, quotas
 from app.services.virtual_tables.exceptions import QuotaExceededError, RevisionRequiredError
 from tests.integration.virtual_table_support import column, ctx_for, make_org, make_user
 
@@ -314,6 +314,54 @@ async def test_a_burst_of_refusals_never_waits_on_the_pool_the_requests_hold(
 
     assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 8
     assert len(await _refusals(ordinary, ctx)) == 8
+
+
+async def test_a_burst_of_refusals_never_opens_more_than_the_gate_allows(
+    engine: AsyncEngine, monkeypatch
+):
+    """The audit no longer shares the request's pool (the fix above), but is unbounded on its
+    own: a burst opens one live connection per refused request. This pins the bound instead -
+    the semaphore around the audit write - by holding each write open long enough that a
+    larger burst than the gate would overlap if nothing were serialising them.
+    """
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 1)
+    ordinary = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(ordinary)
+    table = await _table(ordinary, ctx)
+
+    real_record_audit = quotas.record_audit
+    in_flight = 0
+    peak = 0
+
+    async def slow_record_audit(*args, **kwargs):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        try:
+            await asyncio.sleep(0.05)
+            return await real_record_audit(*args, **kwargs)
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(quotas, "record_audit", slow_record_audit)
+
+    results = await asyncio.gather(
+        *(
+            _call(
+                ordinary,
+                lambda service: service.create_record(
+                    ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
+                ),
+            )
+            for _ in range(10)
+        ),
+        return_exceptions=True,
+    )
+
+    assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 10
+    assert peak <= quotas._MAX_CONCURRENT_AUDITS
+    assert peak > 1, "the burst never overlapped, so this proves nothing about the bound"
+    assert len(await _refusals(ordinary, ctx)) == 10
 
 
 async def test_two_upserts_of_one_new_id_for_the_last_slot_create_once_and_never_refuse(

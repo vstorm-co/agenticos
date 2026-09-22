@@ -16,7 +16,9 @@ can do at once and both pass at limit - 1. Each takes an advisory lock for the l
 the check, so the check and the insert are one step (`app.db.locks`).
 """
 
+import asyncio
 import json
+import weakref
 from typing import Any, NoReturn
 from uuid import UUID
 
@@ -59,6 +61,37 @@ def delete_snapshot(values: dict[str, Any]) -> dict[str, Any]:
     return {"omitted": {"bytes": size, "limit": limit}}
 
 
+_MAX_CONCURRENT_AUDITS = 4
+"""How many quota-refusal audits this process writes at once.
+
+`get_worker_db_context` moved the audit connection off the request's pool, which fixed
+the pool-drain deadlock but left it unbounded: a burst of refusals each opens a live
+`NullPool` connection, multiplied by every worker process, and same-organization audits
+then queue on `record_audit`'s advisory chain lock while holding those connections open.
+This is the same shape `app/core/blocking.py` and `app/services/ml/parsing.py` bound with
+a semaphore rather than a pool size, at the scale of an occasional refusal instead of a
+file or a parse. Kept small and fixed rather than a deployment setting: nothing here scales
+with load the way a worker count or a pool size does.
+"""
+
+# One gate per event loop, for the reason `app/core/blocking.py` keys its own limiter
+# that way: an `asyncio.Semaphore` binds to the loop that created it, and a worker or a
+# test suite may run more than one loop in a process. Keyed weakly so a finished loop's
+# gate is collected with it.
+_audit_gates: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _audit_gate() -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    gate = _audit_gates.get(loop)
+    if gate is None:
+        gate = asyncio.Semaphore(_MAX_CONCURRENT_AUDITS)
+        _audit_gates[loop] = gate
+    return gate
+
+
 async def refuse(
     ctx: AuthContext,
     *,
@@ -75,8 +108,13 @@ async def refuse(
     pool, that many concurrent refusals each hold one and wait for a second until the pool
     timeout, and answer 500 instead of `QUOTA_EXCEEDED` (the circular wait `vector_engine` was
     added to avoid). A refusal is rare and a connect is cheap beside the request around it.
+
+    `_audit_gate` bounds how many of these connections exist at once: unbounded, a large
+    burst opens one live connection per refused request, and same-organization audits then
+    queue on the audit chain's advisory lock while holding them. The rest of a burst waits on
+    the semaphore instead, holding nothing.
     """
-    async with get_worker_db_context() as audit_db:
+    async with _audit_gate(), get_worker_db_context() as audit_db:
         await record_audit(
             audit_db,
             actor_user_id=ctx.subject_id,
