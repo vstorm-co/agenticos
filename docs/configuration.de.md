@@ -1,5 +1,5 @@
 ---
-source_sha: "6b66da3de94d"
+source_sha: "25ca6d2da0fe"
 ---
 
 # Konfiguration { #configuration }
@@ -268,6 +268,18 @@ RSALv2 oder SSPL-1.0 steht - keine von beiden ist eine Open-Source-Lizenz
 sodass die Einstellungen unten, das `redis://`-Schema und der Dienstname `redis`
 unverändert bleiben, und ein Deployment, das diese stattdessen auf ein verwaltetes
 Redis, Valkey oder Elasticache richtet, funktioniert genau wie zuvor.
+
+Es läuft als Cache und sonst nichts: `--save ''`, kein Volume, also startet es nach
+jedem Neustart leer. Alles, was die Plattform hier ablegt - Rate-Limit-Buckets,
+Dedupe-Claims der Kanäle, Mitgliedschaftsantworten - trägt eine TTL und baut sich
+selbst wieder auf.
+
+Ein Snapshot brachte nichts und kostete einen Ausfall: Valkey 8
+ist ein Fork von Redis 7.2 und verweigert eine von Redis 7.4 geschriebene RDB, also
+geriet das erste Deployment auf einen Host, auf dem `redis:7-alpine` gelaufen war,
+in eine Crash-Loop und nahm jeden Dienst mit, der auf den Cache wartet. Eine
+verwaltete Instanz, die doch persistiert, ist in Ordnung; die Plattform verlässt
+sich so oder so nicht darauf.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

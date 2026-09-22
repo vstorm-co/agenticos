@@ -360,7 +360,9 @@ async def test_the_legacy_route_audits_and_notifies_like_the_admin_one(
     assert response.status_code == 200
     entry = mock_db_session.add.call_args.args[0]
     assert entry.action == "admin.user.update"
-    notify.return_value.security_event.assert_awaited_once_with(entry)
+    notify.return_value.security_event.assert_awaited_once_with(
+        entry, recipients=notify.return_value.hold_security_audience.return_value
+    )
 
 
 @pytest.mark.anyio

@@ -1047,6 +1047,7 @@
     "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",
     "turnInterruptedRecheck": "Danach sehen",
+    "turnStillArriving": "Die frühere Antwort wird noch geschrieben. Sie landet in dieser Unterhaltung, sobald sie fertig ist - unter der Frage, die Sie gerade gestellt haben.",
     "thankYouFeedback": "Danke für Ihre Rückmeldung!",
     "thinking": "Denkt nach …",
     "thoughtAboutIt": "Hat darüber nachgedacht",

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff2d54edf633"
+source_sha: "7c25dca319aa"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -419,6 +419,22 @@ Einmal einrichten:
     stehen gelassen. Einer, der auf einem überholten Commit wartete, hat hier drei
     spätere Läufe blockiert, bevor jemand die Warteschlange statt der Läufe bemerkte.
 
+    `deploy-queue.yml` ist das, was passiert, wenn er trotzdem stehen bleibt: alle
+    sechs Stunden bricht es einen Deploy-Lauf ab, der länger als zwölf auf eine
+    Freigabe gewartet hat, und legt ein Issue an, das den Lauf benennt und sagt,
+    wie weit `main` vom letzten erfolgreichen Deploy abgedriftet ist. Es gibt
+    nichts frei und deployt nichts — es leert die Warteschlange, damit der nächste
+    Merge das Tor erreicht, und sagt, dass es das getan hat. Von Hand mit
+    `gh workflow run deploy-queue.yml`.
+
+!!! danger "Eine Freigabe aus der Warteschlange der Environment gibt den **ältesten** Lauf frei"
+
+    Also den veralteten. Eine späte Freigabe dort deployt den Commit von dem
+    Moment, in dem die Warteschlange stecken blieb, und nicht den gerade
+    gepushten — so kam ein zwei Wochen alter Commit auf diesen Server. Geben Sie
+    von der Seite des Laufs frei, den Sie meinen, oder starten Sie mit
+    `gh workflow run deploy.yml --ref main` einen neuen und geben Sie den frei.
+
 | Secret | Was |
 |---|---|
 | `DEPLOY_HOST` | Die Adresse des Hosts |
@@ -453,8 +469,14 @@ Ein Volume zählt, und welches, ist nicht offensichtlich:
 |---|---|---|
 | `postgres_data` | alles — Agents, Unterhaltungen, versiegelte Zugangsdaten | **ja** |
 | `media_data` | hochgeladene Dateien, vor der Ingestion | ja |
-| `redis_data` | Rate-Limit-Buckets und Caches | nein, alles wiederherstellbar |
 | `prefect_data` | die Historie der Flow-Runs | nein |
+
+Der Cache hat überhaupt kein Volume mehr. Rate-Limit-Buckets, Dedupe-Claims der
+Kanäle und Mitgliedschaftsantworten tragen alle eine TTL und bauen sich selbst
+wieder auf, also läuft Valkey mit `--save ''` und startet nach einem Neustart
+leer. Ein Host, auf dem ein früheres Release lief, trägt noch ein Volume
+`agenticos_redis_data`, das nichts mehr mountet;
+`docker volume rm agenticos_redis_data` entfernt es.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \
