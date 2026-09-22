@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.484] - 2026-09-22
+
 ### Added
 
 - **A Deploy run left at the approval gate no longer stops the pipeline in
