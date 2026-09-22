@@ -142,6 +142,7 @@ async def test_creating_with_a_taken_slug_is_a_409(owner_client: OpenClient):
     assert response.json()["error"]["code"] == "ALREADY_EXISTS"
 
 
+@pytest.mark.security
 async def test_creating_without_the_permission_is_a_403(viewer_client: OpenClient):
     async with viewer_client() as http:
         response = await http.post(_url(), json={"name": "Import orders"})

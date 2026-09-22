@@ -100,6 +100,7 @@ class TestNodeCatalog:
 
 
 class TestCreate:
+    @pytest.mark.security
     async def test_creating_without_the_permission_is_refused(self):
         ctx = _ctx(OrgRoleName.VIEWER.value)
         with pytest.raises(AuthorizationError):
