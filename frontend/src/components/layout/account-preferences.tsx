@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
@@ -12,6 +11,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useMounted } from "@/hooks/use-mounted";
 import { getLocaleFlag, getLocaleLabel, locales, type Locale } from "@/i18n";
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-store";
@@ -59,14 +59,8 @@ const THEME_LABEL: Record<Theme, string> = {
 export function AppearanceMenu() {
   const t = useTranslations("theme");
   const { theme, setTheme } = useThemeStore();
-  // `false` on the server, `true` once hydrated - the same question
-  // `ThemeToggle` asks, answered without a state write in an effect. The
-  // subscribe callback never fires: the value cannot change after mount.
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
+  // `false` on the server, `true` once hydrated - `useMounted` says why.
+  const mounted = useMounted();
 
   const current: Theme = theme ?? "system";
   // Before hydration the stored preference is unknown, so the trigger shows the

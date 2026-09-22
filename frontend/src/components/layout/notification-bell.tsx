@@ -273,8 +273,10 @@ function NotificationRow({
         aria-label={tNotifications("dismissRow")}
         // Revealed on hover, and on focus for anyone tabbing - kept mounted
         // either way, because a control that only exists on hover is one a
-        // keyboard never reaches.
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1 rounded p-1 opacity-0 transition-opacity outline-none group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
+        // keyboard never reaches. `touch:` keeps it out permanently on a device
+        // that cannot hover at all, where a tap produces no `focus-visible`
+        // either and there would otherwise be no way to find it.
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:opacity-100 absolute top-1.5 right-1 rounded p-1 opacity-0 transition-opacity outline-none group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
       >
         <X className="h-3 w-3" aria-hidden />
       </button>

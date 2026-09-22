@@ -47,6 +47,7 @@ import {
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
+import { useMounted } from "@/hooks/use-mounted";
 import { usePermissions } from "@/hooks/use-permissions";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
@@ -306,7 +307,16 @@ export function SidebarNav({
 
 export function AppSidebar() {
   const t = useTranslations("nav");
-  const collapsed = useSidebarStore((state) => state.isCollapsed);
+  // The stored value only after mount. `persist` reads `localStorage`
+  // synchronously, so the browser's first render already knows the column was
+  // collapsed while the server rendered it expanded - two different trees,
+  // which React reports as a hydration mismatch and repairs by rebuilding.
+  // Both first renders agree on "expanded" now, and the rail arrives one
+  // render later. The width transition is held back with it, so that arrival
+  // is a jump rather than an animation somebody watches on every reload.
+  const mounted = useMounted();
+  const stored = useSidebarStore((state) => state.isCollapsed);
+  const collapsed = mounted && stored;
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
 
   return (
@@ -319,7 +329,8 @@ export function AppSidebar() {
     // retheme it.
     <aside
       className={cn(
-        "bg-sidebar hidden shrink-0 border-r transition-[width] duration-200 md:flex md:flex-col",
+        "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
+        mounted && "transition-[width] duration-200",
         collapsed ? "w-14" : "w-[240px]",
       )}
     >
