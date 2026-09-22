@@ -1,5 +1,5 @@
 ---
-source_sha: "15ab128f02d8"
+source_sha: "21ff1da0ee8a"
 ---
 
 # Konsola { #the-console }
@@ -71,10 +71,15 @@ Wiersz z celem jest linkiem; ten bez celu — najczęściej własne ogłoszenie
 administratora aplikacji — służy tylko do oznaczenia jako przeczytany.
 Oznaczenie jednego wiersza jako przeczytanego albo wszystkich naraz od razu
 aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony. **Mark all
-read** zbiera naraz do pięciuset nieprzeczytanych wierszy, a potem pyta o
-licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
+read** zbiera partiami nawet pięć tysięcy nieprzeczytanych wierszy, a potem pyta
+o licznik jeszcze raz — więc przy większej zaległości plakietka dalej pokazuje
 to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zamiast
 żeby plakietka ogłaszała skrzynkę, którą przerobiła tylko częściowo.
+
+I licznik, i zamiatanie mówią, kiedy zatrzymały się na tej granicy, a nie na końcu skrzynki
+— `approximate` w `GET /notifications/unread-count` i `remaining` w
+`POST /notifications/mark-all-read` — bo inaczej licznik dokładnie na granicy i
+prawdziwy licznik dokładnie tej samej wielkości to ta sama liczba.
 
 Przeczytane to nie to samo co usunięte i dostępne jest jedno i drugie.
 Najechanie na wiersz odsłania krzyżyk, który wyjmuje go z listy; **Clear**

@@ -108,6 +108,32 @@ _TOGGLABLE_PAIRS = _build_togglable_pairs()
 
 
 @dataclass(frozen=True)
+class UnreadCount:
+    """How many unread rows the caller can see, and whether that is all of them.
+
+    `approximate` is true only when the scan stopped on `_UNREAD_SCAN_LIMIT`
+    with rows still behind it. Without it, a badge of exactly the cap and a
+    genuine count of exactly the cap are the same number.
+    """
+
+    count: int
+    approximate: bool
+
+
+@dataclass(frozen=True)
+class MarkAllRead:
+    """How many rows one "mark all read" marked, and whether any were left.
+
+    `remaining` says the sweep hit its scan limit rather than the end of the
+    inbox, so asking again makes further progress - the rows just marked are no
+    longer unread, so the next sweep starts past them.
+    """
+
+    marked: int
+    remaining: bool
+
+
+@dataclass(frozen=True)
 class PreferenceItem:
     """One `(event_type, channel)` pair's current, defaulted-if-unset value."""
 
@@ -130,6 +156,20 @@ _MANDATORY_WRITE_LIMIT = rate_limit.Limit(attempts=20, window_seconds=60)
 # unbounded.
 _MAX_INBOX_FETCH_ROUNDS = 5
 _UNREAD_CANDIDATE_CAP = 500
+# How far the badge and mark-all-read will *read* looking for unread rows,
+# across as many `_UNREAD_CANDIDATE_CAP` batches as it takes. Both used to make
+# exactly one capped fetch and stop, so an account with 600 gate-visible unread
+# rows saw a badge of 500 and a "mark all read" that left the hundred oldest
+# unread - silently, with nothing in the response saying the request had been
+# partial (#1761).
+#
+# Separate from the cap for the reason `_DISMISS_SCAN_LIMIT` is: the rows the
+# gate hides are read and not counted, and they sit newer than the ones that
+# are. Bounded rather than exhaustive for the same reason too, and what the
+# bound costs is now *said* - `UnreadCount.approximate` and
+# `MarkAllRead.remaining` are how a caller tells a truncated answer from an
+# exact one, which "exactly 500" never could.
+_UNREAD_SCAN_LIMIT = 5_000
 # What one "clear" sweeps: how many rows it will *dismiss*, and how many it
 # will *read* to find them. Two numbers because they are two different costs,
 # and conflating them is what made the first version stall.
@@ -588,22 +628,47 @@ class NotificationCenterService:
                 return visible, gates, None
         return visible, gates, cursor
 
-    async def unread_count(self, ctx: AuthContext) -> int:
+    async def _visible_unread_ids(
+        self, ctx: AuthContext, user_id: uuid.UUID
+    ) -> tuple[list[uuid.UUID], bool]:
+        """Every gate-visible unread row the scan reaches, and whether it ran
+        out of scan rather than out of inbox.
+
+        Walks the cursor for the reason `clear_inbox` does: one capped fetch
+        starting at the newest row is the same page every time, so a recipient
+        whose newest rows all fail the read-time gate would count nothing and
+        mark nothing however often they asked. Bounded by `_UNREAD_SCAN_LIMIT`,
+        and the second half of the answer is what the bound costs.
+        """
+        visible: list[uuid.UUID] = []
+        cursor: tuple[datetime, uuid.UUID] | None = None
+        scanned = 0
+        while scanned < _UNREAD_SCAN_LIMIT:
+            batch = await notification_repo.list_unread(
+                self.db,
+                recipient_id=user_id,
+                organization_id=ctx.organization_id,
+                is_app_admin=ctx.is_app_admin,
+                after=cursor,
+                cap=_UNREAD_CANDIDATE_CAP,
+            )
+            if not batch:
+                return visible, False
+            scanned += len(batch)
+            cache = await self._build_gate_cache(ctx, batch)
+            for row in batch:
+                gate = await self.gate_for(ctx, row, cache)
+                if gate.visible:
+                    visible.append(row.id)
+            if len(batch) < _UNREAD_CANDIDATE_CAP:
+                return visible, False
+            cursor = (batch[-1].created_at, batch[-1].id)
+        return visible, True
+
+    async def unread_count(self, ctx: AuthContext) -> UnreadCount:
         user_id = self._require_caller(ctx)
-        candidates = await notification_repo.list_unread(
-            self.db,
-            recipient_id=user_id,
-            organization_id=ctx.organization_id,
-            is_app_admin=ctx.is_app_admin,
-            cap=_UNREAD_CANDIDATE_CAP,
-        )
-        cache = await self._build_gate_cache(ctx, candidates)
-        count = 0
-        for row in candidates:
-            gate = await self.gate_for(ctx, row, cache)
-            if gate.visible:
-                count += 1
-        return count
+        visible, truncated = await self._visible_unread_ids(ctx, user_id)
+        return UnreadCount(count=len(visible), approximate=truncated)
 
     async def mark_one_read(
         self, ctx: AuthContext, notification_id: uuid.UUID
@@ -635,24 +700,19 @@ class NotificationCenterService:
             )
         return notification, gate
 
-    async def mark_all_read(self, ctx: AuthContext) -> int:
+    async def mark_all_read(self, ctx: AuthContext) -> MarkAllRead:
+        """Mark everything unread the caller can see, and say if any was left.
+
+        `remaining` is what a caller needs to tell an emptied inbox from a
+        truncated sweep: asking again makes progress, because the rows this
+        call marked are no longer unread and the next scan starts past them.
+        """
         user_id = self._require_caller(ctx)
-        candidates = await notification_repo.list_unread(
-            self.db,
-            recipient_id=user_id,
-            organization_id=ctx.organization_id,
-            is_app_admin=ctx.is_app_admin,
-            cap=_UNREAD_CANDIDATE_CAP,
-        )
-        cache = await self._build_gate_cache(ctx, candidates)
-        visible_ids = []
-        for row in candidates:
-            gate = await self.gate_for(ctx, row, cache)
-            if gate.visible:
-                visible_ids.append(row.id)
-        return await notification_repo.mark_ids_read(
+        visible_ids, truncated = await self._visible_unread_ids(ctx, user_id)
+        marked = await notification_repo.mark_ids_read(
             self.db, ids=visible_ids, read_at=datetime.now(UTC)
         )
+        return MarkAllRead(marked=marked, remaining=truncated)
 
     async def dismiss_one(self, ctx: AuthContext, notification_id: uuid.UUID) -> None:
         """Clear one row out of the caller's own inbox.

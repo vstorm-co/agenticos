@@ -1,5 +1,5 @@
 ---
-source_sha: "15ab128f02d8"
+source_sha: "21ff1da0ee8a"
 ---
 
 # Die Konsole { #the-console }
@@ -75,11 +75,17 @@ Eine Zeile mit einem Ziel ist ein Link; eine ohne - meist die eigene
 Ankündigung eines Admins - lässt sich immer nur als gelesen markieren. Eine
 Zeile als gelesen zu markieren, oder alle auf einmal, aktualisiert die
 Zählung sofort; nichts hier wartet auf ein Neuladen der Seite. **Mark all
-read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf und fragt
+read** räumt in Stapeln bis zu fünftausend ungelesene Zeilen auf und fragt
 dann die Zählung erneut ab - bei einem größeren Rückstau zeigt das Badge
 also weiter, was noch ungelesen ist, und ein weiterer Klick beendet den Rest,
 statt dass das Badge einen Posteingang behauptet, den es nur teilweise
 abgearbeitet hat.
+
+Sowohl die Zählung als auch der Durchlauf sagen, wenn sie an
+dieser Grenze statt am Ende des Posteingangs aufgehört haben - `approximate` bei
+`GET /notifications/unread-count`, `remaining` bei
+`POST /notifications/mark-all-read` -, denn sonst sind eine Zählung genau an der
+Grenze und eine echte Zählung derselben Größe dieselbe Zahl.
 
 Gelesen ist nicht dasselbe wie weg, und beides wird angeboten. Fährt man über
 eine Zeile, erscheint ein Kreuz, das sie aus der Liste nimmt; **Clear** in der

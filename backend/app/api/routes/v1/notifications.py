@@ -57,7 +57,8 @@ async def list_notifications(
 
 @router.get("/notifications/unread-count", response_model=UnreadCountRead)
 async def unread_notification_count(service: NotificationCenterSvc, ctx: Auth) -> Any:
-    return UnreadCountRead(count=await service.unread_count(ctx))
+    unread = await service.unread_count(ctx)
+    return UnreadCountRead(count=unread.count, approximate=unread.approximate)
 
 
 @router.get("/notifications/preferences", response_model=NotificationPreferenceList)
@@ -111,7 +112,8 @@ async def mark_notification_read(
 
 @router.post("/notifications/mark-all-read", response_model=MarkAllReadResult)
 async def mark_all_notifications_read(service: NotificationCenterSvc, ctx: Auth) -> Any:
-    return MarkAllReadResult(marked=await service.mark_all_read(ctx))
+    result = await service.mark_all_read(ctx)
+    return MarkAllReadResult(marked=result.marked, remaining=result.remaining)
 
 
 @router.delete("/notifications", response_model=ClearInboxResult)

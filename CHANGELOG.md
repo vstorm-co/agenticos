@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The unread badge and "mark all read" no longer stop at five hundred rows
+  and say nothing.** Both fetched exactly one capped batch of candidates and
+  never looked further, so a recipient with six hundred gate-visible unread
+  notifications saw a badge of 500, and one "mark all read" left the hundred
+  oldest unread - with no error and nothing in the response saying the request
+  had been partial. Both now walk the inbox in batches to a bound of five
+  thousand, following a cursor rather than re-reading the same page, which is
+  also what reaches the visible rows sitting behind a backlog the read-time
+  gate hides. The bound is still a bound, and it is now stated:
+  `GET /notifications/unread-count` carries `approximate` and
+  `POST /notifications/mark-all-read` carries `remaining`, because a count of
+  exactly the bound and a genuine count of exactly the bound were otherwise the
+  same number. (#1761)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added

@@ -48,11 +48,28 @@ class NotificationList(BaseSchema):
 
 
 class UnreadCountRead(BaseSchema):
+    """How many unread rows the caller can see.
+
+    `approximate` is true when the scan behind the count stopped on its own
+    bound with rows still behind it: the count is a floor rather than a total.
+    Without it, a capped answer and an exact one are the same number (#1761).
+    """
+
     count: int
+    approximate: bool = False
 
 
 class MarkAllReadResult(BaseSchema):
+    """How many rows one "mark all read" marked.
+
+    `remaining` is true when the sweep ran out of scan rather than out of
+    inbox. Asking again makes progress - the rows just marked are no longer
+    unread - and a caller that treats `marked` as "the inbox is now clear"
+    would otherwise hide the button that finishes the job.
+    """
+
     marked: int
+    remaining: bool = False
 
 
 class ClearInboxResult(BaseSchema):

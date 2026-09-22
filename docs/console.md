@@ -64,10 +64,16 @@ a membership to scope by.
 A row with a destination is a link; one without - an admin's own broadcast, most
 often - is only ever something to mark read. Marking one read, or everything at
 once, updates the count immediately; nothing here waits on a page reload. "Mark
-all read" sweeps up to five hundred unread rows at once and then asks for the
-count again, so a backlog larger than that leaves the badge showing what is
-still unread and a further click finishes it, rather than the badge claiming an
-inbox it only partly worked through.
+all read" sweeps as far as five thousand unread rows, in batches, and then asks
+for the count again, so a backlog larger than that leaves the badge showing what
+is still unread and a further click finishes it, rather than the badge claiming
+an inbox it only partly worked through.
+
+Both the count and the sweep say when they stopped on that bound rather than on
+the end of the inbox -
+`approximate` on `GET /notifications/unread-count`, `remaining` on
+`POST /notifications/mark-all-read` - because a count of exactly the bound and a
+genuine count of exactly the bound are otherwise the same number.
 
 Read is not the same as gone, and both are offered. Hovering a row reveals a
 cross that takes it out of the list; **Clear** in the header takes out

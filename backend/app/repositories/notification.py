@@ -194,14 +194,21 @@ async def list_unread(
     recipient_id: uuid.UUID,
     organization_id: uuid.UUID,
     is_app_admin: bool = False,
+    after: tuple[datetime, uuid.UUID] | None = None,
     cap: int,
 ) -> list[Notification]:
-    """Candidate unread rows, newest first, up to `cap`.
+    """One batch of candidate unread rows, newest first, up to `cap`.
 
     The unread badge and mark-all-read both need the gate-aware predicate
     (Decision 7), which cannot be expressed as a plain `COUNT`/`UPDATE` - each
-    candidate row is re-checked in the service layer. `cap` bounds that work
-    for an account with an unbounded backlog.
+    candidate row is re-checked in the service layer. `cap` bounds one batch of
+    that work; `after` is what lets the caller walk past it.
+
+    The cursor matters for the same reason it does in `list_inbox_page`: a
+    recipient demoted out of an audience keeps every row addressed to them,
+    unread and invisible, sitting *newer* than what they can still see. A
+    caller that only ever asked for the first `cap` rows would count and mark
+    nothing but those, however many times it asked.
 
     `is_app_admin` - see `list_inbox_page`'s own note on the same parameter.
     """
@@ -216,6 +223,14 @@ async def list_unread(
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
+            )
+        )
+    if after is not None:
+        after_created_at, after_id = after
+        conditions.append(
+            or_(
+                Notification.created_at < after_created_at,
+                and_(Notification.created_at == after_created_at, Notification.id < after_id),
             )
         )
     result = await db.execute(

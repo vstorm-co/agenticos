@@ -917,7 +917,7 @@ class TestReadGateAppAdmin:
 
         rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
         assert len(rows) == 1
-        assert await service.unread_count(admin_ctx) == 1
+        assert (await service.unread_count(admin_ctx)).count == 1
         notification, _ = await service.mark_one_read(admin_ctx, rows[0].id)
         assert notification.read_at is not None
 
@@ -941,7 +941,7 @@ class TestReadGateAppAdmin:
 
         rows, _, _ = await service.list_inbox(ctx, after=None, limit=10)
         assert rows == []
-        assert await service.unread_count(ctx) == 0
+        assert (await service.unread_count(ctx)).count == 0
 
 
 class TestReadGateRunsView:
@@ -1543,8 +1543,8 @@ class TestUnreadCountAndMarkRead:
             summary="A secret was rotated",
             organization_id=org.id,
         )
-        assert await service.unread_count(_ctx(admin, org, role="admin")) == 1
-        assert await service.unread_count(_ctx(member, org, role="member")) == 0
+        assert (await service.unread_count(_ctx(admin, org, role="admin"))).count == 1
+        assert (await service.unread_count(_ctx(member, org, role="member"))).count == 0
 
     async def test_marking_one_row_read_is_idempotent(self, db):
         owner = await _user(db)
@@ -1642,7 +1642,7 @@ class TestUnreadCountAndMarkRead:
             organization_id=org.id,
         )
         marked = await service.mark_all_read(_ctx(admin, org, role="admin"))
-        assert marked == 2  # admin holds both gates here
+        assert marked.marked == 2  # admin holds both gates here
 
     async def test_mark_all_read_marks_nothing_when_every_candidate_is_gated_out(self, db):
         owner = await _user(db)
@@ -1657,7 +1657,103 @@ class TestUnreadCountAndMarkRead:
             organization_id=org.id,
         )
         marked = await service.mark_all_read(_ctx(member, org, role="member"))
-        assert marked == 0
+        assert marked.marked == 0
+
+    async def test_the_count_and_the_sweep_walk_past_one_batch(self, db, monkeypatch):
+        """Both used to fetch exactly one capped batch and stop, so an account
+        with more unread rows than the cap saw a badge short of the truth and a
+        "mark all read" that left the oldest rows unread, silently (#1761).
+        Both bounds are lowered here so the scenario needs five rows, not six
+        hundred."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(5):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-paged-{index}",
+                summary=f"Run {index} completed",
+                organization_id=org.id,
+            )
+        ctx = _ctx(recipient, org, role="member")
+
+        unread = await service.unread_count(ctx)
+        assert unread.count == 5
+        assert unread.approximate is False
+
+        marked = await service.mark_all_read(ctx)
+        assert marked.marked == 5
+        assert marked.remaining is False
+        assert (await service.unread_count(ctx)).count == 0
+
+    async def test_a_scan_that_runs_out_says_so_rather_than_reporting_a_total(
+        self, db, monkeypatch
+    ):
+        """The bound is still a bound. What changed is that a caller can tell a
+        truncated answer from an exact one: "exactly the cap" and "at least the
+        cap" used to be the same number, so a partial sweep looked like a
+        finished one."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        monkeypatch.setattr(notification_center, "_UNREAD_SCAN_LIMIT", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        for index in range(5):
+            await service.write(
+                recipients=[recipient.id],
+                event_type=NotificationEventType.RUN_COMPLETED,
+                occurrence_id=f"run-truncated-{index}",
+                summary=f"Run {index} completed",
+                organization_id=org.id,
+            )
+        ctx = _ctx(recipient, org, role="member")
+
+        unread = await service.unread_count(ctx)
+        assert unread.count == 2
+        assert unread.approximate is True
+
+        marked = await service.mark_all_read(ctx)
+        assert marked.marked == 2
+        assert marked.remaining is True
+        # Asking again is what finishes it: the two just marked are no longer
+        # unread, so the next sweep starts past them.
+        assert (await service.mark_all_read(ctx)).marked == 2
+
+    async def test_the_sweep_reaches_visible_rows_behind_a_gated_backlog(self, db, monkeypatch):
+        """The rows the gate hides are read and not marked, and they sit newer
+        than the ones that are. A sweep that always started at the newest row
+        would re-read the same invisible page every time and never reach the
+        visible rows behind it."""
+        monkeypatch.setattr(notification_center, "_UNREAD_CANDIDATE_CAP", 2)
+        owner = await _user(db)
+        org = await _org(db, owner)
+        member = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[member.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-behind-the-gate",
+            summary="Run completed",
+            organization_id=org.id,
+        )
+        for index in range(2):
+            await service.write(
+                recipients=[member.id],
+                event_type=NotificationEventType.SECURITY_EVENT,
+                occurrence_id=f"audit-newer-{index}",
+                summary="A secret was rotated",
+                organization_id=org.id,
+            )
+        ctx = _ctx(member, org, role="member")
+
+        unread = await service.unread_count(ctx)
+        assert unread.count == 1
+        assert unread.approximate is False
+        assert (await service.mark_all_read(ctx)).marked == 1
 
 
 class TestDismissAndClear:
@@ -1683,7 +1779,7 @@ class TestDismissAndClear:
             organization_id=org.id,
         )
         ctx = _ctx(recipient, org, role="member")
-        assert await service.unread_count(ctx) == 1
+        assert (await service.unread_count(ctx)).count == 1
 
         await service.dismiss_one(ctx, notification.id)
 
@@ -1691,7 +1787,7 @@ class TestDismissAndClear:
         assert rows == []
         # A row nobody can reach cannot go on counting towards a badge that
         # nothing left on screen can clear.
-        assert await service.unread_count(ctx) == 0
+        assert (await service.unread_count(ctx)).count == 0
 
     async def test_dismissing_an_already_read_row_keeps_the_time_it_was_read(self, db):
         """Dismissing marks an *unread* row read, and only an unread one.
