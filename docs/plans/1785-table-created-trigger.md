@@ -110,14 +110,18 @@ validated at save time against the table's live schema, exactly as
 `RecordQuery.filters` already is, and stays column-id-keyed so a rename
 doesn't orphan it. All filters hold (AND), matching `RecordQuery`.
 
-**Input mapping** is `{core.input field name: record column id}`, validated
-at save time against both the table's current schema and the pinned
-version's entry node `input_schema` — the type-compatibility check #1786's
-graph validation performs for an edge binding, applied to a config-time
-binding instead. `core.input`'s concrete shape is #1789's, not yet designed;
-per #1792's own hedge, this document designs against "one entry node whose
-`input_schema` is a real Pydantic model" and needs no redesign once #1789
-lands.
+**Input mapping** is `{payload key: record column id}` — round 3 of this
+review corrected this once #1789 settled `core.input.output_schema` as the
+fixed `WorkflowInputPayload{payload: dict[str, Any], triggered_by: str}`,
+with no per-workflow typed field list to bind into (#1792 needed the same
+correction). Admission builds `payload` from the mapping — `{key:
+record_values[column_id] for key, column_id in input_mapping.items()}` —
+validated at save time only against the table's current schema (every
+`column_id` names a live column), never against a target `input_schema`
+that does not exist at this boundary. `triggered_by = "table_created"`.
+A workflow that needs a typed field out of `payload` reads it with a
+`data.map` node just past `core.input`, the same as #1792's channel
+adapters.
 
 **The execution principal is the trigger's own configured principal, pinned
 at activation — never the record's author, never derived from record data.**
@@ -144,6 +148,7 @@ class TableTriggerAdmission(Base):
     organization_id: UUID
     trigger_id: UUID                # FK virtual_table_triggers.id
     outbox_event_id: UUID           # FK virtual_table_outbox.id
+    trigger_revision: int           # pinned at this admission — see below
     workflow_run_id: UUID | None    # NULL when filtered/blocked, not a run
     status: AdmissionStatus         # see below
     created_at: datetime
@@ -165,7 +170,11 @@ the violation *is* "already admitted," read back rather than raced against.
 admission**, read off `VirtualTableTrigger` inside the same transaction:
 `WorkflowRun.workflow_version_id` is copied from the trigger's stored value
 (never re-resolved against the workflow's current published version), and the
-admission carries the trigger's `revision` at that moment. Editing the
+admission carries the trigger's `revision` at that moment, into
+`TableTriggerAdmission.trigger_revision` (round 3 of this review: this
+prose already claimed the revision was carried; the model had no column
+for it — after an edit, the admission history could no longer say which
+filter, mapping or principal actually produced a given status). Editing the
 trigger afterward bumps `revision` but never touches an admission or run
 already committed — the forward-only discipline #1786's `draft_revision` and
 #1792's pinned `workflow_version_id` already hold.
@@ -181,13 +190,30 @@ rather than assumed:** `add_outbox` is called unconditionally on every record
 insert — a row is written whether or not any trigger exists for that table,
 let alone an active one, because #1782 does not know about triggers at all.
 So enforcement is entirely on the **read side**, via `activated_at`, a
-watermark set to commit time whenever `is_active` flips `false → true`
-(including first activation). The consumer only evaluates a (trigger, event)
-pair where `outbox.created_at >= trigger.activated_at`; an older row is still
-claimed, so it doesn't sit as a false pending backlog, but produces
-`FILTERED` for that trigger, never a `WorkflowRun` — a query-time filter, not
-a data deletion: the outbox row itself is untouched, and #1828's sweep still
-governs its removal.
+watermark the consumer compares against `outbox.created_at`: `outbox.created_at
+>= trigger.activated_at` admits, older is `FILTERED`.
+
+**A plain timestamp comparison across two transactions is not enough**
+(GitHub's automated review caught this: Postgres assigns `now()` when a
+statement runs, not when its transaction commits, so a slow record-insert
+that *started* before activation but *commits* after it can carry a
+`created_at` earlier than `activated_at` even though the row only became
+real, to anyone else, after the trigger was already active — exactly the
+event a configuring user expects to be caught). Activation closes the
+window by taking the **same `FOR UPDATE` row lock on the table #1782's
+own schema changes already take**, before reading and setting
+`activated_at`, rather than by trusting the timestamps alone: record
+inserts hold `FOR SHARE` on the same row for the length of their write
+(per #1782's own locking), so activation's `FOR UPDATE` request blocks
+until every already-started insert has committed, and no insert can start
+until activation releases the lock. Nothing can straddle the boundary once
+the lock is held, so the timestamp comparison it takes afterward is
+comparing against an activation moment no concurrent write could have
+crossed — the same serialization argument #1782's schema-change-versus-write
+locking already relies on, reused rather than reinvented. Once admitted, a
+(trigger, event) pair produces `FILTERED` for a pre-activation row, never a
+`WorkflowRun` — a query-time filter, not a data deletion: the outbox row
+itself is untouched, and #1828's sweep still governs its removal.
 
 **Reactivation does not replay** for the same reason: disabling only flips
 `is_active`, so the row and its old `activated_at` survive, and reactivation
@@ -243,10 +269,17 @@ surface the issue's "blocked, filtered, queued and failed events" and
 ## Permission recheck, at activation and at execution
 
 **At activation** (creating or re-enabling a trigger): `resolve_access` for
-the configuring user against the table (`Perm.TABLES_VIEW`) and for the
-chosen `execution_principal_user_id` against the workflow
-(`Perm.WORKFLOWS_RUN`) — both reused checks, run before the row is written or
-`is_active` flips true.
+the configuring user against the table (`Perm.TABLES_VIEW`, the authority to
+manage the trigger at all), *and*, separately, the two checks execution will
+actually require — the **stored execution principal** against the workflow
+(`Perm.WORKFLOWS_RUN`) *and* the same stored principal against the table
+(`Perm.TABLES_VIEW`) — run before the row is written or `is_active` flips
+true. Checking only the configuring user's table access was the earlier
+draft's gap (round 3 of this review): a configuring user with table access
+can name a different execution principal who can run the workflow but
+cannot view the table, and activation would have accepted it, producing a
+trigger that deterministically `FAILED` every future event with nothing at
+activation time to say why.
 
 **At execution**, before each admission commits, the same `WORKFLOWS_RUN`
 (and table-view) check re-runs against the *stored* principal fresh, because

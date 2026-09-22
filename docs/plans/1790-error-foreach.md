@@ -171,23 +171,41 @@ done" point and one sink for rule 2.
 
 `control.foreach`'s dispatch resolves `items` once, before any iteration
 outbox row exists, and snapshots it via #1788's existing `ResourceRef` table
-(`kind="foreach_manifest"`, no new table). Small lists: inline JSONB. Over a
-threshold: written to an immutable manifest blob (a `FileRef`), and
-`ResourceRef.ref` holds that reference instead. Every iteration reads the
-frozen snapshot, never the live source — a row changed mid-run does not
-change what this run iterates, and the manifest is read once, fully, at
-freeze time, not paged incrementally.
+(`kind="foreach_manifest"`, no new table). Every iteration reads the frozen
+snapshot, never the live source — a row changed mid-run does not change what
+this run iterates.
+
+**Inline JSONB only, in #1790's own scope — a `FileRef`-backed manifest is
+#1791's to add, not #1790's.** An earlier draft proposed a blob-backed
+manifest via `FileRef` for large lists, but #1791 is where `FileRef` gets
+real storage; #1786's `FileRef` at #1790's own tier is deliberately
+unbacked (shared-contracts decision 1), and #1791 itself depends on #1790
+— a blob manifest here would need #1791's storage before #1791 can start,
+a real cycle (round 3 of this review). #1790 instead ships `max_items`
+(the existing Limits row) sized so inline JSONB always fits comfortably —
+a few thousand short items, not a bound chosen for storage capacity — and
+the manifest is read once, fully, at freeze time, never paged. Once #1791
+lands, a blob-backed manifest for genuinely large lists is a
+`ResourceRef.kind` addition, not a redesign of anything here.
 
 Iteration scopes reuse #1788's `NodeRun` exactly: `UNIQUE(workflow_run_id,
 node_instance_id, scope_path)` with `scope_path = [{loop_node_id, index},
 ...]` was already built "to support foreach"; #1790 is the first issue to
 populate it with more than `[]`. Iterations run **sequentially** — the same
 "no parallel fan-out in v1" discipline (rule 8) applied to the runtime:
-iteration `i+1`'s first outbox row is inserted only once iteration `i`'s
-`loop.yield` succeeds (or `i` fails, under `stop`). Checkpointing is
-therefore implicit: on restart, the executor finds the highest index whose
-`loop.yield` is `succeeded` and resumes at the next one; lower indices are
-never re-dispatched, the same constraint that stops a duplicate
+iteration `i+1`'s first outbox row is inserted only once iteration `i` has a
+**terminal** result — `loop.yield` succeeds, *or*, under `collect`, `i`'s
+own `WorkflowError` is persisted to its slot. Under `stop`, `i` failing
+does **not** advance to `i+1` at all; it fails `control.foreach` itself
+(round 3 of this review: an earlier draft had this backwards, tying
+advancement to `stop` rather than `collect`, the opposite of the policy
+section below). Checkpointing on restart finds the highest index with a
+terminal result of *either* kind — a `collect`-mode failure is as terminal
+as a success, so a crash immediately after one does not re-dispatch that
+same index, potentially duplicating whatever side effect it already caused
+before failing (round 3 of this review: "highest succeeded `loop.yield`"
+alone missed exactly this case) — and resumes at the next one; lower
+indices are never re-dispatched, the same constraint that stops a duplicate
 `NodeAttempt`. A crash mid-iteration is handled entirely by #1788's existing
 lease/`in_flight` recovery — the scope boundary only decides which index
 runs next.

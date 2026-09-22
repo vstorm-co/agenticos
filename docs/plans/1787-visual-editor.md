@@ -9,7 +9,7 @@ authoritative shape this document is written against; its parent
 and build order.
 
 Written 2026-09-22 against #1786's *planned* models, not yet code — confirm
-`NodeDefinition`, `WorkflowGraph`, `Binding` and the eight validation rules
+`NodeDefinition`, `WorkflowGraph`, `Binding` and the nine validation rules
 still hold before implementing.
 
 ## What #1787 is not
@@ -62,10 +62,11 @@ new direct dependency, MIT, bringing `@xyflow/system` and the `d3-*` packages
   `<Background>`, no `<MiniMap>` in v1. Read-only mode (a published
   `WorkflowVersion`) reuses it with `nodesDraggable={false}` and no handles —
   the posture `agent-map.tsx` already uses for a different, hand-built canvas.
-- `nodes/` — one component per `NodeDefinition.kind`. #1786's `Port` model
-  (`id`, `label`, `schema`) has no explicit direction yet; this document
-  assumes direction is inferred from port id convention (`in`/`out`) until
-  #1786 adds a `kind` field, flagged below. An error port gets a visually
+- `nodes/` — one component per `NodeDefinition.kind`. `Port.kind: Literal
+  ["input", "output"]` (round 3 of this review: a third, still-stale copy
+  of this resolved question, after the two already fixed in this document
+  in rounds 1 and 2) decides handle placement directly; the canvas never
+  infers direction from a port id convention. An error port gets a visually
   distinct handle regardless. `isValidConnection` mirrors rule 3
   (type-compatibility) client-side, refusing an incompatible drag before it
   draws.
@@ -284,8 +285,11 @@ Frozen snapshot, mock vs. real, per-step inputs/outputs/costs from persisted
 events all name #1788's own `WorkflowRun`/`NodeRun`/event contracts, which do
 not exist at planning tier. Design to build once #1788 lands:
 
-- **Frozen snapshot** — "Run test" snapshots the current draft graph (shaped
-  like `WorkflowVersion.graph` but not published) before starting, so edits
+- **Frozen snapshot** — "Run test" snapshots the current draft graph into
+  `WorkflowRun.draft_graph_snapshot` (round 3 of this review: an earlier
+  draft said "not published" with no durable place for that to mean
+  anything; #1788 now has one — a `WorkflowRun` with `workflow_version_id
+  IS NULL` and this column set instead, its own `mode: test`), so edits
   during a long test cannot change what is executing underneath.
 - **Mock vs. real, chosen before the run starts** — an explicit toggle, never
   an inferred default. "Mock" returns synthetic output for `read`/`write`

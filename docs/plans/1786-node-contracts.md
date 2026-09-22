@@ -4,7 +4,7 @@ Design for [issue #1786](https://github.com/vstorm-co/agenticos/issues/1786),
 child of [#56](https://github.com/vstorm-co/agenticos/issues/56). This issue
 *ships* the decisions recorded in
 [56-shared-contracts.md](56-shared-contracts.md); read that page first, it is
-not re-derived here. Below: concrete models, the eight validation algorithms,
+not re-derived here. Below: concrete models, the nine validation algorithms,
 the persistence and route shapes, the migration, the coverage-gate edits, a
 commit order and a test plan against the four acceptance criteria. Branch
 stacks on `feat/1782-virtual-tables-storage` (PR #1812) — `expected_revision`
@@ -171,8 +171,20 @@ editor sends node positions and edges only; `validate_graph`'s reachability
 pass computes, for each `control.foreach` node, the set of nodes reachable
 from its `entry_port` and not reachable from the outer graph's own
 `entry_node_id` except through that same entry port, and that computed set
-*is* `body_node_ids` on the `WorkflowGraph` the server persists. A client
-that claimed a different membership would have its claim silently
+*is* `body_node_ids` on the `WorkflowGraph` the server persists.
+
+**The walk stops at `exit_port`, it does not cross it** (GitHub's automated
+review caught this as a regression in the fix above: a plain forward walk
+from `entry_port` reaches everything downstream of the whole `foreach` too,
+since the only path from the outer `entry_node_id` to, say, `core.output`
+in a linear graph is *through* the loop's `entry_port` — the same
+condition the derivation checks for body membership. `core.output` and the
+rest of the outer graph would be absorbed into the loop's own body).
+Concretely: the walk may include the node that owns `exit_port` itself
+(`loop.yield`, the body's last node) but never traverses *out of*
+`exit_port`'s own outgoing edges — those lead back into the outer graph and
+are what makes the `foreach` node's own downstream edges resolvable at all.
+A client that claimed a different membership would have its claim silently
 overwritten by the recomputed one, not validated against it — this is safer
 than trusting a client-supplied set (which could misrepresent the
 nested-scope-boundary rule) and asks nothing of #1787 beyond drawing edges.
@@ -195,7 +207,7 @@ definition_version)` must resolve via `_registry.get()` ("missing versions");
 every `TableIORef` binding must resolve and stay live, as above; every
 `config` blob must validate against its `config_schema`.
 
-**Pass 1 — the eight structural rules**, pure functions over the graph alone:
+**Pass 1 — the nine structural rules**, pure functions over the graph alone:
 
 | # | Rule | Algorithm |
 |---|---|---|
@@ -207,6 +219,7 @@ every `TableIORef` binding must resolve and stay live, as above; every
 | 6 | Nested scope boundaries | Node→scope map from `graph.scopes`. Any edge/binding crossing scopes is refused unless it is one of the two boundary edges a `ScopeBoundary` declares. |
 | 7 | No cycles | Kahn's algorithm, run twice: once outer with each scope body collapsed to its `scope_node`, once inside each body independently. Nodes left with nonzero in-degree are the cycle. |
 | 8 | No parallel fan-out (v1) | For every non-`control` node, group outgoing edges by `source_port`; refused if any port has >1 edge, or more than one port has any edge. Control nodes' declared branch ports are the sanctioned exception. |
+| 9 | Required inputs are bound, exactly once | Added in round 3 of this review (GitHub's automated pass caught the gap): rules 1–8 validate the *shape* of the bindings present but never require a binding to exist at all. For every node, every field in its `input_schema` with no default: exactly one `Binding{target_node_id: <this node>, target_field: <the field>}` must exist. Zero is "missing required input", named by field; more than one is "ambiguous binding" — a handler otherwise discovers a missing field only when constructing its typed input at run time, the late, non-actionable failure publication-time validation exists to prevent. `#1787`'s client-side mirror of this is explicitly non-authoritative (its own binding form marks an unfilled required field), so a direct API client bypassing the editor needs the server rule to catch the same gap. |
 
 A refusal is one `GraphValidationError(BadRequestError)` (422),
 `details={"fields": [...]}` built with `field_problems`/`field_details`

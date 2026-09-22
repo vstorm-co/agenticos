@@ -71,13 +71,24 @@ a `config` must resolve to a `WorkflowFile` row whose `organization_id`
 matches `ctx`'s, else `GraphValidationError`. Most `FileRef`s are not
 literals — a `FileRef` `http.download`/`file.write`/`image.transform`/a
 conversion node produces is a `NodeOutputRef` resolved only at dispatch, so
-real enforcement is a repository lookup every handler makes first:
-`workflow_file_repo.get_by_id(db, file_id, organization_id=ctx.organization_id)`
-answers `None` for a row under another organization, raised as
-`NotFoundError` — not `AuthorizationError`, so a cross-organization probe
-learns nothing, the same non-disclosure `resolve_access` already gives every
-lookup here. This is the acceptance criterion's cross-organization test:
-forge another org's `file_id` into a bound config and into a
+real enforcement is a repository lookup every handler makes first, checking
+two things, not one (round 3 of this review: organization equality alone
+lets any workflow run as a member of the same organization read a file a
+*different* workflow's run produced, by obtaining its UUID, even though
+that principal cannot see or run the producing workflow — the run-scoped
+ownership `workflow_run_id` already carries on `WorkflowFile` was never
+consulted): `workflow_file_repo.get_by_id(db, file_id,
+organization_id=ctx.organization_id)` first, then confirm the row's
+`workflow_run_id` is either this run's own or present in this run's
+`ResourceRef`s (explicitly imported, the same table #1790's foreach
+manifests already use) — a file belonging to a different, unimported run
+answers `None` exactly as a cross-organization one does. `None` in both
+cases is raised as `NotFoundError` — not `AuthorizationError`, so a probe
+learns nothing either way, the same non-disclosure `resolve_access` already
+gives every lookup here. This is the acceptance criterion's
+cross-organization test, extended to cross-run: forge another org's
+`file_id`, and separately another run's own-organization `file_id`, into a
+bound config and into a
 `NodeOutputRef`-resolved input, assert `NotFoundError` both ways. References
 grant no access themselves — an id is only useful to a handler holding the
 run's own `ctx`.
@@ -231,8 +242,14 @@ not a second constant) **before** `.load()`/`.resize()`/`.crop()` — a small
 file declaring an enormous canvas is `Failed(code="image_too_large",
 details={"decoded_pixels", "limit"})` before the full-size buffer exists,
 the "check before decode" discipline `config.py` already states, applied
-here to a `FileRef` instead of a `ChatFile`. Metadata (EXIF, ICC) is dropped
-by never forwarding `image.info` into the write call. `retry_guarantee=
+here to a `FileRef` instead of a `ChatFile`. **The same check runs again on
+the requested output**, not only the source (round 3 of this review: a
+small, valid source image with an enormous `resize.width`/`resize.height`
+passed the source-side check and then exhausted memory allocating the
+*output* canvas — the cap on decoded pixels said nothing about produced
+ones): compute `resize.width * resize.height` from config before calling
+`.resize()`, refused the same way if it exceeds the limit. Metadata (EXIF,
+ICC) is dropped by never forwarding `image.info` into the write call. `retry_guarantee=
 "at_least_once"`, not `"idempotent"` — the transform itself is
 deterministic over already-fetched bytes, but its output is a fresh
 `WorkflowFile` per attempt like every other write node here, so the same
@@ -318,9 +335,18 @@ rather than leaving it for the idle reaper. CPU (2 cores), process count
 (512) and `/tmp` (64 MiB) are `sandboxd`'s own per-sandbox ceilings,
 inherited as-is; memory is the catalogue entry's `mem_limit`, one setting
 per profile like every other runtime. **Disk has no existing per-session
-quota in `sandboxd`** ("disk use only grows" absent an operator TTL) — this
-issue adds an after-the-fact check: the handler sums workspace file sizes
-before registering `output_files`, refusing over `max_disk_mb`. Logs never
+quota in `sandboxd`**, and this issue's `max_disk_mb` check does not add
+one — it is detection, not prevention (round 3 of this review: summing
+workspace size after the script exits can only refuse the *output*,
+letting untrusted code fill the sandbox host's disk for the whole run
+first, a real availability risk to whatever else shares that host, whether
+or not the eventual output is accepted). Real enforcement needs a
+filesystem quota inside `sandboxd`'s own runtime — a size-capped volume or
+a disk cgroup per session — which is infrastructure this design doc cannot
+add unilaterally; it is a prerequisite for `max_disk_mb` to mean what its
+name says, not an implementation detail of this node. Until that lands,
+the after-the-fact check stays as a bound on what a node's *output* can
+claim to have produced, documented as exactly that and no more. Logs never
 land in `NodeAttempt.result` whole, the same "a path, never a payload" rule
 `sandbox_operations` already applies to `execute`: a clipped `stdout_tail` in
 the typed output, the full log as a `WorkflowFile`-backed `FileRef`.

@@ -22,13 +22,25 @@ caller → map the channel payload onto the graph's entry node's input schema
 principal) → deliver, through a contract specific to whether the channel can
 hold a connection open.
 
-**`core.input`'s concrete shape is not yet designed** — [shared
-contracts](56-shared-contracts.md#resolved-decisions) reserves it for #1789,
-deliberately not #1786. This document does not invent #1789's field list; it
-designs against what #1786 fixes today, one entry node per graph whose
-`input_schema` is a real Pydantic model, so every mapping step produces JSON
-validated against *that schema*. When #1789 lands, mapping needs no
-redesign, only real field names.
+**`core.input` has no per-instance typed schema — #1789 settled this while
+#1792 still hedged it.** (Round 3 of this review: GitHub's automated
+pass caught this document still assuming a real, per-workflow
+`input_schema` to map and validate against, a hedge #1789's finished
+design resolved differently.) `core.input.output_schema` is the fixed
+`WorkflowInputPayload{payload: dict[str, Any], triggered_by: str}` —
+`NodeDefinition.output_schema` cannot vary per instance, so there is no
+typed field list any adapter maps *into*, only the one untyped `payload`
+dict every adapter constructs the same way: each adapter builds
+`payload` from its own channel data (`{"prompt": message.text}` for
+`/chat`, the parsed body for a webhook, the request JSON for the API),
+sets `triggered_by` to its own channel name, and does not validate field
+names against anything — there is nothing typed to validate against at
+this boundary. A workflow that needs a typed value out of `payload` reads
+it with a `data.map` node just past `core.input`, exactly as #1789's own
+design already says for any caller of this contract. This document's
+"one entry node per graph whose `input_schema` is real" assumption is
+gone; every place below that referenced mapping "into" a typed field
+means constructing `payload`, nothing more.
 
 ## Precedent reused rather than reinvented
 

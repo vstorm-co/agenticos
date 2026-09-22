@@ -59,7 +59,9 @@ table in the schema.
 
 ```
 WorkflowRun
-  id, organization_id, workflow_id, workflow_version_id (frozen graph, #1786)
+  id, organization_id, workflow_id
+  workflow_version_id: uuid | None              # NULL only for a #1787 test run — see below
+  draft_graph_snapshot: jsonb | None             # set only when workflow_version_id is NULL
   status: RunStatus (below)
   triggered_by: {api, websocket, webhook, chat, schedule, table_created}
   execution_principal_user_id: uuid           # pinned at admission; see below
@@ -124,6 +126,22 @@ never re-resolved from the request afterward, so a handler running hours
 into a `waiting_approval` pause, or the reconciler resuming after a crash,
 builds the same `AuthContext` from this column that admission itself
 checked, not from a request that no longer exists.
+
+**`workflow_version_id`/`draft_graph_snapshot` is the one place `WorkflowRun`
+does not always name a published version** (round 3 of this review: #1787's
+test-run design snapshots the current *draft* graph before running it, but
+this table had nowhere durable to hold an unpublished graph, and a real
+`WorkflowVersion` row can only ever be published — inventing an
+unpublished one would break the immutable-once-created discipline
+`create_version` exists to guarantee). Exactly one of the pair is set: a
+CHECK constraint enforces it, mirroring how `WorkflowRun` already treats
+`root_run_id`/`causation_run_id` as one XOR-shaped pair. `mode: {real,
+test}` on the row records which; a test run's dispatcher reads its graph
+from `draft_graph_snapshot` instead of resolving `workflow_version_id`, and
+everything downstream — `NodeRun`, `NodeAttempt`, the event stream #1787's
+inspector reads — is unchanged either way, since both are just "the graph
+this run executes," frozen at start either by publication or by this
+snapshot.
 
 `WorkflowRun`'s four causation columns (`root_run_id`, `causation_run_id`,
 `visited_trigger_ids`, `depth`) exist because #1785's cycle-protection
@@ -214,7 +232,7 @@ status is the most severe of its live nodes', ranked `needs_attention` >
 | `budget_exceeded` | `BudgetGuard` refuses a node's call before it is made | pre-call check, not a `NodeResult` |
 | `cancelled` | Explicit cancel, revoked access, or an expired approval (mirrors `ApprovalService.expire_stale`: the caller went away, spend to that point stands) | — |
 | `failed` | A `Failed` exhausts its retry policy with no handler route (#1790 gap below), or any node fails outside a caught path | `NodeResult.Failed` |
-| `succeeded` | No outbox rows remain and every reachable output was reached (guaranteed satisfiable by #1786's reachable-outputs check) | `NodeResult.Completed`, transitively |
+| `succeeded` | No `pending` or `claimed` `DispatchOutbox` rows remain for the run, and every reachable output was reached (guaranteed satisfiable by #1786's reachable-outputs check) — not "no rows", which is never true for any nontrivial run: `done` and `cancelled` rows are kept, not deleted, for audit and reconciliation (round 3 of this review) | `NodeResult.Completed`, transitively |
 
 Node-level `skipped` is **not** a `NodeResult` outcome — it is assigned
 structurally at dispatch time when graph traversal shows a node

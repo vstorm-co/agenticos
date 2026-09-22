@@ -147,8 +147,19 @@ save) — there is exactly one read path; the views differ only in layout.
   the editing surface identical across all three view types.
 - **Kanban** (`table-kanban-view.tsx`): requires `group_by` to name a live
   `single_select` column (the view-config UI refuses to save a kanban view
-  without one). Lanes are that column's non-archived options plus one "No
-  value" lane for `is_null`. Each lane runs its own `records/query` with
+  without one). Lanes are that column's non-archived options, one "No
+  value" lane for `is_null`, **and one read-only "Archived" catch-all lane**
+  (round 3 of this review: a record still holding an archived option — a
+  live, valid record, per #1782's "archive, never delete" discipline —
+  matched neither a non-archived-option lane's `eq` filter nor `is_null`,
+  so it vanished from the board entirely, unreachable from kanban though
+  still visible in table/list). The catch-all's query is `[...view.filters,
+  {column_id: group_by, op: "in", value: archivedOptionIds}]`; dragging a
+  card *out* of it works normally (assigning a live option), dragging a
+  card *into* it is refused client-side before the mutation fires — the
+  same "archived column write refused" rule already applies server-side,
+  this only avoids a round trip to learn it. Each lane runs its own
+  `records/query` with
   `filters: [...view.filters, {column_id: group_by, op: "eq"/"is_null",
   value: option.id}]` and its own `skip`/`limit`/"load more" — a single
   unfiltered fetch can't populate every lane under the service's 100-row page

@@ -73,7 +73,26 @@ live membership permission still decides whether the call runs. On success it
 returns the new table's id, schema version and a column-label-to-id mapping,
 so a later `table.records.create` in the same run can address the new columns
 without guessing a UUID (the "template-field-key to column-ID mapping" the
-consistency review names). It is idempotent via a run/tool-call-derived
+consistency review names).
+
+**That promise needs the allow-list to grow mid-run, not just the pinned
+map to exist** (round 3 of this review: `ctx.deps.virtual_tables` is built
+once at run-build time from the frozen `TableGrant` config, before the run
+starts — a table `table.create` makes *during* the run can never be a key
+of a map frozen before it existed, so the immediately-following
+`table.records.create` this tool's own success case promises would always
+fail the allow-list check first, never reaching the service). On a
+successful `table.create`, the handler inserts `{new_table_id:
+frozenset(TableOperation)}` — every operation, since the creating
+principal already holds `TABLES_CREATE` and is the new table's owner —
+into the *same* `ctx.deps.virtual_tables` dict object the allow-list check
+reads, a server-derived addition keyed on the id `create_table` itself
+returned, never on anything the model supplies. The dict is mutated once,
+in place, for the rest of this run only; it is not written back to the
+binding's stored config, so the next run starts from the config's frozen
+grants again, `table.create` or not.
+
+It is idempotent via a run/tool-call-derived
 `operation_key` (see below), which requires extending `create_table` to
 accept one and reuse `run_once` from `receipts.py` — new service-layer
 surface this issue adds, not #1782's.
@@ -125,6 +144,20 @@ unbound collection rather than erroring. The result,
    call, because access can be revoked mid-run and the pinned map is only a
    run-start snapshot that narrows, never grants. This is the issue's
    "revalidate access at execution time" requirement.
+
+**`run_auth` cannot stay the immutable copy the field description above
+implies** (GitHub's automated review caught this: `resolve_access`'s role
+check reads `AuthContext.role` off the object it's given — "no query in
+the common case," per its own docstring — so calling it again with the
+*same* frozen `run_auth` re-runs the check but not the lookup; only the
+explicit-grant fallback queries fresh. A role narrowed or a membership
+removed mid-run, during a `waiting_approval` pause that can last hours,
+would still pass). Each tool call rebuilds the role half of `run_auth`
+fresh from current `OrganizationMember` state — the same query
+`get_auth_context` runs per request — inside the same `get_db_context()`
+session already open for the call, before invoking `resolve_access`; only
+`organization_id`/`user_id` stay fixed for the run's life. This is one
+extra indexed lookup per table call, not a new mechanism.
 
 ### Reaching the service: two new `AgentDeps` fields
 
