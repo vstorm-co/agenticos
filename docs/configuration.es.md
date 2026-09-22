@@ -1,5 +1,5 @@
 ---
-source_sha: "83b750ee5cbc"
+source_sha: "1a32c6a0f4ed"
 ---
 
 # Configuración { #configuration }
@@ -1159,6 +1159,7 @@ límite, nunca el contenido.
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada. Las no despachadas nunca se eliminan |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Cuánto tiempo se conserva el history de un registro, contado desde el cambio, también para un registro borrado |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Cuántas entradas de auditoría de rechazo por cuota escribe este proceso a la vez, para que una ráfaga de rechazos no abra un número ilimitado de conexiones a la base de datos. El resto de la ráfaga espera a este límite |
 
 Los tres periodos de retención los aplica el [barrido de retención](governance.md#retention)
 diario, para cada organización; no son ajustes por organización.

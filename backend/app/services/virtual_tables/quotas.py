@@ -61,23 +61,18 @@ def delete_snapshot(values: dict[str, Any]) -> dict[str, Any]:
     return {"omitted": {"bytes": size, "limit": limit}}
 
 
-_MAX_CONCURRENT_AUDITS = 4
-"""How many quota-refusal audits this process writes at once.
-
-`get_worker_db_context` moved the audit connection off the request's pool, which fixed
-the pool-drain deadlock but left it unbounded: a burst of refusals each opens a live
-`NullPool` connection, multiplied by every worker process, and same-organization audits
-then queue on `record_audit`'s advisory chain lock while holding those connections open.
-This is the same shape `app/core/blocking.py` and `app/services/ml/parsing.py` bound with
-a semaphore rather than a pool size, at the scale of an occasional refusal instead of a
-file or a parse. Kept small and fixed rather than a deployment setting: nothing here scales
-with load the way a worker count or a pool size does.
-"""
-
 # One gate per event loop, for the reason `app/core/blocking.py` keys its own limiter
 # that way: an `asyncio.Semaphore` binds to the loop that created it, and a worker or a
 # test suite may run more than one loop in a process. Keyed weakly so a finished loop's
 # gate is collected with it.
+#
+# `get_worker_db_context` moved the audit connection off the request's pool, which fixed
+# the pool-drain deadlock but left it unbounded: a burst of refusals each opens a live
+# `NullPool` connection, multiplied by every worker process, and same-organization audits
+# then queue on `record_audit`'s advisory chain lock while holding those connections open.
+# `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` bounds it, the same shape `app/core/blocking.py`
+# and `app/services/ml/parsing.py` bound their own pools of concurrent work with, at the
+# scale of an occasional refusal instead of a file or a parse.
 _audit_gates: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
     weakref.WeakKeyDictionary()
 )
@@ -87,7 +82,7 @@ def _audit_gate() -> asyncio.Semaphore:
     loop = asyncio.get_running_loop()
     gate = _audit_gates.get(loop)
     if gate is None:
-        gate = asyncio.Semaphore(_MAX_CONCURRENT_AUDITS)
+        gate = asyncio.Semaphore(settings.TABLES_MAX_CONCURRENT_QUOTA_AUDITS)
         _audit_gates[loop] = gate
     return gate
 

@@ -1120,6 +1120,7 @@ with `QUOTA_EXCEEDED` (402) and an audit entry that names the quota, never the c
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | How long an idempotency receipt answers a retry. Afterwards the same key is a new write |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | How long a dispatched outbox row is kept. Undispatched rows are never removed |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | How long a record's history is kept, counted from the change, for a deleted record as well |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | How many quota-refusal audit entries this process writes at once, so a burst of refusals cannot open an unbounded number of database connections. The rest of a burst waits on this bound instead |
 
 The three retention periods are applied by the daily
 [retention sweep](governance.md#retention), for every organization, and are not

@@ -1,5 +1,5 @@
 ---
-source_sha: "83b750ee5cbc"
+source_sha: "1a32c6a0f4ed"
 ---
 
 # Konfiguracja { #configuration }
@@ -1147,6 +1147,7 @@ kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox. Niewysłane wiersze nigdy nie są usuwane |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Ile wpisów audytu odmowy limitu ten proces zapisuje naraz, żeby seria odmów nie otwierała nieograniczonej liczby połączeń do bazy. Reszta serii czeka na to ograniczenie |
 
 Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention), dla
 każdej organizacji; nie są ustawieniami per organizacja.

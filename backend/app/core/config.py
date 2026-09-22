@@ -445,6 +445,12 @@ class Settings(BaseSettings):
     # How long a record's history is kept, counted from the change, for a deleted
     # record as much as a live one.
     TABLES_HISTORY_RETENTION_DAYS: int = Field(default=365, gt=0)
+    # How many quota-refusal audit entries this process writes at once. Moving that
+    # write off the request's own connection pool (so a burst of refusals cannot
+    # drain it) left it otherwise unbounded, opening one live connection per
+    # refusal; this caps it the way CHAT_CONVERT_MAX_CONCURRENCY and
+    # ML_MAX_CONCURRENT_PARSES cap their own pools of concurrent work.
+    TABLES_MAX_CONCURRENT_QUOTA_AUDITS: int = Field(default=4, gt=0)
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

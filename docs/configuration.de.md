@@ -1,5 +1,5 @@
 ---
-source_sha: "83b750ee5cbc"
+source_sha: "1a32c6a0f4ed"
 ---
 
 # Konfiguration { #configuration }
@@ -1225,6 +1225,7 @@ einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird. Nicht zugestellte Zeilen werden nie entfernt |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Wie lange die History eines Datensatzes aufbewahrt wird, ab der Änderung gezählt, auch für einen gelöschten Datensatz |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Wie viele Quota-Ablehnungs-Audit-Einträge dieser Prozess gleichzeitig schreibt, damit ein Schub an Ablehnungen keine unbegrenzte Zahl an Datenbankverbindungen öffnet. Der Rest eines Schubs wartet stattdessen auf diese Grenze |
 
 Die drei Fristen wendet der tägliche [Aufbewahrungs-Sweep](governance.md#retention) für
 jede Organisation an; es sind keine Einstellungen je Organisation.

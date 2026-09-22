@@ -359,7 +359,53 @@ async def test_a_burst_of_refusals_never_opens_more_than_the_gate_allows(
     )
 
     assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 10
-    assert peak <= quotas._MAX_CONCURRENT_AUDITS
+    assert peak <= settings.TABLES_MAX_CONCURRENT_QUOTA_AUDITS
+    assert peak > 1, "the burst never overlapped, so this proves nothing about the bound"
+    assert len(await _refusals(ordinary, ctx)) == 10
+
+
+async def test_lowering_the_concurrency_setting_lowers_the_observed_bound(
+    engine: AsyncEngine, monkeypatch
+):
+    """The gate reads the setting when it is built, so a smaller TABLES_MAX_CONCURRENT_QUOTA_AUDITS
+    is what changes how many refusals actually overlap - not just what the assertion allows."""
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 1)
+    monkeypatch.setattr(settings, "TABLES_MAX_CONCURRENT_QUOTA_AUDITS", 2)
+    ordinary = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(ordinary)
+    table = await _table(ordinary, ctx)
+
+    real_record_audit = quotas.record_audit
+    in_flight = 0
+    peak = 0
+
+    async def slow_record_audit(*args, **kwargs):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        try:
+            await asyncio.sleep(0.05)
+            return await real_record_audit(*args, **kwargs)
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(quotas, "record_audit", slow_record_audit)
+
+    results = await asyncio.gather(
+        *(
+            _call(
+                ordinary,
+                lambda service: service.create_record(
+                    ctx, table.id, RecordCreate(values={str(table.columns[0].id): "too big"})
+                ),
+            )
+            for _ in range(10)
+        ),
+        return_exceptions=True,
+    )
+
+    assert [type(r).__name__ for r in results] == ["QuotaExceededError"] * 10
+    assert peak <= 2
     assert peak > 1, "the burst never overlapped, so this proves nothing about the bound"
     assert len(await _refusals(ordinary, ctx)) == 10
 
