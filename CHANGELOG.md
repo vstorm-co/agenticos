@@ -37,6 +37,165 @@ Two things are versioned separately from this file and worth knowing about:
   belonged to, and a re-ingest picks the value up.
   ([#1777](https://github.com/vstorm-co/agenticos/issues/1777))
 
+## [0.0.489] - 2026-09-22
+
+### Fixed
+
+- **A changed email address is proved before mail follows it.**
+  `PATCH /users/me` accepted a new address and started using it immediately, and
+  nothing showed the person asking could read it. Every mail this deployment
+  sends goes to that column — an invitation, a magic link, a password reset, an
+  approval request, a budget alert, and every notification queued for the email
+  channel — so an account whose address had been changed to somewhere its owner
+  cannot read is an account whose password-reset link goes to somebody else, and
+  one changed to an address that never signed up here turns the deployment's own
+  sender into a relay for whoever set it. The request is now *staged*: the
+  account keeps its current address, a single-use hour-long link goes to the new
+  one, and the old one is told a change was asked for — which is what makes a
+  takeover visible to the person losing the account. Confirming the link moves
+  the address across and clears the staging, so a replayed link finds nothing to
+  move; a contested address is decided at confirmation by the unique constraint,
+  not at the request. Both the request and the confirmation are audited.
+  Migration `0093_pending_email` adds the column, nullable, with no backfill:
+  nobody has a change in flight when it runs.
+
+  Recovery revokes an outstanding link, which is what makes the notice to the
+  old address worth acting on: the link carries the account's credential
+  version, so changing or resetting the password stops it working, and an
+  administrator repairing the address clears the staging. Asking again for the
+  address already staged sends nothing — a profile saved twice, or saved for an
+  unrelated field, is not a second verification email — and the number of
+  distinct addresses one account may ask for is capped per hour, because this
+  route is unmetered and the destination is the caller's to name. The staged
+  address is included in a personal-data export, since it is an address the
+  deployment holds. (#1772)
+
+## [0.0.488] - 2026-09-22
+
+### Changed
+
+- **The MCP SDK is uncapped again, on `httpx2`.** `mcp` was held below 2.0
+  because 2.0 moved the whole SDK from `httpx` to `httpx2` — a different
+  distribution with its own `Request`, `Response`, `AsyncClient` and exception
+  hierarchy — and the one path where this platform's code and the SDK exchange
+  HTTP objects could not carry both: an SDK-built request handed to
+  `PinnedAsyncClient` was refused, and a malformed endpoint raised an exception
+  written for the other library, which is #889 in a form no catch could see.
+  `PinnedAsyncClient` and the MCP OAuth flow are `httpx2` now, so the check and
+  the request are made by the same library, and the streamable transport is
+  called the way 2.0 spells it — a client carrying the connection's headers
+  rather than a `headers` argument, and two yielded values rather than three. A
+  rename alone would have compiled and silently dropped every `Authorization` a
+  private MCP server is reached with. The other fourteen modules that speak HTTP
+  stay on `httpx` deliberately: the boundary is wherever an object crosses into
+  or out of a vendor SDK, and none of them does. (#1820)
+
+## [0.0.487] - 2026-09-22
+
+### Fixed
+
+- **An audited security write and an admin deletion can no longer deadlock each
+  other.** `record_audit` holds a transaction-scoped lock on the organization's
+  audit chain, and the mandatory security notification written straight after it
+  takes a key-share lock on every recipient's user row — while
+  `UserService.admin_delete` locks every app admin's row exclusively *first* and
+  reaches for the same chain lock second. Two transactions, the same two locks,
+  opposite orders: Postgres aborts one, and depending on which loses, either the
+  deletion has to be retried or the surviving transaction's mandatory
+  security-event notification is discarded inside its own savepoint while the
+  audit entry commits regardless. The twelve sites that audit and then notify now
+  take the audience's row locks immediately *before* the audit entry, so every
+  transaction takes user rows first and the chain last. The order is a convention
+  no type can express, so a static test holds the sites to it. (#1763)
+
+## [0.0.486] - 2026-09-22
+
+### Fixed
+
+- **A mandatory security event past its write budget is coalesced, not
+  dropped.** The per-actor limit on `security_event` and
+  `configuration_changed` exists so that an ordinary write access cannot turn
+  into an unmetered fan-out against every admin — but over the limit the write
+  returned nothing at all, and nothing took its place. An actor could exhaust
+  the shared bucket with twenty benign edits inside a minute and then rotate or
+  delete a real secret, and that event reached neither the inbox nor email. It
+  was still in the audit log, which is exactly what a mandatory,
+  un-optable-out-of notification exists because admins do not watch. The
+  overflow now writes one coalesced row per actor per window instead, saying the
+  minute was busier than the inbox lists and that every one of those events is
+  on the trail. Its `occurrence_id` is the window, so the second and every later
+  overflow inside it writes no row and no delivery — the bound the limit was
+  protecting, kept. It carries no running count, because counting would mean
+  rewriting that row on every further event, which is the write the limit is
+  there to stop. (#1762)
+
+## [0.0.485] - 2026-09-22
+
+### Fixed
+
+- **Three loose ends in the notice a dropped socket puts up.** It is drawn on
+  the drop now rather than on the way back up, so a reader who loses
+  connectivity outright is told the agent is finishing the turn and saving it
+  instead of watching a composer spin — the copy was always as true offline as
+  online. It belongs to the conversation the drop happened in: opening another
+  thread during a reconnect used to draw the notice over one that was never
+  interrupted, and re-read that one instead of the thread still being written.
+  And a reader who gives up waiting and asks something else keeps a notice, now
+  saying the earlier answer is still being written and will land below the
+  question they have just asked - which is what happens, and what nothing said.
+  (#1775)
+
+## [0.0.484] - 2026-09-22
+
+### Added
+
+- **A Deploy run left at the approval gate no longer stops the pipeline in
+  silence.** A run waiting for an approval counts as in flight and holds the
+  `deploy-production` concurrency group, so every later run sat `pending` with
+  no jobs and was cancelled by the next one. Thirteen days of merges went that
+  way: no failed run, no notification, and a production host a fortnight behind
+  `main`, because a pending run with nothing to click on reads as a broken
+  workflow and a `cancelled` run reads as somebody's decision. `deploy-queue.yml`
+  now runs every six hours, cancels a Deploy run that has waited more than
+  twelve, and opens an issue naming the run and how far `main` has drifted from
+  the last successful deploy. It approves nothing and deploys nothing — it
+  drains the queue so the next merge reaches the gate, and says that it did.
+  `docs/deploy.md` also now warns that approving from the environment's own
+  queue approves the *oldest* waiting run, which is how a fortnight-old commit
+  reached the server. (#1832)
+
+## [0.0.483] - 2026-09-22
+
+### Fixed
+
+- **A deploy no longer fails on the health status a container had before it was
+  restarted.** `depends_on: condition: service_healthy` reads that status the
+  instant the container starts, so the redeploy that repaired a crash-looping
+  cache failed half a second after starting it - with the same message the real
+  failure had printed, which makes a fix that worked read as a fix that did not.
+  The `db` and `redis` healthchecks now declare a `start_period`, which is what
+  `service_healthy` is meant to wait through, and `scripts/deploy.sh` retries
+  `up -d` once - and only for this failure - when compose gives up on a
+  dependency's health. Its own `wait_healthy` acts on `unhealthy` only once a
+  probe has run since the container started. (#1831)
+
+## [0.0.482] - 2026-09-22
+
+### Fixed
+
+- **The cache no longer persists, so a Valkey upgrade cannot take the stack
+  down.** Valkey 8 forks Redis 7.2 and refuses an RDB written by Redis 7.4, so
+  the first deploy onto a host that had run `redis:7-alpine` crash-looped on
+  `Can't handle RDB format version 12`; `app` and `prefect-runner` wait on the
+  cache being healthy, so they never started and the site answered 404 until the
+  volume was cleared by hand. Valkey now runs with `--save ''` and no
+  `redis_data` mount in all three compose files. Everything the platform keeps
+  there - rate-limit buckets, channel dedupe claims, membership answers -
+  carries a TTL and rebuilds itself, so there is nothing to lose and no format
+  to disagree about. A host that ran an earlier release still carries an
+  orphaned `agenticos_redis_data` volume; `docs/deploy.md` says how to remove
+  it. (#1830)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-source_sha: "6b66da3de94d"
+source_sha: "25ca6d2da0fe"
 ---
 
 # Konfiguracja { #configuration }
@@ -258,6 +258,17 @@ BSD-3-Clause, a nie samego Redisa, który od 7.4.0 jest na RSALv2 albo SSPL-1.0 
 protokołem na tym samym porcie, więc ustawienia poniżej, schemat `redis://` i nazwa
 usługi `redis` pozostają bez zmian, a wdrożenie, które skieruje je zamiast tego na
 zarządzanego Redisa, Valkey albo Elasticache, działa dokładnie tak jak wcześniej.
+
+Jest uruchamiany jako cache i nic więcej: `--save ''`, bez wolumenu, więc po każdym
+restarcie startuje pusty. Wszystko, co platforma tu trzyma — kubełki limitów,
+znaczniki deduplikacji kanałów, odpowiedzi o członkostwie — ma TTL i odtwarza się
+samo.
+
+Snapshot nie dawał nic, a kosztował jedną awarię: Valkey 8 jest forkiem
+Redisa 7.2 i odmawia wczytania RDB zapisanego przez Redisa 7.4, więc pierwsze
+wdrożenie na hoście, na którym działał `redis:7-alpine`, wpadło w pętlę restartów i
+zabrało ze sobą każdą usługę czekającą na cache. Zarządzana instancja, która jednak
+utrwala dane, jest w porządku; platforma tak czy inaczej na tym nie polega.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

@@ -1,5 +1,5 @@
 ---
-source_sha: "2f11ca35d96a"
+source_sha: "65df12b25237"
 ---
 
 # Governance { #governance }
@@ -1267,10 +1267,18 @@ wszystkiego, co można wyłączyć.
 
 Nie jest to jednak nieograniczone: każde jest ograniczone do dwudziestu
 zapisów na minutę na aktora i typ zdarzenia, więc jedno konto wprowadzające
-szybkie zmiany ma resztę po cichu odrzucaną, zamiast zalewać każdego
-administratora — wpis audytowy stojący za każdym z nich i tak zostaje
-zapisany, na samym śladzie ([Audyt](#audit)), niezależnie od tego, czy
-powiadomienie przetrwało limit.
+szybkie zmiany nie zaleje każdego administratora — wpis audytowy stojący za
+każdym z nich i tak zostaje zapisany, na samym śladzie ([Audyt](#audit)),
+niezależnie od tego, czy powiadomienie przetrwało limit.
+
+Powyżej tego limitu skrzynka nie milknie. Miejsce reszty zajmuje jedno
+powiadomienie na aktora na minutę, mówiące, że minuta była bardziej ruchliwa,
+niż skrzynka jest w stanie wypisać, i że każde z tych zdarzeń jest na śladzie.
+Ma to znaczenie, bo tych dwóch nie da się wyłączyć: aktor mógłby inaczej zużyć
+przydział na dwadzieścia niegroźnych edycji, a potem zrobić tę jedną rzecz,
+którą warto obserwować, i nic by o tym nie powiedziało. To powiadomienie nie
+niesie licznika — liczenie oznaczałoby przepisywanie go przy każdym kolejnym
+zdarzeniu, czyli dokładnie ten zalew, przed którym limit ma chronić.
 
 Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
 jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został

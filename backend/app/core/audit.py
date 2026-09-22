@@ -155,6 +155,16 @@ async def record_audit(
     holding this chain lock while going on to lock another row lets a concurrent
     decision that holds that row and reaches for the same chain lock close an ABBA
     cycle Postgres has to abort.
+
+    **That includes what a caller does with the entry afterwards.** The nine sites
+    that follow this with `NotificationService.security_event` were writing a
+    notification per recipient, each of which takes a key-share lock on that
+    recipient's `users` row - after this chain lock, while `admin_delete` takes
+    every app admin's row exclusively *before* reaching for the same chain. Two
+    transactions, the same two locks, opposite orders (#1763). They now call
+    `hold_security_audience` / `hold_configuration_audience` immediately before
+    this, so the order is total: `users` rows first, the chain last.
+    `tests/test_audit_lock_order.py` holds the remaining sites to it.
     """
     impersonator_id = _impersonator_id.get()
     impersonator = impersonator_id if impersonator_id != actor_user_id else None

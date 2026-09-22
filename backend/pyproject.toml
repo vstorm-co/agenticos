@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.481"
+version = "0.0.489"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -59,21 +59,24 @@ dependencies = [
     "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.45.0",
     "genai-prices>=0.1.4",
     "pydantic-ai-slim[mcp]>=2.45.0",
-    # The MCP SDK, held below 2.0 deliberately (#1485).
+    # The MCP SDK. Uncapped since #1820 moved the one path where our code and
+    # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
+    # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
+    # flow are `httpx2` now, so an SDK-built request reaches a client that can
+    # send it and a malformed endpoint raises an exception our refusals catch.
     #
-    # 2.0 migrates the whole SDK to `httpx2`, and `create_oauth_metadata_request`
-    # therefore returns an `httpx2.Request` - which `PinnedAsyncClient`, an
-    # `httpx` client, refuses to send. The fix is not a shim: this platform's
-    # SSRF pinning and its `Host`/SNI substitution live in that client
-    # (`app/core/pinned_http.py`, #860), and carrying a second HTTP library
-    # through the one path where a remote server chooses the next address is how
-    # a check ends up applied by one library and the request made by the other.
-    # 2.0 also renames `streamablehttp_client` and drops its `headers` argument.
+    # **Floored at 2, not merely uncapped.** `app/agents/mcp.py` imports
+    # `create_mcp_http_client` and `streamable_http_client` unconditionally, and
+    # both are 2.x names - 1.x spelled the transport `streamablehttp_client` and
+    # had no client factory at all. A non-frozen install that resolved back to
+    # 1.x would fail every streamable probe at import time; the image installs
+    # the lock verbatim, but nothing else does.
     #
-    # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
-    # own change, with its own tests. Until then this cap is what keeps the
-    # scheduled freshness upgrade green rather than perpetually red.
-    "mcp<2",
+    # The rest of this codebase stays on `httpx` deliberately. The boundary is
+    # wherever an object crosses into or out of a vendor SDK, and nothing else
+    # here does: the portals, the channels, `model_catalog` and the web-research
+    # search all build and send their own requests.
+    "mcp>=2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -99,7 +102,15 @@ dependencies = [
     "google-api-python-client>=2.200.0",
     "google-auth>=2.58.0",
     "boto3>=1.43.97",
+    # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
+    # and send their own requests with - the portals, the channels, the model
+    # catalog, the web-research search - and `httpx2` is what the MCP SDK is
+    # written against since 2.0. Declared rather than inherited through `mcp`
+    # because `app/core/pinned_http.py` imports it directly: the boundary is
+    # wherever an object crosses into or out of a vendor SDK, and a library our
+    # own code imports is one this manifest names (#1820).
     "httpx>=0.28.0",
+    "httpx2>=2.13.0",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
@@ -205,11 +216,13 @@ dependencies = [
 # through `TypeSafeModel` rather than the raw `httpx` post `jev_ultrafast/model.py`
 # makes, so each one is an ordinary metered model request.
 #
-# `pydantic-ai-slim[typesafe]` brings `typesafe-sdk`, and with it `httpx2`. That is
-# a second HTTP library in the image, which `mcp<2` above exists to avoid - but the
-# reason there is `PinnedAsyncClient`, whose SSRF pinning guards a URL a *remote
-# server* chooses. TypeSafe's endpoint is a fixed vendor address the SDK holds
-# itself, so there is no path where one library checks and the other requests.
+# `pydantic-ai-slim[typesafe]` brings `typesafe-sdk`, and with it `httpx2` - one
+# of several routes by which the image now carries both HTTP libraries, which is
+# a deliberate state rather than an accident (see `httpx2` above). What mattered
+# was never the second library: it was `PinnedAsyncClient`, whose SSRF pinning
+# guards a URL a *remote server* chooses, and which is `httpx2` itself since
+# #1820. TypeSafe's endpoint is a fixed vendor address the SDK holds itself, so
+# there is no path where one library checks and the other requests.
 browser = [
     "cdp-use==1.4.5",
     "pydantic-ai-slim[typesafe]>=2.45.0",

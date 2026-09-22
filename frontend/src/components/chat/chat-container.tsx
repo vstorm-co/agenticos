@@ -145,6 +145,8 @@ export function ChatContainer() {
     compacting,
     compactionImpossible,
     interrupted,
+    detachedTurnPending,
+    acknowledgeDetachedTurn,
     personalGaps,
     lastUsage,
     delegations,
@@ -167,6 +169,14 @@ export function ChatContainer() {
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
   });
+
+  // The reader pressing the notice's button has gone to look for the answer, so
+  // the notice stops saying one is on its way. The re-read is the same one a
+  // reconnect does; only the acknowledgement is extra.
+  const handleRecheck = useCallback(() => {
+    acknowledgeDetachedTurn();
+    handleTurnInterrupted();
+  }, [acknowledgeDetachedTurn, handleTurnInterrupted]);
 
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,
@@ -308,7 +318,8 @@ export function ChatContainer() {
       compacting={compacting}
       compactionImpossible={compactionImpossible}
       interrupted={interrupted}
-      onRecheck={handleTurnInterrupted}
+      detachedTurnPending={detachedTurnPending}
+      onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
@@ -368,6 +379,8 @@ interface ChatUIProps {
   compactionImpossible: Compaction | null;
   /** True while a turn whose socket went away is unresolved. See `InterruptedNotice`. */
   interrupted?: boolean;
+  /** True while such a turn's answer is still coming and the reader has moved on. */
+  detachedTurnPending?: boolean;
   /** Read the transcript again, for the notice above. */
   onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
@@ -431,6 +444,7 @@ function ChatUI({
   compacting,
   compactionImpossible,
   interrupted = false,
+  detachedTurnPending = false,
   onRecheck,
   personalGaps,
   lastUsage,
@@ -604,7 +618,11 @@ function ChatUI({
             </div>
           )}
           <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
-            <InterruptedNotice interrupted={interrupted} onRecheck={onRecheck} />
+            <InterruptedNotice
+              interrupted={interrupted}
+              detached={detachedTurnPending}
+              onRecheck={onRecheck}
+            />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />

@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as login } from "./login/route";
 import { POST as magicLinkRequest } from "./magic-link/request/route";
 import { POST as magicLinkVerify } from "./magic-link/verify/route";
+import { POST as emailChangeConfirm } from "./email-change/confirm/route";
 import { POST as oauthCallback } from "./oauth-callback/route";
 import { POST as passwordResetConfirm } from "./password-reset/confirm/route";
 import { POST as passwordResetRequest } from "./password-reset/request/route";
@@ -781,6 +782,30 @@ describe("registering, and resetting a password", () => {
     expect((await passwordResetRequest(request({}, { email: "a@example.com" }))).status).toBe(500);
     expect((await passwordResetConfirm(request({}, { token: "x" }))).status).toBe(500);
   });
+
+  it("forwards an email-change confirmation, which has no session to carry", async () => {
+    // Followed from the new address, routinely in a browser that has never
+    // signed in - so the token is the whole of the proof and the hop is
+    // unauthenticated, like the password-reset confirmation above it (#1772).
+    vi.mocked(backendFetch).mockResolvedValue({ message: "Email updated" });
+
+    const response = await emailChangeConfirm(request({}, { token: "one-time" }));
+
+    expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/email-change/confirm", {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ token: "one-time" }),
+    });
+    await expect(response.json()).resolves.toEqual({ message: "Email updated" });
+  });
+
+  it("passes a refused email change through, and a broken one as a 500", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
+    expect((await emailChangeConfirm(request({}, { token: "x" }))).status).toBe(400);
+
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
+    expect((await emailChangeConfirm(request({}, { token: "x" }))).status).toBe(500);
+  });
 });
 
 /**
@@ -854,6 +879,7 @@ describe("rate limiting through the BFF", () => {
     ["magic-link/verify", magicLinkVerify],
     ["password-reset/request", passwordResetRequest],
     ["password-reset/confirm", passwordResetConfirm],
+    ["email-change/confirm", emailChangeConfirm],
   ])("carries the rate limit and its Retry-After through %s too", async (_name, route) => {
     vi.mocked(backendFetch).mockRejectedValue(rateLimited());
 
