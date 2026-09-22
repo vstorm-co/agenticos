@@ -46,9 +46,15 @@ on:
 
 # Its own group, and not `deploy-production`: a workflow that watches the queue
 # must not join it.
+#
+# `cancel-in-progress: false` for the same reason `deploy.yml` uses it: this run
+# cancels a deploy and then reports that it did, and a second invocation
+# superseding it between those two acts would leave the cancellation with
+# nothing saying so - the silence this workflow exists to end. A watcher runs
+# for seconds and fires every six hours, so queueing costs nothing.
 concurrency:
   group: deploy-queue
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -90,22 +96,49 @@ jobs:
             // which have no jobs and nothing to cancel usefully - they clear
             // themselves once the group is free.
             const waiting = await runsOf('waiting');
+
+            // `updated_at`, not `created_at`: a run queued *behind* the blocker
+            // was created whenever it was merged and only reached the gate when
+            // the block cleared. Measured from creation, draining a long-blocked
+            // queue would cancel the freed run on the next check although
+            // nobody had been asked about it for more than a few hours.
             const now = Date.now();
-            const stale = waiting.filter((run) => now - Date.parse(run.created_at) > staleAfterMs);
+            const stale = waiting.filter((run) => now - Date.parse(run.updated_at) > staleAfterMs);
 
             const cancelled = [];
             for (const run of stale) {
+              // Re-read immediately before cancelling. A reviewer answering the
+              // gate between the listing and here has started a deploy, and
+              // cancelling a run that is changing a server is the one thing
+              // `deploy.yml`'s `cancel-in-progress: false` exists to prevent -
+              // a half-applied deploy is worse than a blocked queue. The window
+              // is now the round trip rather than up to six hours; it cannot be
+              // closed entirely from outside, because there is no
+              // cancel-if-still-waiting call.
+              const { data: current } = await github.rest.actions.getWorkflowRun({
+                owner, repo, run_id: run.id,
+              });
+              if (current.status !== 'waiting') {
+                core.info(`Deploy run ${run.id} was answered while this ran; leaving it alone.`);
+                continue;
+              }
               await github.rest.actions.cancelWorkflowRun({ owner, repo, run_id: run.id });
               cancelled.push(run);
               core.warning(
                 `Cancelled Deploy run ${run.id} (${run.head_sha.slice(0, 7)}), ` +
-                `waiting for approval since ${run.created_at}`,
+                `waiting for approval since ${run.updated_at}`,
               );
             }
 
             // How far the server is behind, measured against the last Deploy
             // that actually finished rather than against the last one started.
-            const succeeded = (await runsOf('success'))[0];
+            //
+            // Only a `push` run is compared. A `workflow_dispatch` deploys the
+            // commit its `ref` input names, which is not the run's own
+            // `head_sha`, so comparing against that would report a rollback as
+            // no drift at all. Saying nothing is better than a number that is
+            // wrong in the direction of reassurance.
+            const succeeded = (await runsOf('success')).find((run) => run.event === 'push');
             let behind = null;
             if (succeeded) {
               const { data } = await github.rest.repos.compareCommitsWithBasehead({
@@ -138,7 +171,8 @@ jobs:
               ),
               '',
               behind === null
-                ? 'No successful Deploy run to compare against.'
+                ? 'No successful Deploy run from a merge to compare against - the last one ' +
+                  'was a manual dispatch, whose deployed commit is not the run\'s own.'
                 : `\`main\` is **${behind} commit(s)** ahead of the last successful deploy ` +
                   `(\`${succeeded.head_sha.slice(0, 7)}\`).`,
               '',
@@ -163,10 +197,32 @@ jobs:
               });
               return;
             }
+
+            // The marker label is what the dedup above reads, and this workflow
+            // is the only thing that sets it - so it creates it rather than
+            // assuming somebody did. A failure here must not take the report
+            // with it: the issue matters, the label is how the *next* run finds
+            // it, and an unlabelled issue is still the notification.
+            let labels = ['deploy-queue', 'ci'];
+            try {
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: 'deploy-queue',
+                color: 'ededed',
+                description: 'Opened by deploy-queue.yml when the Deploy queue was blocked',
+              });
+            } catch (error) {
+              // 422 is "it already exists", which is the ordinary case.
+              if (error.status !== 422) {
+                core.warning(`Could not create the deploy-queue label: ${error.message}`);
+                labels = ['ci'];
+              }
+            }
             await github.rest.issues.create({
               owner,
               repo,
               title: 'A Deploy run waiting for approval blocked the queue',
               body,
-              labels: ['deploy-queue', 'ci'],
+              labels,
             });

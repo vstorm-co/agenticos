@@ -62,6 +62,12 @@ class TestTheQueueIsWatchedFromOutsideIt:
         """The serialization is correct and is not what #1832 asks to change."""
         assert deploy["concurrency"]["cancel-in-progress"] is False
 
+    def test_the_watcher_is_not_superseded_mid_sequence(self, watcher: dict[str, Any]) -> None:
+        """It cancels a deploy and then reports that it did; a second
+        invocation superseding it between the two would leave the cancellation
+        with nothing saying so - the silence this exists to end."""
+        assert watcher["concurrency"]["cancel-in-progress"] is False
+
     def test_it_runs_on_a_schedule_and_by_hand(self, triggers: dict[str, Any]) -> None:
         assert "schedule" in triggers
         assert "workflow_dispatch" in triggers
@@ -94,6 +100,40 @@ class TestItCancelsAndReportsAndNothingElse:
         # It neither answers the gate nor starts a deploy of its own.
         assert "reviewPendingDeploymentsForRun" not in script
         assert "createWorkflowDispatch" not in script
+
+    def test_it_re_reads_the_run_before_cancelling_it(self, watcher: dict[str, Any]) -> None:
+        """A reviewer answering the gate between the listing and the cancel has
+        started a deploy, and cancelling a run that is changing a server is what
+        `deploy.yml`'s own `cancel-in-progress: false` exists to prevent."""
+        script = watcher["jobs"]["queue"]["steps"][0]["with"]["script"]
+        assert "getWorkflowRun" in script
+        assert "current.status !== 'waiting'" in script
+
+    def test_staleness_is_measured_from_the_gate_not_from_the_merge(
+        self, watcher: dict[str, Any]
+    ) -> None:
+        """A run queued behind the blocker was created whenever it was merged
+        and only reached the gate when the block cleared - so measured from
+        creation, draining a long-blocked queue would cancel the freed run on
+        the next check."""
+        script = watcher["jobs"]["queue"]["steps"][0]["with"]["script"]
+        assert "Date.parse(run.updated_at)" in script
+        assert "Date.parse(run.created_at)" not in script
+
+    def test_drift_is_measured_against_a_merge_rather_than_a_dispatch(
+        self, watcher: dict[str, Any]
+    ) -> None:
+        """A `workflow_dispatch` deploys the commit its `ref` input names, which
+        is not the run's own `head_sha` - so comparing against it would report a
+        rollback as no drift at all."""
+        script = watcher["jobs"]["queue"]["steps"][0]["with"]["script"]
+        assert "run.event === 'push'" in script
+
+    def test_it_creates_the_label_its_own_dedup_reads(self, watcher: dict[str, Any]) -> None:
+        """Nothing else sets `deploy-queue`, and an issue that could not be
+        filed is the silence this workflow exists to end."""
+        script = watcher["jobs"]["queue"]["steps"][0]["with"]["script"]
+        assert "createLabel" in script
 
     def test_the_threshold_comes_from_the_environment(self, watcher: dict[str, Any]) -> None:
         """A `${{ }}` is substituted into the source before Node parses it."""
