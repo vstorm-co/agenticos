@@ -22,7 +22,7 @@ ingested belongs to, and inventing one would be worse than the absence. A
 re-ingest picks the value up.
 
 Revision ID: 0094_organizational_unit
-Revises: 0092_notification_dismissed
+Revises: 0093_pending_email
 Create Date: 2026-09-22
 """
 
@@ -33,7 +33,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0094_organizational_unit"
-down_revision: str | Sequence[str] | None = "0092_notification_dismissed"
+down_revision: str | Sequence[str] | None = "0093_pending_email"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
