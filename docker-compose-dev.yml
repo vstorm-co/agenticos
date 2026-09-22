@@ -108,18 +108,24 @@ services:
     # No published port: reachable only from this network.
     networks:
       - backend
+    # See docker-compose.yml for why `service_healthy` needs a grace to wait
+    # through, and what a missing one costs a redeploy (#1831).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   redis:
     image: valkey/valkey:8-alpine
-    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-    volumes:
-      - redis_data:/data
+    # `--save ''` and no volume: everything here is rebuildable and carries a
+    # TTL, and a persisted snapshot is what a Valkey upgrade refuses to read
+    # (#1830).
+    command: >-
+      valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --save ''
     networks:
       - backend
     healthcheck:
@@ -127,6 +133,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   prefect-server:
@@ -330,5 +337,4 @@ networks:
 volumes:
   media_data:
   postgres_data:
-  redis_data:
   prefect_data:
