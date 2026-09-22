@@ -7,6 +7,7 @@ authorization and the archived-lifecycle check run first, then the revision
 compare-and-set runs before the graph is even looked at.
 """
 
+import logging
 import re
 from typing import Any
 from uuid import UUID
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, AppException, AuthorizationError, NotFoundError
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.repositories import workflow as workflow_repo
@@ -40,6 +42,8 @@ from app.workflows.graph.validate import validate_graph
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
+
+logger = logging.getLogger(__name__)
 
 
 def slugify(name: str) -> str:
@@ -104,23 +108,57 @@ def _read(workflow: Workflow) -> WorkflowRead:
     )
 
 
-def _parse_draft_graph(raw: dict[str, Any]) -> WorkflowGraph | None:
-    """`raw` as a `WorkflowGraph`, or `None` for a draft nobody has edited yet.
+def _parse_draft_graph(workflow: Workflow) -> WorkflowGraph | None:
+    """`workflow.draft_graph` as a `WorkflowGraph`, or `None` for a draft
+    nobody has edited yet.
 
     `Workflow.draft_graph` starts at `{}` (no `entry_node_id`, no `nodes`),
     which is not a valid `WorkflowGraph` - reported as "no graph yet" rather
-    than surfaced as a parse failure.
+    than surfaced as a parse failure. A non-empty stored value that still
+    fails to parse is a different problem - stored data corrupted or left
+    behind by a schema this version no longer accepts - and is not silently
+    folded into the same "never edited" answer without a trace of it existing:
+    logged, since there is no second field yet to tell a caller one from the
+    other.
     """
+    raw = workflow.draft_graph
     try:
         return WorkflowGraph.model_validate(raw)
     except PydanticValidationError:
+        if raw != {}:
+            logger.warning(
+                "workflow_draft_graph_unparsable", extra={"workflow_id": str(workflow.id)}
+            )
         return None
+
+
+def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
+    """The graph a caller is trying to write, validated only after
+    authorization, the archived check and the revision compare-and-set have
+    all passed - never before, so a stale or forbidden request is refused on
+    its own terms rather than on the shape of a graph it will never get to
+    write. `WorkflowDraftUpdate.graph` is deliberately a raw dict, not a
+    `WorkflowGraph` field, so FastAPI's own request parsing cannot validate
+    it ahead of those checks and turn an authorized, current write's
+    malformed graph into a 422 in place of the 403/404/409 they promise.
+    """
+    try:
+        return WorkflowGraph.model_validate(raw)
+    except PydanticValidationError as exc:
+        raise GraphValidationError(
+            [
+                (problem["field"], problem["message"])
+                for problem in field_problems(
+                    exc.errors(include_url=False, include_input=False), root="graph"
+                )
+            ]
+        ) from exc
 
 
 def _detail(workflow: Workflow) -> WorkflowDetail:
     return WorkflowDetail(
         **_read(workflow).model_dump(),
-        draft_graph=_parse_draft_graph(workflow.draft_graph),
+        draft_graph=_parse_draft_graph(workflow),
     )
 
 
@@ -262,15 +300,17 @@ class WorkflowRegistryService:
         Raises:
             WorkflowArchivedError: The workflow refuses edits.
             WorkflowRevisionConflictError: Someone changed the draft since it was read.
+            GraphValidationError: `graph` does not parse as a `WorkflowGraph`.
         """
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
         self._ensure_editable(workflow)
         self._check_revision(workflow, data.expected_revision)
+        graph = _parse_submitted_graph(data.graph)
         updated = await workflow_repo.update(
             self.db,
             workflow=workflow,
             update_data={
-                "draft_graph": data.graph.model_dump(mode="json"),
+                "draft_graph": graph.model_dump(mode="json"),
                 "draft_revision": workflow.draft_revision + 1,
             },
         )
@@ -295,7 +335,7 @@ class WorkflowRegistryService:
         self._ensure_editable(workflow)
         self._check_revision(workflow, data.expected_revision)
 
-        draft_graph = _parse_draft_graph(workflow.draft_graph)
+        draft_graph = _parse_draft_graph(workflow)
         if draft_graph is None:
             raise GraphValidationError(
                 [("draft_graph", "This workflow has no graph yet - add at least one node")]

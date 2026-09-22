@@ -70,10 +70,18 @@ class WorkflowDraftUpdate(BaseSchema):
 
     Mirrors `app.schemas.virtual_table.RecordUpdate`'s `expected_revision`
     field exactly: a stale value raises `RevisionConflictError` (409) before
-    the graph itself is even looked at.
+    the graph itself is even looked at. `graph` is a raw JSON object rather
+    than `WorkflowGraph`, the same way `RecordUpdate.values` is a raw dict
+    rather than typed record columns - a `WorkflowGraph` field here would
+    have FastAPI validate its full nested shape while parsing the request
+    body, ahead of authorization, the archived check and the revision
+    compare-and-set, turning an authorized, current write's malformed graph
+    into a 422 instead of the 403/404/409 that ordering promises for
+    everything else. `WorkflowRegistryService.update_draft` parses it, after
+    those checks, into `GraphValidationError`'s own field-problem shape.
     """
 
-    graph: WorkflowGraph
+    graph: dict[str, Any]
     expected_revision: int = Field(ge=0)
 
 

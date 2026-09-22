@@ -101,7 +101,7 @@ Other thick domains using the same shape: `services/rag/` (ingestion + vectorsto
 Rules for thick subpackages:
 - Public API: only the top-level facade exported from `__init__.py`. Routes/workers never import sub-modules directly.
 - Domain-specific exceptions live in the subpackage and inherit from `core/exceptions.py` base classes.
-- Top-level `app/` is reserved for framework concerns (`api/`, `core/`, `db/`, `repositories/`, `schemas/`, `services/`, `worker/`, `agents/`, `commands/`, `clients/`). No new top-level domain packages.
+- Top-level `app/` is reserved for framework concerns (`api/`, `core/`, `db/`, `repositories/`, `schemas/`, `services/`, `worker/`, `agents/`, `workflows/`, `commands/`, `clients/`). No new top-level domain packages beyond these. `agents/` and `workflows/` are the two sanctioned exceptions to "thick domain → `services/<domain>/`": each is a whole execution model (an agent's own run loop and capability registry; a workflow graph's own node registry and validator) that other top-level packages depend on and that predates or parallels `services/` itself, not a services-shaped subpackage that happened to grow large.
 
 ## Dependency Injection (`app/api/deps.py`)
 

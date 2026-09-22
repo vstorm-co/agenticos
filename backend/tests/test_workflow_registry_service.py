@@ -183,6 +183,23 @@ class TestGet:
 
         assert found.draft_graph is None
 
+    async def test_a_corrupted_non_empty_draft_graph_is_logged_not_silently_hidden(self, caplog):
+        """`{}` is the one shape that legitimately means "never edited"; any
+        other unparsable stored value is a real data problem, not that -
+        reported the same way to the caller (there is no second field yet to
+        say otherwise) but left a trace a corrupted `{}` never has to."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, draft_graph={"entry_node_id": "not-a-uuid"})
+
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            caplog.at_level("WARNING", logger=REGISTRY_PATH),
+        ):
+            found = await WorkflowRegistryService(_db()).get(ctx, workflow.id)
+
+        assert found.draft_graph is None
+        assert any("workflow_draft_graph_unparsable" in record.message for record in caplog.records)
+
 
 class TestUpdateDraft:
     async def test_updating_bumps_the_revision_and_stores_the_graph(self):
@@ -203,7 +220,9 @@ class TestUpdateDraft:
             patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(side_effect=_update)),
         ):
             result = await WorkflowRegistryService(_db()).update_draft(
-                ctx, workflow.id, WorkflowDraftUpdate(graph=graph, expected_revision=0)
+                ctx,
+                workflow.id,
+                WorkflowDraftUpdate(graph=graph.model_dump(mode="json"), expected_revision=0),
             )
         assert result.draft_revision == 1
         assert workflow.draft_graph == graph.model_dump(mode="json")
@@ -222,7 +241,9 @@ class TestUpdateDraft:
             pytest.raises(WorkflowRevisionConflictError) as excinfo,
         ):
             await WorkflowRegistryService(_db()).update_draft(
-                ctx, workflow.id, WorkflowDraftUpdate(graph=graph, expected_revision=0)
+                ctx,
+                workflow.id,
+                WorkflowDraftUpdate(graph=graph.model_dump(mode="json"), expected_revision=0),
             )
         update.assert_not_called()
         assert excinfo.value.details == {
@@ -245,7 +266,9 @@ class TestUpdateDraft:
             pytest.raises(WorkflowArchivedError),
         ):
             await WorkflowRegistryService(_db()).update_draft(
-                ctx, workflow.id, WorkflowDraftUpdate(graph=graph, expected_revision=0)
+                ctx,
+                workflow.id,
+                WorkflowDraftUpdate(graph=graph.model_dump(mode="json"), expected_revision=0),
             )
         update.assert_not_called()
 
@@ -272,7 +295,9 @@ class TestUpdateDraft:
             # would raise WorkflowRevisionConflictError instead, which would
             # tell an unauthorized caller the real current revision.
             await WorkflowRegistryService(_db()).update_draft(
-                ctx, workflow.id, WorkflowDraftUpdate(graph=graph, expected_revision=999)
+                ctx,
+                workflow.id,
+                WorkflowDraftUpdate(graph=graph.model_dump(mode="json"), expected_revision=999),
             )
 
 

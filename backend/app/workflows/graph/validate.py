@@ -65,7 +65,7 @@ from collections import deque
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,7 +78,7 @@ from app.services.access import TABLE, resolve_access
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition
-from app.workflows.contracts.io import NodeOutputRef, TableIORef
+from app.workflows.contracts.io import LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
 
@@ -107,6 +107,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _scope_access_problems(graph, definitions)
     problems += _config_schema_problems(graph, definitions)
     problems += _binding_target_field_problems(graph, definitions)
+    problems += _literal_binding_type_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
 
     node_scope = _node_scope_map(graph)
@@ -331,18 +332,42 @@ def _scope_access_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> 
 
 
 def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """`node.config` against its `config_schema`, aware of config bindings.
+
+    `Binding.target_field` may name a `config_schema` field (a value that is
+    configuration rather than runtime input, per its own docstring) - a debug
+    node's own `message` is documented as "configured on the node, or bound",
+    inclusively, a default a binding may override rather than a slot only one
+    of the two may fill. So a required config field the client leaves out of
+    `node.config` because a binding supplies it instead is not "missing" - it
+    is bound; that is the only error class set aside for a bound field, and a
+    wrong-shaped value the client *did* supply is still refused exactly as
+    before.
+    """
     problems: Problems = []
+    bound_fields_by_node: dict[UUID, set[str]] = {}
+    for binding in graph.bindings:
+        bound_fields_by_node.setdefault(binding.target_node_id, set()).add(binding.target_field)
+
     for node in graph.nodes:
         definition = definitions[node.id]
         if definition is None or definition.config_schema is None:
             continue
+        bound_fields = bound_fields_by_node.get(node.id, set()) & set(
+            definition.config_schema.model_fields
+        )
         try:
             definition.config_schema.model_validate(node.config)
         except PydanticValidationError as exc:
             root = f"nodes.{node.id}.config"
-            for problem in field_problems(
-                exc.errors(include_url=False, include_input=False), root=root
-            ):
+            errors = [
+                error
+                for error in exc.errors(include_url=False, include_input=False)
+                if not (
+                    error["type"] == "missing" and error["loc"] and error["loc"][0] in bound_fields
+                )
+            ]
+            for problem in field_problems(errors, root=root):
                 problems.append((problem["field"], problem["message"]))
     return problems
 
@@ -493,6 +518,33 @@ def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap)
         if target_type is not _UNKNOWN and not _types_compatible(source_type, target_type):
             problems.append(
                 (f"bindings.{index}", "The source value is not compatible with this field")
+            )
+    return problems
+
+
+def _literal_binding_type_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A `LiteralValue` binding must actually satisfy the target field's type.
+
+    The type check above only reaches a `NodeOutputRef` source, comparing
+    one port schema's field to another's; a literal is a concrete value, not
+    a schema, so it is validated against the target field's annotation
+    directly rather than compared type-name to type-name.
+    """
+    problems: Problems = []
+    for index, binding in enumerate(graph.bindings):
+        if not isinstance(binding.source, LiteralValue):
+            continue
+        target_definition = definitions.get(binding.target_node_id)
+        if target_definition is None:
+            continue
+        target_type = _field_type(target_definition, binding.target_field)
+        if target_type is _UNKNOWN:
+            continue
+        try:
+            TypeAdapter(target_type).validate_python(binding.source.value, strict=True)
+        except PydanticValidationError:
+            problems.append(
+                (f"bindings.{index}", "This literal value does not match the target field's type")
             )
     return problems
 
@@ -805,7 +857,14 @@ def _branches_diverge_at(
     A shared dominator is not enough: rule 8 lets a control node fan one port
     out to more than one target, so two branches leaving `common` through the
     *same* port can both run together (or neither run) - not the mutually
-    exclusive pair `logic.merge` is built to wait on.
+    exclusive pair `logic.merge` is built to wait on. Nor is a non-empty,
+    non-overlapping `feeding_ports` enough on its own: a branch reconverged
+    from more than one of `common`'s ports *before* it is reached (a node
+    downstream of both `then` and `else`, alongside one downstream of only
+    `then`) is dominated by neither port alone, so it can run on either
+    outcome - `feeding_ports` comes back empty for it, not merely shared with
+    another branch, and an empty set is refused here for the same reason a
+    shared one is.
     """
     seen_ports: set[str] = set()
     for branch in branches:
@@ -815,7 +874,7 @@ def _branches_diverge_at(
             for edge in graph.edges
             if edge.source_node_id == common and edge.target_node_id in branch_dom
         }
-        if feeding_ports & seen_ports:
+        if not feeding_ports or feeding_ports & seen_ports:
             return False
         seen_ports |= feeding_ports
     return True
@@ -924,19 +983,21 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
         key = (binding.target_node_id, binding.target_field)
         bound_counts[key] = bound_counts.get(key, 0) + 1
 
+    # Every bound field, not only a required one: two competing sources for
+    # an optional field are just as ambiguous - which one an executor would
+    # see is undefined - and `field.is_required()` below only ever reaches a
+    # field with no binding at all.
+    for (node_id, field_name), count in bound_counts.items():
+        if count > 1:
+            problems.append((f"nodes.{node_id}.{field_name}", "This input is bound more than once"))
+
     for node in graph.nodes:
         definition = definitions.get(node.id)
         if definition is None or definition.input_schema is None:
             continue
         for field_name, field in definition.input_schema.model_fields.items():
-            if field.is_required():
-                count = bound_counts.get((node.id, field_name), 0)
-                if count == 0:
-                    problems.append(
-                        (f"nodes.{node.id}.{field_name}", "This required input is not bound")
-                    )
-                elif count > 1:
-                    problems.append(
-                        (f"nodes.{node.id}.{field_name}", "This input is bound more than once")
-                    )
+            if field.is_required() and bound_counts.get((node.id, field_name), 0) == 0:
+                problems.append(
+                    (f"nodes.{node.id}.{field_name}", "This required input is not bound")
+                )
     return problems

@@ -85,6 +85,12 @@ class _PlainOutput(BaseModel):
     value: str
 
 
+class _OptionalInput(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: str = "default"
+
+
 def _action_definition(
     node_id: str, *, requires_input: bool = True, port_schema: type[BaseModel] | None = None
 ) -> NodeDefinition:
@@ -176,8 +182,94 @@ async def test_a_node_requiring_an_ungranted_scope_is_refused(mock_db_session, r
 async def test_config_that_fails_its_schema_is_refused(mock_db_session):
     node = _echo_node(config={"message": 12345, "extra": "nope"})
     graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
-    with pytest.raises(GraphValidationError):
+    with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f"nodes.{node.id}" in f["field"] for f in excinfo.value.details["fields"])
+    # `include_input=False`: the rejected value itself never reaches the
+    # response - only that `message` was the wrong shape, not what was sent.
+    rendered = str(excinfo.value.details)
+    assert "12345" not in rendered
+
+
+def _config_bound_consumer(registered_node) -> NodeDefinition:
+    return registered_node(
+        NodeDefinition(
+            id="test.config_bound",
+            version=1,
+            name="Config bound",
+            category="test",
+            description="a required config field, biddable",
+            kind="action",
+            config_schema=_RequiredInput,
+            input_schema=None,
+            output_schema=_PlainOutput,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="out", label="Out", kind="output", schema=_PlainOutput),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+
+
+async def test_a_required_config_field_left_unset_because_it_is_bound_publishes(
+    mock_db_session, registered_node
+):
+    """`config_schema.value` is required, but the client's own binding
+    supplies it - the isolated `node.config` check must not call this
+    "missing" just because it never saw it there."""
+    consumer = _config_bound_consumer(registered_node)
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="hi"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.bindings == (binding,)
+
+
+async def test_a_config_field_set_both_statically_and_by_a_binding_publishes(
+    mock_db_session, registered_node
+):
+    """A static config value is a default, not an exclusive slot - the same
+    `message: "hi"` plus a table binding to `message` that `debug.echo`'s own
+    tests already rely on elsewhere. A present, validly-typed static value
+    means the schema check never even reaches the "missing" case the bound-
+    field carve-out exists for."""
+    consumer = _config_bound_consumer(registered_node)
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(),
+        definition_id=consumer.id,
+        definition_version=1,
+        config={"value": "static"},
+        layout=_pos(),
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="hi"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.bindings == (binding,)
+
+
+async def test_an_unbound_required_config_field_left_unset_is_still_refused(
+    mock_db_session, registered_node
+):
+    """The binding-aware carve-out must not swallow the ordinary missing-
+    config-field refusal for a field nothing binds either."""
+    consumer = _config_bound_consumer(registered_node)
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == f"nodes.{b.id}.config.value" for f in excinfo.value.details["fields"])
 
 
 async def test_a_table_binding_to_a_table_nobody_can_reach_is_refused(mock_db_session, monkeypatch):
@@ -591,6 +683,65 @@ async def test_a_merge_with_two_edges_from_the_same_branch_is_refused(
     )
 
 
+async def test_a_merge_branch_reconverged_from_both_if_arms_is_refused(
+    mock_db_session, registered_node
+):
+    """`a` is downstream of *both* `then` (via `t`) and `otherwise` (via `e`)
+    - it runs on either outcome, so it is not exclusive with `b`, which only
+    runs on `then`. Neither of `logic.if`'s own children dominates `a` alone
+    (`t` and `e` each dominate only their own leg), so `a`'s dominator set
+    stops at `logic.if` itself and no single feeding port can be named for
+    it - the gap a bare "do the sets overlap" check missed entirely."""
+    branch_if = registered_node(
+        NodeDefinition(
+            id="logic.if",
+            version=1,
+            name="If",
+            category="logic",
+            description="branches",
+            kind="control",
+            config_schema=None,
+            input_schema=None,
+            output_schema=None,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="then", label="Then", kind="output"),
+                Port(id="otherwise", label="Otherwise", kind="output"),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    merge = registered_node(_action_definition("logic.merge", requires_input=False))
+    entry = _echo_node()
+    branch_node = NodeInstance(
+        id=uuid4(), definition_id=branch_if.id, definition_version=1, config={}, layout=_pos()
+    )
+    t, e, a, b = _echo_node(), _echo_node(), _echo_node(), _echo_node()
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+    )
+    edges = (
+        _edge(entry.id, "out", branch_node.id, "in"),
+        _edge(branch_node.id, "then", t.id, "in"),
+        _edge(branch_node.id, "then", b.id, "in"),
+        _edge(branch_node.id, "otherwise", e.id, "in"),
+        _edge(t.id, "out", a.id, "in"),
+        _edge(e.id, "out", a.id, "in"),
+        _edge(a.id, "out", merge_node.id, "in"),
+        _edge(b.id, "out", merge_node.id, "in"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id, nodes=(entry, branch_node, t, e, a, b, merge_node), edges=edges
+    )
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(
+        f["field"] == f"nodes.{merge_node.id}" and "mutually exclusive" in f["message"]
+        for f in excinfo.value.details["fields"]
+    )
+
+
 # Rule 6 - nested scope boundaries
 
 
@@ -953,6 +1104,74 @@ async def test_a_required_input_bound_exactly_once_publishes(mock_db_session, re
     )
     edge = _edge(a.id, "out", b.id, "in")
     binding = Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="one"))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert validated.bindings == (binding,)
+
+
+async def test_an_optional_input_bound_twice_is_refused(mock_db_session, registered_node):
+    """`field.is_required()` is false for `value` here, so only a check that
+    covers every bound field - not only a required one - catches two
+    competing sources for it."""
+    consumer = registered_node(
+        NodeDefinition(
+            id="test.optional_twice",
+            version=1,
+            name="Optional twice",
+            category="test",
+            description="an optional field with two sources",
+            kind="action",
+            config_schema=None,
+            input_schema=_OptionalInput,
+            output_schema=_PlainOutput,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="out", label="Out", kind="output", schema=_PlainOutput),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    bindings = (
+        Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="one")),
+        Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="two")),
+    )
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=bindings)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any("more than once" in f["message"] for f in excinfo.value.details["fields"])
+
+
+async def test_a_literal_value_of_the_wrong_type_is_refused(mock_db_session, registered_node):
+    """The type check on a `NodeOutputRef` binding never reaches a literal -
+    a concrete value, not a schema - so an int bound to a `str` field passed
+    unnoticed until execution constructed the handler's input."""
+    consumer = registered_node(_action_definition("test.needs_str_value"))
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value=123))
+    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert any(f["field"] == "bindings.0" for f in excinfo.value.details["fields"])
+
+
+async def test_a_literal_value_of_the_right_type_publishes(mock_db_session, registered_node):
+    consumer = registered_node(_action_definition("test.needs_str_value_ok"))
+    a = _echo_node()
+    b = NodeInstance(
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
+    )
+    edge = _edge(a.id, "out", b.id, "in")
+    binding = Binding(target_node_id=b.id, target_field="value", source=LiteralValue(value="hi"))
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert validated.bindings == (binding,)

@@ -331,6 +331,37 @@ async def test_create_version_and_get_version_round_trip(db: AsyncSession):
     assert await workflow_repo.get_version(db, uuid.uuid4(), organization_id=org.id) is None
 
 
+async def test_a_version_naming_another_organizations_workflow_is_refused(db: AsyncSession):
+    """The composite `(organization_id, workflow_id)` foreign key onto
+    `workflows(organization_id, id)` is what makes this impossible at the
+    database level - a plain per-column FK on each side would let the two
+    disagree, and a service bug pick `organization_id` from one row while
+    `workflow_id` names another."""
+    org, owner = await _org(db)
+    other_org, _ = await _org(db)
+    created = await workflow_repo.create(
+        db,
+        organization_id=org.id,
+        slug="cross-tenant",
+        name="Cross tenant",
+        description=None,
+        owner_user_id=owner.id,
+        created_by_user_id=owner.id,
+        visibility=Visibility.PRIVATE.value,
+    )
+    with pytest.raises(IntegrityError):
+        await workflow_repo.create_version(
+            db,
+            workflow_id=created.id,
+            organization_id=other_org.id,
+            version=1,
+            graph={"entry_node_id": str(uuid.uuid4()), "nodes": []},
+            note=None,
+            published_by_user_id=owner.id,
+            budget_limit=None,
+        )
+
+
 async def test_list_versions_orders_newest_first(db: AsyncSession):
     org, owner = await _org(db)
     created = await workflow_repo.create(

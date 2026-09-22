@@ -215,6 +215,43 @@ async def test_a_stale_revision_answers_409_naming_both_revisions(owner_client: 
     assert body["error"]["details"]["current_revision"] == 5
 
 
+async def test_a_malformed_graph_with_a_stale_revision_still_answers_409(owner_client: OpenClient):
+    """`WorkflowDraftUpdate.graph` is a raw dict precisely so FastAPI cannot
+    validate its shape while parsing the request, ahead of the revision
+    compare-and-set: a malformed graph on a stale write must still answer
+    the 409 that write's staleness deserves, not a 422 about the graph it
+    was never going to be allowed to save anyway."""
+    workflow = _workflow(draft_revision=5)
+    with patch(
+        f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+    ):
+        async with owner_client() as http:
+            response = await http.patch(
+                _url(f"/{workflow.id}/draft"),
+                json={"graph": {}, "expected_revision": 0},
+            )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "REVISION_CONFLICT"
+
+
+async def test_a_malformed_graph_with_a_current_revision_answers_422_from_the_service(
+    owner_client: OpenClient,
+):
+    workflow = _workflow()
+    with patch(
+        f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+    ):
+        async with owner_client() as http:
+            response = await http.patch(
+                _url(f"/{workflow.id}/draft"),
+                json={"graph": {}, "expected_revision": 0},
+            )
+    assert response.status_code == 422
+    body = response.json()
+    assert body["error"]["code"] == "GRAPH_INVALID"
+    assert body["error"]["details"]["fields"]
+
+
 async def test_an_archived_workflow_refuses_the_draft_write_with_409(owner_client: OpenClient):
     workflow = _workflow(status=WorkflowStatus.ARCHIVED.value)
     graph = _graph()
