@@ -1,5 +1,5 @@
 ---
-source_sha: "ff2d54edf633"
+source_sha: "5eedf4d23f98"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -453,8 +453,14 @@ Ein Volume zählt, und welches, ist nicht offensichtlich:
 |---|---|---|
 | `postgres_data` | alles — Agents, Unterhaltungen, versiegelte Zugangsdaten | **ja** |
 | `media_data` | hochgeladene Dateien, vor der Ingestion | ja |
-| `redis_data` | Rate-Limit-Buckets und Caches | nein, alles wiederherstellbar |
 | `prefect_data` | die Historie der Flow-Runs | nein |
+
+Der Cache hat überhaupt kein Volume mehr. Rate-Limit-Buckets, Dedupe-Claims der
+Kanäle und Mitgliedschaftsantworten tragen alle eine TTL und bauen sich selbst
+wieder auf, also läuft Valkey mit `--save ''` und startet nach einem Neustart
+leer. Ein Host, auf dem ein früheres Release lief, trägt noch ein Volume
+`agenticos_redis_data`, das nichts mehr mountet;
+`docker volume rm agenticos_redis_data` entfernt es.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \

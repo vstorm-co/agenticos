@@ -167,8 +167,11 @@ services:
     # Redis 7.2 and speaks the same protocol, so the service name, the port
     # and every `REDIS_*` setting stay as they are (docs/licenses.md).
     image: valkey/valkey:8-alpine
-    volumes:
-      - redis_data:/data
+    # `--save ''` and no volume: rate-limit buckets, dedupe claims and
+    # membership answers all carry a TTL and all rebuild themselves, so the
+    # snapshot bought nothing - and cost production a crash-loop when Valkey 8
+    # met the RDB redis:7-alpine had written (#1830).
+    command: valkey-server --save ''
     networks:
       - backend
     healthcheck:
@@ -446,5 +449,4 @@ volumes:
   media_data:
   minio_data:
   postgres_data:
-  redis_data:
   prefect_data:

@@ -419,8 +419,13 @@ One volume matters, and it is not obvious which:
 |---|---|---|
 | `postgres_data` | everything — agents, conversations, sealed credentials | **yes** |
 | `media_data` | uploaded files, before ingestion | yes |
-| `redis_data` | rate-limit buckets and caches | no, all rebuildable |
 | `prefect_data` | the flow-run history | no |
+
+The cache has no volume at all. Rate-limit buckets, channel dedupe claims and
+membership answers all carry a TTL and all rebuild themselves, so Valkey runs
+with `--save ''` and starts empty after a restart. A host that ran an earlier
+release still carries an `agenticos_redis_data` volume that nothing mounts any
+more; `docker volume rm agenticos_redis_data` removes it.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \
