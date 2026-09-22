@@ -34,6 +34,38 @@ Two things are versioned separately from this file and worth knowing about:
   queue approves the *oldest* waiting run, which is how a fortnight-old commit
   reached the server. (#1832)
 
+## [0.0.483] - 2026-09-22
+
+### Fixed
+
+- **A deploy no longer fails on the health status a container had before it was
+  restarted.** `depends_on: condition: service_healthy` reads that status the
+  instant the container starts, so the redeploy that repaired a crash-looping
+  cache failed half a second after starting it - with the same message the real
+  failure had printed, which makes a fix that worked read as a fix that did not.
+  The `db` and `redis` healthchecks now declare a `start_period`, which is what
+  `service_healthy` is meant to wait through, and `scripts/deploy.sh` retries
+  `up -d` once - and only for this failure - when compose gives up on a
+  dependency's health. Its own `wait_healthy` acts on `unhealthy` only once a
+  probe has run since the container started. (#1831)
+
+## [0.0.482] - 2026-09-22
+
+### Fixed
+
+- **The cache no longer persists, so a Valkey upgrade cannot take the stack
+  down.** Valkey 8 forks Redis 7.2 and refuses an RDB written by Redis 7.4, so
+  the first deploy onto a host that had run `redis:7-alpine` crash-looped on
+  `Can't handle RDB format version 12`; `app` and `prefect-runner` wait on the
+  cache being healthy, so they never started and the site answered 404 until the
+  volume was cleared by hand. Valkey now runs with `--save ''` and no
+  `redis_data` mount in all three compose files. Everything the platform keeps
+  there - rate-limit buckets, channel dedupe claims, membership answers -
+  carries a TTL and rebuilds itself, so there is nothing to lose and no format
+  to disagree about. A host that ran an earlier release still carries an
+  orphaned `agenticos_redis_data` volume; `docs/deploy.md` says how to remove
+  it. (#1830)
+
 ## [0.0.481] - 2026-09-22
 
 ### Added

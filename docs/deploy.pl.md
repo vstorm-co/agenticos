@@ -1,5 +1,5 @@
 ---
-source_sha: "4bee5fec92eb"
+source_sha: "7c25dca319aa"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -447,8 +447,13 @@ Liczy się jeden wolumen i nie jest oczywiste który:
 |---|---|---|
 | `postgres_data` | wszystko — agentów, konwersacje, zapieczętowane poświadczenia | **tak** |
 | `media_data` | wgrane pliki, przed ingestią | tak |
-| `redis_data` | kubełki limitów i cache | nie, wszystko odtwarzalne |
 | `prefect_data` | historia uruchomień flow | nie |
+
+Cache nie ma już żadnego wolumenu. Kubełki limitów, znaczniki deduplikacji
+kanałów i odpowiedzi o członkostwie mają TTL i odtwarzają się same, więc Valkey
+działa z `--save ''` i po restarcie startuje pusty. Host, na którym działało
+wcześniejsze wydanie, nadal trzyma wolumen `agenticos_redis_data`, którego nic
+już nie montuje; usuwa go `docker volume rm agenticos_redis_data`.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \

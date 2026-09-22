@@ -1,5 +1,5 @@
 ---
-source_sha: "4bee5fec92eb"
+source_sha: "7c25dca319aa"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -464,8 +464,14 @@ Un volumen importa, y no es obvio cuál:
 |---|---|---|
 | `postgres_data` | todo — agents, conversaciones, credenciales selladas | **sí** |
 | `media_data` | archivos subidos, antes de la ingesta | sí |
-| `redis_data` | buckets del límite de peticiones y cachés | no, todo reconstruible |
 | `prefect_data` | el historial de ejecuciones de los flows | no |
+
+La caché ya no tiene ningún volumen. Los buckets del límite de peticiones, las
+marcas de deduplicación de los canales y las respuestas de pertenencia llevan
+todas un TTL y se reconstruyen solas, así que Valkey se ejecuta con `--save ''` y
+arranca vacío tras cada reinicio. Un host que ejecutó una versión anterior sigue
+guardando un volumen `agenticos_redis_data` que ya no monta nadie;
+`docker volume rm agenticos_redis_data` lo elimina.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \
