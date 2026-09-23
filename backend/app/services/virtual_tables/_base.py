@@ -58,7 +58,14 @@ class Operations:
         says nothing about whether the caller may change it - a Viewer holding an
         explicit `edit` grant on one table is exactly the case `TableSummary.can_edit`
         exists to surface, the same way `Agent.can_run` does.
+
+        An archived table answers `False` regardless of the caller's grant: schema
+        and record writes call `_ensure_live` and always refuse with `TABLE_ARCHIVED`,
+        so a wire value that ignored `archived_at` would offer editing controls no
+        write behind them could ever succeed.
         """
+        if table.archived_at is not None:
+            return False
         return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
 
     async def _columns(self, table: VirtualTable) -> list[ColumnDef]:

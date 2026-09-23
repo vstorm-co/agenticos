@@ -112,7 +112,12 @@ class TableOperations(Operations):
         # `TABLES_EDIT` on every one of them.
         editable = await accessible_ids(self.db, ctx, items, Perm.TABLES_EDIT, resource_type=TABLE)
         summaries = [
-            TableSummary.model_validate(item).model_copy(update={"can_edit": item.id in editable})
+            TableSummary.model_validate(item).model_copy(
+                # An archived table refuses every write regardless of the grant
+                # (`_ensure_live`), so `can_edit` says so - this list is the only
+                # place `include_archived` surfaces one without a caller opening it.
+                update={"can_edit": item.id in editable and item.archived_at is None}
+            )
             for item in items
         ]
         return TableList(items=summaries, total=total)

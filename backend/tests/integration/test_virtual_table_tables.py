@@ -478,6 +478,27 @@ async def test_an_archived_table_keeps_its_records_readable_and_refuses_every_wr
 
 
 @pytest.mark.security
+async def test_an_archived_table_reports_can_edit_false_even_with_an_edit_grant(db):
+    """`archive_table` and every write past it refuse with `TABLE_ARCHIVED`, so a
+    `can_edit: true` on an archived table - reached directly or through a listing
+    with `include_archived` - would offer editing controls no write behind them
+    could ever succeed. `describe_table`'s per-row resolution and `list_tables`'s
+    batched one must both agree with `_ensure_live`, not only the row-at-a-time
+    path.
+    """
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(ctx, TableCreate(name="People"))
+    assert (await service.describe_table(ctx, table.id)).can_edit is True
+
+    await service.archive_table(ctx, table.id)
+
+    assert (await service.describe_table(ctx, table.id)).can_edit is False
+    listed = await service.list_tables(ctx, include_archived=True)
+    archived_summary = next(item for item in listed.items if item.id == table.id)
+    assert archived_summary.can_edit is False
+
+
+@pytest.mark.security
 async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
