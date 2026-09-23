@@ -123,6 +123,9 @@ export default defineConfig({
         // above, listed here too so the pickers' data layer stays named beside them.
         "src/components/workflows/pickers/**/*.{ts,tsx}",
         "src/lib/workflows/tables-api.ts",
+        // The workflows property panel (#1787): the form renderer, `BindingField`
+        // and the validation display, gated as a unit like the pickers above.
+        "src/components/workflows/property-panel/**/*.{ts,tsx}",
         // The workflows list-page create dialog (#1787).
         "src/components/workflows/workflow-create-dialog.tsx",
       ],

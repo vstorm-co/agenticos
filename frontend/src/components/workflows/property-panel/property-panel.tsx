@@ -1,26 +1,51 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
+import { validateGraph } from "@/components/workflows/validation";
+import { useNodeCatalog } from "@/hooks";
+import type { NodeCatalog, Uuid } from "@/lib/workflows/types";
+
+import { PanelShell } from "./panel-shell";
+import { usePanelStore } from "./store-bridge";
+
 /**
- * The docked property panel — the seam the #1787 property-panel leaf fills.
+ * The docked property panel — the store-connected shell around the form renderer.
  *
- * The leaf builds `node-form.tsx` here (resolving `$ref`, nested objects,
- * arrays-of-rows and discriminated unions over `schema-form.tsx`), wraps every
- * binding-aware leaf in `BindingField`, and shows the empty/multi-select states
- * and the validation problems list. It reads the selected node from the editor
- * store's `selection`.
+ * It reads the selected node and the working graph through the store's graph seam
+ * (added by the canvas leaf in parallel, see `store-bridge.ts`), the node catalog
+ * from its query, and runs the client-side validation mirror over the graph so the
+ * shell can show per-field messages, a per-node warning badge and the footer
+ * problems list. Selecting a problem re-selects its node through the store.
  */
 export function PropertyPanel() {
   const t = useTranslations("workflows");
+  const store = usePanelStore();
+  const { nodes, isLoading } = useNodeCatalog();
+  const catalog: NodeCatalog = useMemo(() => ({ items: nodes, total: nodes.length }), [nodes]);
+
+  const graph = store.getGraph();
+  const selectedNode = store.getSelectedNode();
+
+  const problems = useMemo(
+    () => (graph !== null && !isLoading ? validateGraph(graph, catalog, t) : []),
+    [graph, catalog, isLoading, t],
+  );
+
+  const selectNode = (nodeId: Uuid) => store.setSelection({ nodeIds: [nodeId], edgeIds: [] });
+
   return (
-    <section
-      aria-label={t("panelTitle")}
-      data-workflow-region="property-panel"
-      className="border-border space-y-1 rounded-xl border p-4"
-    >
-      <h2 className="text-sm font-medium">{t("panelTitle")}</h2>
-      <p className="text-muted-foreground text-xs">{t("panelEmpty")}</p>
-    </section>
+    <PanelShell
+      graph={graph}
+      selectedNode={selectedNode}
+      selection={store.selection}
+      catalog={catalog}
+      problems={problems}
+      updateNodeConfig={store.updateNodeConfig}
+      upsertBinding={store.upsertBinding}
+      removeBinding={store.removeBinding}
+      onSelectNode={selectNode}
+    />
   );
 }
