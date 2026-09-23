@@ -281,7 +281,13 @@ async def begin_attempt(
             extra={"workflow_run_id": str(workflow_run_id), "node_run_id": str(node_run_id)},
         )
         return None
-    outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run_id)
+    # Locked, not merely read: a plain read is only true at the instant it
+    # runs, and this worker's own token check needs to stay true for the rest
+    # of this transaction - through resolving the graph, io and auth context,
+    # all before `create_attempt` commits. Holding this row's lock is what
+    # makes `claim_outbox`'s reclaiming CAS `UPDATE` (which needs the same
+    # row) wait for this transaction to end rather than race it.
+    outbox = await workflow_run_repo.get_outbox_for_node_run_for_update(db, node_run_id=node_run_id)
 
     if outbox is None or outbox.claimed_by != token:
         # Lost the claim between `claim` and here - the row now belongs to
@@ -484,10 +490,13 @@ async def resolve_orphaned_attempt(
     `needs_attention` for a person to resolve.
 
     Shared by `begin_attempt` (an outbox row reclaimed by ordinary dispatch,
-    whose previous claim already got this far) and
-    `app.services.workflow_execution.reconciler` (the standalone sweep that
-    finds the same shape on its own schedule, with no dispatch trigger at
-    all).
+    whose previous claim already got this far - always a non-terminal run,
+    since `begin_attempt` already refused a terminal one before reaching this
+    call) and `app.services.workflow_execution.reconciler` (the standalone
+    sweep that finds the same shape on its own schedule, with no dispatch
+    trigger and no prior terminal-run check of its own - `cancel()` leaves a
+    `running` `NodeRun` exactly as it was, so a run cancelled while this
+    attempt was already stranded reaches here directly).
     """
     now = datetime.now(UTC)
     await workflow_run_repo.settle_attempt(
@@ -508,6 +517,19 @@ async def resolve_orphaned_attempt(
         node_run_id=node_run.id,
         payload={"attempt_no": attempt.attempt_no, "retry_guarantee": attempt.retry_guarantee},
     )
+    if WorkflowRunStatus(run.status).is_terminal:
+        # A run cancelled while this attempt was stranded must stay
+        # cancelled - the attempt still settled honestly above, but there is
+        # nothing left to retry or escalate: no fresh outbox row, no
+        # `needs_attention`, matching `settle`'s own terminal short-circuit
+        # for the identical reason (`cancel()` already closed every other
+        # outbox row for this run).
+        await workflow_run_repo.update_node_run(
+            db,
+            node_run=node_run,
+            update_data={"status": NodeRunStatus.CANCELLED.value, "ended_at": now},
+        )
+        return
     if attempt.retry_guarantee == RetryGuarantee.IDEMPOTENT.value:
         await workflow_run_repo.create_outbox(
             db,
@@ -938,6 +960,13 @@ async def _advance(db: AsyncSession, *, run: WorkflowRun, completed_node_instanc
             node_run_id=node_run.id,
             available_at=datetime.now(UTC),
         )
+        # The same low-latency direct trigger `WorkflowExecutionService.start`
+        # fires for the entry node - without it, every node past the first in
+        # a chain would wait out `workflow-dispatch-poll`'s own interval
+        # instead of dispatching as soon as its predecessor settles.
+        from app.worker.tasks.workflow_tasks import trigger_dispatch
+
+        trigger_dispatch(db, workflow_run_id=run.id, node_run_id=node_run.id)
 
 
 async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:

@@ -15,10 +15,58 @@ import logging
 from uuid import UUID
 
 from prefect import flow
+from prefect.deployments import run_deployment
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_worker_db_context
 
 logger = logging.getLogger(__name__)
+
+# Both halves - the flow's own name and its registered deployment name - are
+# set together in `app/worker/prefect_app.py`; they match by design, the same
+# "<flow-name>/<deployment-name>" handle `trigger_tasks._RUN_TRIGGER_DEPLOYMENT`
+# addresses its own worker deployment with.
+_DISPATCH_NODE_DEPLOYMENT = "workflow-dispatch-node/workflow-dispatch-node"
+
+
+async def _submit_dispatch(*, workflow_run_id: str, node_run_id: str) -> None:
+    """Submit one dispatch tick to the `workflow-dispatch-node` deployment.
+
+    `run_deployment(..., timeout=0)` enqueues the run on the worker pool and
+    returns as soon as it is accepted, without waiting for it to finish - the
+    same submit-and-return shape `trigger_tasks.dispatch_trigger_fire` uses,
+    and for the same reason: a node handler can be a real external call (an
+    HTTP request, an agent run), and calling the flow function directly -
+    rather than through the deployment - would run it as a local coroutine in
+    whatever process happens to reach this line instead, competing with that
+    process's own work rather than a worker capped by `PREFECT_RUNNER_LIMIT`.
+    """
+    await run_deployment(  # ty: ignore[invalid-await]
+        name=_DISPATCH_NODE_DEPLOYMENT,
+        parameters={"workflow_run_id": workflow_run_id, "node_run_id": node_run_id},
+        timeout=0,
+    )
+
+
+def trigger_dispatch(db: AsyncSession, *, workflow_run_id: UUID, node_run_id: UUID) -> None:
+    """The low-latency direct trigger, queued for once `db` commits.
+
+    Losing this is not a bug - `workflow-dispatch-poll` and
+    `workflow-reconcile` both find the same row on their own schedule - so
+    this is best-effort and never awaited by its caller.
+    `app.core.background.spawn_after_commit` is what makes "once `db`
+    commits" true regardless of whose session calls this: a request's
+    (`WorkflowExecutionService.start`), or a worker's own
+    (`dispatcher._advance`, called from inside `settle`'s transaction, and
+    the poll/reconcile sweeps below).
+    """
+    from app.core.background import spawn_after_commit
+
+    spawn_after_commit(
+        db,
+        _submit_dispatch(workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id)),
+        name="workflow-dispatch-node",
+    )
 
 
 @flow(name="workflow-dispatch-node")
@@ -68,10 +116,14 @@ async def workflow_dispatch_poll_flow() -> int:
     """Find `pending` outbox rows due now and trigger a dispatch tick for each.
 
     The guarantee of forward progress this design calls for: the direct
-    trigger `WorkflowExecutionService._trigger_dispatch` fires on start and
-    on every advance, but that trigger can be lost (the process dies before
-    the spawned task starts) - this is what notices regardless, on a short
+    trigger (`workflow_tasks.trigger_dispatch`) fires on start and on every
+    advance, but that trigger can be lost (the process dies before the
+    deferred submission runs) - this is what notices regardless, on a short
     interval, and it costs one query when there is nothing to do.
+
+    Each pending row is submitted to the worker deployment independently
+    (`_submit_dispatch`, not the flow function called directly) so one row
+    whose handler hangs cannot hold up claiming the rest of this batch.
     """
     from app.repositories import workflow_run as workflow_run_repo
 
@@ -80,9 +132,7 @@ async def workflow_dispatch_poll_flow() -> int:
         pairs = [(row.workflow_run_id, row.node_run_id) for row in rows]
 
     for workflow_run_id, node_run_id in pairs:
-        await workflow_dispatch_node_flow(
-            workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id)
-        )
+        await _submit_dispatch(workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id))
     if pairs:
         logger.info("workflow_dispatch_poll: dispatched %d row(s)", len(pairs))
     return len(pairs)
@@ -104,9 +154,7 @@ async def workflow_reconcile_flow() -> dict[str, int]:
         woken = await service.wake_stale_approval_decisions()
 
     for workflow_run_id, node_run_id in stale_pairs:
-        await workflow_dispatch_node_flow(
-            workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id)
-        )
+        await _submit_dispatch(workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id))
 
     result = {
         "reclaimed_claims": len(stale_pairs),

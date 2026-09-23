@@ -57,6 +57,19 @@ def _no_member_by_default():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _no_advance_trigger():
+    """`_advance()`'s own low-latency trigger builds a real coroutine via
+    `spawn_after_commit` unless mocked - harmless against a real session, but
+    a `db=object()`/`MagicMock()` unit-test double neither awaits nor closes
+    it, which is slow and leaves an unawaited-coroutine warning across every
+    test that reaches `_advance()`. Only `TestAdvance` and
+    `TestAdvanceMoreBranches` (whose graphs have a downstream node) ever
+    reach it; captured here so those can still assert on it."""
+    with patch("app.worker.tasks.workflow_tasks.trigger_dispatch", new=MagicMock()) as trigger:
+        yield trigger
+
+
 class _EchoConfig(BaseModel):
     message: str = ""
 
@@ -447,7 +460,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id, claimed_by=uuid.uuid4())
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
 
         result = await dispatcher.begin_attempt(
             object(), workflow_run_id=run.id, node_run_id=node_run.id, token=uuid.uuid4()
@@ -465,7 +478,7 @@ class TestBeginAttemptShortCircuits:
         node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
 
         result = await dispatcher.begin_attempt(
             object(), workflow_run_id=run.id, node_run_id=node_run.id, token=uuid.uuid4()
@@ -483,7 +496,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
 
         result = await dispatcher.begin_attempt(
             object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
@@ -503,7 +516,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
 
         result = await dispatcher.begin_attempt(
             object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
@@ -521,7 +534,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = await dispatcher.begin_attempt(
@@ -544,7 +557,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = await dispatcher.begin_attempt(
@@ -565,7 +578,7 @@ class TestBeginAttemptShortCircuits:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.get_latest_attempt.return_value = orphan
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
@@ -617,7 +630,7 @@ class TestBeginAttemptHappyPath:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.get_latest_attempt.return_value = None
         created_attempt = _attempt(node_run_id=node_run.id, attempt_no=1)
         repo.create_attempt.return_value = created_attempt
@@ -647,7 +660,7 @@ class TestBeginAttemptHappyPath:
         outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.get_latest_attempt.return_value = _attempt(
             node_run_id=node_run.id, attempt_no=1, status=NodeAttemptStatus.FAILED.value
         )
@@ -707,7 +720,7 @@ class TestBeginAttemptHappyPath:
 
         repo.get_latest_attempt.side_effect = _latest_attempt
         outbox = _outbox(node_run_id=target_node_run.id)
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.create_attempt.return_value = _attempt(node_run_id=target_node_run.id)
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1337,7 +1350,9 @@ def _nested_txn_db() -> MagicMock:
 
 
 class TestAdvance:
-    async def test_a_ready_downstream_node_gets_a_fresh_node_run_and_outbox(self, repo, test_node):
+    async def test_a_ready_downstream_node_gets_a_fresh_node_run_and_outbox(
+        self, repo, test_node, _no_advance_trigger
+    ):
         source = _node_instance(test_node)
         target = _node_instance(test_node)
         edge = Edge(
@@ -1373,6 +1388,13 @@ class TestAdvance:
         assert repo.create_node_run.await_args.kwargs["node_instance_id"] == target.id
         repo.create_outbox.assert_awaited_once()
         assert repo.create_outbox.await_args.kwargs["node_run_id"] == created.id
+        # The same low-latency direct trigger the entry node gets on `start` -
+        # without this, every node past the first in a chain would wait out
+        # `workflow-dispatch-poll`'s own interval instead of dispatching as
+        # soon as its predecessor settles.
+        _no_advance_trigger.assert_called_once_with(
+            ANY, workflow_run_id=run.id, node_run_id=created.id
+        )
 
     async def test_a_downstream_node_with_an_undone_predecessor_is_not_dispatched(
         self, repo, test_node
@@ -1597,6 +1619,40 @@ class TestResolveOrphanedAttempt:
         )
 
         assert node_run.status == NodeRunStatus.NEEDS_ATTENTION.value
+        repo.create_outbox.assert_not_called()
+
+    async def test_a_terminal_owning_run_stays_terminal_instead_of_needs_attention(
+        self, repo, event_log
+    ):
+        """`begin_attempt`'s own inline call never reaches this with a
+
+        terminal run (it refuses one earlier). The reconciler's sweep has no
+        such prior check - `cancel()` leaves a `running` `NodeRun` exactly as
+        it was - so a run cancelled while this attempt was already stranded
+        reaches this function directly, and must not be resurrected to
+        `needs_attention` by an orphan resolution that has nothing to do
+        with why it was cancelled.
+        """
+        run = _run(status=WorkflowRunStatus.CANCELLED.value)
+        node_run = _node_run(
+            workflow_run_id=run.id,
+            node_instance_id=uuid.uuid4(),
+            status=NodeRunStatus.RUNNING.value,
+        )
+        attempt = _attempt(node_run_id=node_run.id, retry_guarantee=RetryGuarantee.NONE.value)
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        await dispatcher.resolve_orphaned_attempt(
+            object(), run=run, node_run=node_run, attempt=attempt, outbox=None
+        )
+
+        assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
+        assert node_run.status == NodeRunStatus.CANCELLED.value
+        assert run.status == WorkflowRunStatus.CANCELLED.value
+        repo.update_run.assert_not_called()
         repo.create_outbox.assert_not_called()
 
 

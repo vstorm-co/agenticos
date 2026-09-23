@@ -32,6 +32,7 @@ from app.db.models.workflow_run import (
     WaitingReason,
     WorkflowEvent,
     WorkflowRun,
+    WorkflowRunStatus,
 )
 
 # WorkflowRun
@@ -271,8 +272,16 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
     when it is lost. `AgentRunnerService._decisions` requires the identical
     "nothing still pending" condition before it will replay a park, so this
     mirrors the one check that already decides whether a resume can proceed.
-    `agent_runs.status == awaiting_approval` is kept as a second guard so a
-    run cancelled or otherwise moved on by another path is not redispatched.
+    `agent_runs.status == awaiting_approval` is kept as a second guard so an
+    agent run cancelled or otherwise moved on by another path is not
+    redispatched. A *workflow* run cancelled out from under this wait is a
+    third, separate case - `cancel()` leaves a waiting `NodeRun` and its
+    linked `agent_runs` row exactly as they were (documented gap:
+    `WorkflowExecutionService.cancel`), so the two checks above stay true
+    forever and this would otherwise re-insert an outbox row on every sweep,
+    for `begin_attempt` to immediately close again as soon as it sees the
+    terminal run - forever, not once. Excluding a terminal owning
+    `WorkflowRun` here is what stops that.
     """
     live_outbox = (
         select(DispatchOutbox.node_run_id)
@@ -291,14 +300,17 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
         )
         .exists()
     )
+    terminal_statuses = [status.value for status in WorkflowRunStatus if status.is_terminal]
     result = await db.execute(
         select(NodeRun)
         .join(AgentRun, AgentRun.id == NodeRun.waiting_agent_run_id)
+        .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
         .where(
             NodeRun.status == NodeRunStatus.WAITING.value,
             NodeRun.waiting_reason == WaitingReason.APPROVAL.value,
             NodeRun.waiting_agent_run_id.is_not(None),
             AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            WorkflowRun.status.not_in(terminal_statuses),
             ~still_pending,
             NodeRun.id.not_in(live_outbox),
         )
@@ -551,6 +563,30 @@ async def get_outbox_for_node_run(db: AsyncSession, *, node_run_id: UUID) -> Dis
         .where(DispatchOutbox.node_run_id == node_run_id)
         .order_by(DispatchOutbox.created_at.desc())
         .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_outbox_for_node_run_for_update(
+    db: AsyncSession, *, node_run_id: UUID
+) -> DispatchOutbox | None:
+    """The same row `get_outbox_for_node_run` reads, held for the caller's transaction.
+
+    `begin_attempt`'s own fencing-token check is a plain read otherwise - true
+    at the instant it runs, but not for the rest of that transaction, so a
+    worker that stalls *after* passing it (resolving the graph, io and auth
+    context, all before `create_attempt`) could still commit an attempt after
+    a reclaim changed `claimed_by` out from under it. Locking this row for the
+    whole of `begin_attempt` makes `claim_outbox`'s own CAS `UPDATE` - which
+    needs the same row - wait for that transaction to end rather than race it,
+    so the check stays true for as long as it needs to matter.
+    """
+    result = await db.execute(
+        select(DispatchOutbox)
+        .where(DispatchOutbox.node_run_id == node_run_id)
+        .order_by(DispatchOutbox.created_at.desc())
+        .limit(1)
+        .with_for_update()
     )
     return result.scalar_one_or_none()
 

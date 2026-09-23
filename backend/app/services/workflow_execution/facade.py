@@ -332,16 +332,9 @@ class WorkflowExecutionService:
         `workflow-dispatch-poll` and `workflow-reconcile` both find the same
         row on their own schedule - so this is best-effort, never awaited.
         """
-        from app.core.background import spawn_after_commit
-        from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
+        from app.worker.tasks.workflow_tasks import trigger_dispatch
 
-        spawn_after_commit(
-            self.db,
-            workflow_dispatch_node_flow(
-                workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id)
-            ),
-            name="workflow-dispatch-node",
-        )
+        trigger_dispatch(self.db, workflow_run_id=workflow_run_id, node_run_id=node_run_id)
 
 
 __all__ = ["WorkflowExecutionService"]

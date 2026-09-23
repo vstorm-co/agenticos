@@ -508,20 +508,19 @@ class TestEventsSince:
 
 
 class TestTriggerDispatch:
-    async def test_queues_the_dispatch_flow_for_after_the_commit(self):
+    async def test_delegates_to_the_worker_tasks_direct_trigger(self):
+        """`_trigger_dispatch` is a thin wrapper - the actual submit-to-the-
+
+        deployment mechanics belong to `workflow_tasks.trigger_dispatch`
+        (its own tests), shared with `dispatcher._advance`'s own use of it.
+        """
         db = MagicMock()
         service = WorkflowExecutionService(db)
         workflow_run_id, node_run_id = uuid.uuid4(), uuid.uuid4()
 
-        with (
-            patch("app.core.background.spawn_after_commit") as spawn_after_commit,
-            patch("app.worker.tasks.workflow_tasks.workflow_dispatch_node_flow") as flow,
-        ):
-            flow.return_value = "a-coroutine-standin"
+        with patch("app.worker.tasks.workflow_tasks.trigger_dispatch") as trigger:
             service._trigger_dispatch(workflow_run_id=workflow_run_id, node_run_id=node_run_id)
 
-        flow.assert_called_once_with(
-            workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id)
+        trigger.assert_called_once_with(
+            db, workflow_run_id=workflow_run_id, node_run_id=node_run_id
         )
-        spawn_after_commit.assert_called_once()
-        assert spawn_after_commit.call_args.args[0] is db

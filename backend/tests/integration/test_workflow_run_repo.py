@@ -31,6 +31,7 @@ from app.db.models.workflow_run import (
     NodeRunStatus,
     RetryGuarantee,
     WorkflowRunMode,
+    WorkflowRunStatus,
 )
 from app.repositories import workflow_run as workflow_run_repo
 
@@ -538,6 +539,47 @@ class TestStaleApprovalWaits:
         )
         found = await workflow_run_repo.list_stale_approval_waits(db)
         assert node_run.id in {row.id for row in found}
+
+    async def test_a_node_run_whose_owning_workflow_run_is_terminal_is_not_found(
+        self, db: AsyncSession
+    ):
+        """`cancel()` leaves a waiting `NodeRun` and its linked `agent_runs`
+
+        row exactly as they were (a documented gap -
+        `WorkflowExecutionService.cancel`), so the two other guards stay
+        true forever once the approval is decided. Without excluding a
+        terminal owning run here, `wake_stale_approval_decisions` would
+        re-insert an outbox row on every sweep for `begin_attempt` to
+        immediately close again as soon as it saw the cancelled run -
+        forever, not once.
+        """
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        run = await workflow_run_repo.update_run(
+            db, run=run, update_data={"status": WorkflowRunStatus.CANCELLED.value}
+        )
+        agent, agent_run = await _parked_agent_run(db, org, slug="clerk-cancelled-run")
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.APPROVED.value,
+            )
+        )
+        await db.flush()
+        node_run = await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason="approval",
+            waiting_agent_run_id=agent_run.id,
+        )
+        found = await workflow_run_repo.list_stale_approval_waits(db)
+        assert node_run.id not in {row.id for row in found}
 
     @pytest.mark.security
     async def test_a_node_run_whose_approval_is_still_pending_is_not_found(self, db: AsyncSession):
