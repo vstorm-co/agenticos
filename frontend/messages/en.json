@@ -2745,7 +2745,8 @@
     "deploymentSettings": "Deployment",
     "routines": "Routines",
     "collapseSidebar": "Collapse the sidebar",
-    "expandSidebar": "Expand the sidebar"
+    "expandSidebar": "Expand the sidebar",
+    "workflows": "Workflows"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3268,6 +3269,26 @@
     "you": "(you)"
   },
   "pages": {
+    "workflows": {
+      "title": "Workflows",
+      "description": "Automate multi-step work your agents carry out.",
+      "newWorkflow": "New workflow",
+      "untitledWorkflow": "Untitled workflow",
+      "catalog": "Workflows",
+      "shownCount": "{count, plural, =1 {1 workflow} other {# workflows}}",
+      "noWorkflowsYet": "No workflows yet",
+      "createFirst": "Create a workflow to chain steps into an automation.",
+      "nobodyHasShared": "No workflow has been shared with you yet.",
+      "draftRevision": "Draft revision {revision}",
+      "notFound": "Workflow not found",
+      "notFoundDetail": "This workflow does not exist, or it is not shared with you.",
+      "runsTitle": "Runs",
+      "runsDescription": "Test and production runs of this workflow.",
+      "runsUnavailable": "Run history is not available yet.",
+      "runsUnavailableDetail": "This lands once the workflow runner ships.",
+      "runTitle": "Run",
+      "runUnavailable": "Per-step inputs, outputs and costs are not available yet."
+    },
     "retention": {
       "title": "Data retention",
       "description": "How long this organization keeps each class of data, and what the deployment allows.",
@@ -5329,5 +5350,15 @@
     },
     "clearAll": "Clear all",
     "dismissRow": "Dismiss"
+  },
+  "workflows": {
+    "created": "Workflow created",
+    "publishedVersion": "Published version {version}",
+    "paletteTitle": "Nodes",
+    "paletteHint": "Drag a node onto the canvas to add a step.",
+    "canvasTitle": "Canvas",
+    "canvasHint": "Your workflow's steps and connections appear here.",
+    "panelTitle": "Properties",
+    "panelEmpty": "Select a node to edit it."
   }
 }

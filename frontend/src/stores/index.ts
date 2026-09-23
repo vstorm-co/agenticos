@@ -7,6 +7,7 @@ export { useConversationStore } from "./conversation-store";
 export { useFilePreviewStore } from "./file-preview-store";
 export { useOrgStore } from "./org-store";
 export { useAgentSelectionStore } from "./agent-selection-store";
+export { useWorkflowEditorStore } from "./workflow-editor-store";
 export { useOnboardingStore } from "./onboarding-store";
 export { useSourcesPanelStore } from "./sources-panel-store";
 export { useBrowserPanelStore } from "./browser-panel-store";

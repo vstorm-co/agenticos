@@ -63,6 +63,17 @@ export const qk = {
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
   },
+  workflows: {
+    all: () => ["workflows"] as const,
+    // The page is part of the key: a list past its page size is several answers,
+    // and caching one as another shows the wrong slice of the registry.
+    list: (skip = 0, limit = 50) => ["workflows", "list", skip, limit] as const,
+    detail: (id: string) => ["workflows", id] as const,
+    versions: (id: string) => ["workflows", id, "versions"] as const,
+    // Every registered node type, for the editor's palette. Changes on redeploy,
+    // not while someone edits - so its own key, cached like the capability catalog.
+    nodeCatalog: () => ["workflows", "node-catalog"] as const,
+  },
   channelBots: {
     list: () => ["channel-bots"] as const,
   },
