@@ -110,6 +110,7 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/workflows/workflow-create-dialog.tsx",
       ],
       exclude: [
         "node_modules",

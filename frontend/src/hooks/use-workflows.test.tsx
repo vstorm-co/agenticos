@@ -83,6 +83,80 @@ describe("useWorkflows", () => {
 
     expect(toast.error).toHaveBeenCalled();
   });
+
+  it("seeds the draft graph when created from a template", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.createWorkflow).mockResolvedValue({ id: "wf-3", draft_revision: 0 } as never);
+    vi.mocked(api.updateWorkflowDraft).mockResolvedValue({ id: "wf-3" } as never);
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.create.mutateAsync({ name: "From template", graph: GRAPH });
+    });
+
+    expect(api.createWorkflow).toHaveBeenCalledWith({ name: "From template" });
+    expect(api.updateWorkflowDraft).toHaveBeenCalledWith("wf-3", {
+      graph: GRAPH,
+      expected_revision: 0,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Workflow created");
+  });
+
+  it("duplicates a workflow by seeding its draft graph into a new one", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1", draft_graph: GRAPH } as never);
+    vi.mocked(api.createWorkflow).mockResolvedValue({ id: "wf-copy", draft_revision: 0 } as never);
+    vi.mocked(api.updateWorkflowDraft).mockResolvedValue({ id: "wf-copy" } as never);
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      const created = await result.current.duplicate.mutateAsync({
+        sourceId: "wf-1",
+        name: "Nightly (copy)",
+      });
+      expect(created.id).toBe("wf-copy");
+    });
+
+    expect(api.getWorkflow).toHaveBeenCalledWith("wf-1");
+    expect(api.createWorkflow).toHaveBeenCalledWith({ name: "Nightly (copy)" });
+    expect(api.updateWorkflowDraft).toHaveBeenCalledWith("wf-copy", {
+      graph: GRAPH,
+      expected_revision: 0,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Workflow duplicated");
+  });
+
+  it("duplicates a graphless workflow without a draft write", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1", draft_graph: null } as never);
+    vi.mocked(api.createWorkflow).mockResolvedValue({ id: "wf-copy", draft_revision: 0 } as never);
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.duplicate.mutateAsync({ sourceId: "wf-1", name: "Empty (copy)" });
+    });
+
+    expect(api.updateWorkflowDraft).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Workflow duplicated");
+  });
+
+  it("toasts a duplicate failure", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflow).mockRejectedValue(new ApiError(404, "Gone"));
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.duplicate
+        .mutateAsync({ sourceId: "wf-x", name: "x" })
+        .catch(() => undefined);
+    });
+
+    expect(toast.error).toHaveBeenCalled();
+  });
 });
 
 describe("useWorkflow", () => {
