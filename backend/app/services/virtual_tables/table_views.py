@@ -252,9 +252,21 @@ class TableViewOperations(Operations):
         A view the caller may only *see* (shared, someone else's) answers the same 404 a
         private view does: every other per-resource write in this package refuses by hiding
         the row rather than by naming why, and a view is no exception.
+
+        Deliberately does not route through `_visible_view`: whether a caller may manage a
+        view is exactly `_can_manage`, and gating on visibility first would hide a private
+        view from an `ALL`-scope caller `_can_manage` already says may manage it - "visible
+        but not manageable" (a shared view, wrong owner, no `ALL` scope) still 404s, since
+        `_can_manage` alone decides that case too. Without this, a member's private view
+        survives them leaving the organization or losing edit access, with no one left able
+        to reach - and so delete - it; `table_view_dependents` does not care whose view it
+        is, so an orphaned private view permanently blocks archiving any column it still
+        references.
         """
-        view = await self._visible_view(ctx, table_id, view_id)
-        if not self._can_manage(ctx, view):
+        view = await table_view_repo.get(
+            self.db, organization_id=ctx.organization_id, view_id=view_id
+        )
+        if view is None or view.table_id != table_id or not self._can_manage(ctx, view):
             raise NotFoundError(message="View not found", details={"view_id": view_id})
         return view
 

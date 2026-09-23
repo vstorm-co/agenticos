@@ -251,6 +251,28 @@ async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view
         await views.get_view(ctx, table.id, shared_view.id)
 
 
+async def test_an_all_scope_caller_can_delete_a_colleagues_private_view(db):
+    # `_manageable_view` must not route through `_visible_view`: that hides a
+    # private view from anyone but its owner, which would also hide it from an
+    # admin `_can_manage` already says may manage it - leaving no one able to
+    # delete an orphaned private view (say, its owner left the organization)
+    # that still blocks archiving a column it references.
+    views, _tables, ctx, _owner, org, table = await _setup(db)
+    private_view = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Mine", kind="table", visibility="private")
+    )
+
+    admin = await make_user(db)
+    admin_ctx = ctx_for(admin, org, "admin")
+    renamed = await views.update_view(
+        admin_ctx, table.id, private_view.id, TableViewUpdate(name="Reclaimed")
+    )
+    assert renamed.name == "Reclaimed"
+    await views.delete_view(admin_ctx, table.id, private_view.id)
+    with pytest.raises(NotFoundError):
+        await views.get_view(ctx, table.id, private_view.id)
+
+
 async def test_renaming_to_a_taken_name_is_refused_and_a_no_op_rename_is_not(db):
     views, _tables, ctx, _owner, _org, table = await _setup(db)
     await views.create_view(ctx, table.id, TableViewCreate(name="Taken", kind="table"))
