@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -481,25 +481,53 @@ class TestEvents:
         assert rows == []
 
 
+async def _parked_agent_run(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    slug: str,
+    status: str = RunStatus.AWAITING_APPROVAL.value,
+) -> tuple[Agent, AgentRun]:
+    agent = Agent(id=uuid.uuid4(), organization_id=org.id, slug=slug, name="Clerk", draft_spec={})
+    db.add(agent)
+    await db.flush()
+    agent_run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        surface="api",
+        status=status,
+        started_at=datetime.now(UTC),
+    )
+    db.add(agent_run)
+    await db.flush()
+    return agent, agent_run
+
+
 class TestStaleApprovalWaits:
-    async def test_finds_a_node_run_whose_agent_run_moved_on(self, db: AsyncSession):
+    """`ApprovalService.decide` only ever writes `ToolApproval` - never
+
+    `agent_runs.status`, which stays `awaiting_approval` until something
+    actually calls `AgentRunnerService.resume` - so "the decision already
+    landed" has to be read off `tool_approvals.status`, not off the agent
+    run. See the comment on `list_stale_approval_waits` itself.
+    """
+
+    async def test_finds_a_node_run_whose_blocking_approval_was_decided(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
-        agent = Agent(
-            id=uuid.uuid4(), organization_id=org.id, slug="clerk", name="Clerk", draft_spec={}
+        agent, agent_run = await _parked_agent_run(db, org, slug="clerk")
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.APPROVED.value,
+            )
         )
-        db.add(agent)
-        await db.flush()
-        agent_run = AgentRun(
-            id=uuid.uuid4(),
-            organization_id=org.id,
-            agent_id=agent.id,
-            surface="api",
-            status=RunStatus.COMPLETED.value,
-            started_at=datetime.now(UTC),
-        )
-        db.add(agent_run)
         await db.flush()
         node_run = await _node_run(
             db,
@@ -511,26 +539,88 @@ class TestStaleApprovalWaits:
         found = await workflow_run_repo.list_stale_approval_waits(db)
         assert node_run.id in {row.id for row in found}
 
+    @pytest.mark.security
+    async def test_a_node_run_whose_approval_is_still_pending_is_not_found(self, db: AsyncSession):
+        """The reconciler backstop must not race ahead of the human: a
+
+        `NodeRun` parked on a call nobody has decided yet is not "the wake
+        was lost", it is "there is nothing to wake yet."
+        """
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        agent, agent_run = await _parked_agent_run(db, org, slug="clerk-pending")
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.PENDING.value,
+            )
+        )
+        await db.flush()
+        node_run = await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason="approval",
+            waiting_agent_run_id=agent_run.id,
+        )
+        found = await workflow_run_repo.list_stale_approval_waits(db)
+        assert node_run.id not in {row.id for row in found}
+
+    async def test_an_agent_run_no_longer_awaiting_approval_is_not_found(self, db: AsyncSession):
+        """A run moved on by another path (cancelled, expired) is not
+
+        redispatched even if a stray decided approval row exists for it -
+        `resume` itself would refuse a run that is not `awaiting_approval`.
+        """
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        agent, agent_run = await _parked_agent_run(
+            db, org, slug="clerk-cancelled", status=RunStatus.CANCELLED.value
+        )
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.APPROVED.value,
+            )
+        )
+        await db.flush()
+        node_run = await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason="approval",
+            waiting_agent_run_id=agent_run.id,
+        )
+        found = await workflow_run_repo.list_stale_approval_waits(db)
+        assert node_run.id not in {row.id for row in found}
+
     async def test_a_node_run_already_covered_by_a_live_outbox_row_is_excluded(
         self, db: AsyncSession
     ):
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
-        agent = Agent(
-            id=uuid.uuid4(), organization_id=org.id, slug="clerk2", name="Clerk", draft_spec={}
+        agent, agent_run = await _parked_agent_run(db, org, slug="clerk2")
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.APPROVED.value,
+            )
         )
-        db.add(agent)
-        await db.flush()
-        agent_run = AgentRun(
-            id=uuid.uuid4(),
-            organization_id=org.id,
-            agent_id=agent.id,
-            surface="api",
-            status=RunStatus.COMPLETED.value,
-            started_at=datetime.now(UTC),
-        )
-        db.add(agent_run)
         await db.flush()
         node_run = await _node_run(
             db,

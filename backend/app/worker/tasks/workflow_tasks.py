@@ -42,9 +42,15 @@ async def workflow_dispatch_node_flow(workflow_run_id: str, node_run_id: str) ->
         outbox = await dispatcher.claim(db, node_run_id=node_id)
     if outbox is None:
         return "nothing_to_claim"
+    # `claim`'s CAS `UPDATE ... SET claimed_by = :token ... RETURNING` always
+    # sets it on the row it returns - `claimed_by` is nullable only for a
+    # `pending` row nobody has claimed yet, which this is not.
+    assert outbox.claimed_by is not None
 
     async with get_worker_db_context() as db:
-        begun = await dispatcher.begin_attempt(db, workflow_run_id=run_id, node_run_id=node_id)
+        begun = await dispatcher.begin_attempt(
+            db, workflow_run_id=run_id, node_run_id=node_id, token=outbox.claimed_by
+        )
     if begun is None:
         return "not_dispatched"
 

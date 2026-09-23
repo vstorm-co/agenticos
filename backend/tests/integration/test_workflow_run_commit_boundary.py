@@ -183,12 +183,13 @@ async def test_begin_attempt_commits_in_flight_before_any_handler_runs(
     factory = await _fresh(engine)
 
     async with factory() as claim_db:
-        await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        outbox = await dispatcher.claim(claim_db, node_run_id=node_run.id)
         await claim_db.commit()
+    assert outbox is not None
 
     async with factory() as begin_db:
         begun = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
         await begin_db.commit()
     assert begun is not None
@@ -215,11 +216,12 @@ async def test_settle_commits_the_result_and_the_downstream_dispatch_together(
     factory = await _fresh(engine)
 
     async with factory() as claim_db:
-        await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        outbox = await dispatcher.claim(claim_db, node_run_id=node_run.id)
         await claim_db.commit()
+    assert outbox is not None
     async with factory() as begin_db:
         begun = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
         await begin_db.commit()
     assert begun is not None
@@ -266,7 +268,7 @@ async def test_a_full_dispatch_tick_runs_the_one_node_graph_to_completion(
 
     async with factory() as begin_db:
         begun = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
         await begin_db.commit()
     assert begun is not None
@@ -315,7 +317,7 @@ async def test_a_lease_expired_before_any_attempt_is_reclaimed_exactly_once_more
 
     async with factory() as begin_db:
         begun = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
         await begin_db.commit()
     assert begun is not None
@@ -334,6 +336,83 @@ async def test_a_lease_expired_before_any_attempt_is_reclaimed_exactly_once_more
         assert len(attempts) == 1
 
 
+async def test_a_worker_resuming_after_its_lease_was_reclaimed_cannot_begin_a_second_attempt(
+    engine: AsyncEngine, db: AsyncSession
+):
+    """The fencing token's whole reason to exist: a worker that claimed the
+
+    row, then stalled past its own lease (not dead, only slow) rather than
+    crashing outright, must not be able to act once somebody else has
+    reclaimed the same row and is genuinely running the node - not even to
+    (wrongly) treat that live attempt as an orphan of its own. Without the
+    `claimed_by` re-check in `begin_attempt`, this worker would find the
+    reclaiming worker's `in_flight` attempt and resolve it as orphaned out
+    from under it.
+    """
+    run, node_run = await _seeded_run(db)
+    factory = await _fresh(engine)
+
+    async with factory() as claim_db:
+        stale_claim = await dispatcher.claim(claim_db, node_run_id=node_run.id, lease_seconds=0)
+        await claim_db.commit()
+    assert stale_claim is not None
+
+    # The lease is already expired (`lease_seconds=0`); a second worker
+    # reclaims the same row and gets past phase 2 for real.
+    async with factory() as claim_db:
+        fresh_claim = await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        await claim_db.commit()
+    assert fresh_claim is not None
+    assert fresh_claim.claimed_by != stale_claim.claimed_by
+
+    async with factory() as begin_db:
+        begun = await dispatcher.begin_attempt(
+            begin_db,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            token=fresh_claim.claimed_by,
+        )
+        await begin_db.commit()
+    assert begun is not None
+
+    # The original, stalled worker finally gets to phase 2 - with the token
+    # `claim` minted for it back when it still owned the row.
+    async with factory() as begin_db:
+        stale_begun = await dispatcher.begin_attempt(
+            begin_db,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            token=stale_claim.claimed_by,
+        )
+        await begin_db.commit()
+    assert stale_begun is None
+
+    async with factory() as reader:
+        attempts = (
+            (
+                await reader.execute(
+                    select(NodeAttempt).where(NodeAttempt.node_run_id == node_run.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # Exactly the reclaiming worker's attempt - still genuinely in
+        # flight, not resolved to `uncertain` by the stale worker's call.
+        assert len(attempts) == 1
+        assert attempts[0].id == begun.attempt_id
+        assert attempts[0].status == NodeAttemptStatus.IN_FLIGHT.value
+        outbox_row = (
+            await reader.execute(
+                select(DispatchOutbox).where(DispatchOutbox.node_run_id == node_run.id)
+            )
+        ).scalar_one()
+        # The live row still belongs to the reclaiming worker's claim - the
+        # stale worker's failed attempt did not touch it.
+        assert outbox_row.claimed_by == fresh_claim.claimed_by
+        assert outbox_row.status == DispatchOutboxStatus.CLAIMED.value
+
+
 async def test_an_orphaned_in_flight_idempotent_attempt_is_auto_retried_not_duplicated_blindly(
     engine: AsyncEngine, db: AsyncSession
 ):
@@ -346,11 +425,15 @@ async def test_an_orphaned_in_flight_idempotent_attempt_is_auto_retried_not_dupl
     factory = await _fresh(engine)
 
     async with factory() as claim_db:
-        await dispatcher.claim(claim_db, node_run_id=node_run.id, lease_seconds=0)
+        first_claim = await dispatcher.claim(claim_db, node_run_id=node_run.id, lease_seconds=0)
         await claim_db.commit()
+    assert first_claim is not None
     async with factory() as begin_db:
         begun = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            token=first_claim.claimed_by,
         )
         await begin_db.commit()
     assert begun is not None
@@ -397,7 +480,7 @@ async def test_an_orphaned_in_flight_idempotent_attempt_is_auto_retried_not_dupl
     assert outbox is not None
     async with factory() as begin_db:
         begun_again = await dispatcher.begin_attempt(
-            begin_db, workflow_run_id=run.id, node_run_id=node_run.id
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
         await begin_db.commit()
     assert begun_again is not None

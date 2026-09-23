@@ -252,15 +252,26 @@ async def _completed_outputs(
 
 
 async def begin_attempt(
-    db: AsyncSession, *, workflow_run_id: UUID, node_run_id: UUID
+    db: AsyncSession, *, workflow_run_id: UUID, node_run_id: UUID, token: UUID
 ) -> BegunAttempt | None:
     """Phase 2: resolve this node's call and commit its `in_flight` attempt.
 
+    `token` is the fencing token `claim` minted for this worker. It is
+    re-checked against the outbox row's *current* `claimed_by` before
+    anything else runs: `claimed_by` is minted fresh per claim rather than
+    reused (a Prefect flow-run id, say) precisely so a worker whose lease
+    expired between `claim` and here - and who is not actually dead, only
+    slow - can never believe it still owns this dispatch once somebody else
+    has reclaimed it. Everything below this point assumes "this worker
+    currently owns `node_run_id`'s dispatch"; a token mismatch means that is
+    false, and no attempt is created on the strength of a claim that is no
+    longer this worker's.
+
     Returns `None` when dispatch is refused *before* any attempt is created -
-    the run is already terminal or cancelled (a race with `cancel`), past its
-    deadline, or over budget. Each of those short-circuits does its own
-    bookkeeping (closing the outbox row, transitioning the run) and leaves
-    nothing for `settle` to do.
+    the claim was lost to a reclaim, the run is already terminal or
+    cancelled (a race with `cancel`), past its deadline, or over budget. Each
+    of those short-circuits does its own bookkeeping (closing the outbox
+    row, transitioning the run) and leaves nothing for `settle` to do.
     """
     run = await workflow_run_repo.get_run_by_id_for_update(db, workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, node_run_id)
@@ -272,12 +283,24 @@ async def begin_attempt(
         return None
     outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run_id)
 
+    if outbox is None or outbox.claimed_by != token:
+        # Lost the claim between `claim` and here - the row now belongs to
+        # whoever's token it currently carries (or to nobody, if it was
+        # already closed out from under this worker), so it is not this
+        # worker's to touch, let alone close.
+        logger.warning(
+            "workflow_dispatch_lost_claim",
+            extra={"node_run_id": str(node_run_id), "token": str(token)},
+        )
+        return None
+
     if WorkflowRunStatus(run.status).is_terminal or node_run.status in (
         NodeRunStatus.CANCELLED.value,
         NodeRunStatus.SKIPPED.value,
     ):
-        if outbox is not None:
-            await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+        # `outbox` is never `None` past the token check above - only ever
+        # closing the row this worker was just confirmed to still own.
+        await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
         return None
 
     now = datetime.now(UTC)
@@ -295,8 +318,7 @@ async def begin_attempt(
         await workflow_run_repo.update_run(
             db, run=run, update_data={"status": WorkflowRunStatus.BUDGET_EXCEEDED.value}
         )
-        if outbox is not None:
-            await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+        await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
         await events.append(
             db, run=run, kind=events.EventKind.RUN_BUDGET_EXCEEDED, node_run_id=node_run.id
         )
@@ -333,6 +355,17 @@ async def begin_attempt(
         node_instance_id=node.id,
         scope_path=node_run.scope_path,
     )
+    # Always the definition's own static value: `NodeAttempt.retry_guarantee`
+    # is nullable in the schema for a per-*call* override the design allows
+    # ("a guarantee is sometimes a property of the call, not the node kind" -
+    # `http.request`'s safety to retry depends on the method actually bound,
+    # not on `http.request` as a node kind) - but writing one needs a channel
+    # from the handler back to this row that no #1788-scope node (`debug.echo`,
+    # always `idempotent`) exercises, and the frozen `NodeHandler`/`NodeResult`
+    # contract (#1786) has no field to carry it. Left for whichever future
+    # node first needs it to add, the same way `context.report_waiting_agent_run`
+    # added a channel for `Waiting(reason="approval")` without touching that
+    # contract - not stubbed speculatively here.
     attempt = await workflow_run_repo.create_attempt(
         db,
         organization_id=run.organization_id,
@@ -401,7 +434,7 @@ async def _fail_run(
     *,
     run: WorkflowRun,
     node_run: NodeRun,
-    outbox: DispatchOutbox | None,
+    outbox: DispatchOutbox,
     code: str,
     message: str,
 ) -> None:
@@ -415,8 +448,7 @@ async def _fail_run(
             "error": {"code": code, "message": message, "details": {}, "retryable": False},
         },
     )
-    if outbox is not None:
-        await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
     await events.append(
         db,
         run=run,
@@ -506,6 +538,22 @@ async def resolve_orphaned_attempt(
     )
 
 
+def _terminal_attempt_status(result: NodeResult) -> str:
+    """The `NodeAttempt` status each `NodeResult` variant settles to, on its
+    own - shared by the ordinary path and the two short-circuits below, so
+    all three agree on what actually happened to the attempt even when the
+    run itself no longer cares."""
+    if isinstance(result, Completed | Waiting):
+        # A `Waiting` attempt still settles `completed`: it started a real
+        # effect and parked, a known and handled pause, not an error.
+        return NodeAttemptStatus.COMPLETED.value
+    if isinstance(result, Failed):
+        return NodeAttemptStatus.FAILED.value
+    if isinstance(result, Uncertain):
+        return NodeAttemptStatus.UNCERTAIN.value
+    raise TypeError(f"Unknown NodeResult variant: {result!r}")  # pragma: no cover - closed union
+
+
 async def settle(
     db: AsyncSession, *, begun: BegunAttempt, result: NodeResult, waiting_agent_run_id: UUID | None
 ) -> None:
@@ -519,6 +567,47 @@ async def settle(
         )
         return
     now = datetime.now(UTC)
+
+    # A stale settle: the lease expired while the handler was genuinely still
+    # running, `workflow-reconcile` already resolved this same attempt (to
+    # `uncertain`, possibly dispatching a fresh one in its place), and only
+    # afterward does the original, still-running handler finally return. That
+    # verdict must not be silently overwritten by a late result arriving for
+    # an attempt that is no longer "current" - `attempt.status` moving off
+    # `in_flight` is exactly what says a different settle (or the reconciler)
+    # already had the last word on this attempt.
+    if attempt.status != NodeAttemptStatus.IN_FLIGHT.value:
+        logger.warning(
+            "workflow_dispatch_settle_stale_attempt",
+            extra={"attempt_id": str(attempt.id), "attempt_status": attempt.status},
+        )
+        return
+
+    # A run cancelled while this handler was running must stay cancelled: the
+    # attempt itself still settles honestly (what actually happened is worth
+    # recording), but as a terminal `NodeRun` outcome with no run-status
+    # transition and no `_advance` - `cancel()` already closed every outbox
+    # row, so there is nothing left to dispatch even if this had completed.
+    if WorkflowRunStatus(run.status).is_terminal:
+        await workflow_run_repo.settle_attempt(
+            db,
+            attempt=attempt,
+            status=_terminal_attempt_status(result),
+            result=result.model_dump(mode="json"),
+            cost=Decimal(0),
+            cost_is_partial=False,
+            ended_at=now,
+        )
+        await workflow_run_repo.update_node_run(
+            db,
+            node_run=node_run,
+            update_data={"status": NodeRunStatus.CANCELLED.value, "ended_at": now},
+        )
+        outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run.id)
+        if outbox is not None:
+            await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+        return
+
     outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run.id)
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
@@ -607,6 +696,35 @@ async def _settle_waiting(
         cost_is_partial=False,
         ended_at=now,
     )
+
+    if result.reason == WaitingReason.APPROVAL.value and waiting_agent_run_id is None:
+        # The one invariant that makes an approval wait durable: a handler
+        # declaring `Waiting(reason="approval")` must also report the
+        # `agent_runs` row through `context.report_waiting_agent_run` -
+        # without it, `NodeRun.waiting_agent_run_id` stays null and neither
+        # the direct wake (`find_node_run_waiting_on_agent_run`) nor
+        # `workflow-reconcile`'s backstop (`list_stale_approval_waits`) has
+        # anything to key off to ever find this node again. Parking it as an
+        # ordinary `waiting_approval` node would be silently unrecoverable;
+        # `needs_attention` at least puts it somewhere a person looks.
+        await workflow_run_repo.update_node_run(
+            db, node_run=node_run, update_data={"status": NodeRunStatus.NEEDS_ATTENTION.value}
+        )
+        await events.append(
+            db,
+            run=run,
+            kind=events.EventKind.NODE_UNCERTAIN,
+            node_run_id=node_run.id,
+            payload={"detail": "Node declared an approval wait with no agent run to resume it"},
+        )
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"status": WorkflowRunStatus.NEEDS_ATTENTION.value}
+        )
+        await events.append(
+            db, run=run, kind=events.EventKind.RUN_NEEDS_ATTENTION, node_run_id=node_run.id
+        )
+        return
+
     # `resume_token` is a structural invariant, not something a handler is
     # trusted to have gotten right - it is always this NodeRun's own id.
     await workflow_run_repo.update_node_run(

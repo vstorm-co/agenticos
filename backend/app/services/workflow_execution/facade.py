@@ -37,6 +37,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.graph.validate import validate_graph
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +88,22 @@ class WorkflowExecutionService:
                 not reach it.
             AuthorizationError: The caller lacks `workflows:run`.
             WorkflowNotRunnableError: `real` mode with no published version,
-                or `test` mode with no valid draft graph.
+                or `test` mode with no valid, structurally sound draft graph.
         """
         workflow = await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_RUN)
+        # `test` mode executes the *draft*, not something an editor already
+        # reviewed and froze into a version - `workflows:run` alone (as
+        # widened by a mere `USE` grant, `_PERM_MIN_GRANT`) would let a
+        # caller who can never edit or even necessarily view this workflow
+        # trigger unreviewed, unpublished side effects. `publish` requires
+        # the same `workflows:edit`; a test run of the thing `publish` would
+        # freeze is held to the same bar.
+        if mode is WorkflowRunMode.TEST and not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        ):
+            raise NotFoundError(message="Workflow not found", details={"workflow_id": workflow_id})
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
-            workflow, mode=mode
+            ctx, workflow, mode=mode
         )
 
         now = datetime.now(UTC)
@@ -251,7 +263,7 @@ class WorkflowExecutionService:
         return run
 
     async def _resolve_start_graph(
-        self, workflow: Workflow, *, mode: WorkflowRunMode
+        self, ctx: AuthContext, workflow: Workflow, *, mode: WorkflowRunMode
     ) -> tuple[WorkflowGraph, UUID | None, dict[str, Any] | None, Any]:
         if mode is WorkflowRunMode.REAL:
             if workflow.current_version_id is None:
@@ -261,6 +273,9 @@ class WorkflowExecutionService:
             )
             if version is None:
                 raise WorkflowNotRunnableError(workflow_id=workflow.id)
+            # A published version was already checked by `validate_graph` at
+            # publish time and is frozen - re-validating it here would only
+            # repeat work `WorkflowRegistryService.publish` already did.
             return (
                 WorkflowGraph.model_validate(version.graph),
                 version.id,
@@ -272,6 +287,18 @@ class WorkflowExecutionService:
             graph = WorkflowGraph.model_validate(workflow.draft_graph)
         except PydanticValidationError as exc:
             raise WorkflowNotRunnableError(workflow_id=workflow.id) from exc
+        # Unlike a published version, a draft is never required to have
+        # passed `validate_graph` - autosave writes it after every edit, not
+        # only valid ones. Dispatching a structurally invalid graph (an
+        # unregistered node, a cycle, an unbound required input) would not
+        # fail cleanly: `begin_attempt` would raise from inside a Prefect
+        # flow with nothing catching it, and `workflow-reconcile` would keep
+        # re-triggering the same crash forever. Run the same publish-time
+        # check here instead, so an invalid draft is refused - with the same
+        # field-scoped `GraphValidationError` `publish` itself raises, left
+        # to propagate rather than collapsed into a vaguer refusal - before a
+        # run row, and an unkillable dispatch loop, ever exists.
+        graph = await validate_graph(self.db, ctx, graph)
         return graph, None, graph.model_dump(mode="json"), None
 
     async def _record_resource_refs(self, run: WorkflowRun, graph: WorkflowGraph) -> None:

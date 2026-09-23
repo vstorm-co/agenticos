@@ -139,8 +139,9 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_execution_budget.py::TestAccumulate::test_adds_cost_onto_the_running_total": "cost summation, accounting, no refusal",
     "tests/test_workflow_execution_budget.py::TestAccumulate::test_a_partial_cost_flags_the_run": "cost summation, accounting, no refusal",
     "tests/test_workflow_execution_budget.py::TestAccumulate::test_an_exact_cost_never_unflags_an_already_partial_run": "cost summation, accounting, no refusal",
-    "tests/test_workflow_execution_dispatcher.py::TestBeginAttemptMoreBranches::test_over_budget_with_no_outbox_row_skips_marking_one_done": "bookkeeping detail (the outbox-row branch) of the budget_exceeded transition already marked at `TestBeginAttemptShortCircuits::test_over_budget_marks_the_run_and_creates_no_attempt`, not a second refusal",
     "tests/test_workflow_execution_facade.py::TestStart::test_a_real_run_reads_the_published_versions_graph_and_budget": "the happy path - a version's pinned budget cap is copied onto the new run - not a refusal",
+    "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_finds_a_node_run_whose_blocking_approval_was_decided": "the happy path - the backstop finds a decided approval to redispatch - not a refusal",
+    "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_an_agent_run_no_longer_awaiting_approval_is_not_found": "an agent run moved on by another path is left alone, idempotence, no refusal",
 }
 
 

@@ -427,11 +427,53 @@ class TestBeginAttemptShortCircuits:
         repo.get_run_by_id_for_update.return_value = None
         repo.get_node_run_by_id_for_update.return_value = None
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4()
+            object(), workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4(), token=uuid.uuid4()
         )
         assert result is None
         repo.create_attempt.assert_not_called()
         event_log.assert_not_called()
+
+    async def test_a_token_that_no_longer_matches_the_live_claim_does_nothing(
+        self, repo, event_log, test_node
+    ):
+        """A worker whose lease expired between `claim` and here, and who
+
+        resumes after somebody else already reclaimed the row, must not act
+        as if it still owns the dispatch - not even to close the outbox,
+        which now belongs to whoever's token it currently carries.
+        """
+        run, node = _test_mode_run(test_node)
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id, claimed_by=uuid.uuid4())
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run.return_value = outbox
+
+        result = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=uuid.uuid4()
+        )
+
+        assert result is None
+        repo.mark_outbox_done.assert_not_called()
+        repo.create_attempt.assert_not_called()
+        event_log.assert_not_called()
+
+    async def test_no_outbox_row_at_all_is_treated_as_a_lost_claim(
+        self, repo, event_log, test_node
+    ):
+        run, node = _test_mode_run(test_node)
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run.return_value = None
+
+        result = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=uuid.uuid4()
+        )
+
+        assert result is None
+        repo.mark_outbox_done.assert_not_called()
+        repo.create_attempt.assert_not_called()
 
     async def test_a_terminal_run_closes_the_outbox_row_and_creates_nothing(
         self, repo, event_log, test_node
@@ -444,7 +486,7 @@ class TestBeginAttemptShortCircuits:
         repo.get_outbox_for_node_run.return_value = outbox
 
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert result is None
@@ -458,15 +500,17 @@ class TestBeginAttemptShortCircuits:
         node_run = _node_run(
             workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.CANCELLED.value
         )
+        outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run.return_value = outbox
 
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert result is None
+        repo.mark_outbox_done.assert_awaited_once_with(ANY, outbox=outbox)
         repo.create_attempt.assert_not_called()
 
     async def test_past_deadline_fails_the_run_and_creates_no_attempt(
@@ -481,7 +525,7 @@ class TestBeginAttemptShortCircuits:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert result is None
@@ -504,7 +548,7 @@ class TestBeginAttemptShortCircuits:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert result is None
@@ -530,7 +574,7 @@ class TestBeginAttemptShortCircuits:
         )
 
         result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert result is None
@@ -570,9 +614,10 @@ class TestBeginAttemptHappyPath:
     ):
         run, node = _test_mode_run(test_node, execution_principal_user_id=None)
         node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = _outbox(node_run_id=node_run.id)
+        repo.get_outbox_for_node_run.return_value = outbox
         repo.get_latest_attempt.return_value = None
         created_attempt = _attempt(node_run_id=node_run.id, attempt_no=1)
         repo.create_attempt.return_value = created_attempt
@@ -581,7 +626,7 @@ class TestBeginAttemptHappyPath:
         )
 
         begun = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert begun is not None
@@ -599,9 +644,10 @@ class TestBeginAttemptHappyPath:
     ):
         run, node = _test_mode_run(test_node)
         node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id)
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run.return_value = outbox
         repo.get_latest_attempt.return_value = _attempt(
             node_run_id=node_run.id, attempt_no=1, status=NodeAttemptStatus.FAILED.value
         )
@@ -611,7 +657,7 @@ class TestBeginAttemptHappyPath:
         )
 
         begun = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
         )
 
         assert begun is not None
@@ -660,14 +706,18 @@ class TestBeginAttemptHappyPath:
             return None
 
         repo.get_latest_attempt.side_effect = _latest_attempt
-        repo.get_outbox_for_node_run.return_value = None
+        outbox = _outbox(node_run_id=target_node_run.id)
+        repo.get_outbox_for_node_run.return_value = outbox
         repo.create_attempt.return_value = _attempt(node_run_id=target_node_run.id)
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
         )
 
         begun = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=target_node_run.id
+            object(),
+            workflow_run_id=run.id,
+            node_run_id=target_node_run.id,
+            token=outbox.claimed_by,
         )
 
         assert begun is not None
@@ -800,6 +850,186 @@ class TestSettleCompleted:
         repo.settle_attempt.assert_not_called()
 
 
+class TestSettleShortCircuits:
+    async def test_a_settle_for_an_attempt_no_longer_in_flight_is_a_no_op(
+        self, repo, event_log, test_node
+    ):
+        """A late result for an attempt `workflow-reconcile` already resolved
+
+        (to `uncertain`, or a fresh retry already ran and finished) must not
+        overwrite that verdict - `attempt.status` having moved off
+        `in_flight` is what says this settle has nothing left to say.
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id, status=NodeAttemptStatus.UNCERTAIN.value)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+
+        result = Completed[_EchoOutput](output=_EchoOutput(echoed="late"))
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
+        repo.settle_attempt.assert_not_called()
+        repo.update_node_run.assert_not_called()
+        repo.get_outbox_for_node_run.assert_not_called()
+
+    async def test_a_run_cancelled_while_its_handler_was_running_stays_cancelled(
+        self, repo, event_log, test_node
+    ):
+        """A run `cancel()` already terminated must not be resurrected by a
+
+        handler call that was already in flight when it was cancelled - the
+        attempt still settles honestly (what happened is worth recording),
+        but as a terminal, cancelled `NodeRun` with no run-status transition
+        and no `_advance` (`cancel()` already closed every outbox row).
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            status=WorkflowRunStatus.CANCELLED.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        outbox = _outbox(node_run_id=node_run.id)
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run.return_value = outbox
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        # The attempt itself honestly records what happened...
+        assert attempt.status == NodeAttemptStatus.COMPLETED.value
+        # ...but the node run and run stay cancelled, not succeeded.
+        assert node_run.status == NodeRunStatus.CANCELLED.value
+        assert run.status == WorkflowRunStatus.CANCELLED.value
+        repo.mark_outbox_done.assert_awaited_once_with(ANY, outbox=outbox)
+        repo.update_run.assert_not_called()
+        repo.get_node_run_by_id_for_update.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "make_result,expected_status",
+        [
+            (
+                lambda: Failed(
+                    error=WorkflowError(code="x", message="x", details={}, retryable=False)
+                ),
+                NodeAttemptStatus.FAILED.value,
+            ),
+            (lambda: Uncertain(detail="x"), NodeAttemptStatus.UNCERTAIN.value),
+        ],
+    )
+    async def test_a_cancelled_run_settle_records_what_actually_happened_to_the_attempt(
+        self, repo, event_log, test_node, make_result, expected_status
+    ):
+        """`_terminal_attempt_status` picks the attempt's real outcome even
+
+        on the cancelled-run short-circuit - a late `Failed`/`Uncertain`
+        result is not misrecorded as `completed` just because the run no
+        longer cares which one it was.
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            status=WorkflowRunStatus.CANCELLED.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        outbox = _outbox(node_run_id=node_run.id)
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run.return_value = outbox
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        await dispatcher.settle(
+            object(), begun=begun, result=make_result(), waiting_agent_run_id=None
+        )
+
+        assert attempt.status == expected_status
+        assert node_run.status == NodeRunStatus.CANCELLED.value
+
+    async def test_a_cancelled_run_settle_with_no_outbox_row_still_settles(
+        self, repo, event_log, test_node
+    ):
+        """The outbox row can already be gone (closed by `cancel()` itself,
+
+        or never created) by the time a late result arrives - settling the
+        attempt and the node run does not depend on one still existing.
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            status=WorkflowRunStatus.CANCELLED.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run.return_value = None
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        assert attempt.status == NodeAttemptStatus.COMPLETED.value
+        assert node_run.status == NodeRunStatus.CANCELLED.value
+        repo.mark_outbox_done.assert_not_called()
+
+
 class TestSettleWaiting:
     async def test_parks_the_node_run_and_sets_the_resume_token_to_its_own_id(
         self, repo, event_log, test_node
@@ -875,6 +1105,54 @@ class TestSettleWaiting:
         await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
 
         assert run.status == WorkflowRunStatus.WAITING_RETRY.value
+
+    @pytest.mark.security
+    async def test_an_approval_wait_with_no_reported_agent_run_escalates_instead_of_parking(
+        self, repo, event_log, test_node
+    ):
+        """The durability contract an approval wait depends on: a handler
+
+        declaring `Waiting(reason="approval")` must also call
+        `context.report_waiting_agent_run` - without an `agent_runs` id to
+        watch, neither the direct wake nor the reconciler's backstop can
+        ever find this node again. Rather than silently parking it
+        unreachable forever, it escalates to `needs_attention` where a
+        person will actually see it.
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run.return_value = _outbox(node_run_id=node_run.id)
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        result = Waiting(reason="approval", resume_token="whatever-the-handler-sent")
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        # The attempt still records what genuinely happened...
+        assert attempt.status == NodeAttemptStatus.COMPLETED.value
+        # ...but the node run is not left parked as an unreachable
+        # `waiting_approval` - it is escalated, not silently stranded.
+        assert node_run.status == NodeRunStatus.NEEDS_ATTENTION.value
+        assert run.status == WorkflowRunStatus.NEEDS_ATTENTION.value
 
 
 class TestSettleFailed:
@@ -1473,42 +1751,6 @@ class TestCompletedOutputsMore:
             object(), workflow_run_id=uuid.uuid4(), node_ids={source_run.node_instance_id}
         )
         assert outputs[source_run.node_instance_id] is None
-
-
-class TestBeginAttemptMoreBranches:
-    async def test_over_budget_with_no_outbox_row_skips_marking_one_done(
-        self, repo, event_log, test_node
-    ):
-        run, node = _test_mode_run(test_node, budget_limit=Decimal("1"), spent_cost=Decimal("1"))
-        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
-        repo.get_run_by_id_for_update.return_value = run
-        repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = None
-        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
-
-        result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
-        )
-
-        assert result is None
-        repo.mark_outbox_done.assert_not_called()
-
-    async def test_past_deadline_with_no_outbox_row_skips_marking_one_done(
-        self, repo, event_log, test_node
-    ):
-        run, node = _test_mode_run(test_node, deadline_at=datetime.now(UTC) - timedelta(hours=1))
-        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
-        repo.get_run_by_id_for_update.return_value = run
-        repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run.return_value = None
-        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
-
-        result = await dispatcher.begin_attempt(
-            object(), workflow_run_id=run.id, node_run_id=node_run.id
-        )
-
-        assert result is None
-        repo.mark_outbox_done.assert_not_called()
 
 
 class TestAdvanceMoreBranches:

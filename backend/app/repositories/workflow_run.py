@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -254,14 +254,25 @@ async def find_node_run_waiting_on_agent_run(
 
 
 async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
-    """`NodeRun`s parked on an approval whose `agent_runs` row already moved on.
+    """`NodeRun`s parked on an approval every blocking decision has already answered.
 
     The reconciler's backstop for the direct wake `ApprovalService.decide`
     queues via `spawn_after_commit`: if that trigger is lost, this finds the
-    same shape from the data alone - a `NodeRun` still `waiting`/`approval`
-    whose linked `agent_runs.status` is no longer `awaiting_approval` - with
-    no live dispatch row already covering it, so the caller's insert cannot
-    just be racing the direct wake's own.
+    same shape from the data alone.
+
+    "Already answered" is read off `tool_approvals` directly - no row still
+    `pending` for the parked `agent_runs` id - rather than off
+    `agent_runs.status`: `ApprovalService.decide` only ever writes the
+    `ToolApproval` row (`agent_runs.paused_state`/`status` stay exactly as
+    `AgentRunnerService.resume` itself changes them, per this design's own
+    "recorded exactly where it is today"), so `agent_runs.status` never
+    actually leaves `awaiting_approval` until *something* calls `resume` -
+    which is precisely the trigger this function exists to substitute for
+    when it is lost. `AgentRunnerService._decisions` requires the identical
+    "nothing still pending" condition before it will replay a park, so this
+    mirrors the one check that already decides whether a resume can proceed.
+    `agent_runs.status == awaiting_approval` is kept as a second guard so a
+    run cancelled or otherwise moved on by another path is not redispatched.
     """
     live_outbox = (
         select(DispatchOutbox.node_run_id)
@@ -272,6 +283,14 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
         )
         .distinct()
     )
+    still_pending = (
+        select(ToolApproval.id)
+        .where(
+            ToolApproval.run_id == AgentRun.id,
+            ToolApproval.status == ApprovalStatus.PENDING.value,
+        )
+        .exists()
+    )
     result = await db.execute(
         select(NodeRun)
         .join(AgentRun, AgentRun.id == NodeRun.waiting_agent_run_id)
@@ -279,7 +298,8 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
             NodeRun.status == NodeRunStatus.WAITING.value,
             NodeRun.waiting_reason == WaitingReason.APPROVAL.value,
             NodeRun.waiting_agent_run_id.is_not(None),
-            AgentRun.status != RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            ~still_pending,
             NodeRun.id.not_in(live_outbox),
         )
         .order_by(NodeRun.updated_at)

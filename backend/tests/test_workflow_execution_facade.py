@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
@@ -27,6 +27,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -274,11 +275,66 @@ class TestStart:
                 f"{FACADE_PATH}.workflow_run_repo.create_resource_ref", new=AsyncMock()
             ) as create_ref,
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
+            # This test is about `_record_resource_refs` walking the graph's
+            # bindings, not about `validate_graph`'s own rules - the second,
+            # non-file/table binding targets a field name chosen to exercise
+            # the "skip a non-matching source" branch, not to be a
+            # structurally valid graph. `validate_graph` has its own tests.
+            patch(f"{FACADE_PATH}.validate_graph", new=AsyncMock(return_value=graph)),
         ):
             await service.start(_ctx(), workflow.id, mode=WorkflowRunMode.TEST)
 
         create_ref.assert_awaited_once()
         assert create_ref.await_args.kwargs["kind"] == expected_kind
+
+    async def test_a_test_run_by_a_caller_without_edit_access_is_refused(self):
+        """`workflows:run` (even as widened by a mere `USE` grant) is not
+
+        enough to trigger unreviewed, unpublished draft side effects - a
+        test run is held to the same `workflows:edit` bar as `publish`.
+        """
+        workflow = _workflow()
+        service = WorkflowExecutionService(MagicMock())
+
+        async def _resolve_access(
+            db: object, ctx: object, resource: object, perm: Perm, *, resource_type: object
+        ) -> bool:
+            return perm is not Perm.WORKFLOWS_EDIT
+
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(side_effect=_resolve_access)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.start(_ctx(), workflow.id, mode=WorkflowRunMode.TEST)
+
+    async def test_a_structurally_invalid_draft_is_refused_with_the_publish_time_error(self):
+        """A draft that parses as a `WorkflowGraph` but fails a publish-time
+
+        rule (here, a binding to a field the target node does not have) is
+        refused with the same `GraphValidationError` `publish` itself
+        raises - not collapsed into the vaguer `WorkflowNotRunnableError` -
+        so nothing dispatches a graph `begin_attempt` cannot run.
+        """
+        node = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="debug.echo",
+            definition_version=1,
+            config={},
+            layout=NodePosition(x=0, y=0),
+        )
+        bad_binding = Binding(
+            target_node_id=node.id, target_field="no_such_field", source=LiteralValue(value="x")
+        )
+        graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,), bindings=(bad_binding,))
+        workflow = _workflow(draft_graph=graph.model_dump(mode="json"))
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(GraphValidationError),
+        ):
+            await service.start(_ctx(), workflow.id, mode=WorkflowRunMode.TEST)
 
 
 class TestCancel:
