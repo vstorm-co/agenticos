@@ -596,6 +596,26 @@ async def test_reads_are_not_counted_and_a_refused_permission_does_not_spend_the
     assert limiter.keys == []
 
 
+@pytest.mark.security
+async def test_a_quota_refused_write_still_spends_the_allowance(client, limiter, service):
+    """Unlike a permission refusal, `limit_table_write` is a route dependency that
+    runs before the handler ever reaches the service - so a write the service goes
+    on to refuse with `QuotaExceededError` has already been counted. A retry loop
+    against a quota it will never clear must not also get to hammer the rate limit
+    forever."""
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service.create_record.side_effect = QuotaExceededError(
+        quota="records", limit=1, message="A table may hold at most 1 record"
+    )
+
+    async with client() as http:
+        answers = [await http.post(_records(), json={"values": {}}) for _ in range(4)]
+
+    assert [a.status_code for a in answers] == [402, 402, 402, 429]
+    assert len(limiter.keys) == 4
+
+
 async def test_a_quota_refusal_is_a_402_in_the_one_envelope_with_no_content(client, service):
     from app.services.virtual_tables.exceptions import QuotaExceededError
 
