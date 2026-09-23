@@ -26,7 +26,7 @@ export function MobileHeader() {
   const t = useTranslations("nav");
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 backdrop-blur md:hidden">
+    <header className="bg-background sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
       <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggle}>
         <Menu className="h-5 w-5" />
         <span className="sr-only">{t("toggleMenu")}</span>

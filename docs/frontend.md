@@ -122,7 +122,7 @@ on something bounded.
 glance. Five edits: the id and definition in `dashboard/registry.ts`, the
 component in `components/dashboard/widgets/`, a placement in `layouts.ts`, the
 id mirrored in `backend/app/schemas/dashboard_layout.py` — a test fails when
-those two drift — and copy in both `en.json` and `pl.json`.
+those two drift — and copy in `en.json` and in each translation beside it.
 
 ## Verify
 

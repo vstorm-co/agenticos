@@ -94,9 +94,9 @@ async def analyze_document(
             "LibreOffice is installed; `pymupdf` reads PDFs only and is faster."
         ),
     ),
-    chunk_size: int = Form(default=512, ge=64, le=8000),
+    chunk_size: int = Form(default=2500, ge=64, le=8000),
     chunk_overlap: int = Form(
-        default=50,
+        default=200,
         ge=0,
         le=2000,
         description="Must be smaller than `chunk_size`, which the service checks",

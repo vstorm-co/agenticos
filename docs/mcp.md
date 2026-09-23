@@ -317,7 +317,7 @@ agent picked wants Pydantic AI's `safe_download`.
 A step that fails says **which step gave up and what class of thing raised**, never
 what the upstream client wrote.
 
-`httpx` puts the failing request in its message, and the two requests here are a
+`httpx2` puts the failing request in its message, and the two requests here are a
 client registration and a token grant — so quoting it would carry a token endpoint,
 reached with credentials, into the browser. A pydantic error over an unreadable
 token response echoes the payload it rejected, which is the tokens. Both stay in
@@ -337,8 +337,8 @@ flow, because the well-known URIs after it are derived from the URL an operator
 typed and may well answer.
 
 This was a 500 with an empty body until
-[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL` does
-not derive from `httpx.HTTPError`, so none of the flow's catches saw it — and no
+[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx2.InvalidURL` does
+not derive from `httpx2.HTTPError`, so none of the flow's catches saw it — and no
 check here could have, because the URL is refused while the request is being built,
 above both the SSRF check and the pinned client. What the parser could not read
 (`Invalid port: 'client_secret=…'`) is the remote server's own text and stays in

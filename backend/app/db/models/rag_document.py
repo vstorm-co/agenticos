@@ -87,6 +87,14 @@ class RAGDocument(TimestampMixin, Base):
     # The embedding model this document's vectors were produced by, copied from
     # the collection at ingestion.
     embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Which part of the organization this document belongs to - the FA-039
+    # dimension a retrieval may narrow on. Recorded on the row rather than passed
+    # to the flow for the same reason the resolved ingestion configuration is:
+    # the worker reads what this upload decided, and a parameter added to the
+    # flow signature would be lost by a run queued before it existed. `None`
+    # leaves the dimension absent on every chunk, which is what they all carried
+    # before (#1777).
+    organizational_unit: Mapped[str | None] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

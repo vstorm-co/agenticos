@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a6a1847ec0"
+source_sha: "565baceaed60"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -129,7 +129,7 @@ czymś ograniczonym.
 na pierwszy rzut oka. Pięć edycji: id i definicja w `dashboard/registry.ts`,
 komponent w `components/dashboard/widgets/`, umiejscowienie w `layouts.ts`, id
 odzwierciedlone w `backend/app/schemas/dashboard_layout.py` — test oblewa, gdy
-te dwa się rozjadą — oraz copy zarówno w `en.json`, jak i w `pl.json`.
+te dwa się rozjadą — oraz copy w `en.json` i w każdym tłumaczeniu obok niego.
 
 ## Weryfikacja { #verify }
 

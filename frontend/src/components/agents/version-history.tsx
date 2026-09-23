@@ -14,13 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { EntityAvatar } from "@/components/ui";
+import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
 import {
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
+  useMembers,
   VERSIONS_PAGE_SIZE,
 } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
@@ -50,6 +54,53 @@ const DRAFT = "__draft__";
  * it. A select rather than one button because an agent can have several
  * environments, and the row must say which one is being repointed.
  */
+/**
+ * Who published a version, drawn the way this application draws a person.
+ *
+ * It was the bare address - `admin@example.com`, repeated down every row of the
+ * table - where the members list, the run table and the org pickers all show a
+ * face and a name. `published_by_email` is what the version itself stores, and
+ * it is the fallback rather than the answer: an account that has since left the
+ * organization is not in the member list, and its address is then the only
+ * thing left that identifies the publisher.
+ */
+function Publisher({
+  userId,
+  email,
+  membersById,
+}: {
+  userId: string | null;
+  email: string | null | undefined;
+  membersById: Map<string, IdentifiedMember>;
+}) {
+  const t = useTranslations("agents");
+  const member = userId === null ? undefined : membersById.get(userId);
+
+  if (member === undefined) {
+    return (
+      <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+        {email ?? t("unknownAuthor")}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="text-muted-foreground hidden shrink-0 items-center gap-1.5 text-xs sm:flex"
+      title={member.email}
+    >
+      <EntityAvatar
+        seed={member.user_id}
+        name={member.full_name || member.email}
+        imageSrc={`/api/users/avatar/${member.user_id}`}
+        className="h-5 w-5 shrink-0 text-[9px]"
+        ariaHidden
+      />
+      {displayName(member)}
+    </span>
+  );
+}
+
 function PromoteMenu({
   version,
   environments,
@@ -70,8 +121,12 @@ function PromoteMenu({
       disabled={promoting}
       onValueChange={(environmentId) => onPromote(environmentId, version.id)}
     >
+      {/* Wide enough for the word. At `w-36` the placeholder was clipped to
+          "Promote to..." - an ellipsis standing in for an ellipsis - so the
+          label is now the verb alone and the targets are named in the menu,
+          which is where the "to what" is actually answered. */}
       <SelectTrigger
-        className="w-36"
+        className="w-28"
         aria-label={t("promoteVersionTo", { version: version.version })}
       >
         <SelectValue placeholder={t("promote")} />
@@ -113,6 +168,15 @@ export function VersionHistory({
   // `timeAgo` reads its words from the shared `time` namespace, not this one.
   const tTime = useTranslations("time");
   const locale = useLocale();
+  // Faces and names for the publisher column. The member list is any member's
+  // to read - the same lookup `RunHistoryTab` builds for its own User column -
+  // and the row falls back to the stored address when it answers with nothing.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { members } = useMembers(activeOrgId ?? "");
+  const membersById = useMemo(
+    () => new Map(members.map((member) => [member.user_id, member])),
+    [members],
+  );
   const [page, setPage] = useState(0);
   const { versions, total, isLoading } = useAgentVersions(agentId, {
     skip: page * VERSIONS_PAGE_SIZE,
@@ -204,9 +268,11 @@ export function VersionHistory({
               >
                 {version.note ?? t("noNote")}
               </span>
-              <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
-                {version.published_by_email ?? t("unknownAuthor")}
-              </span>
+              <Publisher
+                userId={version.published_by_user_id}
+                email={version.published_by_email}
+                membersById={membersById}
+              />
               {version.created_at && (
                 <span
                   className="text-muted-foreground shrink-0 text-xs"

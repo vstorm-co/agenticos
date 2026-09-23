@@ -638,6 +638,16 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * Values a field suggests without restricting itself to them.
+   *
+   * The open counterpart of `enum`: the backend validates a plain string, so the
+   * form offers these and still accepts anything else. A browsing agent's
+   * `decision_model` is the case it exists for - the catalog holds the moving
+   * aliases, and an agent whose confidence floor was tuned against a pinned
+   * build has to be able to name that build. `x-enum-labels` names them.
+   */
+  "x-suggestions"?: string[];
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */

@@ -366,7 +366,7 @@ export function useKBDetail(id: string | null) {
   );
 
   const uploadDocument = useCallback(
-    async (file: File, override?: IngestionOverride) => {
+    async (file: File, override?: IngestionOverride, organizationalUnit?: string) => {
       if (!id) return;
       const startedIn = activeOrgId;
       const uploadId = `${uploadIdRef.current++}`;
@@ -387,6 +387,13 @@ export function useKBDetail(id: string | null) {
         // empty object would mark the document as overridden for no reason.
         if (override !== undefined && overrideSize(override) > 0) {
           formData.append("ingestion", JSON.stringify(override));
+        }
+        // Which part of the organization this file belongs to, carried the same
+        // way. Sent only when it says something - the server reads a blank as
+        // "none", and an absent field says the same thing without asking it
+        // (#1777).
+        if (organizationalUnit) {
+          formData.append("organizational_unit", organizationalUnit);
         }
         // Use XHR (not fetch) so we can read real byte-level upload progress via
         // upload.onprogress. The BFF route forwards the multipart body raw to

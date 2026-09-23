@@ -99,7 +99,7 @@ describe("useAgents", () => {
     const { result } = renderHook(() => useAgents(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await result.current.create.mutateAsync(SPEC);
+    await result.current.create.mutateAsync({ spec: SPEC });
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents", {
       // Whatever version was read round-trips; the client never authors one.
@@ -387,7 +387,7 @@ describe("useAgents mutations", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
     const { result } = renderHook(() => useAgents(), { wrapper });
 
-    await result.current.create.mutateAsync(SPEC);
+    await result.current.create.mutateAsync({ spec: SPEC });
 
     expect(toast.success).toHaveBeenCalledWith("Created Support");
   });
@@ -399,7 +399,7 @@ describe("useAgents mutations", () => {
     vi.mocked(apiClient.post).mockRejectedValue(new Error("handle taken"));
     const { result } = renderHook(() => useAgents(), { wrapper });
 
-    await expect(result.current.create.mutateAsync(SPEC)).rejects.toThrow("handle taken");
+    await expect(result.current.create.mutateAsync({ spec: SPEC })).rejects.toThrow("handle taken");
 
     expect(toast.error).not.toHaveBeenCalled();
   });

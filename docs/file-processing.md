@@ -421,8 +421,8 @@ Per collection, alongside the parser:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Maximum characters per chunk |
-| `chunk_overlap` | `50` | Characters of overlap; must be smaller than `chunk_size` |
+| `chunk_size` | `2500` | Maximum characters per chunk |
+| `chunk_overlap` | `200` | Characters of overlap; must be smaller than `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategy: `recursive`, `markdown`, `fixed` |
 
 **Strategy comparison:**
@@ -474,7 +474,7 @@ dimensions, tens of kilobytes a row.
 **An override is checked against the merged pair, not against its own value.**
 
 A per-upload `ingestion` field carries only what it changes, so `chunk_overlap: 4096`
-sent to a collection chunking at 512 is two individually legal numbers and one
+sent to a collection chunking at 2500 is two individually legal numbers and one
 configuration that repeats almost everything it advances past.
 
 The merge re-validates, and the upload is refused with a **400** naming both settings
@@ -779,6 +779,29 @@ values actually present in the collection, under that same scope. It exists beca
 that dimension is whatever the authors wrote: guessing a value returns silently empty,
 which reads as "nothing on this subject" rather than "no such unit".
 
+### Where the organizational unit comes from { #where-the-organizational-unit-comes-from }
+
+Two writers, and nothing else sets it. A **sync source** carries a default that every
+document it brings in inherits — a shared folder is a department's, and nobody labels a
+thousand synced files one at a time. An **upload** names one for that file, in the
+multipart body beside `ingestion`, and it is recorded on the document's own row rather
+than passed to the worker, so a run queued before the field existed still binds. The
+console offers both: a field on the sync wizard's last step, and one in *How the next
+uploads are read and filed*, which applies to every file added until it is cleared.
+
+It is free text on purpose. The vocabulary is whatever a deployment's corpus turns out
+to use, and `filter-values` reports what a collection actually holds — a closed list
+would have to be maintained before the first document could be filed under anything. A
+blank is not a value: it is recorded as *no unit*, so the facet never offers one named
+`""`.
+
+**Nothing is backfilled.** A document ingested before its source or its uploader named
+a unit carries none, and no rule can decide which unit it should have belonged to. Such
+a document is excluded by any filter on the dimension — chunks fail closed — until it
+is re-ingested. Until [#1777](https://github.com/vstorm-co/agenticos/issues/1777)
+nothing wrote the field at all, so the filter matched nothing and `filter-values`
+answered with an empty list for every collection in every deployment.
+
 !!! warning "The old `filter` string is deprecated"
 
     `POST /rag/search` used to take a `filter` string, of which only
@@ -803,6 +826,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |
 | `storage_path` | Path to original file (for re-ingestion/download) |
+| `organizational_unit` | Which part of the organization this document belongs to — from the upload, or inherited from the sync source. `null` for a document nobody filed |
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
 

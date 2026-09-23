@@ -173,12 +173,22 @@ needs a key, a key needs an organization — and this walks that chain once:
 | An owner | `admin@example.com` / `admin123`, or `--email` / `--password` |
 | A vault entry | Your provider key, sealed for that organization |
 | A model profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` or `openai/gpt-4.1`, whichever provider the key is for |
+| A context file | `AGENTS.md`, explaining what this platform is |
 | An agent | `@getting-started`, published if there is a key |
 
 Now open <http://localhost:3000>, sign in as `admin@example.com` / `admin123`, and
 go to **Agents → Getting Started → Test**.
 
-You have a working agent.
+You have a working agent. Not a stub: it can search the web and fetch a page,
+run Python, draw a chart, keep files and a shell, plan a piece of work, remember
+something across conversations, search what was said earlier, read the shipped
+skills and `AGENTS.md`, and hand independent work to sub-agents it invents on
+the spot. All of it on the one key you just pasted — the sandbox runs in the
+run's own store and search defaults to DuckDuckGo, so there is no second
+credential and no service to stand up.
+
+Open it in the Builder to see how: every one of those is a capability that was
+switched on, and the agent's instructions are a text box you can edit.
 
 !!! tip "No provider key yet?"
 

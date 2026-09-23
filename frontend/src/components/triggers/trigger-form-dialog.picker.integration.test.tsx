@@ -25,7 +25,15 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function agent(id: string, name: string, status = "published", can_run = true) {
-  return { id, name, status, description: null, has_avatar: false, can_run };
+  return {
+    id,
+    slug: name.toLowerCase().replaceAll(" ", "-"),
+    name,
+    status,
+    description: null,
+    has_avatar: false,
+    can_run,
+  };
 }
 
 function serve() {

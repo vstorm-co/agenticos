@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import de from "./de.json";
 import en from "./en.json";
 import pl from "./pl.json";
 
@@ -133,10 +134,10 @@ function entries(catalog: unknown, prefix = ""): [string, string][] {
  * reverting it alone fails these three with 18 class lists, 150 source fragments
  * and 8 `{noun}` messages named.
  *
- * **`pl.json` is a forward guard and passes on `main` too.** It holds 330 keys,
- * every one of them a translation somebody wrote by hand, and it never held any
- * of the three shapes - so the same three assertions over it assert nothing
- * about this change. They are here because the next locale is added by copying
+ * **A translation is a forward guard and passes on `main` too.** Every value in
+ * `pl.json` and `de.json` is a translation somebody wrote by hand, and neither
+ * ever held any of the three shapes - so the same assertions over them assert
+ * nothing about this change. They are here because a locale is added by copying
  * `en.json` and translating downwards, which is exactly how a class list would
  * arrive in a second file having been fixed in the first.
  */
@@ -150,6 +151,7 @@ function unclosedTags(value: string): string[] {
 describe.each([
   ["en.json", en],
   ["pl.json", pl],
+  ["de.json", de],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 

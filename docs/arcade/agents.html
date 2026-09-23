@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Just One More Agent - Amigo's Arcade</title>
+    <meta
+      name="description"
+      content="Hire agents. Cancel meetings. Ship one tiny change before the $300 budget or 90-second deadline disappears."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&amp;family=Inter:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <link rel="stylesheet" href="new-cabinets.css" />
+  </head>
+  <body>
+    <main class="arc-page is-game cabinet" data-cabinet="agents">
+      <header class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Just One More Agent</h1>
+        <a class="arc-back" href="./" aria-label="Back to the arcade"
+          >←<span class="label"> the arcade</span></a
+        >
+        <p class="arc-eyebrow">Amigo's Arcade</p>
+        <button class="arc-fs" id="pause" disabled>Pause</button
+        ><button class="arc-fs" id="sound">Sound on</button
+        ><button class="arc-fs" id="fs">Fullscreen</button>
+      </header>
+      <div class="cabinet-layout">
+        <section class="cabinet-main" id="screen">
+          <div class="meters">
+            <div class="meter">
+              <span>Budget</span><strong id="budget">$300</strong>
+            </div>
+            <div class="meter">
+              <span>Agents</span><strong id="agents">1</strong>
+            </div>
+            <div class="meter">
+              <span>Deadline</span><strong id="clock">90s</strong>
+            </div>
+          </div>
+          <div class="office-field">
+            <canvas
+              class="office-canvas"
+              id="game"
+              width="640"
+              height="400"
+              aria-label="Amigo’s office fills with agents, desks and meeting connections"
+            ></canvas>
+          </div>
+          <div class="progress-area">
+            <div class="progress-caption">
+              <span>THE ACTUAL TASK</span><strong id="progress">0%</strong>
+            </div>
+            <div class="progress-track"><i id="progressFill"></i></div>
+          </div>
+          <div class="workforce-controls">
+            <button class="arc-btn is-primary" id="hire">
+              + Agent · $12 [H]</button
+            ><button class="arc-btn" id="dismiss">− Agent [D]</button
+            ><button class="arc-btn" id="focus">Focus · $15 [C]</button>
+          </div>
+          <div class="arc-overlay" id="overlay">
+            <p class="arc-reason">
+              Ticket #001 · priority: apparently critical
+            </p>
+            <h2>Just One More Agent</h2>
+            <p>
+              Your task: fix one comma. Hire a small team, manage its chaos and
+              finish before time or money runs out. Hiring costs $12; every
+              agent also bills by the second. Equip tools, MCP, docs and skills
+              from the right panel. All money is fictional.
+            </p>
+            <p class="arc-hint" id="perkLine"></p>
+            <button class="arc-btn is-primary" id="start">
+              Start the shift
+            </button>
+            <p class="arc-hint">H hire · D dismiss · C cancel meetings</p>
+          </div>
+          <div class="arc-paused" id="paused" hidden>
+            <h3>Paused</h3>
+            <button class="arc-btn" id="resume">Resume</button>
+          </div>
+        </section>
+        <aside class="cabinet-sidebar">
+          <section class="side-panel provider-panel">
+            <h3>LLM provider <span>choose before run</span></h3>
+            <div class="providers">
+              <button data-provider="openai">OpenAI</button
+              ><button data-provider="anthropic">Anthropic</button
+              ><button data-provider="qwen">Qwen</button
+              ><button data-provider="deepseek">DeepSeek</button>
+            </div>
+            <p id="providerPerk"></p>
+            <p class="balance-note">Fictional arcade stats, no API calls.</p>
+          </section>
+          <section class="side-panel gear-panel">
+            <h3>Build your harness</h3>
+            <div class="gear-grid">
+              <button data-gear="tool">
+                <b>⌕ Web search</b><small>TOOL · $18 · +15% work</small></button
+              ><button data-gear="mcp">
+                <b>⇄ GitHub</b><small>MCP · $25 · faster focus</small></button
+              ><button data-gear="docs">
+                <b>▤ Company docs</b
+                ><small>CONTEXT · $16 · less chaos</small></button
+              ><button data-gear="skill">
+                <b>✦ Delegation</b><small>SKILL · $22 · less overhead</small>
+              </button>
+            </div>
+          </section>
+          <section class="side-panel overhead-panel">
+            <h3>Coordination overhead</h3>
+            <div class="progress-caption">
+              <span>CHAOS</span><strong id="chaos">0%</strong>
+            </div>
+            <div class="progress-track chaos"><i id="chaosFill"></i></div>
+            <p id="rate"></p>
+            <p id="meeting"></p>
+          </section>
+          <section class="side-panel report-panel">
+            <h3>Agent chat</h3>
+            <p class="dispatch" id="message" role="status"></p>
+            <p id="best"></p>
+          </section>
+        </aside>
+      </div>
+      <div class="cabinet-status">
+        <span id="activeLoadout"></span
+        ><span>P pause · R restart · F fullscreen</span>
+      </div>
+    </main>
+    <script src="arcade.js"></script>
+    <script src="game-engines.js"></script>
+    <script src="new-cabinets.js"></script>
+  </body>
+</html>

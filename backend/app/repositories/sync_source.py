@@ -66,6 +66,7 @@ async def create(
     organization_id: UUID,
     collection_name: str | None = None,
     secret_id: UUID | None = None,
+    organizational_unit: str | None = None,
     sync_mode: str = "new_only",
     schedule_minutes: int | None = None,
 ) -> SyncSource:
@@ -77,6 +78,7 @@ async def create(
         collection_name=collection_name,
         config=config,
         secret_id=secret_id,
+        organizational_unit=organizational_unit,
         sync_mode=sync_mode,
         schedule_minutes=schedule_minutes,
     )

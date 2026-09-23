@@ -1,6 +1,8 @@
 "use client";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { AvatarFace } from "@/components/ui/avatar-face";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
@@ -134,6 +136,10 @@ export function MessageItem({
 
   return (
     <div
+      // The anchor the turn rail scrolls to. On the row rather than on a wrapper
+      // of its own, so the rail lands on the top of the turn and not on a box
+      // drawn around it.
+      data-message-id={message.id}
       className={cn(
         "group relative flex gap-2 overflow-visible sm:gap-4",
         // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
@@ -187,14 +193,19 @@ export function MessageItem({
             className="h-full w-full object-cover"
             unoptimized
           />
+        ) : isUser && authUser ? (
+          <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
         ) : isUser ? (
+          // A signed-out reader of a shared transcript: there is no id to draw a
+          // face from, and a face drawn from nothing would be somebody else's.
           <User className="h-4 w-4" />
         ) : agent ? (
           <AgentAvatar
             agentId={agent.id}
-            name={agent.name}
+            slug={agent.slug}
             hasAvatar={agent.has_avatar}
             size="md"
+            thinking={Boolean(message.isStreaming)}
             className="h-full w-full border-0"
           />
         ) : (
@@ -388,14 +399,16 @@ function MessageBody({
 
   return (
     <>
+      {/* The stretch between asking and the first token, which is the one moment
+          in a turn with nothing else on screen to look at. A capsule rather than
+          a mark beside loose text: it is one object saying one thing, and it
+          holds its shape while the word inside it changes. */}
       {showPlaceholder && (
-        <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
-          <div className="flex gap-1" aria-hidden="true">
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
-          </div>
-          <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+        <div className="py-1" role="status" aria-live="polite">
+          <span className="bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full py-1 pr-3.5 pl-1.5">
+            <ThinkingOrb state="breathing" size={20} className="h-7 w-7" />
+            <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+          </span>
         </div>
       )}
 

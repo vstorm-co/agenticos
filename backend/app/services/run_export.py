@@ -404,7 +404,6 @@ def _applied_run_filters(
         "environment_id": filters.environment_id is not None,
         "exposure_id": filters.exposure_id is not None,
         "agent_version_id": filters.agent_version_id is not None,
-        "took_over_ms": filters.took_over_ms is not None,
         "rated": filters.rated is not None,
     }
     return sorted(name for name, present in named.items() if present)

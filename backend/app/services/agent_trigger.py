@@ -375,6 +375,7 @@ class AgentTriggerService:
         for trigger, agent in rows:
             read = TriggerRead.model_validate(trigger)
             read.agent_name = agent.name
+            read.agent_slug = agent.slug
             read.agent_has_avatar = agent.has_avatar
             read.agent_avatar_color = agent.avatar_color
             if agent.id not in can_run:

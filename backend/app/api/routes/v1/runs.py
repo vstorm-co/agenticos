@@ -84,9 +84,6 @@ async def list_runs(
     ),
     exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
     agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
-    took_over_ms: int | None = Query(
-        None, ge=0, description="Only runs slower than this. A run still going has no duration"
-    ),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
@@ -144,7 +141,6 @@ async def list_runs(
             environment_id=environment_id,
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
-            took_over_ms=took_over_ms,
             rated=rated,
         ),
         order_by=order_by,
@@ -184,7 +180,6 @@ async def export_runs(
     environment_id: UUID | None = Query(None),
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
-    took_over_ms: int | None = Query(None, ge=0),
     rated: RunRating | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
@@ -211,7 +206,6 @@ async def export_runs(
             environment_id=environment_id,
             exposure_id=exposure_id,
             agent_version_id=agent_version_id,
-            took_over_ms=took_over_ms,
             rated=rated,
         ),
     )
@@ -559,6 +553,7 @@ async def get_spend(
         by_agent=[
             CostByAgent(
                 agent_id=row.agent_id,
+                agent_slug=row.agent_slug,
                 agent_name=row.agent_name,
                 cost_usd=row.cost_usd,
                 run_count=row.run_count,

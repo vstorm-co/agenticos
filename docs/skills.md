@@ -178,19 +178,24 @@ library in as ordinary skills, owned by the organization's owner and visible to 
 organization.
 
 The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those three are not chosen — they arrive.
+matches the shipped library. Those three are not chosen — they arrive once, at
+creation.
 
-**And they stay there.** The catalog grows with deploys, so the listing tops itself
-up: a bundled skill the organization does not have yet is copied in the next time
-anyone opens the page, matched by name so an edited copy is left exactly as it is.
+**And they are yours from then on.** A seeded skill is an ordinary row: edit it,
+disable it, or delete it. Nothing puts a deleted one back.
 
-An organization created before a deployment gained a new bundled skill sees it on
-its next visit, rather than never.
+That is a change. The listing used to top itself up — copying in any bundled name
+the organization did not have, every time anyone opened the page — so a deleted
+built-in returned on the next visit and disabling was the only way to retire one.
+It also meant a page that wrote rows while it read. The gallery is where a skill
+is chosen, and the seed command below is how a deployment pushes a new bundled
+one out on purpose.
 
-!!! warning "Deleting a built-in brings it back on the next listing"
+!!! info "An organization created before a new bundled skill does not get it by itself"
 
-    The top-up treats an absent bundled name as a gap to close. **Disable** one to
-    retire it.
+    Run `seed-skills` for that organization, or install the skill from the
+    gallery. Both are deliberate, which is the point: nothing arrives on a page
+    load.
 
 The seed command does the same from a terminal, for scripted setups:
 
@@ -247,9 +252,9 @@ policy without a deploy, and a live link back to the repository's copy would tak
 exactly that away — the organization would be reading a file only an engineer can
 change.
 
-Editing is final in the ordinary way. Deleting is not, because the listing's top-up
-treats an absent bundled name as a gap to close, so a built-in the organization does
-not want is **disabled** — which every agent respects and nothing overwrites.
+Editing and deleting are both final in the ordinary way. Disabling is still there
+for a skill an organization wants to keep but not run — every agent respects it —
+but it is no longer the only way to be rid of a built-in.
 
 ### Why the library is bundled and not fetched
 

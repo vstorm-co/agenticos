@@ -267,10 +267,10 @@ class IngestionConfig(BaseModel):
         description="How long LiteParse may spend on one document.",
     )
     chunk_size: int = Field(
-        default=512, ge=64, le=8192, description="Characters per embedded chunk."
+        default=2500, ge=64, le=8192, description="Characters per embedded chunk."
     )
     chunk_overlap: int = Field(
-        default=50,
+        default=200,
         ge=0,
         le=4096,
         description="Characters each chunk repeats from the previous one.",

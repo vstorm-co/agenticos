@@ -59,6 +59,7 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -1890,31 +1891,26 @@ class TestWhatACollectionReportsItHolds:
         assert refreshed.status == DocumentStatus.PROCESSING
         assert refreshed.chunk_count != 4
 
-    async def test_a_notification_failure_does_not_undo_a_completed_ingestion(
-        self, db, monkeypatch
-    ) -> None:
-        """The recipient-resolution half of `ingestion_completed` runs
-        *before* `_center.write`'s own best-effort savepoint - a failure
-        there must not propagate out of a settlement that already recorded a
-        successfully vectorized document, or `_run_ingestion`'s own
-        `except Exception` marks it `ERROR` for a notification that has
-        nothing to do with whether ingestion succeeded."""
-        from app.services import notifications as notifications_module
+    async def test_a_document_that_indexed_cleanly_writes_no_notification(self, db) -> None:
+        """Success is not news, and this is the regression test for saying so.
 
-        tenant = await _tenant(db, name="NotifyFails")
+        There used to be one row per file - "'handbook.md' finished ingesting."
+        - which in the ordinary case (thirty files dropped into a collection at
+          once) was thirty interruptions that buried the rows worth reading. It
+        is gone. What reports an ordinary ingestion now is the document's own
+        status in the collection, and `sync_completed` for the whole-attempt
+        figure of a connector run; `ingestion_failed` still fires, which is the
+        half anybody actually needs told.
+        """
+        tenant = await _tenant(db, name="NotifyQuiet")
         collection = await _collection_with(
-            db, tenant, name="notify_fails", config=IngestionConfig()
+            db, tenant, name="notify_quiet", config=IngestionConfig()
         )
         doc = await _rag_document(
             db, collection_name=collection.collection_name, filename="handbook.md"
         )
         doc.status = DocumentStatus.PROCESSING
         await db.flush()
-
-        async def _boom(self, *_args, **_kwargs) -> None:
-            raise RuntimeError("audience resolution blew up")
-
-        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_completed", _boom)
 
         await RAGDocumentService(db).complete_ingestion(
             str(doc.id),
@@ -1928,6 +1924,27 @@ class TestWhatACollectionReportsItHolds:
         assert refreshed is not None
         assert refreshed.status == DocumentStatus.DONE
         assert refreshed.chunk_count == 4
+        # Scoped to the ingestion vocabulary rather than to every row: setting
+        # a tenant up writes a `security_event` of its own, and asserting on an
+        # empty table would be asserting on the fixture.
+        ingestion_rows = (
+            (
+                await db.execute(
+                    select(Notification).where(
+                        Notification.organization_id == tenant.organization.id,
+                        Notification.event_type.in_(
+                            [
+                                NotificationEventType.INGESTION_COMPLETED,
+                                NotificationEventType.INGESTION_FAILED,
+                            ]
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert ingestion_rows == []
 
     async def test_a_notification_failure_does_not_undo_a_failed_ingestion(
         self, db, monkeypatch

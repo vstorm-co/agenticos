@@ -159,6 +159,7 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
       </div>
 
       <FileEditor
+        initialMode="source"
         name={displayName(file.name, format)}
         content={content}
         canEdit={canEdit}

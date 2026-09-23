@@ -1,5 +1,5 @@
 ---
-source_sha: "56976ecc2c20"
+source_sha: "10bf6042e631"
 ---
 
 # Skills { #skills }
@@ -194,20 +194,25 @@ Owners der Organisation und für die Organisation sichtbar.
 
 Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
 Name zur mitgelieferten Bibliothek passt. Diese drei werden nicht gewählt — sie
-kommen an.
+kommen an, einmal, beim Anlegen.
 
-**Und sie bleiben da.** Der Katalog wächst mit den Deploys, deshalb füllt sich
-die Liste selbst auf: ein mitgelieferter Skill, den die Organisation noch nicht
-hat, wird beim nächsten Öffnen der Seite hineinkopiert, über den Namen
-zugeordnet, sodass eine bearbeitete Kopie genau so bleibt, wie sie ist.
+**Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
+Zeile: bearbeiten, deaktivieren oder löschen. Nichts holt einen gelöschten
+zurück.
 
-Eine Organisation, die angelegt wurde, bevor ein Deployment einen neuen
-mitgelieferten Skill bekam, sieht ihn bei ihrem nächsten Besuch, statt nie.
+Das ist eine Änderung. Die Liste füllte sich früher selbst auf — sie kopierte
+jeden mitgelieferten Namen hinein, den die Organisation nicht hatte, bei jedem
+Öffnen der Seite —, sodass ein gelöschter Built-in beim nächsten Besuch
+zurückkam und Deaktivieren der einzige Weg war, einen außer Dienst zu stellen.
+Es bedeutete außerdem eine Seite, die beim Lesen Zeilen schreibt. Die Galerie ist
+der Ort, an dem ein Skill gewählt wird, und der Seed-Befehl unten ist der Weg,
+auf dem ein Deployment einen neuen mitgelieferten Skill absichtlich ausrollt.
 
-!!! warning "Ein gelöschter Built-in kommt bei der nächsten Auflistung zurück"
+!!! info "Eine vor einem neuen mitgelieferten Skill angelegte Organisation bekommt ihn nicht von selbst"
 
-    Die Auffüllung behandelt einen fehlenden mitgelieferten Namen als Lücke, die
-    zu schließen ist. **Deaktivieren** Sie einen, um ihn außer Dienst zu stellen.
+    Führen Sie `seed-skills` für sie aus oder installieren Sie den Skill aus der
+    Galerie. Beides ist eine Entscheidung, und genau darum geht es: nichts kommt
+    beim Laden einer Seite an.
 
 Der Seed-Befehl tut dasselbe vom Terminal aus, für skriptgesteuerte Installationen:
 
@@ -268,10 +273,10 @@ Rückerstattungsregel ohne Deploy korrigieren kann, und eine lebende Verknüpfun
 zurück zur Kopie im Repository würde genau das wegnehmen — die Organisation würde
 eine Datei lesen, die nur ein Entwickler ändern kann.
 
-Bearbeiten ist auf gewöhnliche Weise endgültig. Löschen ist es nicht, denn die
-Auffüllung der Liste behandelt einen fehlenden mitgelieferten Namen als Lücke,
-die zu schließen ist; ein Built-in, den die Organisation nicht will, wird deshalb
-**deaktiviert** — was jeder Agent respektiert und nichts überschreibt.
+Bearbeiten und Löschen sind beide auf gewöhnliche Weise endgültig. Deaktivieren
+gibt es weiter für einen Skill, den eine Organisation behalten, aber nicht
+ausführen will — jeder Agent respektiert es —, es ist nur nicht mehr der einzige
+Weg, einen Built-in loszuwerden.
 
 ### Warum die Bibliothek mitgeliefert und nicht geholt wird { #why-the-library-is-bundled-and-not-fetched }
 

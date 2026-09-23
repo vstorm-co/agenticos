@@ -1,5 +1,5 @@
 ---
-source_sha: "7dfb1219d808"
+source_sha: "a40ae2358eec"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -300,6 +300,7 @@ Model bazodanowy `ChatFile` śledzi wgrane pliki:
 | `mime_type` | String | Rozpoznany (kanoniczny) typ MIME — `.tiff` z `application/octet-stream` jest zapisywany jako `image/tiff`, więc ścieżka pobierania i konwersji inline czyta jedno wiarygodne pole. Wiersze wgrane przed FA-013 zachowują swój zadeklarowany typ; czytelnicy tolerują oba. |
 | `size` | Integer | Rozmiar pliku w bajtach |
 | `storage_path` | String | Ścieżka względna w magazynie |
+| `organizational_unit` | Do której części organizacji należy ten dokument — z wgrania albo odziedziczone ze źródła synchronizacji. `null`, gdy nikt go nie przypisał |
 | `file_type` | String | Sklasyfikowany typ: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Wyciągnięta treść tekstowa (NULL dla obrazów) |
 | `message_id` | UUID/FK | Powiązany komunikat (ustawiany przy wysłaniu komunikatu) |
@@ -440,8 +441,8 @@ Per kolekcja, obok parsera:
 
 | Ustawienie | Domyślnie | Opis |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Maksymalna liczba znaków na chunk |
-| `chunk_overlap` | `50` | Liczba znaków zachodzenia; musi być mniejsza niż `chunk_size` |
+| `chunk_size` | `2500` | Maksymalna liczba znaków na chunk |
+| `chunk_overlap` | `200` | Liczba znaków zachodzenia; musi być mniejsza niż `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategia: `recursive`, `markdown`, `fixed` |
 
 **Porównanie strategii:**
@@ -497,7 +498,7 @@ wyrenderowany jako tekst — przy 3072 wymiarach to dziesiątki kilobajtów na w
 wartości.**
 
 Pole `ingestion` wysyłane per upload niesie wyłącznie to, co zmienia, więc
-`chunk_overlap: 4096` wysłane do kolekcji chunkującej po 512 to dwie z osobna
+`chunk_overlap: 4096` wysłane do kolekcji chunkującej po 2500 to dwie z osobna
 legalne liczby i jedna konfiguracja, która powtarza prawie wszystko, przez co
 przechodzi.
 
@@ -827,6 +828,31 @@ wspólną bazę, nie czytając siebie nawzajem.
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,
 bo ten wymiar jest tym, co napisali autorzy: zgadnięta wartość zwraca po cichu pustkę,
 co czyta się jako „nic na ten temat", a nie „nie ma takiej jednostki".
+
+### Skąd bierze się jednostka organizacyjna { #where-the-organizational-unit-comes-from }
+
+Zapisują ją dwa miejsca i nic poza nimi. **Źródło synchronizacji** niesie wartość
+domyślną, którą dziedziczy każdy dokument, jaki wnosi — współdzielony folder należy do
+działu, a nikt nie opisuje tysiąca zsynchronizowanych plików po jednym. **Wgranie**
+nazywa ją dla danego pliku, w ciele multipart obok `ingestion`, i trafia ona do wiersza
+samego dokumentu, a nie do parametrów przepływu, więc run zakolejkowany przed
+powstaniem tego pola nadal się wiąże. Konsola daje jedno i drugie: pole na ostatnim
+kroku kreatora synchronizacji oraz pole w *How the next uploads are read and filed*,
+które obowiązuje dla każdego kolejnego pliku, dopóki nie zostanie wyczyszczone.
+
+To celowo swobodny tekst. Słownik jest taki, jakiego okazuje się używać korpus danego
+wdrożenia, a `filter-values` zgłasza to, co kolekcja faktycznie zawiera — zamknięta
+lista musiałaby powstać, zanim pierwszy dokument dałoby się gdziekolwiek przypisać.
+Pusta wartość nie jest wartością: zapisuje się jako *brak jednostki*, więc faseta nigdy
+nie zaproponuje jednostki o nazwie `""`.
+
+**Nic nie jest uzupełniane wstecz.** Dokument zaindeksowany, zanim jego źródło lub
+osoba wgrywająca nazwały jednostkę, nie niesie żadnej, a żadna reguła nie rozstrzygnie,
+do której powinien należeć. Taki dokument jest wykluczany przez dowolny filtr na tym
+wymiarze — fragmenty zawodzą domyślnie na „nie" — dopóki nie zostanie zaindeksowany
+ponownie. Do [#1777](https://github.com/vstorm-co/agenticos/issues/1777) nic nie
+zapisywało tego pola, więc filtr nie pasował do niczego, a `filter-values` odpowiadało
+pustą listą dla każdej kolekcji w każdym wdrożeniu.
 
 !!! warning "Stary string `filter` jest przestarzały"
 

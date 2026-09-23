@@ -154,7 +154,6 @@ export const qk = {
         startedTo?: string;
         orderBy?: string;
         descending?: boolean;
-        tookOverMs?: number;
         rated?: string;
         statuses?: string[];
         surface?: string;
@@ -173,7 +172,6 @@ export const qk = {
         opts.startedTo ?? "no-end",
         opts.orderBy ?? "started_at",
         opts.descending ?? true,
-        opts.tookOverMs ?? "no-min",
         opts.rated ?? "any-rating",
         opts.statuses?.join(",") ?? "any-status",
         opts.surface ?? "any-surface",
