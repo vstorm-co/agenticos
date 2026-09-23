@@ -57,6 +57,10 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        // The workflow editor's client-side validation mirror (#1787): pure TS
+        // over the in-memory graph, held to the gate the way the agents
+        // components above are.
+        "src/components/workflows/validation/**/*.{ts,tsx}",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
