@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.messages import ModelMessage
 
 from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
+from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
@@ -445,6 +446,7 @@ class AgentSession:
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
                     on_compaction=self._compaction_event,
+                    browser_events=self._browser_event,
                     on_personal_gaps=self._personal_gaps_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
@@ -713,6 +715,28 @@ class AgentSession:
         """
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
+
+    async def _browser_event(self, event: BrowserEvent) -> bool:
+        """Forward one frame from a browse in progress, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind`, for the reason
+        :meth:`_subagent_event` gives.
+
+        A `browser_frame` carries a JPEG as a data URL and is the largest thing
+        this socket sends. It is still sent one frame at a time and awaited, which
+        is deliberate back-pressure: a socket that cannot keep up slows the browse
+        rather than growing a queue of screenshots behind it.
+
+        **The answer is returned rather than discarded.** `send_event` reports
+        `False` on a closed socket instead of raising, and a detached turn keeps
+        running on purpose - so a browse whose reader closed the tab would go on
+        capturing and encoding a picture per step for nobody. Handing the `False`
+        back is what lets the loop stop taking them and carry on browsing.
+
+        Returns:
+            Whether the frame reached the client.
+        """
+        return await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.

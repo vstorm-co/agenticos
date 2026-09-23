@@ -1,5 +1,5 @@
 ---
-source_sha: "a3f754bf06f0"
+source_sha: "8a07df7f3be0"
 ---
 
 # Konfiguracja { #configuration }
@@ -57,6 +57,8 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation-choose) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosty, na których może działać model decyzyjny przeglądającego agenta, poza endpointem dostawcy. `decision_base_url` pochodzi ze speca agenta, a klucz z vaulta jest odszyfrowywany do nagłówka żądania pod wskazany adres — więc bez allowlisty autor, który może *podpiąć* współdzielony klucz TypeSafe (podpięcie to nie odczyt, a API nigdy nie zwraca wartości), mógłby wycelować go we własny serwer i go przechwycić. Zatwierdzanie nie pomaga: ten sam autor publikuje powiązanie. Pusta wartość dopuszcza wyłącznie endpoint dostawcy i jest domyślna. Zobacz [sekrety](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Jak długo może trwać pojedyncza konwersja DOC na tekst przez LibreOffice, zanim zostanie zabita. Znacznie poniżej 600s bazy wiedzy, bo to interaktywny upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Ile konwersji LibreOffice może działać naraz. Podproces omija `FILE_IO_MAX_WORKERS`, więc jest ograniczany osobno |
@@ -256,6 +258,17 @@ BSD-3-Clause, a nie samego Redisa, który od 7.4.0 jest na RSALv2 albo SSPL-1.0 
 protokołem na tym samym porcie, więc ustawienia poniżej, schemat `redis://` i nazwa
 usługi `redis` pozostają bez zmian, a wdrożenie, które skieruje je zamiast tego na
 zarządzanego Redisa, Valkey albo Elasticache, działa dokładnie tak jak wcześniej.
+
+Jest uruchamiany jako cache i nic więcej: `--save ''`, bez wolumenu, więc po każdym
+restarcie startuje pusty. Wszystko, co platforma tu trzyma — kubełki limitów,
+znaczniki deduplikacji kanałów, odpowiedzi o członkostwie — ma TTL i odtwarza się
+samo.
+
+Snapshot nie dawał nic, a kosztował jedną awarię: Valkey 8 jest forkiem
+Redisa 7.2 i odmawia wczytania RDB zapisanego przez Redisa 7.4, więc pierwsze
+wdrożenie na hoście, na którym działał `redis:7-alpine`, wpadło w pętlę restartów i
+zabrało ze sobą każdą usługę czekającą na cache. Zarządzana instancja, która jednak
+utrwala dane, jest w porządku; platforma tak czy inaczej na tym nie polega.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

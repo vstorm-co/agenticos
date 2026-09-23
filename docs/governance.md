@@ -630,7 +630,6 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
-| `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
 | `rated` | `down` or `up` — runs where somebody rated a message the run produced |
 | `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
 
@@ -695,10 +694,6 @@ Activity surfaces that duration three ways, and all three lead to the same query
 - The **Took** column header is a sort control — like the Started header beside it,
   and like every sortable header in the product — so a click reorders history by
   `duration` rather than by the twenty-five rows on screen.
-- A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold (30s)
-  as one click. **"All runs"** drops both, back to newest-first — within whatever
-  window is in view, since the window is a separate axis the p95 link and the date
-  range set.
 - The dashboard's **p95 figure links here**, sorted by duration over the same
   window: `?sort=duration` with the period's `started_from` / `started_to`.
 
@@ -1152,9 +1147,19 @@ Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round. The same page also carries every other
 event the inbox delivers: a run finishing or failing unattended, a document's
-ingestion completing or failing, and an app admin's own broadcast - `POST
-/admin/announcements`, not yet a console page - addressed by organization
-and, optionally, role, and restricted to one or both channels.
+ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+admin's own broadcast - `POST /admin/announcements`, not yet a console page -
+addressed by organization and, optionally, role, and restricted to one or both
+channels.
+
+A document that indexed cleanly writes nothing, and that is deliberate. It used
+to write a row each, which in the ordinary case - a folder of files added at
+once - meant a notification per file saying nothing had gone wrong, burying the
+ones that needed reading. Where an ordinary ingestion is reported now is the
+document's own status in its collection, and, for a connector run, the single
+line `sync_completed` writes when the whole attempt finishes. Failure still
+reaches whoever uploaded the file, or the organization's administrators when
+nobody did.
 
 The one exception is the weekly and monthly usage reports configured on the
 agent, below: both share a single legacy email preference, so turning one
@@ -1170,18 +1175,29 @@ documents: it is the same inbox the agent-configured alerts above land in, and
 the opt-out rule below still applies to everything that can be turned off.
 
 Not unbounded, though: each is capped at twenty writes a minute per actor and
-event type, so one account making rapid changes has the rest silently dropped
-rather than flooding every admin - the audit entry behind each one is
-recorded regardless, on the trail itself ([Audit](#audit)), whether or not the
-notification survived the limit.
+event type, so one account making rapid changes cannot flood every admin - the
+audit entry behind each one is recorded regardless, on the trail itself
+([Audit](#audit)), whether or not the notification survived the limit.
+
+Past that cap the inbox does not simply go quiet. One notice per actor per
+minute takes the place of the rest, saying the minute was busier than the inbox
+lists and that every one of those events is on the trail. That matters because
+these two cannot be turned off: an actor could otherwise spend the allowance on
+twenty harmless edits and then do the one thing worth watching for, and nothing
+would say so. The notice carries no count - counting would mean rewriting it on
+every further event, which is the flood the cap exists to prevent.
 
 A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from
 when the row was written, never from when it was read, so a row opened the day
 before its outer bound ages out with every other row that old. A background
-sweep, not something a person triggers - and the email sweep will not send a
-row it has already passed, so a worker recovering from a long outage cannot
-mail out a notification on its way to being deleted.
+sweep, not something a person triggers. The email sweep will not send a row it
+has already passed, so a worker recovering from a long outage cannot mail out a
+notification on its way to being deleted.
+
+[Clearing](console.md#the-bell) is the other thing, and not the same one: a
+person takes a row out of their own list immediately, and the row itself is kept
+until this sweep reaches it.
 
 What survives past that depends on what the notice was about. A security event,
 a configuration change and an admin's own broadcast begin as an audit entry, and

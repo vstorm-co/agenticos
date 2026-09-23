@@ -44,10 +44,7 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
   if (dismissed) return null;
 
   return (
-    <div
-      role="status"
-      className="border-border bg-card/95 rounded-2xl border p-3 shadow-sm backdrop-blur"
-    >
+    <div role="status" className="border-border bg-card rounded-2xl border p-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="text-muted-foreground text-xs leading-relaxed">{t("intro")}</p>
         <button

@@ -95,6 +95,14 @@ export interface SyncSourceCreate {
    * field names this replaced (#937).
    */
   secret_id?: string | null;
+  /**
+   * Which part of the organization this source's documents belong to.
+   *
+   * A per-source default stamped on every chunk it ingests, so retrieval can
+   * narrow on it. Free text, and blank means none - nobody labels a thousand
+   * synced files one at a time (#1777).
+   */
+  organizational_unit?: string | null;
   sync_mode?: string;
   schedule_minutes?: number | null;
 }
@@ -111,6 +119,8 @@ export interface SyncSourceRead {
   secret_id: string | null;
   /** The vault's four-character hint, so a reader can tell which credential. */
   secret_hint?: string | null;
+  /** The per-source default stamped on every chunk this source ingests (#1777). */
+  organizational_unit: string | null;
   sync_mode: string;
   schedule_minutes: number | null;
   is_active: boolean;

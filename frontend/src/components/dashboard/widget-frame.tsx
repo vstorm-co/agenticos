@@ -64,15 +64,18 @@ export function WidgetFrame({
   const t = useTranslations("dashboard");
   return (
     <Card
+      // `group` so a body can answer the pointer over the whole card rather
+      // than only over itself - `WidgetEmptyBody` brightens on it, which is how
+      // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
         className,
       )}
     >
       {/* The rule under the heading is the card's own edge tone, not the page's
           border: on a translucent surface `border-border` is a hard grey line
-          drawn across frosted glass. */}
+          drawn across a panel. */}
       <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>

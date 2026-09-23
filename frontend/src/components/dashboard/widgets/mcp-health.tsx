@@ -6,6 +6,8 @@ import { useOrgMcpConnections } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
+import { Plug } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -27,7 +29,11 @@ export function McpHealthWidget({ title, hint, seeAll, options }: DashboardWidge
       ) : error ? (
         <WidgetErrorBody onRetry={() => void refresh()} />
       ) : connections.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Plug}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <StatusList
           rows={connections.map((connection) => ({

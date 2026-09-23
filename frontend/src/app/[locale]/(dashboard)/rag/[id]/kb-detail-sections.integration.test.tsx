@@ -91,6 +91,7 @@ const DOC: KBDocument = {
   image_description_model: null,
   embedding_model: "text-embedding-3-large",
   was_overridden: false,
+  organizational_unit: null,
 };
 
 /**

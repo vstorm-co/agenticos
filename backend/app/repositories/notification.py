@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import datetime
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,6 +162,7 @@ async def list_inbox_page(
     conditions = [
         Notification.recipient_user_id == recipient_id,
         Notification.in_app_visible.is_(True),
+        Notification.dismissed_at.is_(None),
     ]
     if not is_app_admin:
         conditions.append(
@@ -193,14 +194,21 @@ async def list_unread(
     recipient_id: uuid.UUID,
     organization_id: uuid.UUID,
     is_app_admin: bool = False,
+    after: tuple[datetime, uuid.UUID] | None = None,
     cap: int,
 ) -> list[Notification]:
-    """Candidate unread rows, newest first, up to `cap`.
+    """One batch of candidate unread rows, newest first, up to `cap`.
 
     The unread badge and mark-all-read both need the gate-aware predicate
     (Decision 7), which cannot be expressed as a plain `COUNT`/`UPDATE` - each
-    candidate row is re-checked in the service layer. `cap` bounds that work
-    for an account with an unbounded backlog.
+    candidate row is re-checked in the service layer. `cap` bounds one batch of
+    that work; `after` is what lets the caller walk past it.
+
+    The cursor matters for the same reason it does in `list_inbox_page`: a
+    recipient demoted out of an audience keeps every row addressed to them,
+    unread and invisible, sitting *newer* than what they can still see. A
+    caller that only ever asked for the first `cap` rows would count and mark
+    nothing but those, however many times it asked.
 
     `is_app_admin` - see `list_inbox_page`'s own note on the same parameter.
     """
@@ -208,12 +216,21 @@ async def list_unread(
         Notification.recipient_user_id == recipient_id,
         Notification.in_app_visible.is_(True),
         Notification.read_at.is_(None),
+        Notification.dismissed_at.is_(None),
     ]
     if not is_app_admin:
         conditions.append(
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
+            )
+        )
+    if after is not None:
+        after_created_at, after_id = after
+        conditions.append(
+            or_(
+                Notification.created_at < after_created_at,
+                and_(Notification.created_at == after_created_at, Notification.id < after_id),
             )
         )
     result = await db.execute(
@@ -240,6 +257,7 @@ async def get_own(
         Notification.id == notification_id,
         Notification.recipient_user_id == recipient_id,
         Notification.in_app_visible.is_(True),
+        Notification.dismissed_at.is_(None),
     ]
     if not is_app_admin:
         conditions.append(
@@ -267,6 +285,48 @@ async def mark_ids_read(db: AsyncSession, *, ids: list[uuid.UUID], read_at: date
         update(Notification)
         .where(Notification.id.in_(ids), Notification.read_at.is_(None))
         .values(read_at=read_at)
+    )
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def dismiss(
+    db: AsyncSession, notification: Notification, *, dismissed_at: datetime
+) -> Notification:
+    """Clear one row out of its recipient's inbox, keeping the row.
+
+    Not a delete: this table is its own dedup anchor, so the row a producer
+    would re-insert is this one - see `Notification.dismissed_at`. Marked read
+    at the same moment, because a row nobody will see again cannot go on
+    counting towards a badge, and a caller that dismissed an unread row has
+    said as much about it as reading it would have.
+    """
+    notification.dismissed_at = dismissed_at
+    if notification.read_at is None:
+        notification.read_at = dismissed_at
+    await db.flush()
+    await db.refresh(notification)
+    return notification
+
+
+async def dismiss_ids(db: AsyncSession, *, ids: list[uuid.UUID], dismissed_at: datetime) -> int:
+    """Dismiss several rows at once, skipping any already dismissed.
+
+    The same `ids`-rather-than-a-predicate shape `mark_ids_read` takes, and for
+    the same reason: which rows a caller may see is decided by the gate-aware
+    check in the service layer (Decision 7), which no single `UPDATE ... WHERE`
+    can express.
+    """
+    if not ids:
+        return 0
+    result = await db.execute(
+        update(Notification)
+        .where(Notification.id.in_(ids), Notification.dismissed_at.is_(None))
+        .values(
+            dismissed_at=dismissed_at,
+            read_at=case(
+                (Notification.read_at.is_(None), dismissed_at), else_=Notification.read_at
+            ),
+        )
     )
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 

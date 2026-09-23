@@ -1,5 +1,5 @@
 ---
-source_sha: "bae923cc49fd"
+source_sha: "0a114c39ffdb"
 ---
 
 # Governance { #governance }
@@ -664,7 +664,6 @@ anónimo de entrada.
 | `environment_id` | Runs sobre la versión que fija ese entorno. **Nunca un run delegado:** la versión de un delegado viene de un pin, así que la columna deliberadamente no se escribe nunca en uno, y acotar a `production` descarta cada delegación. Una superficie que incluya delegaciones tiene que decirlo |
 | `exposure_id` | Runs admitidos por un binding. Nulo para el dashboard y la API |
 | `agent_version_id` | Runs que ejecutaron un spec congelado — el "enséñame las filas detrás de este número" de la tira de versiones |
-| `took_over_ms` | Solo runs más lentos que esto. Un run que no ha terminado no tiene duración y queda excluido, no contado como cero |
 | `rated` | `down` o `up` — runs en los que alguien valoró un mensaje que produjo el run |
 | `order_by`, `descending` | `started_at` (el valor por defecto, más recientes primero), `duration`, `cost` o `tokens` |
 
@@ -733,10 +732,6 @@ Activity saca esa duración de tres maneras, y las tres llevan a la misma consul
 - La cabecera de la columna **Took** es un control de orden — como la cabecera Started
   a su lado, y como cada cabecera ordenable del producto — así que un clic reordena el
   historial por `duration` y no por las veinticinco filas en pantalla.
-- Una vista predefinida de **"slow runs"** es ese orden más un umbral `took_over_ms`
-  (30 s) en un solo clic. **"All runs"** quita ambos, de vuelta a más recientes
-  primero — dentro de la ventana que esté a la vista, ya que la ventana es un eje
-  aparte que fijan el enlace del p95 y el rango de fechas.
 - La cifra **p95 del dashboard enlaza aquí**, ordenada por duración sobre la misma
   ventana: `?sort=duration` con el `started_from` / `started_to` del periodo.
 
@@ -1212,10 +1207,21 @@ Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés. La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que se completa o falla, y el propio
+desatendido, la ingesta de un documento que **falla**, la cifra propia de un
+ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
+escribía una fila cada uno, lo que en el caso corriente — una carpeta de
+archivos añadidos de golpe — significaba una notificación por archivo diciendo
+que nada había ido mal, sepultando las que sí había que leer. Donde se informa
+ahora de una ingesta corriente es en el propio estado del documento dentro de
+su colección y, para un ciclo de conector, en la única línea que escribe
+`sync_completed` cuando termina el intento entero. El fallo sigue llegando a
+quien subió el archivo, o a los administradores de la organización cuando no lo
+subió nadie.
 
 La única excepción son los informes de uso semanales y mensuales configurados
 en el agent, más abajo: ambos comparten una única preferencia de correo
@@ -1233,19 +1239,32 @@ arriba, y la regla de exclusión de abajo se sigue aplicando a todo lo que se
 puede apagar.
 
 Pero no sin límite: cada uno está limitado a veinte escrituras por minuto por
-actor y tipo de evento, así que una cuenta que hace cambios rápidos ve el
-resto descartado en silencio, en lugar de inundar a cada admin — la entrada
-de audit detrás de cada uno se registra de todos modos, en el propio trail
-([Audit](#audit)), sin importar si la notificación sobrevivió al límite.
+actor y tipo de evento, así que una cuenta que hace cambios rápidos no puede
+inundar a cada admin — la entrada de audit detrás de cada uno se registra de
+todos modos, en el propio trail ([Audit](#audit)), sin importar si la
+notificación sobrevivió al límite.
+
+Pasado ese tope la bandeja no se queda callada. En lugar del resto llega un
+aviso por actor y por minuto, que dice que el minuto ha tenido más movimiento
+del que la bandeja puede listar y que todos esos eventos están en el trail. Eso
+importa porque estos dos no se pueden desactivar: un actor podría gastar el
+margen en veinte ediciones inofensivas y hacer después lo único que merece la
+pena vigilar, sin que nada lo dijera. El aviso no lleva un recuento — contar
+significaría reescribirlo en cada evento posterior, que es justo la inundación
+que el tope existe para evitar.
 
 Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre
 desde que se escribió, nunca desde que se leyó, así que una fila abierta el
 día antes de su límite superior desaparece junto con cualquier otra de esa
-edad. Un barrido en segundo plano, no algo que dispare una persona — y el
-barrido de correo no envía una fila que ya lo haya superado, así que un worker
-que se recupera de una caída larga no puede mandar una notificación camino de
-su borrado.
+edad. Un barrido en segundo plano, no algo que dispare una persona. El barrido
+de correo no envía una fila que ya lo haya superado, así que un worker que se
+recupera de una caída larga no puede mandar una notificación camino de su
+borrado.
+
+[Limpiar](console.md#the-bell) es lo otro, y no lo mismo: una persona saca una
+fila de su propia lista al instante, y la fila en sí se conserva hasta que este
+barrido llega a ella.
 
 Lo que sobrevive a eso depende de sobre qué era el aviso. Un evento de
 seguridad, un cambio de configuración y el anuncio propio de un admin empiezan

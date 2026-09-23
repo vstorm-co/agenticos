@@ -1,5 +1,5 @@
 ---
-source_sha: "a3f754bf06f0"
+source_sha: "8a07df7f3be0"
 ---
 
 # Configuración { #configuration }
@@ -59,6 +59,8 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Lo que puede enviar una llamada a los [servicios de ML](ml-services.md) — un documento a parsear, un escaneo a reconocer, una grabación a transcribir. Un ajuste propio porque los bytes se parsean o se mandan a un motor dentro de una petición en vez de escribirse a disco, así que el techo trata de lo que puede ocupar una sola llamada síncrona. Está en los 25 MB del cliente de transcripción, el menor techo de motor detrás de esa superficie |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Cuántos documentos parsea a la vez un worker para los [servicios de ML](ml-services.md). Un límite de tasa cuenta arranques y no ve lo que sigue en marcha, así que sin esto la asignación de un minuto de llamadas OCR son otros tantos reconocimientos en vuelo. Por encima, el llamante recibe un rechazo con `Retry-After` en lugar de una cola |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la misma forma para la que existe `MEM0_ALLOWED_HOSTS`, y la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones *públicas*, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation-choose) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
+| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts en los que puede ejecutarse el modelo de decisión de un agent que navega, más allá del endpoint del proveedor. `decision_base_url` viene del spec de un agent y la clave del vault se desprecinta en una cabecera de petición hacia lo que ese campo nombre, así que sin lista de permitidos un autor que puede *vincular* una clave TypeSafe compartida (vincular no es leer, y la API nunca devuelve el valor) podría apuntarla a un servidor propio y recogerla. La aprobación no ayuda: el mismo autor publica el vínculo. Vacío permite solo el endpoint del proveedor y es lo de partida. Ver [secretos](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Cuántas conversiones de LibreOffice pueden ejecutarse a la vez. El subproceso evita `FILE_IO_MAX_WORKERS`, así que se acota por separado |
@@ -263,6 +265,17 @@ RSALv2 o SSPL-1.0 — ninguna de las dos es una licencia de código abierto
 los ajustes de abajo, el esquema `redis://` y el nombre de servicio `redis` no
 cambian, y un despliegue que en su lugar apunte todo esto a un Redis, un Valkey o
 un Elasticache gestionados funciona exactamente igual que antes.
+
+Se ejecuta como caché y nada más: `--save ''`, sin volumen, así que arranca vacío
+tras cada reinicio. Todo lo que la plataforma guarda aquí — buckets del límite de
+peticiones, marcas de deduplicación de los canales, respuestas de pertenencia —
+lleva un TTL y se reconstruye solo.
+
+Un snapshot no aportaba nada y costó una caída: Valkey 8 es un fork de Redis 7.2 y
+rechaza un RDB escrito por Redis 7.4, así que el primer despliegue sobre un host
+donde había corrido `redis:7-alpine` entró en un bucle de reinicios y se llevó por
+delante cada servicio que espera a la caché. Una instancia gestionada que sí
+persista no es ningún problema; la plataforma no depende de ello en ningún caso.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|

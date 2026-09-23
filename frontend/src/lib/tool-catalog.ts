@@ -135,6 +135,16 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // browser_choice - a whole browse. The step card stays generic because the live
+  // view is its own panel beside the transcript: a frame per step folded into the
+  // message list would rewrite the transcript thirty times over.
+  browse_page: {
+    kind: "web",
+    render: "generic",
+    captionKey: "workingThroughPage",
+    displayNameKey: "browsePage",
+  },
+
   // browser_use - one autonomous browsing step; what comes back is a text result, so
   // the generic renderer, not a browser view.
   browse_web: {

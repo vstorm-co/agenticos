@@ -3,9 +3,23 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
+
+
+def blank_is_absent(value: str | None) -> str | None:
+    """An all-whitespace organizational unit means there is none.
+
+    The values reach a chunk's metadata and the facet endpoint reports the
+    distinct ones a collection holds, so an empty string would be an
+    organizational unit named "" - offered in the filter, matching only the
+    documents whose field was left blank. Clearing the field in the form sends
+    `""` rather than omitting the key, and this is what makes that a clear
+    rather than a value. Shared with the upload routes, whose multipart field
+    is not a schema and so arrives untrimmed (#1777).
+    """
+    return (value or "").strip() or None
 
 
 class ConnectorInfo(BaseSchema):
@@ -41,6 +55,12 @@ class SyncSourceCreate(BaseSchema):
     before its credential exists, and a sync then refuses rather than running on
     nothing. What it may *not* carry is the credential itself - see
     `SyncSourceService.create_source`, which refuses a config holding one (#937).
+
+    `organizational_unit` is a per-source default stamped on every chunk this
+    source ingests, so a retrieval can narrow on the part of the organization a
+    document belongs to (FA-039). Free text, trimmed; the facet endpoint reports
+    the distinct values a collection actually holds, which is the vocabulary
+    rather than a list somebody has to maintain first (#1777).
     """
 
     name: str
@@ -48,8 +68,11 @@ class SyncSourceCreate(BaseSchema):
     collection_name: str | None = None
     config: dict[str, object]
     secret_id: UUID | None = None
+    organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str = "new_only"
     schedule_minutes: int | None = None
+
+    _unit_blank_is_absent = field_validator("organizational_unit")(blank_is_absent)
 
 
 class SyncSourceClone(BaseSchema):
@@ -65,10 +88,13 @@ class SyncSourceUpdate(BaseSchema):
     name: str | None = None
     config: dict[str, object] | None = None
     secret_id: UUID | None = None
+    organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str | None = None
     schedule_minutes: int | None = None
     is_active: bool | None = None
     collection_name: str | None = None
+
+    _unit_blank_is_absent = field_validator("organizational_unit")(blank_is_absent)
 
 
 class SyncSourceRead(BaseSchema):
@@ -88,6 +114,7 @@ class SyncSourceRead(BaseSchema):
     config: dict[str, object]
     secret_id: str | None
     secret_hint: str | None = None
+    organizational_unit: str | None = None
     sync_mode: str
     schedule_minutes: int | None
     is_active: bool

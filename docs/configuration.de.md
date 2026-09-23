@@ -1,5 +1,5 @@
 ---
-source_sha: "a3f754bf06f0"
+source_sha: "8a07df7f3be0"
 ---
 
 # Konfiguration { #configuration }
@@ -58,6 +58,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Was ein Aufruf der [ML-Dienste](ml-services.md) einreichen darf — ein Dokument zum Parsen, einen Scan zum Erkennen, eine Aufnahme zum Transkribieren. Eine eigene Einstellung, weil die Bytes innerhalb einer Anfrage geparst oder an eine Engine geschickt statt abgelegt werden, die Grenze also davon handelt, was ein einzelner synchroner Aufruf belegen darf. Sie liegt bei den 25 MB des Transkriptionsclients, der kleinsten Engine-Grenze hinter dieser Oberfläche |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation-choose) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts, auf denen das Entscheidungsmodell eines browsenden Agents laufen darf, über den Endpunkt des Anbieters hinaus. `decision_base_url` kommt aus dem Spec eines Agents, und der Vault-Key wird entsiegelt in einen Request-Header an die genannte Adresse gelegt - ohne Allowlist könnte also ein Autor, der einen geteilten TypeSafe-Key *binden* darf (Binden ist nicht Lesen, und die API gibt den Wert nie zurück), ihn auf einen eigenen Server richten und abgreifen. Eine Freigabe hilft nicht: Derselbe Autor veröffentlicht die Bindung. Leer lässt nur den Endpunkt des Anbieters zu und ist die Voreinstellung. Siehe [Secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Wie lange eine einzelne DOC-zu-Text-Konvertierung durch LibreOffice laufen darf, bevor sie gekillt wird. Weit unter den 600s der Wissensdatenbank, weil dies ein interaktiver Upload ist |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Wie viele LibreOffice-Konvertierungen gleichzeitig laufen dürfen. Der Subprozess umgeht `FILE_IO_MAX_WORKERS`, daher wird er hier getrennt begrenzt |
@@ -266,6 +268,18 @@ RSALv2 oder SSPL-1.0 steht - keine von beiden ist eine Open-Source-Lizenz
 sodass die Einstellungen unten, das `redis://`-Schema und der Dienstname `redis`
 unverändert bleiben, und ein Deployment, das diese stattdessen auf ein verwaltetes
 Redis, Valkey oder Elasticache richtet, funktioniert genau wie zuvor.
+
+Es läuft als Cache und sonst nichts: `--save ''`, kein Volume, also startet es nach
+jedem Neustart leer. Alles, was die Plattform hier ablegt - Rate-Limit-Buckets,
+Dedupe-Claims der Kanäle, Mitgliedschaftsantworten - trägt eine TTL und baut sich
+selbst wieder auf.
+
+Ein Snapshot brachte nichts und kostete einen Ausfall: Valkey 8
+ist ein Fork von Redis 7.2 und verweigert eine von Redis 7.4 geschriebene RDB, also
+geriet das erste Deployment auf einen Host, auf dem `redis:7-alpine` gelaufen war,
+in eine Crash-Loop und nahm jeden Dienst mit, der auf den Cache wartet. Eine
+verwaltete Instanz, die doch persistiert, ist in Ordnung; die Plattform verlässt
+sich so oder so nicht darauf.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

@@ -20,11 +20,27 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
+# Optional extras to build into this image, as `uv sync` flags - empty by
+# default, so a plain build is exactly what it was.
+#
+# It exists because the capability documentation tells an operator to install
+# `agenticos[browser]` and, until this argument, nothing in the build honoured
+# that: the image was `--no-dev` with no extras, so there was no supported way to
+# get the engine in and a bound agent failed its one tool with an install line
+# nobody could act on. `browser_use` has had the same gap since it shipped.
+#
+#   docker build --build-arg EXTRAS="--extra browser" ...
+#
+# Not a default, and not a list this file decides: an extra is a dependency tree
+# and a licence obligation, so which ones a deployment carries is the operator's
+# choice, made where they build.
+ARG EXTRAS=""
+
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+    uv sync --frozen --no-install-project --no-dev ${EXTRAS}
 
 # Copy application
 COPY backend /app
@@ -32,7 +48,7 @@ COPY emails /app/emails
 
 # Install project
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev ${EXTRAS}
 
 
 # Runtime stage

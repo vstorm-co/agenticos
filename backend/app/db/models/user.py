@@ -30,6 +30,20 @@ class User(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    # An address asked for and not yet proved. Every mail this deployment sends
+    # goes to `email` - a reset link, an invitation, a budget alert - so a
+    # self-service change that wrote straight to that column pointed all of it at
+    # an address nobody had shown they could read (#1772). The request stages here
+    # instead; confirming the link sent to it moves the value across and clears
+    # this, which is also what makes the link single-use.
+    #
+    # Deliberately not unique: two people may stage the same address, and only
+    # the first to confirm gets it - the unique constraint on `email` is where
+    # that is decided, at the moment it is decided. A constraint here would
+    # instead refuse the second *request*, which leaks that somebody else is
+    # mid-change to an address, and strands the winner behind the loser's
+    # abandoned staging.
+    pending_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Bumped on every password change; a refresh token carries the version it was
     # minted with, and the refresh path refuses one that is behind. That is what

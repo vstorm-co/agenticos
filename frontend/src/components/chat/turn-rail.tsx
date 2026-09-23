@@ -169,7 +169,7 @@ export function TurnRail({ entries, className }: TurnRailProps) {
             {hovered === index && (
               // Opening away from the edge the rail is pinned to, which is the
               // only side with room for it.
-              <span className="bg-popover/95 text-popover-foreground border-border/60 absolute left-6 z-10 flex w-72 items-start gap-2.5 rounded-2xl border p-2.5 shadow-xl backdrop-blur-sm">
+              <span className="bg-popover text-popover-foreground border-border absolute left-6 z-10 flex w-72 items-start gap-2.5 rounded-2xl border p-2.5 shadow-xl">
                 {entry.agentId !== undefined ? (
                   <AgentAvatar
                     agentId={entry.agentId}

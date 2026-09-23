@@ -915,9 +915,11 @@ class TestConcurrentSelfDeletes:
             return await real(db, **kwargs) if calls == 1 else latecomer_id
 
         async with factory() as session:
-            with patch.object(member_repo, "other_owner_id", moving_target):
-                with pytest.raises(BadRequestError) as refused:
-                    await UserService(session).delete(owner_id)
+            with (
+                patch.object(member_repo, "other_owner_id", moving_target),
+                pytest.raises(BadRequestError) as refused,
+            ):
+                await UserService(session).delete(owner_id)
 
         assert "changed while" in refused.value.message
 

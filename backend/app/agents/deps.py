@@ -19,6 +19,7 @@ from uuid import UUID
 
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.audience import RunAudience
+from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEventSink
 
@@ -84,6 +85,11 @@ class AgentDeps:
     # refused - it is a progress report, not a permission.
     on_compaction: CompactionSink | None = None
 
+    # Set when the surface can show a browse while it is happening. None
+    # everywhere else, and the browse then runs unnarrated - the frames are a
+    # progress report, not a permission, exactly as `on_compaction` is.
+    browser_events: BrowserEventSink | None = None
+
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def clone_for_subagent(self, max_depth: int = 0) -> AgentDeps:
@@ -117,6 +123,10 @@ class AgentDeps:
         `subagent_events` - so a specialist's own delegation still narrates,
         one `depth` further in.
 
+        `browser_events` - so a specialist that browses is watched by the same
+        person, in the same panel. A delegate whose browse is silent is the one
+        run nobody can see, and it is the one most worth seeing.
+
         What it does **not** inherit: `kb_collection_names`. Those come from the
         delegate's own spec, and inheriting the parent's would hand a specialist a
         collection nobody granted it. The delegate's own are put back by the
@@ -149,5 +159,6 @@ class AgentDeps:
             ask_user=self.ask_user,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
+            browser_events=self.browser_events,
             metadata=dict(self.metadata),
         )

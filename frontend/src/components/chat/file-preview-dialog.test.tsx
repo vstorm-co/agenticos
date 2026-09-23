@@ -74,9 +74,22 @@ describe("the chat's file dialog", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the file itself, through the shared renderer", async () => {
+  it("shows the file itself, and opens on its source", async () => {
+    // Source first, where a kind has one: somebody opening a file in a console
+    // is usually there to read what it says rather than how it renders.
     serve("# Notes");
     open({ filename: "notes.md", mime_type: "text/markdown" });
+
+    expect(await screen.findByText("# Notes")).toBeInTheDocument();
+    expect(screen.queryByTestId("markdown")).toBeNull();
+  });
+
+  it("renders it through the shared renderer once the preview is asked for", async () => {
+    serve("# Notes");
+    open({ filename: "notes.md", mime_type: "text/markdown" });
+    await screen.findByText("# Notes");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
 
     expect(await screen.findByTestId("markdown")).toHaveTextContent("# Notes");
   });

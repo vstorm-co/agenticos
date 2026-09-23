@@ -53,6 +53,8 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | What one call to the [ML services](ml-services.md) may submit — a document to parse, a scan to recognise, a recording to transcribe. Its own setting because the bytes are parsed or sent to an engine inside one request rather than written down, so the ceiling is about what a single synchronous call may occupy. It sits at the transcription client's own 25 MB, the smallest engine ceiling behind that surface |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | How many documents one worker parses at once for the [ML services](ml-services.md). A rate limit counts starts and cannot see what is still running, so without this a minute's allowance of OCR calls is that many recognitions in flight. Over it a caller is refused with a `Retry-After` rather than queued |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation-choose) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
+| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts a browsing agent's decision model may run on, beyond the vendor's own endpoint. `decision_base_url` comes from an agent spec and the vault key is unsealed into a request header to whatever it names, so without an allowlist an author who may *bind* a shared TypeSafe key - binding is not reading, and the API never returns the value - could point it at a server of their own and collect it. Approval is no help: the same author publishes the binding. Empty allows only the vendor endpoint, which is the default. See [secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
@@ -252,6 +254,16 @@ neither an open-source licence ([licences](licenses.md)). It speaks the same pro
 on the same port, so the settings below, the `redis://` scheme and the `redis` service
 name are unchanged, and a deployment that points these at a managed Redis, Valkey or
 Elasticache instead works exactly as before.
+
+It is run as a cache and nothing else: `--save ''`, no volume, so it starts empty
+after every restart. Everything the platform keeps here - rate-limit buckets,
+channel dedupe claims, membership answers - carries a TTL and rebuilds itself.
+
+A snapshot bought nothing and cost one outage: Valkey 8 forks Redis 7.2 and refuses
+an RDB written by Redis 7.4, so the first deploy onto a host that had run
+`redis:7-alpine` crash-looped and took every service that waits on the cache with
+it. A managed instance that does persist is fine; the platform does not rely on
+it either way.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

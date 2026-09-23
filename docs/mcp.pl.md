@@ -1,5 +1,5 @@
 ---
-source_sha: "87a5e8e9d4e1"
+source_sha: "97da4b30471c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -333,7 +333,7 @@ URL wybrany przez agenta należy do `safe_download` z Pydantic AI.
 Krok, który się nie powiedzie, mówi, **który krok się poddał i jakiej klasy rzecz
 podniosła wyjątek**, nigdy tego, co napisał klient po drugiej stronie.
 
-`httpx` wstawia w swój komunikat żądanie, które zawiodło, a te dwa żądania to
+`httpx2` wstawia w swój komunikat żądanie, które zawiodło, a te dwa żądania to
 rejestracja klienta i przyznanie tokena — więc zacytowanie go przeniosłoby do
 przeglądarki token endpoint, osiągany z poświadczeniami. Błąd pydantica nad
 nieczytelną odpowiedzią z tokenami odbija payload, który odrzucił, czyli właśnie
@@ -353,7 +353,7 @@ a nie całe flow, bo idące po nim URI well-known wywodzą się z URL-a wpisaneg
 przez operatora i mogą jak najbardziej odpowiedzieć.
 
 Do [#889](https://github.com/vstorm-co/agenticos/issues/889) było to 500 z pustym
-ciałem: `httpx.InvalidURL` nie dziedziczy po `httpx.HTTPError`, więc żaden
+ciałem: `httpx2.InvalidURL` nie dziedziczy po `httpx2.HTTPError`, więc żaden
 z catchów w tym flow go nie widział — i żadne sprawdzenie tutaj widzieć nie
 mogło, bo URL zostaje odrzucony w trakcie budowania żądania, ponad sprawdzeniem
 SSRF i ponad klientem z przypiętym adresem. To, czego parser nie umiał odczytać
