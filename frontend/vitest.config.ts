@@ -61,6 +61,10 @@ export default defineConfig({
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
         "src/components/workflows/validation/**/*.{ts,tsx}",
+        // The workflow editor's canvas (#1787): the `@xyflow/react` shell, its
+        // node/edge components, the graph<->flow adapter and the keyboard
+        // shortcuts, held to the gate as a unit.
+        "src/components/workflows/canvas/**/*.{ts,tsx}",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
