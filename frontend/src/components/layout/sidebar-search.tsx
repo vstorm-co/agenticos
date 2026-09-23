@@ -25,16 +25,11 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
 
   const open = () => window.dispatchEvent(new CustomEvent("command-palette:open"));
 
-  /* Meaningless on the viewport where this is a slide-over, and there is no
-     keyboard to press it with. */
-  const shortcut = (
-    <kbd
-      aria-hidden
-      className="border-border hidden rounded border px-1 py-px font-mono text-[10px] md:inline-block"
-    >
-      ⌘K
-    </kbd>
-  );
+  /* No shortcut chip. It taught `⌘K` once and then sat in the column forever,
+     and in the icon row it made search the one control wider than the rest -
+     an icon and a badge among single icons. The palette still opens on `⌘K`,
+     and it says so on its own placeholder, which is where somebody who has
+     just opened it can actually use the reminder. */
 
   if (variant === "icon") {
     return (
@@ -42,10 +37,9 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
         type="button"
         onClick={open}
         aria-label={t("search")}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 items-center gap-1.5 rounded-lg px-2 transition-colors outline-none focus-visible:ring-1"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
       >
         <Search className="h-[1.1rem] w-[1.1rem] shrink-0" aria-hidden />
-        {shortcut}
       </button>
     );
   }
@@ -58,7 +52,6 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
     >
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       <span className="flex-1 text-left">{t("search")}</span>
-      {shortcut}
     </button>
   );
 }

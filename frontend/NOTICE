@@ -18,6 +18,20 @@ The marks themselves are the trademarks of their respective owners and are used
 to identify those products. Their inclusion implies no affiliation with or
 endorsement by them.
 
+Vendored UI components
+
+src/components/ui/animated-counter.tsx and src/components/ui/bell-glyph.tsx are
+derived from Rare UI, and the task list treatment in
+src/components/chat/plan-checklist.tsx is rebuilt from its task-list component:
+
+  Rare UI          https://github.com/swamimalode07/rare-ui          MIT
+                   Copyright (c) 2026 Swami Malode
+
+Copied rather than installed because the project distributes its components with
+`shadcn add`, which writes a file into the tree. Each file says in its own header
+what was changed and why. The MIT permission notice is reproduced in the NOTICE
+at the repository root.
+
 Fonts
 
 Inter, Bricolage Grotesque and Geist Mono are served from src/app/fonts/ under

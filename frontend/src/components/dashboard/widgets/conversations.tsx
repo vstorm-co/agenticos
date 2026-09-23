@@ -26,7 +26,11 @@ export function ConversationsWidget({ title, hint, seeAll, options }: DashboardW
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : conversations.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={MessageSquare}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <ul className="space-y-1">
           {conversations.map((conversation) => (

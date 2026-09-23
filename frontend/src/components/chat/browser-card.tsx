@@ -39,7 +39,7 @@ export function BrowserCards({ browses }: { browses: Browse[] }) {
  *
  * Revealed on hover, and on focus as well - a control that only exists while a
  * pointer is over it is a control nobody reaching it by keyboard can find. The
- * glass behind it is not decoration either: these sit over a screenshot of an
+ * panel behind it is not decoration either: these sit over a screenshot of an
  * arbitrary web page, and an icon with no backing is invisible against about
  * half of them.
  */
@@ -67,8 +67,8 @@ function ExpandButton({
       aria-label={label}
       title={label}
       className={cn(
-        "bg-background/70 text-foreground/70 supports-[backdrop-filter]:bg-background/50",
-        "hover:text-foreground hover:bg-background/90 rounded-lg p-1.5 backdrop-blur-md",
+        "bg-background text-foreground/70 border-border border",
+        "hover:text-foreground hover:bg-accent rounded-lg p-1.5",
         "opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100",
         "focus-visible:opacity-100",
         active && "text-foreground bg-background/90 opacity-100",
@@ -102,9 +102,9 @@ function BrowserCard({ browse }: { browse: Browse }) {
   return (
     <div
       className={cn(
-        "group border-foreground/10 bg-card/60 supports-[backdrop-filter]:bg-card/40",
+        "group border-border bg-card",
         "hover:border-foreground/20 overflow-hidden rounded-2xl border shadow-sm",
-        "backdrop-blur-xl transition-colors",
+        "transition-colors",
       )}
     >
       <div className="relative">

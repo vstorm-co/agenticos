@@ -4,7 +4,7 @@ import { Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ImageOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -86,7 +86,12 @@ function textOf(node: React.ReactNode): string {
   return "";
 }
 
-export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownContentProps) {
+export function MarkdownContent({
+  content,
+  onCiteClick,
+  bareCode,
+  inertImages,
+}: MarkdownContentProps) {
   const t = useTranslations("chat");
   const processed = onCiteClick ? preprocessCitations(content) : content;
   return (
@@ -138,6 +143,31 @@ export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownCont
             <code className={className} {...props}>
               {children}
             </code>
+          );
+        },
+        img({ src, alt }) {
+          // A remote image in text somebody else wrote is a tracking pixel.
+          // `inertImages` is set where the reader is not the author - the run
+          // timeline, where an operator reviews a colleague's conversation - so
+          // a `![](https://attacker/px.png)` appended to a run would otherwise
+          // fetch on review and hand over the reviewer's address, agent and the
+          // fact that this run was read. Drawn as a link instead: the reader
+          // decides, and nothing loads until they do.
+          const address = typeof src === "string" ? src : "";
+          if (!inertImages) {
+            // eslint-disable-next-line @next/next/no-img-element
+            return <img src={address} alt={alt ?? ""} className="my-2 max-w-full rounded-lg" />;
+          }
+          return (
+            <a
+              href={address}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-muted-foreground hover:text-foreground border-border inline-flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-xs"
+            >
+              <ImageOff className="h-3 w-3 shrink-0" aria-hidden />
+              {alt || t("imageNotLoaded")}
+            </a>
           );
         },
         a({ href, children, ...props }) {

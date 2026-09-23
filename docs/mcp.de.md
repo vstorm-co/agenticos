@@ -1,5 +1,5 @@
 ---
-source_sha: "87a5e8e9d4e1"
+source_sha: "97da4b30471c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -345,7 +345,7 @@ so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs
 Ein Schritt, der fehlschlägt, sagt, **welcher Schritt aufgegeben hat und welche
 Klasse von Fehler ausgelöst wurde**, nie, was der Upstream-Client geschrieben hat.
 
-`httpx` schreibt die fehlgeschlagene Anfrage in seine Meldung, und die beiden
+`httpx2` schreibt die fehlgeschlagene Anfrage in seine Meldung, und die beiden
 Anfragen hier sind eine Client-Registrierung und eine Token-Ausgabe — sie zu
 zitieren würde also einen Token-Endpunkt, mit Zugangsdaten aufgerufen, in den
 Browser tragen. Ein Pydantic-Fehler über eine unlesbare Token-Antwort gibt die
@@ -368,8 +368,8 @@ Well-known-URIs leiten sich von der URL ab, die ein Betreiber getippt hat, und
 antworten womöglich sehr wohl.
 
 Das war eine 500 mit leerem Body bis
-[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL`
-leitet sich nicht von `httpx.HTTPError` ab, also sah keiner der Catches des Flows
+[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx2.InvalidURL`
+leitet sich nicht von `httpx2.HTTPError` ab, also sah keiner der Catches des Flows
 den Fehler — und keine Prüfung hier hätte es gekonnt, denn die URL wird abgelehnt,
 während die Anfrage gebaut wird, oberhalb sowohl der SSRF-Prüfung als auch des
 gepinnten Clients. Was der Parser nicht lesen konnte (`Invalid port:

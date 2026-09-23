@@ -2,7 +2,7 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # UserService methods are async for every database, so mock them with AsyncMock.
 ServiceMock = AsyncMock
@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_current_user, get_user_service
+from app.api.deps import get_current_user, get_deployment_settings_service, get_user_service
 from app.api.deps import get_db_session
 from app.api.deps import get_redis
 from app.core.config import settings
@@ -62,7 +62,7 @@ def mock_user_service(mock_user: MockUser) -> MagicMock:
     service.get_by_id = ServiceMock(return_value=mock_user)
     service.get_multi = ServiceMock(return_value=[mock_user])
     service.update = ServiceMock(return_value=mock_user)
-    service.update_current = ServiceMock(return_value=mock_user)
+    service.update_current = ServiceMock(return_value=(mock_user, None))
     service.delete = ServiceMock(return_value=mock_user)
     service.admin_update = ServiceMock(return_value=mock_user)
     service.admin_delete = ServiceMock(return_value=mock_user)
@@ -81,6 +81,11 @@ async def auth_client(
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    # The branding read is a database call this suite has no database for;
+    # what it answers is the product name in an email subject.
+    branding = MagicMock()
+    branding.effective_app_name = AsyncMock(return_value="AgenticOS")
+    app.dependency_overrides[get_deployment_settings_service] = lambda: branding
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -137,6 +142,69 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
     )
     assert response.status_code == 200
     mock_user_service.update_current.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_a_staged_email_change_mails_the_new_address_and_the_old_one(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """The proof goes to the address being claimed; the notice goes to the one
+    being moved away from, which is what makes a takeover visible to the person
+    losing the account (#1772)."""
+    mock_user.pending_email = "new@example.com"
+    mock_user_service.update_current = ServiceMock(return_value=(mock_user, "a-token"))
+    emails = MagicMock()
+    emails.send_email_change_verification = AsyncMock()
+    emails.send_email_change_notice = AsyncMock()
+    with patch("app.api.routes.v1.users.get_email_service", return_value=emails):
+        response = await auth_client.patch(
+            f"{settings.API_V1_STR}/users/me",
+            json={"email": "new@example.com"},
+        )
+
+    assert response.status_code == 200
+    verification = emails.send_email_change_verification.await_args.kwargs
+    assert verification["to"] == "new@example.com"
+    assert "a-token" in verification["confirm_url"]
+    notice = emails.send_email_change_notice.await_args.kwargs
+    assert notice["to"] == mock_user.email
+    assert notice["new_email"] == "new@example.com"
+
+
+@pytest.mark.anyio
+async def test_a_patch_with_no_email_mails_nothing(
+    auth_client: AsyncClient, mock_user_service: MagicMock
+):
+    emails = MagicMock()
+    emails.send_email_change_verification = AsyncMock()
+    with patch("app.api.routes.v1.users.get_email_service", return_value=emails):
+        response = await auth_client.patch(
+            f"{settings.API_V1_STR}/users/me",
+            json={"full_name": "Updated Name"},
+        )
+
+    assert response.status_code == 200
+    emails.send_email_change_verification.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_a_provider_that_cannot_send_does_not_undo_the_staging(
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+):
+    """Best-effort, like every other send on this surface: the address simply
+    stays unconfirmed, which is the safe end of the two."""
+    mock_user.pending_email = "new@example.com"
+    mock_user_service.update_current = ServiceMock(return_value=(mock_user, "a-token"))
+    emails = MagicMock()
+    emails.send_email_change_verification = AsyncMock(side_effect=RuntimeError("smtp is down"))
+    with patch("app.api.routes.v1.users.get_email_service", return_value=emails):
+        response = await auth_client.patch(
+            f"{settings.API_V1_STR}/users/me",
+            json={"email": "new@example.com"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["pending_email"] == "new@example.com"
 
 
 @pytest.mark.anyio
@@ -292,7 +360,9 @@ async def test_the_legacy_route_audits_and_notifies_like_the_admin_one(
     assert response.status_code == 200
     entry = mock_db_session.add.call_args.args[0]
     assert entry.action == "admin.user.update"
-    notify.return_value.security_event.assert_awaited_once_with(entry)
+    notify.return_value.security_event.assert_awaited_once_with(
+        entry, recipients=notify.return_value.hold_security_audience.return_value
+    )
 
 
 @pytest.mark.anyio

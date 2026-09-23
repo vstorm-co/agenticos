@@ -219,12 +219,15 @@ class TestTheExport:
         user_id = user.id
         user.avatar_color = 3
         user.notify_budget_alerts = False
+        # An address the deployment holds about them but sends nothing to yet.
+        user.pending_email = "export-profile-new@example.com"
         await db.flush()
 
         export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
 
         assert export.profile["avatar_color"] == 3
         assert export.profile["notify_budget_alerts"] is False
+        assert export.profile["pending_email"] == "export-profile-new@example.com"
         assert "hashed_password" not in export.profile
         assert "is_app_admin" not in export.profile
 

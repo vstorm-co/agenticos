@@ -17,6 +17,375 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.492] - 2026-09-22
+
+### Fixed
+
+- **The unread badge and "mark all read" no longer stop at five hundred rows
+  and say nothing.** Both fetched exactly one capped batch of candidates and
+  never looked further, so a recipient with six hundred gate-visible unread
+  notifications saw a badge of 500, and one "mark all read" left the hundred
+  oldest unread - with no error and nothing in the response saying the request
+  had been partial. Both now walk the inbox in batches to a bound of five
+  thousand, following a cursor rather than re-reading the same page, which is
+  also what reaches the visible rows sitting behind a backlog the read-time
+  gate hides. The bound is still a bound, and it is now stated:
+  `GET /notifications/unread-count` carries `approximate` and
+  `POST /notifications/mark-all-read` carries `remaining`, because a count of
+  exactly the bound and a genuine count of exactly the bound were otherwise the
+  same number, and a sweep's own batch ends full whether or not anything is
+  behind it - so one row past the bound is asked for before either is called
+  partial.
+
+  A repeated click always gets further, which is what makes `remaining` an
+  instruction rather than a description: a truncated sweep answers with a
+  `next_cursor`, and the next one resumes from there instead of re-reading the
+  window already covered. Rows the read-time gate hides are never marked to
+  force that progress - the gate reads *current* permissions, so a recipient
+  demoted for a week and restored would find that week's security notices
+  already read and out of their badge. `marked` is what the request changed
+  rather than what it looked at, so two overlapping sweeps cannot both claim the
+  same rows, and the console keeps `approximate`: a truncated count of zero
+  still has a sweep worth offering, which is exactly the case a demoted
+  recipient lands in. (#1761)
+
+## [0.0.491] - 2026-09-22
+
+### Changed
+
+- **One LibreOffice manager instead of two.** The RAG parser's office → PDF
+  converter and the chat attachment path's DOC → text converter each wrapped the
+  same `soffice` binary, arrived within a week of each other from opposite ends
+  of the product, and each carried a safety property the other lacked — so a
+  deployment running both paths had one converter that could be flooded and one
+  that could not, and a reader had to know which was which. There is one manager
+  now, with the union: a process group killed on timeout *and* on cancellation, a
+  per-call user profile, a concurrency semaphore, OS resource limits applied in a
+  fresh single-threaded launcher, and a bounded stderr drain. Both callers are
+  thin — the RAG one returns a PDF path, the chat one returns text. Nothing was
+  broken before this; it was duplication, and each path now gets the protections
+  only the other had.
+
+  One behaviour does change, because sharing a semaphore made it matter: the
+  conversion timeout now covers **the wait for a converter slot** as well as the
+  subprocess. It used to start after the semaphore, so with both slots held by
+  RAG conversions of up to 600s each, a chat conversion asking for 60s could sit
+  for ten minutes before its own timer began. A caller that cannot be served
+  inside its deadline is now refused inside it, and the budget covers the
+  caller's own staging as well: the chat path holds its converter slot before it
+  writes the upload's copy to disk, so a burst queued behind slow conversions
+  cannot fill the worker's temporary volume while the concurrency bound looks
+  like it is holding. The per-call user profile is also made and removed on the
+  file pool rather than on the event loop, the rule the chat path already
+  followed for its own temporary tree. (#1767)
+
+## [0.0.490] - 2026-09-22
+
+### Added
+
+- **Somewhere for `organizational_unit` to come from.** The dimension shipped
+  with a filter, an index and a facet endpoint, and nothing that wrote it - so
+  the filter matched nothing (a chunk with no value for a filtered dimension
+  fails closed, by design) and `GET /rag/collections/{name}/filter-values`
+  answered with an empty list for every collection in every deployment. Two
+  writers now: a per-source default on a sync source, inherited by every
+  document it brings in, and a per-upload value carried in the multipart body
+  and recorded on the document's own row - the same rule the resolved ingestion
+  configuration follows, so a run queued before the field existed still binds.
+  Free text, because the vocabulary is whatever a corpus turns out to use and
+  the facet already reports what a collection holds; a blank is recorded as no
+  unit rather than as a unit named `""`. The console offers a field on the sync
+  wizard's last step and one in *How the next uploads are read and filed*, and
+  shows what a document was filed under beside its parser. Nothing is
+  backfilled: no rule can decide which unit an already-ingested document
+  belonged to, and a re-ingest picks the value up.
+  ([#1777](https://github.com/vstorm-co/agenticos/issues/1777))
+
+## [0.0.489] - 2026-09-22
+
+### Fixed
+
+- **A changed email address is proved before mail follows it.**
+  `PATCH /users/me` accepted a new address and started using it immediately, and
+  nothing showed the person asking could read it. Every mail this deployment
+  sends goes to that column — an invitation, a magic link, a password reset, an
+  approval request, a budget alert, and every notification queued for the email
+  channel — so an account whose address had been changed to somewhere its owner
+  cannot read is an account whose password-reset link goes to somebody else, and
+  one changed to an address that never signed up here turns the deployment's own
+  sender into a relay for whoever set it. The request is now *staged*: the
+  account keeps its current address, a single-use hour-long link goes to the new
+  one, and the old one is told a change was asked for — which is what makes a
+  takeover visible to the person losing the account. Confirming the link moves
+  the address across and clears the staging, so a replayed link finds nothing to
+  move; a contested address is decided at confirmation by the unique constraint,
+  not at the request. Both the request and the confirmation are audited.
+  Migration `0093_pending_email` adds the column, nullable, with no backfill:
+  nobody has a change in flight when it runs.
+
+  Recovery revokes an outstanding link, which is what makes the notice to the
+  old address worth acting on: the link carries the account's credential
+  version, so changing or resetting the password stops it working, and an
+  administrator repairing the address clears the staging. Asking again for the
+  address already staged sends nothing — a profile saved twice, or saved for an
+  unrelated field, is not a second verification email — and the number of
+  distinct addresses one account may ask for is capped per hour, because this
+  route is unmetered and the destination is the caller's to name. The staged
+  address is included in a personal-data export, since it is an address the
+  deployment holds. (#1772)
+
+## [0.0.488] - 2026-09-22
+
+### Changed
+
+- **The MCP SDK is uncapped again, on `httpx2`.** `mcp` was held below 2.0
+  because 2.0 moved the whole SDK from `httpx` to `httpx2` — a different
+  distribution with its own `Request`, `Response`, `AsyncClient` and exception
+  hierarchy — and the one path where this platform's code and the SDK exchange
+  HTTP objects could not carry both: an SDK-built request handed to
+  `PinnedAsyncClient` was refused, and a malformed endpoint raised an exception
+  written for the other library, which is #889 in a form no catch could see.
+  `PinnedAsyncClient` and the MCP OAuth flow are `httpx2` now, so the check and
+  the request are made by the same library, and the streamable transport is
+  called the way 2.0 spells it — a client carrying the connection's headers
+  rather than a `headers` argument, and two yielded values rather than three. A
+  rename alone would have compiled and silently dropped every `Authorization` a
+  private MCP server is reached with. The other fourteen modules that speak HTTP
+  stay on `httpx` deliberately: the boundary is wherever an object crosses into
+  or out of a vendor SDK, and none of them does. (#1820)
+
+## [0.0.487] - 2026-09-22
+
+### Fixed
+
+- **An audited security write and an admin deletion can no longer deadlock each
+  other.** `record_audit` holds a transaction-scoped lock on the organization's
+  audit chain, and the mandatory security notification written straight after it
+  takes a key-share lock on every recipient's user row — while
+  `UserService.admin_delete` locks every app admin's row exclusively *first* and
+  reaches for the same chain lock second. Two transactions, the same two locks,
+  opposite orders: Postgres aborts one, and depending on which loses, either the
+  deletion has to be retried or the surviving transaction's mandatory
+  security-event notification is discarded inside its own savepoint while the
+  audit entry commits regardless. The twelve sites that audit and then notify now
+  take the audience's row locks immediately *before* the audit entry, so every
+  transaction takes user rows first and the chain last. The order is a convention
+  no type can express, so a static test holds the sites to it. (#1763)
+
+## [0.0.486] - 2026-09-22
+
+### Fixed
+
+- **A mandatory security event past its write budget is coalesced, not
+  dropped.** The per-actor limit on `security_event` and
+  `configuration_changed` exists so that an ordinary write access cannot turn
+  into an unmetered fan-out against every admin — but over the limit the write
+  returned nothing at all, and nothing took its place. An actor could exhaust
+  the shared bucket with twenty benign edits inside a minute and then rotate or
+  delete a real secret, and that event reached neither the inbox nor email. It
+  was still in the audit log, which is exactly what a mandatory,
+  un-optable-out-of notification exists because admins do not watch. The
+  overflow now writes one coalesced row per actor per window instead, saying the
+  minute was busier than the inbox lists and that every one of those events is
+  on the trail. Its `occurrence_id` is the window, so the second and every later
+  overflow inside it writes no row and no delivery — the bound the limit was
+  protecting, kept. It carries no running count, because counting would mean
+  rewriting that row on every further event, which is the write the limit is
+  there to stop. (#1762)
+
+## [0.0.485] - 2026-09-22
+
+### Fixed
+
+- **Three loose ends in the notice a dropped socket puts up.** It is drawn on
+  the drop now rather than on the way back up, so a reader who loses
+  connectivity outright is told the agent is finishing the turn and saving it
+  instead of watching a composer spin — the copy was always as true offline as
+  online. It belongs to the conversation the drop happened in: opening another
+  thread during a reconnect used to draw the notice over one that was never
+  interrupted, and re-read that one instead of the thread still being written.
+  And a reader who gives up waiting and asks something else keeps a notice, now
+  saying the earlier answer is still being written and will land below the
+  question they have just asked - which is what happens, and what nothing said.
+  (#1775)
+
+## [0.0.484] - 2026-09-22
+
+### Added
+
+- **A Deploy run left at the approval gate no longer stops the pipeline in
+  silence.** A run waiting for an approval counts as in flight and holds the
+  `deploy-production` concurrency group, so every later run sat `pending` with
+  no jobs and was cancelled by the next one. Thirteen days of merges went that
+  way: no failed run, no notification, and a production host a fortnight behind
+  `main`, because a pending run with nothing to click on reads as a broken
+  workflow and a `cancelled` run reads as somebody's decision. `deploy-queue.yml`
+  now runs every six hours, cancels a Deploy run that has waited more than
+  twelve, and opens an issue naming the run and how far `main` has drifted from
+  the last successful deploy. It approves nothing and deploys nothing — it
+  drains the queue so the next merge reaches the gate, and says that it did.
+  `docs/deploy.md` also now warns that approving from the environment's own
+  queue approves the *oldest* waiting run, which is how a fortnight-old commit
+  reached the server. (#1832)
+
+## [0.0.483] - 2026-09-22
+
+### Fixed
+
+- **A deploy no longer fails on the health status a container had before it was
+  restarted.** `depends_on: condition: service_healthy` reads that status the
+  instant the container starts, so the redeploy that repaired a crash-looping
+  cache failed half a second after starting it - with the same message the real
+  failure had printed, which makes a fix that worked read as a fix that did not.
+  The `db` and `redis` healthchecks now declare a `start_period`, which is what
+  `service_healthy` is meant to wait through, and `scripts/deploy.sh` retries
+  `up -d` once - and only for this failure - when compose gives up on a
+  dependency's health. Its own `wait_healthy` acts on `unhealthy` only once a
+  probe has run since the container started. (#1831)
+
+## [0.0.482] - 2026-09-22
+
+### Fixed
+
+- **The cache no longer persists, so a Valkey upgrade cannot take the stack
+  down.** Valkey 8 forks Redis 7.2 and refuses an RDB written by Redis 7.4, so
+  the first deploy onto a host that had run `redis:7-alpine` crash-looped on
+  `Can't handle RDB format version 12`; `app` and `prefect-runner` wait on the
+  cache being healthy, so they never started and the site answered 404 until the
+  volume was cleared by hand. Valkey now runs with `--save ''` and no
+  `redis_data` mount in all three compose files. Everything the platform keeps
+  there - rate-limit buckets, channel dedupe claims, membership answers -
+  carries a TTL and rebuilds itself, so there is nothing to lose and no format
+  to disagree about. A host that ran an earlier release still carries an
+  orphaned `agenticos_redis_data` volume; `docs/deploy.md` says how to remove
+  it. (#1830)
+
+## [0.0.481] - 2026-09-22
+
+### Added
+
+- **Figures that roll rather than blink, where somebody is watching one
+  change.** The spend headline on the dashboard, the summary strip's runs,
+  spend and people, and a chat thread's running cost are drawn by an odometer:
+  one wheel per digit, re-aimed when the value moves, so a number that changed
+  looks like a number that changed. Vendored from
+  [Rare UI](https://github.com/swamimalode07/rare-ui) (MIT) rather than
+  installed, because that project distributes components by copying a file into
+  the tree; the copy carries a header saying what was changed and why, and the
+  attribution is in both `NOTICE` files and `licenses/components.toml`. It is
+  deliberately not everywhere: a number that merely sits on a page gains
+  nothing from a wheel per digit and still goes through `formatUsd`. The
+  grouping and the decimal point come from the reader's locale, so a Polish
+  page shows `1 234,56`; the currency does not, because the ledger is in
+  dollars in every language. `prefers-reduced-motion` sets the wheels instead
+  of rolling them.
+- **The bell swings when the count goes up**, and the badge's digits roll with
+  it - the same MIT source, with its five literal hex colours replaced by the
+  accent, ink and destructive roles a deployment can retheme, and its English
+  label replaced by one the caller passes.
+- **A step completing in a plan is drawn as an event.** The dashed ring fades,
+  the disc scales up under it, the tick draws along its own path and the rule
+  sweeps across the text. Rebuilt from the same project's task list rather than
+  used as it stands: that one is an interactive checkbox with two states, and a
+  plan is neither - the agent owns these rows, nobody may click one, and
+  `blocked` and `cancelled` are outcomes a checkbox cannot say. Nothing
+  reorders, because the order *is* the plan.
+- **The sidebar collapses to a rail**, remembered across visits in
+  `localStorage` - a property of the browser rather than of the account, so
+  signing out leaves it alone. Every destination keeps its name in a `title`
+  and an `aria-label` rather than losing it, and the group headings become a
+  rule, which says "a different kind of thing starts here" without an
+  abbreviation claiming to say which.
+
+### Changed
+
+- **The inbox can be cleared.** A cross on a hovered row takes it out;
+  **Clear** in the header takes out everything listed, read and unread alike.
+  `DELETE /notifications/{id}` and `DELETE /notifications` are the two routes,
+  and neither deletes anything: `notifications` is its own dedup anchor, so a
+  deleted row is one a retried producer writes again - an alert somebody
+  dismissed would come back on the next budget check. `dismissed_at` is what
+  the three inbox read paths filter on, and a dismissed row is marked read with
+  it, because a row nothing on screen can reach must not go on counting towards
+  the badge. The sweep is capped at a thousand and reports what it took, the
+  same bargain `mark_all_read` makes with its own cap.
+  `0092_notification_dismissed` adds the column and re-cuts the two partial
+  indexes around it; nothing backfills, because the column is null for every
+  row already written.
+- **A document that indexes cleanly no longer notifies anybody.** It used to
+  write a row each, and the ordinary use of that feature is dropping thirty
+  files into a collection at once - so the ordinary result was thirty
+  interruptions saying nothing had gone wrong, burying the rows worth reading.
+  `ingestion_failed` still fires, and a connector run still reports its
+  whole-attempt figure through `sync_completed`, which is an answer to a
+  question somebody asked by starting the sync. The event type stays, since
+  the sync path still writes it, so no data moves.
+- **The console is flat, and its surfaces are one colour each.** Every layer
+  carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every panel,
+  faint on one and cumulative across a page of them. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  frosted glass is gone with it: `.glass` was a translucent
+  `backdrop-filter: blur(24px)` pane, so the chat composer over a transcript,
+  the same composer over the empty state and a dropdown over a table were three
+  different greys and none of them was a token. It is `.panel` now - a name
+  that is what it is - and the four fixed radial washes behind everything went
+  too, having had nothing left to be for.
+- **The composer is one row of controls under the text**, where it was four
+  bands: a usage strip above the message, the text, a cluster of buttons
+  floating *beside* it, a rule, and a row of pickers under that. The buttons
+  beside the textarea meant the send button drifted to the vertical middle of a
+  tall message. Readings drop out on the composer's own width through a
+  container query rather than on the window's - at 900px with the conversation
+  list open the box is 360px, and a viewport breakpoint kept a reading there
+  that had nowhere to go.
+- **A red badge is tinted, not filled, and its text is `foreground`.** Measured
+  rather than judged: `text-destructive` on `bg-destructive/15` - red on red,
+  which is what it looks like it should be - is **2.70:1** on the dark card,
+  under every floor there is. The same tint with `text-foreground` is 12.18:1
+  dark and 16.45:1 light. A solid red pill also contradicted the rule written
+  two lines above it in `badge.tsx`: metadata set in a bold accent chip competes
+  with the content it annotates.
+- **A run's transcript renders its markdown**, through the same
+  `MarkdownContent` the chat uses. Activity is the page built for reading back
+  what an agent said and it was the one place saying it in source - `## Poland`,
+  `**Official name:**`, tables as pipes. Each block now carries a copy button
+  too, because half of reading a run back is taking something out of it.
+- **A file opens on its source.** The viewer and the editor both opened on the
+  rendered half; somebody who opens a file in a console is usually there to read
+  what it *says* - the front matter, the line that will not parse - and the
+  preview is what hides it. A kind with no source view (an image, a PDF) still
+  opens on its preview rather than on a tab that does not exist.
+- **A dashboard card that is waiting says so quietly.** On a young deployment
+  fourteen of them are on one page, each a full-height card reporting that
+  nothing has happened at the same contrast as the cards carrying numbers. They
+  are dimmed now, each with its own subject's glyph in a dashed plate, and they
+  brighten under the pointer so "waiting" does not read as "disabled".
+- **Recent failures groups runs that failed the same way.** Five rows of one
+  sentence, truncated at the same word, became one row per distinct failure with
+  a count - grouped on the message itself, because picking `(RuntimeError)` out
+  of the backend's prose is a guess about a format nothing guarantees.
+
+### Removed
+
+- **The "All runs" / "Slow runs" presets**, and the `took_over_ms` filter behind
+  them - route, repository, export audit and query key. Two buttons for one
+  question the Took column's own sort already answers, and "slow" was a fixed
+  thirty seconds, which is a definition rather than a question.
+- **The "Recent runs" card on an agent's page.** Its history is Activity, which
+  is where the card's own link pointed.
+
+- **The console's surfaces are neutral, and there are four of them.** Every
+  layer carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every
+  panel in the product, faint on one and cumulative across a page of them, and
+  visibly cold beside the accent it was meant to support. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  sidebar is now a token of its own rather than a translucent card over a blur,
+  which had made its apparent depth depend on whatever was behind it and cost a
+  compositor layer the width of the window on every scroll. Measured, not
+  judged: muted text is 6.04:1 on a dark card where it was 5.71:1, and 6.60:1
+  on a light one; borders step back from 1.40:1 to 1.29:1, which is what a
+  separator that is never the only thing marking a control can afford.
+
 ## [0.0.480] - 2026-09-22
 
 ### Added

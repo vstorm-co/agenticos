@@ -70,6 +70,10 @@ _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_
 _PROFILE_FIELDS = (
     "id",
     "email",
+    # An address this deployment currently holds about the person, even though
+    # nothing is sent to it yet: a staged change is theirs to take away and to
+    # see that we have (#1772).
+    "pending_email",
     "full_name",
     "is_active",
     "created_at",

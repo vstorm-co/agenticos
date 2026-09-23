@@ -412,17 +412,36 @@ describe("the favourites band", () => {
     expect(within(list()).queryByText("Favourites")).toBeNull();
   });
 
-  it("stars a thread through the star, not the menu", async () => {
+  it("stars a thread from the menu, which is the only place it is offered", async () => {
+    // There is no star button on an unstarred row any more. It was a second
+    // control for what this menu already does, and an `opacity-0` button still
+    // takes its width - so every title in the list was eight characters
+    // shorter to show a duplicate nobody was looking at.
     serve([conversation("c-1", "Refund policy")]);
     vi.mocked(apiClient.post).mockResolvedValue({});
     mount();
     await within(list()).findByText("Refund policy");
 
+    expect(within(list()).queryByRole("button", { name: "Favourite" })).toBeNull();
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(within(list()).getByRole("button", { name: "Favourite" }));
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/favourite", {}),
     );
+  });
+
+  it("keeps the star on a row that is starred, because it marks the band", async () => {
+    // The one thing the star was not redundant as: nothing else on a row says
+    // which band it is in.
+    serve([conversation("c-1", "Rota cover", true)]);
+    mount();
+    await within(list()).findByText("Rota cover");
+
+    expect(
+      within(list()).getByRole("button", { name: "Remove from favourites" }),
+    ).toBeInTheDocument();
   });
 
   it("offers to remove it once it is starred", async () => {

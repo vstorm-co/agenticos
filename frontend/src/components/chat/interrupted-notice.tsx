@@ -6,6 +6,14 @@ import { useTranslations } from "next-intl";
 interface InterruptedNoticeProps {
   /** True while a turn whose socket went away is unresolved. */
   interrupted: boolean;
+  /**
+   * True once the reader has asked something else instead of waiting.
+   *
+   * The earlier answer is still being written and will land in the transcript
+   * after the later question - which is confusing exactly once, and only when
+   * nothing said it would.
+   */
+  detached?: boolean;
   /** Read the transcript again. The turn lands there, not on the socket. */
   onRecheck?: () => void;
 }
@@ -28,9 +36,13 @@ interface InterruptedNoticeProps {
  * finishes. A reader who has waited long enough presses it; one who would rather
  * ask something else types instead, which also clears this.
  */
-export function InterruptedNotice({ interrupted, onRecheck }: InterruptedNoticeProps) {
+export function InterruptedNotice({
+  interrupted,
+  detached = false,
+  onRecheck,
+}: InterruptedNoticeProps) {
   const t = useTranslations("chat");
-  if (!interrupted) return null;
+  if (!interrupted && !detached) return null;
 
   return (
     <div
@@ -39,7 +51,7 @@ export function InterruptedNotice({ interrupted, onRecheck }: InterruptedNoticeP
       aria-live="polite"
     >
       <Unplug className="h-3 w-3" aria-hidden />
-      <span>{t("turnInterrupted")}</span>
+      <span>{interrupted ? t("turnInterrupted") : t("turnStillArriving")}</span>
       {onRecheck && (
         <button type="button" onClick={onRecheck} className="underline underline-offset-2">
           {t("turnInterruptedRecheck")}

@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 112 | 237 |
+| MIT | 112 | 241 |
 | Apache-2.0 | 60 | 24 |
 | BSD-3-Clause | 33 | 5 |
 | ISC | 6 | 16 |
@@ -111,7 +111,7 @@ names no author is in the evidence column below.
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.141.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp-slim | 3.4.7 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin |
+| fastmcp-slim | 4.0.5 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
@@ -138,7 +138,6 @@ names no author is in the evidence column below.
 | httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
 | httptools | 0.8.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
-| httpx-sse | 0.4.3 | MIT | https://github.com/florimondmanca/httpx-sse | License field |
 | httpx2 | 2.13.0 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
 | humanize | 4.16.0 | MIT | https://github.com/python-humanize/humanize | License-Expression |
@@ -171,7 +170,8 @@ names no author is in the evidence column below.
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
 | markupsafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
-| mcp | 1.30.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp-types | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
 | mem0ai | 2.1.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.1.0/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
@@ -299,7 +299,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-289 distributions.
+293 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -454,6 +454,7 @@ names no author is in the evidence column below.
 | estree-util-is-identifier-name | 3.0.0 | MIT | https://github.com/syntax-tree/estree-util-is-identifier-name | package.json license |
 | eventemitter3 | 5.0.4 | MIT | https://github.com/primus/eventemitter3 | package.json license |
 | extend | 3.0.2 | MIT | https://github.com/justmoon/node-extend | package.json license |
+| framer-motion | 13.4.0 | MIT | https://github.com/motiondivision/motion/ | package.json license |
 | get-nonce | 1.0.1 | MIT | https://github.com/theKashey/get-nonce | package.json license |
 | hast-util-is-element | 3.0.0 | MIT | https://github.com/syntax-tree/hast-util-is-element | package.json license |
 | hast-util-to-jsx-runtime | 2.3.6 | MIT | https://github.com/syntax-tree/hast-util-to-jsx-runtime | package.json license |
@@ -524,6 +525,9 @@ names no author is in the evidence column below.
 | micromark-util-symbol | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol | package.json license |
 | micromark-util-types | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types | package.json license |
 | module-details-from-path | 1.0.4 | MIT | https://github.com/watson/module-details-from-path | package.json license |
+| motion | 13.4.0 | MIT | https://github.com/motiondivision/motion | package.json license |
+| motion-dom | 13.3.0 | MIT | https://github.com/motiondivision/motion | package.json license |
+| motion-utils | 13.3.0 | MIT | https://github.com/motiondivision/motion | package.json license |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
 | nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
@@ -608,6 +612,7 @@ and data files.
 | ghcr.io/astral-sh/uv (build stage only) | latest | build tool, not in the published image | Apache-2.0 OR MIT | https://github.com/astral-sh/uv | accepted | None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer. | Not distributed. |
 | Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names. |
 | Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
+| Rare UI components vendored into frontend/src/components/ui/ | swamimalode07/rare-ui as of 2026-09-22 (animated-counter, notification-bell, task-list) | source, frontend image | MIT | https://github.com/swamimalode07/rare-ui | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | NOTICE at the repository root and frontend/NOTICE name the project, its copyright holder and the MIT text; frontend/scripts/collect-licenses.ts copies the latter into the frontend image at /app/licenses/NOTICE. Each file that came from it says so in its own header, with what was changed and why. The distribution method is why this is here rather than in the npm inventory: the project's own instructions are `shadcn add`, which copies a file into the tree rather than adding a dependency a lockfile would record. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | pgvector/pgvector | pg16 | service image, deployment | PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License. | https://github.com/pgvector/pgvector | accepted | Permissive; keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. |
 | valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |

@@ -331,10 +331,6 @@ class RunFilters:
             playground and the API.
         agent_version_id: The frozen spec that answered. The version strip's
             "show me the runs behind this number".
-        took_over_ms: Only runs that took longer than this. A run with no
-            `ended_at` is excluded rather than treated as zero - it has no
-            duration yet, and calling that "fast" is the wrong answer to
-            "show me the slow ones".
         rated: Only runs somebody rated that way. `down` is the highest-signal
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
@@ -362,7 +358,6 @@ class RunFilters:
     environment_id: UUID | None = None
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
-    took_over_ms: int | None = None
     rated: RunRating | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
@@ -392,8 +387,6 @@ class RunFilters:
             clauses.append(AgentRun.exposure_id == self.exposure_id)
         if self.agent_version_id is not None:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
-        if self.took_over_ms is not None:
-            clauses.append(_duration_ms() > self.took_over_ms)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
         return clauses

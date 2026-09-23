@@ -81,3 +81,21 @@ class MagicLinkVerifyRequest(BaseSchema):
     """Step 2 - user clicked email link, exchange token for session."""
 
     token: str = Field(..., min_length=10)
+
+
+class EmailChangeConfirm(BaseSchema):
+    """The link sent to an address a change was requested for (#1772).
+
+    Unauthenticated, like the reset confirm beside it: the link is followed from
+    the new address, which is routinely a different browser from the one that
+    asked for the change. The token is the whole of the proof.
+    """
+
+    token: str = Field(..., min_length=10)
+
+
+class EmailChangeConfirmResponse(BaseSchema):
+    """Returned after a successful confirm - the address is now the account's."""
+
+    success: bool = True
+    message: str = "Email address confirmed. It is now the address for this account."

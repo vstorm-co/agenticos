@@ -88,7 +88,6 @@
     "addedFirstMessageEach": "Added to the first message of each conversation. It never replaces the agent's own instructions.",
     "agent": "Agent",
     "agentCount": "{count, plural, =1 {1 agent} other {# agents}}",
-    "agentHasNotRun": "This agent has not run yet. Publish it and send it a message, or test it from the header.",
     "alertApprovals": "Approval requests",
     "alertApprovalsTrigger": "A tool call parked, and the run is waiting on a person to decide.",
     "alertAudience": "{alert}: {audience}",
@@ -337,7 +336,6 @@
     "model2": "Model",
     "modelIdOpenRouterHint": "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.",
-    "modelTheseRunsHad": "A model in these runs had no price, so this is a floor.",
     "modelsCouldNotBeListed": "Models could not be listed",
     "modelsCouldNotBeListedHint": "This panel is empty because the request for this organization's models did not answer, not because it has none.",
     "moreActionsFor": "More actions for {name}",
@@ -377,7 +375,6 @@
     "notList": "not in the list",
     "notPublishedAnySite": "Not published to any site yet.",
     "notSet": "Not set",
-    "notStarted": "not started",
     "nothingToShareWithDelegates": "This agent is bound to nothing else, so there is nothing to pass on.",
     "offRemovesShellEntirely": "Off removes the shell entirely, rather than asking before each command.",
     "oneAtTime": "One at a time",
@@ -435,7 +432,7 @@
     "platform": "Platform",
     "polling": "Polling",
     "production": "production",
-    "promote": "Promote to…",
+    "promote": "Promote",
     "promoteSpecialist": "Promote to a draft agent",
     "promoteSpecialistDetail": "Creates a draft agent from this specialist. It is not published, not pinned as a delegate, and this specialist stays where it is.",
     "promoteVersionTo": "Promote v{version} to…",
@@ -511,7 +508,6 @@
     "secretMissingFromVault": "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.",
     "secretOfWrongKind": "\"{name}\" is of kind {kind}; this capability needs {needed}. Publishing refuses it.",
     "secretUnchanged": "Leave blank to keep the stored secret",
-    "seeEveryRunActivity": "See every run in Activity",
     "separateWithCommas": "Separate with commas",
     "separatesStagingTrafficFrom": "Separates staging traffic from the real thing in the same project.",
     "traceContent": "Trace content",
@@ -557,7 +553,6 @@
     "specialistUnnamed": "New specialist",
     "specialistsHeading": "Inline specialists",
     "specialistsNotVersioned": "Defined here, not published: a specialist has no version, cannot be pinned, and changes the moment this agent is edited.",
-    "spent": "Spent",
     "startsAsDraftNothing": "It starts as a draft. Nothing runs until you publish it.",
     "statusArchived": "archived",
     "statusDraft": "draft",
@@ -686,6 +681,15 @@
     "login": "Login",
     "loginFailedPleaseTry": "Login failed. Please try again.",
     "loginSuccess": "Successfully logged in",
+    "emailChange": {
+      "confirming": "Confirming this address…",
+      "errorHeading": "Couldn't confirm this address",
+      "errorInvalid": "This link is invalid, has expired, or has already been used.",
+      "errorMissingToken": "No token in this link. Ask for the change again from your profile.",
+      "signIn": "Go to sign in",
+      "success": "Address confirmed",
+      "successHint": "This is now the address for your account. Sign in with it from here."
+    },
     "magicLink": {
       "errorHeading": "Couldn't sign you in",
       "errorInvalid": "Magic link is invalid or has expired.",
@@ -1047,6 +1051,7 @@
     "streamError": "❌ Error: {message}",
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
     "turnInterruptedRecheck": "Check for it",
+    "turnStillArriving": "The earlier answer is still being written. It lands in this conversation when it finishes, below the question you have just asked.",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "thoughtAboutIt": "Thought about it",
@@ -1232,7 +1237,9 @@
     },
     "browserResize": "Resize the browser view",
     "browserOpenPanel": "Open in the side panel",
-    "browserOpenFull": "Open full screen"
+    "browserOpenFull": "Open full screen",
+    "conversationActions": "Conversation actions",
+    "imageNotLoaded": "Image (not loaded)"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1354,7 +1361,8 @@
         "empty": {
           "title": "Nothing ran in this period",
           "description": "Pick a wider window, or give an agent a surface and the numbers start here."
-        }
+        },
+        "spendLabel": "{amount} spent"
       },
       "active-users": {
         "empty": {
@@ -1591,7 +1599,8 @@
         "open": "Open runs",
         "title": "Recent failures",
         "unknownAgent": "Unknown agent",
-        "description": "Runs that failed or ran out of budget, most recent first."
+        "description": "Runs that failed or ran out of budget, most recent first.",
+        "timesFailed": "× {count}"
       },
       "runs": {
         "delta": "vs the previous period",
@@ -1693,7 +1702,8 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing"
+        "split": "{models} on models · {ingestion} on indexing",
+        "spentLabel": "{amount} spent"
       },
       "surfaces": {
         "empty": {
@@ -2123,7 +2133,7 @@
     "notDescribedPictureTable": "Not described - a picture of a table is not searchable",
     "notRead": "Not read",
     "notRequested": "Not requested",
-    "nothingChanged2": "Nothing changed",
+    "applyUploadSettings": "Apply",
     "nothingHereYetAdd": "Nothing here yet. Add one to connect a source before you know which knowledge bases will need it.",
     "nothingIndexedDocumentIts": "Nothing is indexed for this document. Its vectors may have been removed since it was ingested.",
     "nothingReadableCameOut": "Nothing readable came out of this parse",
@@ -2133,12 +2143,15 @@
     "onlyOcrPagesNeed": "Only OCR the pages that need it",
     "organizationAllMembers": "Organization - all members",
     "output": "Output",
+    "organizationalUnit": "Organizational unit",
+    "organizationalUnitDetail": "Recorded on each file you add next, so a search can be narrowed to it. Leave it empty to file them under nothing.",
+    "organizationalUnitPlaceholder": "e.g. Legal",
     "overlap": "Overlap",
     "overlapRepeats": "adjacent chunks repeat their overlap, so boundary text appears twice",
     "pageNumber": "Page {number}",
     "pageParsedNothingReadable": "This page parsed to nothing readable - likely an unreadable scan.",
     "pagePictureTextCarries": "A page that is a picture of text carries no text to extract. PyMuPDF hands such a page to the image model; LiteParse runs its own OCR.",
-    "parseNextUploadDifferently": "Parse the next upload differently",
+    "nextUploadsTitle": "How the next uploads are read and filed",
     "parseTimeoutSeconds": "Parse timeout (seconds)",
     "parsed": "Parsed",
     "parsedWith": "parsed with {parser}",
@@ -2730,7 +2743,9 @@
     "allOrganizations": "All organizations",
     "context": "Context",
     "deploymentSettings": "Deployment",
-    "routines": "Routines"
+    "routines": "Routines",
+    "collapseSidebar": "Collapse the sidebar",
+    "expandSidebar": "Expand the sidebar"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3533,7 +3548,6 @@
       "perMonth": "${amount} per month",
       "publish": "Publish",
       "publishAgentChatWith": "Publish this agent to chat with it - the chat runs the published version",
-      "recentRuns": "Recent runs",
       "removesAgentEveryVersion": "This removes the agent, every version of it and every share pointing at it. Its past runs are kept for the record. Archive instead if you only want it to stop.",
       "removesAgentEveryVersion2": "This removes the agent, every version of it and every share pointing at it. Its past runs are kept for the record. Archive instead if you only want it to stop.",
       "replaceAvatar": "Replace avatar",
@@ -3561,7 +3575,6 @@
       "versions": "Versions",
       "visualMap": "Visual map",
       "whatAgentCanDo": "What this agent can do, and where it keeps what it produces. Anything that acts on the outside world needs a human approval before it runs.",
-      "whetherAgentWorkingWhat": "Whether this agent is working, and what it has cost. The full history - surfaces, tokens, the version each run executed - lives in Activity rather than being half-rebuilt here.",
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour",
       "knowledge": "Knowledge",
@@ -3709,6 +3722,8 @@
       "dropUpload": "Drop to upload",
       "embeddedWith": "Embedded with {model}",
       "everyMinutes": "every {minutes}m",
+      "filedUnder": "Filed under {unit}",
+      "filedUnderNext": "The next files you add are filed under <strong>{unit}</strong>.",
       "filesWillBeAddedTo": "Files will be added to <strong>{name}</strong>",
       "groupRelatedDocumentsInto": "Group related documents into a base. Open one to upload files, then choose in chat which bases the agent should search.",
       "howDocumentsAreRead": "How documents are read",
@@ -3788,6 +3803,7 @@
       "loginTitle": "Sign in",
       "magicLinkSentDescription": "We sent you a sign-in link.",
       "magicLinkSentTitle": "Check your email",
+      "emailChangeTitle": "Confirm your email address",
       "magicLinkTitle": "Sign in",
       "privacyDescription": "How {app} collects, uses, and protects your data.",
       "privacyPolicy": "Privacy Policy",
@@ -3926,7 +3942,6 @@
       "agentColumn": "Agent",
       "agentFilter": "Filter by agent",
       "agentsAreRunningWithout": "Agents are running without needing you.",
-      "allRuns": "All runs",
       "answered": "They answered",
       "anyAgent": "All agents",
       "anyModel": "Any model",
@@ -4056,7 +4071,6 @@
       "showArguments": "Arguments",
       "showEveryAgent": "Show every agent",
       "showingTheNewestOf": "{shown, plural, =1 {Showing the newest of {total} decided in this window} other {Showing the newest # of {total} decided in this window}}. Export the CSV for the whole record.",
-      "slowRuns": "Slow runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
       "specialistHasNoAgent": "Defined inside its parent's agent rather than published on its own, so there is no agent page to open.",
       "spend": "Spend",
@@ -4132,7 +4146,9 @@
       "cancel": "Cancel",
       "cancel2": "Cancel",
       "changePassword": "Change password",
-      "changingEmailMayRequire": "Changing email may require re-verification depending on your auth setup.",
+      "changingEmailMayRequire": "A new address is confirmed from a link sent to it. This account keeps its current address until then.",
+      "emailChangePending": "Waiting for {email} to be confirmed. This account keeps its current address until then.",
+      "emailChangeSent": "Check {email} to confirm the change. This account keeps its current address until you do.",
       "chatAccountAnswersAs": "Answers as",
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
@@ -4376,6 +4392,9 @@
     "noConnectorsEnabled": "No connectors enabled.",
     "noFilesProcessed": "no files processed",
     "noSyncRunsYet": "No sync runs yet.",
+    "organizationalUnit": "Organizational unit",
+    "organizationalUnitDetail": "Stamped on every document this source brings in, so a search can be narrowed to it. Leave it empty for none.",
+    "organizationalUnitPlaceholder": "e.g. Legal",
     "orgIntegrations": "Org integrations",
     "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
@@ -4877,7 +4896,11 @@
     "systemTheme": "System theme",
     "systemTheme2": "System theme",
     "themeTitle": "Theme: {theme}",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   },
   "time": {
     "daysAgo": "{count, plural, other {#d ago}}",
@@ -5303,6 +5326,8 @@
     "empty": {
       "title": "No notifications yet",
       "description": "Budget alerts, approvals, run failures and more will show up here."
-    }
+    },
+    "clearAll": "Clear all",
+    "dismissRow": "Dismiss"
   }
 }

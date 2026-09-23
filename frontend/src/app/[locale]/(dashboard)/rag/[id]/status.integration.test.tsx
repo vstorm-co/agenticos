@@ -77,6 +77,7 @@ function document_(id: string, status: string, error: string | null): KBDocument
     image_description_model: null,
     embedding_model: "text-embedding-3-small",
     was_overridden: false,
+    organizational_unit: null,
   };
 }
 
@@ -90,6 +91,7 @@ function source(id: string, status: string, error: string | null): SyncSourceRea
     collection_name: "org_handbook",
     config: {},
     secret_id: null,
+    organizational_unit: null,
     sync_mode: "full",
     schedule_minutes: 60,
     is_active: true,

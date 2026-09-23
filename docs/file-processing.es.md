@@ -1,5 +1,5 @@
 ---
-source_sha: "236ecf2bb230"
+source_sha: "a40ae2358eec"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -311,6 +311,7 @@ El modelo de base de datos `ChatFile` registra los archivos subidos:
 | `mime_type` | String | Tipo MIME resuelto (canónico) — un `.tiff` con `application/octet-stream` se guarda como `image/tiff`, de modo que la descarga y la conversión en línea leen un único campo fiable. Las filas subidas antes de FA-013 conservan su tipo declarado; los lectores toleran ambos. |
 | `size` | Integer | Tamaño del archivo en bytes |
 | `storage_path` | String | Ruta relativa en el almacenamiento |
+| `organizational_unit` | A qué parte de la organización pertenece este documento — de la subida, o heredado de la fuente de sincronización. `null` si nadie lo archivó |
 | `file_type` | String | Tipo clasificado: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Texto extraído (NULL para imágenes) |
 | `message_id` | UUID/FK | Mensaje enlazado (se fija al enviar el mensaje) |
@@ -842,6 +843,33 @@ que todos lean la base compartida sin que nadie lea la de los demás.
 Existe porque esa dimensión es lo que escribieron los autores: adivinar un valor
 devuelve vacío en silencio, y eso se lee como «no hay nada sobre el tema» en lugar de
 «no existe esa unidad».
+
+### De dónde sale la unidad organizativa { #where-the-organizational-unit-comes-from }
+
+Dos escritores, y nada más la fija. Una **fuente de sincronización** lleva un valor por
+defecto que hereda cada documento que trae — una carpeta compartida es de un
+departamento, y nadie etiqueta mil archivos sincronizados de uno en uno. Una **subida**
+nombra una para ese archivo, en el cuerpo multipart junto a `ingestion`, y queda
+registrada en la propia fila del documento en lugar de pasarse al worker, de modo que
+una ejecución encolada antes de que el campo existiera sigue funcionando.
+
+La consola ofrece ambas: un campo en el último paso del asistente de sincronización y
+otro en *How the next uploads are read and filed*, que se aplica a cada archivo añadido
+hasta que se borra.
+
+Es texto libre a propósito. El vocabulario es el que resulta usar el corpus de cada
+despliegue, y `filter-values` informa de lo que la colección contiene realmente — una
+lista cerrada habría que mantenerla antes de poder archivar el primer documento en algo.
+Un valor en blanco no es un valor: se registra como *ninguna unidad*, así que la faceta
+nunca ofrece una llamada `""`.
+
+**No se rellena nada hacia atrás.** Un documento ingerido antes de que su fuente o quien
+lo subió nombrara una unidad no lleva ninguna, y ninguna regla puede decidir a cuál
+debería haber pertenecido. Ese documento queda excluido por cualquier filtro sobre la
+dimensión — los fragmentos fallan en cerrado — hasta que se vuelva a ingerir. Hasta
+[#1777](https://github.com/vstorm-co/agenticos/issues/1777) nada escribía el campo, así
+que el filtro no coincidía con nada y `filter-values` respondía con una lista vacía para
+cada colección en cada despliegue.
 
 !!! warning "La vieja cadena `filter` está obsoleta"
 
