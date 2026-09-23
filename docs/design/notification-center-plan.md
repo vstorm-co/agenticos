@@ -203,6 +203,18 @@ and the next one inside the window is worded to say so ("N further changes
 in the last minute"), rather than silently dropping the fact that
 something kept happening.
 
+*What shipped, and where it differs (#1762).* The first pass dropped the
+overflow entirely and wrote nothing in its place, which defeated the
+guarantee: an actor can spend the shared bucket on twenty benign edits and
+then do the one thing an admin is watching for. `write()` now writes one
+**coalesced** row per actor per window instead, keyed on the window as its
+`occurrence_id`, so the second and every later overflow inside it is an
+`ON CONFLICT DO NOTHING` that creates no delivery — the bound this limit
+exists for, kept. It carries **no running count**: a count would mean
+rewriting that row on every event past the limit, which is the write the
+limit is there to stop. The sentence says the minute was busier than the
+inbox lists and points at the audit log, which is what the reader needs.
+
 **Two failure classes need covering, and the whole-attempt one is wired at
 the call site, not inside `RAGSyncService`/`SyncSourceService` — those two
 services are not alternative producers for the same fact, and hooking each

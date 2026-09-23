@@ -2,6 +2,15 @@ export interface User {
   id: string;
   email: string;
   full_name?: string | null;
+  /**
+   * An address asked for and not yet confirmed, or null.
+   *
+   * A change is staged rather than applied: the account keeps receiving mail at
+   * `email` until the link sent to the new address comes back, so a form that
+   * showed the old value and said nothing would read as a change that did not
+   * take. Optional because a persisted store may predate it.
+   */
+  pending_email?: string | null;
   is_active: boolean;
   /** Platform-superadmin flag - the gate for the /admin surface. Optional
    *  because a persisted store may predate it; absent means not an admin. */

@@ -373,6 +373,14 @@ async def ingest_file(
             "for this file only. Omitted keys keep the collection's setting."
         ),
     ),
+    organizational_unit: str | None = Form(
+        default=None,
+        max_length=255,
+        description=(
+            "Which part of the organization this document belongs to. Stamped on "
+            "every chunk and narrowable on at retrieval; blank means none."
+        ),
+    ),
 ) -> Any:
     """Upload and queue a file for ingestion into a collection.
 
@@ -391,6 +399,7 @@ async def ingest_file(
         replace=replace,
         vector_store=vector_store,
         override=parse_override(ingestion),
+        organizational_unit=organizational_unit,
         organization_id=ctx.organization_id,
         # Link the document to the KB whose collection this is, the same way the
         # per-KB upload route does. Without it these rows carry no KB id, so a KB

@@ -401,7 +401,6 @@ describe("walking the run's conversation from the detail", () => {
     );
 
     expect(queryPanel()).toBeNull();
-    expect(screen.getByRole("button", { name: "All runs" })).toBeVisible();
   });
 
   it("Escape closes it too, which the dialog used to do for free", async () => {

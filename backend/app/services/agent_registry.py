@@ -37,6 +37,10 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
+from app.agents.capabilities.browser_choice import BrowserChoiceConfig
+from app.agents.capabilities.browser_choice import (
+    validate_cdp_url as validate_browser_choice_cdp_url,
+)
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -256,6 +260,28 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
             f"Browser automation's remote endpoint cannot be reached from here: {exc} "
             "Point it at a public browser service, not a loopback or internal address."
         ]
+    return []
+
+
+def _browser_choice_problems(config: BaseModel | None) -> list[str]:
+    """A `cdp_url` this deployment's operator has not vetted, or none at all.
+
+    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
+    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
+    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
+    control here rather than the SSRF guard.
+
+    Its own function rather than one shared with `browser_use`: two capabilities,
+    two endpoints, two controls now, and a helper taking `BaseModel | None` would
+    have to re-derive which it is looking at in order to say anything a person can
+    act on.
+    """
+    if not isinstance(config, BrowserChoiceConfig):
+        return []
+    try:
+        validate_browser_choice_cdp_url(config)
+    except ValueError as exc:
+        return [f"Browser automation's endpoint cannot be used: {exc}."]
     return []
 
 
@@ -1303,6 +1329,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_use_problems(config))
+            problems.add(_browser_choice_problems(config))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

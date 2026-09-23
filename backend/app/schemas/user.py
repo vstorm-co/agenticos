@@ -82,6 +82,12 @@ class UserRead(UserBase, TimestampSchema):
     """Schema for reading a user."""
 
     id: UUID
+    # An address asked for and not yet confirmed, or null. Exposed because
+    # `PATCH /users/me` answers with the account's *current* address after a
+    # change is requested, and a form that shows the old value and says nothing
+    # reads as a change that did not take (#1772). The account's own, so there is
+    # nobody to leak it to.
+    pending_email: EmailStr | None = None
     # The platform-superadmin flag. Exposed so the frontend can decide whether
     # to show the /admin surface at all - the server re-checks it on every
     # admin endpoint, so a client that lies to itself gains nothing.

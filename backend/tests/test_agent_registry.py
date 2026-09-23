@@ -31,6 +31,7 @@ from app.agents.spec import (
     PersonalMcpServerRef,
     SpecialistSpec,
 )
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -3304,6 +3305,59 @@ class TestBrowserUseRefusedAtPublish:
             f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
         ):
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestBrowserChoiceRefusedAtPublish:
+    """The endpoint `browser_choice` drives, vetted by the operator's allowlist.
+
+    Not the SSRF guard `browser_use` uses: `cdp_url` is tenant-controlled - it
+    lives in a spec anyone with `edit` writes - and the guard admits only public
+    addresses, which refuses the isolated browser service on the deployment's own
+    network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
+    is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
+
+    The blank case is here too, because `cdp_url` has to stay optional for the
+    capability to be enumerable - so publish is the only place to demand one.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+
+    @staticmethod
+    async def _problems(config: dict) -> list[str]:
+        spec = _spec(
+            capabilities=[{"id": "browser_choice", "config": config}],
+            model_profile_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
+        assert any("needs a cdp_url" in problem for problem in await self._problems({}))
+
+    @pytest.mark.anyio
+    async def test_a_host_the_operator_has_not_vetted_is_refused(self):
+        problems = await self._problems({"cdp_url": "http://10.0.0.5:9222"})
+        assert any("BROWSER_CDP_ALLOWED_HOSTS" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_vetted_host_on_the_deployments_own_network_publishes(self):
+        # The topology the reference page describes, and the one the SSRF guard
+        # refused. What is left is the vault key this spec does not bind.
+        problems = await self._problems({"cdp_url": "http://browser:9222"})
+        assert not any(
+            "cdp_url" in problem or "endpoint cannot be used" in problem for problem in problems
+        )
 
 
 def _bound(capability_id: str, config: dict, **approval: object):

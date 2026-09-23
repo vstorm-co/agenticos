@@ -94,7 +94,9 @@
     "startNewChat": "Zacznij nowy czat",
     "untitledConversation": "Rozmowa bez tytułu",
     "allOrganizations": "Wszystkie organizacje",
-    "deploymentSettings": "Instalacja"
+    "deploymentSettings": "Instalacja",
+    "collapseSidebar": "Zwiń panel boczny",
+    "expandSidebar": "Rozwiń panel boczny"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -243,7 +245,9 @@
     "thinking": "Myślę...",
     "title": "Czat",
     "tools": {
-      "patternInFile": "{pattern} w {file}"
+      "patternInFile": "{pattern} w {file}",
+      "workingThroughPage": "Przechodzę przez stronę",
+      "browsePage": "Przejdź przez stronę"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -271,7 +275,28 @@
       "you": "Ty",
       "agent": "Agent",
       "empty": "Ta wiadomość nie ma tekstu"
-    }
+    },
+    "browserHeading": "Przeglądarka",
+    "browserClose": "Zamknij panel przeglądarki",
+    "browserGoal": "Cel",
+    "browserSteps": "Kroki",
+    "browserStep": "Krok {step}",
+    "browserStepOf": "Krok {step} z {total}",
+    "browserWaitingForFrame": "Czekam na pierwszy widok strony…",
+    "browserNoPreview": "Ten agent działa bez podglądu na żywo.",
+    "browserViewportAlt": "Strona w kroku {step}",
+    "browserConfidenceHint": "Silnik wybrał tę opcję z prawdopodobieństwem {value}",
+    "browserOutcome": {
+      "done": "Zakończone",
+      "blocked": "Strona zablokowała działanie",
+      "exhausted": "Zatrzymane na limicie kroków",
+      "failed": "Nie udało się połączyć z przeglądarką"
+    },
+    "browserResize": "Zmień szerokość widoku przeglądarki",
+    "browserOpenPanel": "Otwórz w panelu bocznym",
+    "browserOpenFull": "Otwórz na pełnym ekranie",
+    "conversationActions": "Akcje konwersacji",
+    "imageNotLoaded": "Obraz (niezaładowany)"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -625,7 +650,8 @@
         "empty": {
           "title": "Nic nie uruchomiono w tym okresie",
           "description": "Wybierz szerszy zakres albo daj agentowi powierzchnię - liczby pojawią się tutaj."
-        }
+        },
+        "spendLabel": "wydano {amount}"
       },
       "platform": {
         "title": "Platforma w skrócie",
@@ -789,7 +815,8 @@
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
         },
         "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele · {ingestion} na indeksowanie"
+        "split": "{models} na modele · {ingestion} na indeksowanie",
+        "spentLabel": "wydano {amount}"
       },
       "model-mix": {
         "title": "Modele za uruchomieniami",
@@ -839,7 +866,8 @@
           "title": "Brak niepowodzeń",
           "description": "Każde uruchomienie w tym okresie zakończyło się czysto."
         },
-        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych."
+        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych.",
+        "timesFailed": "× {count}"
       },
       "budget-headroom": {
         "title": "Zapas budżetu",
@@ -1307,7 +1335,11 @@
     "systemTheme": "Motyw systemowy",
     "systemTheme2": "Motyw systemowy",
     "themeTitle": "Motyw: {theme}",
-    "toggleTheme": "Przełącz motyw"
+    "toggleTheme": "Przełącz motyw",
+    "appearance": "Wygląd",
+    "light": "Jasny",
+    "dark": "Ciemny",
+    "system": "Systemowy"
   },
   "time": {
     "daysAgo": "{count, plural, one {# dzień temu} other {# dni temu}}",
@@ -2351,7 +2383,6 @@
     "addedFirstMessageEach": "Dodawane do pierwszej wiadomości każdej rozmowy. Nigdy nie zastępuje własnych instrukcji agenta.",
     "agent": "Agent",
     "agentCount": "{count, plural, =1 {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
-    "agentHasNotRun": "Ten agent jeszcze nie działał. Opublikuj go i wyślij mu wiadomość albo przetestuj go z nagłówka.",
     "alertApprovals": "Prośby o zatwierdzenie",
     "alertApprovalsTrigger": "Wywołanie narzędzia zostało wstrzymane, a run czeka, aż ktoś podejmie decyzję.",
     "alertAudience": "{alert}: {audience}",
@@ -2600,7 +2631,6 @@
     "model2": "Model",
     "modelIdOpenRouterHint": "Z przestrzenią nazw wg pochodzenia, tak jak wymienia to OpenRouter - openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "Tak, jak nazywa to provider. Dowolny tekst, bo wypuszczają nowe szybciej, niż jakakolwiek lista tutaj mogłaby być aktualizowana.",
-    "modelTheseRunsHad": "Model w tych runach nie miał ceny, więc to wartość minimalna.",
     "modelsCouldNotBeListed": "Nie udało się wylistować modeli",
     "modelsCouldNotBeListedHint": "Ten panel jest pusty, bo żądanie o modele tej organizacji nie odpowiedziało, a nie dlatego, że ich nie ma.",
     "moreActionsFor": "Więcej akcji dla {name}",
@@ -2640,7 +2670,6 @@
     "notList": "nie ma na liście",
     "notPublishedAnySite": "Jeszcze nieopublikowany na żadnej witrynie.",
     "notSet": "Nie ustawiono",
-    "notStarted": "nie rozpoczęto",
     "nothingToShareWithDelegates": "Ten agent nie jest powiązany z niczym innym, więc nie ma czego przekazać.",
     "offRemovesShellEntirely": "Wyłączenie usuwa shell całkowicie, zamiast pytać przed każdym poleceniem.",
     "oneAtTime": "Po jednym naraz",
@@ -2692,7 +2721,7 @@
     "platform": "Platforma",
     "polling": "Polling",
     "production": "produkcja",
-    "promote": "Awansuj do…",
+    "promote": "Promuj",
     "promoteSpecialist": "Awansuj do agenta w wersji roboczej",
     "promoteSpecialistDetail": "Tworzy agenta w wersji roboczej z tego specjalisty. Nie jest publikowany, nie jest przypięty jako delegat, a ten specjalista pozostaje na swoim miejscu.",
     "promoteVersionTo": "Awansuj v{version} do…",
@@ -2768,7 +2797,6 @@
     "secretMissingFromVault": "Sekret wybrany tutaj nie znajduje się w vault tej organizacji - został usunięty albo spec napisano dla innej organizacji. Publikowanie go odrzuca.",
     "secretOfWrongKind": "„{name}” jest rodzaju {kind}; ta capability potrzebuje {needed}. Publikowanie to odrzuca.",
     "secretUnchanged": "Pozostaw puste, aby zachować zapisany sekret",
-    "seeEveryRunActivity": "Zobacz każdy run w Aktywności",
     "separateWithCommas": "Oddzielaj przecinkami",
     "separatesStagingTrafficFrom": "Oddziela ruch staging od prawdziwego w tym samym projekcie.",
     "traceContent": "Zawartość trace'ów",
@@ -2814,7 +2842,6 @@
     "specialistUnnamed": "Nowy specjalista",
     "specialistsHeading": "Specjaliści inline",
     "specialistsNotVersioned": "Zdefiniowany tutaj, nieopublikowany: specjalista nie ma wersji, nie można go przypiąć i zmienia się w chwili edycji tego agenta.",
-    "spent": "Wydano",
     "startsAsDraftNothing": "Zaczyna jako wersja robocza. Nic nie działa, dopóki go nie opublikujesz.",
     "statusArchived": "zarchiwizowany",
     "statusDraft": "wersja robocza",
@@ -2948,6 +2975,8 @@
     "empty": {
       "title": "Jeszcze brak powiadomień",
       "description": "Alerty o budżecie, zatwierdzenia, nieudane runy i więcej pojawią się tutaj."
-    }
+    },
+    "clearAll": "Wyczyść",
+    "dismissRow": "Odrzuć"
   }
 }

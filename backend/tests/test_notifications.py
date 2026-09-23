@@ -715,26 +715,39 @@ def _doc(
     return doc
 
 
-class TestIngestionCompletedAndFailed:
-    """A single document's own outcome - the per-document half of Decision
-    1's ingestion events, reached once `RAGDocumentService.complete_ingestion`/
-    `fail_ingestion` has confirmed a settlement is not stale."""
+class TestIngestionFailed:
+    """A single document's own outcome, and only the bad one.
+
+    There used to be a matching `ingestion_completed`, written once per file
+    that indexed cleanly. It is gone: a notification saying nothing went wrong,
+    one per file, in a feature whose ordinary use is dropping thirty files into
+    a collection at once. The audience, the dedup key and the organization gate
+    tested below are the ones it shared, and they are still the contract - it
+    is only the success case that no longer writes.
+    """
 
     @pytest.mark.anyio
-    async def test_the_uploader_is_told_a_document_finished(self, written):
+    async def test_the_uploader_is_told_a_document_did_not_index(self, written):
         uploader = uuid.uuid4()
         doc = _doc(initiated_by=uploader)
         with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uploader)):
-            await NotificationService(MagicMock()).ingestion_completed(
-                doc, attempt=1, chunk_count=9
+            await NotificationService(MagicMock()).ingestion_failed(
+                doc, attempt=1, error_message="unreadable PDF"
             )
 
         call = written.calls[0]
-        assert call["event_type"] is NotificationEventType.INGESTION_COMPLETED
+        assert call["event_type"] is NotificationEventType.INGESTION_FAILED
         assert call["recipients"] == [uploader]
         assert call["occurrence_id"] == f"{doc.id}:1"
         assert call["organization_id"] == doc.organization_id
         assert call["use_savepoint"] is True
+
+    @pytest.mark.anyio
+    async def test_a_document_that_indexed_cleanly_tells_nobody(self, written):
+        """The producer is gone, and so is the method - a call site that still
+        expects one is a failure here rather than a silent reappearance of the
+        noisiest thing the inbox had."""
+        assert not hasattr(NotificationService, "ingestion_completed")
 
     @pytest.mark.anyio
     async def test_the_occurrence_id_carries_the_attempt_it_settled(self, written):
@@ -742,8 +755,8 @@ class TestIngestionCompletedAndFailed:
         uploader = uuid.uuid4()
         doc = _doc(initiated_by=uploader)
         with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uploader)):
-            await NotificationService(MagicMock()).ingestion_completed(
-                doc, attempt=3, chunk_count=1
+            await NotificationService(MagicMock()).ingestion_failed(
+                doc, attempt=3, error_message="x"
             )
 
         assert written.calls[0]["occurrence_id"] == f"{doc.id}:3"
@@ -755,31 +768,11 @@ class TestIngestionCompletedAndFailed:
         admin = uuid.uuid4()
         doc = _doc(initiated_by=None)
         with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
-            await NotificationService(MagicMock()).ingestion_completed(
-                doc, attempt=1, chunk_count=9
+            await NotificationService(MagicMock()).ingestion_failed(
+                doc, attempt=1, error_message="x"
             )
 
         assert written.calls[0]["recipients"] == [admin]
-
-    @pytest.mark.anyio
-    async def test_a_document_outside_any_organization_notifies_nobody(self, written):
-        doc = _doc(org_id=None, initiated_by=uuid.uuid4())
-
-        await NotificationService(MagicMock()).ingestion_completed(doc, attempt=1, chunk_count=9)
-
-        assert written.calls == []
-
-    @pytest.mark.anyio
-    async def test_an_uploader_no_longer_a_member_notifies_nobody(self, written):
-        """No admin fallback here, the same as `run_completed`'s: the id was
-        real, not null, so this is not the case the fallback is for."""
-        doc = _doc(initiated_by=uuid.uuid4())
-        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
-            await NotificationService(MagicMock()).ingestion_completed(
-                doc, attempt=1, chunk_count=9
-            )
-
-        assert written.calls == []
 
     @pytest.mark.anyio
     async def test_the_uploader_is_told_a_document_failed_with_its_reason(self, written):
@@ -805,6 +798,8 @@ class TestIngestionCompletedAndFailed:
 
     @pytest.mark.anyio
     async def test_a_failed_documents_uploader_no_longer_a_member_notifies_nobody(self, written):
+        """No admin fallback here, the same as `run_completed`'s: the id was
+        real, not null, so this is not the case the fallback is for."""
         doc = _doc(initiated_by=uuid.uuid4())
         with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
             await NotificationService(MagicMock()).ingestion_failed(
@@ -987,8 +982,9 @@ class TestSecurityEventAndConfigurationChanged:
     `actor_user_id` through to `NotificationCenterService.write`, which
     already carries the per-`(actor_user_id, event_type)` mandatory-write
     limit (built in phase 2, `tests/integration/test_notification_center.py`
-    - `test_a_rate_limited_mandatory_write_writes_nothing` and its sibling).
-    What belongs here is that the id reaches that call correctly."""
+    - `test_a_rate_limited_mandatory_write_coalesces_rather_than_dropping` and
+    its siblings). What belongs here is that the id reaches that call
+    correctly."""
 
     @pytest.mark.anyio
     async def test_an_org_scoped_entry_reaches_that_organizations_admins(self, written):

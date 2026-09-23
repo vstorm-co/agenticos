@@ -60,12 +60,19 @@ class Settings(BaseSettings):
     # startup rather than producing an unbounded conversion or a zero-page cap.
     #
     # DOC (and other legacy office) conversion runs a managed `soffice` subprocess
-    # (`app/services/office_convert.py`); these bound it. The timeout is far below
+    # (`app/core/office_convert.py`); these bound it. The timeout is far below
     # RAG's 600s because an interactive upload cannot wait that long, the
     # concurrency semaphore caps how many LibreOffice processes run at once (the
     # subprocess bypasses the `run_blocking` admission gate), the grace is the
     # TERM->KILL window, and the output cap is checked before the converted file is
     # read back.
+    #
+    # Three of the four now bound *every* LibreOffice conversion rather than only
+    # chat's: the two managers were collapsed into one (#1767), and the semaphore
+    # and the kill grace belong to the manager. The `CHAT_` prefix is kept because
+    # renaming a setting silently stops an operator's env file applying; only
+    # `CHAT_CONVERT_TIMEOUT_SECONDS` and `CHAT_CONVERT_OUTPUT_MAX_BYTES` are still
+    # read by the chat caller alone.
     CHAT_CONVERT_TIMEOUT_SECONDS: int = Field(default=60, gt=0)
     CHAT_CONVERT_MAX_CONCURRENCY: int = Field(default=2, gt=0)
     CHAT_CONVERT_KILL_GRACE_SECONDS: float = Field(default=5, gt=0)
@@ -432,6 +439,24 @@ class Settings(BaseSettings):
     # downtime, when the runner picks up a backlog of scheduled runs and would
     # otherwise start all of them - see app/worker/prefect_app.py.
     PREFECT_RUNNER_LIMIT: int = 5
+    # A floor under every scheduled interval, for a machine that is not a server.
+    #
+    # Four deployments tick every sixty seconds - the trigger heartbeat, the RAG
+    # sync check, the portal poll and the notification delivery sweep. On a
+    # deployment that is the point of them: a schedule that fires a minute late
+    # is a schedule nobody trusts. On a laptop running the whole stack beside an
+    # editor it is four fresh Python processes a minute, each importing the
+    # application before doing about two tenths of a second of work, and the
+    # import is what costs - measured at roughly seven seconds a run, four at a
+    # time.
+    #
+    # `0` changes nothing and is the default, so a deployment keeps the
+    # intervals the code declares. Raising it lengthens only the schedules
+    # already faster than it, which is why this is a floor rather than a
+    # multiplier: at 600 the four minute-ticks become ten minutes and the
+    # fifteen-minute, hourly and daily sweeps are untouched. `make dev` sets it;
+    # see `docs/configuration.md`.
+    WORKER_MIN_INTERVAL_SECONDS: int = Field(default=0, ge=0)
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local
@@ -549,6 +574,27 @@ class Settings(BaseSettings):
     # Without an allowlist a builder who can bind a shared mem0 key could point
     # `mem0_base_url` at their own server and capture it (docs/secrets.md).
     MEM0_ALLOWED_HOSTS: list[str] = []
+
+    # Hosts a browsing agent may drive a Chromium at. `cdp_url` lives in an agent
+    # spec, which anyone holding `edit` on that agent writes - so it is
+    # tenant-controlled, and an unbounded one is a request this deployment makes
+    # to any address the author names. The SSRF guard is the wrong control for it:
+    # it admits only *public* addresses, which refuses the isolated browser
+    # service on the deployment's own network that `docs/reference/capabilities.md`
+    # tells an operator to run, and accepts a CDP debugger exposed to the
+    # internet, which is worse. So the operator names the hosts instead, exactly
+    # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
+    BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+
+    # Where a browsing agent's decision model may run, beyond the vendor's own
+    # endpoint. `decision_base_url` is in the agent spec and the vault key is
+    # unsealed and handed to that address, so an author who may *bind* a shared
+    # TypeSafe key - without being able to read it - could point it at a server
+    # of their own and collect it from the request header. This is
+    # `MEM0_ALLOWED_HOSTS` again, one field along, and the answer is the same
+    # one. Empty allows only the vendor endpoint, which is the default and the
+    # configuration nobody has to think about.
+    DECISION_MODEL_ALLOWED_HOSTS: list[str] = []
 
     @field_validator("CORS_ORIGINS")
     @classmethod

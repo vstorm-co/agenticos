@@ -1,5 +1,5 @@
 ---
-source_sha: "3228db48ffba"
+source_sha: "27a3daceb509"
 ---
 
 # Datenschutz { #data-protection }
@@ -39,7 +39,7 @@ entsprechend, und die Software macht mit:
 | Dokumenten-Parsing | `pymupdf`, der Standard, läuft im Worker. LiteParse-OCR läuft ebenfalls im Worker oder an einem OCR-Server, den Sie als lokalen Dienst registrieren. LlamaParse ist eine Wahl je Collection und braucht einen Vault-Schlüssel; ohne einen wird nichts außer Haus geparst |
 | Embeddings | Ein Ollama, das Sie betreiben, unter Knowledge → Integrations als lokaler Dienst registriert und je Collection als Provider `ollama` gewählt. Schlüssellos, und der einzige Provider, den eine app-scoped Collection nutzen darf |
 | Traces | Lassen Sie `LOGFIRE_TOKEN` ungesetzt und binden Sie kein `observability`-Token an einen Spec oder ein Environment. Runs halten die Trace-Id weiterhin lokal fest |
-| Suche, Browsing, Memory, Tools | Binden Sie kein `search`-Secret, keine Capability `web_fetch`, `browser_use` oder `memory_mem0`, keine MCP-Verbindung |
+| Suche, Browsing, Memory, Tools | Binden Sie kein `search`-Secret, keine Capability `web_fetch`, `browser_use` oder `memory_mem0`, keine MCP-Verbindung. `browser_choice` kann bleiben, mit `decision_base_url` auf ein Entscheidungsmodell, das Sie selbst betreiben |
 | E-Mail | Ihr eigenes SMTP-Relay |
 | Sprache und Bilder | Profile bei einem Provider, den Sie betreiben, oder gar kein solches Profil |
 
@@ -128,6 +128,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Ein Bildbeschreibungs-Model | Bilder in Dokumenten | Das `image_description_model` einer Collection | Die dieses Model-Providers |
 | Web-Recherche | Die Suchanfrage, die der Agent formuliert hat | `web_research.method` auf dem Spec: `duckduckgo` (kein Schlüssel), `tavily`, `brave` oder `exa` (je ein `search`-Secret), oder `native`, wobei der Provider des Chat-Models sucht | Die des Suchanbieters oder des Model-Providers |
 | Web-Fetch und Browser-Nutzung | Die URL; bei Browser-Nutzung die ganze Aufgabe | Die Capability auf dem Spec; Browser-Nutzung braucht zusätzlich einen CDP-Endpunkt, den Sie benennen | Die abgerufene Seite; der Browser-Host |
+| Das Entscheidungsmodell des Browsings | Jeder Schritt eines Durchlaufs: die URL der Seite, ihr Titel, die Beschriftungen der sichtbaren Elemente und bis zu 1.500 Zeichen ihres sichtbaren Textes — was der Inhalt eines internen Systems sein kann. Ein Wert, den der Agent eintippt, wird **nicht** gesendet - und auch nicht, was ein Feld schon enthält: Die Elementtabelle meldet nur, dass ein Feld gefüllt ist, ein Passwort oder eine Adresse erreicht diesen Endpunkt also nicht | Die Capability `browser_choice`, die ohne einen von einem Betreiber hinterlegten Vault-Key nicht läuft; `decision_base_url` verschiebt das Ziel. Welchen Browser sie steuert, begrenzt `BROWSER_CDP_ALLOWED_HOSTS`, standardmäßig leer | Der Anbieter des Entscheidungsmodells oder Ihr eigener Host |
 | Die Sandbox, ausgehend | **Alles im Workspace, an jeden beliebigen Host** — die Runtime `workbench` hat ein Netz, eine Shell und `curl` | Die Capability `sandbox` und eine Runtime mit `needs_network`; die Kommandofreigabe steuert, was läuft, nicht wohin es sich verbindet | Wohin das Kommando ging. Egress-Kontrolle ist die Firewall des Sandbox-Hosts, keine Einstellung hier |
 | Ein MCP-Server | Tool-Argumente und -Ergebnisse | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |

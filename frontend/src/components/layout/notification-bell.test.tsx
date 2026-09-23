@@ -52,27 +52,27 @@ function renderBell(
 
 beforeEach(() => {
   useUnreadNotificationCountMock.mockReset();
-  useUnreadNotificationCountMock.mockReturnValue(0);
+  useUnreadNotificationCountMock.mockReturnValue({ count: 0, approximate: false });
   useNotificationInboxMock.mockReset();
 });
 
 describe("NotificationBell", () => {
   it("shows the unread count on the row trigger", () => {
-    useUnreadNotificationCountMock.mockReturnValue(3);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 3, approximate: false });
     renderBell("row");
 
     expect(screen.getByRole("button", { name: /Notifications/ })).toHaveTextContent("3");
   });
 
   it("shows no badge at all when nothing is unread", () => {
-    useUnreadNotificationCountMock.mockReturnValue(0);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 0, approximate: false });
     renderBell("row");
 
     expect(screen.getByRole("button", { name: /Notifications/ })).not.toHaveTextContent(/\d/);
   });
 
   it("caps the visible count rather than growing the badge without bound", () => {
-    useUnreadNotificationCountMock.mockReturnValue(140);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 140, approximate: false });
     renderBell("row");
 
     expect(screen.getByRole("button", { name: /Notifications/ })).toHaveTextContent("99+");
@@ -109,7 +109,7 @@ describe("NotificationBell", () => {
   });
 
   it("offers mark-all-read only while something is unread", async () => {
-    useUnreadNotificationCountMock.mockReturnValue(0);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 0, approximate: false });
     renderBell("row", { notifications: [notification({ read_at: "2026-09-01T00:00:00Z" })] });
 
     await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
@@ -118,11 +118,23 @@ describe("NotificationBell", () => {
     expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
   });
 
+  it("offers mark-all-read on a truncated count of zero", async () => {
+    // A bounded scan whose whole window was rows the read-time gate hides
+    // reports zero with rows still behind it. Hiding the sweep on that number
+    // hides the only control that reaches them (#1761).
+    useUnreadNotificationCountMock.mockReturnValue({ count: 0, approximate: true });
+
+    renderBell();
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+
+    expect(await screen.findByRole("button", { name: "Mark all read" })).toBeVisible();
+  });
+
   it("still offers mark-all-read when the loaded page is read but the badge is not", async () => {
     // The loaded page can be all-read while an unpaged older page still holds
     // an unread row - the offer has to track the same unread-count query the
     // badge reads, not what happens to be on screen.
-    useUnreadNotificationCountMock.mockReturnValue(1);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 1, approximate: false });
     renderBell("row", { notifications: [notification({ read_at: "2026-09-01T00:00:00Z" })] });
 
     await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
@@ -132,7 +144,7 @@ describe("NotificationBell", () => {
   });
 
   it("marks everything read on request", async () => {
-    useUnreadNotificationCountMock.mockReturnValue(1);
+    useUnreadNotificationCountMock.mockReturnValue({ count: 1, approximate: false });
     const markAllRead = vi.fn().mockResolvedValue(undefined);
     renderBell("row", { notifications: [notification()], markAllRead });
 

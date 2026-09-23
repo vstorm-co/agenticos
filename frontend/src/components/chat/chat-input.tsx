@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
@@ -97,6 +98,22 @@ interface ChatInputProps {
    * need it: the Web Speech API captures its own audio.
    */
   mic?: UseMicrophoneResult;
+  /**
+   * What the caller wants on the left of the control row, after the attach
+   * button - the connection pill and the usage readings.
+   *
+   * A slot rather than a second row of the caller's own. The composer used to
+   * be four stacked bands: a usage strip above the text, the text, a floating
+   * cluster of icons beside it, a rule, and a row of pickers under that. The
+   * cluster sat beside the textarea, so on a tall message the send button
+   * floated somewhere in the middle of the box with text above and below it.
+   * One row under the text is what every console this is measured against
+   * does, and it is one row because the send button has to stay inside this
+   * `<form>` to submit it.
+   */
+  statusSlot?: ReactNode;
+  /** The right of the same row, before the microphone: who answers, and how. */
+  controlsSlot?: ReactNode;
 }
 
 export function ChatInput({
@@ -108,6 +125,8 @@ export function ChatInput({
   commands,
   attachmentSlot,
   mic,
+  statusSlot,
+  controlsSlot,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -410,27 +429,60 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
-      <div className="flex items-end gap-2">
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={t("placeholder")}
-          disabled={disabled}
-          rows={1}
-          className="placeholder:text-muted-foreground min-h-[40px] flex-1 resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
-        />
+      {/* The text has the box to itself, and every control is on one row under
+          it. The buttons used to sit *beside* the textarea, which is fine on
+          one line and wrong on ten: the send button drifted to the vertical
+          middle of a tall message, with text above it and text below. */}
+      <textarea
+        ref={textareaRef}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        placeholder={t("placeholder")}
+        disabled={disabled}
+        rows={1}
+        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+      />
 
-        <div className="flex shrink-0 items-center gap-0.5 pb-1">
+      {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
+          run 27px past the composer's own edge, measured on an iPhone 15. */}
+      <div className="flex items-center gap-1.5 pt-0.5 pb-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isUploading}
+          className="h-9 w-9 shrink-0"
+          title={t("attachFile")}
+          aria-label={t("attachFile")}
+        >
+          {isUploading ? (
+            <Spinner className="text-muted-foreground h-4 w-4" />
+          ) : (
+            <Paperclip className="text-muted-foreground h-4 w-4" />
+          )}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileSelect}
+          accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
+          multiple
+          className="hidden"
+        />
+        {statusSlot ? <div className="flex min-w-0 items-center gap-2">{statusSlot}</div> : null}
+
+        <div className="ml-auto flex min-w-0 items-center gap-1.5">
+          {controlsSlot}
           <Button
             type="button"
             variant="ghost"
             size="icon"
             onClick={toggleMic}
             disabled={disabled}
-            className="h-9 w-9"
+            className="h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -441,37 +493,12 @@ export function ChatInput({
             )}
           </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isUploading}
-            className="h-9 w-9"
-            title={t("attachFile")}
-            aria-label={t("attachFile")}
-          >
-            {isUploading ? (
-              <Spinner className="text-muted-foreground h-4 w-4" />
-            ) : (
-              <Paperclip className="text-muted-foreground h-4 w-4" />
-            )}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileSelect}
-            accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
-            multiple
-            className="hidden"
-          />
-
           {isProcessing && onStop ? (
             <Button
               type="button"
               size="icon"
               onClick={onStop}
-              className="h-9 w-9 rounded-lg"
+              className="h-9 w-9 shrink-0 rounded-lg"
               title={t("stopGenerating")}
             >
               <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
@@ -481,6 +508,7 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
+              className="shrink-0"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}

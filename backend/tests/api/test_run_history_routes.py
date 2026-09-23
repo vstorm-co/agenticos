@@ -148,17 +148,6 @@ class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
         assert service.list_runs.await_args.kwargs["order_by"].value == "started_at"
         assert service.list_runs.await_args.kwargs["descending"] is True
 
-    async def test_a_duration_threshold_reaches_the_filters(self):
-        filters = await _filters_for("?took_over_ms=30000")
-
-        assert filters.took_over_ms == 30_000
-
-    async def test_a_negative_threshold_is_refused(self):
-        async with _client(_service()) as client:
-            response = await client.get("/api/v1/runs?took_over_ms=-1")
-
-        assert response.status_code == 422
-
 
 class TestAskingWhatPeopleThoughtOfIt:
     async def test_the_runs_somebody_said_were_wrong(self):

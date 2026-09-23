@@ -805,6 +805,28 @@ describe("uploading a document", () => {
     expect((xhr(1).send.mock.calls[0]![0] as FormData).get("ingestion")).toBe('{"ocr":true}');
   });
 
+  it("sends the organizational unit only when one was named", async () => {
+    // Nothing wrote this dimension until #1777, so its filter matched nothing
+    // and its facet was empty. A blank one is not a value: the server reads it
+    // as none, and an absent field says the same without asking it.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "a.pdf"), {}, "");
+      (await sent(0)).onload!();
+      await upload;
+    });
+    expect((xhr(0).send.mock.calls[0]![0] as FormData).get("organizational_unit")).toBeNull();
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "b.pdf"), {}, "Legal");
+      (await sent(1)).onload!();
+      await upload;
+    });
+    expect((xhr(1).send.mock.calls[0]![0] as FormData).get("organizational_unit")).toBe("Legal");
+  });
+
   it("reads the refusal out of the envelope the backend actually sends", async () => {
     // This looked for `detail`, so an unsupported extension, an oversized file and
     // a malformed override all arrived as "Upload failed".
