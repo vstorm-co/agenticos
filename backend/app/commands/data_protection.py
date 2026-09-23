@@ -97,6 +97,15 @@ UNREFERENCED_BY_DESIGN = ("generated_", "_rag_tmp")
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
 OUTBOUND_CAPABILITIES: dict[str, str] = {
+    # Two destinations, and the second is the one a reviewer would miss: every
+    # step sends the page's URL, title and element labels to the decision model,
+    # which on the vendor's default endpoint is a third party. `decision_base_url`
+    # is what moves it.
+    "browser_choice": (
+        "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the decision model at "
+        "decision_base_url (the vendor's endpoint by default), which receives each "
+        "page's address, its element labels and a bounded excerpt of its visible text"
+    ),
     "browser_use": "the browser service this deployment configures",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
@@ -196,6 +205,10 @@ def _settings_section() -> Section:
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
         ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
+        [
+            "BROWSER_CDP_ALLOWED_HOSTS",
+            ", ".join(settings.BROWSER_CDP_ALLOWED_HOSTS) or "none",
+        ],
         ["GOOGLE_CLIENT_ID", "set" if settings.GOOGLE_CLIENT_ID else "unset"],
     ]
     return Section(

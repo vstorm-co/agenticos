@@ -76,6 +76,29 @@ export function ScheduleStep({
         </div>
       )}
 
+      {/* Free text, and one field rather than a picker: the vocabulary is
+          whatever a deployment's corpus turns out to use, and the collection's
+          facet endpoint reports the values it actually holds. A closed list
+          would have to be maintained before the first document could be filed
+          under anything (#1777). */}
+      <div className="space-y-1.5">
+        <Label
+          htmlFor="organizational-unit"
+          className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
+        >
+          {t("organizationalUnit")}
+        </Label>
+        <Input
+          id="organizational-unit"
+          maxLength={255}
+          placeholder={t("organizationalUnitPlaceholder")}
+          value={form.organizational_unit ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, organizational_unit: e.target.value || null }))}
+          className="h-10 rounded-xl"
+        />
+        <p className="text-foreground/55 text-xs">{t("organizationalUnitDetail")}</p>
+      </div>
+
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
           {t("syncMode")}

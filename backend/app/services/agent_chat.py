@@ -35,6 +35,7 @@ from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.browser_events import BrowserEventSink
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -309,6 +310,7 @@ class ChatAgentRunner:
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
+        browser_events: BrowserEventSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -351,6 +353,10 @@ class ChatAgentRunner:
                 a *streamed* request for every child, so a delegate whose provider
                 cannot stream works from the API and breaks the moment somebody
                 watches it. A surface passes this only if it can show the frames.
+            browser_events: Where a browse's frames go - its steps, its
+                confidences and, when the agent asked for them, the viewport. A
+                `browse_page` call is the longest tool call this platform makes;
+                without this it is a tool call that goes quiet for a minute.
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -399,6 +405,10 @@ class ChatAgentRunner:
         # between two of this turn's own, where nothing streams. Without this the
         # chat stops dead for the length of it with nothing said.
         prepared.deps.on_compaction = on_compaction
+        # And the fourth: a browse is a minute of a real browser being driven, and
+        # the only tool call where watching it is how somebody notices it acting
+        # on a page they did not expect.
+        prepared.deps.browser_events = browser_events
         # Before the model answers, not after: the model is about to say it cannot
         # reach the person's Notion, and the card with the button that connects it
         # belongs beside that sentence, not under it once the turn is over.

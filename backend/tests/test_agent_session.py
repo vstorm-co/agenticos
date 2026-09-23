@@ -83,6 +83,7 @@ from subagents_pydantic_ai import SubAgentState, TaskStatus
 # reaches for it here. Binding through a real delegation would mean running one.
 from subagents_pydantic_ai._state import bind_subagent_state
 
+from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -2686,3 +2687,74 @@ class TestTellingTheClientWhatThePersonCannotReach:
                 },
             )
         ]
+
+
+class TestForwardingBrowserFrames:
+    """What the client hears while the agent is driving a browser.
+
+    A `browse_page` call is the longest tool call this platform makes, and the
+    only one where watching it is how somebody notices it acting on a page they
+    did not expect. Without these frames the chat shows a tool call named
+    `browse_page` and then, a minute later, a paragraph.
+    """
+
+    async def test_a_frame_is_sent_under_the_name_the_union_gave_it(self):
+        session = _session()
+
+        await session._browser_event(
+            BrowserEvent(
+                kind="browser_step",
+                call_id="call-1",
+                step=3,
+                url="https://example.test/pricing",
+                title="Pricing",
+                operation="CLICK",
+                target="Accept all",
+                confidence=0.42,
+            )
+        )
+
+        name, payload = _sent_events(session)[0]
+        assert name == "browser_step"
+        assert payload["kind"] == "browser_step"
+        assert (payload["call_id"], payload["step"]) == ("call-1", 3)
+        assert (payload["operation"], payload["target"]) == ("CLICK", "Accept all")
+        # The number a reviewer reads to decide whether to look at this step.
+        assert payload["confidence"] == 0.42
+
+    async def test_a_picture_travels_as_a_data_url_on_its_own_frame(self):
+        """Separate from the narration so encoding one never holds up the other."""
+        session = _session()
+
+        await session._browser_event(
+            BrowserEvent(
+                kind="browser_frame",
+                call_id="call-1",
+                step=3,
+                image="data:image/jpeg;base64,AAAA",
+            )
+        )
+
+        name, payload = _sent_events(session)[0]
+        assert name == "browser_frame"
+        assert payload["image"] == "data:image/jpeg;base64,AAAA"
+        assert payload["operation"] is None
+
+    async def test_the_finishing_frame_carries_the_outcome_and_why(self):
+        """`blocked` is an answer about the page, and the spinner has to stop for it."""
+        session = _session()
+
+        await session._browser_event(
+            BrowserEvent(
+                kind="browser_finished",
+                call_id="call-1",
+                step=4,
+                outcome="blocked",
+                detail="The engine found no available action that serves the goal.",
+            )
+        )
+
+        name, payload = _sent_events(session)[0]
+        assert name == "browser_finished"
+        assert payload["outcome"] == "blocked"
+        assert "no available action" in payload["detail"]

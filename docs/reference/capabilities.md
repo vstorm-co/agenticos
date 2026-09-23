@@ -30,6 +30,7 @@ tools listed.
 | `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
@@ -462,6 +463,110 @@ running until it is edited, rather than going on fetching unapproved.
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
 to do with a page belongs to the agent's instructions.
+
+## Browser automation (choose)
+
+`browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
+
+A goal and a starting URL. It opens the page in a Chromium you run and then repeats
+three things: read the page into a numbered table of the elements a person could act
+on, ask a decision model which operation and which element, carry that out. Only
+typing a field's value reaches a language model.
+
+Reach for it when a page has to be *operated* — a form, a filter, a consent gate, a
+multi-step flow, a search whose results need a click. For a page you only need to
+read, [web fetch](#web-fetch) is faster and has no side effects.
+
+**It chooses; it does not compose.** A browser agent that writes its next action can
+emit any string, so the page's text is an instruction channel into the model and the
+only defence is telling the model not to listen. This one answers a pick-one whose
+options are built on the server from the live DOM, so a page cannot offer an action
+by describing one.
+
+That is not the same as safe. "Delete account" is an action a page genuinely offers,
+so the capability is **`side_effecting`** and `browse_page` can be put behind
+[approval](../governance.md).
+
+**It is not held for approval by default**, which is the one place the tool's flag
+disagrees with the capability's. An approval on a browse arrives *before* the first
+page is fetched, on a goal in natural language and a URL — so it asks somebody to
+approve actions nobody can see yet, which is consent without information. What
+replaces it is watching: the console draws the browse while it runs, every step
+names what was chosen and how sure the engine was, and `allowed_domains` bounds
+where it can go at all. An operator who wants the gate sets `tool_approval` on the
+binding, which wins over this; `min_confidence` is the automatic version of the same
+instinct.
+
+**It reports being blocked.** A sign-in wall, a consent gate, a captcha, a page that
+does not contain what was asked for: the engine says so, and the browse ends with an
+outcome rather than with silence at the step ceiling. Four outcomes, and all four are
+ordinary — finished, blocked by the page, stopped at the step limit, and the browser
+could not be reached.
+
+| Config | Default | Values |
+|---|---|---|
+| `cdp_url` | the one allowed host, where there is one | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS`. With exactly one host allowed the form arrives filled in |
+| `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted |
+| `decision_model` | `jev-latest` | a picker over `app/core/catalog/decision_models.json`; a pinned build such as `jev-1.13.0` can be typed, because an agent whose confidence floor was tuned against a version needs one |
+| `decision_base_url` | null | where that model runs. Empty is the vendor's own `https://api.typesafe.ai`, which is where page content goes unless this says otherwise |
+| `max_steps` | 25 | 1–100; each step is one decision request |
+| `candidate_cap` | 60 | 2–200; how many elements may be offered as choices in one step |
+| `min_confidence` | 0.0 | 0–1; refuse to act on a pick scored below this, ending the browse as blocked |
+| `preview` | `true` | send the viewport to the chat while the browse runs |
+| `preview_width` | 1024 | 320–1920; how wide those frames are |
+
+**The browser is one you run, and the operator says which.** There is no local
+mode and no Chromium in the API image: `cdp_url` points at a browser service an
+operator runs and isolates. The host must be on
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
+default — refuses browser automation outright. Checked **at publish**, when the
+spec is saved, rather than on every run.
+
+That is an allowlist rather than the SSRF check every other tenant-supplied URL
+goes through, and the reason is what `cdp_url` is: it lives in a spec, which
+anyone holding `edit` on the agent writes, so the address is tenant-controlled and
+the request is this deployment's. The SSRF guard is wrong for it in both
+directions — it admits only *public* addresses, so it refuses the isolated service
+on your own network that this page tells you to run, and it accepts a CDP debugger
+exposed to the internet, which is the worse posture of the two. A vetted host
+needs no address check; an unvetted one is refused whatever it resolves to.
+
+**Each browse gets a browser context of its own**, disposed when it ends. On a
+long-lived browser shared by many callers, the default context would keep a cookie
+set when one person's agent signed in — and the next caller of the same agent would
+arrive already authenticated as them. Closing the tab does not clear that;
+disposing the context does.
+
+**Every step sends the page to the decision model.** Its URL, its title, its
+element labels and a bounded excerpt of its visible text — which on the vendor's
+public endpoint is a third party, and may be the contents of an internal system.
+The text is there because without it the engine cannot tell that it has *finished*:
+a price, a confirmation and "no results" are ordinary text rather than controls, so
+`DONE` would be a guess. A value the agent types is deliberately not sent — the step
+is recorded as "filled" without it, so a password does not travel to that endpoint.
+
+Two things make that a decision rather than an accident: the capability requires an
+API key from this deployment's vault, so it cannot run until an operator adds one,
+and `decision_base_url` points the decision model somewhere else — at a host on
+[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), because that field is in the
+spec and the key is unsealed into a header to whatever it names. An empty allowlist,
+the default, permits only the vendor's endpoint. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).
+
+**Both model paths are metered, and neither is priced.** The decision model runs once
+per step and the run's own model once per field typed; both book tokens against the
+run's budget. A price is another matter: the bundled price snapshot does not know the
+decision model, so a browse shows usage and no cost, and a budget denominated in
+dollars does not constrain it. `max_steps` is what bounds a browse.
+
+**`cdp-use` and the TypeSafe SDK arrive with the `browser` extra**, which a default
+install does not have. An operator who wants the capability installs
+`agenticos[browser]`; a bound agent whose deployment lacks it fails the one tool
+loudly, with the install line.
+
+**It streams while it runs.** The console draws the viewport, the page it is on, and
+each step with the probability the engine found it at — see
+[the console](../console.md). `preview` off keeps the narration and drops the
+pictures.
 
 ## Browser automation
 
@@ -1548,7 +1653,7 @@ the agent is assembled:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
+| `web:browse` | `browser_choice`, `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

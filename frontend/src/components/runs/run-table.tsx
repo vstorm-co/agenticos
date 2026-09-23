@@ -64,7 +64,7 @@ export function RunTable({
   /** Names for the Agent column, keyed by id. Given only by a caller whose
    * reader holds agents:view - the column is withheld, not dashed out, when
    * the names cannot be resolved. */
-  agentsById?: Map<string, { name: string; has_avatar?: boolean }>;
+  agentsById?: Map<string, { name: string; slug: string; has_avatar?: boolean }>;
   /** Faces for the User column, from the member list any member may read. */
   membersById?: Map<string, IdentifiedMember>;
 }) {
@@ -124,7 +124,7 @@ export function RunTable({
                   <span aria-hidden>
                     <AgentAvatar
                       agentId={run.agent_id}
-                      name={agent.name}
+                      slug={agent.slug}
                       hasAvatar={agent.has_avatar ?? false}
                       size="sm"
                       className="h-5 w-5"

@@ -6,6 +6,8 @@ import { useSyncSources } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
+import { RefreshCw } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -23,7 +25,11 @@ export function KnowledgeFreshnessWidget({ title, hint, seeAll, options }: Dashb
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : sources.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={RefreshCw}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <StatusList
           rows={sources.map((source) => {

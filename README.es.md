@@ -1,8 +1,8 @@
-<!-- source_sha: 191696f072e5 -->
+<!-- source_sha: 9b8b5cecdd8d -->
 
 <div align="center">
 
-<img src="docs/assets/amigo.svg" alt="Amigo, la mascota de AgenticOS" width="96">
+<img src="docs/assets/amigo-walk.svg" alt="Amigo, la mascota de AgenticOS, caminando" width="288">
 
 <h1>AgenticOS</h1>
 

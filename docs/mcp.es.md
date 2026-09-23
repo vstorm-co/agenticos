@@ -1,5 +1,5 @@
 ---
-source_sha: "87a5e8e9d4e1"
+source_sha: "97da4b30471c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -336,7 +336,7 @@ elegida por un agent quiere el `safe_download` de Pydantic AI.
 Un paso que falla dice **qué paso se rindió y qué clase de cosa lanzó el error**,
 nunca lo que escribió el cliente de arriba.
 
-`httpx` pone la petición fallida en su mensaje, y las dos peticiones de aquí son
+`httpx2` pone la petición fallida en su mensaje, y las dos peticiones de aquí son
 un registro de cliente y una concesión de token — así que citarlo llevaría al
 navegador un endpoint de token, alcanzado con credenciales. Un error de pydantic
 sobre una respuesta de token ilegible repite el payload que rechazó, que son los
@@ -358,8 +358,8 @@ descubrimiento, no el flujo, porque las URI well-known que vienen después se
 derivan de la URL que escribió un operador y bien pueden responder.
 
 Esto era un 500 con el cuerpo vacío hasta
-[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL` no
-deriva de `httpx.HTTPError`, así que ninguno de los catch del flujo lo veía — y
+[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx2.InvalidURL` no
+deriva de `httpx2.HTTPError`, así que ninguno de los catch del flujo lo veía — y
 ninguna comprobación de aquí habría podido verlo, porque la URL se rechaza
 mientras se construye la petición, por encima tanto de la comprobación de SSRF
 como del cliente fijado. Lo que el parser no pudo leer (`Invalid port:

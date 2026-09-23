@@ -188,6 +188,42 @@ describe("the sync wizard's target collection", () => {
  * whole Confluence instance, pointed at an `org` collection, published the
  * instance to every member holding `collections:view` and no step said a word.
  */
+describe("the organizational unit a source files its documents under", () => {
+  it("rides the create, so a retrieval can narrow on what this source brings in", async () => {
+    // The dimension had four filters, an index and a facet endpoint, and nothing
+    // that wrote it - so the filter matched nothing and the facet was empty for
+    // every collection (#1777).
+    const onSubmit = vi.fn();
+    await openScheduleStep({
+      collections: [{ name: "handbook", scope: "org" }],
+      defaultCollection: "handbook",
+      onSubmit,
+    });
+
+    await userEvent.type(screen.getByLabelText("Organizational unit"), "Legal");
+    await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ organizational_unit: "Legal" }),
+    );
+  });
+
+  it("is absent rather than blank when nobody named one", async () => {
+    // An empty string would be a unit named "", offered in the filter and
+    // matching only the documents whose field was left blank.
+    const onSubmit = vi.fn();
+    await openScheduleStep({
+      collections: [{ name: "handbook", scope: "org" }],
+      defaultCollection: "handbook",
+      onSubmit,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ organizational_unit: null }));
+  });
+});
+
 describe("the audience of what a source ingests", () => {
   it("is stated on the step that decides it, even where the collection is pinned", async () => {
     // The issue's own repro: `kb/[id]` offers one collection, so there is no
@@ -285,6 +321,7 @@ describe("the audience of what a source ingests", () => {
             config: {},
             secret_id: DRIVE_CREDENTIAL.id,
             secret_hint: DRIVE_CREDENTIAL.hint,
+            organizational_unit: null,
             sync_mode: "full",
             schedule_minutes: null,
             is_active: true,

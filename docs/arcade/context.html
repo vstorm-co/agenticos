@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Context Tetris - Amigo's Arcade</title>
+    <meta
+      name="description"
+      content="Stack instructions, documents and memories. Clear rows to answer tasks. Try not to drown in verbose logs."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&amp;family=Inter:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <link rel="stylesheet" href="new-cabinets.css" />
+  </head>
+  <body>
+    <main class="arc-page is-game cabinet" data-cabinet="context">
+      <header class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Context Tetris</h1>
+        <a class="arc-back" href="./" aria-label="Back to the arcade"
+          >←<span class="label"> the arcade</span></a
+        >
+        <p class="arc-eyebrow">Amigo's Arcade</p>
+        <button class="arc-fs" id="pause" disabled>Pause</button
+        ><button class="arc-fs" id="sound">Sound on</button
+        ><button class="arc-fs" id="fs">Fullscreen</button>
+      </header>
+      <div class="cabinet-layout context-layout">
+        <section class="cabinet-main" id="screen">
+          <div class="meters">
+            <div class="meter">
+              <span>Score</span><strong id="score">0</strong>
+            </div>
+            <div class="meter">
+              <span>Rows</span><strong id="lines">0</strong>
+            </div>
+            <div class="meter">
+              <span>Tasks</span><strong id="tasks">0</strong>
+            </div>
+          </div>
+          <div class="context-field">
+            <canvas
+              class="context-canvas"
+              id="game"
+              width="300"
+              height="540"
+              aria-label="Context window: ten columns and eighteen rows of falling blocks"
+            ></canvas>
+          </div>
+          <div class="context-controls" aria-label="Block controls">
+            <button class="arc-btn" data-control="left" aria-label="Move left">
+              ←</button
+            ><button
+              class="arc-btn"
+              data-control="rotate"
+              aria-label="Rotate block"
+            >
+              ↻</button
+            ><button
+              class="arc-btn"
+              data-control="right"
+              aria-label="Move right"
+            >
+              →</button
+            ><button class="arc-btn" data-control="down" aria-label="Move down">
+              ↓</button
+            ><button class="arc-btn is-primary" data-control="drop">
+              DROP
+            </button>
+            <button
+              class="arc-btn"
+              data-control="discard"
+              aria-label="Discard falling block"
+            >
+              X · 3
+            </button>
+          </div>
+          <div class="arc-overlay" id="overlay">
+            <p class="arc-reason">Window: 180 cells</p>
+            <h2>Context Tetris</h2>
+            <p>
+              Clear full rows to collect their contents. Bank 4 instructions, 4
+              documents and 4 memories to answer a task. Noise fills space but
+              earns no context. Tool, MCP and skill blocks activate bonuses when
+              you collect four. Pick a provider, then start.
+            </p>
+            <p class="arc-hint" id="perkLine"></p>
+            <button class="arc-btn is-primary" id="start">
+              Open context window
+            </button>
+            <p class="arc-hint">
+              ← → move · ↑ rotate · ↓ soft drop · Space drop · X discard
+            </p>
+          </div>
+          <div class="arc-paused" id="paused" hidden>
+            <h3>Paused</h3>
+            <button class="arc-btn" id="resume">Resume</button>
+          </div>
+        </section>
+        <aside class="cabinet-sidebar">
+          <section class="side-panel provider-panel">
+            <h3>LLM provider <span>choose before run</span></h3>
+            <div class="providers">
+              <button data-provider="openai">OpenAI</button
+              ><button data-provider="anthropic">Anthropic</button
+              ><button data-provider="qwen">Qwen</button
+              ><button data-provider="deepseek">DeepSeek</button>
+            </div>
+            <p id="providerPerk"></p>
+            <p class="balance-note">Fictional arcade stats, no API calls.</p>
+          </section>
+          <section class="side-panel next-panel">
+            <h3>Incoming context</h3>
+            <div class="next-piece">
+              <canvas
+                id="next"
+                width="96"
+                height="64"
+                aria-label="Next block"
+              ></canvas
+              ><span id="nextName"></span>
+            </div>
+            <p id="currentName"></p>
+            <button class="arc-btn" id="discard">Discard [X]</button>
+          </section>
+          <section class="side-panel inventory-panel">
+            <h3>Agent inventory</h3>
+            <div class="context-legend">
+              <div>
+                <i style="--block: #eac05c"></i>I · Instructions<b
+                  id="instruction"
+                  >0 / 4</b
+                >
+              </div>
+              <div>
+                <i style="--block: #54b6ce"></i>D · Docs / RAG<b id="document"
+                  >0 / 4</b
+                >
+              </div>
+              <div>
+                <i style="--block: #b587d5"></i>M · Memory<b id="memory"
+                  >0 / 4</b
+                >
+              </div>
+              <div>
+                <i style="--block: #70c99b"></i>T · Web search<b id="tool"
+                  >0 / 4</b
+                >
+              </div>
+              <div>
+                <i style="--block: #819af3"></i>↔ · GitHub MCP<b id="mcp"
+                  >0 / 4</b
+                >
+              </div>
+              <div>
+                <i style="--block: #ef9670"></i>S · Compaction<b id="skill"
+                  >0 / 4</b
+                >
+              </div>
+            </div>
+            <p class="inventory-hint">
+              4 I + 4 D + 4 M → answer (+600)<br />4 T → search (+250)<br />4
+              MCP → +1 discard<br />4 S → slow time (15s)<br />× Logs → noise,
+              no reward
+            </p>
+          </section>
+          <section class="side-panel report-panel">
+            <p class="dispatch" id="message" role="status"></p>
+            <p id="best"></p>
+          </section>
+        </aside>
+      </div>
+      <div class="cabinet-status">
+        <span id="activeLoadout"></span
+        ><span>P pause · R restart · F fullscreen</span>
+      </div>
+    </main>
+    <script src="arcade.js"></script>
+    <script src="game-engines.js"></script>
+    <script src="new-cabinets.js"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 ---
-source_sha: "7dfb1219d808"
+source_sha: "a40ae2358eec"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -321,6 +321,7 @@ Das Datenbankmodell `ChatFile` verfolgt hochgeladene Dateien:
 | `mime_type` | String | Aufgelöster (kanonischer) MIME-Typ — eine `application/octet-stream`-`.tiff` wird als `image/tiff` gespeichert, damit der Download- und der Inline-Umwandlungspfad ein verlässliches Feld lesen. Vor FA-013 hochgeladene Zeilen behalten ihren deklarierten Typ; die Leser tolerieren beides. |
 | `size` | Integer | Dateigröße in Bytes |
 | `storage_path` | String | Relativer Pfad im Speicher |
+| `organizational_unit` | Zu welchem Teil der Organisation dieses Dokument gehört — aus dem Upload oder von der Sync-Quelle geerbt. `null`, wenn es niemand abgelegt hat |
 | `file_type` | String | Klassifizierter Typ: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Extrahierter Textinhalt (NULL bei Bildern) |
 | `message_id` | UUID/FK | Verknüpfte Nachricht (gesetzt beim Senden der Nachricht) |
@@ -464,8 +465,8 @@ Pro Collection, neben dem Parser:
 
 | Einstellung | Vorgabe | Beschreibung |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Höchstzahl der Zeichen pro Chunk |
-| `chunk_overlap` | `50` | Zeichen der Überlappung; muss kleiner sein als `chunk_size` |
+| `chunk_size` | `2500` | Höchstzahl der Zeichen pro Chunk |
+| `chunk_overlap` | `200` | Zeichen der Überlappung; muss kleiner sein als `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategie: `recursive`, `markdown`, `fixed` |
 
 **Vergleich der Strategien:**
@@ -523,7 +524,7 @@ als Text gerendert trägt — bei 3072 Dimensionen zehntausende Bytes pro Zeile.
 ihren eigenen Wert.**
 
 Ein `ingestion`-Feld pro Upload trägt nur, was es ändert, `chunk_overlap: 4096`
-an eine Collection gesendet, die bei 512 chunkt, sind also zwei einzeln legale
+an eine Collection gesendet, die bei 2500 chunkt, sind also zwei einzeln legale
 Zahlen und eine Konfiguration, die fast alles wiederholt, worüber sie
 hinausgeht.
 
@@ -877,6 +878,31 @@ geteilte Basis lesen, ohne dass jemand die der anderen liest.
 demselben Scope. Es existiert, weil diese Dimension das ist, was die Autoren
 geschrieben haben: ein geratener Wert liefert still nichts, und das liest sich als
 „dazu gibt es nichts" statt als „diese Einheit gibt es nicht".
+
+### Woher die Organisationseinheit kommt { #where-the-organizational-unit-comes-from }
+
+Zwei Schreiber, und sonst setzt sie nichts. Eine **Sync-Quelle** trägt einen
+Standardwert, den jedes Dokument erbt, das sie einbringt — ein geteilter Ordner gehört
+einer Abteilung, und niemand beschriftet tausend synchronisierte Dateien einzeln. Ein
+**Upload** benennt eine für diese Datei, im Multipart-Body neben `ingestion`, und sie
+wird auf der Zeile des Dokuments selbst festgehalten statt an den Worker übergeben — so
+bindet ein Run, der vor diesem Feld eingereiht wurde, weiterhin. Die Konsole bietet
+beides: ein Feld im letzten Schritt des Sync-Assistenten und eines in *How the next
+uploads are read and filed*, das für jede weitere Datei gilt, bis es geleert wird.
+
+Freitext, und das mit Absicht. Das Vokabular ist das, was der Korpus eines Deployments
+tatsächlich verwendet, und `filter-values` meldet, was eine Collection wirklich hält —
+eine geschlossene Liste müsste gepflegt sein, bevor das erste Dokument irgendwo abgelegt
+werden könnte. Leer ist kein Wert: es wird als *keine Einheit* erfasst, damit die Facette
+nie eine Einheit namens `""` anbietet.
+
+**Es wird nichts nachgetragen.** Ein Dokument, das ingestiert wurde, bevor seine Quelle
+oder die hochladende Person eine Einheit benannt hat, trägt keine, und keine Regel kann
+entscheiden, zu welcher es gehört hätte. Ein solches Dokument wird von jedem Filter auf
+dieser Dimension ausgeschlossen — Chunks fallen zu „nein" — bis es neu ingestiert wird.
+Bis [#1777](https://github.com/vstorm-co/agenticos/issues/1777) schrieb das Feld
+überhaupt nichts, also traf der Filter nichts und `filter-values` antwortete in jedem
+Deployment für jede Collection mit einer leeren Liste.
 
 !!! warning "Der alte `filter`-String ist veraltet"
 

@@ -141,7 +141,7 @@ export function SpendTab({ period }: { period: Period }) {
           <span aria-hidden>
             <AgentAvatar
               agentId={row.agent_id}
-              name={row.agent_name ?? t("deletedAgent")}
+              slug={row.agent_slug}
               size="sm"
               className="h-5 w-5"
             />

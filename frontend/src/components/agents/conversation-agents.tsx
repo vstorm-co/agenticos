@@ -47,7 +47,7 @@ export function ConversationAgents({
           <AgentAvatar
             key={agent.id}
             agentId={agent.id}
-            name={agent.name}
+            slug={agent.slug}
             hasAvatar={agent.has_avatar}
             size={size}
             className="ring-background ring-2"

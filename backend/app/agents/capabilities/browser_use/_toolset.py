@@ -7,10 +7,12 @@ build its toolset with the dependency missing - only *calling* `browse_web` need
 it. The engine is reached through `BrowserDelegateFactory`, which is also what a
 test substitutes with a fake so the tool body runs without a browser.
 
-The browser sub-agent runs on the host run's model (`ctx.model`), wrapped in a
-:class:`MeteredModel` so each of its steps books against the run's ledger - the
-`browser-use` loop makes one model request per step, and without this they would
-be spend the budget guard cannot see (agenticos#802).
+The browser sub-agent runs on the host run's model (`ctx.model`), wrapped in
+:class:`~app.agents.capabilities._metered.MeteredModel` so each of its steps books
+against the run's ledger - the `browser-use` loop makes one model request per
+step, and without this they would be spend the budget guard cannot see
+(agenticos#802). The wrapper is shared with `browser_choice`, which has the same
+problem one loop further out.
 """
 
 from __future__ import annotations
@@ -18,41 +20,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, Protocol, cast
 
-from pydantic_ai.messages import ModelMessage, ModelResponse
-from pydantic_ai.models import Model, ModelRequestParameters
-from pydantic_ai.models.wrapper import WrapperModel
-from pydantic_ai.settings import ModelSettings
+from pydantic_ai.models import Model
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
-from app.agents.capabilities.budget import record_ambient_usage
-
-
-class MeteredModel(WrapperModel):
-    """Books each browser sub-agent model turn against the run that paid for it.
-
-    The sub-agent runs its own perception-action loop on this model, one request
-    per step, through an `Agent` the harness builds - so those requests never pass
-    the host agent's `BudgetGuard`, exactly as a compaction summary does not
-    (agenticos#16, and `MeteredCompaction` for the same fix). Wrapping the model
-    is what puts them on the run's ledger: :func:`record_ambient_usage` books to
-    whichever ledger the runner opened around the run (`metered_by`), and is a
-    no-op when there is none - a preview, a test, the CLI.
-
-    Booked from the response, so a request that raised - which produced no usage -
-    books nothing; `BudgetGuard` still refuses the *host* turn after a cap is
-    crossed, which is the request that follows a browse.
-    """
-
-    async def request(
-        self,
-        messages: list[ModelMessage],
-        model_settings: ModelSettings | None,
-        model_request_parameters: ModelRequestParameters,
-    ) -> ModelResponse:
-        response = await self.wrapped.request(messages, model_settings, model_request_parameters)
-        record_ambient_usage(self.model_name or "unknown", response.usage)
-        return response
+from app.agents.capabilities._metered import MeteredModel
 
 
 class BrowserDelegate(Protocol):

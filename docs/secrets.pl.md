@@ -1,5 +1,5 @@
 ---
-source_sha: "a4432cd987e3"
+source_sha: "da79e004aa8d"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -177,6 +177,7 @@ przynieść własny klucz:
 | Exa | `web_research` |
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
+| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — model, który na każdym kroku przeglądania wybiera operację i element. Nie jest providerem modeli: odpowiada na pytania z typem, a nie generuje tekst, więc nie jest oferowany jako model do uruchomienia agenta |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — cała capability, która trzyma semantyczne wspomnienia agenta w usłudze mem0 (chmurowej albo self-hosted), a nie tutaj. Nic nie jest zapisywane w tym wdrożeniu, więc mem0 rozlicza własny embedding poza pasmem, a wysyłanie wspomnień do chmury mem0 jest decyzją o rezydencji danych, którą podejmuje Builder. Self-hostowany `base_url` musi być https i musi być na liście dozwolonych `MEM0_ALLOWED_HOSTS`, więc klucz z vault nigdy nie trafia do originu kontrolowanego przez agenta. Dla tych wspomnień nie ma konsoli operatora: mem0 ma własny magazyn, własne listowanie i własne usuwanie. |
 
 ## Co nigdy się nie zdarza { #what-never-happens }

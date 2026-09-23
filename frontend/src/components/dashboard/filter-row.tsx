@@ -134,7 +134,7 @@ function ReviewApprovalsAction() {
         <ShieldCheck className="size-3.5" aria-hidden />
         {t("actions.reviewApprovals")}
         {total > 0 ? (
-          <span className="bg-warning/15 text-warning ml-0.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums">
+          <span className="border-warning/35 bg-warning/10 text-foreground ml-0.5 rounded-full border px-1.5 text-[10px] font-semibold tabular-nums">
             {total}
           </span>
         ) : null}

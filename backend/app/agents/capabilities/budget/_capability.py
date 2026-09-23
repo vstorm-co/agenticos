@@ -418,6 +418,43 @@ def metered_by(ledger: SpendLedger) -> Iterator[None]:
         _active_ledger.reset(token)
 
 
+_active_guard: ContextVar[BudgetGuard | None] = ContextVar("active_budget_guard", default=None)
+
+
+@contextmanager
+def guarded_by(guard: BudgetGuard) -> Iterator[None]:
+    """Let code outside the request wrapper ask whether the budget is spent.
+
+    The sibling of :func:`metered_by`, and it exists for the same gap read from
+    the other end. `metered_by` books what a capability's own model calls cost;
+    this is what lets one *refuse* before making them. `BudgetGuard` checks
+    inside `wrap_model_request`, which only wraps the host agent's requests - a
+    capability that runs its own `Agent` (a browse deciding its next step, a
+    compaction summary) goes nowhere near it, so an exhausted budget stopped the
+    turn's next request and not the twenty-five the tool was about to make.
+    """
+    token = _active_guard.set(guard)
+    try:
+        yield
+    finally:
+        _active_guard.reset(token)
+
+
+async def assert_ambient_budget() -> None:
+    """Refuse the caller's own model request if the run has reached a ceiling.
+
+    A no-op where nothing is counting - a preview, a test, the CLI - for the
+    reason :func:`record_ambient_usage` is: a capability should not refuse to
+    work because nobody is billing.
+
+    Raises:
+        BudgetExceeded: A ceiling this run is under has been reached.
+    """
+    guard = _active_guard.get()
+    if guard is not None:
+        await guard.assert_within_budget()
+
+
 def record_ambient_usage(
     model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
 ) -> None:
@@ -593,7 +630,7 @@ class BudgetGuard(AbstractCapability[Any]):
             self.run_state.baselines[limit.scope] = await limit.period_spend()
         return self.run_state.baselines[limit.scope]
 
-    async def _assert_within_budget(self) -> None:
+    async def assert_within_budget(self) -> None:
         """Refuse the next request if the run has already reached a ceiling.
 
         Under `run_state.check`, because `_baseline_for` may query the database on
@@ -617,7 +654,7 @@ class BudgetGuard(AbstractCapability[Any]):
         handler: WrapModelRequestHandler,
     ) -> ModelResponse:
         """Check the budget, make the request, then record what it cost."""
-        await self._assert_within_budget()
+        await self.assert_within_budget()
 
         response = await handler(request_context)
 

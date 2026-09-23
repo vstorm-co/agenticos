@@ -21,8 +21,8 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 /**
  * One routing configuration, shared by the middleware and the navigation APIs.
  *
- * `localePrefix: "as-needed"` - English, the default, has no prefix; Polish lives
- * under `/pl/...`.
+ * `localePrefix: "as-needed"` - English, the default, has no prefix; every other
+ * locale lives under its own, `/pl/...` and `/de/...`.
  *
  * `localeDetection: false` because it gates the `accept-language` header as well
  * as the cookie, and a visitor with a Polish browser must still be served English

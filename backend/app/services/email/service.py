@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 class EmailKey(enum.StrEnum):
     WELCOME = "welcome"
     EMAIL_VERIFICATION = "email_verification"
+    # Proving a *changed* address, and telling the old one it was asked for
+    # (#1772). Two keys rather than one: they go to two different addresses
+    # and say opposite things - "confirm this" and "somebody asked to move
+    # your account away from here".
+    EMAIL_CHANGE_VERIFICATION = "email_change_verification"
+    EMAIL_CHANGE_NOTICE = "email_change_notice"
     MAGIC_LINK = "magic_link"
     PASSWORD_RESET = "password_reset"
     INVITATION = "invitation"
@@ -39,6 +45,8 @@ class EmailCategory(enum.StrEnum):
 _CATEGORIES: dict[EmailKey, EmailCategory] = {
     EmailKey.WELCOME: EmailCategory.TRANSACTIONAL,
     EmailKey.EMAIL_VERIFICATION: EmailCategory.TRANSACTIONAL,
+    EmailKey.EMAIL_CHANGE_VERIFICATION: EmailCategory.TRANSACTIONAL,
+    EmailKey.EMAIL_CHANGE_NOTICE: EmailCategory.TRANSACTIONAL,
     EmailKey.MAGIC_LINK: EmailCategory.TRANSACTIONAL,
     EmailKey.PASSWORD_RESET: EmailCategory.TRANSACTIONAL,
     EmailKey.INVITATION: EmailCategory.TRANSACTIONAL,
@@ -141,6 +149,34 @@ class EmailService:
                 "expires_in": "1 hour",
                 "app_name": app_name,
             },
+        )
+
+    async def send_email_change_verification(
+        self, *, to: str, name: str, confirm_url: str, app_name: str
+    ) -> SendResult:
+        return await self.send(
+            key=EmailKey.EMAIL_CHANGE_VERIFICATION,
+            to=to,
+            context={
+                "name": name,
+                "confirm_url": confirm_url,
+                "expires_in": "1 hour",
+                "app_name": app_name,
+            },
+        )
+
+    async def send_email_change_notice(
+        self, *, to: str, name: str, new_email: str, app_name: str
+    ) -> SendResult:
+        """To the address being moved away from, never to the new one.
+
+        A takeover is only visible to the person losing the account if the
+        address that still receives their mail is told it was asked for (#1772).
+        """
+        return await self.send(
+            key=EmailKey.EMAIL_CHANGE_NOTICE,
+            to=to,
+            context={"name": name, "new_email": new_email, "app_name": app_name},
         )
 
     async def send_invitation(
