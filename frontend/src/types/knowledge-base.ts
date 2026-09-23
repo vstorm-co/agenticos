@@ -248,6 +248,12 @@ export interface KBDocument {
   embedding_model: string | null;
   /** Whether this one document was uploaded with a departure from the collection. */
   was_overridden: boolean;
+  /**
+   * Which part of the organization this document was ingested as belonging to,
+   * and so what a retrieval can narrow to. `null` for a document ingested
+   * before anything wrote the dimension, and for one filed under nothing.
+   */
+  organizational_unit: string | null;
 }
 
 export interface KBDocumentList {

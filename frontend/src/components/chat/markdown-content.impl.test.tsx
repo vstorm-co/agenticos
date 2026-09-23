@@ -266,3 +266,32 @@ describe("citations", () => {
     expect(within(cell).getByRole("button", { name: "1" })).toBeInTheDocument();
   });
 });
+
+describe("images, and who is reading them", () => {
+  it("loads an image in a thread the reader wrote", () => {
+    const { container } = render(<MarkdownContent content="![a chart](https://cdn.test/c.png)" />);
+
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("src", "https://cdn.test/c.png");
+  });
+
+  it("draws it as a link where the reader is not the author", () => {
+    // A remote image in somebody else's text is a tracking pixel: reviewing a
+    // colleague's run would otherwise hand its host the reviewer's address,
+    // their agent and the fact that the run was read.
+    const { container } = render(
+      <MarkdownContent content="![a chart](https://attacker.test/px.png)" inertImages />,
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    const link = screen.getByRole("link", { name: /a chart/ });
+    expect(link).toHaveAttribute("href", "https://attacker.test/px.png");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
+  it("names an inert image that carries no alt text", () => {
+    render(<MarkdownContent content="![](https://attacker.test/px.png)" inertImages />);
+
+    expect(screen.getByRole("link", { name: /not loaded/i })).toBeInTheDocument();
+  });
+});

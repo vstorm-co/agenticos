@@ -1,0 +1,1574 @@
+"""The browser_choice capability: the table, the loop, the seams and the outcomes.
+
+Every test runs with the `browser` extra absent - the CI state - which is the
+point: the capability must register, validate, build and enumerate its tool
+without `cdp-use` or `typesafe-sdk`, reaching either only when `browse_page` is
+called. Both engines are substituted through `PageFactory` and `DecisionFactory`,
+so nothing here opens a browser or calls TypeSafe.
+
+The split matters and it is deliberate: the modules that decide anything - which
+elements may be chosen, which operation, when to stop, where the agent may go -
+are exercised directly, and the module that needs a browser (`_page.py`) is
+reduced to the one pure function that parses what a browser answered.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from decimal import Decimal
+from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
+from pydantic_ai._run_context import RunContext
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
+
+from app.agents.browser_events import BrowserEvent
+from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
+from app.agents.capabilities.browser_choice import (
+    VENDOR_DECISION_ENDPOINT,
+    BrowserChoice,
+    BrowserChoiceConfig,
+    validate_cdp_url,
+)
+from app.agents.capabilities.browser_choice._elements import (
+    EDITABLE_ROLES,
+    HARD_CANDIDATE_CAP,
+    MAX_COLLECTED_OPTIONS,
+    MAX_LABEL,
+    MAX_PAGE_TEXT,
+    MAX_SHOWN_OPTIONS,
+    Element,
+    Snapshot,
+    candidates,
+    clean_label,
+    page_text,
+    render_options,
+    render_table,
+)
+from app.agents.capabilities.browser_choice._endpoint import (
+    EndpointError,
+    domain_allowed,
+    version_url,
+    websocket_url,
+)
+from app.agents.capabilities.browser_choice._loop import (
+    REPEAT_LIMIT,
+    Choice,
+    LoopPolicy,
+    run_browse,
+)
+from app.agents.capabilities.browser_choice._page import (
+    _COLLECT_JS,
+    _NAMING_JS,
+    MISSING_EXTRA,
+    READ_LIMIT,
+    CdpPage,
+    DomainRefused,
+    PagePolicy,
+    StaleElement,
+    parse_snapshot,
+)
+from app.agents.capabilities.browser_choice._questions import (
+    OPERATIONS,
+    decision_type,
+    index_of,
+    observation,
+    option_for,
+    value_prompt,
+)
+from app.agents.capabilities.browser_choice._toolset import (
+    build_toolset,
+    confidence_of,
+    last_response,
+)
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+)
+from app.agents.deps import AgentDeps
+from app.core.config import settings
+from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import ApiKeySecret
+from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
+from app.services.decision_models import DECISION_MODELS, DEFAULT_DECISION_MODEL
+
+pytestmark = pytest.mark.anyio
+
+
+def _element(index: int = 0, **kwargs: Any) -> Element:
+    fields: dict[str, Any] = {
+        "role": "button",
+        "label": f"Button {index}",
+        # Every element a page offers carries one, and an action refuses an
+        # element without it - so the default is a real selector rather than an
+        # empty string that would make every fixture unusable.
+        "path": f"body > button:nth-of-type({index + 1})",
+    }
+    fields.update(kwargs)
+    return Element(index=index, **fields)
+
+
+def _snapshot(*elements: Element, **kwargs: Any) -> Snapshot:
+    fields: dict[str, Any] = {
+        "url": "https://example.test/page",
+        "title": "A page",
+        "scroll_y": 0.0,
+        "scroll_height": 2000.0,
+        "viewport_height": 800.0,
+    }
+    fields.update(kwargs)
+    return Snapshot(elements=tuple(elements), **fields)
+
+
+class TestTheElementTable:
+    """What the model may pick, and the bounds on it.
+
+    The table is the capability's security property: an option the page did not
+    put in it is an action the model cannot choose. So its bounds are tested as
+    behaviour rather than trusted as constants.
+    """
+
+    def test_a_label_keeps_one_line_and_loses_the_pages_whitespace(self):
+        assert clean_label("  Accept \n  all\tcookies ") == "Accept all cookies"
+
+    def test_a_short_label_is_left_alone(self):
+        assert clean_label("Sign in") == "Sign in"
+
+    def test_a_long_label_is_cut_at_a_word_boundary_when_one_is_near_the_end(self):
+        label = clean_label(
+            "Subscribe to our newsletter and receive weekly updates about "
+            "everything we are building this year"
+        )
+        assert label.endswith("…")
+        assert len(label) <= MAX_LABEL + 1
+        assert not label.rstrip("…").endswith(" ")
+
+    def test_a_long_label_with_no_late_boundary_is_cut_mid_word(self):
+        # One space, at character three: honouring it would truncate a
+        # seventy-character label to "A".
+        raw = "A " + "x" * 200
+        assert clean_label(raw) == ("A " + "x" * 200)[:MAX_LABEL] + "…"
+
+    def test_the_candidate_set_is_truncated_in_document_order(self):
+        elements = tuple(_element(i) for i in range(10))
+        assert candidates(elements, 3) == elements[:3]
+
+    def test_the_hard_cap_wins_over_a_larger_configured_one(self):
+        elements = tuple(_element(i) for i in range(HARD_CANDIDATE_CAP + 50))
+        assert len(candidates(elements, HARD_CANDIDATE_CAP + 50)) == HARD_CANDIDATE_CAP
+
+    def test_an_empty_table_says_so_rather_than_rendering_nothing(self):
+        assert render_table(()) == "(no interactive elements in view)"
+
+    def test_a_field_says_that_it_is_filled_and_never_with_what(self):
+        """The contents of a field must not reach the decision endpoint.
+
+        Redacting the history line was half the fix: the next snapshot copied
+        `el.value` straight back out and the table printed it, so a password the
+        host model had just typed was disclosed one step later.
+        """
+        rendered = render_table((_element(0, role="password", label="Password", filled=True),))
+        assert rendered == "0. password: Password [filled]"
+        assert "filled" in rendered
+
+    def test_a_dropdown_shows_which_option_is_chosen(self):
+        # Its selection is one of the options already listed beside it, and the
+        # loop cannot tell a chosen list from an unchosen one without it.
+        rendered = render_table(
+            (_element(0, role="dropdown", label="Country", value="Poland", options=("Poland",)),)
+        )
+        assert "[selected: Poland]" in rendered
+
+    def test_a_page_scrolled_to_the_end_reports_it(self):
+        assert _snapshot(scroll_y=1200.0, scroll_height=2000.0, viewport_height=800.0).at_bottom
+        assert not _snapshot(scroll_y=0.0).at_bottom
+
+
+class TestWhatCanBeActedOn:
+    """Which operations a given element admits, and what a dropdown carries."""
+
+    @pytest.mark.parametrize("role", sorted(EDITABLE_ROLES), ids=sorted(EDITABLE_ROLES))
+    def test_a_field_that_holds_text_is_typeable(self, role: str):
+        assert _element(0, role=role).editable
+
+    @pytest.mark.parametrize("role", ["link", "button", "dropdown", "checkbox"])
+    def test_anything_else_is_not(self, role: str):
+        # Typing begins by focusing, and focusing a link means clicking it - so
+        # an incompatible pair performs a different action rather than failing.
+        assert not _element(0, role=role).editable
+
+    def test_a_dropdowns_choices_are_shown_with_it_and_bounded(self):
+        options = tuple(f"Country {i}" for i in range(30))
+        rendered = render_table((_element(0, role="dropdown", options=options),))
+        assert "Country 0" in rendered
+        assert f"+{30 - MAX_SHOWN_OPTIONS} more" in rendered
+        assert "Country 29" not in rendered
+
+    def test_a_short_list_is_shown_whole_with_no_count(self):
+        rendered = render_options(("Yes", "No"))
+        assert rendered == "Yes, No"
+
+    def test_the_pages_words_are_collapsed_and_bounded(self):
+        assert page_text("  the   plan\ncosts 29 ") == "the plan costs 29"
+        assert len(page_text("x" * (MAX_PAGE_TEXT * 2))) == MAX_PAGE_TEXT
+
+
+class TestTheEndpointAndTheAllowlist:
+    """Where the browser is, and where the agent may go."""
+
+    def test_a_websocket_endpoint_is_used_as_given(self):
+        assert websocket_url("ws://browser.test:9222/x", None) == "ws://browser.test:9222/x"
+
+    def test_an_http_endpoint_is_resolved_through_json_version(self):
+        payload = {"webSocketDebuggerUrl": "ws://browser.test:9222/devtools/browser/abc"}
+        assert websocket_url("http://browser.test:9222", payload) == payload["webSocketDebuggerUrl"]
+
+    def test_the_version_path_is_appended_once(self):
+        assert version_url("http://browser.test:9222/") == "http://browser.test:9222/json/version"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [None, {}, {"webSocketDebuggerUrl": 7}, {"webSocketDebuggerUrl": "http://not-a-socket"}],
+        ids=["nothing", "empty", "not-a-string", "not-a-socket"],
+    )
+    def test_a_payload_with_no_usable_socket_is_refused(self, payload: object):
+        with pytest.raises(EndpointError, match="webSocketDebuggerUrl"):
+            websocket_url("http://browser.test:9222", payload)
+
+    @pytest.mark.parametrize(
+        "advertised",
+        [
+            "ws://169.254.169.254/steal",
+            "ws://127.0.0.1:6379/",
+            "wss://evil.test/x",
+        ],
+        ids=["metadata", "loopback-redis", "elsewhere"],
+    )
+    def test_only_the_path_is_taken_from_the_endpoints_answer(self, advertised: str):
+        """The response is from something the agent's author named.
+
+        A vetted endpoint that has been compromised, or one pointed at a server
+        of somebody's own, can answer with any address at all - and this
+        deployment would open a socket to it, after every check has passed. The
+        host is the operator's; only the token-bearing path is the browser's.
+        """
+        resolved = websocket_url("http://browser.test:9222", {"webSocketDebuggerUrl": advertised})
+        assert resolved.startswith("ws://browser.test:9222/")
+        assert "169.254" not in resolved
+        assert "6379" not in resolved
+        assert "evil.test" not in resolved
+
+    def test_the_query_a_browser_puts_on_its_socket_survives(self):
+        resolved = websocket_url(
+            "http://browser.test:9222", {"webSocketDebuggerUrl": "ws://127.0.0.1/p?id=7"}
+        )
+        assert resolved == "ws://browser.test:9222/p?id=7"
+
+    def test_an_https_endpoint_resolves_to_a_secure_socket(self):
+        resolved = websocket_url(
+            "https://chrome.internal", {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/x"}
+        )
+        assert resolved == "wss://chrome.internal/devtools/x"
+
+    def test_an_answer_with_no_path_still_addresses_the_vetted_host(self):
+        resolved = websocket_url(
+            "http://browser.test:9222", {"webSocketDebuggerUrl": "ws://127.0.0.1"}
+        )
+        assert resolved == "ws://browser.test:9222/"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "file:///etc/passwd",
+            "chrome://settings",
+            "view-source:https://x.test",
+            "data:text/html,x",
+        ],
+        ids=["file", "chrome", "view-source", "data"],
+    )
+    def test_a_url_that_is_not_the_web_is_refused_with_no_allowlist_at_all(self, url: str):
+        """`start_url` is written by a model, and "anywhere" means anywhere on the web.
+
+        Without this, a generated `file:///etc/passwd` was navigated and `read()`
+        handed the browser host's own filesystem back to the agent as the answer.
+        """
+        assert not domain_allowed(url, None)
+
+    def test_no_allowlist_allows_everything(self):
+        assert domain_allowed("https://anything.test/a", None)
+
+    def test_an_empty_allowlist_allows_nothing(self):
+        # Not the same as `None`: an author who deleted the last entry asked for
+        # nothing to be allowed, and reading that as "everything" inverts it.
+        assert not domain_allowed("https://anything.test/a", [])
+
+    def test_a_glob_matches_a_subdomain_and_nothing_else(self):
+        assert domain_allowed("https://docs.example.com/x", ["*.example.com"])
+        assert not domain_allowed("https://example.com.evil.test/x", ["*.example.com"])
+
+    def test_the_host_is_matched_case_insensitively_and_the_port_is_ignored(self):
+        assert domain_allowed("https://EXAMPLE.test:8443/x", ["example.test"])
+
+    @pytest.mark.parametrize("url", ["http://", "https:///path"], ids=["bare", "empty-host"])
+    def test_a_web_url_with_no_host_is_refused_either_way(self, url: str):
+        # Past the scheme check and still nothing to match an allowlist against.
+        assert not domain_allowed(url, ["example.test"])
+        assert not domain_allowed(url, None)
+
+
+class TestTheTwoQuestions:
+    """The output type that asks them, and the pick that comes back."""
+
+    def test_an_option_repeats_the_table_row_so_a_pick_and_a_row_are_one_thing(self):
+        element = _element(3, role="link", label="Pricing")
+        assert option_for(element) == "3. link: Pricing"
+        assert option_for(element) in render_table((element,))
+
+    def test_an_options_index_leads_so_two_identical_labels_stay_distinct(self):
+        first, second = _element(0, label="Next"), _element(1, label="Next")
+        assert option_for(first) != option_for(second)
+
+    def test_a_pick_resolves_to_the_element_it_named(self):
+        elements = (_element(0), _element(1, role="link", label="Pricing"))
+        assert index_of(option_for(elements[1]), elements) == 1
+
+    def test_a_pick_that_names_nothing_here_resolves_to_nothing(self):
+        assert index_of("99. button: Invented", (_element(0),)) is None
+
+    def test_both_questions_are_asked_when_there_is_something_to_choose(self):
+        model = decision_type((_element(0), _element(1)))
+        assert set(model.model_fields) == {"operation", "target"}
+        schema = model.model_json_schema()["properties"]["operation"]
+        assert schema["enum"] == list(OPERATIONS)
+
+    def test_the_target_question_is_not_asked_when_there_is_no_choice(self):
+        # A pick-one needs two options, and padding the list would offer the page
+        # an action the page does not have.
+        assert set(decision_type((_element(0),)).model_fields) == {"operation"}
+        assert set(decision_type(()).model_fields) == {"operation"}
+
+    def test_the_observation_carries_the_goal_the_page_and_what_was_done(self):
+        text = observation("find the price", _snapshot(_element(0)), ("clicked button: Accept",))
+        assert "GOAL: find the price" in text
+        assert "https://example.test/page" in text
+        assert "clicked button: Accept" in text
+        assert "untrusted page content" in text
+
+    def test_the_observation_omits_the_history_section_when_there_is_none(self):
+        assert "ALREADY DONE" not in observation("g", _snapshot(_element(0)), ())
+
+    def test_an_untitled_page_is_named_rather_than_left_blank(self):
+        assert "(untitled)" in observation("g", _snapshot(_element(0), title=""), ())
+
+    def test_a_scrolled_page_says_which_end_it_is_at(self):
+        at_end = _snapshot(_element(0), scroll_y=1200.0)
+        assert "at the bottom" in observation("g", at_end, ())
+        assert "more below" in observation("g", _snapshot(_element(0)), ())
+
+    def test_the_page_own_words_reach_the_decision(self):
+        # Without them the model can see that it acted and never that it
+        # succeeded: a price and a confirmation are text, not controls.
+        text = observation("g", _snapshot(_element(0), text="The Pro plan is EUR 29"), ())
+        assert "PAGE TEXT" in text
+        assert "EUR 29" in text
+        assert "untrusted page content" in text
+
+    def test_a_page_with_no_words_adds_no_empty_section(self):
+        assert "PAGE TEXT" not in observation("g", _snapshot(_element(0)), ())
+
+    def test_a_dropdown_is_asked_with_a_closed_answer(self):
+        prompt = value_prompt(
+            "book a flight",
+            _element(0, role="dropdown", label="Country", options=("Poland", "Spain")),
+            (),
+        )
+        assert "CHOICES: Poland, Spain" in prompt
+        assert "exactly one of those choices" in prompt
+
+    def test_the_value_prompt_is_scoped_to_one_field(self):
+        prompt = value_prompt("book a flight", _element(0, role="textbox", label="From"), ("x",))
+        assert "FIELD: textbox labelled 'From'" in prompt
+        assert "ALREADY DONE" in prompt
+        assert "nothing else" in prompt
+
+    def test_the_value_prompt_shows_a_dropdowns_current_selection(self):
+        # `Element.value` is a dropdown's selection and never a field's
+        # contents, so this is the only thing it can show.
+        prompt = value_prompt(
+            "g",
+            _element(0, role="dropdown", label="From", value="Paris", options=("Paris", "Rome")),
+            (),
+        )
+        assert "CURRENTLY SELECTED: Paris" in prompt
+        assert "ALREADY DONE" not in prompt
+
+    def test_an_option_says_a_field_is_filled_and_never_with_what(self):
+        """A pick-one's options go to the decision endpoint exactly as the table
+        does, so a rule applied to one and not the other is not a rule."""
+        assert option_for(_element(0, role="password", label="Password", filled=True)) == (
+            "0. password: Password [filled]"
+        )
+
+    def test_an_option_shows_a_dropdowns_selection(self):
+        assert option_for(_element(0, role="dropdown", label="Country", value="Poland")) == (
+            "0. dropdown: Country [selected: Poland]"
+        )
+
+
+class TestParsingWhatABrowserAnswered:
+    """The one function in `_page.py` that does not need a browser."""
+
+    def test_a_snapshot_is_numbered_cleaned_and_truncated(self):
+        raw = (
+            '{"url":"https://x.test/a","title":"T","text":"  Plan   costs 29 ",'
+            '"scrollY":10,"scrollHeight":900,"viewportHeight":800,"elements":['
+            '{"role":"button","label":"  Accept   all ","path":"body > button","value":""},'
+            '{"role":"input","label":"Search","path":"#q","value":" paris ",'
+            '"options":["  A ","B"]}]}'
+        )
+        snapshot = parse_snapshot(raw, 10)
+        assert snapshot.url == "https://x.test/a"
+        assert snapshot.elements[0] == Element(
+            0, "button", "Accept all", path="body > button", value=None
+        )
+        assert snapshot.elements[1].value == "paris"
+        # The selector is what an action resolves, so it is carried verbatim.
+        assert snapshot.elements[1].path == "#q"
+        assert snapshot.elements[1].options == ("A", "B")
+        # The page's own words, collapsed - what lets the model answer DONE.
+        assert snapshot.text == "Plan costs 29"
+
+    def test_the_cap_is_applied_while_parsing_not_after(self):
+        items = ",".join(
+            f'{{"role":"button","label":"B{i}","x":1,"y":2,"value":""}}' for i in range(20)
+        )
+        assert len(parse_snapshot(f'{{"elements":[{items}]}}', 5).elements) == 5
+
+    def test_a_payload_with_nothing_in_it_parses_to_an_empty_page(self):
+        snapshot = parse_snapshot("{}", 10)
+        assert snapshot.elements == ()
+        assert snapshot.url == ""
+
+    @pytest.mark.parametrize("raw", [None, '"a string"', "[1, 2]"], ids=["none", "string", "list"])
+    def test_a_page_that_answered_something_else_is_refused_loudly(self, raw: object):
+        # Valid JSON of the wrong shape included: it means the collector did not
+        # run, and an AttributeError three lines later says that far worse.
+        with pytest.raises(EndpointError, match="collector did not run"):
+            parse_snapshot(raw, 10)
+
+    def test_the_read_limit_is_a_bound_the_calling_model_can_rely_on(self):
+        assert READ_LIMIT > 0
+
+
+class _FakePage:
+    """A page the loop can be driven against, with no browser behind it.
+
+    Answers a scripted list of snapshots, one per `snapshot()` call, repeating the
+    last for ever - so a test says what the page looks like as the loop works and
+    does not have to say it again for every guard that reads the page one more
+    time on the way out.
+    """
+
+    def __init__(self, *snapshots: Snapshot, text: str = "the page text") -> None:
+        self._snapshots = list(snapshots) or [_snapshot()]
+        self._text = text
+        self.done: list[str] = []
+        self.shots = 0
+
+    async def snapshot(self) -> Snapshot:
+        taken = self._snapshots[0]
+        if len(self._snapshots) > 1:
+            self._snapshots.pop(0)
+        return taken
+
+    async def click(self, element: Element) -> None:
+        self.done.append(f"click:{element.index}")
+
+    async def type_text(self, element: Element, text: str) -> None:
+        self.done.append(f"type:{element.index}:{text}")
+
+    async def select(self, element: Element, value: str) -> None:
+        self.done.append(f"select:{element.index}:{value}")
+
+    async def scroll(self) -> None:
+        self.done.append("scroll")
+
+    async def settle(self) -> None:
+        self.done.append("settle")
+
+    async def screenshot(self) -> str | None:
+        self.shots += 1
+        return "data:image/jpeg;base64,AAAA"
+
+    async def read(self) -> str:
+        return self._text
+
+
+def _decider(*choices: Choice):
+    """A decision function answering a scripted list, repeating the last."""
+    remaining = list(choices)
+
+    async def decide(goal: str, snapshot: Snapshot, history: tuple[str, ...]) -> Choice:
+        taken = remaining[0]
+        if len(remaining) > 1:
+            remaining.pop(0)
+        return taken
+
+    return decide
+
+
+async def _generate(element: Element, history: tuple[str, ...]) -> str:
+    return "typed value"
+
+
+def _policy(**kwargs: Any) -> LoopPolicy:
+    fields: dict[str, Any] = {"max_steps": 5, "min_confidence": 0.0, "preview": False}
+    fields.update(kwargs)
+    return LoopPolicy(**fields)
+
+
+class _Frames:
+    """Collects what a surface would have been shown.
+
+    Answers `True` by default, the way a live socket does. `delivers=False` is a
+    reader who closed the tab: the run carries on and the loop has to notice.
+    """
+
+    def __init__(self, *, delivers: bool = True) -> None:
+        self.frames: list[BrowserEvent] = []
+        self._delivers = delivers
+
+    async def __call__(self, event: BrowserEvent) -> bool:
+        self.frames.append(event)
+        return self._delivers
+
+    def kinds(self) -> list[str]:
+        return [frame.kind for frame in self.frames]
+
+    def of(self, kind: str) -> list[BrowserEvent]:
+        return [frame for frame in self.frames if frame.kind == kind]
+
+
+async def _browse(page: _FakePage, decide: Any, sink: Any = None, **policy: Any):
+    return await run_browse(
+        goal="find the price",
+        page=page,
+        decide=decide,
+        generate=_generate,
+        policy=_policy(**policy),
+        call_id="call-1",
+        sink=sink,
+    )
+
+
+class TestTheLoopStopsForAReason:
+    """Four outcomes and no fifth, each reached and each narrated."""
+
+    async def test_done_answers_with_the_page(self):
+        result = await _browse(
+            _FakePage(_snapshot(_element(0))), _decider(Choice("DONE", None, 0.9))
+        )
+        assert (result.outcome, result.text, result.steps) == ("done", "the page text", 1)
+
+    async def test_blocked_is_an_answer_and_still_returns_what_was_read(self):
+        result = await _browse(
+            _FakePage(_snapshot(_element(0)), text="Please sign in"),
+            _decider(Choice("BLOCKED", None, 0.8)),
+        )
+        assert result.outcome == "blocked"
+        assert result.text == "Please sign in"
+
+    async def test_the_step_ceiling_ends_the_browse_as_exhausted(self):
+        # Each snapshot is further down the page, so this is a browse making
+        # progress and running out of steps - not one going round in a circle.
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+        result = await _browse(page, _decider(Choice("SCROLL", None, 0.9)), max_steps=3)
+        assert (result.outcome, result.steps) == ("exhausted", 3)
+
+    async def test_scrolling_that_moves_nothing_is_caught_as_a_loop(self):
+        page = _FakePage(_snapshot(_element(0), _element(1), scroll_y=1200.0))
+        result = await _browse(page, _decider(Choice("SCROLL", None, 0.9)), max_steps=20)
+        assert (result.outcome, result.steps) == ("blocked", REPEAT_LIMIT)
+
+    async def test_the_same_action_three_times_running_ends_it_rather_than_looping(self):
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        result = await _browse(page, _decider(Choice("CLICK", 0, 0.9)), max_steps=20)
+        assert result.outcome == "blocked"
+        assert result.steps == REPEAT_LIMIT
+        assert page.done.count("click:0") == REPEAT_LIMIT - 1
+
+    async def test_a_wizard_that_advances_is_not_a_loop(self):
+        """`Next` at the same index on the same URL, three times, each advancing.
+
+        A wizard, a paginated table and a filter that rewrites its results in
+        place all look like this. Judged on the URL alone the third step is
+        refused as a loop having in fact worked twice.
+        """
+        pages = tuple(
+            _snapshot(
+                _element(0, label="Next"),
+                _element(1, label=f"Step {n} of 4"),
+                text=f"page {n}",
+            )
+            for n in (1, 2, 3, 4)
+        )
+        result = await _browse(_FakePage(*pages), _decider(Choice("CLICK", 0, 0.9)), max_steps=4)
+
+        assert result.outcome == "exhausted"
+        assert result.steps == 4
+
+    async def test_a_page_that_never_changes_is_still_caught(self):
+        # The same controls and the same words, which is what the guard is for.
+        page = _FakePage(_snapshot(_element(0, label="Accept"), _element(1), text="same"))
+        result = await _browse(page, _decider(Choice("CLICK", 0, 0.9)), max_steps=20)
+
+        assert (result.outcome, result.steps) == ("blocked", REPEAT_LIMIT)
+
+    async def test_a_pick_below_the_floor_is_refused_with_both_numbers(self):
+        frames = _Frames()
+        result = await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))),
+            _decider(Choice("CLICK", 0, 0.22)),
+            frames,
+            min_confidence=0.5,
+        )
+        assert result.outcome == "blocked"
+        detail = frames.of("browser_finished")[0].detail or ""
+        assert "0.22" in detail and "0.50" in detail
+
+    async def test_a_configured_floor_is_not_satisfied_by_a_missing_score(self):
+        """An operator who set a floor did not ask for "unless nothing is reported".
+
+        A custom `decision_base_url`, a pinned model that answers differently, or
+        a provider response without the expected details all arrive as `None` -
+        and skipping the check there disables the floor silently, in exactly the
+        deployments most likely to have set one.
+        """
+        frames = _Frames()
+        result = await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))),
+            _decider(Choice("CLICK", 0, None)),
+            frames,
+            min_confidence=0.5,
+        )
+
+        assert result.outcome == "blocked"
+        assert "no confidence" in (frames.of("browser_finished")[0].detail or "")
+
+    async def test_a_floor_of_zero_still_acts_on_a_pick_with_no_score(self):
+        # Zero means "act on every pick and report the score"; a model that
+        # reports none is every model but this one.
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        result = await _browse(
+            page, _decider(Choice("CLICK", 0, None), Choice("DONE", None, None)), min_confidence=0.0
+        )
+
+        assert result.outcome == "done"
+        assert page.done[0] == "click:0"
+
+    async def test_an_element_operation_with_no_element_is_refused_not_guessed(self):
+        frames = _Frames()
+        result = await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))),
+            _decider(Choice("CLICK", None, 0.9)),
+            frames,
+        )
+        assert result.outcome == "blocked"
+        assert "without an element" in (frames.of("browser_finished")[0].detail or "")
+
+    async def test_a_pick_naming_an_element_the_snapshot_does_not_hold_is_refused(self):
+        result = await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))), _decider(Choice("CLICK", 99, 0.9))
+        )
+        assert result.outcome == "blocked"
+
+
+class TestTheLoopCarriesOutWhatWasChosen:
+    """Each operation, and the history line it leaves for the next decision."""
+
+    async def test_a_click_uses_the_coordinates_the_snapshot_offered(self):
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        await _browse(page, _decider(Choice("CLICK", 1, 0.9), Choice("DONE", None, 0.9)))
+        assert page.done[:2] == ["click:1", "settle"]
+
+    async def test_typing_asks_a_language_model_for_the_value(self):
+        page = _FakePage(_snapshot(_element(0, role="textbox", label="Search"), _element(1)))
+        await _browse(page, _decider(Choice("TYPE_TEXT", 0, 0.9), Choice("DONE", None, 0.9)))
+        assert page.done[0] == "type:0:typed value"
+
+    async def test_select_chooses_a_value_rather_than_only_opening_the_list(self):
+        # Clicking a native `<select>` opens Chromium's own popup, whose options
+        # are not in the DOM - so the next snapshot shows the same untouched
+        # dropdown and the form loops. The value is asked for and applied.
+        page = _FakePage(_snapshot(_element(0, role="dropdown"), _element(1)))
+        await _browse(page, _decider(Choice("SELECT", 0, 0.9), Choice("DONE", None, 0.9)))
+        assert page.done[0] == "select:0:typed value"
+
+    async def test_scroll_and_wait_address_the_page_not_an_element(self):
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        await _browse(
+            page,
+            _decider(
+                Choice("SCROLL", None, 0.9), Choice("WAIT", None, 0.9), Choice("DONE", None, 0.9)
+            ),
+        )
+        assert page.done[0] == "scroll"
+        assert page.done[2:4] == ["settle", "settle"]
+
+    async def test_a_scroll_that_also_names_a_target_still_scrolls(self):
+        # Dispatch is on the operation. Routing by the target's presence would
+        # send this down the typing path.
+        page = _FakePage(_snapshot(_element(0), _element(1)))
+        await _browse(page, _decider(Choice("SCROLL", 0, 0.9), Choice("DONE", None, 0.9)))
+        assert page.done[0] == "scroll"
+
+    async def test_a_typed_value_never_reaches_the_decision_model(self):
+        """A history entry is sent to the decision endpoint on the next step.
+
+        That endpoint is configured separately and may be a third party, so a
+        password or an address the host model wrote into a field must not be in
+        the line describing that it was written.
+        """
+        seen: list[tuple[str, ...]] = []
+
+        async def decide(goal: str, snapshot: Snapshot, history: tuple[str, ...]) -> Choice:
+            seen.append(history)
+            return Choice("TYPE_TEXT", 0, 0.9) if not history else Choice("DONE", None, 0.9)
+
+        async def secret(element: Element, history: tuple[str, ...]) -> str:
+            return "hunter2-the-actual-password"
+
+        page = _FakePage(_snapshot(_element(0, role="textbox", label="Password"), _element(1)))
+        await run_browse(
+            goal="sign in",
+            page=page,
+            decide=decide,
+            generate=secret,
+            policy=_policy(),
+            call_id="c",
+        )
+
+        assert page.done[0] == "type:0:hunter2-the-actual-password"
+        assert seen[1] == ("filled textbox: Password",)
+        assert not any("hunter2" in line for entry in seen for line in entry)
+
+    async def test_an_action_the_page_refuses_costs_one_step_not_the_browse(self):
+        """A page that moved under the decision is a wasted step, not a failure.
+
+        The next snapshot describes where it moved to, so the model gets to
+        choose again - and the reason is in the history for it to read.
+        """
+        seen: list[tuple[str, ...]] = []
+
+        class _Moved(_FakePage):
+            async def click(self, element: Element) -> None:
+                raise StaleElement("Accept all is no longer on the page.")
+
+        async def decide(goal: str, snapshot: Snapshot, history: tuple[str, ...]) -> Choice:
+            seen.append(history)
+            return Choice("CLICK", 0, 0.9) if not history else Choice("DONE", None, 0.9)
+
+        result = await _browse(_Moved(_snapshot(_element(0), _element(1))), decide)
+
+        assert result.outcome == "done"
+        assert seen[1] == ("refused: Accept all is no longer on the page.",)
+
+    async def test_the_history_names_what_was_acted_on(self):
+        seen: list[tuple[str, ...]] = []
+
+        async def decide(goal: str, snapshot: Snapshot, history: tuple[str, ...]) -> Choice:
+            seen.append(history)
+            return Choice("CLICK", 0, 0.9) if not history else Choice("DONE", None, 0.9)
+
+        await _browse(_FakePage(_snapshot(_element(0, label="Accept all"), _element(1))), decide)
+        assert seen[1] == ("clicked button: Accept all",)
+
+
+class TestWhatASurfaceIsShown:
+    """The frames, and the guarantee that a finish always arrives."""
+
+    async def test_a_browse_opens_with_its_goal_and_its_ceiling(self):
+        frames = _Frames()
+        await _browse(
+            _FakePage(_snapshot(_element(0))), _decider(Choice("DONE", None, 0.9)), frames
+        )
+        opened = frames.of("browser_opened")[0]
+        assert (opened.goal, opened.max_steps, opened.step) == ("find the price", 5, 0)
+
+    async def test_every_step_carries_its_number_its_pick_and_its_confidence(self):
+        frames = _Frames()
+        await _browse(
+            _FakePage(_snapshot(_element(0, label="Accept all"), _element(1))),
+            _decider(Choice("CLICK", 0, 0.77), Choice("DONE", None, 0.9)),
+            frames,
+        )
+        step = frames.of("browser_step")[0]
+        assert (step.step, step.operation, step.target, step.confidence) == (
+            1,
+            "CLICK",
+            "Accept all",
+            0.77,
+        )
+
+    async def test_every_outcome_sends_a_finish_frame(self):
+        for choice, outcome in (
+            (Choice("DONE", None, 0.9), "done"),
+            (Choice("BLOCKED", None, 0.9), "blocked"),
+            (Choice("CLICK", None, 0.9), "blocked"),
+        ):
+            frames = _Frames()
+            await _browse(_FakePage(_snapshot(_element(0), _element(1))), _decider(choice), frames)
+            assert frames.of("browser_finished")[0].outcome == outcome
+
+    async def test_the_ceiling_also_sends_one(self):
+        frames = _Frames()
+        await _browse(
+            _FakePage(_snapshot(_element(0), _element(1))),
+            _decider(Choice("SCROLL", None, 0.9)),
+            frames,
+            max_steps=2,
+        )
+        assert frames.of("browser_finished")[0].outcome == "exhausted"
+
+    async def test_previews_are_a_separate_frame_from_the_narration(self):
+        frames = _Frames()
+        page = _FakePage(_snapshot(_element(0)))
+        await _browse(page, _decider(Choice("DONE", None, 0.9)), frames, preview=True)
+        assert frames.kinds() == [
+            "browser_opened",
+            "browser_frame",
+            "browser_step",
+            "browser_finished",
+        ]
+        assert frames.of("browser_frame")[0].image == "data:image/jpeg;base64,AAAA"
+
+    async def test_a_reader_who_left_stops_the_pictures_and_not_the_browse(self):
+        """A detached turn carries on by design.
+
+        Encoding a JPEG per step for a closed socket is the most expensive thing
+        in the loop done for nobody - so the first undelivered frame stops the
+        screenshots, and the browse finishes anyway.
+        """
+        frames = _Frames(delivers=False)
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+
+        result = await _browse(
+            page, _decider(Choice("SCROLL", None, 0.9)), frames, max_steps=3, preview=True
+        )
+
+        assert result.outcome == "exhausted"
+        # One picture taken, then no more - and the narration keeps being
+        # offered, because a few hundred bytes is not the cost worth avoiding.
+        assert page.shots == 1
+        assert len(frames.of("browser_step")) == 3
+
+    async def test_a_reader_who_stayed_keeps_getting_pictures(self):
+        frames = _Frames()
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+
+        await _browse(
+            page, _decider(Choice("SCROLL", None, 0.9)), frames, max_steps=3, preview=True
+        )
+
+        assert page.shots == 3
+        assert len(frames.of("browser_frame")) == 3
+
+    async def test_previews_off_takes_no_screenshot_at_all(self):
+        page = _FakePage(_snapshot(_element(0)))
+        frames = _Frames()
+        await _browse(page, _decider(Choice("DONE", None, 0.9)), frames, preview=False)
+        assert page.shots == 0
+        assert frames.of("browser_frame") == []
+
+    async def test_a_page_with_no_picture_to_send_sends_no_frame(self):
+        class _Blind(_FakePage):
+            async def screenshot(self) -> str | None:
+                return None
+
+        frames = _Frames()
+        await _browse(
+            _Blind(_snapshot(_element(0))),
+            _decider(Choice("DONE", None, 0.9)),
+            frames,
+            preview=True,
+        )
+        assert frames.of("browser_frame") == []
+
+    async def test_a_surface_that_cannot_narrate_still_runs_the_browse(self):
+        result = await _browse(
+            _FakePage(_snapshot(_element(0))), _decider(Choice("DONE", None, 0.9))
+        )
+        assert result.outcome == "done"
+
+    async def test_a_model_that_reports_no_confidence_sends_none_rather_than_a_number(self):
+        frames = _Frames()
+        await _browse(
+            _FakePage(_snapshot(_element(0))), _decider(Choice("DONE", None, None)), frames
+        )
+        assert frames.of("browser_step")[0].confidence is None
+
+
+def _decision_model(operation: str, target: str | None, confidence: dict[str, float] | None):
+    """A decision model answering one fixed pick, with its confidences.
+
+    A `FunctionModel` rather than a `TestModel` because the number this capability
+    exists to surface - how sure the pick was - arrives in `provider_details`, and
+    only a model that writes one can be used to check that it is read.
+    """
+
+    def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        args: dict[str, Any] = {"operation": operation}
+        if target is not None:
+            args["target"] = target
+        return ModelResponse(
+            parts=[ToolCallPart(info.output_tools[0].name, args)],
+            provider_details={"confidence": confidence} if confidence is not None else None,
+        )
+
+    return FunctionModel(answer)
+
+
+@asynccontextmanager
+async def _fake_browser(page: _FakePage, **_: Any) -> AsyncIterator[_FakePage]:
+    yield page
+
+
+def _tool_context(sink: Any = None) -> RunContext[AgentDeps]:
+    return RunContext(
+        deps=AgentDeps(browser_events=sink),
+        model=TestModel(custom_output_text="typed value"),
+        usage=RunUsage(),
+        tool_call_id="call-42",
+    )
+
+
+async def _call(
+    page: _FakePage | None = None,
+    *,
+    sink: Any = None,
+    cdp_url: str = "http://8.8.8.8:9222",
+    api_key: str | None = "key",
+    decision: Any = None,
+    page_factory: Any = None,
+    **policy: Any,
+) -> str:
+    """Call `browse_page` through the toolset, as the runner would."""
+    target = page if page is not None else _FakePage(_snapshot(_element(0), _element(1)))
+    model = decision if decision is not None else _decision_model("DONE", None, {"operation": 0.9})
+
+    def _factory(*_: Any) -> Any:
+        return model
+
+    toolset = build_toolset(
+        cdp_url=cdp_url,
+        api_key=api_key,
+        decision_model="jev-latest",
+        decision_base_url=None,
+        page_policy=PagePolicy(
+            allowed_domains=None, candidate_cap=60, preview=False, preview_width=1024
+        ),
+        loop_policy=_policy(**policy),
+        page_factory=page_factory or (lambda **kwargs: _fake_browser(target, **kwargs)),
+        decision_factory=_factory,
+    )
+    ctx = _tool_context(sink)
+    tools = await toolset.get_tools(ctx)
+    return str(
+        await toolset.call_tool(
+            "browse_page",
+            {"goal": "find the price", "start_url": "https://example.test/page"},
+            ctx,
+            tools["browse_page"],
+        )
+    )
+
+
+class TestHowSureTheStepWas:
+    """The number this capability exists to surface, and how it is taken."""
+
+    def test_the_lowest_of_the_two_answers_is_what_travels(self):
+        # A confident CLICK on an element picked at 0.2 is not a confident step,
+        # and reporting 0.9 for it is the one number a reviewer needs not told.
+        response = ModelResponse(
+            parts=[], provider_details={"confidence": {"operation": 0.9, "target": 0.2}}
+        )
+        assert confidence_of(response) == 0.2
+
+    @pytest.mark.parametrize(
+        "details",
+        [None, {}, {"confidence": None}, {"confidence": {}}, {"confidence": {"a": "high"}}],
+        ids=["none", "empty", "null", "no-fields", "not-a-number"],
+    )
+    def test_a_model_that_reports_nothing_usable_reports_nothing(self, details: Any):
+        assert confidence_of(ModelResponse(parts=[], provider_details=details)) is None
+
+    def test_no_response_at_all_reports_nothing(self):
+        assert confidence_of(None) is None
+
+    def test_the_last_response_is_what_is_read(self):
+        first = ModelResponse(parts=[TextPart("a")], provider_details={"confidence": {"x": 0.1}})
+        second = ModelResponse(parts=[TextPart("b")], provider_details={"confidence": {"x": 0.9}})
+        assert last_response([first, second]) is second
+        assert last_response([]) is None
+
+
+class TestTheToolRefusesBeforeItOpensAnything:
+    """Both halves of the configuration, each refused in a sentence."""
+
+    async def test_no_endpoint_is_said_rather_than_dialled(self):
+        assert "no browser endpoint" in await _call(cdp_url="")
+
+    async def test_no_key_is_said_rather_than_authenticated_as_nobody(self):
+        assert "no decision-model" in await _call(api_key=None)
+
+
+@pytest.mark.security
+class TestTheBudgetIsCheckedBeforeEachOwnRequest:
+    """A browse makes its own model requests, and the host guard never sees them.
+
+    `BudgetGuard` checks inside `wrap_model_request`, which wraps the *agent's*
+    requests. A browse runs up to a hundred of its own inside one tool call, so
+    an exhausted budget stopped the turn's next request and not the browse.
+    """
+
+    @staticmethod
+    def _guard(*, limit: str, spent: str) -> BudgetGuard:
+        return BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal(limit),
+                    period_spend=AsyncMock(return_value=Decimal(spent)),
+                )
+            ],
+        )
+
+    async def test_an_exhausted_budget_refuses_the_first_decision(self):
+        with guarded_by(self._guard(limit="1.00", spent="1.00")), pytest.raises(BudgetExceeded):
+            await _call()
+
+    async def test_a_budget_with_room_lets_the_browse_run(self):
+        with guarded_by(self._guard(limit="1.00", spent="0.10")):
+            assert (await _call()).startswith("Finished")
+
+    async def test_nothing_counting_is_not_a_refusal(self):
+        # A preview, a test, the CLI - a capability should not refuse to work
+        # because nobody is billing.
+        assert (await _call()).startswith("Finished")
+
+
+class TestTheToolEndToEnd:
+    """The whole body, with both engines substituted."""
+
+    async def test_a_finished_browse_answers_with_the_outcome_and_the_page(self):
+        answer = await _call(_FakePage(_snapshot(_element(0), _element(1)), text="EUR 29"))
+        assert answer.startswith("Finished: find the price")
+        assert "untrusted" in answer
+        assert "EUR 29" in answer
+
+    async def test_a_pick_is_resolved_back_to_the_element_it_named(self):
+        page = _FakePage(_snapshot(_element(0, label="Accept all"), _element(1)))
+        target = option_for(_element(0, label="Accept all"))
+        frames = _Frames()
+        await _call(
+            page,
+            sink=frames,
+            decision=_decision_model("CLICK", target, {"operation": 0.9, "target": 0.8}),
+            max_steps=1,
+        )
+        assert page.done[0] == "click:0"
+        assert frames.of("browser_step")[0].confidence == 0.8
+
+    async def test_one_element_in_view_needs_no_pick_and_is_resolved_here(self):
+        # With a single candidate there is no pick-one to answer, so the target
+        # question is not asked - and the loop must still act on the one element.
+        page = _FakePage(_snapshot(_element(0, label="Only button")))
+        await _call(page, decision=_decision_model("CLICK", None, None), max_steps=1)
+        assert page.done[0] == "click:0"
+
+    async def test_a_blocked_browse_says_so_and_still_returns_what_it_read(self):
+        answer = await _call(
+            _FakePage(_snapshot(_element(0), _element(1)), text="Please sign in"),
+            decision=_decision_model("BLOCKED", None, {"operation": 0.95}),
+        )
+        assert answer.startswith("Blocked after 1 steps")
+        assert "Please sign in" in answer
+
+    async def test_the_ceiling_is_reported_as_a_stop_not_as_a_failure(self):
+        page = _FakePage(*(_snapshot(_element(0), _element(1), scroll_y=y) for y in (0, 700, 1400)))
+        answer = await _call(
+            page, decision=_decision_model("SCROLL", None, {"operation": 0.9}), max_steps=2
+        )
+        assert answer.startswith("Stopped at the step ceiling after 2 steps")
+
+    async def test_typing_a_field_asks_the_runs_own_model_for_the_value(self):
+        page = _FakePage(_snapshot(_element(0, role="textbox", label="Search"), _element(1)))
+        target = option_for(_element(0, role="textbox", label="Search"))
+        await _call(page, decision=_decision_model("TYPE_TEXT", target, None), max_steps=1)
+        assert page.done[0] == "type:0:typed value"
+
+    async def test_a_url_outside_the_allowlist_is_refused_with_a_finish_frame(self):
+        @asynccontextmanager
+        async def refusing(**_: Any) -> AsyncIterator[_FakePage]:
+            raise DomainRefused("https://elsewhere.test is outside this agent's allowed domains.")
+            yield  # pragma: no cover - unreachable, and the generator needs it
+
+        frames = _Frames()
+        answer = await _call(sink=frames, page_factory=refusing)
+        assert "outside this agent's allowed domains" in answer
+        assert frames.of("browser_finished")[0].outcome == "failed"
+
+    async def test_an_endpoint_that_is_not_a_browser_is_reported_not_raised(self):
+        @asynccontextmanager
+        async def not_a_browser(**_: Any) -> AsyncIterator[_FakePage]:
+            raise EndpointError("did not answer with a webSocketDebuggerUrl")
+            yield  # pragma: no cover - unreachable, and the generator needs it
+
+        assert "webSocketDebuggerUrl" in await _call(page_factory=not_a_browser)
+
+    async def test_a_missing_extra_answers_with_the_install_line(self):
+        @asynccontextmanager
+        async def uninstalled(**_: Any) -> AsyncIterator[_FakePage]:
+            raise RuntimeError(MISSING_EXTRA)
+            yield  # pragma: no cover - unreachable, and the generator needs it
+
+        assert "agenticos[browser]" in await _call(page_factory=uninstalled)
+
+    async def test_any_other_runtime_failure_stays_a_failure(self):
+        # A bug must not be laundered into a sentence the model reads as an answer.
+        @asynccontextmanager
+        async def broken(**_: Any) -> AsyncIterator[_FakePage]:
+            raise RuntimeError("something else entirely")
+            yield  # pragma: no cover - unreachable, and the generator needs it
+
+        with pytest.raises(RuntimeError, match="something else entirely"):
+            await _call(page_factory=broken)
+
+    async def test_a_failure_after_opening_still_stops_the_spinner(self):
+        """A panel that heard `browser_opened` and nothing since shows a browse
+        running for ever. `run_browse` sends a finish frame on every outcome it
+        reaches - a raise from inside it reaches none."""
+        frames = _Frames()
+
+        class _Breaks(_FakePage):
+            async def read(self) -> str:
+                # The socket dropping as the browse reads its answer: past the
+                # opening frame and the step, and nowhere near an outcome.
+                raise ConnectionResetError("the socket went away")
+
+        @asynccontextmanager
+        async def breaking(**_: Any) -> AsyncIterator[_FakePage]:
+            yield _Breaks(_snapshot(_element(0), _element(1)))
+
+        with pytest.raises(ConnectionResetError):
+            await _call(sink=frames, page_factory=breaking)
+
+        # The frame is sent and the exception re-raised unchanged: a bug stays a
+        # bug rather than being laundered into an answer.
+        assert frames.of("browser_finished")[0].outcome == "failed"
+
+    async def test_a_cancelled_turn_also_gets_its_finish_frame(self):
+        frames = _Frames()
+
+        @asynccontextmanager
+        async def cancelled(**_: Any) -> AsyncIterator[_FakePage]:
+            raise asyncio.CancelledError
+            yield  # pragma: no cover - unreachable, and the generator needs it
+
+        with pytest.raises(asyncio.CancelledError):
+            await _call(sink=frames, page_factory=cancelled)
+
+        assert frames.of("browser_finished")[0].outcome == "failed"
+
+    async def test_a_surface_with_no_sink_still_completes(self):
+        assert (await _call(sink=None)).startswith("Finished")
+
+
+class TestRegistrationAndPublish:
+    """What the Builder offers, and what publishing refuses."""
+
+    def test_the_capability_says_it_acts_on_the_world_and_the_tool_is_not_gated(self):
+        """The two flags disagree on purpose, which is what the per-tool one is for.
+
+        The capability's is true because it is: a browse presses buttons on pages
+        nobody here wrote, and the console badges it. The tool's is false because
+        an approval on a browse lands *before* the first page is fetched, on a
+        goal and a URL - so the person is asked to approve actions nobody can see
+        yet. The panel is what makes a browse watchable instead, and an operator
+        who wants the gate sets `tool_approval`, which beats both.
+        """
+        definition = get("browser_choice")
+        assert definition.side_effecting
+        assert [tool.id for tool in definition.tools] == ["browse_page"]
+        assert definition.tools[0].side_effecting is False
+
+    def test_the_scope_it_needs_is_one_a_deployment_grants_by_default(self):
+        assert set(get("browser_choice").scopes) <= set(DEFAULT_GRANTED_SCOPES)
+
+    def test_it_requires_a_key_so_no_browse_runs_without_an_operator_adding_one(self):
+        # The requirement is the opt-in: page content leaves the deployment, and
+        # nothing here reads an ambient TYPESAFE_API_KEY.
+        assert get("browser_choice").secret is not None
+
+    def test_the_defaults_are_the_ones_the_capability_documents(self):
+        config = BrowserChoiceConfig()
+        assert (config.max_steps, config.candidate_cap, config.min_confidence) == (25, 60, 0.0)
+        assert config.preview
+        assert config.cdp_url == ""
+
+    def test_a_candidate_cap_past_the_pick_one_ceiling_is_refused(self):
+        with pytest.raises(ValueError, match="candidate_cap"):
+            BrowserChoiceConfig(cdp_url="http://x.test:9222", candidate_cap=HARD_CANDIDATE_CAP + 1)
+
+    def test_publishing_without_an_endpoint_is_refused_in_words(self):
+        with pytest.raises(UrlRefusedError, match="needs a cdp_url"):
+            validate_cdp_url(BrowserChoiceConfig())
+
+
+class TestWhatAPageCanMakeThisAllocate:
+    """The bounds that have to be inside the page rather than after it."""
+
+    def test_a_dropdown_is_read_up_to_a_bound(self):
+        # A `<select>` can hold every airport in the world, and an unbounded read
+        # of one is a page deciding how much this deployment allocates.
+        assert MAX_COLLECTED_OPTIONS > MAX_SHOWN_OPTIONS
+
+    def test_the_collector_is_given_the_caps_it_has_to_apply(self):
+        script = _COLLECT_JS % {
+            "naming": _NAMING_JS,
+            "text_limit": 6000,
+            "cap": 25,
+            "options": MAX_COLLECTED_OPTIONS,
+        }
+        assert "out.length >= 25" in script
+        assert f"slice(0, {MAX_COLLECTED_OPTIONS})" in script
+        assert "innerText.slice(0, 6000)" in script
+
+
+class TestWhereTheDecisionModelMayRun:
+    """The second address a browse sends something to, and its own allowlist.
+
+    `decision_base_url` is a spec field, and the vault key is unsealed and put
+    in a header to whatever it names - so an author who may *bind* a shared
+    TypeSafe key, without ever being able to read it, could point it at a server
+    of their own and collect it. Approval does not help: the same author
+    publishes the binding.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cdp(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+
+    @staticmethod
+    def _check(base_url: str | None) -> None:
+        validate_cdp_url(
+            BrowserChoiceConfig(cdp_url="http://browser:9222", decision_base_url=base_url)
+        )
+
+    def test_the_vendors_own_endpoint_needs_no_allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        # Empty is the default and the configuration nobody has to think about.
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        self._check(None)
+
+    def test_an_endpoint_the_operator_has_not_vetted_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError, match="DECISION_MODEL_ALLOWED_HOSTS"):
+            self._check("https://collect-my-keys.test")
+
+    def test_a_vetted_endpoint_publishes(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        self._check("https://jev.internal")
+
+    def test_the_host_is_matched_case_insensitively(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        self._check("https://JEV.Internal/v1")
+
+    def test_an_invalid_port_is_refused_here_rather_than_on_the_first_browse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        with pytest.raises(UrlRefusedError, match="invalid port"):
+            self._check("https://jev.internal:notaport")
+
+    @pytest.mark.parametrize("url", ["ftp://jev.internal", "not a url", "https://"])
+    def test_something_that_is_not_an_endpoint_is_refused_before_the_list(
+        self, url: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", ["jev.internal"])
+        with pytest.raises(UrlRefusedError, match="http or https"):
+            self._check(url)
+
+    def test_the_refusal_names_the_host_and_says_what_to_do(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "DECISION_MODEL_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError, match=re.escape("evil.test")):
+            self._check("https://evil.test")
+
+
+class TestTheFormAnAuthorFillsIn:
+    """What the Builder offers, which is most of what makes this configurable."""
+
+    def test_the_model_suggests_the_catalog_without_closing_the_field(self):
+        """`x-suggestions`, never `enum`.
+
+        An `enum` makes the console render a closed select, which would forbid
+        the pinned build the field exists to allow - the promise broken by the
+        mechanism meant to deliver it.
+        """
+        schema = get("browser_choice").config_json_schema()
+        assert schema is not None
+        field = schema["properties"]["decision_model"]
+        assert field["x-suggestions"] == [model.id for model in DECISION_MODELS]
+        assert "enum" not in field
+        assert field["x-enum-labels"][DEFAULT_DECISION_MODEL] == DECISION_MODELS[0].name
+
+    def test_a_pinned_build_outside_the_catalog_is_still_storable(self):
+        # The picker is what the Builder offers; the field is a string. An agent
+        # whose confidence floor was tuned against a version needs that version,
+        # and nobody should wait for a release of this platform to name one.
+        config = BrowserChoiceConfig(cdp_url="http://browser:9222", decision_model="jev-1.13.0")
+        assert config.decision_model == "jev-1.13.0"
+
+    @pytest.mark.parametrize(
+        "hosts", [["browser"], ["browser", "chrome.internal"]], ids=["one", "two"]
+    )
+    def test_the_endpoint_is_hinted_and_never_falsely_prefilled(
+        self, hosts: list[str], monkeypatch: pytest.MonkeyPatch
+    ):
+        """A placeholder, not a schema default - however many hosts are allowed.
+
+        The console *shows* a schema default without writing it into the binding
+        until somebody edits the field, so a default here produced a form that
+        looked filled in and a publish refused for having no `cdp_url`.
+        """
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", hosts)
+        field = (get("browser_choice").config_json_schema() or {})["properties"]["cdp_url"]
+        assert field["default"] == ""
+        assert field["x-placeholder"] == "http://browser:9222"
+
+    def test_an_empty_allowlist_says_what_to_do_instead_of_suggesting_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
+        field = (get("browser_choice").config_json_schema() or {})["properties"]["cdp_url"]
+        assert "BROWSER_CDP_ALLOWED_HOSTS" in field["x-placeholder"]
+
+    def test_the_default_decision_endpoint_is_named_rather_than_implied(self):
+        # "Empty" is the setting with the largest consequence here - it decides
+        # whether page content leaves the deployment - so it says where it goes.
+        field = (get("browser_choice").config_json_schema() or {})["properties"][
+            "decision_base_url"
+        ]
+        assert field["x-placeholder"] == VENDOR_DECISION_ENDPOINT
+        assert VENDOR_DECISION_ENDPOINT in field["description"]
+
+
+class TestWhichBrowsersTheOperatorAllows:
+    """The control on `cdp_url`, and why it is an allowlist.
+
+    `cdp_url` lives in a spec, which anyone holding `edit` on the agent writes, so
+    the address is tenant-controlled and the request is this deployment's. The
+    SSRF guard was the wrong answer in both directions: it refused the isolated
+    browser service on the deployment's own network that the docs tell an operator
+    to run, and it accepted a CDP debugger exposed to the open internet. So the
+    operator names the hosts, as `MEM0_ALLOWED_HOSTS` does.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser", "chrome.internal"])
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://browser:9222",
+            "https://chrome.internal/devtools",
+            "ws://browser:9222/devtools/browser/abc",
+            "wss://chrome.internal:9222",
+        ],
+        ids=["http", "https", "ws", "wss"],
+    )
+    def test_a_vetted_host_is_accepted_on_any_cdp_scheme(self, url: str):
+        validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_a_private_address_on_the_list_is_the_whole_point(self):
+        # The compose sidecar the reference page tells an operator to run. The
+        # SSRF guard refused exactly this.
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
+
+    def test_a_host_is_matched_case_insensitively(self):
+        validate_cdp_url(BrowserChoiceConfig(cdp_url="http://BROWSER:9222/x"))
+
+    @pytest.mark.parametrize(
+        "url",
+        ["http://127.0.0.1:9222", "http://10.0.0.5:9222", "http://evil.test:9222"],
+        ids=["loopback", "unlisted-private", "unlisted-public"],
+    )
+    def test_an_unvetted_host_is_refused_whatever_it_resolves_to(self, url: str):
+        with pytest.raises(UrlRefusedError, match="BROWSER_CDP_ALLOWED_HOSTS"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_the_refusal_names_the_host_so_an_operator_can_act_on_it(self):
+        with pytest.raises(UrlRefusedError, match=re.escape("evil.test")):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://evil.test:9222"))
+
+    def test_a_glob_on_the_allowlist_is_not_a_pattern(self):
+        # A hostname is not a pattern, and `*.internal` read as one would be a
+        # wildcard somebody takes for narrower than it is.
+        with pytest.raises(UrlRefusedError):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://sub.chrome.internal:9222"))
+
+    @pytest.mark.parametrize(
+        "url",
+        ["http://browser:notaport", "http://browser:99999"],
+        ids=["not-a-number", "out-of-range"],
+    )
+    def test_an_invalid_port_is_refused_at_publish(self, url: str):
+        """`urlsplit` parses it and answers the expected hostname.
+
+        A check that never read `.port` published happily and failed on the
+        first browse, inside somebody's conversation, when the HTTP client
+        parsed the same authority and refused it.
+        """
+        with pytest.raises(UrlRefusedError, match="invalid port"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    @pytest.mark.parametrize(
+        "url", ["ftp://browser:9222", "not a url", "http://"], ids=["scheme", "garbage", "no-host"]
+    )
+    def test_something_that_is_not_a_cdp_url_is_refused_before_the_list(self, url: str):
+        with pytest.raises(UrlRefusedError, match="http, https, ws or wss"):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url=url))
+
+    def test_an_empty_allowlist_refuses_browser_automation_outright(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # The same default `MEM0_ALLOWED_HOSTS` takes: nothing is allowed until an
+        # operator says what is.
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
+        with pytest.raises(UrlRefusedError):
+            validate_cdp_url(BrowserChoiceConfig(cdp_url="http://browser:9222"))
+
+    def test_the_builder_carries_the_vault_key_and_never_the_model_facing_config(self):
+        built = _build_capability(
+            {"cdp_url": "http://8.8.8.8:9222", "max_steps": 9}, key="sk-test-12345"
+        )
+        assert isinstance(built, BrowserChoice)
+        assert built.api_key == "sk-test-12345"
+        assert built.max_steps == 9
+        assert "sk-test-12345" not in repr(built)
+
+    def test_the_builder_still_builds_with_nothing_configured(self):
+        # A builder that returns `None` is a capability the registry's drift check
+        # cannot enumerate, and that check is what catches an undeclared
+        # side-effecting tool.
+        assert isinstance(_build_capability({}, key=None), BrowserChoice)
+
+
+def _build_capability(config: dict[str, Any], *, key: str | None) -> Any:
+    """Assemble the capability through its registered builder, as the runner would."""
+    definition = get("browser_choice")
+    return definition.builder(
+        CapabilityBuildContext(
+            binding=CapabilityBinding(capability_id="browser_choice", config=config),
+            config=definition.validate_config(config),
+            resources={},
+            secret=ApiKeySecret(api_key=key) if key else None,
+        )
+    )
+
+
+class TestTheCapabilityItself:
+    """What an agent is handed, assembled the way the runner assembles it."""
+
+    def test_the_instructions_say_when_to_use_it_and_to_distrust_what_it_returns(self):
+        instructions = BrowserChoice().get_instructions()
+        assert "browse_page" in instructions
+        assert "untrusted data" in instructions
+        assert "blocked" in instructions
+
+    def test_the_toolset_offers_exactly_the_declared_tool(self):
+        toolset = BrowserChoice(cdp_url="http://8.8.8.8:9222", api_key="k").get_toolset()
+        assert set(toolset.tools) == {"browse_page"}
+
+    def test_the_toolset_is_built_once_and_reused(self):
+        # Rebuilt per call it would be a new closure - and a new browser session
+        # factory - on every step of every run.
+        built = BrowserChoice(cdp_url="http://8.8.8.8:9222", api_key="k")
+        assert built.get_toolset() is built.get_toolset()
+
+
+def _configured_capability() -> tuple[BrowserChoice, dict[str, Any]]:
+    """A capability with every limit set, and the dict its page factory records into."""
+    seen: dict[str, Any] = {}
+
+    @asynccontextmanager
+    async def capturing(**kwargs: Any) -> AsyncIterator[_FakePage]:
+        seen.update(kwargs)
+        yield _FakePage(_snapshot(_element(0), _element(1)))
+
+    built: BrowserChoice = BrowserChoice(
+        cdp_url="http://8.8.8.8:9222",
+        api_key="k",
+        allowed_domains=["*.example.com"],
+        candidate_cap=12,
+        max_steps=3,
+        min_confidence=0.4,
+        preview=False,
+        preview_width=800,
+        page_factory=capturing,
+        decision_factory=lambda *_: _decision_model("DONE", None, {"operation": 0.9}),
+    )
+    return built, seen
+
+
+async def test_the_capability_hands_its_configuration_to_both_engines():
+    """The config an author filled in is what the browse actually runs under."""
+    built, seen = _configured_capability()
+    toolset = built.get_toolset()
+    ctx = _tool_context()
+    tools = await toolset.get_tools(ctx)
+    await toolset.call_tool(
+        "browse_page",
+        {"goal": "g", "start_url": "https://example.test/page"},
+        ctx,
+        tools["browse_page"],
+    )
+
+    assert seen["cdp_url"] == "http://8.8.8.8:9222"
+    assert seen["start_url"] == "https://example.test/page"
+    assert seen["policy"] == PagePolicy(
+        allowed_domains=["*.example.com"], candidate_cap=12, preview=False, preview_width=800
+    )
+
+
+def test_a_cdp_page_holds_the_policy_it_was_opened_with():
+    """The one part of the CDP layer that is not I/O.
+
+    Everything else in `CdpPage` is a protocol command and is pragma'd; this is
+    the constructor the opener calls, and a page built without its policy is a
+    page with no allowlist.
+    """
+    policy = PagePolicy(
+        allowed_domains=["x.test"], candidate_cap=5, preview=True, preview_width=640
+    )
+    page = CdpPage(client=object(), session_id="s-1", policy=policy)
+    assert page._policy is policy

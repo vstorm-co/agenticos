@@ -21,10 +21,10 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
+from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.browser_use import BrowserUse, BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.browser_use._toolset import (
     BrowserDelegate,
-    MeteredModel,
     build_toolset,
     harness_kwargs,
 )

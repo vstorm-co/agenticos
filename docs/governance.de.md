@@ -1,5 +1,5 @@
 ---
-source_sha: "9c8bdc69bd29"
+source_sha: "65df12b25237"
 ---
 
 # Governance { #governance }
@@ -722,7 +722,6 @@ anonym.
 | `environment_id` | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen |
 | `exposure_id` | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API |
 | `agent_version_id` | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste |
-| `took_over_ms` | Nur Runs, die langsamer als dies sind. Ein Run, der nicht fertig ist, hat keine Dauer und wird ausgeschlossen, nicht als null gezählt |
 | `rated` | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat |
 | `order_by`, `descending` | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens` |
 
@@ -797,10 +796,6 @@ Abfrage:
   Überschrift Started daneben und wie jede sortierbare Überschrift im Produkt —,
   sodass ein Klick die Historie nach `duration` neu ordnet und nicht die
   fünfundzwanzig Zeilen auf dem Bildschirm.
-- Eine fertige Ansicht **„slow runs"** ist diese Sortierung plus ein Schwellwert
-  `took_over_ms` (30 s) in einem Klick. **„All runs"** lässt beides fallen, zurück
-  zu neueste zuerst — innerhalb des Fensters, das gerade in Sicht ist, denn das
-  Fenster ist eine eigene Achse, die der p95-Link und der Datumsbereich setzen.
 - Die **p95-Zahl des Dashboards verlinkt hierher**, nach Dauer sortiert über
   dasselbe Fenster: `?sort=duration` mit dem `started_from` / `started_to` des
   Zeitraums.
@@ -1323,11 +1318,21 @@ Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments,
-die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins -
-`POST /admin/announcements`, noch keine Console-Seite - adressiert nach
-Organisation und, optional, nach Rolle, und beschränkt auf einen oder beide
-Kanäle.
+unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+**scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
+Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
+Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
+beschränkt auf einen oder beide Kanäle.
+
+Ein Dokument, das sauber indexiert wurde, schreibt nichts, und das ist Absicht.
+Früher schrieb es je eine Zeile, was im Normalfall - ein Ordner Dateien, auf
+einmal hinzugefügt - eine Benachrichtigung pro Datei bedeutete, die besagte,
+dass nichts schiefgegangen war, und die begrub, was gelesen werden musste. Wo
+eine gewöhnliche Ingestion jetzt gemeldet wird, ist der eigene Status des
+Dokuments in seiner Collection und, bei einem Konnektor-Lauf, die eine Zeile,
+die `sync_completed` schreibt, wenn der gesamte Versuch fertig ist. Ein
+Scheitern erreicht weiterhin den, der die Datei hochgeladen hat, oder die
+Administratoren der Organisation, wenn es niemand war.
 
 Die eine Ausnahme sind die weiter unten beschriebenen wöchentlichen und
 monatlichen Usage-Reports, die auf dem Agent konfiguriert werden: Beide
@@ -1346,20 +1351,33 @@ Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
 weiterhin für alles, was sich abschalten lässt.
 
 Aber nicht unbegrenzt: Jedes ist auf zwanzig Schreibvorgänge pro Minute je
-Akteur und Ereignistyp begrenzt, sodass bei einem Konto mit schnellen
-Änderungen der Rest still verworfen wird, statt jeden Admin zu überfluten -
-der Audit-Eintrag dahinter wird trotzdem aufgezeichnet, auf dem Trail selbst
-([Audit](#audit)), unabhängig davon, ob die Benachrichtigung das Limit
-überstanden hat.
+Akteur und Ereignistyp begrenzt, sodass ein Konto mit schnellen Änderungen
+nicht jeden Admin überfluten kann - der Audit-Eintrag dahinter wird trotzdem
+aufgezeichnet, auf dem Trail selbst ([Audit](#audit)), unabhängig davon, ob die
+Benachrichtigung das Limit überstanden hat.
+
+Jenseits dieser Grenze wird der Posteingang nicht einfach still. An die Stelle
+des Rests tritt eine Meldung pro Akteur und Minute, die sagt, dass die Minute
+voller war, als der Posteingang auflisten kann, und dass jedes dieser
+Ereignisse auf dem Trail steht. Das zählt, weil sich diese beiden nicht
+abschalten lassen: ein Akteur könnte das Kontingent sonst auf zwanzig harmlose
+Änderungen verbrauchen und danach das eine tun, worauf es zu achten gilt, ohne
+dass irgendetwas es sagt. Die Meldung trägt keine Zählung - zählen hieße, sie
+bei jedem weiteren Ereignis neu zu schreiben, also genau die Flut, die die
+Grenze verhindern soll.
 
 Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
 wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
 vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
-zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst - und der
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst. Der
 E-Mail-Sweep versendet keine Zeile, die diese Grenze bereits überschritten hat,
 sodass ein nach langem Ausfall wiederanlaufender Worker keine Benachrichtigung
 auf ihrem Weg in die Löschung verschicken kann.
+
+Das [Leeren](console.md#the-bell) ist das andere und nicht dasselbe: Ein Mensch
+nimmt eine Zeile sofort aus der eigenen Liste, und die Zeile selbst wird
+behalten, bis dieser Sweep sie erreicht.
 
 Was das übersteht, hängt davon ab, worum es in der Benachrichtigung ging. Ein
 Sicherheitsereignis, eine Konfigurationsänderung und die eigene Ankündigung

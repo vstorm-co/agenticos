@@ -84,6 +84,7 @@ def _service(
                 collection_name=kwargs["collection_name"],
                 config=kwargs["config"],
                 secret_id=kwargs["secret_id"],
+                organizational_unit=kwargs["organizational_unit"],
                 sync_mode=kwargs["sync_mode"],
                 schedule_minutes=kwargs["schedule_minutes"],
                 is_active=True,

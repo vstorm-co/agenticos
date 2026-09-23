@@ -60,6 +60,7 @@ def _row(**overrides) -> SimpleNamespace:
         "collection_name": "legal",
         "config": dict(_CONFIG),
         "secret_id": _SECRET,
+        "organizational_unit": None,
         "sync_mode": "new_only",
         "schedule_minutes": None,
         "is_active": True,

@@ -211,7 +211,58 @@ export type WSEventType =
   | "subagent_tool_call"
   | "subagent_tool_result"
   | "subagent_awaiting_approval"
-  | "subagent_complete";
+  | "subagent_complete"
+  // One per literal in `app/agents/browser_events.py`. The narration and the
+  // picture are separate frames on purpose: a screenshot is two orders of
+  // magnitude larger than the sentence describing the step, and encoding one
+  // must never hold up the other.
+  | "browser_opened"
+  | "browser_step"
+  | "browser_frame"
+  | "browser_finished";
+
+/**
+ * How a browse ended, and all four are ordinary.
+ *
+ * `blocked` is the one worth knowing about: it is the engine saying the page
+ * offers no action that serves the goal - a sign-in wall, a consent gate, a
+ * captcha - which is an answer about the page rather than a failure to retry.
+ */
+export type BrowseOutcome = "done" | "blocked" | "exhausted" | "failed";
+
+/**
+ * One frame from a browse in progress, mirroring `app/agents/browser_events.py`
+ * field for field.
+ *
+ * Everything but `kind`, `call_id` and `step` is optional because one shape
+ * carries four frames, and which fields are set is what `kind` says. `step` is on
+ * every one of them: frames share this socket with the turn's text, so a picture
+ * can arrive after the step that followed it, and a client ordering by arrival
+ * would caption the wrong page.
+ */
+export interface BrowserFrame {
+  kind: "browser_opened" | "browser_step" | "browser_frame" | "browser_finished";
+  /** Which `browse_page` call this belongs to; one turn can browse twice. */
+  call_id: string;
+  step: number;
+  url?: string | null;
+  title?: string | null;
+  /** On the opening frame: the ceiling, so progress reads as 3/25. */
+  max_steps?: number | null;
+  /** On the opening frame: the task the model handed over. */
+  goal?: string | null;
+  /** CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED. */
+  operation?: string | null;
+  /** The element as the page labelled it - never an index the client never saw. */
+  target?: string | null;
+  /** How likely the engine found this pick, when the decision model reports one. */
+  confidence?: number | null;
+  /** On `browser_frame`: the viewport as a `data:` URL. */
+  image?: string | null;
+  outcome?: BrowseOutcome | null;
+  /** Page-derived text, so it is rendered as data and never as markup. */
+  detail?: string | null;
+}
 
 /**
  * What one turn cost, and how full the workspace behind it is.

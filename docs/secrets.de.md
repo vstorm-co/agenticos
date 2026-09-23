@@ -1,5 +1,5 @@
 ---
-source_sha: "a4432cd987e3"
+source_sha: "da79e004aa8d"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -185,6 +185,7 @@ Organisation ihren eigenen Key mitbringen darf:
 | Exa | `web_research` |
 | Logfire | [Observability](reference/spec.md#observability) pro Agent — Traces in ein eigenes Projekt |
 | LlamaParse | PDF-Parsing, abgerechnet auf den eigenen Key der Organisation |
+| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — das Modell, das in jedem Schritt eines Durchlaufs Operation und Element wählt. Kein Model-Provider: Es beantwortet typisierte Fragen und generiert keinen Text, wird also nicht als Modell zum Betreiben eines Agents angeboten |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — die ganze Capability, die die semantischen Erinnerungen eines Agents in einem mem0-Dienst hält (Cloud oder selbst gehostet) statt hier. In diesem Deployment wird nichts gespeichert, also rechnet mem0 sein eigenes Embedding außerhalb ab, und Erinnerungen in die Cloud von mem0 zu senden ist eine Entscheidung über Datenresidenz, die der Builder benennt. Eine selbst gehostete `base_url` muss https sein und auf der Erlaubnisliste `MEM0_ALLOWED_HOSTS` stehen, sodass der Vault-Key nie an einen vom Agent kontrollierten Origin gesendet wird. Für diese Erinnerungen gibt es keine Betreiberkonsole: mem0 hat seinen eigenen Speicher, seine eigene Auflistung und sein eigenes Löschen. |
 
 ## Was nie passiert { #what-never-happens }

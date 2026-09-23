@@ -16,6 +16,7 @@ import type {
   ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
+  BrowserFrame,
   ChatMessageFile,
   Compaction,
   PersonalServiceGap,
@@ -36,6 +37,8 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
+import { applyBrowserFrame, type Browse } from "@/lib/browse";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
@@ -50,6 +53,11 @@ export interface QueuedMessage {
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
+}
+
+/** One conversation, including the one a first question has not named yet. */
+interface ConversationRef {
+  id: string | null;
 }
 
 interface UseChatOptions {
@@ -166,6 +174,20 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The browses of the turn on screen, keyed by their own `call_id` and held
+  // outside the assistant message for the reason the delegations above are: a
+  // `browse_page` call outlives nothing here, but its finish frame can land
+  // after `complete`, and anything hung off the streaming message would lose the
+  // outcome - which for a browse is the whole answer.
+  const [browses, setBrowses] = useState<Browse[]>([]);
+  // Selected rather than destructured, so a frame arriving does not re-render
+  // this hook's whole tree every time the panel's own open state changes.
+  //
+  // Only `close`. Nothing here opens the panel: a browse shows itself as a card
+  // in the transcript, and expanding it is somebody's decision rather than the
+  // product's - a window opening over the conversation says watching the browser
+  // matters more than reading the answer, which is true for about four seconds.
+  const closeBrowserPanel = useBrowserPanelStore((state) => state.close);
   // The summary in flight, or `null`. Cleared by the finishing frame and by the
   // end of the turn: a `complete` that arrived without one - a run that failed
   // between the two - would otherwise leave the notice up until the next message.
@@ -183,11 +205,45 @@ export function useChat(options: UseChatOptions = {}) {
   // and it holds the outbound queue - the turn is still being written under a
   // socket this client no longer has, and a queued message sent now would run a
   // second turn against a history missing the first one's answer.
-  const [interrupted, setInterrupted] = useState(false);
-  // Whether the drop happened *while* a turn was in flight. Read on the way back
-  // up, in a ref because the flip to disconnected and the flip to connected are
-  // two runs of one effect and `isProcessing` has been cleared in between.
-  const interruptedRef = useRef(false);
+  //
+  // The conversation it happened in, not a boolean: a value from the thread
+  // somebody just left is not a value about this one, and `lastUsage` draws that
+  // same line for the same reason. Wrapped rather than a bare id because a turn
+  // can be interrupted before its conversation has one - the first question of a
+  // new thread - and `null` there means "this new conversation", not "nothing".
+  const [interruptedFor, setInterruptedFor] = useState<ConversationRef | null>(null);
+  // The same turn, after the reader decided not to wait for it. The queue is
+  // released - that was their call - and the notice stays, saying the earlier
+  // answer is still being written and will arrive in the transcript out of
+  // order. Without it, that answer lands after the later question with nothing
+  // anywhere having said it would.
+  // A *set*, because a reader can leave one detached turn behind and collect
+  // another: interrupted in A, ask something else, switch to B, dropped again.
+  // One slot would have taken A's warning down while A's answer was still on
+  // its way, which is the one thing that warning exists to say.
+  const [detachedThreads, setDetachedThreads] = useState<ReadonlySet<string | null>>(
+    () => new Set(),
+  );
+  // Which conversation the drop happened in, or `null` for no drop at all. Read
+  // on the way back up, in a ref because the flip to disconnected and the flip
+  // to connected are two runs of one effect and `isProcessing` has been cleared
+  // in between.
+  const interruptedRef = useRef<ConversationRef | null>(null);
+  // The thread whose notice is up, mirroring `interruptedFor`. `doSend` reads it
+  // to move the notice from "still waiting" to "still coming"; it is not state,
+  // because reaching for state inside a setter's updater is how a side effect
+  // ends up running twice.
+  const interruptedForRef = useRef<ConversationRef | null>(null);
+  // How many answers the interrupted thread had finished at the moment its
+  // socket went. The turn landing takes it past this, which is the only signal
+  // this client has that the turn it lost is over.
+  const finishedWhenInterrupted = useRef(0);
+  // Both notices belong to the thread the turn was interrupted in. Opening
+  // another one while a reconnect is in flight used to draw the notice over a
+  // thread that was never interrupted, and re-read that thread instead of the
+  // one still being written.
+  const interrupted = interruptedFor !== null && interruptedFor.id === activeConversationId;
+  const detachedTurnPending = detachedThreads.has(activeConversationId);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -412,6 +468,17 @@ export function useChat(options: UseChatOptions = {}) {
           // itself and the cases share one reducer instead of one copy each of
           // "find the task, change one field".
           setDelegations((current) => applyDelegationFrame(current, wsEvent.data as SubagentFrame));
+          break;
+        }
+
+        case "browser_opened":
+        case "browser_step":
+        case "browser_frame":
+        case "browser_finished": {
+          // One branch for every frame: the envelope's `type` is the frame's own
+          // `kind` (see `AgentSession._browser_event`), so the payload narrows
+          // itself and the cases share one reducer.
+          setBrowses((current) => applyBrowserFrame(current, wsEvent.data as BrowserFrame));
           break;
         }
 
@@ -683,11 +750,29 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
+      // A browse belongs to the turn that started it, and the panel draws the
+      // newest one - so without this the next turn opens under the last turn's
+      // viewport, and a browse that finished keeps a screenshot alive for as
+      // long as the hook does.
+      setBrowses([]);
+      closeBrowserPanel();
       setPersonalGaps([]);
       // Asking something new is the reader deciding not to wait for the turn
       // whose socket went away. Their call to make, and it is the only other
       // thing that releases the queue.
-      setInterrupted(false);
+      //
+      // The consequence used to be stated nowhere: the lost turn runs on under
+      // its old session for up to the detached grace, so this question loads a
+      // history without its answer, and that answer lands in the transcript
+      // after this one was asked. The notice does not go away, it changes what
+      // it says - the reader is told which answer is still coming rather than
+      // finding it later in the wrong place.
+      const waiting = interruptedForRef.current;
+      if (waiting !== null) {
+        interruptedForRef.current = null;
+        setInterruptedFor(null);
+        setDetachedThreads((threads) => new Set(threads).add(waiting.id));
+      }
       // A new question ends whatever the agent was saying, and it is the only
       // boundary that always holds. `complete` clears this on every ordinary
       // ending, but a socket that dropped mid-answer sends no `complete` at all -
@@ -736,7 +821,16 @@ export function useChat(options: UseChatOptions = {}) {
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
     },
-    [addMessage, updateMessage, setCurrentMessageId, sendMessage, conversationId],
+    [
+      addMessage,
+      updateMessage,
+      setCurrentMessageId,
+      sendMessage,
+      conversationId,
+      // The store action that shuts the browse panel when this turn ends the
+      // previous one's browse. Stable, and listed rather than omitted.
+      closeBrowserPanel,
+    ],
   );
 
   const sendChatMessage = useCallback(
@@ -788,7 +882,12 @@ export function useChat(options: UseChatOptions = {}) {
     // screen it would show the previous tenant's specialist names and prompts to
     // the new one.
     setDelegations([]);
-  }, [tenantId, clearQueued]);
+    // And the browse panel, which holds a screenshot of a page the previous
+    // tenant's agent was looking at - the one piece of this state that is a
+    // picture of somebody else's data.
+    setBrowses([]);
+    closeBrowserPanel();
+  }, [tenantId, clearQueued, closeBrowserPanel]);
 
   // The other half: a delegation, an approval and a question all belong to a run in
   // *this* conversation, and all three are drawn over whatever transcript is on
@@ -831,13 +930,15 @@ export function useChat(options: UseChatOptions = {}) {
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
     setDelegations([]);
+    setBrowses([]);
+    closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
     setCompacting(null);
     setCompactionImpossible(null);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
-  }, [activeConversationId]);
+  }, [activeConversationId, closeBrowserPanel]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
@@ -1156,6 +1257,15 @@ export function useChat(options: UseChatOptions = {}) {
     endTurnLocally();
   }, [sendMessage, endTurnLocally]);
 
+  const acknowledgeDetachedTurn = useCallback(() => {
+    setDetachedThreads((threads) => {
+      if (!threads.has(activeConversationId)) return threads;
+      const next = new Set(threads);
+      next.delete(activeConversationId);
+      return next;
+    });
+  }, [activeConversationId]);
+
   // A socket that dropped mid-answer, and came back.
   //
   // Nothing else notices. Every frame that ends a turn arrives on the socket, so
@@ -1169,24 +1279,56 @@ export function useChat(options: UseChatOptions = {}) {
   // Deliberately does NOT hand the composer straight back - `interrupted` holds
   // the queue - because the turn is still running under a socket this client no
   // longer has.
+  //
+  // The notice is drawn on the way *down*, not on the way back up. Acting only
+  // on the return left a reader whose connectivity never comes back with the
+  // screen this was written to remove - no notice, no ending, a composer that
+  // spins - and the notice's own copy is as true offline as it is online: the
+  // agent finishes the turn and saves it to the conversation either way.
+  //
+  // The re-read is the half that needs the socket, and it is the only thing the
+  // return still does - for the conversation the drop happened in, which is not
+  // necessarily the one on screen by then.
   const wasConnected = useRef(isConnected);
   useEffect(() => {
     const dropped = wasConnected.current && !isConnected;
     const returned = !wasConnected.current && isConnected;
     wasConnected.current = isConnected;
-    if (dropped && isProcessing) interruptedRef.current = true;
-    if (!returned || !interruptedRef.current) return;
-    interruptedRef.current = false;
-    endTurnLocally();
-    setInterrupted(true);
+    if (dropped && isProcessing) {
+      const thread = { id: activeConversationId };
+      interruptedRef.current = thread;
+      interruptedForRef.current = thread;
+      endTurnLocally();
+      setInterruptedFor(thread);
+      // The baseline the effect below watches. Taken here, after
+      // `endTurnLocally` has stopped the half-written answer streaming: that
+      // stop makes it *finished* by the count's own definition, so a baseline
+      // read a moment earlier would be one short and the notice would clear
+      // itself immediately.
+      finishedWhenInterrupted.current = useChatStore
+        .getState()
+        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
+    }
+    const thread = interruptedRef.current;
+    if (!returned || thread === null) return;
+    interruptedRef.current = null;
+    if (thread.id !== activeConversationId) return;
     onTurnInterrupted?.();
-  }, [isConnected, isProcessing, endTurnLocally, onTurnInterrupted]);
+  }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted]);
 
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
+  //
+  // Gated on there being *any* unresolved interruption, not on the notice being
+  // the one on screen. The notice is scoped to its thread; the queue is not, and
+  // holding it is about a turn still running server-side rather than about what
+  // the reader is looking at. Scoped, switching away from an interrupted thread
+  // released its own queued message into whichever thread was opened next -
+  // this effect runs before the one that clears the queue on a switch, and the
+  // send it schedules cannot be called back (#1775).
   useEffect(() => {
-    if (interrupted) return;
+    if (interruptedFor !== null) return;
     if (isConnected && !isProcessing && messageQueueRef.current.length > 0) {
       const next = messageQueueRef.current.shift();
       setQueuedMessages([...messageQueueRef.current]);
@@ -1196,7 +1338,30 @@ export function useChat(options: UseChatOptions = {}) {
         setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
       }
     }
-  }, [isProcessing, isConnected, interrupted, doSend]);
+  }, [isProcessing, isConnected, interruptedFor, doSend]);
+
+  // The interrupted turn's answer landing is the only thing that actually
+  // resolves it, and the transcript is where it lands - not the socket this
+  // client no longer has. So the count of finished answers in the thread is the
+  // signal: a re-read that brings one back clears the notice and releases the
+  // queue, rather than leaving a reader told an answer is still coming while
+  // they are looking at it (#1775).
+  //
+  // Counted rather than matched on an id: the turn was interrupted before it
+  // had one, and the count is the same question asked in a way this client can
+  // answer.
+  const finishedTurns = messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming,
+  ).length;
+  useEffect(() => {
+    const thread = interruptedForRef.current;
+    // Only for the thread it happened in: `messages` is replaced wholesale on a
+    // switch, so a busier thread would otherwise read as this one's answer.
+    if (thread === null || thread.id !== activeConversationId) return;
+    if (finishedTurns <= finishedWhenInterrupted.current) return;
+    interruptedForRef.current = null;
+    setInterruptedFor(null);
+  }, [finishedTurns, activeConversationId]);
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.
@@ -1211,11 +1376,22 @@ export function useChat(options: UseChatOptions = {}) {
     compactionImpossible,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
     interrupted,
+    /**
+     * A turn whose socket went away that the reader decided not to wait for.
+     *
+     * Its answer is still coming and will land in the transcript after the
+     * question asked in the meantime. The notice is the only thing that says so.
+     */
+    detachedTurnPending,
+    /** The reader has gone to look for that answer; stop saying it is coming. */
+    acknowledgeDetachedTurn,
     /** The agent's personal MCP services this person cannot reach, for the turn on screen. */
     personalGaps,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,
+    /** The turn's browses, in the order they started. See `BrowserPanel`. */
+    browses,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

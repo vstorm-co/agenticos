@@ -54,7 +54,20 @@ export default function ProfileSettingsPage() {
       }
       const updated = await apiClient.patch<User>("/users/me", payload);
       setUser(updated);
-      toast.success(t("profileUpdated"));
+      // A new address is staged rather than applied, so the field re-seeds to
+      // the address the account still has. Saying "profile updated" over that
+      // reads as a change that silently did not take.
+      //
+      // Gated on this request having carried an address, not on the answer
+      // holding one: a change staged an hour ago is still on every later
+      // response, so saving only a display name would otherwise claim a
+      // verification email had just been sent - most misleading right after one
+      // failed to arrive.
+      if (payload.email !== undefined && updated.pending_email) {
+        toast.success(t("emailChangeSent", { email: updated.pending_email }));
+      } else {
+        toast.success(t("profileUpdated"));
+      }
     } catch (err) {
       toast.error(
         err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
@@ -197,7 +210,11 @@ export default function ProfileSettingsPage() {
           <FormField
             label={t("email")}
             htmlFor="profile-email"
-            description={t("changingEmailMayRequire")}
+            description={
+              user?.pending_email
+                ? t("emailChangePending", { email: user.pending_email })
+                : t("changingEmailMayRequire")
+            }
           >
             <Input
               id="profile-email"

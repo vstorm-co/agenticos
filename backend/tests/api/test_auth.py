@@ -476,3 +476,52 @@ async def test_get_current_user(
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == mock_user.email
+
+
+@pytest.mark.anyio
+async def test_confirming_an_email_change_needs_no_session(
+    mock_user: MockUser, mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """The link is followed from the new address, routinely in a different
+    browser from the one that asked for the change - so the token is the whole
+    of the proof and the route is open (#1772)."""
+    mock_user_service.confirm_email_change = AsyncMock(return_value=mock_user)
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/email-change/confirm",
+                json={"token": "a-token-long-enough"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    mock_user_service.confirm_email_change.assert_awaited_once_with("a-token-long-enough")
+
+
+@pytest.mark.anyio
+async def test_a_refused_email_change_link_answers_401(
+    mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """Expired, replayed, or for an address no longer staged - all one answer,
+    so the link says nothing about which account it was for."""
+    mock_user_service.confirm_email_change = AsyncMock(
+        side_effect=AuthenticationError(message="This link is invalid or has expired")
+    )
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/email-change/confirm",
+                json={"token": "a-token-long-enough"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 401

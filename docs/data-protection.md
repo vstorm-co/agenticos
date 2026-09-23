@@ -32,7 +32,7 @@ that way and the software cooperates:
 | Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR runs in the worker too, or at an OCR server you register as a local service. LlamaParse is a per-collection choice that needs a vault key; without one, nothing is parsed off-site |
 | Embeddings | An Ollama you host, registered as a local service under Knowledge → Integrations and chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
-| Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection |
+| Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection. `browser_choice` can stay, with `decision_base_url` pointed at a decision model you host |
 | Mail | Your own SMTP relay |
 | Speech and images | Profiles on a provider you host, or no such profile |
 
@@ -118,6 +118,7 @@ complete list of destinations, with the configuration that decides each.
 | An image-description model | Images inside documents | A collection's `image_description_model` | That model provider's |
 | Web research | The search query the agent composed | `web_research.method` on the spec: `duckduckgo` (no key), `tavily`, `brave` or `exa` (a `search` secret each), or `native`, where the chat model provider searches | The search vendor's, or the model provider's |
 | Web fetch and browser use | The URL; for browser use, the whole task | The capability on the spec; browser use also needs a CDP endpoint you name | The site fetched; the browser host |
+| The browsing decision model | Every step of a browse: the page's URL, its title, the labels of the elements in view and up to 1,500 characters of its visible text - which may be the contents of an internal system. A value the agent types is **not** sent, and neither is what a field already holds: the element table reports only that a field is filled, so a password or an address does not reach this endpoint | The `browser_choice` capability, which cannot run without a vault key an operator adds; `decision_base_url` moves the destination. Which browser it drives is bounded by `BROWSER_CDP_ALLOWED_HOSTS`, empty by default | The decision model vendor's, or your own host |
 | The sandbox, outbound | **Anything in the workspace, to any host** - the `workbench` runtime has a network, a shell and `curl` | The `sandbox` capability and a runtime with `needs_network`; command approval gates what runs, not where it connects | Wherever the command went. Egress control is the sandbox host's firewall, not a setting here |
 | An MCP server | Tool arguments and results | `mcp_connections.url`, per organization or per person | The server's operator |
 | mem0 | The memories written for a person or a chat | The `memory_mem0` capability's `base_url`, which must be in `MEM0_ALLOWED_HOSTS` | The mem0 host you allow |

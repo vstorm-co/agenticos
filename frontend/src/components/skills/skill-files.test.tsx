@@ -202,9 +202,12 @@ describe("the file pane", () => {
   }
 
   it("shows what the server holds until somebody types", () => {
+    // On the source half, which is what the editor opens on now - a file is
+    // opened here to be read and edited, and the rendered view hides the
+    // characters both of those are about.
     mount();
 
-    expect(screen.getByTestId("rendered")).toHaveTextContent("# Body");
+    expect(screen.getByRole("textbox")).toHaveValue("# Body");
   });
 
   it("cannot save a file nobody has changed", () => {

@@ -17,16 +17,18 @@ vi.mock("@/components/layout/notification-bell", () => ({
   NotificationBell: () => <button>the bell</button>,
 }));
 vi.mock("@/components/layout/sidebar-user", () => ({
-  SidebarUser: () => <button>the account menu</button>,
+  SidebarUser: ({ compact }: { compact?: boolean }) => (
+    <button>{compact ? "the account avatar" : "the account menu"}</button>
+  ),
 }));
 vi.mock("@/components/language-switcher", () => ({
   LanguageSwitcherIcon: () => <button>the language switcher</button>,
 }));
 vi.mock("@/components/theme", () => ({ ThemeToggle: () => <button>the theme toggle</button> }));
 
-function renderShell() {
+function renderShell(props: { collapsed?: boolean } = {}) {
   return render(
-    <SidebarShell>
+    <SidebarShell collapsed={props.collapsed}>
       <nav aria-label="Primary">the destinations</nav>
     </SidebarShell>,
   );
@@ -43,7 +45,7 @@ describe("SidebarShell", () => {
     renderShell();
 
     const nav = screen.getByRole("navigation");
-    for (const below of ["the search row", "the bell", "the account menu"]) {
+    for (const below of ["the search row", "the account menu"]) {
       expect(follows(nav, screen.getByRole("button", { name: below }))).toBe(true);
     }
   });
@@ -52,7 +54,7 @@ describe("SidebarShell", () => {
     renderShell();
 
     const account = screen.getByRole("button", { name: "the account menu" });
-    for (const before of ["the search row", "the bell", "the theme toggle"]) {
+    for (const before of ["the search row", "the bell"]) {
       expect(follows(screen.getByRole("button", { name: before }), account)).toBe(true);
     }
   });
@@ -68,20 +70,43 @@ describe("SidebarShell", () => {
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
   });
 
-  it("keeps search, the bell and the two settings out of the destination list", () => {
-    // Search is an action, the bell is a notice and the settings are
-    // preferences; none of them is a place to be, so none belongs among the
-    // links that say where you are.
+  it("keeps the actions out of the destination list", () => {
+    // Search is an action and the bell is a notice; neither is a place to be,
+    // so neither belongs among the links that say where you are.
     renderShell();
 
     const nav = screen.getByRole("navigation");
-    for (const outside of [
-      "the search row",
-      "the bell",
-      "the language switcher",
-      "the theme toggle",
-    ]) {
+    for (const outside of ["the search row", "the bell"]) {
       expect(nav).not.toContainElement(screen.getByRole("button", { name: outside }));
     }
+  });
+
+  it("carries search and the bell at both widths", () => {
+    // They are the footer's only two controls now - the language and the theme
+    // are named rows in the account menu, where somebody looks for a setting.
+    for (const collapsed of [false, true]) {
+      const view = renderShell({ collapsed });
+      expect(screen.getByRole("button", { name: "the search row" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "the bell" })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "the language switcher" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "the theme toggle" })).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("hands the account its compact shape on the rail", () => {
+    renderShell({ collapsed: true });
+
+    expect(screen.getByRole("button", { name: "the account avatar" })).toBeInTheDocument();
+  });
+
+  it("draws no collapse control, which belongs on the column's own title bar", () => {
+    // `AppSidebar` puts it beside the brand. The slide-over has no equivalent
+    // and needs none: a drawer somebody opened on purpose has the width.
+    renderShell();
+
+    expect(screen.queryByRole("button", { name: "the collapse control" })).not.toBeInTheDocument();
   });
 });

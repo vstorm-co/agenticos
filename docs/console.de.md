@@ -1,5 +1,5 @@
 ---
-source_sha: "fffeb5145a26"
+source_sha: "5b981aaf60d8"
 ---
 
 # Die Konsole { #the-console }
@@ -75,11 +75,42 @@ Eine Zeile mit einem Ziel ist ein Link; eine ohne - meist die eigene
 Ankündigung eines Admins - lässt sich immer nur als gelesen markieren. Eine
 Zeile als gelesen zu markieren, oder alle auf einmal, aktualisiert die
 Zählung sofort; nichts hier wartet auf ein Neuladen der Seite. **Mark all
-read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf und fragt
+read** räumt in Stapeln bis zu fünftausend ungelesene Zeilen auf und fragt
 dann die Zählung erneut ab - bei einem größeren Rückstau zeigt das Badge
 also weiter, was noch ungelesen ist, und ein weiterer Klick beendet den Rest,
 statt dass das Badge einen Posteingang behauptet, den es nur teilweise
 abgearbeitet hat.
+
+Jeder Klick kommt weiter, selbst wenn der ganze Stapel aus Zeilen bestand, die
+der Lesende nicht mehr sehen kann. Markiert werden sie nie: geprüft werden die
+*aktuellen* Rechte, und wer eine Woche lang herabgestuft und dann wieder
+eingesetzt wird, fände die Sicherheitshinweise dieser Woche sonst bereits
+gelesen vor. Stattdessen sagt ein abgeschnittener Durchlauf, wo er aufgehört
+hat, und der nächste Klick setzt dort an.
+
+Sowohl die Zählung als auch der Durchlauf sagen, wenn sie an
+dieser Grenze statt am Ende des Posteingangs aufgehört haben - `approximate` bei
+`GET /notifications/unread-count`, `remaining` bei
+`POST /notifications/mark-all-read` -, denn sonst sind eine Zählung genau an der
+Grenze und eine echte Zählung derselben Größe dieselbe Zahl.
+
+Gelesen ist nicht dasselbe wie weg, und beides wird angeboten. Fährt man über
+eine Zeile, erscheint ein Kreuz, das sie aus der Liste nimmt; **Clear** in der
+Kopfzeile nimmt alles heraus, was gerade gelistet ist - gelesen wie ungelesen.
+Wird etwas Ungelesenes geleert, gilt es zugleich als gelesen, denn eine Zeile,
+die nichts auf dem Bildschirm mehr erreicht, darf nicht weiter auf das Badge
+zählen. Wie „Mark all read" ist ein Leeren begrenzt - tausend Zeilen - und ein
+längerer Rückstau braucht einen zweiten Klick.
+
+Was eine geleerte Zeile *nicht* tut, ist wiederkommen. Die Benachrichtigung
+wird behalten und nur nicht mehr gelistet, statt gelöscht zu werden, und genau
+das macht es wahr: der Posteingang erkennt eine Wiederholung an dem Sachverhalt,
+den sie beschreibt, eine gelöschte Zeile wäre also eine, die die nächste
+Budgetprüfung oder der nächste Versuch erneut schriebe. Einen Alarm zu
+verwerfen, um den Sie sich gekümmert haben, ist damit endgültig - für dieses
+Vorkommnis; ein *neuer*, über einen neuen Sachverhalt, kommt weiterhin an.
+Zeilen fallen auch von selbst heraus: neunzig Tage nach dem Schreiben, wenn sie
+gelesen wurden, und ein Jahr danach unabhängig davon.
 
 Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 [Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,
@@ -115,6 +146,16 @@ werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe
 gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
+
+**Einem Durchlauf zusehen.** Ein Agent mit
+[Browser-Automatisierung](reference/capabilities.md#browser-automation-choose) öffnet
+ein Panel neben dem Transkript, sobald er eine Seite durchzuarbeiten beginnt: das
+Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit der
+Wahrscheinlichkeit, mit der die Engine ihn gewählt hat. Diese Zahl ist der Grund,
+warum es das Panel statt eines Spinners gibt — ein Durchlauf, der auf einer Auswahl
+von 0,31 gehandelt hat, ist einen Blick wert. Es bleibt stehen, wenn der Durchlauf
+endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
+es, bleibt es für diesen Durchlauf geschlossen.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

@@ -86,6 +86,7 @@ from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
     SpendEntry,
+    guarded_by,
     metered_by,
 )
 from app.agents.capabilities.channel_tools import (
@@ -1152,7 +1153,11 @@ class PreparedRun:
         The non-streaming half of :meth:`iterate`, and it exists for the same
         reason.
         """
-        with metered_by(self.built.ledger):
+        # Both, and beside each other: one books what a capability's own model
+        # calls cost, the other lets it refuse before making them. A browse
+        # runs twenty-five model requests inside one tool call, none of which
+        # passes the guard's request wrapper.
+        with metered_by(self.built.ledger), guarded_by(self.built.budget):
             return await self.built.agent.run(
                 user_prompt,
                 deps=self.built.deps,
@@ -1184,7 +1189,11 @@ class PreparedRun:
         decides what to forward. It stays readable after the block closes; the
         outcome is taken from it there.
         """
-        with metered_by(self.built.ledger):
+        # Both, and beside each other: one books what a capability's own model
+        # calls cost, the other lets it refuse before making them. A browse
+        # runs twenty-five model requests inside one tool call, none of which
+        # passes the guard's request wrapper.
+        with metered_by(self.built.ledger), guarded_by(self.built.budget):
             async with self.built.agent.iter(
                 user_prompt,
                 deps=self.built.deps,
