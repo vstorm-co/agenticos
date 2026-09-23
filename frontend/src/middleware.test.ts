@@ -73,7 +73,7 @@ describe("a visitor who picked nothing", () => {
   });
 
   it("is unaffected by a cookie naming a locale this deployment does not have", () => {
-    expect(redirectedTo(middleware(request("/orgs", { locale: "de" })))).toBeNull();
+    expect(redirectedTo(middleware(request("/orgs", { locale: "fr" })))).toBeNull();
     expect(redirectedTo(middleware(request("/orgs", { locale: "" })))).toBeNull();
   });
 });

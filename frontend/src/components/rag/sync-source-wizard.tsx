@@ -78,6 +78,7 @@ const EMPTY_FORM: SyncSourceCreate = {
   collection_name: null,
   config: {},
   secret_id: null,
+  organizational_unit: null,
   sync_mode: "full",
   schedule_minutes: null,
 };

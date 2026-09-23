@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { ChipsInput } from "@/components/agents/chips-input";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -13,17 +17,29 @@ import {
   DialogTitle,
   FormField,
   Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
+import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 1000;
+/** The caps the server enforces, so a chip too many is refused before it is sent. */
+const MAX_CATEGORIES = 10;
+const MAX_TAGS = 20;
+const MAX_LABEL = 32;
 
 /**
  * The handle an agent will be addressed by, derived from its name.
@@ -62,9 +78,16 @@ interface CreateAgentDialogProps {
 export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgentDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
+  const tAgents = useTranslations("pages.agents");
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  // Organization by default. An agent is a thing a company builds, and one
+  // nobody else can find is the exception - it used to be the rule, so every
+  // agent was made invisible and then shared by hand.
+  const [visibility, setVisibility] = useState<Visibility>("org");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   function edit(field: "name" | "description", value: string) {
@@ -79,20 +102,28 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   async function handleCreate() {
     try {
       const agent = await create.mutateAsync({
-        name,
-        description: description || null,
-        instructions: "",
-        model_profile_id: null,
-        model_settings: {},
-        capabilities: [],
-        collection_ids: [],
-        skill_ids: [],
-        context_ids: [],
-        mcp_servers: [],
-        budget: null,
+        spec: {
+          name,
+          description: description || null,
+          instructions: "",
+          model_profile_id: null,
+          model_settings: {},
+          capabilities: [],
+          collection_ids: [],
+          skill_ids: [],
+          context_ids: [],
+          mcp_servers: [],
+          budget: null,
+        },
+        visibility,
+        categories,
+        tags,
       });
       setName("");
       setDescription("");
+      setVisibility("org");
+      setCategories([]);
+      setTags([]);
       setErrors({});
       onOpenChange(false);
       onCreated(agent);
@@ -114,12 +145,20 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      {/* A shape as well as a width. The form grew a visibility, two chip
+          editors and a preview that gets taller with every tag, which on a phone
+          or a short window pushed the header and the Create button off the
+          screen with nothing to scroll - a dialog you cannot submit. */}
+      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        {/* `min-h-0` because a flex child refuses to shrink without it, which is
+            how the body grows past the dialog's own ceiling instead of scrolling
+            inside it. The side padding keeps a focus ring off the scroller's
+            edge, where it would be sliced. */}
+        <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
           <FormField
             label={t("name4")}
             htmlFor="agent-name"
@@ -153,6 +192,102 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               rows={2}
             />
           </FormField>
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-visibility">{t("whoCanFindIt")}</Label>
+            <Select
+              value={visibility}
+              onValueChange={(value) => setVisibility(value as Visibility)}
+            >
+              <SelectTrigger id="agent-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="org">{t("visibilityOrg")}</SelectItem>
+                <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {t(visibility === "org" ? "visibilityOrgHint" : "visibilityPrivateHint")}
+            </p>
+          </div>
+
+          {/* Side by side, because they are two halves of one question - and the
+              preview below shows what they look like on the row, which is where
+              somebody will read them back. Optional: the detail page changes
+              them later without a publish. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>{tAgents("categories")}</Label>
+              <ChipsInput
+                values={categories}
+                onChange={setCategories}
+                inputLabel={tAgents("addCategory")}
+                removeLabel={(value) => tAgents("removeCategory", { value })}
+                placeholder={tAgents("addCategoryPlaceholder")}
+                maxItems={MAX_CATEGORIES}
+                maxLength={MAX_LABEL}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{tAgents("tags")}</Label>
+              <ChipsInput
+                values={tags}
+                onChange={setTags}
+                inputLabel={tAgents("addTag")}
+                removeLabel={(value) => tAgents("removeTag", { value })}
+                placeholder={tAgents("addTagPlaceholder")}
+                maxItems={MAX_TAGS}
+                maxLength={MAX_LABEL}
+              />
+            </div>
+          </div>
+
+          {/* The row this is about to become, drawn from what has been typed.
+              The handle and the description are what a colleague scanning the
+              catalog reads, and they are easier to judge as a row than as three
+              fields - a name that looked fine in an input is the one that
+              truncates here. */}
+          <div className="space-y-1.5">
+            <Label>{t("preview")}</Label>
+            <div className="border-border bg-card rounded-xl border p-3">
+              <div className="flex items-start justify-between gap-2">
+                {/* The real face, not a placeholder: an agent's is drawn from its
+                    handle, and the handle is derived from the name on every
+                    keystroke - so this is the picture the agent will actually
+                    wear, changing as somebody types their way to it. */}
+                <span className="mr-3 h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                  <AvatarFace seed={deriveHandle(name || t("handlePlaceholder"))} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground truncate font-medium">
+                    {name.trim() || t("supportCopilot")}
+                  </p>
+                  <p className="text-muted-foreground truncate font-mono text-xs">
+                    @{deriveHandle(name || t("handlePlaceholder"))}
+                  </p>
+                </div>
+                <AgentStatusBadge status="draft" />
+              </div>
+              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
+                {description.trim() || t("answersCustomerQuestionsFrom")}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Badge variant="outline">
+                  {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
+                </Badge>
+                {categories.map((value) => (
+                  <Badge key={value} variant="secondary">
+                    {value}
+                  </Badge>
+                ))}
+                {tags.map((value) => (
+                  <span key={value} className="text-muted-foreground text-xs">
+                    #{value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

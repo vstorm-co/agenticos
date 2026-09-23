@@ -22,6 +22,8 @@ export interface Trigger {
   agent_id: string;
   /** Set only on the org-wide listing, where a row is shown away from its agent. */
   agent_name: string | null;
+  /** Its handle, which is what the generated face is drawn from. */
+  agent_slug?: string | null;
   /** With the two below, lets that listing draw the agent's avatar, not just name it. */
   agent_has_avatar?: boolean;
   agent_avatar_color?: number | null;

@@ -11,6 +11,7 @@ from pydantic import Field, field_validator
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 
 # The longest a single category/tag may be, matching the `String(32)` array
@@ -228,6 +229,26 @@ class AgentCreate(BaseSchema):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
+    # They are not spec, and they are offered here because the catalog a new
+    # agent joins is the moment somebody knows what to call it - the detail page
+    # can still change them afterwards without a publish.
+    categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
+    visibility: Visibility = Field(
+        default=Visibility.ORG,
+        description=(
+            "Who can find this agent. `org` - the default - is everyone in the "
+            "organization; `private` is the owner and whoever they grant it to. "
+            "A draft cannot run either way, so this decides who sees it, not "
+            "what it does."
+        ),
+    )
+
+    @field_validator("categories", "tags", mode="after")
+    @classmethod
+    def _normalize(cls, v: list[str]) -> list[str]:
+        return normalize_labels_strict(v)
 
 
 class AgentDraftUpdate(BaseSchema):

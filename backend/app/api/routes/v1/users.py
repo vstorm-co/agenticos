@@ -1,5 +1,6 @@
 """User management routes."""
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -10,13 +11,18 @@ from app.api.deps import (
     CurrentSessionId,
     CurrentUser,
     DBSession,
+    DeploymentSettingsSvc,
     UserSvc,
 )
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.api.routes.v1.admin_users import delete_user as admin_delete_user
 from app.api.routes.v1.admin_users import update_user as admin_update_user
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import UserRead, UserUpdate
+from app.services.email.service import get_email_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,6 +41,7 @@ async def update_current_user(
     current_user: CurrentUser,
     user_service: UserSvc,
     current_session_id: CurrentSessionId,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """Update current user profile.
 
@@ -48,10 +55,34 @@ async def update_current_user(
     schema and this route reaches the same column the admin route does, so
     `update_current` refuses an app admin suspending themselves here - otherwise
     it is the way around #941's guard.
+
+    An `email` is *staged* rather than written, and this route mails the proof it
+    waits for: a link to the new address, and a notice to the old one saying the
+    change was asked for. The account keeps using its current address until that
+    link comes back (#1772), which is why the answer still carries it -
+    `pending_email` beside it is what the form reads to say so.
     """
-    return await user_service.update_current(
+    updated, token = await user_service.update_current(
         current_user, user_in, current_session_id=current_session_id
     )
+    if token is not None and updated.pending_email is not None:
+        app_name = await branding.effective_app_name()
+        name = updated.full_name or updated.email
+        # Best-effort, like every other send on this surface: the staging is
+        # committed either way, and a provider outage must not roll back the
+        # rest of the patch. The address simply stays unconfirmed, which is the
+        # safe end of the two.
+        try:
+            confirm_url = f"{settings.FRONTEND_URL.rstrip('/')}/auth/email-change?token={token}"
+            await get_email_service().send_email_change_verification(
+                to=updated.pending_email, name=name, confirm_url=confirm_url, app_name=app_name
+            )
+            await get_email_service().send_email_change_notice(
+                to=updated.email, name=name, new_email=updated.pending_email, app_name=app_name
+            )
+        except Exception:
+            logger.exception("email_change_mail_failed", extra={"user_id": str(updated.id)})
+    return updated
 
 
 @router.post("/me/avatar", response_model=UserRead)

@@ -9,6 +9,9 @@ import createNextIntlPlugin from "next-intl/plugin";
 // the deployment's public origins, which exist at runtime, so
 // `src/middleware.ts` stamps that one.
 import { staticSecurityHeaders } from "./src/lib/security-headers";
+// The same relative-import bargain, and for a sharper reason: written out, the
+// list went stale the moment a third locale shipped and German bookmarks 404'd.
+import { locales } from "./src/lib/locales";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
@@ -60,7 +63,11 @@ const nextConfig: NextConfig = {
     // locale on the destination.
     return MOVED_ROUTES.flatMap(({ from, to }) => [
       { source: from, destination: to, permanent: false },
-      { source: `/:locale(en|pl)${from}`, destination: `/:locale${to}`, permanent: false },
+      {
+        source: `/:locale(${locales.join("|")})${from}`,
+        destination: `/:locale${to}`,
+        permanent: false,
+      },
     ]);
   },
 

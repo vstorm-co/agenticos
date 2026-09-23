@@ -86,7 +86,7 @@ export function AgentPicker() {
           {selected ? (
             <AgentAvatar
               agentId={selected.id}
-              name={selected.name}
+              slug={selected.slug}
               hasAvatar={selected.has_avatar}
               size="sm"
             />
@@ -174,7 +174,7 @@ function AgentOption({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
       >
-        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="sm" />
+        <AgentAvatar agentId={agent.id} slug={agent.slug} hasAvatar={agent.has_avatar} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>

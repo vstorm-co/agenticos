@@ -45,6 +45,7 @@ no spec can redirect it.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -64,6 +65,7 @@ from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
+from app.repositories import user as user_repo
 from app.services.notification_center import NotificationCenterService
 from app.services.spend import organization_spend_since
 
@@ -332,51 +334,31 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def ingestion_completed(
-        self, doc: RAGDocument, *, attempt: int, chunk_count: int
-    ) -> None:
-        """One document finished parsing and indexing.
+    async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
+        """One document did not parse or index cleanly.
 
-        Reached from `RAGDocumentService.complete_ingestion`, once per settled
-        attempt - `attempt` is passed in rather than read off `doc` here, the
-        same "carried from dispatch, not read back" rule Decision 1 states for
-        why the occurrence id is `(doc_id, attempt)` and not `(doc_id,
-        doc.ingestion_attempt)`.
+        The only per-document notification there is, and there used to be two.
+        A document that indexed *successfully* wrote one as well - "\'x.pdf\'
+        finished ingesting." - which is a notification about nothing having
+        gone wrong, one per file, in a feature whose ordinary use is dropping
+        thirty files into a collection at once. It buried the rows that
+        actually needed reading and was the loudest producer the inbox had.
+        Success is now reported where it is asked for: the document's own
+        status in the collection, and `sync_completed` below for the
+        whole-attempt figure of a connector run.
 
         The audience is whoever uploaded it, falling back to the
         organization's administrators when null: a synced document, or one a
         CLI ingest tracked, has no personal uploader to tell individually. A
-        document tracked outside any organization at all (a CLI ingest run
-        given none) has no administrators to fall back to either, and tells
-        nobody rather than resolving to an empty scope.
-        """
-        if doc.organization_id is None:
-            return
-        recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
-        if not recipients:
-            return
-        doc_url = self._collection_link(doc.knowledge_base_id, doc.organization_id)
-        await self._center.write(
-            recipients=list(recipients),
-            event_type=NotificationEventType.INGESTION_COMPLETED,
-            occurrence_id=f"{doc.id}:{attempt}",
-            summary=f"'{doc.filename}' finished ingesting.",
-            context_url=doc_url,
-            render_context={
-                "filename": doc.filename,
-                "collection_name": doc.collection_name,
-                "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
-                "chunk_count": str(chunk_count),
-                "app_name": settings.PROJECT_NAME,
-                "doc_url": doc_url,
-            },
-            organization_id=doc.organization_id,
-            use_savepoint=True,
-        )
+        document tracked outside any organization at all has no administrators
+        to fall back to either, and tells nobody rather than resolving to an
+        empty scope.
 
-    async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
-        """The mirror of `ingestion_completed`, for the document that did not
-        parse or index cleanly - same audience, same per-attempt dedup key."""
+        `attempt` is passed in rather than read off `doc` here, the same
+        "carried from dispatch, not read back" rule Decision 1 states for why
+        the occurrence id is `(doc_id, attempt)` and not `(doc_id,
+        doc.ingestion_attempt)`.
+        """
         if doc.organization_id is None:
             return
         recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
@@ -415,13 +397,14 @@ class NotificationService:
     ) -> None:
         """A connector sync's whole-attempt outcome.
 
-        This is the aggregate signal a per-document `ingestion_completed`
-        cannot give: it fires once per sync run, in addition to - never
-        instead of - whatever per-document events the files inside it
-        produced. A sync that ingested nothing new (nothing changed since the
-        last run) is exactly as silent-worthy as one that failed outright
-        would be loud, so this fires on every ordinary completion regardless
-        of `failed`, not only when something went wrong.
+        The aggregate no per-document event can give, and since the
+        per-document success notice was dropped it is the only place an
+        ordinary, entirely successful ingestion is reported at all. That is
+        deliberate rather than an oversight: a sync is something a person
+        started and is waiting on, so one line saying how it went is an answer
+        to a question they asked - where a line per file was an interruption
+        nobody asked for. It fires on every ordinary completion regardless of
+        `failed`, including a sync that found nothing new.
         """
         recipients = await self._ingestion_audience(initiator_user_id, organization_id)
         if not recipients:
@@ -484,7 +467,48 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def security_event(self, entry: AppAdminAuditLog) -> None:
+    async def hold_security_audience(self, organization_id: UUID | None) -> list[UUID]:
+        """Lock the rows `security_event` is about to reference, before the
+        audit chain lock is taken, and return them.
+
+        Returned rather than resolved twice, and the write takes what is
+        returned: `FOR KEY SHARE` does not conflict with the non-key update
+        `create-app-admin` performs, so an admin promoted between the two
+        queries would appear only in the second - a recipient whose row nothing
+        had locked, which is the cycle this method exists to close, reopened one
+        row wide.
+
+        Called immediately *before* the `record_audit` whose entry this will
+        notify about, and never after it. `record_audit` holds a
+        transaction-scoped lock on the organization's audit chain, and the
+        notification write that follows reaches for a key-share lock on every
+        recipient's `users` row - while `UserService.admin_delete` takes those
+        rows exclusively *first* and the chain lock second. Two transactions,
+        the same two locks, opposite orders: Postgres aborts one, and the side
+        that loses can lose its mandatory security notification inside the
+        per-recipient savepoint while the audit entry commits regardless
+        (#1763).
+
+        The audience depends on the organization alone, so it can be resolved
+        before the entry exists. That costs one extra query on an
+        administrator's action, which is the price of the order being total
+        rather than conventional.
+        """
+        audience = sorted(await self._security_audience(organization_id))
+        await user_repo.hold_key_share(self.db, audience)
+        return audience
+
+    async def hold_configuration_audience(self) -> list[UUID]:
+        """The same, for `configuration_changed`, whose audience is always the
+        deployment's app admins - which is exactly the set `admin_delete` locks
+        exclusively, so this is the half of #1763 with the shortest cycle."""
+        audience = sorted(await member_repo.list_app_admin_ids(self.db))
+        await user_repo.hold_key_share(self.db, audience)
+        return audience
+
+    async def security_event(
+        self, entry: AppAdminAuditLog, *, recipients: Sequence[UUID] | None = None
+    ) -> None:
         """A privileged or access-changing action just landed in the audit
         trail - the security half of Decision 1's two mandatory events.
 
@@ -507,7 +531,14 @@ class NotificationService:
         audit entry, already written by the time this runs, is never affected
         by the notification being skipped.
         """
-        recipients = await self._security_audience(entry.organization_id)
+        # The set `hold_security_audience` locked, when the caller took it:
+        # resolving it a second time here is what lets an admin promoted in
+        # between arrive as a recipient whose row nothing holds (#1763).
+        recipients = (
+            list(recipients)
+            if recipients is not None
+            else sorted(await self._security_audience(entry.organization_id))
+        )
         if not recipients:
             return
         path = _SECURITY_EVENT_PATH.get(entry.target_type or "", "/admin")
@@ -534,7 +565,9 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def configuration_changed(self, entry: AppAdminAuditLog) -> None:
+    async def configuration_changed(
+        self, entry: AppAdminAuditLog, *, recipients: Sequence[UUID] | None = None
+    ) -> None:
         """The mirror of `security_event`, wired at `deployment_settings.py`'s
         three `record_audit` calls, every one of them `action=
         "deployment.settings_updated"`. Always deployment-wide - a setting
@@ -544,7 +577,13 @@ class NotificationService:
         under its own event type's bucket - an actor's settings changes never eat
         into the allowance a security event from the same actor would need.
         """
-        recipients = set(await member_repo.list_app_admin_ids(self.db))
+        # `hold_configuration_audience`'s locked set, for the reason
+        # `security_event` above gives.
+        recipients = (
+            list(recipients)
+            if recipients is not None
+            else sorted(await member_repo.list_app_admin_ids(self.db))
+        )
         if not recipients:
             return
         url = f"{self._frontend}/admin/settings"

@@ -22,12 +22,21 @@ describe("SidebarSearch", () => {
     window.removeEventListener("command-palette:open", opened);
   });
 
-  it("is named for what it does, not for the shortcut printed on it", () => {
-    // The ⌘K hint is decoration for the eye. Left readable it would make the
-    // button announce itself as "Search ⌘ K" to a screen reader.
+  it("is named for what it does, and prints no shortcut", () => {
+    // The ⌘K chip is gone from both variants. It taught the shortcut once and
+    // then sat in the column forever, and in the icon row it made search the
+    // one control wider than every other single-icon button beside it. The
+    // palette still opens on ⌘K and still says so on its own placeholder,
+    // which is where the reminder can actually be used.
     render(<SidebarSearch />);
 
     expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
-    expect(screen.getByText("⌘K")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+  });
+
+  it("is a square button in the icon row, the size of the bell beside it", () => {
+    const { container } = render(<SidebarSearch variant="icon" />);
+
+    expect(container.querySelector("button")).toHaveClass("w-9", "h-9");
   });
 });

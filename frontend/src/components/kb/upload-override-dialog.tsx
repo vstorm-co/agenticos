@@ -11,6 +11,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Input,
+  Label,
 } from "@/components/ui";
 import { ingestionOverride, ingestionProblems, overrideSize } from "@/lib/ingestion-config";
 import { cn } from "@/lib/utils";
@@ -26,7 +28,9 @@ interface UploadOverrideDialogProps {
   config: IngestionConfig;
   /** The departure already in force, so reopening shows it rather than the collection. */
   override: IngestionOverride;
-  onApply: (override: IngestionOverride) => void;
+  /** Which part of the organization the next files are filed under; "" for none. */
+  organizationalUnit: string;
+  onApply: (override: IngestionOverride, organizationalUnit: string) => void;
 }
 
 /**
@@ -39,17 +43,21 @@ interface UploadOverrideDialogProps {
  *
  * It sets a departure rather than performing an upload because the page takes
  * files three ways - the button, the file dialog, a drag onto anywhere - and a
- * form that owned the upload would only cover one of them.
+ * form that owned the upload would only cover one of them. The organizational
+ * unit is here for exactly that reason too: it is the other thing that has to
+ * be decided before a file is dropped, not after (#1777).
  */
 export function UploadOverrideDialog({
   open,
   onOpenChange,
   config,
   override,
+  organizationalUnit,
   onApply,
 }: UploadOverrideDialogProps) {
   const t = useTranslations("kb");
   const [draft, setDraft] = useState<IngestionConfig>(config);
+  const [unit, setUnit] = useState(organizationalUnit);
 
   // Seeded as the dialog opens, and re-seeded if what it is editing moves
   // underneath. During render, so the previous draft is never rendered.
@@ -59,8 +67,12 @@ export function UploadOverrideDialog({
   const opened = useChanged(open);
   const configMoved = useChanged(config);
   const overrideMoved = useChanged(override);
-  if (opened || configMoved || overrideMoved) {
-    if (open) setDraft(applied(config, override));
+  const unitMoved = useChanged(organizationalUnit);
+  if (opened || configMoved || overrideMoved || unitMoved) {
+    if (open) {
+      setDraft(applied(config, override));
+      setUnit(organizationalUnit);
+    }
   }
 
   const problems = ingestionProblems(draft, t);
@@ -74,11 +86,25 @@ export function UploadOverrideDialog({
           a narrow dialog stacks them into a cramped single file. */}
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
-          <DialogTitle>{t("parseNextUploadDifferently")}</DialogTitle>
+          <DialogTitle>{t("nextUploadsTitle")}</DialogTitle>
           <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
         <div className="-mx-1 min-h-0 flex-1 scrollbar-thin overflow-y-auto px-1">
+          {/* Above the parse settings, and not one of them: this decides where
+              the file is filed, not how it is read, and it is recorded on the
+              document rather than folded into its ingestion configuration. */}
+          <div className="mb-6 space-y-1.5">
+            <Label htmlFor="kb-upload-unit">{t("organizationalUnit")}</Label>
+            <Input
+              id="kb-upload-unit"
+              maxLength={255}
+              placeholder={t("organizationalUnitPlaceholder")}
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">{t("organizationalUnitDetail")}</p>
+          </div>
           <IngestionSettings
             idPrefix="kb-upload-override"
             value={draft}
@@ -92,7 +118,11 @@ export function UploadOverrideDialog({
             type="button"
             variant="outline"
             onClick={() => {
-              onApply({});
+              // The parse departures only. The unit is not one of the
+              // collection's settings, so "use the collection's" has nothing to
+              // say about it - and dropping what was just typed would be a
+              // second, unasked-for change.
+              onApply({}, unit.trim());
               onOpenChange(false);
             }}
           >
@@ -104,11 +134,14 @@ export function UploadOverrideDialog({
             type="button"
             disabled={!canApply}
             onClick={() => {
-              onApply(pending);
+              onApply(pending, unit.trim());
               onOpenChange(false);
             }}
           >
-            {count === 0 ? t("nothingChanged2") : t("applyChanges", { count })}
+            {/* Counts the parse departures alone, so a dialog closed after
+                naming only a unit says "Apply" rather than "Nothing changed"
+                over a change it is about to make. */}
+            {count === 0 ? t("applyUploadSettings") : t("applyChanges", { count })}
           </Button>
         </DialogFooter>
       </DialogContent>

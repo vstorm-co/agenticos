@@ -27,13 +27,17 @@ from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.repositories import (
     agent_repo,
+    context_repo,
     credential_repo,
     mcp_registry_server_repo,
     member_repo,
     organization_repo,
+    skill_repo,
 )
 from app.schemas.user import UserCreate
+from app.services import skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.context import ContextService
 from app.services.mcp_registry import seed_entries
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
@@ -42,11 +46,128 @@ from app.services.user import UserService
 # The demo agent. Kept plain on purpose: someone reading it should see that an
 # agent is just instructions plus a couple of capabilities, not a framework.
 DEMO_AGENT_NAME = "Getting Started"
-DEMO_INSTRUCTIONS = """You are a helpful assistant running on AgenticOS.
 
-When asked what you can do, explain plainly: you were defined by configuration
-rather than code, your instructions live in an agent spec, and the capabilities
-you have were switched on in the Builder. Keep answers short.
+# The demo agent's prompt. Written here rather than borrowed: a shipped default
+# is the first example of a prompt every operator reads, and half of them will
+# copy it into their own agent. So it is about *judgement* - when to reach for a
+# tool and when not to - rather than a list of rules, because the rules are the
+# part a reader can already see in the Builder.
+#
+# It is deliberately not a transcription of somebody else's assistant prompt.
+# Those are their authors' work, and a shipped file that quietly contains one is
+# a licence problem an operator inherits without being told.
+DEMO_INSTRUCTIONS = """You are the Getting Started agent on AgenticOS. You answer
+questions about this platform and show what an agent here can do.
+
+## How to answer
+
+Answer the question that was asked, in as few words as it takes. Lead with the
+answer, then the reason for it. A person asking "can it do X" wants yes or no
+first.
+
+**Answer in English**, whatever language the question arrives in. Switch only
+when somebody asks you to in as many words, and then stay switched for the rest
+of the conversation. Do not infer a language from the question: guessing one is
+how a Polish greeting gets answered in Czech. The product's own nouns stay
+English in any language - agent, spec, capability, skill, run, budget, vault,
+sandbox, MCP.
+
+Say what you do not know. If a question is about this deployment - which models
+are configured, what is in a knowledge base, who has access - look it up rather
+than describing how it usually works. If you cannot look it up, say so and name
+what would answer it.
+
+Never invent a number, a file name, a setting or a link. An answer with a made-up
+detail in it costs more than no answer.
+
+## When to reach for a tool
+
+**Look before you guess.** `web_search` and `web_fetch` for anything about the
+outside world that could have changed; `conversation_search` for something said
+earlier in a thread you cannot see any more; `list_context` and `read_context`
+for how this organization does things. Searching and being wrong is cheap;
+asserting and being wrong is not.
+
+**Plan when the work has steps.** For anything that takes more than two or three
+actions, write the plan first with the planning tool and keep it current. It is
+what lets a person see where you are, and what lets you resume after an
+interruption.
+
+**Delegate work that is wide rather than deep.** Independent pieces - three
+sources to read, four files to check - go to sub-agents in parallel. A task that
+has to be done in order stays with you. Give a delegate the whole brief: it
+cannot see this conversation.
+
+**Compute rather than estimate.** Arithmetic, dates, parsing, anything with more
+than two steps: run Python. A model doing long division in its head is a model
+guessing.
+
+**Draw when a shape is the answer.** A trend, a comparison, a breakdown over
+time - a chart says it in one look. A single number does not need one.
+
+**Remember what will matter later.** Memory files are for facts that outlive this
+conversation: a preference, a decision, a name. Not for a transcript.
+
+## About this platform
+
+You were defined by configuration rather than code. Your instructions, the
+capabilities you can use, the models you run on and the budgets you run under
+all live in an agent spec, published as a version somebody can read and roll
+back. `AGENTS.md`, in your context, is the longer explanation - read it before
+answering a question about what AgenticOS is.
+
+When somebody asks how *you* work, show them rather than describing it: name the
+capability you are about to use and why, then use it.
+"""
+
+# The context file the demo agent reads before explaining the platform. A file
+# rather than more instructions, because it is the same shape a client's own
+# standing knowledge takes - and because "how do I give an agent a document"
+# is answered by showing one already attached.
+AGENTS_MD_NAME = "AGENTS.md"
+AGENTS_MD = """# AgenticOS
+
+A self-hosted, open-source platform for a company's AI agents. It runs on your
+own infrastructure, against your own model keys, and every agent in it is
+configuration rather than code.
+
+## What an agent is here
+
+An agent is a **versioned spec**: instructions, the capabilities it may use, the
+model it runs on, the budget it runs under, and what it is allowed to reach.
+You configure it in the Builder, publish a version, and that frozen version is
+what answers - through web chat, the HTTP API, Slack, Telegram or a widget on
+your own site. Publishing mints the version; putting it in front of people is a
+separate decision, so an edit cannot change what the live bot says by accident.
+
+## What it is made of
+
+- **Capabilities** are the unit you switch on or off: web search, running
+  Python, a sandbox with files and a shell, charts, delegation to sub-agents,
+  memory that outlives a conversation. They cover things that are not tools at
+  all - a guardrail, a compaction strategy.
+- **Knowledge collections** are documents too large to read: they are parsed,
+  chunked, embedded and searched, and the agent sees only what a search returns.
+- **Context files** are standing knowledge small enough to hold: a glossary, a
+  policy, a brand voice. This file is one. They are injected into the prompt or
+  read on demand.
+- **Skills** are procedures for one kind of task, loaded when that task is what
+  is happening.
+- **MCP servers** connect an agent to software you already run - GitHub, Linear,
+  Notion, a database - through the Model Context Protocol.
+
+## What it is careful about
+
+Every organization is a tenant, and nothing crosses between them. Credentials
+live in a vault and never appear in a response, a log or an audit entry. Budgets
+are checked before a model is called and recorded even when a call fails.
+Approvals hold a tool call until a person releases it. Every run is traced, with
+its cost.
+
+## Where to look next
+
+The Builder is where an agent is assembled. Activity is where its runs are.
+The documentation site shipped with this deployment covers the rest.
 """
 
 # Model ids for the providers bootstrap offers, so the demo agent runs without
@@ -242,6 +363,74 @@ async def _resolve_model(
     return profile.id
 
 
+# What the demo agent can do. Everything here runs without a second credential:
+# the sandbox is the in-process `state` backend rather than a container service,
+# and web search defaults to DuckDuckGo. An operator who has just typed one API
+# key gets an agent that can look things up, compute, draw, remember, plan and
+# delegate - which is the claim this platform makes, demonstrated rather than
+# described.
+DEMO_CAPABILITIES: list[dict[str, object]] = [
+    {"id": "clock"},
+    {"id": "planning"},
+    {"id": "web_research"},
+    {"id": "web_fetch"},
+    {"id": "code_execution"},
+    {"id": "charts"},
+    # `state` keeps the files in the run's own store, so there is no Docker
+    # socket and no sandbox service to stand up first.
+    {"id": "sandbox", "config": {"backend": "state"}},
+    {"id": "context"},
+    {"id": "skills"},
+    {"id": "memory_files"},
+    {"id": "conversation_search"},
+    # Delegation with `allow_dynamic`, so it can invent a specialist for a task
+    # nobody defined in advance - which is the part people do not believe until
+    # they watch it happen.
+    {"id": "subagents", "config": {"allow_dynamic": True}},
+    {"id": "compaction"},
+    {"id": "tool_output_limits"},
+]
+
+
+async def _resolve_agents_md(db, ctx: AuthContext) -> uuid.UUID:
+    """The `AGENTS.md` this organization reads, created once.
+
+    Idempotent like everything else here: a second run finds the file rather
+    than colliding with it, and leaves whatever the operator has edited into it
+    exactly as it is.
+    """
+    existing = await context_repo.get_by_name(
+        db, AGENTS_MD_NAME, organization_id=ctx.organization_id
+    )
+    if existing is not None:
+        return existing.id
+    file = await ContextService(db).create(
+        ctx,
+        name=AGENTS_MD_NAME,
+        description="What AgenticOS is, for an agent explaining it.",
+        content=AGENTS_MD,
+        visibility=Visibility.ORG,
+    )
+    success(f"Created context file {AGENTS_MD_NAME}")
+    return file.id
+
+
+async def _bundled_skill_ids(db, ctx: AuthContext) -> list[uuid.UUID]:
+    """The shipped skills, bound to the demo agent.
+
+    Creating the organization copies them in, so they are rows by the time this
+    runs. Bound by name rather than assumed present: a deployment that removed
+    one from the catalog gets an agent without it, not a publish that fails.
+    """
+    names = [entry.name for entry in skill_library.library()]
+    found = [
+        skill
+        for name in names
+        if (skill := await skill_repo.get_by_name(db, name, organization_id=ctx.organization_id))
+    ]
+    return [skill.id for skill in found]
+
+
 async def _resolve_demo_agent(db, ctx: AuthContext, profile_id: uuid.UUID | None) -> None:
     """An agent that answers questions about itself, published if it can run.
 
@@ -261,9 +450,11 @@ async def _resolve_demo_agent(db, ctx: AuthContext, profile_id: uuid.UUID | None
         description="Explains what this platform does. Delete it once you have your own.",
         instructions=DEMO_INSTRUCTIONS,
         model_profile_id=profile_id,
-        capabilities=[{"id": "clock"}],
+        capabilities=DEMO_CAPABILITIES,
+        context_ids=[await _resolve_agents_md(db, ctx)],
+        skill_ids=await _bundled_skill_ids(db, ctx),
     )
-    agent = await service.create(ctx, spec)
+    agent = await service.create(ctx, spec, visibility=Visibility.ORG)
     if profile_id is None:
         info(f"Agent @{slug} saved as a draft - add a model, then publish it")
         return

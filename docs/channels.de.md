@@ -1,5 +1,5 @@
 ---
-source_sha: "4771f415a4dc"
+source_sha: "b7e986f50dc1"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1790,10 +1790,10 @@ Person. Eine Antwort ist Prosa mit Überschriften, Code und Tabellen darin, und 
 abgerundete Füllung darum kämpft gegen jedes einzelne davon.
 
 **Jedes Wort auf jedem dieser Bildschirme kommt aus
-`frontend/messages/en.json`.** Englisch ist die Ausgangssprache, und `pl.json`
-enthält nur, was tatsächlich übersetzt wurde - `src/i18n.ts` legt Englisch unter
-jedes Locale, sodass eine fehlende Übersetzung Englisch rendert statt des
-Schlüssels. `make lint` führt `frontend/scripts/check-i18n.ts` aus, das in beide
+`frontend/messages/en.json`.** Englisch ist die Ausgangssprache; `pl.json`
+und `de.json` enthalten nur, was tatsächlich übersetzt wurde - `src/i18n.ts` legt
+Englisch unter jedes Locale, sodass eine fehlende Übersetzung Englisch rendert
+statt des Schlüssels. `make lint` führt `frontend/scripts/check-i18n.ts` aus, das in beide
 Richtungen fehlschlägt: bei Text, der in einer Komponente stehen geblieben ist, und
 bei einem Schlüssel, den eine Komponente liest und den der Katalog nicht hält.
 

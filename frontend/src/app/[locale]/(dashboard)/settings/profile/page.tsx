@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
-import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
@@ -54,7 +54,20 @@ export default function ProfileSettingsPage() {
       }
       const updated = await apiClient.patch<User>("/users/me", payload);
       setUser(updated);
-      toast.success(t("profileUpdated"));
+      // A new address is staged rather than applied, so the field re-seeds to
+      // the address the account still has. Saying "profile updated" over that
+      // reads as a change that silently did not take.
+      //
+      // Gated on this request having carried an address, not on the answer
+      // holding one: a change staged an hour ago is still on every later
+      // response, so saving only a display name would otherwise claim a
+      // verification email had just been sent - most misleading right after one
+      // failed to arrive.
+      if (payload.email !== undefined && updated.pending_email) {
+        toast.success(t("emailChangeSent", { email: updated.pending_email }));
+      } else {
+        toast.success(t("profileUpdated"));
+      }
     } catch (err) {
       toast.error(
         err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
@@ -108,8 +121,6 @@ export default function ProfileSettingsPage() {
     return null;
   }
 
-  const fallback = avatarPalette(user.id, user.avatar_color);
-
   return (
     <div className="space-y-6">
       <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
@@ -121,7 +132,7 @@ export default function ProfileSettingsPage() {
             aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
             className={cn(
               "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors",
-              user.avatar_url ? "bg-muted" : fallback.bg,
+              user.avatar_url && "bg-muted",
             )}
           >
             {user.avatar_url ? (
@@ -134,9 +145,11 @@ export default function ProfileSettingsPage() {
                 unoptimized
               />
             ) : (
-              <span className={cn(fallback.fg, "text-lg font-semibold")}>
-                {avatarInitials(user.full_name || user.email)}
-              </span>
+              // The same face every other screen draws for this person, at the
+              // size they are about to replace it. Showing initials here and a
+              // face everywhere else made this the one page that disagreed with
+              // the product about what somebody looks like.
+              <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
               <Camera className="h-5 w-5 text-white" />
@@ -197,7 +210,11 @@ export default function ProfileSettingsPage() {
           <FormField
             label={t("email")}
             htmlFor="profile-email"
-            description={t("changingEmailMayRequire")}
+            description={
+              user?.pending_email
+                ? t("emailChangePending", { email: user.pending_email })
+                : t("changingEmailMayRequire")
+            }
           >
             <Input
               id="profile-email"

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff2d54edf633"
+source_sha: "7c25dca319aa"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -415,6 +415,21 @@ Configúralo una vez:
     posteriores antes de que nadie se fijara en la cola en vez de en las
     ejecuciones.
 
+    `deploy-queue.yml` es lo que ocurre cuando se deja de todos modos: cada seis
+    horas cancela una ejecución de Deploy que lleve más de doce esperando una
+    aprobación, y abre una incidencia que nombra esa ejecución y dice cuánto se ha
+    alejado `main` del último despliegue correcto. No aprueba nada ni despliega
+    nada — vacía la cola para que el siguiente merge llegue a la barrera, y dice
+    que lo ha hecho. A mano, con `gh workflow run deploy-queue.yml`.
+
+!!! danger "Aprobar desde la cola del entorno aprueba la ejecución **más antigua**"
+
+    Es decir, la obsoleta. Una aprobación tardía dada ahí despliega el commit del
+    momento en que la cola se atascó, no el que se acaba de empujar — así llegó a
+    este servidor un commit de hace dos semanas. Aprueba desde la página de la
+    ejecución del commit que quieres, o arranca una nueva con
+    `gh workflow run deploy.yml --ref main` y aprueba esa.
+
 | Secreto | Qué |
 |---|---|
 | `DEPLOY_HOST` | La dirección del host |
@@ -449,8 +464,14 @@ Un volumen importa, y no es obvio cuál:
 |---|---|---|
 | `postgres_data` | todo — agents, conversaciones, credenciales selladas | **sí** |
 | `media_data` | archivos subidos, antes de la ingesta | sí |
-| `redis_data` | buckets del límite de peticiones y cachés | no, todo reconstruible |
 | `prefect_data` | el historial de ejecuciones de los flows | no |
+
+La caché ya no tiene ningún volumen. Los buckets del límite de peticiones, las
+marcas de deduplicación de los canales y las respuestas de pertenencia llevan
+todas un TTL y se reconstruyen solas, así que Valkey se ejecuta con `--save ''` y
+arranca vacío tras cada reinicio. Un host que ejecutó una versión anterior sigue
+guardando un volumen `agenticos_redis_data` que ya no monta nadie;
+`docker volume rm agenticos_redis_data` lo elimina.
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \

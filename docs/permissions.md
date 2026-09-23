@@ -232,6 +232,14 @@ Every shareable resource carries an `owner_user_id` and a `visibility`
 (`private` | `team` | `org`). On top of that, `resource_grants` holds one row per
 share: one resource, one person, one level.
 
+**A new agent is `org` unless its author says otherwise**, and the dialog that
+creates one asks. An agent is a thing a company builds, so the company can find
+it; private is the exception, for the one somebody is still working out. It used
+to be the rule, which meant every agent was made invisible and then shared by
+hand - and the second person to go looking for one was told it did not exist. A
+draft cannot run and no exposure reaches it either way, so what this decides is
+who can see it, not what it does.
+
 | Level | Allows |
 |---|---|
 | `read` | see the configuration |

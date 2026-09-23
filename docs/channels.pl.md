@@ -1,5 +1,5 @@
 ---
-source_sha: "4771f415a4dc"
+source_sha: "b7e986f50dc1"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1677,9 +1677,9 @@ wokół tego walczy z każdym z nich.
 
 **Każde słowo na którymkolwiek z tych ekranów pochodzi
 z `frontend/messages/en.json`.** Angielski jest językiem źródłowym, a `pl.json`
-trzyma tylko to, co faktycznie przetłumaczono — `src/i18n.ts` podkłada angielski
-pod każdy locale, więc brakujące tłumaczenie renderuje się po angielsku, a nie
-jako klucz. `make lint` uruchamia `frontend/scripts/check-i18n.ts`, które zawodzi
+i `de.json` trzymają tylko to, co faktycznie przetłumaczono — `src/i18n.ts`
+podkłada angielski pod każdy locale, więc brakujące tłumaczenie renderuje się po
+angielsku, a nie jako klucz. `make lint` uruchamia `frontend/scripts/check-i18n.ts`, które zawodzi
 w obie strony: na tekście zostawionym w komponencie i na kluczu, który komponent
 czyta, a którego katalog nie trzyma.
 

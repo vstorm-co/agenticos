@@ -31,6 +31,7 @@ from app.agents.spec import (
     PersonalMcpServerRef,
     SpecialistSpec,
 )
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -40,6 +41,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services.agent_registry import AgentRegistryService, slugify
 
@@ -1106,6 +1108,103 @@ class TestCreate:
         assert "@support" in refused.value.message
         assert "different handle" in refused.value.message
         assert create.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_an_agent_somebody_creates_is_visible_to_the_organization(self):
+        """An agent is a thing a company builds, so the company can find it.
+
+        Private was the default, which meant every agent was made invisible and
+        then shared by hand - and the second person to go looking for one was
+        told it did not exist. The choice lives on the form, so this asserts on
+        what the form sends rather than on the service's own default: that one
+        is deliberately the other way round, for the callers below.
+        """
+        ctx = _ctx()
+        submitted = AgentCreate(spec=_spec("Support"))
+        assert submitted.visibility is Visibility.ORG
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, submitted.spec, visibility=submitted.visibility
+            )
+
+        assert create.await_args.kwargs["visibility"] == "org"
+
+    @pytest.mark.anyio
+    async def test_an_agent_nobody_chose_a_visibility_for_is_private(self):
+        """The default is the least-exposing value, because of who reaches it.
+
+        Only the callers that make an agent without anybody choosing get it: a
+        clone, a promoted specialist, a template install. Defaulting those to
+        `org` published a copy of a private agent to the whole tenant, and a
+        colleague could then read its instructions out of `GET /agents/{id}`.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(ctx, _spec("Support"))
+
+        assert create.await_args.kwargs["visibility"] == "private"
+
+    @pytest.mark.anyio
+    async def test_cloning_a_private_agent_does_not_publish_the_copy(self):
+        """The copy inherits no audience, and least of all one nobody gave it."""
+        ctx = _ctx()
+        source = _agent(ctx, draft_spec=_spec("Support").model_dump(mode="json"))
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=source)),
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock(return_value=_agent(ctx))
+            ) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).clone(ctx, source.id)
+
+        assert create.call_args.kwargs["visibility"] == "private"
+
+    @pytest.mark.anyio
+    async def test_the_labels_it_was_created_with_are_written(self):
+        # Discovery metadata, not spec - the catalog a new agent joins is the
+        # moment somebody knows what to call it.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), categories=["support"], tags=["billing"]
+            )
+
+        assert create.await_args.kwargs["categories"] == ["support"]
+        assert create.await_args.kwargs["tags"] == ["billing"]
+
+    @pytest.mark.anyio
+    async def test_an_agent_asked_for_privately_stays_private(self):
+        # The exception is still available, and it is the caller's to ask for.
+        ctx = _ctx()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as create,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await AgentRegistryService(_db()).create(
+                ctx, _spec("Support"), visibility=Visibility.PRIVATE
+            )
+
+        assert create.await_args.kwargs["visibility"] == "private"
 
 
 class TestPromoteSpecialist:
@@ -3206,6 +3305,59 @@ class TestBrowserUseRefusedAtPublish:
             f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
         ):
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestBrowserChoiceRefusedAtPublish:
+    """The endpoint `browser_choice` drives, vetted by the operator's allowlist.
+
+    Not the SSRF guard `browser_use` uses: `cdp_url` is tenant-controlled - it
+    lives in a spec anyone with `edit` writes - and the guard admits only public
+    addresses, which refuses the isolated browser service on the deployment's own
+    network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
+    is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
+
+    The blank case is here too, because `cdp_url` has to stay optional for the
+    capability to be enumerable - so publish is the only place to demand one.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _allowlist(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+
+    @staticmethod
+    async def _problems(config: dict) -> list[str]:
+        spec = _spec(
+            capabilities=[{"id": "browser_choice", "config": config}],
+            model_profile_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
+        assert any("needs a cdp_url" in problem for problem in await self._problems({}))
+
+    @pytest.mark.anyio
+    async def test_a_host_the_operator_has_not_vetted_is_refused(self):
+        problems = await self._problems({"cdp_url": "http://10.0.0.5:9222"})
+        assert any("BROWSER_CDP_ALLOWED_HOSTS" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_vetted_host_on_the_deployments_own_network_publishes(self):
+        # The topology the reference page describes, and the one the SSRF guard
+        # refused. What is left is the vault key this spec does not bind.
+        problems = await self._problems({"cdp_url": "http://browser:9222"})
+        assert not any(
+            "cdp_url" in problem or "endpoint cannot be used" in problem for problem in problems
+        )
 
 
 def _bound(capability_id: str, config: dict, **approval: object):

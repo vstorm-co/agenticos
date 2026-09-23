@@ -139,6 +139,15 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [uploadOverride, setUploadOverride] = useState<IngestionOverride>({});
   const overrideCount = overrideSize(uploadOverride);
   /**
+   * Which part of the organization the next files added here belong to.
+   *
+   * Held beside the parse departures, for the same reason and with the same
+   * lifetime: a file arrives three ways, all three have to carry it, and the
+   * banner below is what keeps a value set twenty minutes ago from being a
+   * surprise. `""` is none, which is what every upload carried before (#1777).
+   */
+  const [uploadUnit, setUploadUnit] = useState("");
+  /**
    * Chunks across the documents this page has actually fetched.
    *
    * Not the collection's total, and it cannot be: no response this page makes
@@ -158,7 +167,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     if (!mayEdit || !files || files.length === 0) return;
     for (const file of Array.from(files)) {
       try {
-        await uploadDocument(file, uploadOverride);
+        await uploadDocument(file, uploadOverride, uploadUnit);
       } catch {
         /* toast handled in hook */
       }
@@ -233,20 +242,39 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         applies to whatever is dropped next, remembered quietly, is how somebody
         re-parses a batch with settings they set twenty minutes ago.
       */}
-      {overrideCount > 0 && (
+      {(overrideCount > 0 || uploadUnit !== "") && (
         <div className="border-brand-line bg-brand-subtle mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
-          <p className="text-foreground text-sm">
-            {t.rich("parsedWithOverrides", {
-              count: overrideCount,
-              strong: (chunks) => <span className="font-medium">{chunks}</span>,
-            })}{" "}
-            <span className="text-muted-foreground">{t("collectionItselfUnchanged")}</span>
-          </p>
+          <div className="text-foreground space-y-1 text-sm">
+            {overrideCount > 0 && (
+              <p>
+                {t.rich("parsedWithOverrides", {
+                  count: overrideCount,
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}{" "}
+                <span className="text-muted-foreground">{t("collectionItselfUnchanged")}</span>
+              </p>
+            )}
+            {uploadUnit !== "" && (
+              <p>
+                {t.rich("filedUnderNext", {
+                  unit: uploadUnit,
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
+              </p>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
               {t("review")}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setUploadOverride({})}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setUploadOverride({});
+                setUploadUnit("");
+              }}
+            >
               {t("clear")}
             </Button>
           </div>
@@ -419,7 +447,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         onOpenChange={setOverrideOpen}
         config={kb.ingestion_config}
         override={uploadOverride}
-        onApply={setUploadOverride}
+        organizationalUnit={uploadUnit}
+        onApply={(next, unit) => {
+          setUploadOverride(next);
+          setUploadUnit(unit);
+        }}
       />
 
       <SyncSourceWizard

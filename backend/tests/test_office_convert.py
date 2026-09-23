@@ -201,7 +201,7 @@ async def test_a_subprocess_that_ignores_sigterm_is_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The grace-then-SIGKILL path: a process trapping SIGTERM still dies."""
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.2)
     script = _write_fake_soffice(
         tmp_path,
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(3600)\n",
@@ -229,13 +229,18 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
     directly, after the group is confirmed up, so nothing races an internal
     timeout.
     """
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.2)
     child = _write_fake_soffice(
         tmp_path,
+        # The heartbeat is replaced rather than rewritten in place. `write_text`
+        # truncates first, so a SIGKILL landing inside it leaves the file empty
+        # for good - and the assertion below then reads '' against a '3' it
+        # sampled a moment earlier and calls a reaped group a survivor.
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
         "n = 0\n"
         "while True:\n"
-        "    (outdir / 'heartbeat.txt').write_text(str(n))\n"
+        "    (outdir / 'heartbeat.tmp').write_text(str(n))\n"
+        "    (outdir / 'heartbeat.tmp').replace(outdir / 'heartbeat.txt')\n"
         "    n += 1\n"
         "    time.sleep(0.02)\n",
         name="fake_soffice_child",
@@ -261,8 +266,12 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
         await asyncio.sleep(0.02)
     assert heartbeat.exists(), "the helper never started"
 
-    await office_convert._terminate_process_group(proc)
+    await office_convert._teardown(proc, proc.pid)
 
+    # Settle before sampling. `killpg` returns once the signal is queued, not
+    # once it lands, so on a loaded runner the helper can still be scheduled for
+    # one more tick after teardown returns - which is not a helper that survived.
+    await asyncio.sleep(0.3)
     ticked = heartbeat.read_text()
     await asyncio.sleep(0.5)
     assert heartbeat.read_text() == ticked, "a soffice helper kept running"
@@ -305,7 +314,7 @@ async def test_tearing_down_an_already_exited_process_is_a_noop() -> None:
     )
     await proc.wait()
 
-    await office_convert._terminate_process_group(proc)
+    await office_convert._teardown(proc, proc.pid)
     # The group is gone; signalling it again must still not raise.
     office_convert._signal_group(proc.pid, signal.SIGTERM)
 
@@ -319,7 +328,7 @@ async def test_teardown_kills_the_group_even_when_cancelled_again(
     waits out the grace period; if that skipped the kill, a SIGTERM-ignoring
     soffice would survive - the exact orphan this guards against.
     """
-    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 30.0)
+    monkeypatch.setattr(office_convert.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 30.0)
     script = _write_fake_soffice(
         tmp_path,
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
@@ -341,7 +350,7 @@ async def test_teardown_kills_the_group_even_when_cancelled_again(
             break
         await asyncio.sleep(0.02)
 
-    task = asyncio.ensure_future(office_convert._terminate_process_group(proc))
+    task = asyncio.ensure_future(office_convert._teardown(proc, proc.pid))
     await asyncio.sleep(0.2)  # let it send SIGTERM and settle into the grace wait
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -361,9 +370,11 @@ async def test_the_profile_path_is_passed_as_an_escaped_file_uri(
     LibreOffice reads `-env:UserInstallation` as a URI, so a raw path with a
     space or `#` would be misparsed; `Path.as_uri()` percent-encodes it.
     """
-    profile = tmp_path / "pro file#1"
-    profile.mkdir()
-    monkeypatch.setattr(office_convert.tempfile, "mkdtemp", lambda prefix=None: str(profile))
+    # The profile's own name is a uuid, so the characters that need escaping can
+    # only come from the temporary directory it is made in.
+    temp_root = tmp_path / "tmp dir#1"
+    temp_root.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "gettempdir", lambda: str(temp_root))
     script = _write_fake_soffice(
         tmp_path,
         "env = next(a for a in argv if a.startswith('-env:UserInstallation='))\n"
@@ -378,5 +389,168 @@ async def test_the_profile_path_is_passed_as_an_escaped_file_uri(
     await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
 
     passed = (out_dir / "env.txt").read_text()
-    assert passed == f"-env:UserInstallation={profile.as_uri()}"
+    assert passed.startswith(f"-env:UserInstallation={temp_root.as_uri()}/soffice-profile-")
     assert "%20" in passed
+    assert "%231" in passed
+
+
+async def test_waiting_for_a_converter_counts_against_the_callers_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The queue is inside the deadline, not extra to it.
+
+    The timer used to start after the semaphore, so with both slots held by RAG
+    conversions of up to 600s each a chat conversion asking for 60s could sit for
+    ten minutes before its own timer began. Nothing is spawned here: the refusal
+    has to arrive without a subprocess.
+    """
+    spawned: list[object] = []
+    monkeypatch.setattr(office_convert, "soffice_command", lambda: "/nonexistent/soffice")
+    monkeypatch.setattr(
+        office_convert,
+        "_convert",
+        lambda *args, **kwargs: spawned.append(kwargs),
+    )
+    held = asyncio.Semaphore(0)
+    monkeypatch.setattr(office_convert, "_semaphore", lambda: held)
+
+    with pytest.raises(OfficeConversionTimeout) as refusal:
+        await convert_to_pdf(tmp_path / "quarterly.xlsx", tmp_path, timeout_seconds=0.05)
+
+    assert "waiting for a converter" in str(refusal.value)
+    assert spawned == []
+
+
+async def test_the_slot_is_released_when_a_conversion_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Or the second caller waits for a converter nothing is using."""
+    script = _write_fake_soffice(tmp_path, "sys.exit(3)\n")
+    _use_fake(monkeypatch, script)
+    gate = asyncio.Semaphore(1)
+    monkeypatch.setattr(office_convert, "_semaphore", lambda: gate)
+
+    with pytest.raises(OfficeConversionError):
+        await convert_to_pdf(tmp_path / "quarterly.xlsx", tmp_path, timeout_seconds=10)
+
+    assert not gate.locked()
+
+
+async def test_the_profile_directory_is_made_and_removed_off_the_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LibreOffice writes into the profile, and both the create and the recursive
+    removal are blocking filesystem calls - on a contended temporary filesystem
+    they stall every other request sharing the loop."""
+    temp_root = tmp_path / "temp"
+    temp_root.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "gettempdir", lambda: str(temp_root))
+    offloaded: list[str] = []
+    real_create = office_convert.create_cancel_safe
+    real_delete = office_convert.delete_cancel_safe
+
+    async def creating(*args: object) -> None:
+        offloaded.append("create")
+        await real_create(*args)  # type: ignore[arg-type]
+
+    async def deleting(*args: object) -> None:
+        offloaded.append("delete")
+        await real_delete(*args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(office_convert, "create_cancel_safe", creating)
+    monkeypatch.setattr(office_convert, "delete_cancel_safe", deleting)
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
+
+    assert offloaded == ["create", "delete"]
+    # And nothing is left behind: the profile is the only thing this made there.
+    assert list(temp_root.iterdir()) == []
+
+
+async def test_setup_that_drags_comes_out_of_the_conversion_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The profile is made on a shared file pool, which can itself wait. A
+    budget computed before that would hand the subprocess time the call has
+    already spent, and both slots could be held past the caller's deadline."""
+    temp_root = tmp_path / "temp"
+    temp_root.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "gettempdir", lambda: str(temp_root))
+    real_create = office_convert.create_cancel_safe
+
+    async def slow_create(*args: object) -> None:
+        await asyncio.sleep(0.3)
+        await real_create(*args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(office_convert, "create_cancel_safe", slow_create)
+    script = _write_fake_soffice(tmp_path, "time.sleep(30)\n")
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    with pytest.raises(OfficeConversionTimeout):
+        await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=0.4)
+
+
+async def test_the_output_probe_runs_on_the_file_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A contended temporary filesystem must not stall unrelated requests on one
+    existence check - the chat caller offloads its own `stat` and read for the
+    same reason."""
+    offloaded: list[str] = []
+    real_blocking = office_convert.run_blocking
+
+    async def spying(fn, *args: object):  # type: ignore[no-untyped-def]
+        offloaded.append(getattr(fn, "__name__", repr(fn)))
+        return await real_blocking(fn, *args)
+
+    monkeypatch.setattr(office_convert, "run_blocking", spying)
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
+
+    assert "exists" in offloaded
+
+
+async def test_a_held_slot_is_honoured_rather_than_taken_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`reserve` is what lets a caller put its own staging inside the admission
+    bound; `convert` must then not queue for a second slot and deadlock against
+    the one already held."""
+    gate = asyncio.Semaphore(1)
+    monkeypatch.setattr(office_convert, "_semaphore", lambda: gate)
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    async with office_convert.reserve(10, what="quarterly.xlsx") as slot:
+        assert gate.locked()
+        produced = await office_convert.convert(
+            tmp_path / "quarterly.xlsx",
+            out_dir,
+            convert_to="pdf",
+            extension="pdf",
+            slot=slot,
+        )
+
+    assert produced.exists()
+    assert not gate.locked()

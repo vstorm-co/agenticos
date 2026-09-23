@@ -1,5 +1,5 @@
 ---
-source_sha: "33c8a8c2a7b9"
+source_sha: "b20c8050c479"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -34,6 +34,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
 | `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
 | `browser_use` | Automatización del navegador | research | `browse_web` | `web:browse` | mediante el extra `browser-use` |
 | `code_execution` | Ejecutar Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Archivos y shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
@@ -506,6 +507,110 @@ de funcionar hasta que se edite, en vez de seguir descargando sin aprobación.
 Una página llega como Markdown, truncada en `max_content_chars`; un PDF o una
 imagen llegan como contenido binario que el modelo lee de forma nativa. Nada la
 resume: qué hacer con una página corresponde a las instrucciones del agent.
+
+## Automatización del navegador (elección) { #browser-automation-choose }
+
+`browse_page` — *Recorre una página web hacia un objetivo, una acción elegida cada vez.*
+
+Un objetivo y una URL de inicio. La capability abre la página en un Chromium que
+ejecutas tú y repite tres cosas: lee la página y la convierte en una tabla numerada
+de los elementos sobre los que una persona podría actuar, pregunta a un modelo de
+decisión qué operación y qué elemento, y lo ejecuta. Solo escribir el valor de un
+campo llega a un modelo de lenguaje.
+
+Recurre a ella cuando haya que *operar* una página — un formulario, un filtro, un
+aviso de consentimiento, un flujo de varios pasos, una búsqueda cuyos resultados hay
+que pulsar. Para una página que solo necesitas leer, [web fetch](#web-fetch) es más
+rápido y no tiene efectos secundarios.
+
+**Elige; no compone.** Un agente de navegador que escribe su siguiente acción puede
+emitir cualquier cadena, de modo que el texto de la página es un canal de
+instrucciones hacia el modelo y la única defensa es decirle al modelo que no escuche.
+Esta responde a una elección única cuyas opciones se construyen en el servidor a
+partir del DOM vivo, así que una página no puede ofrecer una acción describiéndola.
+
+Eso no es lo mismo que ser segura. «Eliminar cuenta» es una acción que una página
+ofrece de verdad, por eso la capability es **`side_effecting`** y `browse_page` se
+puede poner tras una [aprobación](../governance.md).
+
+**Por defecto no queda retenido para aprobación**, el único punto en el que la
+bandera de la herramienta discrepa de la de la capability. Una aprobación de un
+recorrido llega *antes* de que se cargue la primera página, sobre un objetivo en
+lenguaje natural y una URL: pide a alguien que apruebe acciones que nadie puede ver
+todavía, y eso es consentimiento sin información. Lo que la sustituye es mirar: la
+consola dibuja el recorrido mientras ocurre, cada paso nombra lo que se eligió y con
+qué probabilidad, y `allowed_domains` limita adónde puede ir. Un operador que quiera
+la puerta pone `tool_approval` en el vínculo, que gana sobre esto; `min_confidence`
+es la versión automática del mismo instinto.
+
+**Informa de que está bloqueada.** Un muro de inicio de sesión, un aviso de
+consentimiento, un captcha, una página que no contiene lo que se pedía: el motor lo
+dice, y el recorrido termina con un resultado en lugar de con silencio en el límite
+de pasos. Cuatro resultados, y los cuatro son ordinarios — terminado, bloqueado por
+la página, detenido en el límite de pasos y no se pudo alcanzar el navegador.
+
+| Ajuste | Por defecto | Valores |
+|---|---|---|
+| `cdp_url` | el único host permitido, si hay uno | un endpoint de Chromium DevTools; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. Con exactamente un host permitido el formulario llega rellenado |
+| `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten globs como `*.example.com`; null no restringe |
+| `decision_model` | `jev-latest` | un selector sobre `app/core/catalog/decision_models.json`; una versión fijada como `jev-1.13.0` se puede escribir, porque un agent cuyo umbral de confianza se ajustó contra una versión la necesita |
+| `decision_base_url` | null | dónde se ejecuta ese modelo. Vacío es el propio `https://api.typesafe.ai` del proveedor, y ahí va el contenido de la página salvo que este campo diga otra cosa |
+| `max_steps` | 25 | 1–100; cada paso es una petición de decisión |
+| `candidate_cap` | 60 | 2–200; cuántos elementos pueden ofrecerse como opciones en un paso |
+| `min_confidence` | 0.0 | 0–1; no actuar sobre una elección por debajo de este valor y terminar el recorrido como bloqueado |
+| `preview` | `true` | enviar la vista de la página al chat mientras se ejecuta el recorrido |
+| `preview_width` | 1024 | 320–1920; el ancho de esos fotogramas |
+
+**El navegador es tuyo, y el operador dice cuál.** No hay modo local ni Chromium
+en la imagen de la API: `cdp_url` apunta a un servicio de navegador que un operador
+ejecuta y aísla. El host tiene que estar en
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía —la de
+partida— rechaza la automatización del navegador por completo. Se verifica **al
+publicar**, cuando se guarda el spec, y no en cada run.
+
+Es una lista de permitidos y no la verificación SSRF por la que pasa cualquier otra
+URL suministrada por un tenant, y la razón es lo que `cdp_url` es: vive en un spec
+que escribe cualquiera con permiso `edit` sobre el agent, así que la dirección la
+controla el tenant y la petición es de este deployment.
+
+La protección SSRF se equivoca en las dos direcciones: solo admite direcciones
+*públicas*, de modo que rechaza el servicio aislado en tu propia red que esta
+página pide ejecutar, y acepta un depurador CDP expuesto a internet, que es la peor
+de las dos posturas. Un host verificado no necesita comprobación de dirección; uno
+sin verificar se rechaza sea lo que sea a lo que resuelva.
+
+**Cada paso envía la página al modelo de decisión.** Su URL, su título, las
+etiquetas de los elementos y un extracto acotado de su texto visible, lo que en el
+endpoint público del proveedor es un tercero y puede ser el contenido de un sistema
+interno. El texto está ahí porque sin él el motor no puede saber que ha *terminado*:
+un precio, una confirmación o «sin resultados» son texto corriente y no controles, de
+modo que `DONE` sería una conjetura. Un valor que el agent escribe no se envía a
+propósito: el paso se registra como «rellenado» sin él, así que una contraseña no
+viaja a ese endpoint. Dos cosas lo convierten en una
+decisión y no en un descuido: la capability exige una clave de API del vault de este
+deployment, así que no puede ejecutarse hasta que un operador añada una, y
+`decision_base_url` lleva el modelo de decisión a otro sitio: a un host de
+[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), porque ese campo está en el
+spec y la clave se desprecinta en una cabecera hacia lo que nombre. Una lista vacía,
+la de partida, solo permite el endpoint del proveedor. Consulta
+[qué sale del deployment](../data-protection.md#what-leaves-the-deployment).
+
+**Ambos modelos se contabilizan y ninguno se tarifica.** El modelo de decisión se
+ejecuta una vez por paso y el modelo del run una vez por campo escrito; ambos anotan
+tokens en el budget del run. El precio es otra cosa: la instantánea de precios
+incluida no conoce el modelo de decisión, de modo que un recorrido muestra consumo
+sin coste, y un budget expresado en dólares no lo limita. Lo que acota un recorrido
+es `max_steps`.
+
+**`cdp-use` y el SDK de TypeSafe llegan con el extra `browser`**, que una instalación
+por defecto no tiene. Un operador que quiera la capability instala
+`agenticos[browser]`; un agent vinculado a ella en un deployment sin el extra falla
+en esa única herramienta de forma ruidosa, con la línea de instalación.
+
+**Transmite mientras se ejecuta.** La consola dibuja la vista de la página, la página
+en la que está y cada paso con la probabilidad con la que el motor lo encontró —
+consulta [la consola](../console.md). Con `preview` desactivado se conserva la
+narración y se omiten las imágenes.
 
 ## Automatización del navegador { #browser-automation }
 
@@ -1668,7 +1773,7 @@ comprobados cuando se ensambla el agent:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
+| `web:browse` | `browser_choice`, `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

@@ -1,5 +1,5 @@
 ---
-source_sha: "15980ecd7957"
+source_sha: "74925aba0c7c"
 ---
 
 # Instalacja { #install }
@@ -178,12 +178,23 @@ potrzebuje klucza, klucz potrzebuje organizacji — a to przechodzi ten łańcuc
 | Właściciela | `admin@example.com` / `admin123` albo `--email` / `--password` |
 | Wpis w vault | Twój klucz providera, zapieczętowany dla tej organizacji |
 | Profil modelu | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` albo `openai/gpt-4.1`, zależnie od tego, którego providera dotyczy klucz |
+| Plik kontekstowy | `AGENTS.md`, wyjaśniający, czym jest ta platforma |
 | Agenta | `@getting-started`, opublikowanego, jeśli jest klucz |
 
 Teraz otwórz <http://localhost:3000>, zaloguj się jako `admin@example.com` /
 `admin123` i przejdź do **Agents → Getting Started → Test**.
 
-Masz działającego agenta.
+Masz działającego agenta. I to nie zaślepkę: potrafi przeszukać internet i
+pobrać stronę, uruchomić Pythona, narysować wykres, trzymać pliki i powłokę,
+rozpisać plan pracy, zapamiętać coś ponad jedną rozmowę, przeszukać to, co
+padło wcześniej, przeczytać dostarczone skille i `AGENTS.md`, a niezależne
+kawałki roboty oddać sub-agentom, których wymyśla w locie. Wszystko na tym
+jednym kluczu, który przed chwilą wkleiłeś — sandbox działa w magazynie samego
+runu, a wyszukiwarka domyślnie chodzi po DuckDuckGo, więc nie ma drugiego
+poświadczenia ani usługi do postawienia.
+
+Otwórz go w Builderze, żeby zobaczyć jak: każda z tych rzeczy to zdolność,
+którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz zmienić.
 
 !!! tip "Nie masz jeszcze klucza providera?"
 

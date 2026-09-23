@@ -656,128 +656,30 @@ class TestSkillManagement:
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
 
 
-class TestBundledTopUp:
-    """The listing closes the gap between the shipped catalog and an organization.
+class TestTheListingOnlyReads:
+    """A listing answers with what is there; it does not write while it reads.
 
-    Creation-time seeding copies whatever the deployment shipped *that day*; a
-    skill added to the catalog later would otherwise never reach an existing
-    organization, and its page would show one bundled skill where the
-    deployment ships three - which is exactly how the defect was found.
+    It used to top itself up, copying in any bundled skill the organization did
+    not have - so a deleted one came back on the next visit, and the only way to
+    retire a shipped skill was to disable it. The gallery is where a skill is
+    chosen now, and `seed-skills` is how a deployment pushes a new bundled one
+    out on purpose.
     """
 
-    def _bundled(self, key: str, name: str | None = None) -> MagicMock:
-        entry = MagicMock()
-        entry.key = key
-        entry.name = name or key
-        return entry
-
     @pytest.mark.anyio
-    async def test_a_skill_added_to_the_catalog_appears_on_the_next_listing(self):
-        ctx = _ctx()
-        owner_id = uuid.uuid4()
-
+    async def test_a_deleted_bundled_skill_stays_deleted(self, mock_db_session: AsyncMock) -> None:
+        # No skills at all, which is what an organization whose owner deleted
+        # the shipped three looks like. Nothing is written to fill the gap.
+        service = SkillService(mock_db_session)
         with (
             patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
             patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refund-policy"}),
-            ),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
-            ),
-            patch(
-                f"{SKILLS_PATH}.member_repo.first_owner_id",
-                new=AsyncMock(return_value=owner_id),
-            ),
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
+            patch.object(service, "install_from_library", new=AsyncMock()) as install,
         ):
-            await SkillService(_db()).list_readable(ctx)
+            page = await service.list_readable(_ctx())
 
-        # Only the gap, and as the organization's owner - the reader whose
-        # visit triggered this may be a viewer, and ownership widens access.
-        install.assert_awaited_once()
-        installer_ctx, key = install.await_args.args
-        assert key == "incident-report"
-        assert installer_ctx.user_id == owner_id
-        assert installer_ctx.organization_id == ctx.organization_id
-
-    @pytest.mark.anyio
-    async def test_a_complete_organization_installs_nothing_and_asks_for_no_owner(self):
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refund-policy"}),
-            ),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy")],
-            ),
-            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock()) as owner_lookup,
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
-        ):
-            await SkillService(_db()).list_readable(ctx)
-
-        owner_lookup.assert_not_awaited()
+        assert page.items == []
         install.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_an_organization_with_no_owner_is_left_alone(self):
-        # A skill row records who owns it, and that column is a foreign key to
-        # a real person - with nobody to attribute to, the listing answers what
-        # is there rather than inventing an owner or failing the page.
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy")],
-            ),
-            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock(return_value=None)),
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
-        ):
-            listing = await SkillService(_db()).list_readable(ctx)
-
-        install.assert_not_awaited()
-        assert listing.total == 0
-
-    @pytest.mark.anyio
-    async def test_a_racing_twin_costs_that_row_and_never_the_readers_page(self):
-        # Two first listings can race to the same missing skill; the loser's
-        # collision is caught per-install, so the page still answers.
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
-            ),
-            patch(
-                f"{SKILLS_PATH}.member_repo.first_owner_id",
-                new=AsyncMock(return_value=uuid.uuid4()),
-            ),
-            patch.object(
-                SkillService,
-                "install_from_library",
-                new=AsyncMock(side_effect=[AlreadyExistsError(message="taken"), MagicMock()]),
-            ) as install,
-        ):
-            listing = await SkillService(_db()).list_readable(ctx)
-
-        # The collision did not stop the second install, and the listing answered.
-        assert install.await_count == 2
-        assert listing.suggested_categories == list(SUGGESTED_CATEGORIES)
 
 
 class TestSkillLibrary:

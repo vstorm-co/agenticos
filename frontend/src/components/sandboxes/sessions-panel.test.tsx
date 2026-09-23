@@ -14,7 +14,7 @@ import type {
 
 const state = vi.hoisted(() => ({
   policy: null as { idle_timeout: number | null } | null,
-  agents: [] as { id: string; name: string }[],
+  agents: [] as { id: string; slug: string; name: string }[],
   listing: null as SandboxSessionList | null,
   sessionsError: null as string | null,
   sessionsLoading: false,
@@ -585,7 +585,7 @@ describe("SessionsPanel", () => {
       // Expanded under the table it was a table inside a table, with its columns
       // lining up with none of the ones above and the row it belonged to pushed
       // out of sight.
-      state.agents = [{ id: "a-1", name: "JARVIS" }];
+      state.agents = [{ id: "a-1", slug: "jarvis", name: "JARVIS" }];
       state.listing = listing([session({ agent_id: "a-1" })]);
       render(<SessionsPanel connections={[connection()]} />);
 
@@ -655,7 +655,7 @@ describe("what the row says about a sandbox", () => {
   it("names the agent that opened it, with the key underneath", () => {
     // A column of `xc-40bfd3cc-ca1b1445-d9bdc4992aba470eb26e8716d3c77aaa` answers
     // no question anybody brought to this page.
-    state.agents = [{ id: "a-1", name: "JARVIS" }];
+    state.agents = [{ id: "a-1", slug: "jarvis", name: "JARVIS" }];
     state.listing = listing([session({ agent_id: "a-1" })]);
 
     render(<SessionsPanel connections={[connection()]} />);
@@ -687,7 +687,7 @@ describe("what the row says about a sandbox", () => {
 
   it("names a sandbox no agent opened as belonging to none", () => {
     // The service answers with a null agent for a sandbox opened outside a run.
-    state.agents = [{ id: "a-1", name: "JARVIS" }];
+    state.agents = [{ id: "a-1", slug: "jarvis", name: "JARVIS" }];
     state.listing = listing([session({ agent_id: null })]);
 
     render(<SessionsPanel connections={[connection()]} />);

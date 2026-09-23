@@ -65,6 +65,7 @@ export function siteOrigin(): string {
 export const OG_LOCALE: Record<(typeof locales)[number], string> = {
   en: "en_US",
   pl: "pl_PL",
+  de: "de_DE",
 };
 
 interface PageMetaInput {
