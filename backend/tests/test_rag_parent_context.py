@@ -170,6 +170,32 @@ class TestParentAssembly:
 
         assert results[0].expanded_content is None
 
+    async def test_a_chunk_too_big_to_fit_stops_its_direction_rather_than_splicing(self):
+        # An immediate neighbour that overflows the remaining budget must close that
+        # direction: a smaller chunk farther out must not jump the gap, or the joined
+        # passage would present non-adjacent text ("AA ... MATCH ... DD") as one
+        # continuous run. Only the match survives here, contiguous with nothing.
+        store = MagicMock()
+        store.search = AsyncMock(return_value=[_match(2, doc="doc")])
+        store.get_document_chunks = AsyncMock(
+            return_value=[
+                DocumentChunk(content="AA", page_num=0, chunk_num=0),
+                DocumentChunk(content="B" * 50, page_num=0, chunk_num=1),
+                DocumentChunk(content="MATCH", page_num=0, chunk_num=2),
+                DocumentChunk(content="C" * 50, page_num=0, chunk_num=3),
+                DocumentChunk(content="DD", page_num=0, chunk_num=4),
+            ]
+        )
+
+        results = await _service(store, per_result=10).retrieve(
+            query="q",
+            collection_name="col",
+            scope=TenantScope(organization_id=uuid4()),
+            parent_context=ParentContextMode.PARENT,
+        )
+
+        assert results[0].expanded_content == "MATCH"
+
 
 class TestSizeBounding:
     async def test_a_result_is_capped_to_the_per_result_budget(self):

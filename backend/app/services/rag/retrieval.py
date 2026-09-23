@@ -72,43 +72,60 @@ def _assemble_passage(
     result still carries the match's citation and score but not the matched text.
 
     A neighbour already emitted for an earlier result is skipped, but the matched
-    chunk is kept even when it was already emitted. The kept chunks are joined in
-    document order, and `emitted` is updated with what is kept.
+    chunk is kept even when it was already emitted. Growth stops in a direction the
+    moment a chunk there does not fit the remaining budget, rather than skipping it
+    for a smaller chunk farther out: the passage is joined in document order, so a
+    farther chunk that jumped a too-large gap would present non-adjacent text as one
+    continuous passage. The kept chunks are joined in document order, and `emitted`
+    is updated with what is kept.
     """
     if cap <= 0 or not selected:
         return ""
     sep = "\n\n"
 
-    if match_pos is None:
-        # No located match (parent mode with missing chunk coordinates): fall
-        # back to the document from its start, still bounded and de-duplicated.
-        order = list(range(len(selected)))
-    else:
-        # Visit indices by nearness to the match: match, match-1, match+1, ...
-        order = [match_pos]
-        step = 1
-        while match_pos - step >= 0 or match_pos + step < len(selected):
-            if match_pos - step >= 0:
-                order.append(match_pos - step)
-            if match_pos + step < len(selected):
-                order.append(match_pos + step)
-            step += 1
-
     chosen: set[int] = set()
     used = 0
-    for pos in order:
+
+    def _keep(pos: int) -> str:
+        """Try to keep chunk `pos`. 'kept', 'deduped' (carried by an earlier result,
+        skipped without stopping the run), or 'full' (would overflow the budget)."""
+        nonlocal used
         chunk = selected[pos]
-        is_match = pos == match_pos
-        identity = (parent_doc_id, chunk.page_num, chunk.chunk_num)
-        if not is_match and identity in emitted:
-            continue
+        if (parent_doc_id, chunk.page_num, chunk.chunk_num) in emitted:
+            return "deduped"
         add_len = len(chunk.content) + (len(sep) if chosen else 0)
-        if is_match:
-            chosen.add(pos)  # the match is kept whatever the budget
-            used += add_len
-        elif used + add_len <= cap:
-            chosen.add(pos)
-            used += add_len
+        if used + add_len > cap:
+            return "full"
+        chosen.add(pos)
+        used += add_len
+        return "kept"
+
+    if match_pos is None:
+        # No located match (parent mode with missing chunk coordinates): fall back
+        # to a contiguous run from the document's start, stopping at the first chunk
+        # that does not fit rather than splicing a smaller later one over the gap.
+        for pos in range(len(selected)):
+            if _keep(pos) == "full":
+                break
+    else:
+        # The match is kept whatever the budget; the passage then grows outward from
+        # it, nearest neighbours first, and a direction closes as soon as a chunk
+        # there does not fit so the run stays contiguous.
+        chosen.add(match_pos)
+        used += len(selected[match_pos].content)
+        left, right = match_pos - 1, match_pos + 1
+        left_open = right_open = True
+        while left_open or right_open:
+            if left_open:
+                if left < 0 or _keep(left) == "full":
+                    left_open = False
+                else:
+                    left -= 1
+            if right_open:
+                if right >= len(selected) or _keep(right) == "full":
+                    right_open = False
+                else:
+                    right += 1
 
     pieces: list[str] = []
     for pos in sorted(chosen):
@@ -396,9 +413,11 @@ class RetrievalService(BaseRetrievalService):
         turn_used = 0
         # (parent_doc_id, page_num, chunk_num) already returned this turn.
         emitted: set[tuple[str, int, int]] = set()
-        # One document's chunks, keyed by (collection, parent_doc_id), so several
-        # matches from the same document do not each re-read and re-sort it.
-        doc_cache: dict[tuple[str, str], list[DocumentChunk]] = {}
+        # One document's chunks, keyed by (collection, tenant, parent_doc_id) - every
+        # argument the sibling read is made under - so several matches from the same
+        # document do not each re-read and re-sort it, and a cache hit can never serve
+        # chunks fetched under a different tenant.
+        doc_cache: dict[tuple[str, UUID | None, str], list[DocumentChunk]] = {}
 
         for result in results:
             if turn_used >= turn_cap:
@@ -413,7 +432,7 @@ class RetrievalService(BaseRetrievalService):
                 continue
             collection_name, tenant = fetch
 
-            cache_key = (collection_name, parent_doc_id)
+            cache_key = (collection_name, tenant, parent_doc_id)
             doc_chunks = doc_cache.get(cache_key)
             if doc_chunks is None:
                 doc_chunks = await self.store.get_document_chunks(
