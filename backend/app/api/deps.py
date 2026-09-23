@@ -622,6 +622,15 @@ def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
 
 WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
 
+from app.services.workflow_execution import WorkflowExecutionService
+
+
+def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
+    return WorkflowExecutionService(db)
+
+
+WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
+
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
 

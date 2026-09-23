@@ -868,6 +868,13 @@ include = [
     "app/services/workflow_registry.py",
     "app/workflows/**",
     "app/api/routes/v1/workflows.py",
+    # Durable execution: run/node/attempt state machine, the dispatch outbox,
+    # the reconciler and the event stream (#1788).
+    "app/db/models/workflow_run.py",
+    "app/repositories/workflow_run.py",
+    "app/schemas/workflow_run.py",
+    "app/services/workflow_execution/**",
+    "app/api/routes/v1/workflow_runs.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1249,6 +1256,13 @@ include = [
     "app/services/workflow_registry.py",
     "app/workflows/**",
     "app/api/routes/v1/workflows.py",
+    # Durable execution: run/node/attempt state machine, the dispatch outbox,
+    # the reconciler and the event stream (#1788).
+    "app/db/models/workflow_run.py",
+    "app/repositories/workflow_run.py",
+    "app/schemas/workflow_run.py",
+    "app/services/workflow_execution/**",
+    "app/api/routes/v1/workflow_runs.py",
 ]
 branch = true
 omit = [

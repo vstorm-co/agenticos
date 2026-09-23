@@ -1,0 +1,962 @@
+"""The workflow-run repository against a real Postgres.
+
+Only a real database enforces the `CHECK`s (the graph-source XOR), the
+partial unique indexes (`uq_dispatch_outbox_live_node_run`,
+`ix_dispatch_outbox_pending_claim`) and the plain unique constraints
+(`uq_node_run_identity`, `uq_node_attempt_number`, `uq_workflow_event_seq`)
+this schema is supposed to guarantee - a mock would let a second live outbox
+row through silently, which is exactly the bug the index exists to make
+structurally impossible.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.organization import Organization
+from app.db.models.resource_grant import Visibility
+from app.db.models.user import User
+from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.models.workflow_run import (
+    DispatchOutboxStatus,
+    NodeAttemptStatus,
+    NodeRunStatus,
+    RetryGuarantee,
+    WorkflowRunMode,
+)
+from app.repositories import workflow_run as workflow_run_repo
+
+pytestmark = pytest.mark.anyio
+
+
+async def _org(db: AsyncSession) -> Organization:
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    org = Organization(
+        id=uuid.uuid4(),
+        name="Acme",
+        slug=f"acme-{uuid.uuid4().hex[:8]}",
+        created_by_user_id=user.id,
+    )
+    db.add(org)
+    await db.flush()
+    return org
+
+
+async def _workflow(db: AsyncSession, org: Organization) -> Workflow:
+    workflow = Workflow(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        slug=f"wf-{uuid.uuid4().hex[:8]}",
+        name="Import orders",
+        status=WorkflowStatus.PUBLISHED.value,
+        visibility=Visibility.PRIVATE.value,
+        draft_graph={},
+    )
+    db.add(workflow)
+    await db.flush()
+    return workflow
+
+
+async def _run(db: AsyncSession, org: Organization, workflow: Workflow, **overrides: object):
+    defaults: dict[str, object] = {
+        "organization_id": org.id,
+        "workflow_id": workflow.id,
+        "workflow_version_id": None,
+        "draft_graph_snapshot": {"entry_node_id": str(uuid.uuid4()), "nodes": []},
+        "mode": WorkflowRunMode.TEST.value,
+        "triggered_by": "api",
+        "execution_principal_user_id": None,
+        "budget_limit": None,
+        "deadline_at": None,
+        "root_run_id": None,
+        "causation_run_id": None,
+        "visited_trigger_ids": [],
+        "depth": 0,
+        "started_at": datetime.now(UTC),
+    }
+    defaults.update(overrides)
+    return await workflow_run_repo.create_run(db, **defaults)
+
+
+async def _node_run(db: AsyncSession, run, **overrides: object):
+    """`create_node_run` only takes identity fields - anything else
+    (`status`, `waiting_reason`, `waiting_agent_run_id`, ...) is applied with
+    a follow-up `update_node_run`, the same two-step shape the dispatcher
+    itself uses."""
+    create_fields = {"organization_id", "workflow_run_id", "node_instance_id", "scope_path"}
+    defaults: dict[str, object] = {
+        "organization_id": run.organization_id,
+        "workflow_run_id": run.id,
+        "node_instance_id": uuid.uuid4(),
+        "scope_path": [],
+    }
+    defaults.update({key: value for key, value in overrides.items() if key in create_fields})
+    node_run = await workflow_run_repo.create_node_run(db, **defaults)
+    extra = {key: value for key, value in overrides.items() if key not in create_fields}
+    if extra:
+        node_run = await workflow_run_repo.update_node_run(db, node_run=node_run, update_data=extra)
+    return node_run
+
+
+class TestCreateRun:
+    async def test_a_root_run_points_at_its_own_id(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        assert run.root_run_id == run.id
+        assert run.causation_run_id is None
+
+    async def test_a_caused_run_points_at_the_originating_root(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        root = await _run(db, org, workflow)
+        child = await _run(
+            db, org, workflow, root_run_id=root.id, causation_run_id=root.id, depth=1
+        )
+        assert child.root_run_id == root.id
+        assert child.causation_run_id == root.id
+        assert child.depth == 1
+
+    async def test_both_graph_sources_set_is_refused(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        with pytest.raises(IntegrityError):
+            await _run(
+                db,
+                org,
+                workflow,
+                workflow_version_id=uuid.uuid4(),
+                draft_graph_snapshot={"entry_node_id": str(uuid.uuid4()), "nodes": []},
+            )
+
+    async def test_neither_graph_source_set_is_refused(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        with pytest.raises(IntegrityError):
+            await _run(db, org, workflow, workflow_version_id=None, draft_graph_snapshot=None)
+
+
+class TestGetRunIsScoped:
+    async def test_get_run_is_scoped_to_the_organization(self, db: AsyncSession):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        workflow = await _workflow(db, org_a)
+        run = await _run(db, org_a, workflow)
+        assert await workflow_run_repo.get_run(db, run.id, organization_id=org_a.id) is not None
+        assert await workflow_run_repo.get_run(db, run.id, organization_id=org_b.id) is None
+
+    async def test_get_run_by_id_for_update_is_unscoped(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        found = await workflow_run_repo.get_run_by_id_for_update(db, run.id)
+        assert found is not None
+        assert found.id == run.id
+
+
+class TestNodeRunIdentity:
+    async def test_the_same_identity_twice_is_refused(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_instance_id = uuid.uuid4()
+        await _node_run(db, run, node_instance_id=node_instance_id, scope_path=[])
+        with pytest.raises(IntegrityError):
+            await _node_run(db, run, node_instance_id=node_instance_id, scope_path=[])
+
+    async def test_a_different_scope_path_is_a_different_identity(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_instance_id = uuid.uuid4()
+        first = await _node_run(
+            db,
+            run,
+            node_instance_id=node_instance_id,
+            scope_path=[{"loop_node_id": "x", "index": 0}],
+        )
+        second = await _node_run(
+            db,
+            run,
+            node_instance_id=node_instance_id,
+            scope_path=[{"loop_node_id": "x", "index": 1}],
+        )
+        assert first.id != second.id
+
+    async def test_get_by_identity_finds_the_row(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_instance_id = uuid.uuid4()
+        created = await _node_run(db, run, node_instance_id=node_instance_id)
+        found = await workflow_run_repo.get_node_run_by_identity(
+            db, workflow_run_id=run.id, node_instance_id=node_instance_id, scope_path=[]
+        )
+        assert found is not None
+        assert found.id == created.id
+
+
+class TestNodeAttemptOrdering:
+    async def test_the_same_attempt_number_twice_is_refused(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k1",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+        with pytest.raises(IntegrityError):
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=org.id,
+                node_run_id=node_run.id,
+                attempt_no=1,
+                idempotency_key="k2",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+
+    async def test_get_latest_attempt_finds_the_highest_number(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        for n in (1, 2, 3):
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=org.id,
+                node_run_id=node_run.id,
+                attempt_no=n,
+                idempotency_key=f"k{n}",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+        latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=node_run.id)
+        assert latest is not None
+        assert latest.attempt_no == 3
+
+
+class TestDispatchOutboxClaim:
+    async def test_claiming_a_pending_row_succeeds(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        # `func.now()` in `claim_outbox`'s own predicate is the *transaction's*
+        # start time in Postgres, not wall-clock at statement time - frozen
+        # before `available_at` above was even computed. A commit here starts
+        # a fresh transaction, matching how `claim` always runs in its own
+        # transaction in production (never the one that created the row).
+        await db.commit()
+        token = uuid.uuid4()
+        claimed = await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=token,
+            lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        )
+        assert claimed is not None
+        assert claimed.claimed_by == token
+        assert claimed.status == DispatchOutboxStatus.CLAIMED.value
+
+    async def test_claiming_an_already_claimed_row_with_a_live_lease_fails(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        await db.commit()
+        second = await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        assert second is None
+
+    async def test_a_lease_expired_claim_is_reclaimable(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        # A lease that already expired, exactly the shape a dead worker leaves.
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await db.commit()
+        new_token = uuid.uuid4()
+        reclaimed = await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=new_token,
+            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        assert reclaimed is not None
+        assert reclaimed.claimed_by == new_token
+
+    async def test_a_row_not_yet_available_cannot_be_claimed(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        await db.commit()
+        claimed = await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        )
+        assert claimed is None
+
+    async def test_a_second_live_outbox_row_for_the_same_node_run_is_refused(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        with pytest.raises(IntegrityError):
+            await workflow_run_repo.create_outbox(
+                db,
+                organization_id=org.id,
+                workflow_run_id=run.id,
+                node_run_id=node_run.id,
+                available_at=datetime.now(UTC),
+            )
+
+    async def test_a_new_outbox_row_is_allowed_once_the_old_one_is_done(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        first = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await workflow_run_repo.mark_outbox_done(db, outbox=first)
+        second = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        assert second.id != first.id
+
+    async def test_list_pending_outbox_only_returns_due_pending_rows(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        due_node_run = await _node_run(db, run)
+        future_node_run = await _node_run(db, run)
+        due = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=due_node_run.id,
+            available_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=future_node_run.id,
+            available_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        await db.commit()  # fresh `func.now()` for the scan below
+        rows = await workflow_run_repo.list_pending_outbox(db)
+        ids = {row.id for row in rows}
+        assert due.id in ids
+        assert all(row.node_run_id != future_node_run.id for row in rows)
+
+
+class TestEvents:
+    async def test_seq_increments_per_run_and_the_run_row_tracks_it(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        first = await workflow_run_repo.append_event(
+            db, run=run, kind="run_started", node_run_id=None, payload={}
+        )
+        second = await workflow_run_repo.append_event(
+            db, run=run, kind="run_succeeded", node_run_id=None, payload={}
+        )
+        assert first.seq == 0
+        assert second.seq == 1
+        assert run.next_event_seq == 2
+
+    async def test_list_events_since_excludes_everything_up_to_the_cursor(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        for kind in ("a", "b", "c"):
+            await workflow_run_repo.append_event(
+                db, run=run, kind=kind, node_run_id=None, payload={}
+            )
+        rows = await workflow_run_repo.list_events_since(
+            db, workflow_run_id=run.id, organization_id=org.id, after_seq=0
+        )
+        assert [row.kind for row in rows] == ["b", "c"]
+
+    async def test_events_are_scoped_to_the_organization(self, db: AsyncSession):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        workflow = await _workflow(db, org_a)
+        run = await _run(db, org_a, workflow)
+        await workflow_run_repo.append_event(
+            db, run=run, kind="run_started", node_run_id=None, payload={}
+        )
+        rows = await workflow_run_repo.list_events_since(
+            db, workflow_run_id=run.id, organization_id=org_b.id, after_seq=None
+        )
+        assert rows == []
+
+
+class TestStaleApprovalWaits:
+    async def test_finds_a_node_run_whose_agent_run_moved_on(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        agent = Agent(
+            id=uuid.uuid4(), organization_id=org.id, slug="clerk", name="Clerk", draft_spec={}
+        )
+        db.add(agent)
+        await db.flush()
+        agent_run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            surface="api",
+            status=RunStatus.COMPLETED.value,
+            started_at=datetime.now(UTC),
+        )
+        db.add(agent_run)
+        await db.flush()
+        node_run = await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason="approval",
+            waiting_agent_run_id=agent_run.id,
+        )
+        found = await workflow_run_repo.list_stale_approval_waits(db)
+        assert node_run.id in {row.id for row in found}
+
+    async def test_a_node_run_already_covered_by_a_live_outbox_row_is_excluded(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        agent = Agent(
+            id=uuid.uuid4(), organization_id=org.id, slug="clerk2", name="Clerk", draft_spec={}
+        )
+        db.add(agent)
+        await db.flush()
+        agent_run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            surface="api",
+            status=RunStatus.COMPLETED.value,
+            started_at=datetime.now(UTC),
+        )
+        db.add(agent_run)
+        await db.flush()
+        node_run = await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason="approval",
+            waiting_agent_run_id=agent_run.id,
+        )
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        found = await workflow_run_repo.list_stale_approval_waits(db)
+        assert node_run.id not in {row.id for row in found}
+
+
+class TestOrphanedInFlightAttempts:
+    async def test_finds_an_in_flight_attempt_whose_claimed_lease_expired(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await db.commit()
+        attempt = await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+        assert attempt.id in {row.id for row in found}
+
+    async def test_a_completed_attempt_is_never_orphaned(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await db.commit()
+        attempt = await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+        await workflow_run_repo.settle_attempt(
+            db,
+            attempt=attempt,
+            status=NodeAttemptStatus.COMPLETED.value,
+            result={"status": "completed"},
+            cost=Decimal("0"),
+            cost_is_partial=False,
+            ended_at=datetime.now(UTC),
+        )
+        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+        assert attempt.id not in {row.id for row in found}
+
+
+class TestStaleClaims:
+    async def test_a_claim_stranded_before_any_attempt_is_found(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        outbox = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await db.commit()
+        found = await workflow_run_repo.list_stale_claims(db, before=datetime.now(UTC))
+        assert outbox.id in {row.id for row in found}
+
+    async def test_a_claim_with_an_in_flight_attempt_is_not_a_stale_claim(self, db: AsyncSession):
+        # It is an orphaned *attempt* instead - `list_orphaned_in_flight`'s job.
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        outbox = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=uuid.uuid4(),
+            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        await db.commit()
+        await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+        found = await workflow_run_repo.list_stale_claims(db, before=datetime.now(UTC))
+        assert outbox.id not in {row.id for row in found}
+
+
+class TestReprs:
+    async def test_every_model_repr_names_its_identity(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        attempt = await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+        outbox = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        event = await workflow_run_repo.append_event(
+            db, run=run, kind="run_started", node_run_id=None, payload={}
+        )
+        resource_ref = await workflow_run_repo.create_resource_ref(
+            db, organization_id=org.id, workflow_run_id=run.id, kind="file", ref={"kind": "file"}
+        )
+        assert str(run.id) in repr(run)
+        assert str(node_run.id) in repr(node_run)
+        assert str(attempt.id) in repr(attempt)
+        assert str(outbox.id) in repr(outbox)
+        # `WorkflowEvent.__repr__` names the run and `seq`, not its own id -
+        # `seq` is the meaningful identity for an append-only event stream.
+        assert str(event.seq) in repr(event)
+        assert str(resource_ref.id) in repr(resource_ref)
+
+
+class TestGetRunForUpdate:
+    async def test_locks_and_returns_the_row(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        found = await workflow_run_repo.get_run_for_update(db, run.id, organization_id=org.id)
+        assert found is not None
+        assert found.id == run.id
+
+    async def test_is_scoped_to_the_organization(self, db: AsyncSession):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        workflow = await _workflow(db, org_a)
+        run = await _run(db, org_a, workflow)
+        assert (
+            await workflow_run_repo.get_run_for_update(db, run.id, organization_id=org_b.id) is None
+        )
+
+
+class TestListRuns:
+    async def test_narrowed_to_one_workflow(self, db: AsyncSession):
+        org = await _org(db)
+        workflow_a = await _workflow(db, org)
+        workflow_b = await _workflow(db, org)
+        run_a = await _run(db, org, workflow_a)
+        await _run(db, org, workflow_b)
+        items, total = await workflow_run_repo.list_runs(
+            db, organization_id=org.id, workflow_id=workflow_a.id
+        )
+        assert total == 1
+        assert [item.id for item in items] == [run_a.id]
+
+    async def test_visible_workflow_ids_narrows_the_unfiltered_list(self, db: AsyncSession):
+        org = await _org(db)
+        visible_workflow = await _workflow(db, org)
+        hidden_workflow = await _workflow(db, org)
+        visible_run = await _run(db, org, visible_workflow)
+        await _run(db, org, hidden_workflow)
+        items, total = await workflow_run_repo.list_runs(
+            db, organization_id=org.id, visible_workflow_ids=[visible_workflow.id]
+        )
+        assert total == 1
+        assert [item.id for item in items] == [visible_run.id]
+
+    async def test_an_empty_visible_list_narrows_to_nothing(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        await _run(db, org, workflow)
+        items, total = await workflow_run_repo.list_runs(
+            db, organization_id=org.id, visible_workflow_ids=[]
+        )
+        assert total == 0
+        assert items == []
+
+    async def test_none_visible_ids_sees_everything(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        await _run(db, org, workflow)
+        await _run(db, org, workflow)
+        _items, total = await workflow_run_repo.list_runs(
+            db, organization_id=org.id, visible_workflow_ids=None
+        )
+        assert total == 2
+
+
+class TestGetNodeRun:
+    async def test_is_scoped_to_the_organization(self, db: AsyncSession):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        workflow = await _workflow(db, org_a)
+        run = await _run(db, org_a, workflow)
+        node_run = await _node_run(db, run)
+        assert (
+            await workflow_run_repo.get_node_run(db, node_run.id, organization_id=org_a.id)
+            is not None
+        )
+        assert (
+            await workflow_run_repo.get_node_run(db, node_run.id, organization_id=org_b.id) is None
+        )
+
+    async def test_get_node_run_for_update_locks_and_returns_the_row(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        found = await workflow_run_repo.get_node_run_for_update(
+            db, node_run.id, organization_id=org.id
+        )
+        assert found is not None
+        assert found.id == node_run.id
+
+
+class TestListNodeRuns:
+    async def test_lists_every_node_run_for_the_workflow_run(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        first = await _node_run(db, run)
+        second = await _node_run(db, run)
+        rows = await workflow_run_repo.list_node_runs(db, workflow_run_id=run.id)
+        assert {row.id for row in rows} == {first.id, second.id}
+
+
+class TestListAttempts:
+    async def test_lists_every_attempt_in_order(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        for n in (1, 2):
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=org.id,
+                node_run_id=node_run.id,
+                attempt_no=n,
+                idempotency_key=f"k{n}",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+        rows = await workflow_run_repo.list_attempts(db, node_run_id=node_run.id)
+        assert [row.attempt_no for row in rows] == [1, 2]
+
+
+class TestFindNodeRunWaitingOnAgentRun:
+    async def test_finds_the_node_run_parked_on_this_agent_run(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        agent = Agent(
+            id=uuid.uuid4(), organization_id=org.id, slug="find-clerk", name="Clerk", draft_spec={}
+        )
+        db.add(agent)
+        await db.flush()
+        agent_run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            surface="api",
+            status=RunStatus.AWAITING_APPROVAL.value,
+            started_at=datetime.now(UTC),
+        )
+        db.add(agent_run)
+        await db.flush()
+        node_run = await _node_run(
+            db, run, status=NodeRunStatus.WAITING.value, waiting_agent_run_id=agent_run.id
+        )
+        found = await workflow_run_repo.find_node_run_waiting_on_agent_run(
+            db, agent_run.id, organization_id=org.id
+        )
+        assert found is not None
+        assert found.id == node_run.id
+
+    async def test_is_scoped_to_the_organization(self, db: AsyncSession):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        workflow = await _workflow(db, org_a)
+        run = await _run(db, org_a, workflow)
+        agent = Agent(
+            id=uuid.uuid4(),
+            organization_id=org_a.id,
+            slug="find-clerk-2",
+            name="Clerk",
+            draft_spec={},
+        )
+        db.add(agent)
+        await db.flush()
+        agent_run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org_a.id,
+            agent_id=agent.id,
+            surface="api",
+            status=RunStatus.AWAITING_APPROVAL.value,
+            started_at=datetime.now(UTC),
+        )
+        db.add(agent_run)
+        await db.flush()
+        await _node_run(
+            db, run, status=NodeRunStatus.WAITING.value, waiting_agent_run_id=agent_run.id
+        )
+        found = await workflow_run_repo.find_node_run_waiting_on_agent_run(
+            db, agent_run.id, organization_id=org_b.id
+        )
+        assert found is None
+
+
+class TestCancelLiveOutboxForRun:
+    async def test_cancels_pending_and_claimed_rows_but_leaves_done_ones(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        pending_node_run = await _node_run(db, run)
+        done_node_run = await _node_run(db, run)
+        pending = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=pending_node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        done = await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=done_node_run.id,
+            available_at=datetime.now(UTC),
+        )
+        await workflow_run_repo.mark_outbox_done(db, outbox=done)
+
+        cancelled_ids = await workflow_run_repo.cancel_live_outbox_for_run(
+            db, workflow_run_id=run.id
+        )
+
+        assert pending.id in cancelled_ids
+        assert done.id not in cancelled_ids
+        refreshed_pending = await workflow_run_repo.get_outbox_for_node_run(
+            db, node_run_id=pending_node_run.id
+        )
+        assert refreshed_pending is not None
+        assert refreshed_pending.status == DispatchOutboxStatus.CANCELLED.value
+        refreshed_done = await workflow_run_repo.get_outbox_for_node_run(
+            db, node_run_id=done_node_run.id
+        )
+        assert refreshed_done is not None
+        assert refreshed_done.status == DispatchOutboxStatus.DONE.value
+
+
+class TestListResourceRefs:
+    async def test_lists_every_resource_ref_for_the_run(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        first = await workflow_run_repo.create_resource_ref(
+            db, organization_id=org.id, workflow_run_id=run.id, kind="file", ref={"kind": "file"}
+        )
+        second = await workflow_run_repo.create_resource_ref(
+            db, organization_id=org.id, workflow_run_id=run.id, kind="table", ref={"kind": "table"}
+        )
+        rows = await workflow_run_repo.list_resource_refs(db, workflow_run_id=run.id)
+        assert {row.id for row in rows} == {first.id, second.id}

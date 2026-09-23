@@ -61,6 +61,23 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_run import (
+    DispatchOutbox,
+    DispatchOutboxStatus,
+    NodeAttempt,
+    NodeAttemptStatus,
+    NodeRun,
+    NodeRunStatus,
+    ResourceRef,
+    ResourceRefKind,
+    RetryGuarantee,
+    WaitingReason,
+    WorkflowEvent,
+    WorkflowRun,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
 
 __all__ = [
     "User",
@@ -144,4 +161,19 @@ __all__ = [
     "Workflow",
     "WorkflowStatus",
     "WorkflowVersion",
+    "DispatchOutbox",
+    "DispatchOutboxStatus",
+    "NodeAttempt",
+    "NodeAttemptStatus",
+    "NodeRun",
+    "NodeRunStatus",
+    "ResourceRef",
+    "ResourceRefKind",
+    "RetryGuarantee",
+    "WaitingReason",
+    "WorkflowEvent",
+    "WorkflowRun",
+    "WorkflowRunMode",
+    "WorkflowRunStatus",
+    "WorkflowRunTrigger",
 ]

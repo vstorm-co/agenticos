@@ -504,6 +504,20 @@ class Settings(BaseSettings):
     WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
     WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
 
+    # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
+    # before `workflow-reconcile` treats it as abandoned and reclaims it. Long
+    # enough that an ordinary node call is never reclaimed out from under
+    # itself; short enough that a worker that dies mid-call is noticed within
+    # one reconcile tick rather than stalling the run indefinitely.
+    WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
+    # #1790 owns the real retry ceiling and backoff schedule
+    # (docs/plans/1788-durable-execution.md's "retry_guarantee/#1790 gap");
+    # this is the minimum fixed policy #1788 needs so #1789/#1792 have
+    # somewhere to run in the meantime.
+    WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
+    WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
+    WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and
