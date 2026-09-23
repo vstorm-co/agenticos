@@ -226,7 +226,7 @@ function AgentSelect({
               <span aria-hidden>
                 <AgentAvatar
                   agentId={agent.id}
-                  name={agent.name}
+                  slug={agent.slug}
                   hasAvatar={agent.has_avatar ?? false}
                   size="sm"
                   className="h-5 w-5"

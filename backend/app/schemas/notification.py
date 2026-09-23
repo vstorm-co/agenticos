@@ -48,11 +48,46 @@ class NotificationList(BaseSchema):
 
 
 class UnreadCountRead(BaseSchema):
+    """How many unread rows the caller can see.
+
+    `approximate` is true when the scan behind the count stopped on its own
+    bound with rows still behind it: the count is a floor rather than a total.
+    Without it, a capped answer and an exact one are the same number (#1761).
+    """
+
     count: int
+    approximate: bool = False
 
 
 class MarkAllReadResult(BaseSchema):
+    """How many rows one "mark all read" marked, and where to carry on from.
+
+    `marked` is what this request changed, not what it looked at, so two
+    overlapping sweeps cannot both claim the same rows.
+
+    `remaining` is true when the sweep ran out of scan rather than out of
+    inbox, so a caller that treats `marked` as "the inbox is now clear" would
+    hide the button that finishes the job. `next_cursor` is what finishes it:
+    pass it back and the next sweep starts past the window this one covered,
+    which is what gets a caller past a run of rows the read-time gate hides -
+    those are never marked on their behalf, because the gate reads current
+    permissions and a restored role would find them already read.
+    """
+
     marked: int
+    remaining: bool = False
+    next_cursor: str | None = None
+
+
+class ClearInboxResult(BaseSchema):
+    """How many rows one "clear" actually took out of the inbox.
+
+    A number rather than a 204, and for the reason `MarkAllReadResult` carries
+    one: the sweep is capped, so a caller has to be able to tell an emptied
+    inbox from a truncated one and ask again.
+    """
+
+    cleared: int
 
 
 class FailedDeliveryRead(BaseSchema):

@@ -50,7 +50,6 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
-import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
@@ -100,7 +99,6 @@ import {
   useModelProviders,
   useOrgMcpConnections,
   usePermissions,
-  useRuns,
   useSkills,
 } from "@/hooks";
 import {
@@ -201,7 +199,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
-  const { runs } = useRuns(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
@@ -722,7 +719,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <span className="group relative">
               <AgentAvatar
                 agentId={id}
-                name={agent.name}
+                slug={agent.slug}
                 hasAvatar={agent.has_avatar}
                 colorSlot={agent.avatar_color}
                 size="lg"
@@ -1408,16 +1405,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 }
                 promoting={promote.isPending}
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("recentRuns")}</CardTitle>
-              <CardDescription>{t("whetherAgentWorkingWhat")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RunSummary agentId={id} runs={runs} />
             </CardContent>
           </Card>
         </TabsContent>

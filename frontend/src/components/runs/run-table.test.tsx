@@ -266,7 +266,7 @@ describe("who ran it, and which agent", () => {
     render(
       <RunTable
         runs={[run()]}
-        agentsById={new Map([["agent-1", { name: "Support agent" }]])}
+        agentsById={new Map([["agent-1", { name: "Support agent", slug: "support-agent" }]])}
         membersById={
           new Map([["user-1", { user_id: "user-1", email: "kim@acme.test", full_name: "Kim" }]])
         }

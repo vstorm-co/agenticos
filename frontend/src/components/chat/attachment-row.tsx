@@ -63,7 +63,7 @@ export function AttachmentRow({
     // the usage strip and the textarea, `Context 5.7% · $0.0471` and three file
     // cards read as one confused header; what is attached is a thing of its own,
     // and it sits above the box it will be sent from.
-    <div className="glass mb-2 flex items-center gap-1 rounded-2xl px-3 py-2 sm:px-4">
+    <div className="panel mb-2 flex items-center gap-1 rounded-2xl px-3 py-2 sm:px-4">
       {overflowing && (
         <Arrow direction="left" label={t("scrollAttachmentsLeft")} onClick={() => scrollBy(-1)} />
       )}

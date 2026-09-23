@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useTranslations } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -189,6 +189,32 @@ describe("AgentCard", () => {
       />,
     );
 
-    expect(container.firstElementChild).toHaveClass("pointer-events-none");
+    // The card itself, not the beam wrapped around it.
+    expect(container.querySelector(".bg-card")).toHaveClass("pointer-events-none");
+  });
+
+  it("does not rebuild the card when the beam lights", () => {
+    // The beam is mounted for every card and only runs on the hovered one. If
+    // it mounted on hover instead, the card the mouse had just arrived on would
+    // be torn down and rebuilt under it.
+    const { container } = render(
+      <AgentCard
+        agent={agent({})}
+        canEdit
+        actions={{
+          onDuplicate: vi.fn(),
+          onArchive: vi.fn(),
+          onRestore: vi.fn(),
+          onDelete: vi.fn(),
+        }}
+      />,
+    );
+    const card = container.querySelector(".bg-card")!;
+
+    fireEvent.mouseEnter(card);
+    expect(container.querySelector(".bg-card")).toBe(card);
+
+    fireEvent.mouseLeave(card);
+    expect(container.querySelector(".bg-card")).toBe(card);
   });
 });

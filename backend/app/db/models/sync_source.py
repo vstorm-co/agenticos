@@ -59,6 +59,14 @@ class SyncSource(TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # Which part of the organization the documents this source brings in belong
+    # to, stamped on every chunk it ingests. Free text, and per source rather
+    # than per document, because that is how a deployment actually carries it: a
+    # shared folder is a department's, and nobody labels a thousand files one at
+    # a time. `None` leaves the dimension absent, which is what every chunk
+    # carried before this existed - and an absent value fails a filter closed, by
+    # design (#1777).
+    organizational_unit: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sync_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="new_only")
     schedule_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

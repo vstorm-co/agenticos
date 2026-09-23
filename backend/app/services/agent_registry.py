@@ -37,6 +37,10 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
+from app.agents.capabilities.browser_choice import BrowserChoiceConfig
+from app.agents.capabilities.browser_choice import (
+    validate_cdp_url as validate_browser_choice_cdp_url,
+)
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -63,6 +67,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
+from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -255,6 +260,28 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
             f"Browser automation's remote endpoint cannot be reached from here: {exc} "
             "Point it at a public browser service, not a loopback or internal address."
         ]
+    return []
+
+
+def _browser_choice_problems(config: BaseModel | None) -> list[str]:
+    """A `cdp_url` this deployment's operator has not vetted, or none at all.
+
+    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
+    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
+    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
+    control here rather than the SSRF guard.
+
+    Its own function rather than one shared with `browser_use`: two capabilities,
+    two endpoints, two controls now, and a helper taking `BaseModel | None` would
+    have to re-derive which it is looking at in order to say anything a person can
+    act on.
+    """
+    if not isinstance(config, BrowserChoiceConfig):
+        return []
+    try:
+        validate_browser_choice_cdp_url(config)
+    except ValueError as exc:
+        return [f"Browser automation's endpoint cannot be used: {exc}."]
     return []
 
 
@@ -989,8 +1016,30 @@ class AgentRegistryService:
             suggested_mcp=list(template.mcp),
         )
 
-    async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
+    async def create(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        # The least-exposing value, deliberately. `org` is what a person picks in
+        # the create form, and `AgentCreate.visibility` carries that choice to the
+        # route - so the default here only ever reaches the callers that make an
+        # agent without anybody choosing: a clone, a promoted specialist, a
+        # template install. Defaulting those to `org` published a copy of a
+        # private agent to the whole tenant, which is what a colleague then read
+        # the instructions out of.
+        visibility: Visibility = Visibility.PRIVATE,
+        categories: list[str] | None = None,
+        tags: list[str] | None = None,
+    ) -> Agent:
         """Create an agent in draft.
+
+        Visible to the organization unless the caller says otherwise. An agent is
+        a thing a company builds, and one nobody else can see is the exception -
+        it used to be the rule, so every agent was made invisible and then shared
+        by hand, which meant the second person to look for it was told it did not
+        exist. A draft cannot run and cannot be reached by an exposure either
+        way, so what this decides is who can find it, not what it can do.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -1035,6 +1084,9 @@ class AgentRegistryService:
             draft_spec=spec.model_dump(mode="json"),
             owner_user_id=ctx.user_id,
             created_by_user_id=ctx.user_id,
+            visibility=visibility.value,
+            categories=categories or [],
+            tags=tags or [],
         )
         await record_audit(
             self.db,
@@ -1277,6 +1329,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_use_problems(config))
+            problems.add(_browser_choice_problems(config))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

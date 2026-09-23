@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { useUsageStats } from "@/hooks";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
+import { Bot } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -23,7 +25,7 @@ export function MyTopAgentsWidget({ title, hint, period, seeAll, options }: Dash
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !usage || !usage.total_runs ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody icon={Bot} title={t("empty.title")} description={t("empty.description")} />
       ) : (
         <div className="flex h-full flex-col justify-between gap-2">
           <BarList

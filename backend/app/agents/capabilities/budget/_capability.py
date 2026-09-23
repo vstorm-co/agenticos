@@ -419,6 +419,52 @@ def metered_by(ledger: SpendLedger) -> Iterator[None]:
         _active_ledger.reset(token)
 
 
+_active_guard: ContextVar[BudgetGuard | None] = ContextVar("active_budget_guard", default=None)
+"""The guard whose caps an ambient call inside this block must re-check.
+
+The companion to :data:`_active_ledger`. A ledger says *where* ambient spend is
+booked; a guard says *whether* it may be spent at all. Both are context variables
+for the same reason: the run that owns them is one task, while the ambient call
+that must consult them - a system reminder, a compaction summary - runs deeper in
+the same task tree and cannot be handed the guard as an argument through the
+library it borrows.
+"""
+
+
+@contextmanager
+def guarded_by(guard: BudgetGuard) -> Iterator[None]:
+    """Let code outside the request wrapper ask whether the budget is spent.
+
+    The sibling of :func:`metered_by`, and it exists for the same gap read from
+    the other end. `metered_by` books what a capability's own model calls cost;
+    this is what lets one *refuse* before making them. `BudgetGuard` checks
+    inside `wrap_model_request`, which only wraps the host agent's requests - a
+    capability that runs its own `Agent` (a browse deciding its next step, a
+    compaction summary) goes nowhere near it, so an exhausted budget stopped the
+    turn's next request and not the twenty-five the tool was about to make.
+    """
+    token = _active_guard.set(guard)
+    try:
+        yield
+    finally:
+        _active_guard.reset(token)
+
+
+async def assert_ambient_budget() -> None:
+    """Refuse the caller's own model request if the run has reached a ceiling.
+
+    A no-op where nothing is counting - a preview, a test, the CLI - for the
+    reason :func:`record_ambient_usage` is: a capability should not refuse to
+    work because nobody is billing.
+
+    Raises:
+        BudgetExceeded: A ceiling this run is under has been reached.
+    """
+    guard = _active_guard.get()
+    if guard is not None:
+        await guard.assert_within_budget()
+
+
 def record_ambient_usage(
     model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
 ) -> None:
@@ -433,18 +479,6 @@ def record_ambient_usage(
     ledger = _active_ledger.get()
     if ledger is not None:
         ledger.record(model_name, usage, provider)
-
-
-_active_guard: ContextVar[BudgetGuard | None] = ContextVar("active_budget_guard", default=None)
-"""The guard whose caps an ambient call inside this block must re-check.
-
-The companion to :data:`_active_ledger`. A ledger says *where* ambient spend is
-booked; a guard says *whether* it may be spent at all. Both are context variables
-for the same reason: the run that owns them is one task, while the ambient call
-that must consult them - a system reminder, a compaction summary - runs deeper in
-the same task tree and cannot be handed the guard as an argument through the
-library it borrows.
-"""
 
 
 @contextmanager
@@ -686,7 +720,7 @@ class BudgetGuard(AbstractCapability[Any]):
         """The first ceiling the run has already reached, or `None` if it is clear.
 
         The non-raising core of the budget check: the under-lock baseline+total
-        loop, so both the refusing form (:meth:`_assert_within_budget`) and the
+        loop, so both the refusing form (:meth:`assert_within_budget`) and the
         predicate an ambient call asks (:meth:`can_afford_next_request`) decide off
         one piece of arithmetic and cannot disagree about when a cap binds.
 
@@ -702,8 +736,16 @@ class BudgetGuard(AbstractCapability[Any]):
                     return limit
         return None
 
-    async def _assert_within_budget(self) -> None:
-        """Refuse the next request if the run has already reached a ceiling."""
+    async def assert_within_budget(self) -> None:
+        """Refuse the next request if the run has already reached a ceiling.
+
+        The refusing form of the check, used both by :meth:`wrap_model_request`
+        before the host agent's request and by :func:`assert_ambient_budget` for a
+        capability that runs its own `Agent` outside that wrapper.
+
+        Raises:
+            BudgetExceeded: A ceiling this run is under has been reached.
+        """
         limit = await self._first_exceeded()
         if limit is not None:
             spent = await self._baseline_for(limit) + self.ledger.total_usd
@@ -728,7 +770,7 @@ class BudgetGuard(AbstractCapability[Any]):
         handler: WrapModelRequestHandler,
     ) -> ModelResponse:
         """Check the budget, make the request, then record what it cost."""
-        await self._assert_within_budget()
+        await self.assert_within_budget()
 
         response = await handler(request_context)
 

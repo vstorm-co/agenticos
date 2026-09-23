@@ -1439,6 +1439,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # Confirming a staged email address (#1772). The link is followed from
+        # the *new* address, routinely in a different browser from the one that
+        # asked for the change, so there is no session to carry - the token is
+        # the whole of the proof, and it is refused unless the address it names
+        # is still the one staged on that account.
+        ("POST", f"{V1}/auth/email-change/confirm"),
         # One pair for every identity provider: `google`, and the deployment's
         # own `oidc` (#1419). A provider it does not offer is a 404 from
         # `sign_in_client`, not an authenticated route.

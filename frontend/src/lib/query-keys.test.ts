@@ -105,7 +105,6 @@ describe("the query key factory", () => {
       "no-end",
       "started_at",
       true,
-      "no-min",
       "any-rating",
       "any-status",
       "any-surface",
@@ -122,7 +121,6 @@ describe("the query key factory", () => {
       "no-end",
       "started_at",
       true,
-      "no-min",
       "any-rating",
       "any-status",
       "any-surface",
@@ -140,30 +138,14 @@ describe("the query key factory", () => {
     expect(qk.runs.list({ startedFrom: "2026-08-01T00:00:00.000Z" })).not.toEqual(qk.runs.list());
   });
 
-  it("keys a run list by its sort and its minimum-duration filter", () => {
-    // The slowest runs and the newest runs are two answers over one window; the
-    // dashboard's p95 deep-link asks for the first and the feed for the second,
-    // so they must not share a cache entry.
+  it("keys a run list by its sort", () => {
+    // The slowest runs and the newest runs are two answers over one window, so
+    // they must not share a cache entry. The minimum-duration filter that used
+    // to key beside them is gone - the "slow runs" preset it existed for was
+    // removed, and the Took column's sort is what finds an outlier now.
     expect(qk.runs.list({ orderBy: "duration" })).not.toEqual(qk.runs.list());
     expect(qk.runs.list({ descending: false })).not.toEqual(qk.runs.list());
     expect(qk.runs.list({ startedTo: "2026-08-31T23:59:59.999Z" })).not.toEqual(qk.runs.list());
-    expect(qk.runs.list({ tookOverMs: 30_000 })).toEqual([
-      "runs",
-      "list",
-      "all",
-      "all-time",
-      "no-end",
-      "started_at",
-      true,
-      30_000,
-      "any-rating",
-      "any-status",
-      "any-surface",
-      "any-model",
-      "anyone",
-      "any-version",
-      0,
-    ]);
   });
 
   it("keys the rated-down list apart from the whole", () => {
@@ -177,7 +159,6 @@ describe("the query key factory", () => {
       "no-end",
       "started_at",
       true,
-      "no-min",
       "down",
       "any-status",
       "any-surface",

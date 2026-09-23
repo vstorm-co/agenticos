@@ -50,6 +50,29 @@ test.describe("Chat", () => {
     await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   });
 
+  test("a file picked through the paperclip is attached, not silently dropped", async ({
+    page,
+  }) => {
+    // The handler kept the input's own live `FileList`, reset the input - which
+    // empties that same object in every real browser - and only then read it,
+    // so the composer uploaded nothing, said nothing, and made no request at
+    // all. Only a real browser can see this: jsdom hands the input a fresh list
+    // on reset, so the unit suite stayed green while the picker was dead.
+    await readyComposer(page);
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "e2e-attachment.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("A short attachment, so this asserts on the upload, not on the text."),
+    });
+
+    // The card is drawn from the upload's own response, so its appearance is
+    // proof the request reached the backend - not merely that a file was picked.
+    await expect(page.getByText("e2e-attachment.txt")).toBeVisible();
+    // An attachment alone is enough to send, so the composer has to agree.
+    await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  });
+
   test("a sent message becomes a conversation that outlives the page", async ({ page }) => {
     // Unique, so this asserts on the message this test sent rather than on one
     // left behind by a previous run.

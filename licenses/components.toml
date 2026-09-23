@@ -92,6 +92,16 @@ status = "accepted"
 obligations = "CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for."
 fulfilled_by = "NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies."
 
+[[component]]
+name = "Rare UI components vendored into frontend/src/components/ui/"
+version = "swamimalode07/rare-ui as of 2026-09-22 (animated-counter, notification-bell, task-list)"
+kind = "source, frontend image"
+license = "MIT"
+source = "https://github.com/swamimalode07/rare-ui"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with the copies or substantial portions of the software."
+fulfilled_by = "NOTICE at the repository root and frontend/NOTICE name the project, its copyright holder and the MIT text; frontend/scripts/collect-licenses.ts copies the latter into the frontend image at /app/licenses/NOTICE. Each file that came from it says so in its own header, with what was changed and why. The distribution method is why this is here rather than in the npm inventory: the project's own instructions are `shadcn add`, which copies a file into the tree rather than adding a dependency a lockfile would record."
+
 # Data files the backend bundles
 
 [[component]]

@@ -73,9 +73,18 @@ export function MetadataEditor({
   };
 
   return (
-    <div className="space-y-4">
+    // Side by side above `sm`, because they are two halves of one question and
+    // stacked full-width they read as two unrelated empty boxes taking up a
+    // card. Each says what it is for and how much room is left, so the cap is
+    // visible before somebody runs into it.
+    <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
-        <Label>{t("categories")}</Label>
+        <div className="flex items-baseline justify-between gap-2">
+          <Label>{t("categories")}</Label>
+          <span className="text-muted-foreground/70 font-mono text-[11px]">
+            {t("labelCount", { used: draftCategories.length, max: MAX_CATEGORIES })}
+          </span>
+        </div>
         <ChipsInput
           values={draftCategories}
           onChange={(next) => save(next, draftTags)}
@@ -86,9 +95,15 @@ export function MetadataEditor({
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}
         />
+        <p className="text-muted-foreground text-xs">{t("categoriesHint")}</p>
       </div>
       <div className="space-y-2">
-        <Label>{t("tags")}</Label>
+        <div className="flex items-baseline justify-between gap-2">
+          <Label>{t("tags")}</Label>
+          <span className="text-muted-foreground/70 font-mono text-[11px]">
+            {t("labelCount", { used: draftTags.length, max: MAX_TAGS })}
+          </span>
+        </div>
         <ChipsInput
           values={draftTags}
           onChange={(next) => save(draftCategories, next)}
@@ -99,6 +114,7 @@ export function MetadataEditor({
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}
         />
+        <p className="text-muted-foreground text-xs">{t("tagsHint")}</p>
       </div>
     </div>
   );

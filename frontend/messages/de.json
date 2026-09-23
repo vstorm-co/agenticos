@@ -88,7 +88,6 @@
     "addedFirstMessageEach": "Wird der ersten Nachricht jeder Unterhaltung hinzugefügt. Es ersetzt nie die eigenen Instruktionen des Agents.",
     "agent": "Agent",
     "agentCount": "{count, plural, =1 {1 Agent} other {# Agents}}",
-    "agentHasNotRun": "Dieser Agent ist noch nicht gelaufen. Veröffentlichen Sie ihn und schicken Sie ihm eine Nachricht, oder testen Sie ihn über die Kopfzeile.",
     "alertApprovals": "Freigabeanfragen",
     "alertApprovalsTrigger": "Ein Tool-Aufruf wurde geparkt, und der Run wartet auf die Entscheidung eines Menschen.",
     "alertAudience": "{alert}: {audience}",
@@ -337,7 +336,6 @@
     "model2": "Modell",
     "modelIdOpenRouterHint": "Nach Herkunft benannt, so wie OpenRouter es listet – openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "So, wie der Provider es nennt. Freitext, weil sie neue schneller ausliefern, als eine Liste hier gepflegt werden könnte.",
-    "modelTheseRunsHad": "Für ein Modell in diesen Runs gab es keinen Preis, dies ist also eine Untergrenze.",
     "modelsCouldNotBeListed": "Modelle konnten nicht gelistet werden",
     "modelsCouldNotBeListedHint": "Dieser Bereich ist leer, weil die Anfrage nach den Modellen dieser Organisation nicht geantwortet hat, nicht weil sie keine hätte.",
     "moreActionsFor": "Weitere Aktionen für {name}",
@@ -377,7 +375,6 @@
     "notList": "nicht in der Liste",
     "notPublishedAnySite": "Noch auf keiner Site veröffentlicht.",
     "notSet": "Nicht gesetzt",
-    "notStarted": "nicht begonnen",
     "nothingToShareWithDelegates": "Dieser Agent ist an nichts weiter gebunden, es gibt also nichts weiterzugeben.",
     "offRemovesShellEntirely": "Aus entfernt die Shell vollständig, statt vor jedem Befehl zu fragen.",
     "oneAtTime": "Eines nach dem anderen",
@@ -435,7 +432,7 @@
     "platform": "Plattform",
     "polling": "Abfrage",
     "production": "Produktion",
-    "promote": "Heraufstufen auf …",
+    "promote": "Hochstufen",
     "promoteSpecialist": "Zu einem Entwurfs-Agent machen",
     "promoteSpecialistDetail": "Erzeugt aus diesem Spezialisten einen Entwurfs-Agent. Er wird nicht veröffentlicht, nicht als Delegat festgesetzt, und dieser Spezialist bleibt, wo er ist.",
     "promoteVersionTo": "v{version} heraufstufen auf …",
@@ -511,7 +508,6 @@
     "secretMissingFromVault": "Das hier gewählte Secret liegt nicht im Vault dieser Organisation – es wurde gelöscht, oder der Spec wurde für eine andere Organisation geschrieben. Das Veröffentlichen lehnt es ab.",
     "secretOfWrongKind": "„{name}“ ist von der Art {kind}; diese Capability braucht {needed}. Das Veröffentlichen lehnt es ab.",
     "secretUnchanged": "Leer lassen, um das gespeicherte Secret zu behalten",
-    "seeEveryRunActivity": "Jeden Run unter Aktivität ansehen",
     "separateWithCommas": "Mit Kommas trennen",
     "separatesStagingTrafficFrom": "Trennt Staging-Verkehr im selben Projekt vom echten.",
     "traceContent": "Trace-Inhalt",
@@ -557,7 +553,6 @@
     "specialistUnnamed": "Neuer Spezialist",
     "specialistsHeading": "Eingebettete Spezialisten",
     "specialistsNotVersioned": "Hier definiert, nicht veröffentlicht: Ein Spezialist hat keine Version, lässt sich nicht festsetzen und ändert sich, sobald dieser Agent bearbeitet wird.",
-    "spent": "Ausgegeben",
     "startsAsDraftNothing": "Er beginnt als Entwurf. Nichts läuft, bis Sie ihn veröffentlichen.",
     "statusArchived": "archiviert",
     "statusDraft": "Entwurf",
@@ -682,6 +677,15 @@
     "login": "Anmelden",
     "loginFailedPleaseTry": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "loginSuccess": "Erfolgreich angemeldet",
+    "emailChange": {
+      "confirming": "Diese Adresse wird bestätigt …",
+      "errorHeading": "Diese Adresse konnte nicht bestätigt werden",
+      "errorInvalid": "Dieser Link ist ungültig, abgelaufen oder wurde bereits verwendet.",
+      "errorMissingToken": "In diesem Link steht kein Token. Fordern Sie die Änderung in Ihrem Profil erneut an.",
+      "signIn": "Zur Anmeldung",
+      "success": "Adresse bestätigt",
+      "successHint": "Das ist jetzt die Adresse Ihres Kontos. Melden Sie sich von hier aus damit an."
+    },
     "magicLink": {
       "errorHeading": "Anmeldung nicht möglich",
       "errorInvalid": "Der Magic Link ist ungültig oder abgelaufen.",
@@ -1043,6 +1047,7 @@
     "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",
     "turnInterruptedRecheck": "Danach sehen",
+    "turnStillArriving": "Die frühere Antwort wird noch geschrieben. Sie landet in dieser Unterhaltung, sobald sie fertig ist - unter der Frage, die Sie gerade gestellt haben.",
     "thankYouFeedback": "Danke für Ihre Rückmeldung!",
     "thinking": "Denkt nach …",
     "thoughtAboutIt": "Hat darüber nachgedacht",
@@ -1171,7 +1176,9 @@
       "webSearch": "Websuche",
       "writing": "{named, select, no {Schreibt …} other {Schreibt {subject}}}",
       "writingPlan": "Schreibt den Plan",
-      "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}"
+      "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}",
+      "workingThroughPage": "Arbeite eine Seite durch",
+      "browsePage": "Eine Seite durcharbeiten"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1198,7 +1205,28 @@
     "view": "Ansehen",
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
-    "whatWentWrong": "Was ist schiefgelaufen?"
+    "whatWentWrong": "Was ist schiefgelaufen?",
+    "browserHeading": "Browser",
+    "browserClose": "Browser-Panel schließen",
+    "browserGoal": "Ziel",
+    "browserSteps": "Schritte",
+    "browserStep": "Schritt {step}",
+    "browserStepOf": "Schritt {step} von {total}",
+    "browserWaitingForFrame": "Warte auf die erste Ansicht der Seite…",
+    "browserNoPreview": "Dieser Agent läuft ohne Live-Vorschau.",
+    "browserViewportAlt": "Die Seite in Schritt {step}",
+    "browserConfidenceHint": "Die Engine wählte diese Option mit Wahrscheinlichkeit {value}",
+    "browserOutcome": {
+      "done": "Abgeschlossen",
+      "blocked": "Von der Seite blockiert",
+      "exhausted": "Beim Schrittlimit gestoppt",
+      "failed": "Der Browser war nicht erreichbar"
+    },
+    "browserResize": "Breite der Browser-Ansicht ändern",
+    "browserOpenPanel": "In der Seitenleiste öffnen",
+    "browserOpenFull": "Im Vollbild öffnen",
+    "conversationActions": "Aktionen der Konversation",
+    "imageNotLoaded": "Bild (nicht geladen)"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -1320,7 +1348,8 @@
         "empty": {
           "title": "In diesem Zeitraum lief nichts",
           "description": "Wählen Sie ein größeres Fenster, oder geben Sie einem Agent eine Oberfläche, dann beginnen die Zahlen hier."
-        }
+        },
+        "spendLabel": "{amount} ausgegeben"
       },
       "active-users": {
         "empty": {
@@ -1557,7 +1586,8 @@
         "open": "Runs öffnen",
         "title": "Letzte Fehlschläge",
         "unknownAgent": "Unbekannter Agent",
-        "description": "Runs, die fehlgeschlagen sind oder kein Budget mehr hatten, neueste zuerst."
+        "description": "Runs, die fehlgeschlagen sind oder kein Budget mehr hatten, neueste zuerst.",
+        "timesFailed": "× {count}"
       },
       "runs": {
         "delta": "gegenüber dem Vorzeitraum",
@@ -1659,7 +1689,8 @@
         "title": "Ausgaben",
         "unit": "in diesem Zeitraum",
         "description": "Was der Zeitraum gekostet hat und was dieser Kalendermonat bisher. Die Monatszahl stimmt mit der Rechnung überein und ignoriert den Zeitraumfilter deshalb absichtlich.",
-        "split": "{models} auf Modelle · {ingestion} auf Indexierung"
+        "split": "{models} auf Modelle · {ingestion} auf Indexierung",
+        "spentLabel": "{amount} ausgegeben"
       },
       "surfaces": {
         "empty": {
@@ -2089,7 +2120,7 @@
     "notDescribedPictureTable": "Nicht beschrieben – das Bild einer Tabelle ist nicht durchsuchbar",
     "notRead": "Nicht gelesen",
     "notRequested": "Nicht angefordert",
-    "nothingChanged2": "Nichts geändert",
+    "applyUploadSettings": "Übernehmen",
     "nothingHereYetAdd": "Noch nichts hier. Fügen Sie eine hinzu, um eine Quelle zu verbinden, bevor Sie wissen, welche Wissensdatenbanken sie brauchen werden.",
     "nothingIndexedDocumentIts": "Für dieses Dokument ist nichts indexiert. Seine Vektoren wurden womöglich seit dem Einlesen entfernt.",
     "nothingReadableCameOut": "Aus diesem Parse kam nichts Lesbares heraus",
@@ -2099,12 +2130,15 @@
     "onlyOcrPagesNeed": "Nur die Seiten per OCR lesen, die es brauchen",
     "organizationAllMembers": "Organisation – alle Mitglieder",
     "output": "Ausgabe",
+    "organizationalUnit": "Organisationseinheit",
+    "organizationalUnitDetail": "Wird bei jeder als Nächstes hinzugefügten Datei erfasst, damit eine Suche darauf eingegrenzt werden kann. Leer lassen, um sie unter nichts abzulegen.",
+    "organizationalUnitPlaceholder": "z. B. Recht",
     "overlap": "Überlappung",
     "overlapRepeats": "benachbarte Chunks wiederholen ihre Überlappung, Randtext erscheint also zweimal",
     "pageNumber": "Seite {number}",
     "pageParsedNothingReadable": "Diese Seite wurde zu nichts Lesbarem geparst – vermutlich ein unlesbarer Scan.",
     "pagePictureTextCarries": "Eine Seite, die ein Bild von Text ist, trägt keinen Text zum Extrahieren. PyMuPDF übergibt eine solche Seite dem Bildmodell; LiteParse führt seine eigene OCR aus.",
-    "parseNextUploadDifferently": "Den nächsten Upload anders parsen",
+    "nextUploadsTitle": "Wie die nächsten Uploads gelesen und abgelegt werden",
     "parseTimeoutSeconds": "Parse-Timeout (Sekunden)",
     "parsed": "Geparst",
     "parsedWith": "geparst mit {parser}",
@@ -2578,7 +2612,9 @@
     "allOrganizations": "Alle Organisationen",
     "context": "Kontext",
     "deploymentSettings": "Deployment",
-    "routines": "Routinen"
+    "routines": "Routinen",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3381,7 +3417,6 @@
       "perMonth": "${amount} pro Monat",
       "publish": "Veröffentlichen",
       "publishAgentChatWith": "Veröffentlichen Sie diesen Agent, um mit ihm zu chatten – der Chat führt die veröffentlichte Version aus",
-      "recentRuns": "Letzte Runs",
       "removesAgentEveryVersion": "Das entfernt den Agent, jede seiner Versionen und jede Freigabe, die auf ihn zeigt. Seine bisherigen Runs bleiben fürs Protokoll erhalten. Archivieren Sie ihn stattdessen, wenn er nur aufhören soll.",
       "removesAgentEveryVersion2": "Das entfernt den Agent, jede seiner Versionen und jede Freigabe, die auf ihn zeigt. Seine bisherigen Runs bleiben fürs Protokoll erhalten. Archivieren Sie ihn stattdessen, wenn er nur aufhören soll.",
       "replaceAvatar": "Avatar ersetzen",
@@ -3409,7 +3444,6 @@
       "versions": "Versionen",
       "visualMap": "Visuelle Karte",
       "whatAgentCanDo": "Was dieser Agent tun kann und wo er aufbewahrt, was er hervorbringt. Alles, was auf die Außenwelt wirkt, braucht vor der Ausführung eine Freigabe durch einen Menschen.",
-      "whetherAgentWorkingWhat": "Ob dieser Agent arbeitet und was er gekostet hat. Die vollständige Historie – Oberflächen, Token, die Version, die jeder Run ausgeführt hat – liegt unter Aktivität, statt hier halb nachgebaut zu werden.",
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
@@ -3554,6 +3588,8 @@
       "dropUpload": "Zum Hochladen ablegen",
       "embeddedWith": "Eingebettet mit {model}",
       "everyMinutes": "alle {minutes} Min.",
+      "filedUnder": "Abgelegt unter {unit}",
+      "filedUnderNext": "Die nächsten Dateien, die Sie hinzufügen, werden unter <strong>{unit}</strong> abgelegt.",
       "filesWillBeAddedTo": "Dateien werden zu <strong>{name}</strong> hinzugefügt",
       "groupRelatedDocumentsInto": "Fassen Sie verwandte Dokumente in einer Datenbank zusammen. Öffnen Sie eine, um Dateien hochzuladen, und wählen Sie dann im Chat, welche Datenbanken der Agent durchsuchen soll.",
       "howDocumentsAreRead": "Wie Dokumente gelesen werden",
@@ -3633,6 +3669,7 @@
       "loginTitle": "Anmelden",
       "magicLinkSentDescription": "Wir haben Ihnen einen Anmeldelink gesendet.",
       "magicLinkSentTitle": "Sehen Sie in Ihrer E-Mail nach",
+      "emailChangeTitle": "Bestätigen Sie Ihre E-Mail-Adresse",
       "magicLinkTitle": "Anmelden",
       "privacyDescription": "Wie {app} Ihre Daten erhebt, verwendet und schützt.",
       "privacyPolicy": "Datenschutzerklärung",
@@ -3771,7 +3808,6 @@
       "agentColumn": "Agent",
       "agentFilter": "Nach Agent filtern",
       "agentsAreRunningWithout": "Agents laufen, ohne Sie zu brauchen.",
-      "allRuns": "Alle Runs",
       "answered": "Antwort erhalten",
       "anyAgent": "Alle Agents",
       "anyModel": "Beliebiges Modell",
@@ -3901,7 +3937,6 @@
       "showArguments": "Argumente",
       "showEveryAgent": "Jeden Agent anzeigen",
       "showingTheNewestOf": "{shown, plural, =1 {Der neueste von {total} in diesem Zeitraum entschiedenen wird angezeigt} other {Die neuesten # von {total} in diesem Zeitraum entschiedenen werden angezeigt}}. Exportieren Sie die CSV für den ganzen Datensatz.",
-      "slowRuns": "Langsame Runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 Run in diesem Zeitraum ließ sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze} other {# Runs in diesem Zeitraum ließen sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze}}",
       "specialistHasNoAgent": "Innerhalb des Eltern-Agents definiert statt eigenständig veröffentlicht, es gibt also keine Agent-Seite zum Öffnen.",
       "spend": "Ausgaben",
@@ -3977,7 +4012,9 @@
       "cancel": "Abbrechen",
       "cancel2": "Abbrechen",
       "changePassword": "Passwort ändern",
-      "changingEmailMayRequire": "Die E-Mail zu ändern kann je nach Ihrer Anmeldeeinrichtung eine erneute Bestätigung verlangen.",
+      "changingEmailMayRequire": "Eine neue Adresse wird über einen Link bestätigt, der an sie geschickt wird. Bis dahin behält dieses Konto seine aktuelle Adresse.",
+      "emailChangePending": "Warten auf die Bestätigung von {email}. Bis dahin behält dieses Konto seine aktuelle Adresse.",
+      "emailChangeSent": "Prüfen Sie {email}, um die Änderung zu bestätigen. Bis dahin behält dieses Konto seine aktuelle Adresse.",
       "chatAccountAnswersAs": "Antwortet als",
       "chatAccountNoAgentsHere": "Kein Agent, den Sie sehen können, antwortet auf diesem Bot.",
       "chatAccountNotUsedYet": "Noch nirgends verwendet. Schreiben Sie einem der Bots Ihrer Organisation eine Nachricht.",
@@ -4221,6 +4258,9 @@
     "noConnectorsEnabled": "Keine Konnektoren aktiviert.",
     "noFilesProcessed": "keine Dateien verarbeitet",
     "noSyncRunsYet": "Noch keine Sync-Runs.",
+    "organizationalUnit": "Organisationseinheit",
+    "organizationalUnitDetail": "Wird auf jedes Dokument geschrieben, das diese Quelle einbringt, damit eine Suche darauf eingegrenzt werden kann. Leer lassen für keine.",
+    "organizationalUnitPlaceholder": "z. B. Recht",
     "orgIntegrations": "Organisations-Integrationen",
     "orgIntegrationsLoadFailed": "Bestehende Workspace-Integrationen konnten nicht geladen werden; Sie können trotzdem eine neue Quelle anlegen.",
     "pickExistingOrgIntegration": "Wählen Sie eine bestehende Organisations-Integration für diese Wissensdatenbank. Ihre Zugangsdaten werden unabhängig kopiert — den Zeitplan können Sie getrennt anpassen.",
@@ -4723,7 +4763,11 @@
     "systemTheme": "Systemdesign",
     "systemTheme2": "Systemdesign",
     "themeTitle": "Design: {theme}",
-    "toggleTheme": "Design umschalten"
+    "toggleTheme": "Design umschalten",
+    "appearance": "Darstellung",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
   },
   "time": {
     "daysAgo": "{count, plural, other {vor # T}}",
@@ -5148,6 +5192,8 @@
     "empty": {
       "title": "Noch keine Benachrichtigungen",
       "description": "Budget-Warnungen, Freigaben, fehlgeschlagene Runs und mehr erscheinen hier."
-    }
+    },
+    "clearAll": "Alle löschen",
+    "dismissRow": "Ausblenden"
   }
 }

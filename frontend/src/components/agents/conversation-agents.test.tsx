@@ -48,16 +48,14 @@ describe("who answered in a conversation", () => {
 
   it("stops stacking pictures after three", () => {
     // Beyond that the stack is a smudge.
-    render(
+    const { container } = render(
       <ConversationAgents agents={[agent("A"), agent("B"), agent("C"), agent("D"), agent("E")]} />,
     );
 
-    // Asserted on the initials the avatar falls back to: these agents have no
-    // uploaded picture, which is the ordinary case.
-    expect(screen.getByText("A")).toBeInTheDocument();
-    expect(screen.getByText("C")).toBeInTheDocument();
-    expect(screen.queryByText("D")).toBeNull();
-    expect(screen.queryByText("E")).toBeNull();
+    // Counted by the generated faces the avatars fall back to: these agents have
+    // no uploaded picture, which is the ordinary case. The running order is not
+    // lost - it is in the stack's own title, asserted above.
+    expect(container.querySelectorAll("g.mo-root")).toHaveLength(3);
     expect(screen.getByText("5 agents")).toBeInTheDocument();
   });
 

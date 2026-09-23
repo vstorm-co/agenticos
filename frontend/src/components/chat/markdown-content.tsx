@@ -13,6 +13,16 @@ export interface MarkdownContentProps {
    * paired with the output it produced. An answer's own code blocks never pass it.
    */
   bareCode?: boolean;
+  /**
+   * Draw an image as a link rather than loading it.
+   *
+   * For a surface where the reader is not the author. A run's timeline is the
+   * case: an operator reviewing a colleague's conversation would otherwise
+   * fetch whatever `![](https://…)` that conversation happens to contain, which
+   * hands its host the reviewer's address, their agent, and the fact that this
+   * run was read. Chat does not pass it - there the reader wrote the thread.
+   */
+  inertImages?: boolean;
 }
 
 /**
@@ -35,6 +45,18 @@ const MarkdownContentImpl = dynamic(
   },
 );
 
-export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownContentProps) {
-  return <MarkdownContentImpl content={content} onCiteClick={onCiteClick} bareCode={bareCode} />;
+export function MarkdownContent({
+  content,
+  onCiteClick,
+  bareCode,
+  inertImages,
+}: MarkdownContentProps) {
+  return (
+    <MarkdownContentImpl
+      content={content}
+      onCiteClick={onCiteClick}
+      bareCode={bareCode}
+      inertImages={inertImages}
+    />
+  );
 }

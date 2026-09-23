@@ -58,6 +58,7 @@ def _overview(**overrides: Any) -> SimpleNamespace:
     fields: dict[str, Any] = {
         "row": _row(),
         "agent_name": "Analyst",
+        "agent_slug": "analyst",
         "agent_has_avatar": True,
         "conversation_title": "Refund policy",
         "conversation_is_callers": True,

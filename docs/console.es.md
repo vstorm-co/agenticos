@@ -1,5 +1,5 @@
 ---
-source_sha: "fffeb5145a26"
+source_sha: "5b981aaf60d8"
 ---
 
 # La consola { #the-console }
@@ -70,10 +70,37 @@ la estrecha la organización en la que esté actuando, porque una audiencia
 Una fila con un destino es un enlace; una sin él — el anuncio propio de un
 admin, la mayoría de las veces — solo se puede marcar como leída. Marcar una
 como leída, o todas a la vez, actualiza el contador al instante; nada aquí
-espera a que se recargue la página. **Mark all read** barre hasta quinientas
-filas no leídas de una vez y luego vuelve a pedir el contador — así que con un
+espera a que se recargue la página. **Mark all read** barre por lotes hasta
+cinco mil filas no leídas y luego vuelve a pedir el contador — así que con un
 atraso mayor la insignia sigue mostrando lo que queda por leer y un clic más
 termina el resto, en lugar de anunciar una bandeja que solo trabajó en parte.
+
+Cada clic avanza siempre, incluso cuando todo el lote eran filas que quien lee
+ya no puede ver. Nunca las marca: la comprobación es sobre los permisos
+*actuales*, así que a quien estuviera degradado una semana y luego restituido le
+aparecerían ya leídos los avisos de seguridad de esa semana. En su lugar, un
+barrido truncado dice dónde se paró y el siguiente clic arranca desde ahí.
+
+Tanto el contador como el barrido dicen cuándo se han parado en ese límite y no
+al final de la bandeja — `approximate` en `GET /notifications/unread-count` y
+`remaining` en `POST /notifications/mark-all-read` —, porque si no un contador
+justo en el límite y un contador real del mismo tamaño son el mismo número.
+
+Leída no es lo mismo que fuera, y se ofrecen las dos cosas. Pasar el cursor por
+una fila revela una cruz que la saca de la lista; **Clear** en la cabecera saca
+todo lo que está listado ahora mismo, leído y no leído por igual. Limpiar algo
+no leído lo marca además como leído, porque una fila que nada en pantalla puede
+alcanzar no debe seguir contando para la insignia. Como «Mark all read», una
+limpieza está acotada — mil filas — y un atraso más largo pide un segundo clic.
+
+Lo que una fila limpiada *no* hace es volver. La notificación se conserva y deja
+de listarse, en lugar de borrarse, y eso es lo que lo hace cierto: la bandeja
+reconoce una repetición por el hecho que describe, así que una fila borrada
+sería una que la siguiente comprobación de budget o el siguiente reintento
+volverían a escribir. Descartar un aviso del que ya te has ocupado es, por
+tanto, definitivo — para esa ocurrencia; uno *nuevo*, sobre un hecho nuevo,
+sigue llegando. Las filas también caen solas: noventa días después de
+escribirse si fueron leídas, y un año pase lo que pase.
 
 Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde
@@ -105,6 +132,15 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**Ver un recorrido.** Un agent con
+[automatización del navegador](reference/capabilities.md#browser-automation-choose)
+abre un panel junto a la transcripción cuando empieza a recorrer una página: la vista
+de la página según avanza, la página en la que está y cada paso con la probabilidad
+con la que el motor lo eligió. Ese número es la razón de que exista el panel en lugar
+de un indicador de carga: un recorrido que actuó sobre una elección de 0,31 merece
+una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la página* es
+una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

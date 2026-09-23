@@ -121,6 +121,14 @@ class Notification(Base, TimestampMixin):
         index=True,
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the recipient cleared this row out of their own inbox - not a
+    # delete, and the distinction is the reason the column exists. This row is
+    # the dedup anchor (`insert_notification_if_new`), so deleting it is what
+    # lets a retried producer write the same fact again: an alert somebody
+    # dismissed would reappear on the next budget check. Dismissed, the row
+    # stays, stops being returned by all three inbox read paths, and ages out
+    # on the same retention sweep as everything else.
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -148,22 +156,26 @@ class Notification(Base, TimestampMixin):
         # recipients' rows together) can give more than one row the identical
         # timestamp. The partial `WHERE` keeps an email-only row
         # (in_app_visible=false) out of it entirely, since none of the three
-        # inbox read paths ever return one.
+        # inbox read paths ever return one - nor a dismissed one, for the same
+        # reason: a row the recipient cleared is never listed again, so it has
+        # no business in the index the listing walks.
         Index(
             "notifications_inbox_idx",
             "recipient_user_id",
             sa_text("created_at DESC"),
             sa_text("id DESC"),
-            postgresql_where=sa_text("in_app_visible"),
+            postgresql_where=sa_text("in_app_visible AND dismissed_at IS NULL"),
         ),
         # The unread-count badge: `WHERE recipient_user_id = : AND
-        # in_app_visible AND read_at IS NULL`. The same gate-aware predicate the
-        # inbox and mark-all-read apply (Decision 7) - none of the three may
-        # take a cheaper, gate-blind filter.
+        # in_app_visible AND read_at IS NULL AND dismissed_at IS NULL`. The same
+        # gate-aware predicate the inbox and mark-all-read apply (Decision 7) -
+        # none of the three may take a cheaper, gate-blind filter. A dismissed
+        # row is excluded here too, so clearing the inbox clears the badge with
+        # it rather than leaving a count pointing at nothing.
         Index(
             "notifications_unread_idx",
             "recipient_user_id",
-            postgresql_where=sa_text("in_app_visible AND read_at IS NULL"),
+            postgresql_where=sa_text("in_app_visible AND read_at IS NULL AND dismissed_at IS NULL"),
         ),
         # The retention sweep's own predicate (Decision 8, `notification_repo
         # .delete_expired`): `(read_at IS NOT NULL AND created_at < :read_cutoff)

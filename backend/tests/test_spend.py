@@ -431,7 +431,7 @@ class TestUsageDelta:
 
 class TestCanAffordNextRequest:
     """The non-raising predicate `can_afford_next_request` agrees with the
-    refusing check `_assert_within_budget`, so an ambient call and a real request
+    refusing check `assert_within_budget`, so an ambient call and a real request
     decide the same way about the same cap (agenticos#1808)."""
 
     @pytest.mark.anyio
@@ -441,7 +441,7 @@ class TestCanAffordNextRequest:
             limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
         )
         assert await guard.can_afford_next_request() is True
-        await guard._assert_within_budget()
+        await guard.assert_within_budget()
 
     @pytest.mark.anyio
     async def test_false_at_the_cap_where_the_check_would_raise(self):
@@ -457,7 +457,7 @@ class TestCanAffordNextRequest:
         )
         assert await guard.can_afford_next_request() is False
         with pytest.raises(BudgetExceeded):
-            await guard._assert_within_budget()
+            await guard.assert_within_budget()
 
     @pytest.mark.anyio
     async def test_no_limits_can_always_afford(self):

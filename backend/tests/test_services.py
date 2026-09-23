@@ -630,11 +630,15 @@ class TestUserServicePostgresql:
         with patch("app.services.user.user_repo") as mock_repo:
             mock_repo.get_by_id = AsyncMock(return_value=mock_user)
             mock_repo.update = AsyncMock(return_value=mock_user)
+            # Taken before the row is written, in the order `admin_delete` takes
+            # it - see the method's own note on why it is FOR UPDATE (#1763).
+            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[])
 
             await user_service.admin_update(
                 mock_user.id, UserUpdate(is_active=False), acting_admin_id=uuid4()
             )
 
+            mock_repo.app_admin_ids_for_update.assert_awaited_once()
             mock_repo.update.assert_awaited_once()
 
     @pytest.mark.anyio

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -79,14 +79,14 @@ describe("the chat's agent picker", () => {
   it("shows the agent's face on the trigger", async () => {
     // Radix only swaps in the <img> once the image has loaded, which jsdom
     // never does - so what is assertable here is that the avatar mounted for
-    // this agent, by the initials it falls back to.
+    // this agent, by the generated face it falls back to.
     listed.mockReturnValue([{ ...PUBLISHED[0]!, has_avatar: true }]);
     selectedId.mockReturnValue("a1");
 
     render(<AgentPicker />);
 
     const trigger = screen.getByRole("button", { name: "Agent: Support" });
-    expect(within(trigger).getByText("S")).toBeInTheDocument();
+    expect(trigger.querySelector("g.mo-root")).not.toBeNull();
   });
 
   it("does not offer a general assistant - only the published agents", async () => {

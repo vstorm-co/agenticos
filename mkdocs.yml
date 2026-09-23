@@ -33,14 +33,14 @@ exclude_docs: |
 theme:
   name: material
   language: en
-  # One mark, drawn as paths in `docs/assets/mark.svg`, hand-authored rather
-  # than imported from an icon package - the same bargain
-  # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark
-  # this product draws. The README shows this same file rather than a second
-  # rendering of it; one accent that reads on both a light and a dark page is
-  # what lets one mark serve the tab, the site header and the README.
-  logo: assets/mark.svg
-  favicon: assets/mark.svg
+  # Amigo's head, cropped square from the mascot by `scripts/gen_amigo_assets.py`
+  # and never drawn twice - the same bargain
+  # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark this
+  # product draws. The console's built-in glyph is that same crop as a data URI,
+  # so the site header, the browser tab and the app's sidebar show one face; the
+  # page heroes and the README show the whole character it was cut from.
+  logo: assets/amigo-head.svg
+  favicon: assets/amigo-head.svg
   palette:
     # A theme per system preference, with a manual override - the same bargain
     # the app itself makes.

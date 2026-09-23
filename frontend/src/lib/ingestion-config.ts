@@ -67,8 +67,8 @@ export const DEFAULT_INGESTION_CONFIG: IngestionConfig = {
   liteparse_dpi: 150,
   max_pages: 1000,
   parse_timeout_seconds: 600,
-  chunk_size: 512,
-  chunk_overlap: 50,
+  chunk_size: 2500,
+  chunk_overlap: 200,
   chunking_strategy: "recursive",
   describe_images: false,
   image_description: {

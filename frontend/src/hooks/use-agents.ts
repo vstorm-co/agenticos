@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
   AgentDetail,
@@ -81,7 +82,20 @@ export function useAgents({
   // here would put the same message somewhere it cannot be acted on, and then
   // take it away again.
   const create = useMutation({
-    mutationFn: (spec: AgentSpec) => apiClient.post<Agent>("/agents", { spec }),
+    // Visibility is not part of the spec and never has been: a spec is what the
+    // agent *is*, and who can find it is a fact about the row - the same reason
+    // its avatar and its colour live beside the spec rather than in it.
+    mutationFn: ({
+      spec,
+      visibility,
+      categories,
+      tags,
+    }: {
+      spec: AgentSpec;
+      visibility?: Visibility;
+      categories?: string[];
+      tags?: string[];
+    }) => apiClient.post<Agent>("/agents", { spec, visibility, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));
