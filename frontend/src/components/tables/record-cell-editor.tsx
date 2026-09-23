@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Input,
@@ -17,6 +18,118 @@ import { MultiSelectCell } from "./multi-select-cell";
 import type { CellValue, ColumnDef } from "@/types/tables";
 
 const UNSET = "__unset__";
+
+/**
+ * A local, re-seeded text buffer - the same render-time pattern
+ * `DatetimeCell` uses, generalized to any control whose native `onChange`
+ * fires once per keystroke. Committing straight to the caller's `onChange`
+ * there means every keystroke in a detail sheet or grid cell fires a PATCH,
+ * racing later keystrokes against earlier ones and against a concurrent
+ * editor's own writes; buffering locally and committing on blur makes one
+ * PATCH per edit, the same as every other control here (a `Select`, a
+ * `Switch`, `DateCell`, `DatetimeCell` all commit once per discrete choice).
+ */
+function useTextBuffer(value: string, onCommit: (raw: string) => void) {
+  const [seen, setSeen] = useState(value);
+  const [draft, setDraft] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    setDraft(value);
+  }
+  return {
+    draft,
+    onChange: setDraft,
+    onBlur: () => {
+      if (draft !== seen) onCommit(draft);
+    },
+  };
+}
+
+function TextCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+} & Record<string, unknown>) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <Input
+      id={id}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+function LongTextCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+} & Record<string, unknown>) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <Textarea
+      id={id}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+function NumberCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  truncate,
+  ...invalid
+}: {
+  id: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  disabled?: boolean;
+  truncate?: boolean;
+} & Record<string, unknown>) {
+  const stored = typeof value === "number" ? String(value) : "";
+  const buffer = useTextBuffer(stored, (raw) => {
+    if (raw === "") {
+      onChange(null);
+      return;
+    }
+    onChange(truncate ? Math.trunc(Number(raw)) : Number(raw));
+  });
+  return (
+    <Input
+      id={id}
+      type="number"
+      step={truncate ? "1" : "any"}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
 
 /**
  * One column's control, dispatched on `ColumnDef.type`.
@@ -50,50 +163,42 @@ export function RecordCellEditor({
   return (
     <div className="space-y-1.5">
       {column.type === "text" && (
-        <Input
+        <TextCellInput
           id={id}
           value={typeof value === "string" ? value : ""}
+          onChange={onChange}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
           {...invalid}
         />
       )}
 
       {column.type === "long_text" && (
-        <Textarea
+        <LongTextCellInput
           id={id}
           value={typeof value === "string" ? value : ""}
+          onChange={onChange}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
           {...invalid}
         />
       )}
 
       {column.type === "number" && (
-        <Input
+        <NumberCellInput
           id={id}
-          type="number"
-          step="any"
-          value={typeof value === "number" ? value : ""}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
           disabled={disabled}
-          onChange={(event) =>
-            onChange(event.target.value === "" ? null : Number(event.target.value))
-          }
           {...invalid}
         />
       )}
 
       {column.type === "integer" && (
-        <Input
+        <NumberCellInput
           id={id}
-          type="number"
-          step="1"
-          value={typeof value === "number" ? value : ""}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
           disabled={disabled}
-          onChange={(event) => {
-            const raw = event.target.value;
-            onChange(raw === "" ? null : Math.trunc(Number(raw)));
-          }}
+          truncate
           {...invalid}
         />
       )}

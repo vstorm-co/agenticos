@@ -22,7 +22,7 @@ from app.schemas.virtual_table import (
     TableSummary,
     TableUpdate,
 )
-from app.services.access import TABLE, visible_resource_ids
+from app.services.access import TABLE, accessible_ids, visible_resource_ids
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.dependencies import find_dependents
 from app.services.virtual_tables.exceptions import (
@@ -106,12 +106,15 @@ class TableOperations(Operations):
             skip=skip,
             limit=limit,
         )
-        summaries = []
-        for item in items:
-            summary = TableSummary.model_validate(item)
-            summaries.append(
-                summary.model_copy(update={"can_edit": await self._can_edit(ctx, item)})
-            )
+        # One grant query for the whole page rather than one per row: `_can_edit`
+        # is right for a single table, but a page of fifty would cost fifty
+        # queries for a caller whose role alone does not already reach
+        # `TABLES_EDIT` on every one of them.
+        editable = await accessible_ids(self.db, ctx, items, Perm.TABLES_EDIT, resource_type=TABLE)
+        summaries = [
+            TableSummary.model_validate(item).model_copy(update={"can_edit": item.id in editable})
+            for item in items
+        ]
         return TableList(items=summaries, total=total)
 
     async def describe_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:

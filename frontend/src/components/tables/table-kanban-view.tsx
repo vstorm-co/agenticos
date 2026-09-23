@@ -174,7 +174,13 @@ function KanbanLane({
     limit: LANE_PAGE_SIZE,
   });
   const t = useTranslations("tables.kanban");
+  // The store holds one conflict per record, shared with the record detail
+  // sheet - a stale write on some other field of this same record sets a
+  // conflict here too. Only a conflict about *this* grouping column is ours
+  // to show or reload; anything else belongs to the sheet, which reads
+  // `conflict.fieldId` itself for the same reason.
   const conflicts = useTableViewStore((state) => state.conflicts);
+  const isGroupingConflict = (recordId: string) => conflicts[recordId]?.fieldId === groupBy;
 
   const noDrag = { draggable: false, onDragStart: () => {}, onDragEnd: () => {} };
 
@@ -197,7 +203,7 @@ function KanbanLane({
             boolLabel={boolLabel}
             dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
             onOpen={() => onOpenRecord(record)}
-            conflict={!!conflicts[record.id]}
+            conflict={isGroupingConflict(record.id)}
             onReload={() => onReload(record.id)}
             onDiscard={() => onDiscard(record.id)}
             moveTargets={moveTargets.filter(
@@ -280,20 +286,21 @@ export function TableKanbanView({
   /**
    * Refetches the record and retries the same lane move against its fresh
    * revision. Only ever wired to a card's "reload and reapply" button, which
-   * renders only while `conflicts[recordId]` is set - so it is never absent
-   * here, and there is nothing to reapply if it were.
+   * renders only while the conflict on that record is about this grouping
+   * column - so `pending.pendingValues[groupByColumnId]` is always present,
+   * set by nothing but `moveRecord`'s own `onError` below.
    *
-   * The conflict is cleared only once the refetch lands - clearing it first
-   * would drop the pending move for good the moment the refetch itself fails,
-   * with no way back to it.
+   * The conflict is cleared only once the retry move has actually landed -
+   * `moveRecord`'s own `onSuccess` does that, and its `onError` re-raises the
+   * banner if the retry hits another conflict. Clearing here as soon as the
+   * refetch lands would drop the pending move for good the moment either the
+   * refetch or the retry itself fails, with no way back to it.
    */
   async function reloadAndReapply(recordId: string) {
     const pending = conflicts[recordId] as RecordConflict;
     try {
       const fresh = await getRecord(tableId, recordId);
-      clearConflict(recordId);
-      const target = (pending.pendingValues[groupByColumnId] as string | null | undefined) ?? null;
-      moveRecord(fresh, target);
+      moveRecord(fresh, pending.pendingValues[groupByColumnId] as string | null);
     } catch {
       // The refetch failed - the conflict (and the pending move) stays put.
     }

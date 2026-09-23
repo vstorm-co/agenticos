@@ -110,6 +110,7 @@ describe("RecordDetailSheet", () => {
 
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "x" } });
+    fireEvent.blur(input);
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
@@ -137,6 +138,7 @@ describe("RecordDetailSheet", () => {
     );
 
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
 
     await waitFor(() =>
       expect(onRecordUpdated).toHaveBeenCalledWith({ ...record, values: { c1: "x" }, revision: 2 }),
@@ -169,6 +171,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
         expected_revision: 1,
@@ -194,6 +197,7 @@ describe("RecordDetailSheet", () => {
       revision: 3,
     });
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "xy" } });
+    fireEvent.blur(screen.getByRole("textbox"));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
@@ -258,6 +262,7 @@ describe("RecordDetailSheet", () => {
     );
 
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
 
     expect(await screen.findByText(/someone else changed this field/i)).toBeInTheDocument();
     // The typed value stays visible - it is the store's pending value, not the stale server one.
@@ -284,6 +289,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await screen.findByText(/someone else changed this field/i);
 
     await userEvent.click(screen.getByRole("button", { name: /discard/i }));
@@ -313,6 +319,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await screen.findByText(/someone else changed this field/i);
 
     await userEvent.click(screen.getByRole("button", { name: /discard/i }));
@@ -341,6 +348,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await screen.findByText(/someone else changed this field/i);
 
     await userEvent
@@ -376,6 +384,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await screen.findByText(/someone else changed this field/i);
 
     vi.mocked(apiClient.patch).mockResolvedValueOnce({ id: "r1", revision: 6 });
@@ -388,6 +397,48 @@ describe("RecordDetailSheet", () => {
         values: { c1: "x" },
       }),
     );
+  });
+
+  it("keeps the conflict banner when the retry commit itself fails, not only when the refetch does", async () => {
+    // The refetch (GET) succeeding is not the same as the retry write (PATCH)
+    // succeeding. Clearing the banner as soon as the refetch lands would drop
+    // the pending edit for good the moment the retry PATCH itself then fails -
+    // this pins that the banner (and the typed value) survive that case too.
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    const fresh: RecordRead = { ...record, revision: 5, values: { c1: "Ada" } };
+    const onRefetchRecord = vi.fn().mockResolvedValue(fresh);
+    render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={record}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={onRefetchRecord}
+        onRecordUpdated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
+    await screen.findByText(/someone else changed this field/i);
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("network down"));
+    await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenLastCalledWith("/tables/t1/records/r1", {
+        expected_revision: 5,
+        values: { c1: "x" },
+      }),
+    );
+    expect(screen.getByText(/someone else changed this field/i)).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("x");
   });
 
   it("reload-and-reapply does nothing further when the refetch finds no record", async () => {
@@ -411,6 +462,7 @@ describe("RecordDetailSheet", () => {
       { wrapper },
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
     await screen.findByText(/someone else changed this field/i);
 
     vi.mocked(apiClient.patch).mockClear();
@@ -437,6 +489,7 @@ describe("RecordDetailSheet", () => {
     );
 
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    fireEvent.blur(screen.getByRole("textbox"));
 
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
     expect(screen.queryByText(/someone else changed this field/i)).not.toBeInTheDocument();

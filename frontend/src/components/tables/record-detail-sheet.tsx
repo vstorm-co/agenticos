@@ -82,16 +82,23 @@ export function RecordDetailSheet({
   /**
    * "Reload and reapply": fetch the record's current state and retry the same
    * edit against its fresh revision. The conflict is cleared only once the
-   * refetch has actually landed - clearing it first would drop the pending
-   * edit for good the moment the refetch itself fails (a network error, the
-   * record having been deleted meanwhile), with no way back to it. A failed
-   * refetch leaves the banner exactly as it was, so the retry is still there.
+   * retry write has actually landed - `commitField`'s own `onSuccess` does
+   * that, and its `onError` re-raises the banner if the retry hits another
+   * conflict. Clearing here as soon as the refetch lands would drop the
+   * pending edit for good the moment either the refetch or the retry itself
+   * fails (a network error, the record having been deleted meanwhile), with
+   * no way back to it. A failed refetch leaves the banner exactly as it was,
+   * so the retry is still there.
    */
   async function reloadAndReapply(targetRecord: RecordRead, columnId: string, pending: CellValue) {
     try {
       const fresh = await onRefetchRecord();
-      clearConflict(targetRecord.id);
-      if (fresh) commitField(fresh, columnId, pending);
+      if (fresh) {
+        commitField(fresh, columnId, pending);
+      } else {
+        // Nothing left to retry against - the record is gone.
+        clearConflict(targetRecord.id);
+      }
     } catch {
       // The refetch failed - the conflict (and the typed value) stays put.
     }

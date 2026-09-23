@@ -88,6 +88,11 @@ async def table_view_dependents(
 register_dependency_checker(table_view_dependents)
 
 
+def _is_name_clash(exc: IntegrityError) -> bool:
+    """Whether `exc` is the view's own name-uniqueness constraint, not some other violation."""
+    return getattr(exc.orig, "constraint_name", None) == "uq_table_view_owner_name"
+
+
 def _config_read(view: TableView) -> TableViewConfig:
     return TableViewConfig.model_validate(view.config)
 
@@ -155,7 +160,12 @@ class TableViewOperations(Operations):
             # The name check above is not atomic: two concurrent saves of the
             # same name both pass it, and `UniqueConstraint(table_id,
             # owner_user_id, name)` refuses the second insert. Translate that
-            # into the same 409 the check raises, rather than an unhandled 500.
+            # into the same 409 the check raises, rather than an unhandled 500 -
+            # but only when it is genuinely that constraint that fired; anything
+            # else (the table itself vanishing concurrently, say) is a bug worth
+            # its own 500, not a name collision this caller never asked about.
+            if not _is_name_clash(exc):
+                raise
             raise AlreadyExistsError(
                 message=f"A view named '{data.name}' already exists.", details={"name": data.name}
             ) from exc
@@ -205,12 +215,14 @@ class TableViewOperations(Operations):
                 view = await table_view_repo.update(self.db, view=view, update_data=changes)
             except IntegrityError as exc:
                 # Only a concurrent rename to the same name can violate the
-                # constraint here - the name check above is not atomic, so two
-                # concurrent renames both pass it, and the loser's write hits
-                # `UniqueConstraint(table_id, owner_user_id, name)`. Anything
-                # else that reached this constraint is a bug worth its 500,
-                # not a name collision this caller asked to change into.
-                if new_name is None:
+                # name constraint here - the name check above is not atomic, so
+                # two concurrent renames both pass it, and the loser's write
+                # hits `UniqueConstraint(table_id, owner_user_id, name)`.
+                # Anything else - no rename in this update, or a different
+                # constraint entirely (the owner row vanishing concurrently,
+                # say) - is a bug worth its own 500, not a name collision this
+                # caller asked to change into.
+                if new_name is None or not _is_name_clash(exc):
                     raise
                 raise AlreadyExistsError(
                     message=f"A view named '{new_name}' already exists.",

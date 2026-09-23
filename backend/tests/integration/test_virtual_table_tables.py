@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
@@ -181,6 +181,48 @@ async def test_sort_by_updated_at_puts_the_most_recently_changed_table_first(eng
     async with factory() as session:
         by_recency = await VirtualTableService(session).list_tables(ctx, sort="updated_at")
     assert [item.name for item in by_recency.items] == ["Alpha", "Charlie", "Bravo"]
+
+
+async def test_listing_resolves_can_edit_for_every_row_in_one_grant_query(db, engine: AsyncEngine):
+    """`_can_edit` is right for one table, but `list_tables` used to call it once
+    per row - for a Builder, whose `TABLES_EDIT` scope alone does not reach a
+    table it does not own, that was one `resource_grants` query per row. This
+    pins the batched replacement: one query for the whole page, and `can_edit`
+    still correct per row - true only for the table an explicit grant opens."""
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    owner_ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    granted = await service.create_table(owner_ctx, TableCreate(name="Granted"))
+    await service.create_table(owner_ctx, TableCreate(name="Ungranted A"))
+    await service.create_table(owner_ctx, TableCreate(name="Ungranted B"))
+
+    builder = await make_user(db)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=builder.id,
+        resource_type=TABLE.key,
+        resource_id=granted.id,
+        level=GrantLevel.EDIT,
+    )
+    builder_ctx = ctx_for(builder, org, "builder")
+
+    grant_queries: list[str] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany) -> None:
+        if "resource_grants" in statement.lower():
+            grant_queries.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        listed = await service.list_tables(builder_ctx)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+
+    assert len(grant_queries) == 1, grant_queries
+    can_edit_by_name = {item.name: item.can_edit for item in listed.items}
+    assert can_edit_by_name == {"Granted": True, "Ungranted A": False, "Ungranted B": False}
 
 
 @pytest.mark.security

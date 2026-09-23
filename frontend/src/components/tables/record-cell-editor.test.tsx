@@ -19,13 +19,41 @@ function column(overrides: Partial<ColumnDef>): ColumnDef {
 }
 
 describe("RecordCellEditor", () => {
-  it("renders a text control and reports the edited text", () => {
+  it("renders a text control and reports the edited text on blur", () => {
     const onChange = vi.fn();
     render(<RecordCellEditor column={column({ type: "text" })} value="" onChange={onChange} />);
+    const input = screen.getByRole("textbox");
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "hi" } });
+    fireEvent.change(input, { target: { value: "hi" } });
+    expect(onChange).not.toHaveBeenCalled();
 
+    fireEvent.blur(input);
     expect(onChange).toHaveBeenLastCalledWith("hi");
+  });
+
+  it("does not commit a text edit until the field is blurred, so mid-typing keystrokes never race a PATCH", () => {
+    const onChange = vi.fn();
+    render(<RecordCellEditor column={column({ type: "text" })} value="" onChange={onChange} />);
+    const input = screen.getByRole("textbox");
+
+    fireEvent.change(input, { target: { value: "h" } });
+    fireEvent.change(input, { target: { value: "hi" } });
+    fireEvent.change(input, { target: { value: "hi!" } });
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith("hi!");
+  });
+
+  it("does not recommit an unchanged text value on blur", () => {
+    const onChange = vi.fn();
+    render(<RecordCellEditor column={column({ type: "text" })} value="hi" onChange={onChange} />);
+    const input = screen.getByRole("textbox");
+
+    fireEvent.blur(input);
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("renders a text control with a non-string stored value as empty", () => {
@@ -42,7 +70,9 @@ describe("RecordCellEditor", () => {
     expect(textarea).toHaveValue("story");
 
     fireEvent.change(textarea, { target: { value: "a longer story" } });
+    expect(onChange).not.toHaveBeenCalled();
 
+    fireEvent.blur(textarea);
     expect(onChange).toHaveBeenLastCalledWith("a longer story");
   });
 
@@ -61,9 +91,12 @@ describe("RecordCellEditor", () => {
     const input = screen.getByRole("spinbutton");
 
     fireEvent.change(input, { target: { value: "3.25" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.blur(input);
     expect(onChange).toHaveBeenLastCalledWith(3.25);
 
     fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -82,6 +115,7 @@ describe("RecordCellEditor", () => {
     const input = screen.getByRole("spinbutton");
 
     fireEvent.change(input, { target: { value: "7.9" } });
+    fireEvent.blur(input);
 
     expect(onChange).toHaveBeenLastCalledWith(7);
   });

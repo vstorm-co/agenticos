@@ -29,6 +29,19 @@ from tests.integration.virtual_table_support import (
 pytestmark = pytest.mark.anyio
 
 
+class _FakeDbApiError(Exception):
+    """Stands in for the asyncpg exception `IntegrityError.orig` wraps.
+
+    asyncpg's own `PostgresError` subclasses carry `constraint_name` from the
+    server's diagnostics, which is exactly what the service inspects to tell a
+    genuine name clash from some other constraint reaching the same `except`.
+    """
+
+    def __init__(self, constraint_name: str) -> None:
+        super().__init__(f"constraint {constraint_name!r} violated")
+        self.constraint_name = constraint_name
+
+
 async def _setup(db):
     owner = await make_user(db)
     org = await make_org(db, owner=owner)
@@ -73,10 +86,30 @@ async def test_a_duplicate_name_racing_past_the_check_is_still_a_409(db, monkeyp
     monkeypatch.setattr(
         table_view_repo,
         "create",
-        AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate key"))),
+        AsyncMock(
+            side_effect=IntegrityError("insert", {}, _FakeDbApiError("uq_table_view_owner_name"))
+        ),
     )
 
     with pytest.raises(AlreadyExistsError):
+        await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+
+async def test_a_different_constraint_violation_on_create_is_not_mistaken_for_a_name_clash(
+    db, monkeypatch
+):
+    # A create that hits some other constraint must not be reported as "this
+    # name is taken" just because it reached the same `except IntegrityError`.
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    monkeypatch.setattr(
+        table_view_repo,
+        "create",
+        AsyncMock(
+            side_effect=IntegrityError("insert", {}, _FakeDbApiError("table_views_org_table_fkey"))
+        ),
+    )
+
+    with pytest.raises(IntegrityError):
         await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
 
 
@@ -86,7 +119,9 @@ async def test_a_duplicate_rename_racing_past_the_check_is_still_a_409(db, monke
     monkeypatch.setattr(
         table_view_repo,
         "update",
-        AsyncMock(side_effect=IntegrityError("update", {}, Exception("duplicate key"))),
+        AsyncMock(
+            side_effect=IntegrityError("update", {}, _FakeDbApiError("uq_table_view_owner_name"))
+        ),
     )
 
     with pytest.raises(AlreadyExistsError):
@@ -105,11 +140,34 @@ async def test_an_integrity_error_on_a_non_rename_update_is_not_mistaken_for_a_n
     monkeypatch.setattr(
         table_view_repo,
         "update",
-        AsyncMock(side_effect=IntegrityError("update", {}, Exception("some other constraint"))),
+        AsyncMock(
+            side_effect=IntegrityError("update", {}, _FakeDbApiError("uq_table_view_owner_name"))
+        ),
     )
 
     with pytest.raises(IntegrityError):
         await views.update_view(ctx, table.id, view.id, TableViewUpdate(visibility="shared"))
+
+
+async def test_a_different_constraint_violation_on_a_rename_is_not_mistaken_for_a_name_clash(
+    db, monkeypatch
+):
+    # A rename that hits some other constraint - the organization/table
+    # foreign key, say - is not a name clash just because a name changed in
+    # the same request. Only the constraint the check itself guards against
+    # (`uq_table_view_owner_name`) may be translated into the 409.
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    monkeypatch.setattr(
+        table_view_repo,
+        "update",
+        AsyncMock(
+            side_effect=IntegrityError("update", {}, _FakeDbApiError("table_views_org_table_fkey"))
+        ),
+    )
+
+    with pytest.raises(IntegrityError):
+        await views.update_view(ctx, table.id, view.id, TableViewUpdate(name="Renamed"))
 
 
 async def test_creating_a_view_needs_table_edit_not_merely_view(db):

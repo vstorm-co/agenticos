@@ -266,6 +266,38 @@ describe("TableKanbanView", () => {
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
+  it("does not show a conflict banner for a conflict on this record about a different field", async () => {
+    // The conflict store holds one entry per record, shared with the record
+    // detail sheet - a stale edit to some other column of this same record
+    // (fieldId "name", say) sets a conflict here too. That conflict is not
+    // about the grouping column, so the kanban card must stay quiet about it;
+    // showing it (or worse, offering "reload and reapply") would let the
+    // board attempt to move the record into the "no value" lane over an edit
+    // it never made.
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+
+    useTableViewStore.getState().setConflict({
+      recordId: "r1",
+      pendingValues: { name: "Renamed" },
+      fieldId: "name",
+    });
+
+    expect(screen.queryByText(/someone else changed this record/i)).not.toBeInTheDocument();
+  });
+
   it("discard refetches every lane, rather than only clearing the local banner", async () => {
     // No optimistic move was ever applied client-side, so a discard's own job
     // is bringing the lanes back in line with the row a conflict just proved
@@ -370,6 +402,44 @@ describe("TableKanbanView", () => {
         values: { status: "o2" },
       }),
     );
+  });
+
+  it("keeps the conflict banner when the retry move itself fails, not only when the refetch does", async () => {
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    vi.mocked(apiClient.get).mockResolvedValue(record("r1", "o1", 5));
+    const user = userEvent.setup();
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+    await user.click(screen.getByRole("button", { name: /move to/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Closed" }));
+    await screen.findByText(/someone else changed this record/i);
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("network down"));
+    await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenLastCalledWith("/tables/t1/records/r1", {
+        expected_revision: 5,
+        values: { status: "o2" },
+      }),
+    );
+    expect(screen.getByText(/someone else changed this record/i)).toBeInTheDocument();
   });
 
   it("formats a boolean title column through the cells translations", async () => {
