@@ -73,6 +73,11 @@ export const qk = {
     // Every registered node type, for the editor's palette. Changes on redeploy,
     // not while someone edits - so its own key, cached like the capability catalog.
     nodeCatalog: () => ["workflows", "node-catalog"] as const,
+    // The virtual tables a node's `TableIORef` pins, read by the table + column
+    // picker. Under "workflows" so an editor-wide invalidation refreshes them; the
+    // list the picker filters in the browser, and one table for its live schema.
+    tables: () => ["workflows", "tables"] as const,
+    table: (id: string) => ["workflows", "tables", id] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
