@@ -122,6 +122,7 @@ class SyncSourceService:
             config=_raw_config(s),
             secret_id=str(s.secret_id) if s.secret_id else None,
             secret_hint=secret_hint,
+            organizational_unit=s.organizational_unit,
             sync_mode=s.sync_mode,
             schedule_minutes=s.schedule_minutes,
             is_active=s.is_active,
@@ -242,6 +243,7 @@ class SyncSourceService:
             collection_name=data.collection_name,
             config=data.config,
             secret_id=data.secret_id,
+            organizational_unit=data.organizational_unit,
             sync_mode=data.sync_mode,
             schedule_minutes=data.schedule_minutes,
         )
@@ -380,6 +382,7 @@ class SyncSourceService:
             collection_name=data.collection_name,
             config=raw,
             secret_id=existing.secret_id,
+            organizational_unit=existing.organizational_unit,
             sync_mode=existing.sync_mode,
             schedule_minutes=existing.schedule_minutes,
         )

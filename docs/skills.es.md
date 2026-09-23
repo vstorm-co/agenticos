@@ -1,5 +1,5 @@
 ---
-source_sha: "56976ecc2c20"
+source_sha: "10bf6042e631"
 ---
 
 # Skills { #skills }
@@ -189,20 +189,23 @@ organización y visibles para la organización.
 
 La página de skills muestra una sola lista, con una insignia `built-in` sobre
 cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos tres no se
-eligen — llegan solos.
+eligen — llegan solos, una vez, al crear la organización.
 
-**Y ahí se quedan.** El catálogo crece con los deploys, así que el listado se
-rellena solo: un skill incluido que la organización aún no tiene se copia dentro
-la próxima vez que alguien abra la página, emparejado por nombre, de modo que
-una copia editada se deja exactamente como está.
+**Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
+se edita, se deshabilita o se borra. Nada devuelve uno borrado.
 
-Una organización creada antes de que un deployment ganara un nuevo skill
-incluido lo ve en su siguiente visita, en lugar de nunca.
+Esto es un cambio. El listado se rellenaba solo — copiaba dentro cualquier nombre
+incluido que la organización no tuviera, cada vez que alguien abría la página —,
+así que un built-in borrado volvía en la visita siguiente y deshabilitarlo era la
+única forma de retirarlo. También significaba una página que escribía filas
+mientras leía. La galería es donde se elige un skill, y el comando de seed de
+abajo es como un deployment reparte a propósito uno nuevo de los incluidos.
 
-!!! warning "Borrar un built-in lo devuelve en el siguiente listado"
+!!! info "Una organización creada antes de un nuevo skill incluido no lo recibe sola"
 
-    El rellenado trata un nombre incluido que falta como un hueco que cerrar.
-    **Disable** uno para retirarlo.
+    Ejecutad `seed-skills` para ella, o instalad el skill desde la galería. Las
+    dos vías son deliberadas, y de eso se trata: nada llega al cargar una
+    página.
 
 El comando de seed hace lo mismo desde un terminal, para instalaciones con
 scripts:
@@ -262,10 +265,10 @@ arreglar la política de reembolsos sin un deploy, y un enlace vivo a la copia d
 repositorio le quitaría exactamente eso — la organización estaría leyendo un
 archivo que solo un ingeniero puede cambiar.
 
-Editar es definitivo, como siempre. Borrar no lo es, porque el rellenado del
-listado trata un nombre incluido que falta como un hueco que cerrar, así que un
-built-in que la organización no quiere se **deshabilita** — algo que respeta cada
-agent y que nada sobrescribe.
+Editar y borrar son los dos definitivos, como siempre. Deshabilitar sigue ahí
+para un skill que la organización quiere conservar pero no ejecutar — cada agent
+lo respeta —, pero ha dejado de ser la única forma de deshacerse de un
+built-in.
 
 ### Por qué la biblioteca se distribuye y no se descarga { #why-the-library-is-bundled-and-not-fetched }
 

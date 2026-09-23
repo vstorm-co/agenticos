@@ -3,6 +3,7 @@
 import { Coins, Gauge, HardDrive, MemoryStick } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AnimatedAmount } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { ConversationCost, TurnUsage } from "@/types";
@@ -45,7 +46,22 @@ interface UsageStripProps {
    * guess is wrong in the direction that lets a run reach the ceiling.
    */
   contextWindow?: number | null;
+  /**
+   * Drop the workspace reading until it is worth a warning.
+   *
+   * For the composer's control row, which is a line shared with the connection
+   * pill, the agent picker and four buttons. "workspace 10 KiB stored" is the
+   * longest of the three readings and the least read: it is about disk rather
+   * than about the turn, and the same figure is on the workspace panel beside
+   * the transcript. What it is genuinely *for* is the moment a stored
+   * workspace fills up and starts refusing writes - so at `WORKSPACE_ALERT`
+   * and above it appears, and below it says nothing.
+   */
+  quiet?: boolean;
 }
+
+/** The fill from which the workspace reading is worth the width it takes. */
+const WORKSPACE_ALERT = 80;
 
 /** A translator, which the helpers below need because their answers are read. */
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -74,12 +90,25 @@ export function UsageStrip({
   workspace = null,
   total = null,
   contextWindow = null,
+  quiet = false,
 }: UsageStripProps) {
   return (
-    <div className="text-muted-foreground flex min-h-4 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
-      <ContextSegment context={usage?.context ?? null} window={contextWindow} />
+    // One line, and it does not wrap. The strip sits in the composer's control
+    // row now, beside the connection pill and across from the agent picker, so
+    // a second line does not push text down - it makes the row taller and the
+    // box shorter, under the caret. Segments are dropped from the right as the
+    // viewport narrows rather than being allowed to fold: money is the one
+    // everybody reads, the context share is the ceiling nobody sees coming,
+    // and the workspace fill is the one that only matters when it is nearly
+    // full - which is the order they survive in.
+    <div className="text-muted-foreground flex min-w-0 items-center gap-x-3 overflow-hidden text-xs whitespace-nowrap">
+      <span className="hidden shrink-0 @[46rem]:inline-flex">
+        <ContextSegment context={usage?.context ?? null} window={contextWindow} />
+      </span>
       <SpendSegment total={total} usage={usage} />
-      <WorkspaceSegment usage={usage} workspace={workspace} />
+      <span className="hidden shrink-0 @[56rem]:inline-flex">
+        <WorkspaceSegment usage={usage} workspace={workspace} quiet={quiet} />
+      </span>
     </div>
   );
 }
@@ -172,7 +201,25 @@ function SpendSegment({
       title={partial ? t("threadTotalPartialDetail", detail) : t("threadTotalDetail", detail)}
     >
       <Coins className="h-3 w-3" aria-hidden />
-      {partial ? t("threadTotalPartial", values) : t("threadTotal", values)}
+      {/* The one figure in this strip that moves while somebody is looking at
+          it: every answer adds to it. The context share and the workspace fill
+          move too, but both are percentages of a ceiling and read as a gauge
+          rather than as a running total.
+
+          The `≥` stays outside the counter and outside the catalog: it is a
+          glyph, and inside `AnimatedAmount` it would roll as though it were a
+          digit. What a reader hears is still the whole sentence, because that
+          is what the counter is handed as its label. */}
+      {partial ? (
+        // i18n-exempt: a mathematical sign, not copy - the sentence it opens is
+        // `threadTotalPartial`, which is what this counter announces.
+        <span aria-hidden>≥</span>
+      ) : null}
+      <AnimatedAmount
+        value={total.cost_usd}
+        decimals={4}
+        label={partial ? t("threadTotalPartial", values) : t("threadTotal", values)}
+      />
       {/* The agent's own cap first: it is the one whoever is looking at this
           agent can raise. The organization's stops every agent at once and is
           somebody else's to change, so it is only worth the space once it is
@@ -199,13 +246,19 @@ function SpendSegment({
 function WorkspaceSegment({
   usage,
   workspace,
+  quiet = false,
 }: {
   usage: TurnUsage | null;
   workspace: ConversationWorkspace | null;
+  quiet?: boolean;
 }) {
   const t = useTranslations("chat.usage");
   const fill = usage === null ? null : fillOf(usage, workspace, t);
   if (fill === null) return null;
+  // `quiet` keeps this out of a crowded row until it has something to warn
+  // about - including when nobody could measure a percentage at all, which is
+  // a reading with no warning in it.
+  if (quiet && (fill.percent === null || fill.percent < WORKSPACE_ALERT)) return null;
 
   return (
     <span className="flex items-center gap-1.5" title={fill.detail}>

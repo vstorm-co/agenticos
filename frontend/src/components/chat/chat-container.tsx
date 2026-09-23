@@ -12,8 +12,12 @@ import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
+import type { Browse } from "@/lib/browse";
+import { BrowserCards } from "./browser-card";
+import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
+import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
 import { InterruptedNotice } from "./interrupted-notice";
@@ -39,12 +43,15 @@ import { latestUsage } from "@/lib/message-usage";
 import { planProgress } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
+  useAuthStore,
   useChatStore,
   useConversationStore,
   useFilePreviewStore,
 } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
+import { Beam } from "@/components/ui/beam";
+import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD_PX = 150;
 
@@ -138,9 +145,12 @@ export function ChatContainer() {
     compacting,
     compactionImpossible,
     interrupted,
+    detachedTurnPending,
+    acknowledgeDetachedTurn,
     personalGaps,
     lastUsage,
     delegations,
+    browses,
     sendMessage,
     stopGeneration,
     clearMessages,
@@ -159,6 +169,14 @@ export function ChatContainer() {
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
   });
+
+  // The reader pressing the notice's button has gone to look for the answer, so
+  // the notice stops saying one is on its way. The re-read is the same one a
+  // reconnect does; only the acknowledgement is extra.
+  const handleRecheck = useCallback(() => {
+    acknowledgeDetachedTurn();
+    handleTurnInterrupted();
+  }, [acknowledgeDetachedTurn, handleTurnInterrupted]);
 
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,
@@ -300,7 +318,8 @@ export function ChatContainer() {
       compacting={compacting}
       compactionImpossible={compactionImpossible}
       interrupted={interrupted}
-      onRecheck={handleTurnInterrupted}
+      detachedTurnPending={detachedTurnPending}
+      onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
@@ -314,6 +333,7 @@ export function ChatContainer() {
       // `latestUsage` is given the id rather than trusting the list.
       conversationCost={currentConversationId === null ? null : currentCost}
       delegations={delegations}
+      browses={browses}
       conversationId={currentConversationId}
       turns={turns}
       attachments={attachments}
@@ -359,6 +379,8 @@ interface ChatUIProps {
   compactionImpossible: Compaction | null;
   /** True while a turn whose socket went away is unresolved. See `InterruptedNotice`. */
   interrupted?: boolean;
+  /** True while such a turn's answer is still coming and the reader has moved on. */
+  detachedTurnPending?: boolean;
   /** Read the transcript again, for the notice above. */
   onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
@@ -378,6 +400,8 @@ interface ChatUIProps {
    * `complete` - a background delegation reports after the parent has answered.
    */
   delegations: Delegation[];
+  /** The turn's browses, for the live preview panel. See `BrowserPanel`. */
+  browses: Browse[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
   /**
@@ -420,6 +444,7 @@ function ChatUI({
   compacting,
   compactionImpossible,
   interrupted = false,
+  detachedTurnPending = false,
   onRecheck,
   personalGaps,
   lastUsage,
@@ -427,6 +452,7 @@ function ChatUI({
   contextWindow,
   agentModel,
   delegations,
+  browses,
   conversationId,
   turns,
   attachments,
@@ -449,14 +475,61 @@ function ChatUI({
   onStop,
 }: ChatUIProps) {
   const t = useTranslations("chat");
+  // Opened by the composer's microphone button; the glow around the box reads
+  // its level. See `VoiceGlow` for why it is a second capture.
+  const mic = useMicrophone();
+  const [composerFocused, setComposerFocused] = useState(false);
+
+  // The rail's ticks, built from the transcript already on screen rather than
+  // from a query of its own: one list, drawn twice.
+  const { agents: knownAgents } = useAgents({ includeArchived: true });
+  const { user: authUser } = useAuthStore();
+  const agentNames = useMemo(
+    () =>
+      new Map(
+        knownAgents.map(
+          (agent) =>
+            [
+              agent.id,
+              // The slug travels with the name because the face is drawn from it.
+              // Without it the rail's card fell back to an empty seed, so every
+              // agent wore the same generated face there - and a different one
+              // from the avatar beside its own answer in the transcript.
+              { name: agent.name, slug: agent.slug, hasAvatar: agent.has_avatar },
+            ] as const,
+        ),
+      ),
+    [knownAgents],
+  );
+  const railEntries = useMemo(
+    () =>
+      messages.map((message) => ({
+        id: message.id,
+        author:
+          message.role === "user"
+            ? t("rail.you")
+            : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
+              t("rail.agent")),
+        preview: (message.content ?? "").trim(),
+        isUser: message.role === "user",
+        agentId: message.role === "user" ? undefined : (message.agentId ?? undefined),
+        agentSlug:
+          message.role === "user" ? undefined : agentNames.get(message.agentId ?? "")?.slug,
+        hasAvatar: message.agentId ? agentNames.get(message.agentId)?.hasAvatar : false,
+        // A person's face is drawn from their id, an agent's from its own; the
+        // rail never has to know which, it just hands over the seed.
+        seed:
+          message.role === "user" ? (authUser?.id ?? message.id) : (message.agentId ?? message.id),
+      })),
+    [messages, agentNames, authUser, t],
+  );
   const tc = useTranslations("common");
   // The same query the file panel beside the transcript makes, so the fill under the
   // input costs nothing extra - and appears when a conversation is *opened* rather than
   // after the next turn reports one.
   const { workspace } = useConversationWorkspace(conversationId);
-  // The composer floats over the transcript so the glass has something to blur,
-  // which means the scroll area must end where the dock begins or the last
-  // message hides behind it. The dock's height is not a constant - attachments,
+  // The composer floats over the transcript, which means the scroll area must
+  // end where the dock begins or the last message hides behind it. The dock's height is not a constant - attachments,
   // banners and a growing textarea all change it - so it is measured.
   // A callback ref rather than `useRef`, because the portal has to re-render once
   // the node exists: a ref object mutating tells React nothing.
@@ -482,6 +555,7 @@ function ChatUI({
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
       <div className="relative flex h-full min-w-0 flex-1 flex-col">
+        <TurnRail entries={railEntries} />
         <div
           ref={scrollContainerRef}
           className="flex-1 scrollbar-thin overflow-y-auto"
@@ -501,17 +575,23 @@ function ChatUI({
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
             <DelegationPanels delegations={delegations} />
+            {/* One card per browse, in the transcript, aligned to the message
+                column. An agent asked to compare two pages browses both at
+                once, and a single card would hide half of what it is doing. */}
+            <BrowserCards browses={browses} />
             <div ref={messagesEndRef} />
           </div>
         </div>
-        {/* The floating dock: banners, the glass composer, the caption. Over
-            the transcript, not under it - the messages scrolling beneath are
-            what the blur works on. `pointer-events-none` on the wrapper so the
-            transparent gutters beside the column do not swallow clicks and the
-            scrollbar's bottom stays draggable; each child takes its own
+        {/* The floating dock: banners, the composer, the caption. Over the
+            transcript, not under it. `pointer-events-none` on the wrapper so
+            the transparent gutters beside the column do not swallow clicks and
+            the scrollbar's bottom stays draggable; each child takes its own
             pointer-events back. */}
         {/* z-20: a message avatar carries z-10 of its own, and without a higher
-            index here it rides over the glass instead of blurring under it. */}
+            index here it rides over the composer instead of passing behind
+            it - which, now that the composer is opaque, is the difference
+            between a message sliding under the dock and one drawn on top of
+            it. */}
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
           {personalGaps.length > 0 && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
@@ -538,7 +618,11 @@ function ChatUI({
             </div>
           )}
           <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
-            <InterruptedNotice interrupted={interrupted} onRecheck={onRecheck} />
+            <InterruptedNotice
+              interrupted={interrupted}
+              detached={detachedTurnPending}
+              onRecheck={onRecheck}
+            />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
@@ -552,79 +636,127 @@ function ChatUI({
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
             <div ref={setAttachmentSlot} />
-            <div
-              data-tour="chat-composer"
-              className="glass focus-within:border-foreground/30 rounded-2xl transition-colors"
-            >
-              <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-                {isArchived && (
-                  <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
-                    {t("conversationArchived")}
-                  </p>
-                )}
-                {/* Under the input rather than over the transcript: it is about
-                  the turn that just finished, and a strip above the messages
-                  would move the conversation every time a number changed. */}
-                <UsageStrip
-                  usage={lastUsage}
-                  workspace={workspace}
-                  total={conversationCost}
-                  contextWindow={contextWindow}
-                />
-                <ChatInput
-                  onSend={sendMessage}
-                  disabled={
-                    !isConnected ||
-                    isArchived ||
-                    !!pendingApproval ||
-                    !!(pendingQuestions && pendingQuestions.length)
-                  }
-                  isProcessing={isProcessing}
-                  onStop={onStop}
-                  slashContext={slashContext}
-                  commands={slashCommands}
-                  attachmentSlot={attachmentSlot}
-                />
-              </div>
-              {/* `gap-2` and a shrinkable right group, because at 390px the
-                  three controls are 358px wide and used to run 27px past the
-                  composer's own edge - measured on an iPhone 15 viewport. The
-                  connection pill keeps its size (it is two words) and the group
-                  that can give way does. */}
-              <div className="border-foreground/8 flex items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
-                  >
-                    <span
-                      className={`inline-block h-1.5 w-1.5 rounded-full ${
-                        isConnected ? "bg-success" : "bg-destructive"
-                      }`}
-                    />
-                    {isConnected ? tc("live") : tc("offline")}
-                  </span>
-                </div>
-                <div className="flex min-w-0 items-center gap-1.5">
-                  {/* Who answers, first and largest: it is the most consequential
-                    choice in the composer and it was a tab inside a popover. */}
-                  <AgentPicker />
-                  <div data-tour="chat-model-picker">
-                    <ChatControls
-                      onModelProfileChange={onModelProfileChange}
-                      onApprovalModeChange={onApprovalModeChange}
-                      agentModel={agentModel}
+            {/* Around the whole composer, not around a row inside it: the glow
+                blooms outward from the edge it is given, and given an inner row
+                it bloomed into the card's own fill and was all but invisible.
+                Always mounted and always lit - at rest it breathes, on a voice
+                it rises with the level, and while the answer is being thought
+                through it sweeps. */}
+            {/* Lit only while the microphone is actually open. At rest it is a
+                glow with nothing to report, and during a turn the transcript
+                already says what is happening. */}
+            <VoiceGlow stream={mic.stream} active={mic.state === "live"} borderRadius={16}>
+              {/* All the way around the composer, and only while somebody is in
+                  it. A border that glows permanently is decoration; one that
+                  lights when the caret arrives is the box saying it is where
+                  the typing goes. The glow outside it answers the microphone
+                  and the turn; this is the box's own. */}
+              <Beam
+                size="md"
+                borderRadius={16}
+                active={composerFocused}
+                onFocusChange={setComposerFocused}
+              >
+                <div
+                  data-tour="chat-composer"
+                  // `@container`, so the readings below drop out on the
+                  // composer's own width rather than on the window's. They are
+                  // not the same question: at 900px with the conversation list
+                  // open this box is 360px wide, and a viewport breakpoint
+                  // showed a reading there that had nowhere to go.
+                  className="panel focus-within:border-foreground/30 @container rounded-2xl transition-colors"
+                >
+                  <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
+                    {isArchived && (
+                      <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
+                        {t("conversationArchived")}
+                      </p>
+                    )}
+                    {/* One row under the text, not three bands around it. The
+                        connection pill and the readings go left, who-answers
+                        and how go right, and `ChatInput` puts the microphone
+                        and the send button after them - the send button has to
+                        stay inside its own `<form>`, which is what decides
+                        that this is a slot rather than a row of our own. */}
+                    <ChatInput
+                      onSend={sendMessage}
+                      disabled={
+                        !isConnected ||
+                        isArchived ||
+                        !!pendingApproval ||
+                        !!(pendingQuestions && pendingQuestions.length)
+                      }
+                      isProcessing={isProcessing}
+                      onStop={onStop}
+                      slashContext={slashContext}
+                      commands={slashCommands}
+                      attachmentSlot={attachmentSlot}
+                      mic={mic}
+                      statusSlot={
+                        <>
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
+                          >
+                            <span
+                              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                                isConnected ? "bg-success" : "bg-destructive"
+                              }`}
+                            />
+                            {/* The dot is the status; the word only names it.
+                                In a composer too narrow for both, the dot is
+                                what survives. */}
+                            <span className="hidden @[26rem]:inline">
+                              {isConnected ? tc("live") : tc("offline")}
+                            </span>
+                          </span>
+                          {/* The readings used to sit above the text, where a
+                              number changing pushed the caret down a line.
+                              Hidden below `sm`, where the row has the agent
+                              picker and five buttons to fit already. */}
+                          <span className="hidden min-w-0 @[34rem]:flex">
+                            <UsageStrip
+                              usage={lastUsage}
+                              workspace={workspace}
+                              total={conversationCost}
+                              contextWindow={contextWindow}
+                              quiet
+                            />
+                          </span>
+                        </>
+                      }
+                      controlsSlot={
+                        <>
+                          {/* Who answers, first and largest: it is the most
+                              consequential choice in the composer and it was a
+                              tab inside a popover. */}
+                          <AgentPicker />
+                          <div data-tour="chat-model-picker">
+                            <ChatControls
+                              onModelProfileChange={onModelProfileChange}
+                              onApprovalModeChange={onApprovalModeChange}
+                              agentModel={agentModel}
+                            />
+                          </div>
+                          {/* Chat is the one surface with no PageHeader, so the
+                              "?" that replays a page's tips has nowhere else to
+                              live here - except in a composer this narrow,
+                              where it is the first thing that can go. */}
+                          <span className="hidden @[30rem]:block">
+                            <RestartTourButton />
+                          </span>
+                        </>
+                      }
                     />
                   </div>
-                  {/* Chat is the one surface with no PageHeader, so the "?" that
-                      replays a page's tips has nowhere else to live here. */}
-                  <RestartTourButton />
                 </div>
-              </div>
-            </div>
+              </Beam>
+            </VoiceGlow>
             {/* Text floating over a transcript needs its own pane behind it,
-                or it collides with whatever scrolls past. */}
+                or it collides with whatever scrolls past. Opaque, like every
+                other surface: a translucent chip took its colour from whatever
+                line of the transcript happened to be under it. */}
             <p className="text-center">
-              <span className="text-foreground/40 bg-background/55 mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase backdrop-blur-md">
+              <span className="text-foreground/40 bg-background mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase">
                 {t("aiCanMakeMistakes")}
               </span>
             </p>
@@ -633,6 +765,10 @@ function ChatUI({
       </div>
       <FilePreviewDialog />
       <SourcesPanel />
+      {/* The card's expansion: a resizable window over the conversation, for
+          when the thumbnail is too small to read. Draws nothing until somebody
+          opens it, so a conversation with no browsing costs nothing. */}
+      <BrowserPanel browses={browses} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a

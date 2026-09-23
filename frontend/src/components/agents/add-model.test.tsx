@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { modelHint, modelIdIsWellFormed, modelPlaceholder, placeholderWords } from "./add-model";
+import {
+  modelHint,
+  modelIdIsWellFormed,
+  modelPlaceholder,
+  placeholderWords,
+  soleKeyedProvider,
+} from "./add-model";
 import en from "../../../messages/en.json";
 
 /**
@@ -100,5 +106,49 @@ describe("the catalog keys these helpers hand back", () => {
     const placeholder = modelPlaceholder(undefined);
 
     expect(placeholderWords(placeholder, words)).toBe("Pick a provider first");
+  });
+});
+
+/**
+ * Which provider the form starts on.
+ *
+ * A deployment can reach every provider in the catalog; the keys an organization
+ * holds say which of them it can run on. One key is not a choice, and asking for
+ * it anyway is a select somebody has to open to find a single answer in.
+ */
+describe("soleKeyedProvider", () => {
+  const providers = [{ id: "openai" }, { id: "anthropic" }, { id: "openrouter" }];
+
+  it("picks the one provider a key was stored for", () => {
+    expect(soleKeyedProvider(providers, [{ purpose: "openrouter" }])).toBe("openrouter");
+  });
+
+  it("picks it however many keys that one provider has", () => {
+    // Two keys for OpenRouter is still one provider to run on.
+    expect(
+      soleKeyedProvider(providers, [{ purpose: "openrouter" }, { purpose: "openrouter" }]),
+    ).toBe("openrouter");
+  });
+
+  it("chooses nothing when two providers are keyed", () => {
+    // A real choice, and guessing between them would put a model on the wrong
+    // account - which is a bill somebody else pays.
+    expect(soleKeyedProvider(providers, [{ purpose: "openai" }, { purpose: "anthropic" }])).toBe(
+      undefined,
+    );
+  });
+
+  it("chooses nothing when there is no key at all", () => {
+    expect(soleKeyedProvider(providers, [])).toBe(undefined);
+  });
+
+  it("ignores a key stored for something that is not a model provider", () => {
+    // A secret's purpose is the provider id, and the vault holds purposes that
+    // are not providers at all.
+    expect(soleKeyedProvider(providers, [{ purpose: "slack" }])).toBe(undefined);
+  });
+
+  it("survives a secret with no purpose on it", () => {
+    expect(soleKeyedProvider(providers, [{ purpose: null }, { purpose: "openai" }])).toBe("openai");
   });
 });

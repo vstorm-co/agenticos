@@ -7,10 +7,12 @@ import { FileEditor } from "./file-editor";
 /**
  * A named draft, read or edited.
  *
- * The default matters: these files are read far more often than they are
- * written, and Markdown shown as raw asterisks is the thing this pane exists to
- * stop. So it opens on the preview, unlike the Builder's instructions field,
- * which opens on the source because somebody came to that one to type.
+ * The default matters, and it changed: this pane opens on the **source**.
+ * Somebody who came to a file in a console is usually there to read what it
+ * says - the markup, the front matter, the line that will not parse - and a
+ * rendered view is exactly what hides that. The preview is one click away and
+ * most of the tests below take it, because what they are about is what the
+ * preview draws rather than which half opens first.
  *
  * The HTML preview is sandboxed with no allowances at all. It is somebody's
  * uploaded file rendered to be looked at; scripts, forms and same-origin access
@@ -35,9 +37,24 @@ function mount(props: Partial<Parameters<typeof FileEditor>[0]> = {}) {
   return { onChange };
 }
 
+/** The same pane, opened on its rendered half - what most of these assert on. */
+function mountPreview(props: Partial<Parameters<typeof FileEditor>[0]> = {}) {
+  return mount({ initialMode: "preview", ...props });
+}
+
 describe("the file editor", () => {
-  it("opens on the preview, because these are read more than written", () => {
+  it("opens on the source, because that is what somebody came to read", () => {
+    // It used to open on the preview. A console shows a file to answer a
+    // question about its contents - which key is misspelt, why the front
+    // matter is rejected - and a rendered view is what hides the answer.
     mount();
+
+    expect(screen.getByRole("textbox")).toHaveValue("# Heading");
+    expect(screen.queryByTestId("rendered")).not.toBeInTheDocument();
+  });
+
+  it("renders the markdown once the preview is asked for", () => {
+    mountPreview();
 
     expect(screen.getByTestId("rendered")).toHaveTextContent("# Heading");
   });
@@ -68,7 +85,7 @@ describe("the file editor", () => {
   });
 
   it("says an empty file is empty rather than rendering nothing", () => {
-    mount({ content: "   " });
+    mountPreview({ content: "   " });
 
     expect(screen.getByText("This file is empty.")).toBeInTheDocument();
   });
@@ -82,7 +99,7 @@ describe("the file editor", () => {
   it("sandboxes an HTML file with no allowances", () => {
     // Somebody's uploaded file, rendered to be looked at. Scripts, forms and
     // same-origin access are all things it has no reason to need.
-    mount({ name: "page.html", content: "<p>hi</p>" });
+    mountPreview({ name: "page.html", content: "<p>hi</p>" });
 
     const frame = screen.getByTitle("page.html, rendered");
     expect(frame).toHaveAttribute("sandbox", "");
@@ -91,7 +108,7 @@ describe("the file editor", () => {
 
   it("fences a code file with its own extension so it is highlighted", () => {
     // Rather than growing a second highlighter for code.
-    mount({ name: "helper.py", content: "print(1)" });
+    mountPreview({ name: "helper.py", content: "print(1)" });
 
     expect(screen.getByTestId("rendered")).toHaveTextContent("```py");
   });
@@ -99,7 +116,7 @@ describe("the file editor", () => {
   it("shows a file it has no renderer for as the text it is", () => {
     // A `.txt` or an extensionless file is still worth reading; fencing it as
     // code would invent a language for it, and an HTML frame would be worse.
-    mount({ name: "NOTES", content: "plain words" });
+    mountPreview({ name: "NOTES", content: "plain words" });
 
     expect(screen.getByText("plain words")).toBeInTheDocument();
   });

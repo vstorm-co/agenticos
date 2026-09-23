@@ -44,6 +44,14 @@
     "icon": "llamaparse"
   },
   {
+    "id": "typesafe",
+    "label": "TypeSafe",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://docs.typesafe.ai",
+    "description": "Answer a browsing agent's typed questions with TypeSafe's Jev model."
+  },
+  {
     "id": "mem0",
     "label": "mem0",
     "category": "other",

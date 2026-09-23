@@ -23,9 +23,9 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 112 | 345 |
+| MIT | 112 | 356 |
 | Apache-2.0 | 60 | 27 |
-| BSD-3-Clause | 33 | 10 |
+| BSD-3-Clause | 33 | 11 |
 | ISC | 6 | 22 |
 | BSD-2-Clause | 10 | 0 |
 | LGPL-3.0-or-later | 1 | 2 |
@@ -81,8 +81,8 @@ names no author is in the evidence column below.
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
-| boto3 | 1.43.95 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.95 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.97 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.98 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
@@ -113,7 +113,7 @@ names no author is in the evidence column below.
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
 | fastapi | 0.141.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp-slim | 3.4.7 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin |
+| fastmcp-slim | 4.0.5 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
@@ -140,7 +140,6 @@ names no author is in the evidence column below.
 | httplib2 | 0.32.0 | MIT | https://github.com/httplib2/httplib2 | License field |
 | httptools | 0.8.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
 | httpx | 0.28.1 | BSD-3-Clause | https://github.com/encode/httpx | License field |
-| httpx-sse | 0.4.3 | MIT | https://github.com/florimondmanca/httpx-sse | License field |
 | httpx2 | 2.13.0 | BSD-3-Clause | https://github.com/pydantic/httpx2 | License-Expression |
 | huggingface-hub | 1.18.0 | Apache-2.0 | https://github.com/huggingface/huggingface_hub | License field |
 | humanize | 4.16.0 | MIT | https://github.com/python-humanize/humanize | License-Expression |
@@ -173,9 +172,10 @@ names no author is in the evidence column below.
 | markdown-it-py | 4.2.0 | MIT | https://github.com/executablebooks/markdown-it-py | classifier |
 | markdownify | 1.2.3 | MIT | http://github.com/matthewwithanm/python-markdownify | classifier |
 | markupsafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ | License-Expression |
-| mcp | 1.30.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
+| mcp-types | 2.2.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
-| mem0ai | 2.0.20 | Apache-2.0 | https://pypi.org/project/mem0ai/2.0.20/ | License-Expression |
+| mem0ai | 2.1.0 | Apache-2.0 | https://pypi.org/project/mem0ai/2.1.0/ | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
 | multidict | 6.8.0 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
@@ -222,10 +222,10 @@ names no author is in the evidence column below.
 | pydantic-ai-backend | 0.2.29 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.31.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
 | pydantic-ai-skills | 2.0.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.43.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.45.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.43.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.45.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 0.0.23 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 0.0.23 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 0.0.23 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -301,7 +301,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-413 distributions.
+425 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -316,6 +316,7 @@ names no author is in the evidence column below.
 | @babel/template | 7.29.7 | MIT | https://github.com/babel/babel | package.json license |
 | @babel/traverse | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
 | @babel/types | 7.29.8 | MIT | https://github.com/babel/babel | package.json license |
+| @blobatar/react | 2.7.0 | MIT | https://github.com/Alain00/blobatar | package.json license |
 | @cfworker/json-schema | 4.1.1 | MIT | https://github.com/cfworker/cfworker | package.json license; no licence file, attributed to Jeremy Danyow <jdanyow@gmail.com> |
 | @eloqnt/config | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
 | @eloqnt/format-json | 0.1.0 | MIT | https://cli.eloqnt.dev/docs/configuration | package.json license |
@@ -478,6 +479,8 @@ names no author is in the evidence column below.
 | babel-plugin-macros | 3.1.0 | MIT | https://github.com/kentcdodds/babel-plugin-macros | package.json license |
 | bail | 2.0.2 | MIT | https://github.com/wooorm/bail | package.json license |
 | baseline-browser-mapping | 2.11.10 | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping | package.json license |
+| blobatar | 2.7.0 | MIT | https://github.com/Alain00/blobatar | package.json license |
+| border-beam | 1.3.0 | MIT | https://github.com/Jakubantalik/border-beam | package.json license |
 | callsites | 3.1.0 | MIT | https://github.com/sindresorhus/callsites | package.json license |
 | caniuse-lite | 1.0.30001806 | CC-BY-4.0 | https://github.com/browserslist/caniuse-lite | package.json license; review accepted |
 | ccount | 2.0.1 | MIT | https://github.com/wooorm/ccount | package.json license |
@@ -537,6 +540,7 @@ names no author is in the evidence column below.
 | fast-equals | 5.4.3 | MIT | https://github.com/planttheidea/fast-equals | package.json license |
 | fast-uri | 3.1.8 | BSD-3-Clause | https://github.com/fastify/fast-uri | package.json license |
 | find-root | 1.1.0 | MIT | https://github.com/js-n/find-root | package.json license |
+| framer-motion | 13.4.0 | MIT | https://github.com/motiondivision/motion/ | package.json license |
 | function-bind | 1.1.2 | MIT | https://github.com/Raynos/function-bind | package.json license |
 | get-nonce | 1.0.1 | MIT | https://github.com/theKashey/get-nonce | package.json license |
 | goober | 2.1.19 | MIT | https://github.com/cristianbote/goober | package.json license |
@@ -546,12 +550,14 @@ names no author is in the evidence column below.
 | hast-util-to-text | 4.0.2 | MIT | https://github.com/syntax-tree/hast-util-to-text | package.json license |
 | hast-util-whitespace | 3.0.0 | MIT | https://github.com/syntax-tree/hast-util-whitespace | package.json license |
 | highlight.js | 11.11.1 | BSD-3-Clause | https://github.com/highlightjs/highlight.js | package.json license |
+| highlight.js | 11.12.0 | BSD-3-Clause | https://github.com/highlightjs/highlight.js | package.json license |
 | hoist-non-react-statics | 3.3.2 | BSD-3-Clause | https://github.com/mridgway/hoist-non-react-statics | package.json license |
 | html-parse-stringify | 3.1.0 | MIT | https://github.com/henrikjoreteg/html-parse-stringify | package.json license |
 | html-url-attributes | 3.0.1 | MIT | https://github.com/rehypejs/rehype-minify/tree/main/packages/html-url-attributes | package.json license |
 | i18next | 24.2.3 | MIT | https://github.com/i18next/i18next | package.json license |
 | i18next-browser-languagedetector | 8.2.1 | MIT | https://github.com/i18next/i18next-browser-languageDetector | package.json license |
 | icu-minify | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
+| img-fx | 0.5.1 | MIT | https://github.com/Jakubantalik/img-fx | package.json license |
 | immer | 10.2.0 | MIT | https://github.com/immerjs/immer | package.json license |
 | immer | 11.1.15 | MIT | https://github.com/immerjs/immer | package.json license |
 | import-fresh | 3.3.1 | MIT | https://github.com/sindresorhus/import-fresh | package.json license |
@@ -623,6 +629,9 @@ names no author is in the evidence column below.
 | micromark-util-symbol | 2.0.1 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol | package.json license |
 | micromark-util-types | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types | package.json license |
 | module-details-from-path | 1.0.4 | MIT | https://github.com/watson/module-details-from-path | package.json license |
+| motion | 13.4.0 | MIT | https://github.com/motiondivision/motion | package.json license |
+| motion-dom | 13.3.0 | MIT | https://github.com/motiondivision/motion | package.json license |
+| motion-utils | 13.3.0 | MIT | https://github.com/motiondivision/motion | package.json license |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
 | nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
@@ -689,6 +698,8 @@ names no author is in the evidence column below.
 | supports-preserve-symlinks-flag | 1.0.0 | MIT | https://github.com/inspect-js/node-supports-preserve-symlinks-flag | package.json license |
 | tabbable | 6.5.0 | MIT | https://github.com/focus-trap/tabbable | package.json license |
 | tailwind-merge | 3.7.0 | MIT | https://github.com/dcastil/tailwind-merge | package.json license |
+| thinking-orbs | 0.3.1 | MIT | https://github.com/Jakubantalik/thinking-orbs | package.json license |
+| three | 0.186.0 | MIT | https://github.com/mrdoob/three.js | package.json license |
 | tiny-invariant | 1.3.3 | MIT | https://github.com/alexreardon/tiny-invariant | package.json license |
 | trim-lines | 3.0.1 | MIT | https://github.com/wooorm/trim-lines | package.json license |
 | trough | 2.2.0 | MIT | https://github.com/wooorm/trough | package.json license |
@@ -712,6 +723,7 @@ names no author is in the evidence column below.
 | vfile | 6.0.3 | MIT | https://github.com/vfile/vfile | package.json license |
 | vfile-message | 4.0.3 | MIT | https://github.com/vfile/vfile-message | package.json license |
 | victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
+| voice-glow | 0.2.0 | MIT | https://github.com/Jakubantalik/Libraries.dev | package.json license |
 | void-elements | 3.1.0 | MIT | https://github.com/pugjs/void-elements | package.json license |
 | yaml | 1.10.3 | ISC | github:eemeli/yaml | package.json license |
 | yaml | 2.9.1 | ISC | github:eemeli/yaml | package.json license |
@@ -734,6 +746,7 @@ and data files.
 | ghcr.io/astral-sh/uv (build stage only) | latest | build tool, not in the published image | Apache-2.0 OR MIT | https://github.com/astral-sh/uv | accepted | None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer. | Not distributed. |
 | Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names. |
 | Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
+| Rare UI components vendored into frontend/src/components/ui/ | swamimalode07/rare-ui as of 2026-09-22 (animated-counter, notification-bell, task-list) | source, frontend image | MIT | https://github.com/swamimalode07/rare-ui | accepted | Keep the copyright notice and the permission notice with the copies or substantial portions of the software. | NOTICE at the repository root and frontend/NOTICE name the project, its copyright holder and the MIT text; frontend/scripts/collect-licenses.ts copies the latter into the frontend image at /app/licenses/NOTICE. Each file that came from it says so in its own header, with what was changed and why. The distribution method is why this is here rather than in the npm inventory: the project's own instructions are `shadcn add`, which copies a file into the tree rather than adding a dependency a lockfile would record. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | pgvector/pgvector | pg16 | service image, deployment | PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License. | https://github.com/pgvector/pgvector | accepted | Permissive; keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. |
 | valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |

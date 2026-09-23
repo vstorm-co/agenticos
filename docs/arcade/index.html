@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Amigo's Arcade - AgenticOS</title>
+    <meta
+      name="description"
+      content="Five small games about building an AI agent. Everything you collect - capabilities, skills, context, memory, MCP servers - lands in one harness that follows you between cabinets."
+    />
+    <link rel="icon" href="../assets/amigo-head.svg" />
+    <meta property="og:title" content="Amigo's Arcade" />
+    <meta
+      property="og:description"
+      content="Five small games about building an AI agent. Collect capabilities, skills, context, memory and MCP servers into one harness."
+    />
+    <meta property="og:image" content="../assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="arcade.css" />
+    <style>
+      /* The opening: a sentence wide enough to read, and the harness meter
+         directly under it, because "what have I got" is the question this page
+         exists to answer. */
+      .hub-intro {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+      }
+
+      @media (max-width: 760px) {
+        .hub-intro {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      .hub-lede {
+        margin: 0;
+        max-width: 62ch;
+        font-size: 16px;
+        line-height: 1.7;
+        color: var(--dim);
+        text-wrap: pretty;
+      }
+
+      .hub-lede b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      .hub-meter {
+        display: grid;
+        gap: 8px;
+        justify-items: start;
+        padding: 14px 16px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        min-width: 232px;
+      }
+
+      .hub-meter .count {
+        font-family: var(--display);
+        font-size: 30px;
+        line-height: 1;
+      }
+
+      .hub-meter .count em {
+        font-style: normal;
+        color: var(--faint);
+        font-size: 19px;
+      }
+
+      .hub-meter .label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      /* Twelve segments, one per part, coloured by kind once it is collected:
+         the collection's shape at a glance, without reading a single word. */
+      .hub-pips {
+        display: flex;
+        gap: 2px;
+        width: 100%;
+      }
+
+      .hub-pips i {
+        flex: 1;
+        min-width: 4px;
+        height: 9px;
+        background: var(--line);
+        border-radius: 1px;
+      }
+
+      .hub-cabinets {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+        gap: 16px;
+      }
+
+      .hub-cab {
+        display: flex;
+        flex-direction: column;
+        text-decoration: none;
+        color: inherit;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 5px;
+        overflow: hidden;
+        transition:
+          border-color 140ms,
+          transform 140ms,
+          box-shadow 140ms;
+      }
+
+      .hub-cab:hover,
+      .hub-cab:focus-visible {
+        border-color: var(--sun);
+        transform: translateY(-3px);
+        box-shadow: 0 16px 30px -22px rgba(0, 0, 0, 0.9);
+      }
+
+      .hub-cab canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+        border-bottom: 1px solid var(--edge);
+      }
+
+      .hub-cab .body {
+        padding: 14px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        flex: 1;
+      }
+
+      .hub-cab h3 {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 21px;
+        line-height: 1;
+        margin: 0;
+      }
+
+      .hub-cab p {
+        margin: 0;
+        font-size: 13.5px;
+        color: var(--dim);
+        line-height: 1.55;
+      }
+
+      .hub-cab .foot {
+        margin-top: auto;
+        padding-top: 12px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        border-top: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hub-cab .foot em {
+        font-style: normal;
+        color: var(--sun);
+      }
+
+      .hub-cab .foot .play {
+        margin-left: auto;
+        color: var(--dim);
+      }
+
+      .hub-cab:hover .foot .play {
+        color: var(--sun);
+      }
+
+      .hub-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+        gap: 10px;
+      }
+
+      /* A locked slot leads with the thing to go and do, not with the word
+         "Locked" repeated eleven times down the page. */
+      .hub-slot {
+        display: grid;
+        gap: 5px;
+        padding: 12px 14px 13px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--line);
+        border-radius: 3px;
+      }
+
+      .hub-slot .kind {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      .hub-slot .kind i {
+        width: 7px;
+        height: 7px;
+        background: var(--line);
+        display: block;
+      }
+
+      .hub-slot .kind .where {
+        margin-left: auto;
+        letter-spacing: 0.04em;
+        text-transform: none;
+        color: var(--faint);
+      }
+
+      .hub-slot .name {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--dim);
+        line-height: 1.35;
+      }
+
+      .hub-slot .meta {
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: var(--faint);
+      }
+
+      .hub-slot .perk {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: var(--faint);
+      }
+
+      .hub-slot.is-on {
+        background: var(--raised);
+      }
+
+      .hub-slot.is-on .name {
+        color: var(--ink);
+      }
+
+      .hub-slot.is-on .meta {
+        color: var(--dim);
+      }
+
+      .hub-slot.is-on .perk {
+        color: var(--sun);
+      }
+
+      .hub-slot.is-on .perk::before {
+        content: "+ ";
+      }
+
+      .hub-spec-wrap {
+        position: relative;
+      }
+
+      .hub-spec {
+        margin: 0;
+        padding: 18px 20px;
+        background: #0d0f14;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.8;
+        color: var(--ink);
+        overflow-x: auto;
+        white-space: pre;
+      }
+
+      .hub-spec .c {
+        color: var(--faint);
+      }
+
+      .hub-spec .k {
+        color: var(--sky);
+      }
+
+      .hub-spec .v {
+        color: var(--sun);
+      }
+
+      .hub-copy {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
+
+      .hub-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+        gap: 10px;
+      }
+
+      .hub-stats div {
+        padding: 12px 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+      }
+
+      .hub-stats b {
+        display: block;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 3px;
+      }
+
+      .hub-stats span {
+        font-family: var(--mono);
+        font-size: 21px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hub-foot {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        align-items: center;
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+        font-size: 13px;
+        color: var(--faint);
+      }
+
+      .hub-foot a {
+        color: var(--dim);
+        text-decoration: none;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hub-foot a:hover,
+      .hub-foot a:focus-visible {
+        color: var(--sun);
+        border-bottom-color: var(--sun);
+      }
+
+      .hub-foot .grow {
+        margin-left: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="arc-page">
+      <div class="arc-top">
+        <img class="arc-mark" src="../assets/amigo.svg" alt="" />
+        <h1 class="arc-title">Amigo's Arcade</h1>
+        <p class="arc-eyebrow">AgenticOS</p>
+      </div>
+
+      <div class="hub-intro">
+        <p class="hub-lede">
+          Five small games about the same job: giving an agent something it did
+          not have before. Every capability, skill, context file, memory and MCP
+          server you pick up is written to
+          <b>one harness</b> in this browser, and it follows you into the other
+          cabinets - a tool earned in the desert is a tool you still have in the
+          canyon.
+        </p>
+
+        <div class="hub-meter">
+          <span class="label">Harness</span>
+          <span class="count"
+            ><span id="count">0</span
+            ><em>&thinsp;/&thinsp;<span id="total">0</span></em></span
+          >
+          <div class="hub-pips" id="pips" aria-hidden="true"></div>
+          <span class="label" id="nextUp"></span>
+        </div>
+      </div>
+
+      <div class="arc-section">
+        <div class="arc-head">
+          <h2>Cabinets</h2>
+          <p>Keyboard or touch. No install, no account.</p>
+        </div>
+        <div class="hub-cabinets">
+          <a class="hub-cab" href="agents.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="agents"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Just One More Agent</h3>
+              <p>
+                One comma to fix. A growing army of agents. Equip tools and MCP, pick a provider, and
+                cancel meetings before the budget becomes the punchline.
+              </p>
+              <div class="foot">
+                <span data-score="agents"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+          <a class="hub-cab" href="context.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="context"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Context Tetris</h3>
+              <p>
+                Instructions, documents, memories and far too many logs. Stack
+                the context, clear rows and keep enough signal to answer.
+              </p>
+              <div class="foot">
+                <span data-score="context"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+          <a class="hub-cab" href="runner.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="runner"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Desert Run</h3>
+              <p>
+                One long shift across the sand. Hop the rate limits, duck the
+                confident wrong answers, and mind the thirty-thousand-dollar
+                invoice coming the other way.
+              </p>
+              <div class="foot">
+                <span data-score="runner"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+
+          <a class="hub-cab" href="canyon.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="canyon"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Capability Canyon</h3>
+              <p>
+                Capabilities, document chunks and a typed-output schema are
+                scattered across a canyon, and the publish flag refuses a
+                half-built agent.
+              </p>
+              <div class="foot">
+                <span data-score="canyon"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+
+          <a class="hub-cab" href="shift.html">
+            <canvas
+              width="320"
+              height="128"
+              data-preview="shift"
+              aria-hidden="true"
+            ></canvas>
+            <div class="body">
+              <h3>Night Shift</h3>
+              <p>
+                A quiet control room and a queue that is not. Connect a source,
+                clean an export, answer the invoice finance just found - one
+                pair of hands, in the right order.
+              </p>
+              <div class="foot">
+                <span data-score="shift"></span
+                ><span class="play">Play &rarr;</span>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="arc-section">
+        <div class="arc-head">
+          <h2>The harness</h2>
+          <p>
+            Each part changes how the games play, not just what the list says.
+          </p>
+        </div>
+        <div class="hub-grid" id="slots"></div>
+      </div>
+
+      <div class="arc-section">
+        <div class="arc-head">
+          <h2>Your agent, as a spec</h2>
+          <p>The shape AgenticOS exports for real.</p>
+        </div>
+        <div class="hub-spec-wrap">
+          <pre class="hub-spec" id="spec"></pre>
+          <button type="button" class="arc-btn hub-copy" id="copy">Copy</button>
+        </div>
+      </div>
+
+      <div class="arc-section">
+        <div class="arc-head">
+          <h2>Shift record</h2>
+        </div>
+        <div class="hub-stats" id="stats"></div>
+      </div>
+
+      <div class="hub-foot">
+        <a
+          href="https://github.com/vstorm-co/agenticos"
+          target="_blank"
+          rel="noopener"
+          >Star the repository</a
+        >
+        <a href="../">Read the documentation</a>
+        <span class="grow"></span>
+        <button type="button" class="arc-btn" id="reset">
+          Wipe the harness
+        </button>
+      </div>
+    </div>
+
+    <script src="arcade.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var H = window.Amigo.harness;
+        var sprites = window.Amigo.sprites();
+
+        function paintMeter(state) {
+          document.getElementById("count").textContent = state.unlocked.length;
+          document.getElementById("total").textContent =
+            window.Amigo.parts.length;
+          var pips = document.getElementById("pips");
+          pips.innerHTML = "";
+          window.Amigo.parts.forEach(function (part) {
+            var pip = document.createElement("i");
+            if (state.unlocked.indexOf(part.id) !== -1) {
+              pip.style.background = window.Amigo.kinds[part.kind].color;
+            }
+            pips.appendChild(pip);
+          });
+
+          var next = null;
+          window.Amigo.parts.forEach(function (part) {
+            if (!next && state.unlocked.indexOf(part.id) === -1) next = part;
+          });
+          document.getElementById("nextUp").textContent = next
+            ? "Next: " + next.how.toLowerCase()
+            : "Complete";
+        }
+
+        function paintSlots(state) {
+          var host = document.getElementById("slots");
+          host.innerHTML = "";
+          window.Amigo.parts.forEach(function (part) {
+            var on = state.unlocked.indexOf(part.id) !== -1;
+            var kind = window.Amigo.kinds[part.kind];
+            var slot = document.createElement("div");
+            slot.className = "hub-slot" + (on ? " is-on" : "");
+            if (on) slot.style.borderLeftColor = kind.color;
+            slot.innerHTML =
+              '<span class="kind"><i' +
+              (on ? ' style="background:' + kind.color + '"' : "") +
+              "></i>" +
+              kind.label +
+              '<span class="where">' +
+              part.where +
+              "</span></span>" +
+              '<span class="name">' +
+              (on ? part.name : part.how) +
+              "</span>" +
+              '<span class="meta">' +
+              (on ? part.blurb : "Not collected yet.") +
+              "</span>" +
+              '<span class="perk">' +
+              part.perk +
+              "</span>";
+            host.appendChild(slot);
+          });
+        }
+
+        /* The same collection, printed the way the product prints it. Locked
+           parts stay in as comments, because a spec you have not finished is
+           exactly what this is. */
+        function specText(state) {
+          var keys = {
+            tool: "capabilities",
+            skill: "skills",
+            context: "context_files",
+            memory: "memory",
+            data: "knowledge",
+            mcp: "mcp_servers",
+            model: "models",
+            vstorm: "badges",
+          };
+          var lines = [
+            "# amigo.yaml - exported from the arcade",
+            "spec_version: 1",
+            "agent:",
+            "  name: amigo",
+            "  model: claude-opus-5",
+            '  instructions: "Answer for the company, not for the model."',
+          ];
+          Object.keys(keys).forEach(function (kind) {
+            lines.push("  " + keys[kind] + ":");
+            window.Amigo.parts.forEach(function (part) {
+              if (part.kind !== kind) return;
+              var slug = part.id.split(".")[1];
+              if (state.unlocked.indexOf(part.id) !== -1)
+                lines.push("    - " + slug);
+              else lines.push("    # - " + slug + "  (not collected yet)");
+            });
+          });
+          return lines.join("\n");
+        }
+
+        function paintSpec(state) {
+          var html = specText(state)
+            .split("\n")
+            .map(function (line) {
+              if (line.trim().charAt(0) === "#")
+                return '<span class="c">' + line + "</span>";
+              var m = line.match(/^(\s*)([a-z_]+):(.*)$/);
+              if (m) {
+                return (
+                  m[1] +
+                  '<span class="k">' +
+                  m[2] +
+                  "</span>:" +
+                  (m[3] ? '<span class="v">' + m[3] + "</span>" : "")
+                );
+              }
+              return line.replace(/- (.+)$/, '- <span class="v">$1</span>');
+            })
+            .join("\n");
+          document.getElementById("spec").innerHTML = html;
+        }
+
+        function paintStats() {
+          var s = H.stats();
+          var rows = [
+            ["Tokens banked", s.lifetimeTokens],
+            ["Best run", s.runnerBest],
+            ["Longest shift", s.runnerLongest + "s"],
+            ["Canyon clears", s.canyonClears],
+            ["Shifts worked", s.shiftClears],
+            ["Failed runs", s.runnerDeaths],
+            ["Commas shipped", s.agentsWins],
+            ["Context best", s.contextBest],
+            ["Tasks answered", s.contextTasks],
+          ];
+          document.getElementById("stats").innerHTML = rows
+            .map(function (row) {
+              return (
+                "<div><b>" + row[0] + "</b><span>" + row[1] + "</span></div>"
+              );
+            })
+            .join("");
+
+          document.querySelector('[data-score="agents"]').textContent =
+            s.agentsRuns ? "Best " + s.agentsBest + " points" : "Never played";
+          document.querySelector('[data-score="context"]').textContent =
+            s.contextRuns
+              ? "Best " + s.contextBest + " points"
+              : "Never played";
+          document.querySelector('[data-score="runner"]').innerHTML =
+            s.runnerBest
+              ? "Best <em>" + s.runnerBest + "</em> tokens"
+              : "Never played";
+          document.querySelector('[data-score="canyon"]').innerHTML =
+            s.canyonClears
+              ? "Cleared <em>" + s.canyonClears + "</em>&times;"
+              : "Never cleared";
+          document.querySelector('[data-score="shift"]').innerHTML =
+            s.shiftClears
+              ? "Worked <em>" + s.shiftClears + "</em>&times;"
+              : "Never worked";
+        }
+
+        function paint() {
+          var state = H.state();
+          paintMeter(state);
+          paintSlots(state);
+          paintSpec(state);
+          paintStats();
+        }
+
+        document.getElementById("reset").addEventListener("click", function () {
+          if (
+            !window.confirm(
+              "Wipe the harness? Every collected part goes with it.",
+            )
+          )
+            return;
+          H.reset();
+          paint();
+        });
+
+        document.getElementById("copy").addEventListener("click", function (e) {
+          var button = e.currentTarget;
+          var done = function (word) {
+            button.textContent = word;
+            window.setTimeout(function () {
+              button.textContent = "Copy";
+            }, 1600);
+          };
+          try {
+            navigator.clipboard.writeText(specText(H.state())).then(
+              function () {
+                done("Copied");
+              },
+              function () {
+                done("Select it");
+              },
+            );
+          } catch (err) {
+            done("Select it");
+          }
+        });
+
+        /* One animated scene per cabinet, drawn from the same sprite and the
+           same palette the games use, so a card cannot promise a game that does
+           not exist. */
+        function preview(canvas, kind) {
+          var ctx = canvas.getContext("2d");
+          ctx.imageSmoothingEnabled = false;
+          var W = canvas.width;
+          var H2 = canvas.height;
+          var t = 0;
+
+          function amigo(x, y, frame) {
+            ctx.fillStyle = "rgba(0,0,0,.3)";
+            ctx.fillRect(x + 2, y + 20, 12, 2);
+            ctx.drawImage(frame, Math.round(x), Math.round(y));
+          }
+
+          function desert() {
+            var ground = H2 - 26;
+            ctx.fillStyle = "#2a1147";
+            ctx.fillRect(0, 0, W, ground * 0.45);
+            ctx.fillStyle = "#4b1c47";
+            ctx.fillRect(0, ground * 0.45, W, ground * 0.25);
+            ctx.fillStyle = "#8a2e43";
+            ctx.fillRect(0, ground * 0.7, W, ground * 0.3 + 2);
+
+            for (var s = 0; s < 14; s++) {
+              var sx = (s * 53) % W;
+              var sy = (s * 31) % (ground - 40);
+              if ((Math.floor(t / 7) + s) % 5 === 0) continue;
+              ctx.fillStyle = "#f6e7c4";
+              ctx.fillRect(sx, sy, 2, 2);
+            }
+
+            ctx.fillStyle = "#f2c14e";
+            ctx.beginPath();
+            ctx.arc(W - 62, ground - 44, 19, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "rgba(139,46,67,.42)";
+            for (var b = -20; b < 20; b += 4)
+              ctx.fillRect(W - 81, ground - 44 + b, 38, 2);
+
+            for (var d = 0; d < 4; d++) {
+              var dx =
+                ((((d * 110 - t * 0.5) % (W + 130)) + W + 130) % (W + 130)) -
+                65;
+              ctx.fillStyle = "#4c1c3d";
+              ctx.fillRect(dx + 6, ground - 17, 60, 17);
+              ctx.fillRect(dx, ground - 11, 72, 11);
+            }
+
+            ctx.fillStyle = "#c98a4b";
+            ctx.fillRect(0, ground, W, H2 - ground);
+            ctx.fillStyle = "#a96c37";
+            ctx.fillRect(0, ground + 6, W, H2 - ground - 6);
+            ctx.fillStyle = "#e0a765";
+            var scroll = (t * 2.1) % 22;
+            for (var g = -22; g < W + 22; g += 22) {
+              ctx.fillRect(Math.round(g - scroll), ground + 2, 8, 2);
+              ctx.fillRect(
+                Math.round(g - scroll * 1.5 + 11),
+                ground + 11,
+                4,
+                2,
+              );
+            }
+
+            var cx = W - ((t * 2.1) % (W + 90));
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(cx, ground - 22, 9, 22);
+            ctx.fillRect(cx - 4, ground - 14, 4, 3);
+            ctx.fillRect(cx + 9, ground - 18, 4, 3);
+
+            var tx = W - ((t * 2.1 + 150) % (W + 120));
+            ctx.fillStyle = "#f2c14e";
+            ctx.fillRect(tx, ground - 40 + Math.sin(t * 0.12) * 2, 7, 7);
+
+            var hop = Math.max(0, Math.sin(t * 0.09)) * 22;
+            amigo(
+              34,
+              ground - 19 - hop,
+              hop > 1
+                ? sprites.air
+                : Math.floor(t / 5) % 2
+                  ? sprites.step
+                  : sprites.stand,
+            );
+          }
+
+          function canyon() {
+            var ground = H2 - 22;
+            ctx.fillStyle = "#4aa8d8";
+            ctx.fillRect(0, 0, W, H2 * 0.55);
+            ctx.fillStyle = "#79c6e2";
+            ctx.fillRect(0, H2 * 0.55, W, H2 * 0.45);
+
+            for (var m = 0; m < 4; m++) {
+              var mx =
+                ((((m * 128 - t * 0.28) % (W + 150)) + W + 150) % (W + 150)) -
+                75;
+              ctx.fillStyle = "#6e4a7a";
+              ctx.fillRect(mx, ground - 58, 52, 58);
+              ctx.fillRect(mx - 10, ground - 34, 72, 34);
+            }
+            for (var c = 0; c < 3; c++) {
+              var cx2 =
+                ((((c * 168 - t * 0.5) % (W + 200)) + W + 200) % (W + 200)) -
+                100;
+              ctx.fillStyle = "#8d5470";
+              ctx.fillRect(cx2, ground - 38, 66, 38);
+            }
+
+            ctx.fillStyle = "#a96c37";
+            ctx.fillRect(0, ground, W, H2 - ground);
+            ctx.fillStyle = "#c98a4b";
+            ctx.fillRect(0, ground, W, 4);
+            ctx.fillStyle = "#e0a765";
+            ctx.fillRect(0, ground, W, 2);
+
+            ctx.fillStyle = "#4a3b31";
+            ctx.fillRect(150, ground - 26, 48, 10);
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(150, ground - 26, 48, 1);
+
+            var orbY = ground - 52 + Math.sin(t * 0.07) * 3;
+            ctx.fillStyle = "rgba(242,193,78,.22)";
+            ctx.fillRect(164, orbY - 4, 24, 24);
+            ctx.fillStyle = "#1a1f2e";
+            ctx.fillRect(168, orbY, 16, 16);
+            ctx.fillStyle = "#f2c14e";
+            ctx.fillRect(169, orbY + 1, 14, 14);
+
+            var pole = W - 44;
+            ctx.fillStyle = "#4a3b31";
+            ctx.fillRect(pole, ground - 54, 3, 54);
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(pole + 3, ground - 52 + Math.sin(t * 0.1) * 2, 20, 12);
+
+            var phase = (t % 150) / 150;
+            var hop2 = Math.sin(phase * Math.PI * 4) * 16;
+            amigo(
+              44 + phase * 70,
+              ground - 19 - Math.max(0, hop2),
+              hop2 > 1
+                ? sprites.air
+                : Math.floor(t / 5) % 2
+                  ? sprites.step
+                  : sprites.stand,
+            );
+          }
+
+          function control() {
+            for (var gx = 0; gx < W; gx += 16) {
+              for (var gy = 0; gy < H2; gy += 16) {
+                ctx.fillStyle =
+                  ((gx + gy) / 16) % 2 === 0 ? "#1b1f28" : "#191d25";
+                ctx.fillRect(gx, gy, 16, 16);
+                ctx.fillStyle = "rgba(46,139,87,.10)";
+                ctx.fillRect(gx, gy + 15, 16, 1);
+              }
+            }
+            ctx.fillStyle = "#2a3140";
+            ctx.fillRect(0, 0, W, 10);
+            ctx.fillStyle = "#39435a";
+            ctx.fillRect(0, 0, W, 3);
+
+            function desk(x, y, color) {
+              ctx.fillStyle = "#11141a";
+              ctx.fillRect(x, y + 4, 32, 14);
+              ctx.fillStyle = "#3a4354";
+              ctx.fillRect(x, y - 8, 32, 14);
+              ctx.fillStyle = color;
+              ctx.fillRect(x + 2, y - 6, 28, 10);
+              ctx.fillStyle = "rgba(11,12,15,.55)";
+              for (var i = 0; i < 3; i++)
+                ctx.fillRect(x + 4, y - 4 + i * 3, 12 + i * 5, 1);
+            }
+            desk(38, 42, "#2e8b57");
+            desk(146, 30, "#4b6bdd");
+            desk(244, 62, "#c8412b");
+
+            var leg = (t % 320) / 320;
+            var px = 60 + leg * 180;
+            var py = 78 - Math.sin(leg * Math.PI) * 26;
+            var frame = Math.floor(t / 6) % 2 ? sprites.step : sprites.stand;
+            ctx.save();
+            if (leg > 0.5) {
+              ctx.translate(Math.round(px) + 16, Math.round(py));
+              ctx.scale(-1, 1);
+              amigo(0, 0, frame);
+            } else {
+              amigo(px, py, frame);
+            }
+            ctx.restore();
+
+            ctx.fillStyle = "rgba(11,12,15,.6)";
+            ctx.fillRect(Math.round(px) + 3, Math.round(py) - 12, 10, 10);
+            ctx.fillStyle = "#2e8b57";
+            ctx.fillRect(Math.round(px) + 4, Math.round(py) - 11, 8, 8);
+          }
+
+          function officePreview() {
+            ctx.fillStyle = "#191522";
+            ctx.fillRect(0, 0, W, H2);
+            ctx.strokeStyle = "#58425d";
+            for (var i = 0; i < 8; i++) {
+              var x = 30 + (i % 4) * 76,
+                y = 25 + Math.floor(i / 4) * 57;
+              ctx.beginPath();
+              ctx.moveTo(160, 64);
+              ctx.lineTo(x + 8, y + 14);
+              ctx.stroke();
+              amigo(
+                x,
+                y,
+                Math.floor(t / 20 + i) % 2 ? sprites.stand : sprites.step,
+              );
+              ctx.fillStyle = "#574353";
+              ctx.fillRect(x - 4, y + 19, 37, 6);
+              ctx.fillStyle = "#eac05c";
+              ctx.fillRect(x + 16, y + 9, 14, 10);
+            }
+          }
+          function contextPreview() {
+            ctx.fillStyle = "#101421";
+            ctx.fillRect(0, 0, W, H2);
+            var shades = ["#54b6ce", "#b587d5", "#687084", "#eac05c"];
+            for (var x = 0; x < 16; x++) {
+              var height = 1 + ((x * 7) % 4);
+              for (var y = 0; y < height; y++) {
+                ctx.fillStyle = shades[(x + y) % 4];
+                ctx.fillRect(x * 20 + 1, H2 - (y + 1) * 20, 18, 18);
+              }
+            }
+            ctx.fillStyle = "#eac05c";
+            var fall = (Math.floor(t / 9) % 4) * 10;
+            ctx.fillRect(141, fall, 18, 18);
+            ctx.fillRect(121, fall + 20, 18, 18);
+            ctx.fillRect(141, fall + 20, 18, 18);
+            ctx.fillRect(161, fall + 20, 18, 18);
+          }
+          function frame() {
+            t++;
+            if (kind === "runner") desert();
+            else if (kind === "canyon") canyon();
+            else if (kind === "agents") officePreview();
+            else if (kind === "context") contextPreview();
+            else control();
+            requestAnimationFrame(frame);
+          }
+          frame();
+        }
+
+        /* A player walks into a cabinet, earns three parts and presses Back.
+           A bfcache-eligible browser hands this exact document back without
+           rerunning a line of it, so the board would still show what it showed
+           before the run. The same goes for a second tab writing the record. */
+        window.addEventListener("pageshow", function () {
+          H.invalidate();
+          paint();
+        });
+        window.addEventListener("storage", function (e) {
+          if (e.key && e.key !== H.key) return;
+          H.invalidate();
+          paint();
+        });
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll("[data-preview]"),
+          function (c) {
+            preview(c, c.dataset.preview);
+          },
+        );
+
+        paint();
+      })();
+    </script>
+  </body>
+</html>

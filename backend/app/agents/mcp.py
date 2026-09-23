@@ -85,8 +85,15 @@ async def _mcp_transport(
 
     The transport is inferred from the URL exactly as the toolset layer does it
     (FastMCP): a path segment `/sse` selects the SSE client (used by servers
-    like Atlassian/Jira), everything else uses streamable HTTP. The streamable
-    client yields a third session-id callable we don't need here.
+    like Atlassian/Jira), everything else uses streamable HTTP.
+
+    The streamable client takes a **client**, not headers, since MCP 2.0: it was
+    `streamablehttp_client(url, headers=...)` yielding three values, and is
+    `streamable_http_client(url, http_client=...)` yielding two. A rename alone
+    compiles and silently drops every `Authorization` a connection carries -
+    which is the whole of what reaches a private MCP server - so the headers go
+    into the client `create_mcp_http_client` builds, and the client is owned
+    here so it closes with the transport (#1820).
     """
     from pydantic_ai.mcp import infer_transport_type_from_url
 
@@ -96,9 +103,12 @@ async def _mcp_transport(
         async with sse_client(url, headers=headers or None) as (read, write):
             yield read, write
     else:
-        from mcp.client.streamable_http import streamablehttp_client
+        from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
-        async with streamablehttp_client(url, headers=headers or None) as (read, write, _):
+        async with (
+            create_mcp_http_client(headers=headers or None) as http_client,
+            streamable_http_client(url, http_client=http_client) as (read, write),
+        ):
             yield read, write
 
 

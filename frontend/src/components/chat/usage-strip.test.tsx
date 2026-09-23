@@ -476,4 +476,44 @@ describe("a share too small to be a share", () => {
     expect(screen.getByText("sandbox memory 84% full")).toBeVisible();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
+
+  it("keeps the workspace reading out of a quiet strip until it warns", () => {
+    // The composer's control row shares a line with the connection pill, the
+    // agent picker and four buttons. An ordinary fill is the longest of the
+    // three readings and says the least; the one at the ceiling is the whole
+    // reason the reading exists.
+    const stored = (percent: number | null) => ({
+      kind: "state" as const,
+      percent,
+      bytes_used: 1_048_576,
+      bytes_limit: 4_194_304,
+      memory_bytes: null,
+      memory_limit_bytes: null,
+    });
+
+    const { rerender } = render(<UsageStrip usage={usage({ sandbox: stored(12) })} quiet />);
+    expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument();
+
+    rerender(<UsageStrip usage={usage({ sandbox: stored(91) })} quiet />);
+    expect(screen.getByText(/91%/)).toBeInTheDocument();
+  });
+
+  it("says nothing in a quiet strip when nobody could measure a fill", () => {
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "state",
+            percent: null,
+            bytes_used: null,
+            bytes_limit: null,
+            memory_bytes: null,
+            memory_limit_bytes: null,
+          },
+        })}
+        quiet
+      />,
+    );
+    expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument();
+  });
 });

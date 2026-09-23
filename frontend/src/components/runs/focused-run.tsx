@@ -358,7 +358,7 @@ function AgentIdentity({ agentId }: { agentId: string }) {
       <span aria-hidden>
         <AgentAvatar
           agentId={agentId}
-          name={agent.name}
+          slug={agent.slug}
           hasAvatar={agent.has_avatar ?? false}
           size="sm"
         />

@@ -44,6 +44,7 @@ def _stored_user(*, is_app_admin: bool = False) -> MagicMock:
     user = MagicMock()
     user.id = uuid4()
     user.email = "member@example.com"
+    user.pending_email = None
     user.full_name = "A Member"
     user.is_active = True
     user.is_app_admin = is_app_admin
@@ -75,10 +76,12 @@ class _RecordingUserService:
 
     async def update_current(
         self, user: MagicMock, user_in: UserUpdate, *, current_session_id: UUID | None = None
-    ) -> MagicMock:
+    ) -> tuple[MagicMock, str | None]:
         # The self-update route goes through the self-suspend guard; this test is
         # about which fields reach the update, so it delegates like the real one.
-        return await self.update(user.id, user_in)
+        # The second half of the answer is the email-change token (#1772), and
+        # nothing here asks for an address change.
+        return await self.update(user.id, user_in), None
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

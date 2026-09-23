@@ -34,6 +34,22 @@ const SCHEMA: JsonSchema = {
   required: ["default_top_k"],
 };
 
+/** A field that suggests the usual answers and accepts any other. */
+const OPEN_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    decision_model: {
+      type: "string",
+      title: "Decision model",
+      description: "The model that picks each step",
+      default: "jev-latest",
+      "x-suggestions": ["jev-latest", "jev-preview"],
+      "x-enum-labels": { "jev-latest": "Jev (latest)", "jev-preview": "Jev (preview)" },
+      "x-placeholder": "jev-latest",
+    },
+  },
+};
+
 function renderForm(value: Record<string, unknown> = {}, onChange = vi.fn()) {
   render(<SchemaForm schema={SCHEMA} value={value} onChange={onChange} idPrefix="knowledge" />);
   return onChange;
@@ -958,5 +974,71 @@ describe("a masked multiline field", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Private key/ }));
     expect(screen.getByLabelText("Private key").className).not.toContain("text-security:disc");
+  });
+});
+
+describe("a field that suggests rather than restricts", () => {
+  function renderOpen(value: Record<string, unknown> = {}) {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm schema={OPEN_SCHEMA} value={value} onChange={onChange} idPrefix="browser" />,
+    );
+    return onChange;
+  }
+
+  it("is an input somebody can type into, not a closed select", () => {
+    // An `<input list=...>` reports `combobox`, which is what it is - the
+    // distinction that matters is that it takes free text, where `enum`
+    // would have rendered a select and forbidden the pinned build this
+    // field exists to allow.
+    renderOpen();
+    const field = screen.getByRole("combobox");
+    expect(field.tagName).toBe("INPUT");
+    expect(field).toHaveAttribute("list");
+  });
+
+  it("offers the catalog through a datalist", () => {
+    const { container } = render(
+      <SchemaForm schema={OPEN_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="browser" />,
+    );
+
+    const list = container.querySelector("datalist");
+    expect(list).not.toBeNull();
+    expect([...(list?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
+      "jev-latest",
+      "jev-preview",
+    ]);
+    // Labelled the way a select labels its options.
+    expect(list?.textContent).toContain("Jev (latest)");
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "list",
+      "browser-decision_model-suggestions",
+    );
+  });
+
+  it("shows the default until somebody types", () => {
+    renderOpen();
+    expect(screen.getByRole("combobox")).toHaveValue("jev-latest");
+  });
+
+  it("accepts a value the catalog does not hold", () => {
+    // `fireEvent.change` rather than typing: the form is controlled by its
+    // caller, and this test's `value` never moves - so typing would report
+    // one character at a time rather than the string.
+    const onChange = renderOpen();
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "jev-1.13.0" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({ decision_model: "jev-1.13.0" });
+  });
+
+  it("clearing it means unset rather than an empty string", () => {
+    // An unset field falls back to the capability's own default; an empty
+    // string is a model id nothing answers to.
+    const onChange = renderOpen({ decision_model: "jev-preview" });
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({});
   });
 });

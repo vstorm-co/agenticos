@@ -1,5 +1,5 @@
 ---
-source_sha: "f5fcd6aff7b4"
+source_sha: "14e5585228ca"
 ---
 
 # Archivos de contexto { #context-files }
@@ -7,6 +7,14 @@ source_sha: "f5fcd6aff7b4"
 Un **archivo de contexto** es un trozo de conocimiento permanente escrito una vez
 y vinculado a muchos agents: un glosario, una voz de marca, una matriz de
 escalado, la lista de los productos que realmente vendes.
+
+Si alguna vez habéis escrito un `AGENTS.md` para un agent de código, esta es la
+misma idea con la misma forma — un archivo Markdown que dice cómo se hacen las
+cosas aquí, guardado junto al trabajo en lugar de dentro de un solo prompt. La
+diferencia está en quién lo lee: un `AGENTS.md` en un repositorio lo lee la
+herramienta que lo abra; un archivo de contexto aquí está vinculado a los agents
+que elijáis, se versiona con ellos y lo puede editar la persona que de verdad
+conoce la respuesta.
 
 Es la respuesta a un problema con el que toda empresa se topa en su tercer agent
 — los mismos tres párrafos pegados en tres juegos de instrucciones, y luego

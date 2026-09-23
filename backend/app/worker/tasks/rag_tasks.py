@@ -378,6 +378,10 @@ async def _run_ingestion(
         if organization_id is not None:
             await assert_organization_within_budget(db, organization_id)
         config = IngestionConfig.model_validate(record.ingestion_config)
+        # Read here, with the session still open, for the same reason the
+        # resolved configuration is: what this upload decided, off its own row,
+        # rather than a flow parameter a queued run would not carry (#1777).
+        organizational_unit = record.organizational_unit
         processor = await IngestionConfigService(db).build_processor(organization_id, config)
         # The collection's own tenant, off the knowledge base this document is
         # tracked under - its organization for an org base, None for an app-scoped
@@ -408,6 +412,7 @@ async def _run_ingestion(
                     still_wanted=lambda: _still_ingestable(rag_document_id, collection_name),
                     source=Source.UPLOAD,
                     doc_date=iso_doc_date(upload_mtime),
+                    organizational_unit=organizational_unit,
                 )
         except Exception as exc:
             # `ingest_file` reports a failed parse or a failed index by returning
@@ -777,6 +782,7 @@ async def _open_document_row(
     ingestion_config: IngestionConfig,
     image_description_model: str | None,
     embedding_model: str | None,
+    organizational_unit: str | None = None,
 ) -> str:
     """Record a document a sync is about to ingest, and answer its row id.
 
@@ -809,6 +815,7 @@ async def _open_document_row(
             ingestion_config=ingestion_config,
             image_description_model=image_description_model,
             embedding_model=embedding_model,
+            organizational_unit=organizational_unit,
         )
         return str(row.id)
 
@@ -1104,6 +1111,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             ingestion_config=ingestion_config,
                             image_description_model=image_description_model,
                             embedding_model=embedding_model,
+                            # The same default the ingest stamps on the chunks, so
+                            # the tracked row says what the vectors carry (#1777).
+                            organizational_unit=source.organizational_unit,
                         )
 
                         with metered_by(ledger):
@@ -1128,6 +1138,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                 doc_date=iso_doc_date(
                                     remote_file.modified_at, stat_result.st_mtime
                                 ),
+                                # The source's own default, inherited by every
+                                # document it brings in. Nothing wrote this
+                                # dimension before, so its filter matched nothing
+                                # and its facet was empty for every collection -
+                                # correct, tested, and with no data behind it
+                                # (#1777).
+                                organizational_unit=source.organizational_unit,
                             )
 
                         await _settle_document_row(row_id, result)
