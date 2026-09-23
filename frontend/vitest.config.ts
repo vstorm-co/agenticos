@@ -110,6 +110,11 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        // The workflow resource pickers (#1787) and their tables API module. The
+        // pickers dir is gated as a unit; `tables-api.ts` also matches `src/lib/**`
+        // above, listed here too so the pickers' data layer stays named beside them.
+        "src/components/workflows/pickers/**/*.{ts,tsx}",
+        "src/lib/workflows/tables-api.ts",
       ],
       exclude: [
         "node_modules",
