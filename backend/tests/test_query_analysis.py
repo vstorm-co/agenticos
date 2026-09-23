@@ -8,6 +8,7 @@ bounded fan-out and the fusion, none of which need a database.
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Callable
 
 import pytest
@@ -53,6 +54,25 @@ class TestKeywordExtraction:
     def test_extracts_terms_from_non_latin_scripts(self):
         # A non-Latin query must not silently reduce `keywords` mode to `off`.
         assert extract_keywords("パスワード リセット") == ["パスワード", "リセット"]
+
+    def test_keeps_a_decomposed_accented_word_whole(self):
+        # `\w` matches no combining mark, so a tokenizer built on it drops the
+        # tilde of a decomposed "contraseña" (n + U+0303) and its trailing "a";
+        # marks are kept and the NFC pass folds it back to the composed form.
+        decomposed = unicodedata.normalize("NFD", "olvidé mi contraseña")
+        assert extract_keywords(decomposed) == ["olvidé", "mi", "contraseña"]
+
+    def test_keeps_words_with_combining_marks_whole(self):
+        # Devanagari vowel signs (Mc) and Arabic vowels (Mn) are combining marks
+        # that `\w` excludes, fragmenting the word into unusable pieces.
+        assert extract_keywords("पासवर्ड रीसेट") == ["पासवर्ड", "रीसेट"]
+        assert extract_keywords("كَلِمَة المُرور") == ["كَلِمَة", "المُرور"]
+
+    def test_keeps_internal_apostrophes_and_hyphens(self):
+        assert extract_keywords("don't sign-in") == ["don't", "sign-in"]
+
+    def test_ignores_leading_and_standalone_punctuation(self):
+        assert extract_keywords("  — reset —  ") == ["reset"]
 
 
 class TestPlanQueries:

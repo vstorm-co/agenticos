@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -119,12 +120,35 @@ _STOPWORDS: frozenset[str] = frozenset(
     }
 )
 
-# Unicode-aware: a token starts with any letter or digit (`[^\W_]` is a word
-# character other than underscore, so accented and non-Latin letters count) and
-# may carry internal word characters, apostrophes or hyphens. An ASCII-only class
-# would truncate "contraseña" to "contrase" and extract nothing from scripts that
-# have no a-z, silently reducing `keywords` mode to `off` for those queries.
-_WORD_RE = re.compile(r"[^\W_][\w'-]*")
+# The Unicode categories of a combining mark: a non-spacing mark (Mn, an accent
+# or an Arabic vowel), a spacing combining mark (Mc, most Indic vowel signs) and
+# an enclosing mark (Me). A word carries these on its base letters.
+_MARK_CATEGORIES: frozenset[str] = frozenset({"Mn", "Mc", "Me"})
+
+
+def _tokenize(text: str) -> list[str]:
+    """Word tokens of `text`, Unicode-aware down to combining marks.
+
+    A token starts on an alphanumeric character and runs over further
+    alphanumerics, combining marks and internal apostrophes or hyphens. Python's
+    `\\w` matches no combining mark, so a regex built on it splits a Devanagari or
+    a vocalized-Arabic word at every mark and truncates a decomposed accented word
+    ("पासवर्ड" fragments, decomposed "contraseña" loses its "ñ"); reading the
+    Unicode category of each character keeps such words whole. An ASCII-only class
+    would fail one step earlier, extracting nothing from a script that has no a-z.
+    """
+    tokens: list[str] = []
+    current: list[str] = []
+    for ch in text:
+        if ch.isalnum() or unicodedata.category(ch) in _MARK_CATEGORIES or (current and ch in "'-"):
+            current.append(ch)
+        elif current:
+            tokens.append("".join(current))
+            current = []
+    if current:
+        tokens.append("".join(current))
+    return tokens
+
 
 # A model asked for one variant per line still tends to number or bullet them;
 # strip the marker rather than let it pollute the search terms.
@@ -148,7 +172,9 @@ def extract_keywords(query: str) -> list[str]:
     """
     seen: set[str] = set()
     keywords: list[str] = []
-    for token in _WORD_RE.findall(query.lower()):
+    # NFC first, so a decomposed accented word ("n" + a combining tilde) and its
+    # composed form ("ñ") tokenize and dedupe as the one term a reader sees.
+    for token in _tokenize(unicodedata.normalize("NFC", query.lower())):
         if len(token) < 2 or token in _STOPWORDS or token in seen:
             continue
         seen.add(token)
