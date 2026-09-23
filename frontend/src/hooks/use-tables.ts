@@ -30,6 +30,7 @@ export function useTables(query: TableListQuery = {}) {
   const normalized: Required<TableListQuery> = {
     search: query.search ?? "",
     includeArchived: query.includeArchived ?? false,
+    sort: query.sort ?? "name",
     skip: query.skip ?? 0,
     limit: query.limit ?? 50,
   };

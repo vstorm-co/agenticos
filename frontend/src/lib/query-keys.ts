@@ -496,8 +496,13 @@ export const qk = {
     // The whole query object as the key, matching `skills.list`/`context.list`:
     // the server applies `search`/`includeArchived`/paging, so two filters are
     // two cache entries rather than one list narrowed on the client.
-    list: (query: { search: string; includeArchived: boolean; skip: number; limit: number }) =>
-      ["tables", "list", query] as const,
+    list: (query: {
+      search: string;
+      includeArchived: boolean;
+      sort: string;
+      skip: number;
+      limit: number;
+    }) => ["tables", "list", query] as const,
     detail: (id: string) => ["tables", id] as const,
     schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
     // A table's records under one query - the active view's filters/sort/page,

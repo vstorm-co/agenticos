@@ -19,8 +19,10 @@ import {
   Textarea,
 } from "@/components/ui";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import { fieldProblems } from "@/lib/api-error";
+import { submitFailure } from "@/lib/api-error";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
+
+const FORM = { fields: ["name"], identifiedBy: "name" } as const;
 
 const COLUMN_TYPES: ColumnTypeName[] = [
   "text",
@@ -60,13 +62,17 @@ export function CreateTableDialog({
   error: unknown;
 }) {
   const t = useTranslations("tables.create");
+  const tErrors = useTranslations("errors");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<TableVisibility>("private");
   const [columns, setColumns] = useState<DraftColumn[]>([]);
 
-  const problems = fieldProblems(error);
-  const nameProblem = problems.find((problem) => problem.field === "name")?.message;
+  // `submitFailure`, not `fieldProblems`: a taken name is a 409 `AlreadyExistsError`
+  // reporting a fact about the row that exists (`details: {name}`), not a
+  // structured `details.fields` list - `identifiedBy` is what routes a conflict
+  // like that to the one input that could have produced it.
+  const nameProblem = submitFailure(error, FORM, tErrors).fields.name;
 
   function reset() {
     setName("");

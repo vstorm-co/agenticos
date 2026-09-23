@@ -27,6 +27,15 @@ function toUtcIso(local: string): string | null {
  * and converts it to the column's UTC ISO 8601 only on blur - converting on
  * every keystroke would fight the native `datetime-local` widget's own segment
  * navigation.
+ *
+ * The parent keeps this mounted across records - `record-detail-sheet.tsx`
+ * keys its editors by column id, not by record id - so `local` has to be
+ * re-seeded whenever `value` changes for a reason other than this cell's own
+ * `onBlur` (switching the open record, "reload and reapply", "discard").
+ * Re-seeding on every render would fight the in-progress typing this
+ * component exists to hold; re-seeding only when `value` has actually moved
+ * since the render that last saw it - the same render-time pattern
+ * `schema-editor-dialog.tsx` and `use-url-state.ts` use - does neither.
  */
 export function DatetimeCell({
   id,
@@ -40,7 +49,12 @@ export function DatetimeCell({
   onChange: (value: string | null) => void;
   disabled?: boolean;
 } & Record<string, unknown>) {
+  const [seenValue, setSeenValue] = useState(value);
   const [local, setLocal] = useState(() => toLocalInputValue(value));
+  if (value !== seenValue) {
+    setSeenValue(value);
+    setLocal(toLocalInputValue(value));
+  }
 
   return (
     <Input

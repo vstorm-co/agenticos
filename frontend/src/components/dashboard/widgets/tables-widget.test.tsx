@@ -63,60 +63,20 @@ describe("the tables widget", () => {
     expect(link).toHaveAttribute("href", "/tables/t-1");
   });
 
-  it("orders tables by most recently updated first", () => {
-    renderWidget([
-      table({ id: "t-old", name: "Old", updated_at: "2026-08-01T00:00:00Z" }),
-      table({ id: "t-new", name: "New", updated_at: "2026-08-15T00:00:00Z" }),
-    ]);
+  it("asks the server for the six most recently changed tables, rather than re-sorting a name-ordered page", () => {
+    // A page of `limit` rows ordered by name (the server's own default) could
+    // never contain a table that only happens to sort late - sorting a
+    // truncated page after the fact cannot recover what was never fetched.
+    renderWidget([table()]);
 
-    const links = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(links).toEqual(["New", "Old"]);
+    expect(useTablesMock).toHaveBeenCalledWith({ sort: "updated_at", limit: 6 });
   });
 
-  it("falls back to the creation date when a table has never been updated", () => {
-    renderWidget([
-      table({
-        id: "t-created-later",
-        name: "Created later",
-        updated_at: null,
-        created_at: "2026-08-20T00:00:00Z",
-      }),
-      table({ id: "t-updated", name: "Updated", updated_at: "2026-08-10T00:00:00Z" }),
-    ]);
+  it("renders exactly the rows the query answers with, in the order given", () => {
+    renderWidget([table({ id: "t-1", name: "First" }), table({ id: "t-2", name: "Second" })]);
 
     const links = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(links).toEqual(["Created later", "Updated"]);
-  });
-
-  it("falls back to the creation date on either side of the comparison", () => {
-    // The sort comparator falls back for each of its two arguments
-    // independently - this ordering exercises the fallback on the other one.
-    renderWidget([
-      table({ id: "t-updated", name: "Updated", updated_at: "2026-08-10T00:00:00Z" }),
-      table({
-        id: "t-created-later",
-        name: "Created later",
-        updated_at: null,
-        created_at: "2026-08-20T00:00:00Z",
-      }),
-    ]);
-
-    const links = screen.getAllByRole("link").map((link) => link.textContent);
-    expect(links).toEqual(["Created later", "Updated"]);
-  });
-
-  it("stops at six rows and leaves the rest to the page", () => {
-    renderWidget(
-      Array.from({ length: 9 }, (_, index) =>
-        table({
-          id: `t-${index}`,
-          name: `Table ${index}`,
-          updated_at: `2026-08-0${(index % 9) + 1}T00:00:00Z`,
-        }),
-      ),
-    );
-
-    expect(screen.getAllByRole("link")).toHaveLength(6);
+    expect(links).toEqual(["First", "Second"]);
   });
 
   it("says there are no tables yet, rather than drawing an empty list", () => {

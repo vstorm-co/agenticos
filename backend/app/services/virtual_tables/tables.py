@@ -1,6 +1,7 @@
 """Tables and their schemas: create, list, describe, rename, archive, change columns."""
 
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from app.core.audit import record_audit
@@ -85,6 +86,7 @@ class TableOperations(Operations):
         *,
         include_archived: bool = False,
         search: str | None = None,
+        sort: Literal["name", "updated_at"] = "name",
         skip: int = 0,
         limit: int = 50,
     ) -> TableList:
@@ -100,6 +102,7 @@ class TableOperations(Operations):
             shared_ids=shared or [],
             include_archived=include_archived,
             search=search,
+            sort=sort,
             skip=skip,
             limit=limit,
         )

@@ -67,6 +67,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -83,6 +84,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -101,6 +103,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -116,6 +119,90 @@ describe("RecordDetailSheet", () => {
     );
   });
 
+  it("reports the server's updated record after a successful commit", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...record, values: { c1: "x" }, revision: 2 });
+    const onRecordUpdated = vi.fn();
+    render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={record}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={vi.fn()}
+        onRecordUpdated={onRecordUpdated}
+      />,
+      { wrapper },
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+
+    await waitFor(() =>
+      expect(onRecordUpdated).toHaveBeenCalledWith({ ...record, values: { c1: "x" }, revision: 2 }),
+    );
+  });
+
+  it("commits a second edit against the revision from the first commit's response, not the sheet's original prop", async () => {
+    // The regression this guards: a second field write (or a second write to
+    // the same field) used to always resubmit `record.revision` from the
+    // props this sheet first opened with, so every edit after the first
+    // successful one 409'd forever. The caller (the page) is expected to feed
+    // `onRecordUpdated`'s value back in as a new `record` prop - simulated
+    // here with `rerender` - and this proves the *next* commit picks it up.
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({
+      ...record,
+      values: { c1: "x" },
+      revision: 2,
+    });
+    const { rerender } = render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={record}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+        expected_revision: 1,
+        values: { c1: "x" },
+      }),
+    );
+
+    rerender(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={{ ...record, values: { c1: "x" }, revision: 2 }}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
+      />,
+    );
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({
+      ...record,
+      values: { c1: "xy" },
+      revision: 3,
+    });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "xy" } });
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+        expected_revision: 2,
+        values: { c1: "xy" },
+      }),
+    );
+  });
+
   it("shows an empty control when the record holds no value for a column", () => {
     render(
       <RecordDetailSheet
@@ -126,6 +213,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -142,6 +230,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit={false}
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -163,6 +252,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -189,6 +279,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -199,6 +290,68 @@ describe("RecordDetailSheet", () => {
 
     expect(screen.queryByText(/someone else changed this field/i)).not.toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Ada");
+  });
+
+  it("discard refetches the record, rather than only clearing the local banner", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    const onRefetchRecord = vi.fn().mockResolvedValue(record);
+    render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={record}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={onRefetchRecord}
+        onRecordUpdated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    await screen.findByText(/someone else changed this field/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /discard/i }));
+
+    await waitFor(() => expect(onRefetchRecord).toHaveBeenCalled());
+  });
+
+  it("a failed reload does not clear the pending edit - there would be no way back to it", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    const onRefetchRecord = vi.fn().mockRejectedValue(new Error("network down"));
+    render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={columns}
+        record={record}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={onRefetchRecord}
+        onRecordUpdated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "x" } });
+    await screen.findByText(/someone else changed this field/i);
+
+    await userEvent
+      .click(screen.getByRole("button", { name: /reload and reapply/i }))
+      .catch(() => {});
+
+    await waitFor(() => expect(onRefetchRecord).toHaveBeenCalled());
+    // Still conflicted, with the typed value intact - the failed refetch
+    // never got the chance to drop it.
+    expect(screen.getByText(/someone else changed this field/i)).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("x");
   });
 
   it("reload-and-reapply refetches the record and commits against its fresh revision", async () => {
@@ -218,6 +371,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={onRefetchRecord}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -252,6 +406,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={onRefetchRecord}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );
@@ -276,6 +431,7 @@ describe("RecordDetailSheet", () => {
         onOpenChange={vi.fn()}
         canEdit
         onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
       />,
       { wrapper },
     );

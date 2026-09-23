@@ -37,7 +37,7 @@ is refused. Keys are scoped to the caller and the kind of write. A replayed dele
 204 as the first one did and is not marked.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
@@ -126,12 +126,15 @@ async def list_tables(
         None, max_length=100, pattern=_NO_NUL, description="Match on name or description"
     ),
     include_archived: bool = Query(False),
+    sort: Literal["name", "updated_at"] = Query(
+        "name", description="`updated_at` orders most-recently-changed first"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """The tables the caller may see, by name."""
+    """The tables the caller may see, by name or by most recently changed."""
     return await service.list_tables(
-        ctx, include_archived=include_archived, search=q, skip=skip, limit=limit
+        ctx, include_archived=include_archived, search=q, sort=sort, skip=skip, limit=limit
     )
 
 

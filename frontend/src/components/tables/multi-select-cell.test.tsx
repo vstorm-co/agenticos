@@ -23,6 +23,16 @@ describe("MultiSelectCell", () => {
     expect(screen.queryByText("Gift")).not.toBeInTheDocument();
   });
 
+  it("still shows a chip for a selected option that has since been archived - archiving never deletes the value", () => {
+    // The same rule `single_select` already follows: the record still holds
+    // this value, so it stays visible (struck through) rather than reading as
+    // "nothing selected".
+    render(<MultiSelectCell options={options} value={["o3"]} onChange={vi.fn()} />);
+    const chip = screen.getByText("Retired");
+    expect(chip.tagName).toBe("SPAN");
+    expect(chip).toHaveClass("line-through");
+  });
+
   it("only offers live options in the popover, never an archived one", async () => {
     const user = userEvent.setup();
     render(<MultiSelectCell id="tags" options={options} value={[]} onChange={vi.fn()} />);
@@ -55,6 +65,22 @@ describe("MultiSelectCell", () => {
     await user.click(screen.getByRole("checkbox", { name: "Rush" }));
 
     expect(onChange).toHaveBeenCalledWith(["o2"]);
+  });
+
+  it("still offers to remove a selected archived option from the popover", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MultiSelectCell id="tags" options={options} value={["o1", "o3"]} onChange={onChange} />,
+    );
+
+    await user.click(screen.getByRole("button"));
+    const archivedCheckbox = screen.getByRole("checkbox", { name: "Retired" });
+    expect(archivedCheckbox).toBeChecked();
+
+    await user.click(archivedCheckbox);
+
+    expect(onChange).toHaveBeenCalledWith(["o1"]);
   });
 
   it("shows a message when there are no live options at all", async () => {

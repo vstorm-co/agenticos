@@ -33,7 +33,12 @@ export function MultiSelectCell({
 }) {
   const t = useTranslations("tables.cells");
   const live = options.filter((option) => !option.archived);
-  const selected = live.filter((option) => value.includes(option.id));
+  // A record can still hold an archived option's id - excluded from `live`
+  // (nothing offers *selecting* it again), but still shown, struck through,
+  // wherever it is currently selected, the same as `single_select` already
+  // does: archiving never deletes the value a record already holds.
+  const selectedArchived = options.filter((option) => option.archived && value.includes(option.id));
+  const selected = [...live.filter((option) => value.includes(option.id)), ...selectedArchived];
 
   function toggle(optionId: string) {
     onChange(
@@ -56,17 +61,21 @@ export function MultiSelectCell({
           ) : (
             selected.map((option) => (
               <Badge key={option.id} variant="secondary">
-                {option.label}
+                {option.archived ? (
+                  <span className="line-through">{option.label}</span>
+                ) : (
+                  option.label
+                )}
               </Badge>
             ))
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 space-y-2" align="start">
-        {live.length === 0 ? (
+        {live.length === 0 && selectedArchived.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("noOptions")}</p>
         ) : (
-          live.map((option) => (
+          [...live, ...selectedArchived].map((option) => (
             <div key={option.id} className="flex items-center gap-2">
               <Checkbox
                 id={`${id}-${option.id}`}
@@ -75,7 +84,11 @@ export function MultiSelectCell({
                 disabled={disabled}
               />
               <Label htmlFor={`${id}-${option.id}`} className="text-sm font-normal">
-                {option.label}
+                {option.archived ? (
+                  <span className="line-through">{option.label}</span>
+                ) : (
+                  option.label
+                )}
               </Label>
             </div>
           ))

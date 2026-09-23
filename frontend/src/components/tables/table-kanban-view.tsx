@@ -1,6 +1,7 @@
 "use client";
 
 import type { HTMLAttributes } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -15,6 +16,7 @@ import {
 import { useTableRecords } from "@/hooks";
 import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { formatCellValue } from "@/lib/format-cell-value";
+import { qk } from "@/lib/query-keys";
 import { getRecord } from "@/lib/tables-api";
 import { useTableViewStore } from "@/stores";
 import type { RecordConflict } from "@/stores/table-view-store";
@@ -53,6 +55,7 @@ function KanbanCard({
   onDiscard,
   moveTargets,
   onMoveTo,
+  canEdit,
 }: {
   record: RecordRead;
   // Always defined: `TableKanbanView` never renders a lane (and so never a
@@ -67,6 +70,8 @@ function KanbanCard({
   onDiscard: () => void;
   moveTargets: { id: string | null; label: string }[];
   onMoveTo: (optionId: string | null) => void;
+  /** No "Move to" menu for a caller who cannot write - absent, not disabled. */
+  canEdit: boolean;
 }) {
   const t = useTranslations("tables.kanban");
   const title = formatCellValue(titleColumn, record.values[titleColumn.id] ?? null, boolLabel);
@@ -80,20 +85,25 @@ function KanbanCard({
         <button type="button" onClick={onOpen} className="truncate text-left font-medium">
           {title || record.id}
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" aria-label={t("moveTo")}>
-              {t("moveToShort")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {moveTargets.map((target) => (
-              <DropdownMenuItem key={target.id ?? "__none__"} onSelect={() => onMoveTo(target.id)}>
-                {target.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" aria-label={t("moveTo")}>
+                {t("moveToShort")}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {moveTargets.map((target) => (
+                <DropdownMenuItem
+                  key={target.id ?? "__none__"}
+                  onSelect={() => onMoveTo(target.id)}
+                >
+                  {target.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {conflict && (
         <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
@@ -131,6 +141,7 @@ function KanbanLane({
   onMoveTo,
   onReload,
   onDiscard,
+  canEdit,
 }: {
   tableId: string;
   lane: Lane;
@@ -151,6 +162,7 @@ function KanbanLane({
   onMoveTo: (record: RecordRead, targetOptionId: string | null) => void;
   onReload: (recordId: string) => void;
   onDiscard: (recordId: string) => void;
+  canEdit: boolean;
 }) {
   const filter = laneFilter(groupBy, lane, archivedOptionIds);
   const skipLane = lane.archived === true && filter === null;
@@ -183,7 +195,7 @@ function KanbanLane({
             record={record}
             titleColumn={titleColumn}
             boolLabel={boolLabel}
-            dragProps={lane.archived ? noDrag : cardProps(record)}
+            dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
             onOpen={() => onOpenRecord(record)}
             conflict={!!conflicts[record.id]}
             onReload={() => onReload(record.id)}
@@ -192,6 +204,7 @@ function KanbanLane({
               (target) => target.id !== lane.optionId || lane.archived,
             )}
             onMoveTo={(target) => onMoveTo(record, target)}
+            canEdit={canEdit}
           />
         ))}
       </div>
@@ -215,6 +228,7 @@ export function TableKanbanView({
   baseFilters,
   sort,
   onOpenRecord,
+  canEdit,
 }: {
   tableId: string;
   columns: ColumnDef[];
@@ -222,6 +236,8 @@ export function TableKanbanView({
   baseFilters: RecordFilter[];
   sort: RecordSort;
   onOpenRecord: (record: RecordRead) => void;
+  /** No drag, no "Move to" menu, for a caller who cannot write to this table. */
+  canEdit: boolean;
 }) {
   const t = useTranslations("tables.kanban");
   const tCells = useTranslations("tables.cells");
@@ -231,6 +247,7 @@ export function TableKanbanView({
   const setConflict = useTableViewStore((state) => state.setConflict);
   const clearConflict = useTableViewStore((state) => state.clearConflict);
   const conflicts = useTableViewStore((state) => state.conflicts);
+  const queryClient = useQueryClient();
 
   const { cardProps, laneProps } = useKanbanDrag<RecordRead>((record, targetOptionId) =>
     moveRecord(record, targetOptionId),
@@ -265,17 +282,33 @@ export function TableKanbanView({
    * revision. Only ever wired to a card's "reload and reapply" button, which
    * renders only while `conflicts[recordId]` is set - so it is never absent
    * here, and there is nothing to reapply if it were.
+   *
+   * The conflict is cleared only once the refetch lands - clearing it first
+   * would drop the pending move for good the moment the refetch itself fails,
+   * with no way back to it.
    */
   async function reloadAndReapply(recordId: string) {
     const pending = conflicts[recordId] as RecordConflict;
-    clearConflict(recordId);
-    const fresh = await getRecord(tableId, recordId);
-    const target = (pending.pendingValues[groupByColumnId] as string | null | undefined) ?? null;
-    moveRecord(fresh, target);
+    try {
+      const fresh = await getRecord(tableId, recordId);
+      clearConflict(recordId);
+      const target = (pending.pendingValues[groupByColumnId] as string | null | undefined) ?? null;
+      moveRecord(fresh, target);
+    } catch {
+      // The refetch failed - the conflict (and the pending move) stays put.
+    }
   }
 
+  /**
+   * Drops the pending move and lets the record land wherever its current
+   * server value actually places it. No optimistic move was ever applied
+   * client-side, so the record already sits in the lane its last-known state
+   * put it in; invalidating every lane's query is what brings that back in
+   * line with the row the conflict itself proved had changed server-side.
+   */
   function discardConflict(recordId: string) {
     clearConflict(recordId);
+    void queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId) });
   }
 
   if (!groupByColumn || groupByColumn.type !== "single_select") {
@@ -314,12 +347,13 @@ export function TableKanbanView({
           titleColumn={titleColumn}
           boolLabel={boolLabel}
           cardProps={cardProps}
-          laneDropProps={laneProps(lane.optionId, lane.archived !== true)}
+          laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
           onOpenRecord={onOpenRecord}
           moveTargets={moveTargets}
           onMoveTo={moveRecord}
           onReload={(recordId) => void reloadAndReapply(recordId)}
           onDiscard={discardConflict}
+          canEdit={canEdit}
         />
       ))}
     </div>

@@ -23,6 +23,8 @@ import type {
 export interface TableListQuery {
   search?: string;
   includeArchived?: boolean;
+  /** `updated_at` orders most-recently-changed first; the server default is `name`. */
+  sort?: "name" | "updated_at";
   skip?: number;
   limit?: number;
 }
@@ -31,6 +33,7 @@ export function listTables(query: TableListQuery = {}): Promise<TableList> {
   const params: Record<string, string> = {};
   if (query.search) params.q = query.search;
   if (query.includeArchived) params.include_archived = "true";
+  if (query.sort) params.sort = query.sort;
   params.skip = String(query.skip ?? 0);
   params.limit = String(query.limit ?? 50);
   return apiClient.get<TableList>("/tables", { params });

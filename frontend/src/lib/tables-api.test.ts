@@ -43,6 +43,14 @@ describe("listTables", () => {
       params: { q: "ord", include_archived: "true", skip: "10", limit: "25" },
     });
   });
+
+  it("passes sort through to the wire params when given", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    await listTables({ sort: "updated_at" });
+    expect(apiClient.get).toHaveBeenCalledWith("/tables", {
+      params: { sort: "updated_at", skip: "0", limit: "50" },
+    });
+  });
 });
 
 it("createTable posts to the collection route", async () => {

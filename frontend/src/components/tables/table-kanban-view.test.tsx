@@ -103,6 +103,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -119,6 +120,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -142,6 +144,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={onOpenRecord}
+        canEdit
       />,
       { wrapper },
     );
@@ -164,6 +167,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -180,6 +184,30 @@ describe("TableKanbanView", () => {
     );
   });
 
+  it("gives a read-only caller no Move to menu and no draggable card - absent, not merely refused", async () => {
+    // The backend already refuses the write; this is the repository's own
+    // rule that an unauthorized control is not rendered at all, not rendered
+    // and then 403 (.claude/rules/frontend.md's Permissions section).
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit={false}
+      />,
+      { wrapper },
+    );
+    const card = await screen.findByText("Record r1");
+
+    expect(screen.queryByRole("button", { name: /move to/i })).not.toBeInTheDocument();
+    const cardRoot = card.closest("div[draggable]");
+    expect(cardRoot).toHaveAttribute("draggable", "false");
+  });
+
   it("the Move to menu excludes the lane the card is already in", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     const user = userEvent.setup();
@@ -191,6 +219,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -219,6 +248,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -234,6 +264,74 @@ describe("TableKanbanView", () => {
     await user.click(screen.getByRole("button", { name: /discard/i }));
     expect(screen.queryByText(/someone else changed this record/i)).not.toBeInTheDocument();
     expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("discard refetches every lane, rather than only clearing the local banner", async () => {
+    // No optimistic move was ever applied client-side, so a discard's own job
+    // is bringing the lanes back in line with the row a conflict just proved
+    // had changed server-side - not merely hiding the banner.
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+    await user.click(screen.getByRole("button", { name: /move to/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Closed" }));
+    await screen.findByText(/someone else changed this record/i);
+
+    vi.mocked(apiClient.post).mockClear();
+    await user.click(screen.getByRole("button", { name: /discard/i }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/records/query", expect.anything()),
+    );
+  });
+
+  it("a failed reload does not clear the pending move - there would be no way back to it", async () => {
+    mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(
+      new ApiError(409, "stale", {
+        error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+      }),
+    );
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("network down"));
+    const user = userEvent.setup();
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+    await screen.findByText("Record r1");
+    await user.click(screen.getByRole("button", { name: /move to/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Closed" }));
+    await screen.findByText(/someone else changed this record/i);
+
+    await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1"));
+    expect(screen.getByText(/someone else changed this record/i)).toBeInTheDocument();
   });
 
   it("reload-and-reapply refetches the record and retries against its fresh revision", async () => {
@@ -253,6 +351,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -288,6 +387,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -310,6 +410,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -332,6 +433,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -350,6 +452,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -382,6 +485,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -404,6 +508,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -429,6 +534,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -454,6 +560,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -474,6 +581,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );
@@ -504,6 +612,7 @@ describe("TableKanbanView", () => {
         baseFilters={[]}
         sort={{ by: "created_at", direction: "asc" }}
         onOpenRecord={vi.fn()}
+        canEdit
       />,
       { wrapper },
     );

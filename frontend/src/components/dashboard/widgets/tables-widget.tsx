@@ -20,7 +20,16 @@ const SHOWN = 6;
  */
 export function TablesWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.tables");
-  const { tables, isLoading, error, refetch } = useTables({ limit: SHOWN });
+  // Sorted server-side: the six *most recently changed* tables, not the six
+  // alphabetically-first ones re-sorted after the fact - a page of `limit`
+  // rows ordered by name could never contain a table that only happens to
+  // sort late.
+  const {
+    tables: rows,
+    isLoading,
+    error,
+    refetch,
+  } = useTables({ sort: "updated_at", limit: SHOWN });
 
   if (isLoading) {
     return (
@@ -29,12 +38,6 @@ export function TablesWidget({ title, hint, seeAll, options }: DashboardWidgetPr
       </WidgetFrame>
     );
   }
-
-  const rows = [...tables]
-    .sort((left, right) =>
-      (right.updated_at ?? right.created_at).localeCompare(left.updated_at ?? left.created_at),
-    )
-    .slice(0, SHOWN);
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>

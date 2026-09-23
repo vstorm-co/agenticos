@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ViewSelect } from "./view-select";
+import { ApiError } from "@/lib/api-client";
 import type { TableViewRead } from "@/types/tables";
 
 const config = {
@@ -37,6 +38,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -57,6 +60,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={onSelect}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -79,6 +84,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={onSelect}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -100,6 +107,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate={false}
@@ -108,16 +117,18 @@ describe("ViewSelect", () => {
     expect(screen.queryByRole("button", { name: /new view/i })).not.toBeInTheDocument();
   });
 
-  it("creates a view with the typed name and chosen visibility, then closes the dialog", async () => {
+  it("creates a view with the typed name and chosen visibility, and keeps the dialog open while the write is in flight", async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
-    render(
+    const { rerender } = render(
       <ViewSelect
         kind="list"
         views={[]}
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={onCreate}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -131,7 +142,137 @@ describe("ViewSelect", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(onCreate).toHaveBeenCalledWith("My list", "shared");
+    // `onCreate` itself carries no result - the caller's mutation state is
+    // what actually says whether the write is still running.
+    rerender(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={onCreate}
+        isCreating
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes the create dialog once a create that was in flight finishes without error", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /new view/i }));
+    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "My list" } });
+
+    rerender(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    rerender(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps the create dialog open and shows the conflict when a create fails", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /new view/i }));
+    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "My list" } });
+
+    rerender(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating
+        createError={null}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+
+    rerender(
+      <ViewSelect
+        kind="list"
+        views={[]}
+        activeViewId={null}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        createError={
+          new ApiError(409, "A view named 'My list' already exists.", {
+            error: {
+              code: "ALREADY_EXISTS",
+              message: "A view named 'My list' already exists.",
+              details: { name: "My list" },
+            },
+          })
+        }
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+        canCreate
+      />,
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("A view named 'My list' already exists.")).toBeInTheDocument();
   });
 
   it("disables save in the create dialog while the name is blank", async () => {
@@ -143,6 +284,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -164,6 +307,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={onCreate}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -186,6 +331,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -203,6 +350,8 @@ describe("ViewSelect", () => {
         activeViewId={null}
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={vi.fn()}
         canCreate
@@ -221,6 +370,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={onRename}
         onDelete={vi.fn()}
         canCreate
@@ -247,6 +398,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={onRename}
         onDelete={vi.fn()}
         canCreate
@@ -270,6 +423,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={onRename}
         onDelete={vi.fn()}
         canCreate
@@ -293,6 +448,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={onDelete}
         canCreate
@@ -319,6 +476,8 @@ describe("ViewSelect", () => {
         activeViewId="v1"
         onSelect={vi.fn()}
         onCreate={vi.fn()}
+        isCreating={false}
+        createError={null}
         onRename={vi.fn()}
         onDelete={onDelete}
         canCreate

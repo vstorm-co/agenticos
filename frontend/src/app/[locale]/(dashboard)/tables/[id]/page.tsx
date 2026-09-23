@@ -59,12 +59,25 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [shareOpen, setShareOpen] = useState(false);
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<RecordSort>({ by: "created_at", direction: "asc" });
+  const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
+  const [sort, setSort] = useState<RecordSort>(DEFAULT_SORT);
 
   const activeView = views.find((view) => view.id === viewIdParam) ?? null;
   const filters: RecordFilter[] = activeView?.config.filters ?? [];
-  const effectiveSort = activeView?.config.sort ?? sort;
   const groupBy = activeView?.config.group_by ?? null;
+
+  // `sort` is the grid's own working sort, seeded from the active view's
+  // stored one each time the view changes - re-seeded from render, not a
+  // `useEffect`, so switching views never paints one frame of the old sort
+  // first. Reading `activeView.config.sort` directly here instead would work
+  // for display but not for clicking a header: `onSort` below only knows how
+  // to update this local state, and a saved sort a click could never
+  // override reads as a sortable column that silently ignores every click.
+  const [seenViewKey, setSeenViewKey] = useState(activeView?.id);
+  if (activeView?.id !== seenViewKey) {
+    setSeenViewKey(activeView?.id);
+    setSort(activeView?.config.sort ?? DEFAULT_SORT);
+  }
 
   const {
     records,
@@ -72,7 +85,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     isLoading: recordsLoading,
   } = useTableRecords(tab === "kanban" ? null : id, {
     filters,
-    sort: effectiveSort,
+    sort,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
   });
@@ -135,6 +148,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               { onSuccess: (created) => setViewIdParam(created.id) },
             )
           }
+          isCreating={createView.isPending}
+          createError={createView.error}
           onRename={(viewId, name) => updateView.mutate({ viewId, data: { name } })}
           onDelete={(viewId) => {
             removeView.mutate(viewId);
@@ -149,7 +164,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             columns={columns}
             records={records}
             isLoading={recordsLoading}
-            sort={effectiveSort}
+            sort={sort}
             onSort={setSort}
             onOpenRecord={setOpenRecord}
           />
@@ -171,8 +186,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             columns={table.columns}
             groupByColumnId={groupBy}
             baseFilters={filters}
-            sort={effectiveSort}
+            sort={sort}
             onOpenRecord={setOpenRecord}
+            canEdit={canEdit}
           />
         ) : (
           <p className="text-muted-foreground text-sm">{t("kanbanNeedsView")}</p>
@@ -210,6 +226,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           setOpenRecord(fresh);
           return fresh;
         }}
+        onRecordUpdated={setOpenRecord}
       />
 
       {canEdit && (

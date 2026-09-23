@@ -5,11 +5,14 @@ and the dependency checker that refuses archiving a column a view still uses.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.db.models.resource_grant import GrantLevel
-from app.repositories import resource_grant_repo
+from app.repositories import resource_grant_repo, table_view_repo
 from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUpdate
 from app.schemas.virtual_table import RecordFilter, RecordSort, SchemaUpdate
 from app.services.access import TABLE
@@ -59,6 +62,54 @@ async def test_two_views_of_the_same_name_under_one_table_are_refused(db):
 
     with pytest.raises(AlreadyExistsError):
         await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="kanban"))
+
+
+async def test_a_duplicate_name_racing_past_the_check_is_still_a_409(db, monkeypatch):
+    # The get-by-name check above is not atomic: two concurrent creates of the
+    # same name both pass it, and `UniqueConstraint(table_id, owner_user_id,
+    # name)` refuses the second insert. That `IntegrityError` must become the
+    # same 409 the check raises, not an unhandled 500.
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    monkeypatch.setattr(
+        table_view_repo,
+        "create",
+        AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate key"))),
+    )
+
+    with pytest.raises(AlreadyExistsError):
+        await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+
+async def test_a_duplicate_rename_racing_past_the_check_is_still_a_409(db, monkeypatch):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    monkeypatch.setattr(
+        table_view_repo,
+        "update",
+        AsyncMock(side_effect=IntegrityError("update", {}, Exception("duplicate key"))),
+    )
+
+    with pytest.raises(AlreadyExistsError):
+        await views.update_view(ctx, table.id, view.id, TableViewUpdate(name="Taken"))
+
+
+async def test_an_integrity_error_on_a_non_rename_update_is_not_mistaken_for_a_name_clash(
+    db, monkeypatch
+):
+    # Only a concurrent rename can legitimately hit the unique constraint here;
+    # translating every `IntegrityError` into "name already exists" would
+    # misreport a different failure as one about a name this caller never
+    # asked to change.
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    monkeypatch.setattr(
+        table_view_repo,
+        "update",
+        AsyncMock(side_effect=IntegrityError("update", {}, Exception("some other constraint"))),
+    )
+
+    with pytest.raises(IntegrityError):
+        await views.update_view(ctx, table.id, view.id, TableViewUpdate(visibility="shared"))
 
 
 async def test_creating_a_view_needs_table_edit_not_merely_view(db):

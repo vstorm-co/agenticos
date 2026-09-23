@@ -36,13 +36,22 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/tables/table-grid-view", () => ({
   TableGridView: ({
     columns,
+    sort,
+    onSort,
     onOpenRecord,
   }: {
     columns: { id: string }[];
+    sort: { by: string; direction: string };
+    onSort: (sort: { by: string; direction: string }) => void;
     onOpenRecord: (r: RecordRead) => void;
   }) => (
-    <div data-testid="grid-view" data-column-ids={columns.map((c) => c.id).join(",")}>
+    <div
+      data-testid="grid-view"
+      data-column-ids={columns.map((c) => c.id).join(",")}
+      data-sort={`${sort.by}:${sort.direction}`}
+    >
       <button onClick={() => onOpenRecord({ ...RECORD })}>open-record-from-grid</button>
+      <button onClick={() => onSort({ by: "name", direction: "desc" })}>resort-by-name</button>
     </div>
   ),
 }));
@@ -185,8 +194,20 @@ function views(overrides: Partial<TableViewList> = {}): TableViewList {
         created_at: "2026-08-01T00:00:00Z",
         updated_at: null,
       },
+      {
+        id: "v-table",
+        table_id: "t1",
+        owner_user_id: "u1",
+        name: "By customer",
+        kind: "table",
+        visibility: "private",
+        config: { ...emptyConfig, sort: { by: "c1", direction: "desc" } },
+        can_manage: true,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: null,
+      },
     ],
-    total: 1,
+    total: 2,
     ...overrides,
   };
 }
@@ -264,6 +285,51 @@ describe("the table detail page", () => {
 
     const grid = await screen.findByTestId("grid-view");
     expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+  });
+
+  it("seeds the grid's sort from the active view, then still honours a header click", async () => {
+    // The regression this guards: `effectiveSort` used to read straight from
+    // the active view's stored config, so clicking a sortable header updated
+    // state nothing downstream ever looked at again - a saved view made
+    // every column header a dead click.
+    serve();
+    arriveAt("viewId=v-table");
+    const user = userEvent.setup();
+    renderPage();
+
+    const grid = await screen.findByTestId("grid-view");
+    expect(grid).toHaveAttribute("data-sort", "c1:desc");
+
+    await user.click(screen.getByRole("button", { name: "resort-by-name" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("grid-view")).toHaveAttribute("data-sort", "name:desc"),
+    );
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/tables/t1/records/query",
+        expect.objectContaining({ sort: { by: "name", direction: "desc" } }),
+      ),
+    );
+  });
+
+  it("re-seeds the grid's sort when switching to a different saved view", async () => {
+    serve();
+    arriveAt("viewId=v-table");
+    const user = userEvent.setup();
+    renderPage();
+    const grid = await screen.findByTestId("grid-view");
+    expect(grid).toHaveAttribute("data-sort", "c1:desc");
+
+    // Override it with a header click, then switch away to the unsaved
+    // view - the override must not leak into the next view's own sort.
+    await user.click(screen.getByRole("button", { name: "resort-by-name" }));
+    await waitFor(() => expect(grid).toHaveAttribute("data-sort", "name:desc"));
+
+    await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
+    await user.click(screen.getByRole("option", { name: "Unsaved view" }));
+
+    await waitFor(() => expect(grid).toHaveAttribute("data-sort", "created_at:asc"));
   });
 
   it("shows the Columns control and lets an editor open the schema dialog", async () => {

@@ -19,6 +19,7 @@ from contextlib import suppress
 from typing import cast
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
@@ -139,16 +140,25 @@ class TableViewOperations(Operations):
             raise AlreadyExistsError(
                 message=f"A view named '{data.name}' already exists.", details={"name": data.name}
             )
-        view = await table_view_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            table_id=table_id,
-            owner_user_id=ctx.subject_id,
-            name=data.name,
-            kind=data.kind,
-            visibility=data.visibility,
-            config=data.config.model_dump(mode="json"),
-        )
+        try:
+            view = await table_view_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                table_id=table_id,
+                owner_user_id=ctx.subject_id,
+                name=data.name,
+                kind=data.kind,
+                visibility=data.visibility,
+                config=data.config.model_dump(mode="json"),
+            )
+        except IntegrityError as exc:
+            # The name check above is not atomic: two concurrent saves of the
+            # same name both pass it, and `UniqueConstraint(table_id,
+            # owner_user_id, name)` refuses the second insert. Translate that
+            # into the same 409 the check raises, rather than an unhandled 500.
+            raise AlreadyExistsError(
+                message=f"A view named '{data.name}' already exists.", details={"name": data.name}
+            ) from exc
         return self._to_read(ctx, view)
 
     async def get_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableViewRead:
@@ -191,7 +201,21 @@ class TableViewOperations(Operations):
         if data.config is not None:
             changes["config"] = data.config.model_dump(mode="json")
         if changes:
-            view = await table_view_repo.update(self.db, view=view, update_data=changes)
+            try:
+                view = await table_view_repo.update(self.db, view=view, update_data=changes)
+            except IntegrityError as exc:
+                # Only a concurrent rename to the same name can violate the
+                # constraint here - the name check above is not atomic, so two
+                # concurrent renames both pass it, and the loser's write hits
+                # `UniqueConstraint(table_id, owner_user_id, name)`. Anything
+                # else that reached this constraint is a bug worth its 500,
+                # not a name collision this caller asked to change into.
+                if new_name is None:
+                    raise
+                raise AlreadyExistsError(
+                    message=f"A view named '{new_name}' already exists.",
+                    details={"name": new_name},
+                ) from exc
         return self._to_read(ctx, view)
 
     async def delete_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> None:

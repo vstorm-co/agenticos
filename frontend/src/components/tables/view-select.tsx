@@ -19,7 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { submitFailure } from "@/lib/api-error";
 import type { TableViewRead, ViewKind, ViewVisibility } from "@/types/tables";
+
+const CREATE_FORM = { fields: ["name"], identifiedBy: "name" } as const;
 
 /**
  * The saved-view picker for the active kind, and its owner-only rename/delete
@@ -33,6 +36,8 @@ export function ViewSelect({
   activeViewId,
   onSelect,
   onCreate,
+  isCreating,
+  createError,
   onRename,
   onDelete,
   canCreate,
@@ -42,16 +47,36 @@ export function ViewSelect({
   activeViewId: string | null;
   onSelect: (viewId: string | null) => void;
   onCreate: (name: string, visibility: ViewVisibility) => void;
+  /** Whether `onCreate`'s write is in flight - disables Save and holds the dialog open. */
+  isCreating: boolean;
+  /**
+   * `onCreate`'s last failure, if any - most often a taken name (409). Read
+   * reactively rather than caught here, because `onCreate` itself returns
+   * nothing: the caller's mutation is the one thing that knows how it went.
+   */
+  createError: unknown;
   onRename: (viewId: string, name: string) => void;
   onDelete: (viewId: string) => void;
   canCreate: boolean;
 }) {
   const t = useTranslations("pages.tables.views");
+  const tErrors = useTranslations("errors");
   const [createOpen, setCreateOpen] = useState(false);
   const [renaming, setRenaming] = useState<TableViewRead | null>(null);
   const [deleting, setDeleting] = useState<TableViewRead | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftVisibility, setDraftVisibility] = useState<ViewVisibility>("private");
+
+  // Closes itself once a create this dialog started finishes without error -
+  // detected by `isCreating` going from true back to false, rather than by
+  // `onCreate`'s own return, which carries nothing back. A create that fails
+  // leaves the dialog open with the conflict shown beside the name it named.
+  const [wasCreating, setWasCreating] = useState(isCreating);
+  if (isCreating !== wasCreating) {
+    setWasCreating(isCreating);
+    if (wasCreating && !createError) setCreateOpen(false);
+  }
+  const nameProblem = submitFailure(createError, CREATE_FORM, tErrors).fields.name;
 
   const active = views.find((view) => view.id === activeViewId) ?? null;
 
@@ -120,12 +145,16 @@ export function ViewSelect({
             <DialogTitle>{t("newView")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              value={draftName}
-              onChange={(event) => setDraftName(event.target.value)}
-              placeholder={t("namePlaceholder")}
-              aria-label={t("namePlaceholder")}
-            />
+            <div className="space-y-1.5">
+              <Input
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder={t("namePlaceholder")}
+                aria-label={t("namePlaceholder")}
+                aria-invalid={nameProblem ? true : undefined}
+              />
+              {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
+            </div>
             <Select
               value={draftVisibility}
               onValueChange={(next) => setDraftVisibility(next as ViewVisibility)}
@@ -145,11 +174,8 @@ export function ViewSelect({
             </Button>
             <Button
               type="button"
-              disabled={!draftName.trim()}
-              onClick={() => {
-                onCreate(draftName.trim(), draftVisibility);
-                setCreateOpen(false);
-              }}
+              disabled={!draftName.trim() || isCreating}
+              onClick={() => onCreate(draftName.trim(), draftVisibility)}
             >
               {t("save")}
             </Button>

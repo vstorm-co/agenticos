@@ -11,6 +11,7 @@ import uuid
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
@@ -24,6 +25,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     SchemaUpdate,
     TableCreate,
+    TableRead,
     TableUpdate,
 )
 from app.services.access import TABLE
@@ -132,6 +134,53 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     shared = await service.list_tables(stranger)
     assert [item.id for item in shared.items] == [mine.id]
     assert owner.id
+
+
+async def test_sort_by_updated_at_puts_the_most_recently_changed_table_first(engine: AsyncEngine):
+    # The default listing is alphabetical, which a "most recently changed"
+    # dashboard card cannot re-derive from a truncated page of it - a table
+    # that changed recently but sorts late alphabetically would never be
+    # fetched at all. `sort="updated_at"` asks the server to order by that
+    # instead.
+    #
+    # Each write commits in its own session/transaction, the same reasoning
+    # `test_virtual_table_ordering.py` documents: Postgres's `now()` is frozen
+    # for the life of one transaction, so writes sharing the `db` fixture's
+    # single transaction would all land on the same instant and this could
+    # not tell "changed later" from "changed in the same transaction".
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        owner = await make_user(setup)
+        org = await make_org(setup, owner=owner)
+        ctx = ctx_for(owner, org)
+        await setup.commit()
+
+    async def _create(name: str) -> TableRead:
+        async with factory() as session:
+            created = await VirtualTableService(session).create_table(ctx, TableCreate(name=name))
+            await session.commit()
+            return created
+
+    await _create("Bravo")
+    alpha = await _create("Alpha")
+    await _create("Charlie")
+
+    async with factory() as session:
+        by_name = await VirtualTableService(session).list_tables(ctx)
+    assert [item.name for item in by_name.items] == ["Alpha", "Bravo", "Charlie"]
+
+    # Only "Alpha" has ever been touched since creation, so it is the only one
+    # with a real `updated_at` - the other two fall back to `created_at`,
+    # which is why "Charlie" (created last) still outranks "Bravo".
+    async with factory() as session:
+        await VirtualTableService(session).update_table(
+            ctx, alpha.id, TableUpdate(description="Touched")
+        )
+        await session.commit()
+
+    async with factory() as session:
+        by_recency = await VirtualTableService(session).list_tables(ctx, sort="updated_at")
+    assert [item.name for item in by_recency.items] == ["Alpha", "Charlie", "Bravo"]
 
 
 @pytest.mark.security

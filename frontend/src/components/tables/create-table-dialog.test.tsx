@@ -166,6 +166,9 @@ describe("CreateTableDialog", () => {
   });
 
   it("shows a field-level error beside the name input", () => {
+    // The real shape a taken name comes back as: a 409 `AlreadyExistsError`
+    // naming the value in `details.name`, not a structured `details.fields`
+    // list - `submitFailure`'s `identifiedBy` is what routes it to this input.
     render(
       <CreateTableDialog
         open
@@ -173,13 +176,11 @@ describe("CreateTableDialog", () => {
         onCreate={vi.fn()}
         isCreating={false}
         error={
-          new ApiError(409, "taken", {
+          new ApiError(409, "A table named 'Orders' already exists.", {
             error: {
               code: "ALREADY_EXISTS",
-              message: "taken",
-              details: {
-                fields: [{ field: "name", message: "A table named 'Orders' already exists." }],
-              },
+              message: "A table named 'Orders' already exists.",
+              details: { name: "Orders" },
             },
           })
         }
