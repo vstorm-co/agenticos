@@ -63,7 +63,7 @@ export function RecordDetailSheet({
       },
       {
         onSuccess: (updated) => {
-          clearConflict(targetRecord.id);
+          clearConflict(targetRecord.id, columnId);
           onRecordUpdated(updated);
         },
         onError: (error) => {
@@ -97,7 +97,7 @@ export function RecordDetailSheet({
         commitField(fresh, columnId, pending);
       } else {
         // Nothing left to retry against - the record is gone.
-        clearConflict(targetRecord.id);
+        clearConflict(targetRecord.id, columnId);
       }
     } catch {
       // The refetch failed - the conflict (and the typed value) stays put.
@@ -110,8 +110,8 @@ export function RecordDetailSheet({
    * sheet's `record` prop was still holding. `onRefetchRecord` updates the
    * caller's own record state as one of its documented effects.
    */
-  async function discardConflict(targetRecord: RecordRead) {
-    clearConflict(targetRecord.id);
+  async function discardConflict(targetRecord: RecordRead, columnId: string) {
+    clearConflict(targetRecord.id, columnId);
     try {
       await onRefetchRecord();
     } catch {
@@ -119,8 +119,6 @@ export function RecordDetailSheet({
       // the record as it was last known, which is no worse than before.
     }
   }
-
-  const conflict = record ? conflicts[record.id] : undefined;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -133,13 +131,13 @@ export function RecordDetailSheet({
             {columns
               .filter((column) => !column.archived)
               .map((column) => {
-                const isConflicted = conflict?.fieldId === column.id;
-                // `conflict` is defined whenever `isConflicted` is true - that is
-                // exactly what `conflict?.fieldId === column.id` being true means -
-                // and `setConflict` always writes `pendingValues[conflict.fieldId]`,
-                // so the pending value for this column is always present too.
+                // Keyed per record *and* field: two fields of the same record can
+                // each be mid-write, and one landing (or one refusing) must not
+                // touch the other's own pending value or banner.
+                const conflict = conflicts[record.id]?.[column.id];
+                const isConflicted = conflict !== undefined;
                 const value = isConflicted
-                  ? (conflict!.pendingValues[column.id] as CellValue)
+                  ? (conflict.pendingValues[column.id] as CellValue)
                   : (record.values[column.id] ?? null);
                 return (
                   <div key={column.id} className="space-y-1">
@@ -163,7 +161,7 @@ export function RecordDetailSheet({
                             size="sm"
                             className="h-auto p-0 text-xs"
                             onClick={() => {
-                              const pending = conflict?.pendingValues[column.id] as CellValue;
+                              const pending = conflict.pendingValues[column.id] as CellValue;
                               void reloadAndReapply(record, column.id, pending);
                             }}
                           >
@@ -174,7 +172,7 @@ export function RecordDetailSheet({
                             variant="link"
                             size="sm"
                             className="h-auto p-0 text-xs"
-                            onClick={() => void discardConflict(record)}
+                            onClick={() => void discardConflict(record, column.id)}
                           >
                             {t("discard")}
                           </Button>

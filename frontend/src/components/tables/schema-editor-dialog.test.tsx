@@ -213,6 +213,41 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByDisplayValue("Closed")).toBeInTheDocument();
   });
 
+  it("a newly added option can be removed, since it has no id yet to archive", async () => {
+    const user = userEvent.setup();
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={null}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add option/i }));
+    expect(screen.getAllByLabelText("Option label")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: /remove option/i }));
+
+    expect(screen.getAllByLabelText("Option label")).toHaveLength(1);
+  });
+
+  it("an existing option has no remove control, only archive", () => {
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={null}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /remove option/i })).not.toBeInTheDocument();
+  });
+
   it("a new column's own type select is not locked and can pick single_select to reveal option controls", async () => {
     const user = userEvent.setup();
     render(
@@ -265,6 +300,76 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByText("Default does not fit")).toBeInTheDocument();
     expect(screen.getByText("Cannot become required")).toBeInTheDocument();
     expect(screen.getByText("Too many options")).toBeInTheDocument();
+  });
+
+  it("shows a field-level error for a blank or cleared column label", () => {
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={
+          new ApiError(422, "invalid", {
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "invalid",
+              details: { fields: [{ field: "columns.0.label", message: "Cannot be blank" }] },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("Cannot be blank")).toBeInTheDocument();
+  });
+
+  it("shows a dialog-level message for a failure the server named no field for", () => {
+    // A schema-version conflict (`current_version`) or a dependency refusal
+    // (`dependents`) is not a field problem - `details.fields` is absent, so
+    // without a fallback, Save would appear to do nothing.
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={
+          new ApiError(409, "The schema changed since you opened it.", {
+            error: {
+              code: "SCHEMA_VERSION_CONFLICT",
+              message: "The schema changed since you opened it.",
+              details: { expected_version: 1, current_version: 2 },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("The schema changed since you opened it.")).toBeInTheDocument();
+  });
+
+  it("shows no dialog-level message when every problem already landed on a row", () => {
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table()}
+        onSave={vi.fn()}
+        isSaving={false}
+        error={
+          new ApiError(422, "invalid", {
+            error: {
+              code: "INVALID_SCHEMA",
+              message: "invalid",
+              details: { fields: [{ field: "columns.0.type", message: "Type cannot change" }] },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("Type cannot change")).toBeInTheDocument();
+    expect(screen.queryByText("invalid")).not.toBeInTheDocument();
   });
 
   it("submits the rows without their local key", async () => {

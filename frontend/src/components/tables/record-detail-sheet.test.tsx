@@ -494,4 +494,69 @@ describe("RecordDetailSheet", () => {
     await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
     expect(screen.queryByText(/someone else changed this field/i)).not.toBeInTheDocument();
   });
+
+  it("keeps a field's conflict banner and typed value when a different field of the same record commits successfully", async () => {
+    // The regression this guards: the conflict store used to key by record id
+    // alone, so a second field's *successful* write cleared the whole record's
+    // one conflict entry - silently dropping the first field's still-pending
+    // banner and the value the user had typed into it, even though the two
+    // fields were never racing each other.
+    const twoLiveColumns: ColumnDef[] = [
+      {
+        id: "c1",
+        label: "Name",
+        type: "text",
+        nullable: true,
+        default: null,
+        options: [],
+        archived: false,
+      },
+      {
+        id: "c3",
+        label: "Email",
+        type: "text",
+        nullable: true,
+        default: null,
+        options: [],
+        archived: false,
+      },
+    ];
+    const twoFieldRecord: RecordRead = { ...record, values: { c1: "Ada", c3: "ada@example.com" } };
+    vi.mocked(apiClient.patch)
+      .mockRejectedValueOnce(
+        new ApiError(409, "stale", {
+          error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+        }),
+      )
+      .mockResolvedValueOnce({
+        ...twoFieldRecord,
+        values: { c1: "Ada", c3: "grace@example.com" },
+        revision: 2,
+      });
+    render(
+      <RecordDetailSheet
+        tableId="t1"
+        columns={twoLiveColumns}
+        record={twoFieldRecord}
+        open
+        onOpenChange={vi.fn()}
+        canEdit
+        onRefetchRecord={vi.fn()}
+        onRecordUpdated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    const [nameInput, emailInput] = screen.getAllByRole("textbox");
+
+    fireEvent.change(nameInput as HTMLElement, { target: { value: "Grace" } });
+    fireEvent.blur(nameInput as HTMLElement);
+    await screen.findByText(/someone else changed this field/i);
+
+    fireEvent.change(emailInput as HTMLElement, { target: { value: "grace@example.com" } });
+    fireEvent.blur(emailInput as HTMLElement);
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(/someone else changed this field/i)).toBeInTheDocument();
+    expect(nameInput).toHaveValue("Grace");
+  });
 });

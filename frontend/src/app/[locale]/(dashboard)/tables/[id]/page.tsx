@@ -79,6 +79,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     setSort(activeView?.config.sort ?? DEFAULT_SORT);
   }
 
+  // Reset to the first page whenever the active view, tab, filters or sort
+  // changes - otherwise a page advanced under one view carries over as the
+  // offset for the next query, which can land past the end of a smaller
+  // result and render the empty-record state even though matching records
+  // exist earlier in it. Re-seeded from render, the same pattern as `sort`
+  // above, so switching never paints one frame of the stale page first.
+  const recordsKey = JSON.stringify({ tab, viewId: viewIdParam, filters, sort });
+  const [seenRecordsKey, setSeenRecordsKey] = useState(recordsKey);
+  if (recordsKey !== seenRecordsKey) {
+    setSeenRecordsKey(recordsKey);
+    setPage(0);
+  }
+
   const {
     records,
     hasMore,

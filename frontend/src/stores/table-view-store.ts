@@ -32,13 +32,27 @@ export function emptyTableViewDraft(): TableViewDraft {
   };
 }
 
+/** The inner map's key for a whole-row conflict (`fieldId: null`) - never a real column id. */
+const ROW_CONFLICT_KEY = "";
+
+function conflictKey(fieldId: string | null): string {
+  return fieldId ?? ROW_CONFLICT_KEY;
+}
+
 interface TableViewStoreState {
   draft: TableViewDraft;
   setDraft: (draft: TableViewDraft) => void;
-  /** One active conflict per record - a second stale write on the same record replaces it. */
-  conflicts: Record<string, RecordConflict>;
+  /**
+   * Conflicts per record, keyed further by field. A user can have more than one
+   * field of the same record in flight at once - the sheet commits each field on
+   * its own - so a stale write on one field and a successful write on another must
+   * not clobber each other: keying only by record would let the second write's
+   * `clearConflict` erase the first field's still-pending banner, or let a second
+   * field's own conflict silently replace the first's.
+   */
+  conflicts: Record<string, Record<string, RecordConflict>>;
   setConflict: (conflict: RecordConflict) => void;
-  clearConflict: (recordId: string) => void;
+  clearConflict: (recordId: string, fieldId: string | null) => void;
   reset: () => void;
 }
 
@@ -55,12 +69,24 @@ export const useTableViewStore = create<TableViewStoreState>((set) => ({
   setDraft: (draft) => set({ draft }),
   conflicts: {},
   setConflict: (conflict) =>
-    set((state) => ({ conflicts: { ...state.conflicts, [conflict.recordId]: conflict } })),
-  clearConflict: (recordId) =>
     set((state) => {
-      const next = { ...state.conflicts };
-      delete next[recordId];
-      return { conflicts: next };
+      const forRecord = {
+        ...state.conflicts[conflict.recordId],
+        [conflictKey(conflict.fieldId)]: conflict,
+      };
+      return { conflicts: { ...state.conflicts, [conflict.recordId]: forRecord } };
+    }),
+  clearConflict: (recordId, fieldId) =>
+    set((state) => {
+      const forRecord = state.conflicts[recordId];
+      const key = conflictKey(fieldId);
+      if (!forRecord || !(key in forRecord)) return state;
+      const nextForRecord = { ...forRecord };
+      delete nextForRecord[key];
+      const nextConflicts = { ...state.conflicts };
+      if (Object.keys(nextForRecord).length === 0) delete nextConflicts[recordId];
+      else nextConflicts[recordId] = nextForRecord;
+      return { conflicts: nextConflicts };
     }),
   reset: () => set({ draft: emptyTableViewDraft(), conflicts: {} }),
 }));

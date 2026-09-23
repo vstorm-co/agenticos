@@ -189,6 +189,45 @@ describe("CreateTableDialog", () => {
     expect(screen.getByText("A table named 'Orders' already exists.")).toBeInTheDocument();
   });
 
+  it("shows no dialog-level message before any submission has failed", () => {
+    render(
+      <CreateTableDialog
+        open
+        onOpenChange={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        error={null}
+      />,
+    );
+    expect(screen.queryByText(/unexpected/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a dialog-level message for a validation failure the server named no input for", () => {
+    // A duplicate column label is refused as `INVALID_SCHEMA` on `columns`, not
+    // on any input this form renders - `submitFailure`'s `.toast` used to be
+    // computed and then discarded, so the dialog looked unresponsive.
+    render(
+      <CreateTableDialog
+        open
+        onOpenChange={vi.fn()}
+        onCreate={vi.fn()}
+        isCreating={false}
+        error={
+          new ApiError(422, "invalid", {
+            error: {
+              code: "INVALID_SCHEMA",
+              message: "invalid",
+              details: {
+                fields: [{ field: "columns", message: "Two live columns have the same label" }],
+              },
+            },
+          })
+        }
+      />,
+    );
+    expect(screen.getByText("columns: Two live columns have the same label")).toBeInTheDocument();
+  });
+
   it("disables submit while creating", () => {
     render(
       <CreateTableDialog

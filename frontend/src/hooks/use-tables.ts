@@ -105,8 +105,10 @@ export function useTable(tableId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  // No `onError`: a schema conflict or an archived-column refusal is something
-  // the schema editor dialog itself shows, field by field, not a toast.
+  // No `onError`: the schema editor dialog itself shows the failure - field by
+  // field when the server named one, or as a dialog-level message (a schema-
+  // version conflict, a dependent view or workflow) when it named none - not a
+  // toast.
   const changeSchema = useMutation({
     mutationFn: (data: SchemaUpdate) => updateSchema(tableId as string, data),
     onSuccess: async () => {

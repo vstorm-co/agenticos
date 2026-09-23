@@ -185,7 +185,15 @@ export interface TableViewCreate {
 export interface TableViewUpdate {
   name?: string;
   visibility?: ViewVisibility;
-  config?: Partial<TableViewConfig>;
+  /**
+   * A complete config, never a patch: the backend replaces the whole stored blob
+   * when this is sent, filling any field the caller left out with its own default
+   * rather than keeping the view's current value - so `{ sort }` alone would
+   * silently reset the view's filters, visible columns and grouping. A caller that
+   * wants to change one part of a view's config must merge it with the view's
+   * current `config` first.
+   */
+  config?: TableViewConfig;
 }
 
 /** An empty, unfiltered config - the default a new view starts from. */

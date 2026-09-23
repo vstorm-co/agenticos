@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { DIALOG_COLUMN } from "@/lib/dialog-sizes";
-import { fieldProblems } from "@/lib/api-error";
+import { fieldProblems, getErrorMessage } from "@/lib/api-error";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 
 const COLUMN_TYPES: ColumnTypeName[] = [
@@ -109,6 +109,7 @@ export function SchemaEditorDialog({
   error: unknown;
 }) {
   const t = useTranslations("tables.schema");
+  const tErrors = useTranslations("errors");
   const [rows, setRows] = useState<Row[]>(() => toRows(table));
   // Re-seeded from the table each time the dialog opens on a schema version it
   // has not shown yet - adjusted during render (React's own pattern for this,
@@ -126,6 +127,12 @@ export function SchemaEditorDialog({
   function problemFor(index: number, field: string): string | undefined {
     return problems.find((problem) => problem.field === `columns.${index}.${field}`)?.message;
   }
+  // A schema-version conflict or a dependency refusal names no field at all
+  // (`details.current_version`, `details.dependents`), so `problems` is empty
+  // for them even though the save failed - without this, Save would appear to
+  // do nothing for either.
+  const generalError =
+    error != null && problems.length === 0 ? getErrorMessage(error, tErrors) : null;
 
   function updateRow(key: string, patch: Partial<Row>) {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -155,6 +162,19 @@ export function SchemaEditorDialog({
         options[index] = { ...(options[index] as OptionRow), label };
         return { ...row, options };
       }),
+    );
+  }
+
+  /**
+   * Drop an unsaved option outright. A saved one (it has an `id`) is never
+   * removed this way - archiving is the only way to retire it, since the
+   * server still holds records with that option's id in their cells.
+   */
+  function removeOption(key: string, index: number) {
+    setRows((current) =>
+      current.map((row) =>
+        row.key === key ? { ...row, options: row.options.filter((_, i) => i !== index) } : row,
+      ),
     );
   }
 
@@ -191,6 +211,7 @@ export function SchemaEditorDialog({
                   placeholder={t("labelPlaceholder")}
                   onChange={(event) => updateRow(row.key, { label: event.target.value })}
                   aria-label={t("columnLabel")}
+                  aria-invalid={problemFor(index, "label") ? true : undefined}
                 />
                 <Select
                   value={row.type}
@@ -239,6 +260,9 @@ export function SchemaEditorDialog({
                   </Button>
                 )}
               </div>
+              {problemFor(index, "label") && (
+                <p className="text-destructive text-xs">{problemFor(index, "label")}</p>
+              )}
               {problemFor(index, "type") && (
                 <p className="text-destructive text-xs">{problemFor(index, "type")}</p>
               )}
@@ -258,7 +282,7 @@ export function SchemaEditorDialog({
                         onChange={(event) => updateOption(row.key, optionIndex, event.target.value)}
                         aria-label={t("optionLabel")}
                       />
-                      {option.id && (
+                      {option.id ? (
                         <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
                           <Checkbox
                             checked={option.archived}
@@ -266,6 +290,16 @@ export function SchemaEditorDialog({
                           />
                           {t("archived")}
                         </label>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={t("removeOption")}
+                          onClick={() => removeOption(row.key, optionIndex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   ))}
@@ -292,6 +326,7 @@ export function SchemaEditorDialog({
             <Plus className="h-4 w-4" /> {t("addColumn")}
           </Button>
         </div>
+        {generalError && <p className="text-destructive text-sm">{generalError}</p>}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

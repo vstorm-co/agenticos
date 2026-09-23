@@ -665,6 +665,42 @@ describe("TableKanbanView", () => {
     expect(archivedCalls).toHaveLength(0);
   });
 
+  it("sends the required boolean operand on the no-value lane's is_null filter", async () => {
+    // The regression this guards: the backend rejects an `is_null` filter with
+    // no `value` (422, `is_null takes true or false`), and a record-query error
+    // renders as an empty lane - so records without a grouping value silently
+    // vanished from the board instead of showing up in "No value".
+    const filtersSeen: { column_id: string; op: string; value?: unknown }[][] = [];
+    vi.mocked(apiClient.post).mockImplementation(async (url: string, body?: unknown) => {
+      if (url.endsWith("/records/query")) {
+        const { filters } = body as {
+          filters: { column_id: string; op: string; value?: unknown }[];
+        };
+        filtersSeen.push(filters);
+        return { items: [], skip: 0, limit: 25, has_more: false };
+      }
+      return { id: "unused" };
+    });
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit
+      />,
+      { wrapper },
+    );
+
+    await waitFor(() => expect(filtersSeen.length).toBeGreaterThan(0));
+    const noValueClause = filtersSeen
+      .flat()
+      .find((clause) => clause.column_id === "status" && clause.op === "is_null");
+    expect(noValueClause).toEqual({ column_id: "status", op: "is_null", value: true });
+  });
+
   it("shows a load-more hint when a lane has more records than fit one page", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     vi.mocked(apiClient.post).mockImplementation(async (url: string, body?: unknown) => {

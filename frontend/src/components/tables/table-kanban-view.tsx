@@ -40,7 +40,7 @@ function laneFilter(groupBy: string, lane: Lane, archivedOptionIds: string[]): R
       : null; // No archived options exist - the lane below skips fetching entirely.
   }
   return lane.optionId === null
-    ? { column_id: groupBy, op: "is_null" }
+    ? { column_id: groupBy, op: "is_null", value: true }
     : { column_id: groupBy, op: "eq", value: lane.optionId };
 }
 
@@ -180,7 +180,7 @@ function KanbanLane({
   // to show or reload; anything else belongs to the sheet, which reads
   // `conflict.fieldId` itself for the same reason.
   const conflicts = useTableViewStore((state) => state.conflicts);
-  const isGroupingConflict = (recordId: string) => conflicts[recordId]?.fieldId === groupBy;
+  const isGroupingConflict = (recordId: string) => conflicts[recordId]?.[groupBy] !== undefined;
 
   const noDrag = { draggable: false, onDragStart: () => {}, onDragEnd: () => {} };
 
@@ -269,7 +269,7 @@ export function TableKanbanView({
         },
       },
       {
-        onSuccess: () => clearConflict(record.id),
+        onSuccess: () => clearConflict(record.id, groupByColumnId),
         onError: (error) => {
           if (isRevisionConflict(error)) {
             setConflict({
@@ -297,7 +297,9 @@ export function TableKanbanView({
    * refetch or the retry itself fails, with no way back to it.
    */
   async function reloadAndReapply(recordId: string) {
-    const pending = conflicts[recordId] as RecordConflict;
+    // Only ever invoked while `isGroupingConflict(recordId)` is true, which is
+    // exactly `conflicts[recordId]?.[groupByColumnId] !== undefined`.
+    const pending = conflicts[recordId]?.[groupByColumnId] as RecordConflict;
     try {
       const fresh = await getRecord(tableId, recordId);
       moveRecord(fresh, pending.pendingValues[groupByColumnId] as string | null);
@@ -314,7 +316,7 @@ export function TableKanbanView({
    * line with the row the conflict itself proved had changed server-side.
    */
   function discardConflict(recordId: string) {
-    clearConflict(recordId);
+    clearConflict(recordId, groupByColumnId);
     void queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId) });
   }
 

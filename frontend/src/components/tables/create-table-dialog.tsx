@@ -19,7 +19,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import { submitFailure } from "@/lib/api-error";
+import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
 
 const FORM = { fields: ["name"], identifiedBy: "name" } as const;
@@ -71,8 +71,15 @@ export function CreateTableDialog({
   // `submitFailure`, not `fieldProblems`: a taken name is a 409 `AlreadyExistsError`
   // reporting a fact about the row that exists (`details: {name}`), not a
   // structured `details.fields` list - `identifiedBy` is what routes a conflict
-  // like that to the one input that could have produced it.
-  const nameProblem = submitFailure(error, FORM, tErrors).fields.name;
+  // like that to the one input that could have produced it. `.toast` is what is
+  // left once the name has claimed its own problem - a duplicate column label,
+  // say, which the server refuses on `columns` rather than on any input this
+  // form renders. `NO_FAILURE` when `error` is absent: `submitFailure` treats
+  // anything that is not an `ApiError` - `null` included - as an unexpected
+  // failure and fills `.toast` with a fallback sentence, which would render on
+  // a dialog that has not failed at all.
+  const failure = error != null ? submitFailure(error, FORM, tErrors) : NO_FAILURE;
+  const nameProblem = failure.fields.name;
 
   function reset() {
     setName("");
@@ -209,6 +216,7 @@ export function CreateTableDialog({
             </Button>
           </div>
         </div>
+        {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

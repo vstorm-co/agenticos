@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TableDetailPage from "./page";
 import { apiClient } from "@/lib/api-client";
+import { PAGE_SIZE } from "@/components/ui";
 import type { RecordRead, TableRead, TableViewList } from "@/types/tables";
 
 /**
@@ -399,6 +400,37 @@ describe("the table detail page", () => {
 
     const kanban = await screen.findByTestId("kanban-view");
     expect(kanban).toHaveAttribute("data-group-by", "c2");
+  });
+
+  it("resets to the first page when switching to a different saved view, even after advancing past it", async () => {
+    // The regression this guards: `page` used to carry over unchanged across a
+    // view switch, so a page advanced under one view became the offset for the
+    // next view's own (possibly much shorter) result - rendering the
+    // empty-record state even though matching records exist on page zero.
+    vi.mocked(apiClient.get).mockImplementation((path: string) => {
+      if (path === "/tables/t1") return Promise.resolve(table());
+      if (path === "/tables/t1/views") return Promise.resolve(views());
+      return Promise.resolve({ items: [], total: 0 });
+    });
+    const queryBodies: { skip?: number }[] = [];
+    vi.mocked(apiClient.post).mockImplementation((path: string, body?: unknown) => {
+      if (path === "/tables/t1/records/query") {
+        queryBodies.push(body as { skip?: number });
+        return Promise.resolve({ items: [RECORD], has_more: true });
+      }
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() => expect(queryBodies.some((body) => body.skip === PAGE_SIZE)).toBe(true));
+
+    await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
+    await user.click(screen.getByRole("option", { name: "By customer" }));
+
+    await waitFor(() => expect(queryBodies[queryBodies.length - 1]?.skip).toBe(0));
   });
 
   it("opens the record sheet from a grid row and wires reload-and-reapply to a fresh fetch", async () => {
