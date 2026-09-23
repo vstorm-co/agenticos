@@ -77,7 +77,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     limit: PAGE_SIZE,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;

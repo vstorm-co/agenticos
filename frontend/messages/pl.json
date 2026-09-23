@@ -600,6 +600,10 @@
           "private": "Prywatna",
           "team": "Zespół",
           "org": "Organizacja"
+        },
+        "emptyRecords": {
+          "title": "Brak rekordów",
+          "description": "Rekordy utworzone tutaj, przez agenta lub przez API, pojawiają się w każdym pasującym widoku."
         }
       },
       "views": {

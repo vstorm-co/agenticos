@@ -9,7 +9,13 @@ import {
   type FlowId,
   type OrgState,
 } from "@/lib/onboarding/flows";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_MEMBERS,
+  ORG_ROLES,
+  TABLE_DETAIL,
+} from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
 const allow = () => true;
@@ -198,6 +204,8 @@ describe("flowForPage", () => {
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
+    expect(flowForPage(ROUTES.TABLES)).toBe("create-table");
+    expect(flowForPage(TABLE_DETAIL)).toBe("create-table");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");

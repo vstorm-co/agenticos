@@ -4375,6 +4375,10 @@
           "private": "Private",
           "team": "Team",
           "org": "Organization"
+        },
+        "emptyRecords": {
+          "title": "No records yet",
+          "description": "Records created here, by an agent or through the API all show up in every matching view."
         }
       },
       "views": {

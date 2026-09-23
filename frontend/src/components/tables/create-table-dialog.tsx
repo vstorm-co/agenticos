@@ -76,7 +76,9 @@ export function CreateTableDialog({
   }
 
   function submit() {
-    if (!name.trim()) return;
+    // The only caller is the footer's Create button, which is `disabled` for
+    // a blank name - a disabled button fires no click, so `submit` never runs
+    // with an empty `name` and this needs no guard of its own.
     onCreate({
       name: name.trim(),
       description: description.trim() || null,
@@ -94,7 +96,12 @@ export function CreateTableDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset();
+        // This dialog renders no `DialogTrigger` of its own - `open` is driven
+        // entirely by the caller - so Radix only ever invokes this with
+        // `false`, from an in-dialog close (Escape, overlay, the close
+        // button). Resetting unconditionally is therefore equivalent to
+        // resetting on close, without a branch that never takes its other arm.
+        reset();
         onOpenChange(next);
       }}
     >

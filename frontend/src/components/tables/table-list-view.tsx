@@ -23,7 +23,7 @@ export function TableListView({
   onOpenRecord: (record: RecordRead) => void;
 }) {
   const t = useTranslations("tables.cells");
-  const tEmpty = useTranslations("pages.tables");
+  const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
   const [title, ...secondary] = columns;
 
@@ -38,7 +38,7 @@ export function TableListView({
   }
 
   if (records.length === 0) {
-    return <EmptyState title={tEmpty("empty.title")} description={tEmpty("empty.description")} />;
+    return <EmptyState title={tEmpty("title")} description={tEmpty("description")} />;
   }
 
   return (

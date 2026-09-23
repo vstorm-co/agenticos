@@ -17,6 +17,7 @@ import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutati
 import { formatCellValue } from "@/lib/format-cell-value";
 import { getRecord } from "@/lib/tables-api";
 import { useTableViewStore } from "@/stores";
+import type { RecordConflict } from "@/stores/table-view-store";
 import { useKanbanDrag } from "./use-kanban-drag";
 import type { ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort } from "@/types/tables";
 
@@ -54,7 +55,10 @@ function KanbanCard({
   onMoveTo,
 }: {
   record: RecordRead;
-  titleColumn: ColumnDef | undefined;
+  // Always defined: `TableKanbanView` never renders a lane (and so never a
+  // card) until `columns` has yielded a `groupByColumn`, which guarantees
+  // `columns[0]` exists too.
+  titleColumn: ColumnDef;
   boolLabel: (value: boolean) => string;
   dragProps: { draggable: boolean; onDragStart: () => void; onDragEnd: () => void };
   onOpen: () => void;
@@ -65,9 +69,7 @@ function KanbanCard({
   onMoveTo: (optionId: string | null) => void;
 }) {
   const t = useTranslations("tables.kanban");
-  const title = titleColumn
-    ? formatCellValue(titleColumn, record.values[titleColumn.id] ?? null, boolLabel)
-    : record.id;
+  const title = formatCellValue(titleColumn, record.values[titleColumn.id] ?? null, boolLabel);
 
   return (
     <div
@@ -136,7 +138,7 @@ function KanbanLane({
   groupBy: string;
   sort: RecordSort;
   archivedOptionIds: string[];
-  titleColumn: ColumnDef | undefined;
+  titleColumn: ColumnDef;
   boolLabel: (value: boolean) => string;
   cardProps: (record: RecordRead) => {
     draggable: boolean;
@@ -225,7 +227,6 @@ export function TableKanbanView({
   const tCells = useTranslations("tables.cells");
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
   const groupByColumn = columns.find((column) => column.id === groupByColumnId);
-  const titleColumn = columns[0];
   const { update } = useRecordMutation(tableId);
   const setConflict = useTableViewStore((state) => state.setConflict);
   const clearConflict = useTableViewStore((state) => state.clearConflict);
@@ -259,11 +260,15 @@ export function TableKanbanView({
     );
   }
 
-  /** Refetches the record and retries the same lane move against its fresh revision. */
+  /**
+   * Refetches the record and retries the same lane move against its fresh
+   * revision. Only ever wired to a card's "reload and reapply" button, which
+   * renders only while `conflicts[recordId]` is set - so it is never absent
+   * here, and there is nothing to reapply if it were.
+   */
   async function reloadAndReapply(recordId: string) {
-    const pending = conflicts[recordId];
+    const pending = conflicts[recordId] as RecordConflict;
     clearConflict(recordId);
-    if (!pending) return;
     const fresh = await getRecord(tableId, recordId);
     const target = (pending.pendingValues[groupByColumnId] as string | null | undefined) ?? null;
     moveRecord(fresh, target);
@@ -276,6 +281,9 @@ export function TableKanbanView({
   if (!groupByColumn || groupByColumn.type !== "single_select") {
     return <p className="text-muted-foreground text-sm">{t("needsGroupingColumn")}</p>;
   }
+  // `groupByColumn` was found in `columns`, so `columns` has at least one
+  // element and this index is never out of range.
+  const titleColumn = columns[0] as ColumnDef;
 
   const liveOptions: OptionDef[] = groupByColumn.options.filter((option) => !option.archived);
   const archivedOptionIds = groupByColumn.options

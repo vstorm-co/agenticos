@@ -32,7 +32,7 @@ export function TableGridView({
   onOpenRecord: (record: RecordRead) => void;
 }) {
   const t = useTranslations("tables.cells");
-  const tEmpty = useTranslations("pages.tables");
+  const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
 
   const tableColumns: Column<RecordRead>[] = columns.map((column) => ({
@@ -52,7 +52,7 @@ export function TableGridView({
       fillHeight
       sort={{ by: sort.by, dir: sort.direction }}
       onSort={(next: TableSort) => onSort({ by: next.by, direction: next.dir })}
-      empty={<EmptyState title={tEmpty("empty.title")} description={tEmpty("empty.description")} />}
+      empty={<EmptyState title={tEmpty("title")} description={tEmpty("description")} />}
     />
   );
 }

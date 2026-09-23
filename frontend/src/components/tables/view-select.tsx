@@ -157,7 +157,14 @@ export function ViewSelect({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!renaming} onOpenChange={(open) => !open && setRenaming(null)}>
+      {/*
+        Save and Cancel both clear `renaming` directly, so this handler only
+        ever fires from an in-dialog close this component did not initiate
+        (Escape, the overlay, the close button) - always with `open: false`,
+        since nothing here reopens the dialog through Radix. Clearing
+        unconditionally is therefore equivalent to checking `open` first.
+      */}
+      <Dialog open={!!renaming} onOpenChange={() => setRenaming(null)}>
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{t("rename")}</DialogTitle>
@@ -175,7 +182,10 @@ export function ViewSelect({
               type="button"
               disabled={!draftName.trim()}
               onClick={() => {
-                if (renaming) onRename(renaming.id, draftName.trim());
+                // This button only exists while the dialog is open, and the
+                // dialog is only open while `renaming` is set (`open={!!renaming}`
+                // above), so `renaming` is never null here.
+                onRename(renaming!.id, draftName.trim());
                 setRenaming(null);
               }}
             >
@@ -193,7 +203,10 @@ export function ViewSelect({
         confirmLabel={t("delete")}
         destructive
         onConfirm={() => {
-          if (deleting) onDelete(deleting.id);
+          // The confirm button only exists while `ConfirmDialog` is open, and
+          // it is only open while `deleting` is set (`open={!!deleting}`
+          // above), so `deleting` is never null here.
+          onDelete(deleting!.id);
           setDeleting(null);
         }}
       />

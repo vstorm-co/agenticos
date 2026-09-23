@@ -81,8 +81,12 @@ export function RecordDetailSheet({
               .filter((column) => !column.archived)
               .map((column) => {
                 const isConflicted = conflict?.fieldId === column.id;
+                // `conflict` is defined whenever `isConflicted` is true - that is
+                // exactly what `conflict?.fieldId === column.id` being true means -
+                // and `setConflict` always writes `pendingValues[conflict.fieldId]`,
+                // so the pending value for this column is always present too.
                 const value = isConflicted
-                  ? ((conflict?.pendingValues[column.id] ?? null) as CellValue)
+                  ? (conflict!.pendingValues[column.id] as CellValue)
                   : (record.values[column.id] ?? null);
                 return (
                   <div key={column.id} className="space-y-1">

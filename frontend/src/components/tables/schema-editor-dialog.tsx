@@ -34,9 +34,22 @@ const COLUMN_TYPES: ColumnTypeName[] = [
   "multi_select",
 ];
 
-interface Row extends ColumnInput {
+/** An option row, `archived` narrowed to required - see `Row` below. */
+interface OptionRow {
+  id?: string;
+  label: string;
+  archived: boolean;
+}
+
+interface Row extends Omit<ColumnInput, "options"> {
   /** A stable React key independent of the backend id - a new column has none yet. */
   key: string;
+  // Narrowed from `ColumnInput`'s optional versions: every `Row` this module
+  // constructs (`toRows`, `blankRow`) sets all three, so nothing downstream
+  // needs a fallback for "not set yet".
+  nullable: boolean;
+  archived: boolean;
+  options: OptionRow[];
 }
 
 function toRows(table: TableRead): Row[] {
@@ -57,7 +70,14 @@ function toRows(table: TableRead): Row[] {
 }
 
 function blankRow(): Row {
-  return { key: crypto.randomUUID(), label: "", type: "text", nullable: true, options: [] };
+  return {
+    key: crypto.randomUUID(),
+    label: "",
+    type: "text",
+    nullable: true,
+    archived: false,
+    options: [],
+  };
 }
 
 /**
@@ -118,7 +138,9 @@ export function SchemaEditorDialog({
   function addOption(key: string) {
     setRows((current) =>
       current.map((row) =>
-        row.key === key ? { ...row, options: [...(row.options ?? []), { label: "" }] } : row,
+        row.key === key
+          ? { ...row, options: [...row.options, { label: "", archived: false }] }
+          : row,
       ),
     );
   }
@@ -127,8 +149,10 @@ export function SchemaEditorDialog({
     setRows((current) =>
       current.map((row) => {
         if (row.key !== key) return row;
-        const options = [...(row.options ?? [])];
-        options[index] = { ...options[index], label };
+        const options = [...row.options];
+        // `index` always comes from mapping over this same `options` array
+        // (see the JSX below), so it is always a valid index into it.
+        options[index] = { ...(options[index] as OptionRow), label };
         return { ...row, options };
       }),
     );
@@ -138,9 +162,11 @@ export function SchemaEditorDialog({
     setRows((current) =>
       current.map((row) => {
         if (row.key !== key) return row;
-        const options = [...(row.options ?? [])];
-        const target = options[index];
-        if (target) options[index] = { ...target, archived: !target.archived };
+        const options = [...row.options];
+        // `index` always comes from mapping over this same `options` array
+        // (see the JSX below), so it is always a valid index into it.
+        const target = options[index] as OptionRow;
+        options[index] = { ...target, archived: !target.archived };
         return { ...row, options };
       }),
     );
@@ -184,7 +210,7 @@ export function SchemaEditorDialog({
                 </Select>
                 <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
                   <Checkbox
-                    checked={row.nullable ?? true}
+                    checked={row.nullable}
                     onCheckedChange={(checked) =>
                       updateRow(row.key, { nullable: checked === true })
                     }
@@ -194,7 +220,7 @@ export function SchemaEditorDialog({
                 {row.id ? (
                   <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
                     <Checkbox
-                      checked={row.archived ?? false}
+                      checked={row.archived}
                       onCheckedChange={(checked) =>
                         updateRow(row.key, { archived: checked === true })
                       }
@@ -224,7 +250,7 @@ export function SchemaEditorDialog({
               )}
               {(row.type === "single_select" || row.type === "multi_select") && (
                 <div className="space-y-1.5 pl-1">
-                  {(row.options ?? []).map((option, optionIndex) => (
+                  {row.options.map((option, optionIndex) => (
                     <div key={option.id ?? optionIndex} className="flex items-center gap-2">
                       <Input
                         value={option.label}
@@ -235,7 +261,7 @@ export function SchemaEditorDialog({
                       {option.id && (
                         <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
                           <Checkbox
-                            checked={option.archived ?? false}
+                            checked={option.archived}
                             onCheckedChange={() => toggleOptionArchived(row.key, optionIndex)}
                           />
                           {t("archived")}

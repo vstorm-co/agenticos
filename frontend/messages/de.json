@@ -4241,6 +4241,10 @@
           "private": "Privat",
           "team": "Team",
           "org": "Organisation"
+        },
+        "emptyRecords": {
+          "title": "Noch keine Datensätze",
+          "description": "Hier, von einem Agent oder über die API erstellte Datensätze erscheinen in jeder passenden Ansicht."
         }
       },
       "views": {
