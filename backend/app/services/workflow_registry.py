@@ -61,14 +61,14 @@ def slugify(name: str) -> str:
 
 
 class WorkflowArchivedError(AppException):
-    """A write was attempted on an archived workflow (409)."""
+    """A write, or a new run, was attempted on an archived workflow (409)."""
 
     message = "This workflow is archived and cannot be edited"
     code = "WORKFLOW_ARCHIVED"
     status_code = 409
 
-    def __init__(self, *, workflow_id: UUID) -> None:
-        super().__init__(details={"workflow_id": workflow_id})
+    def __init__(self, *, workflow_id: UUID, message: str | None = None) -> None:
+        super().__init__(message=message, details={"workflow_id": workflow_id})
 
 
 class WorkflowRevisionConflictError(AppException):

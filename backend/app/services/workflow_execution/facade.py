@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.workflow import Workflow
+from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunStatus
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -35,6 +35,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunAlreadyTerminalError,
     WorkflowRunNotFoundError,
 )
+from app.services.workflow_registry import WorkflowArchivedError
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
@@ -87,10 +88,17 @@ class WorkflowExecutionService:
             NotFoundError: The workflow does not exist, or this caller may
                 not reach it.
             AuthorizationError: The caller lacks `workflows:run`.
+            WorkflowArchivedError: The workflow is archived - `ARCHIVED`
+                keeps a workflow's history and its past runs but refuses new
+                ones, in both `real` and `test` mode.
             WorkflowNotRunnableError: `real` mode with no published version,
                 or `test` mode with no valid, structurally sound draft graph.
         """
         workflow = await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_RUN)
+        if workflow.status == WorkflowStatus.ARCHIVED.value:
+            raise WorkflowArchivedError(
+                workflow_id=workflow.id, message="This workflow is archived and cannot be run"
+            )
         # `test` mode executes the *draft*, not something an editor already
         # reviewed and froze into a version - `workflows:run` alone (as
         # widened by a mere `USE` grant, `_PERM_MIN_GRANT`) would let a
@@ -164,7 +172,17 @@ class WorkflowExecutionService:
             AuthorizationError: The caller lacks `workflows:run`.
             WorkflowRunAlreadyTerminalError: The run already ended.
         """
-        run = await workflow_run_repo.get_run_by_id_for_update(self.db, run_id)
+        # Scoped, not `get_run_by_id_for_update` - that lookup is for the
+        # dispatcher and reconciler, which act on ids they already trust, not
+        # on a caller-supplied one that still needs the organization boundary
+        # checked. An unscoped lookup would lock another tenant's row before
+        # `_authorize` ever runs, and the `NotFoundError` it eventually
+        # raises would name that row's own `workflow_id` in `details` - a
+        # cross-tenant identifier the caller never supplied and the scoped
+        # read routes never expose.
+        run = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
         if run is None:
             raise WorkflowRunNotFoundError(run_id=run_id)
         await self._authorize(ctx, run.workflow_id, Perm.WORKFLOWS_RUN)

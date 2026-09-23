@@ -23,8 +23,10 @@ from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
+from app.db.models.agent_run import ApprovalStatus
 from app.db.models.workflow_run import NodeRunStatus
 from app.db.session import get_worker_db_context
+from app.repositories import agent_run as agent_run_repo
 from app.repositories import workflow_run as workflow_run_repo
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,20 @@ async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: U
             db, agent_run_id, organization_id=organization_id
         )
         if node_run is None or node_run.status != NodeRunStatus.WAITING.value:
+            return
+        approvals = await agent_run_repo.list_approvals_for_run(
+            db, run_id=agent_run_id, organization_id=organization_id
+        )
+        if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
+            # This agent run parked on more than one approval, and another
+            # decision on it is still outstanding - mirrors
+            # `list_stale_approval_waits()`'s own "nothing still pending"
+            # gate, and the identical condition `AgentRunnerService.
+            # _decisions` requires before it will replay a park. Enqueuing
+            # now would dispatch a continuation `_decisions` immediately
+            # rejects, and - since only one live outbox row is ever allowed
+            # per node run - would leave the decision that actually clears
+            # the last pending approval with nothing left to enqueue.
             return
         run = await workflow_run_repo.get_run_by_id_for_update(db, node_run.workflow_run_id)
         if run is None:

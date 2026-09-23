@@ -42,6 +42,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +60,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
 )
 from app.repositories import member as member_repo
+from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import budget, context, events
@@ -91,6 +93,12 @@ class BegunAttempt:
     handler_input: BaseModel | None
     definition: NodeDefinition
     dispatch_context: context.DispatchContext
+    dispatch_token: UUID
+    """The fencing token this attempt was dispatched under - `claim()`'s own
+    `DispatchOutbox.claimed_by`, re-checked by `settle()` before it accepts
+    this call's result. Carried across the handler call the same way the rest
+    of this dataclass is, so a late settle can tell a reclaimed row from the
+    one it actually still owns."""
 
 
 async def claim(
@@ -136,14 +144,26 @@ async def _auth_context_for(db: AsyncSession, run: WorkflowRun) -> AuthContext:
     time a parked node wakes.
     """
     role = ""
+    is_app_admin = False
     if run.execution_principal_user_id is not None:
         member = await member_repo.get_active(
             db, organization_id=run.organization_id, user_id=run.execution_principal_user_id
         )
         if member is not None:
             role = member.role
+        # `is_app_admin` lives on the user row, independent of organization
+        # membership (`app.api.deps.get_auth_context` reads it the same way) -
+        # an app admin with no membership still has it, and skipping this
+        # lookup would silently drop that authority on every node handler
+        # this context reaches, not just the ones a role would have covered.
+        user = await user_repo.get_by_id(db, run.execution_principal_user_id)
+        if user is not None:
+            is_app_admin = user.is_app_admin
     return AuthContext(
-        user_id=run.execution_principal_user_id, organization_id=run.organization_id, role=role
+        user_id=run.execution_principal_user_id,
+        organization_id=run.organization_id,
+        role=role,
+        is_app_admin=is_app_admin,
     )
 
 
@@ -352,7 +372,32 @@ async def begin_attempt(
         if binding.target_node_id == node.id and isinstance(binding.source, NodeOutputRef)
     }
     outputs = await _completed_outputs(db, workflow_run_id=run.id, node_ids=referenced_nodes)
-    config_obj, input_obj = _resolve_io(graph, node, definition, outputs=outputs)
+    try:
+        config_obj, input_obj = _resolve_io(graph, node, definition, outputs=outputs)
+    except PydanticValidationError:
+        # A binding whose source can never satisfy its target field's schema
+        # - `validate_graph`'s rule 9 only confirms the field exists (a
+        # `FileRef`/`TableIORef` source is never checked against the target
+        # field's own type) - fails identically on every future attempt, so
+        # this is not a transient error the crash-recovery path should retry:
+        # left uncaught, it would raise here, *before* any `NodeAttempt`
+        # exists to record it, so `list_stale_claims` would keep finding the
+        # same lease-expired, attempt-less row and resubmitting it forever.
+        # `POST /workflow-runs` is unmetered, so an uncaught failure here is
+        # a standing resource-exhaustion path, not just a stuck run.
+        logger.warning(
+            "workflow_dispatch_invalid_binding",
+            extra={"node_run_id": str(node_run.id), "node_definition": node.definition_id},
+        )
+        await _fail_run(
+            db,
+            run=run,
+            node_run=node_run,
+            outbox=outbox,
+            code="INVALID_BINDING",
+            message="A bound value does not satisfy this node's input schema",
+        )
+        return None
 
     attempt_no = (latest.attempt_no if latest else 0) + 1
     key = idempotency_key(
@@ -389,6 +434,19 @@ async def begin_attempt(
             "started_at": node_run.started_at or now,
         },
     )
+    if run.status in (
+        WorkflowRunStatus.WAITING_RETRY.value,
+        WorkflowRunStatus.WAITING_APPROVAL.value,
+    ):
+        # A dispatch resumed after a retry backoff or an approval decision -
+        # left alone, the run stays `waiting_*` with its old `paused_reason`
+        # while this node (and whatever it advances to) is actively running,
+        # so the API would keep reporting the workflow paused.
+        run = await workflow_run_repo.update_run(
+            db,
+            run=run,
+            update_data={"status": WorkflowRunStatus.RUNNING.value, "paused_reason": None},
+        )
     auth = await _auth_context_for(db, run)
     await events.append(
         db,
@@ -417,6 +475,7 @@ async def begin_attempt(
         handler_input=input_obj,
         definition=definition,
         dispatch_context=dispatch_context,
+        dispatch_token=token,
     )
 
 
@@ -630,7 +689,24 @@ async def settle(
             await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
         return
 
-    outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run.id)
+    # Locked, not merely read: `begin_attempt`'s own reclaim check needs this
+    # same row, and a plain read here would only be true at the instant it
+    # runs, not for the rest of this settle.
+    outbox = await workflow_run_repo.get_outbox_for_node_run_for_update(db, node_run_id=node_run.id)
+    # Fenced against a reclaimed claim: a handler that outlives its lease can
+    # have this row reclaimed by another worker's `claim()` before this
+    # (stale) call ever reaches here - `attempt.status` is still `in_flight`
+    # at that point (nobody has resolved it yet), so the check above does not
+    # catch it. Accepting this result anyway would close a row this settle no
+    # longer owns and, for a `Completed` result, `_advance` past a node the
+    # reclaiming worker's own `begin_attempt` may already be re-running -
+    # a duplicate attempt for a node this settle is about to mark succeeded.
+    if outbox is not None and outbox.claimed_by != begun.dispatch_token:
+        logger.warning(
+            "workflow_dispatch_settle_lost_claim",
+            extra={"node_run_id": str(node_run.id), "attempt_id": str(attempt.id)},
+        )
+        return
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
     # live outbox row remains - and this node's own row is still `claimed`

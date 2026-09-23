@@ -58,6 +58,16 @@ def _no_member_by_default():
 
 
 @pytest.fixture(autouse=True)
+def _no_app_admin_by_default():
+    """Most tests here do not care whether the acting principal is an app
+
+    admin - only `TestAuthContextFor` does, and its own `with patch(...)`
+    blocks override this for their duration."""
+    with patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=None)):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _no_advance_trigger():
     """`_advance()`'s own low-latency trigger builds a real coroutine via
     `spawn_after_commit` unless mocked - harmless against a real session, but
@@ -385,6 +395,39 @@ class TestAuthContextFor:
         assert auth.role == ""
         assert auth.user_id == run.execution_principal_user_id
 
+    async def test_an_app_admin_keeps_that_authority_even_with_no_membership(self):
+        """`is_app_admin` lives on the user row, independent of organization
+
+        membership (mirrors `app.api.deps.get_auth_context`) - an app admin
+        who started a run with no membership in the run's organization must
+        not have a node handler run with no permissions just because this
+        context never looked at the flag.
+        """
+        run = _run()
+        user = MagicMock(is_app_admin=True)
+        with (
+            patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=None)),
+            patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=user)),
+        ):
+            auth = await dispatcher._auth_context_for(object(), run)
+        assert auth.is_app_admin is True
+
+    async def test_an_ordinary_member_does_not_get_app_admin_authority(self):
+        run = _run()
+        user = MagicMock(is_app_admin=False)
+        member = MagicMock(role="admin")
+        with (
+            patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=member)),
+            patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=user)),
+        ):
+            auth = await dispatcher._auth_context_for(object(), run)
+        assert auth.is_app_admin is False
+
+    async def test_no_principal_gets_no_app_admin_authority(self):
+        run = _run(execution_principal_user_id=None)
+        auth = await dispatcher._auth_context_for(object(), run)
+        assert auth.is_app_admin is False
+
 
 class TestClaim:
     async def test_delegates_to_the_repository_claim(self):
@@ -596,6 +639,52 @@ class TestBeginAttemptShortCircuits:
         repo.create_outbox.assert_awaited_once()
         repo.create_attempt.assert_not_called()
 
+    @pytest.mark.security
+    async def test_a_binding_incompatible_with_its_target_field_fails_the_run_not_the_worker(
+        self, repo, event_log, test_node
+    ):
+        """A `FileRef` bound to a field typed as a plain string always fails
+
+        `_resolve_io`'s `model_validate` identically, on every future
+        attempt - `validate_graph`'s rule 9 only confirms the target field
+        exists, never that a `FileRef`/`TableIORef` source can satisfy its
+        type. Left uncaught, this would raise here, *before* any
+        `NodeAttempt` exists to record it, so `list_stale_claims` would keep
+        finding the same lease-expired, attempt-less row and resubmitting it
+        forever - and `POST /workflow-runs` is unmetered. It must fail the
+        run outright instead of propagating.
+        """
+        node = _node_instance(test_node)
+        binding = Binding(
+            target_node_id=node.id,
+            target_field="message",
+            source=FileRef(file_id=uuid.uuid4(), content_type="text/plain", byte_size=1),
+        )
+        graph = _graph(node, bindings=(binding,))
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=graph.model_dump(mode="json"),
+        )
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
+        repo.get_latest_attempt.return_value = None
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        result = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
+        )
+
+        assert result is None
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "INVALID_BINDING"
+        repo.mark_outbox_done.assert_awaited_once_with(ANY, outbox=outbox)
+        repo.cancel_live_outbox_for_run.assert_awaited_once()
+        repo.create_attempt.assert_not_called()
+
 
 def _apply(obj: object, update_data: dict[str, object]) -> object:
     for field, value in update_data.items():
@@ -649,8 +738,78 @@ class TestBeginAttemptHappyPath:
         assert begun.handler_config.message == "hi"
         assert begun.handler_input is None
         assert node_run.status == NodeRunStatus.RUNNING.value
+        # The fencing token `settle()` later checks against the outbox row's
+        # *current* `claimed_by` - carried across the handler call rather
+        # than re-derived, so a late settle can tell a reclaimed row from
+        # the one it actually still owns.
+        assert begun.dispatch_token == outbox.claimed_by
         repo.create_attempt.assert_awaited_once()
         assert repo.create_attempt.await_args.kwargs["retry_guarantee"] == "idempotent"
+
+    async def test_a_dispatch_resumed_after_waiting_returns_the_run_to_running(
+        self, repo, event_log, test_node
+    ):
+        """A node dispatched after `waiting_retry`/`waiting_approval` must
+
+        bring the *run* back to `running` too, not just the node - left as
+        `waiting_*`, the API would keep reporting the workflow paused while
+        this node (and whatever it advances to) is actively executing.
+        """
+        run, node = _test_mode_run(
+            test_node,
+            status=WorkflowRunStatus.WAITING_APPROVAL.value,
+            paused_reason=WaitingReason.APPROVAL.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.WAITING.value
+        )
+        outbox = _outbox(node_run_id=node_run.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
+        repo.get_latest_attempt.return_value = None
+        repo.create_attempt.return_value = _attempt(node_run_id=node_run.id, attempt_no=1)
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        begun = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
+        )
+
+        assert begun is not None
+        assert run.status == WorkflowRunStatus.RUNNING.value
+        assert run.paused_reason is None
+
+    async def test_a_fresh_dispatch_on_an_already_running_run_leaves_it_running(
+        self, repo, event_log, test_node
+    ):
+        """The entry node's own dispatch (and every ordinary `_advance` past
+
+        it) already finds the run `running` - this must not be disturbed by
+        an unconditional write on every dispatch, only by one that is
+        actually resuming a wait.
+        """
+        run, node = _test_mode_run(test_node)
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        outbox = _outbox(node_run_id=node_run.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
+        repo.get_latest_attempt.return_value = None
+        repo.create_attempt.return_value = _attempt(node_run_id=node_run.id, attempt_no=1)
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        begun = await dispatcher.begin_attempt(
+            object(), workflow_run_id=run.id, node_run_id=node_run.id, token=outbox.claimed_by
+        )
+
+        assert begun is not None
+        assert run.status == WorkflowRunStatus.RUNNING.value
+        repo.update_run.assert_not_called()
 
     async def test_a_second_attempt_numbers_itself_after_the_first(
         self, repo, event_log, test_node
@@ -747,6 +906,7 @@ def _begun(
     attempt_no=1,
     node_run_id=None,
     workflow_run_id=None,
+    dispatch_token=None,
 ) -> dispatcher.BegunAttempt:
     org = uuid.uuid4()
     wf_run = workflow_run_id or uuid.uuid4()
@@ -770,6 +930,7 @@ def _begun(
             auth=MagicMock(),
             resumed_agent_run_id=None,
         ),
+        dispatch_token=dispatch_token or uuid.uuid4(),
     )
 
 
@@ -837,7 +998,9 @@ class TestSettleCompleted:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = _outbox(node_run_id=node_run.id)
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -899,6 +1062,7 @@ class TestSettleShortCircuits:
         repo.settle_attempt.assert_not_called()
         repo.update_node_run.assert_not_called()
         repo.get_outbox_for_node_run.assert_not_called()
+        repo.get_outbox_for_node_run_for_update.assert_not_called()
 
     async def test_a_run_cancelled_while_its_handler_was_running_stays_cancelled(
         self, repo, event_log, test_node
@@ -1042,6 +1206,51 @@ class TestSettleShortCircuits:
         assert node_run.status == NodeRunStatus.CANCELLED.value
         repo.mark_outbox_done.assert_not_called()
 
+    async def test_a_settle_after_the_outbox_row_was_reclaimed_is_a_no_op(
+        self, repo, event_log, test_node
+    ):
+        """A handler that outlives its lease can have its outbox row
+
+        reclaimed by another worker's `claim()` before this (stale) call
+        ever reaches `settle()` - `attempt.status` is still `in_flight` at
+        that point (nobody has resolved it yet), so the earlier staleness
+        check does not catch it. Accepting this result anyway would close a
+        row this settle no longer owns and, for a `Completed` result,
+        `_advance` past a node the reclaiming worker's own `begin_attempt`
+        may already be re-running - a duplicate attempt for an
+        already-succeeding node.
+        """
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        # Reclaimed: `claimed_by` no longer matches the token this attempt
+        # was dispatched under.
+        reclaimed_outbox = _outbox(node_run_id=node_run.id, claimed_by=uuid.uuid4())
+
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run_for_update.return_value = reclaimed_outbox
+
+        result = Completed[_EchoOutput](output=_EchoOutput(echoed="stale"))
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        repo.mark_outbox_done.assert_not_called()
+        repo.settle_attempt.assert_not_called()
+        repo.update_node_run.assert_not_called()
+        repo.update_run.assert_not_called()
+
 
 class TestSettleWaiting:
     async def test_parks_the_node_run_and_sets_the_resume_token_to_its_own_id(
@@ -1065,7 +1274,9 @@ class TestSettleWaiting:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = _outbox(node_run_id=node_run.id)
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1107,7 +1318,7 @@ class TestSettleWaiting:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1150,7 +1361,9 @@ class TestSettleWaiting:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = _outbox(node_run_id=node_run.id)
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1195,7 +1408,7 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1232,7 +1445,7 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1280,7 +1493,7 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1314,7 +1527,7 @@ class TestSettleUncertain:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data

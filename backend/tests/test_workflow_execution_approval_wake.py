@@ -13,13 +13,24 @@ from unittest.mock import MagicMock, create_autospec, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.db.models.agent_run import ApprovalStatus
 from app.db.models.workflow_run import NodeRunStatus
+from app.repositories import agent_run as agent_run_repo_module
 from app.repositories import workflow_run as workflow_run_repo_module
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
 pytestmark = pytest.mark.anyio
 
 WAKE_PATH = "app.services.workflow_execution.approval_wake"
+
+
+def _approval(**overrides: object):
+    approval = MagicMock()
+    approval.id = uuid.uuid4()
+    approval.status = ApprovalStatus.APPROVED.value
+    for field, value in overrides.items():
+        setattr(approval, field, value)
+    return approval
 
 
 class _FakeNestedTxn:
@@ -53,6 +64,19 @@ def _run(**overrides: object):
 def repo():
     mocked = create_autospec(workflow_run_repo_module, instance=False)
     with patch(f"{WAKE_PATH}.workflow_run_repo", new=mocked):
+        yield mocked
+
+
+@pytest.fixture(autouse=True)
+def approvals_repo():
+    """`agent_run_repo`, defaulting to "nothing pending" - only
+
+    `TestWakeAfterApprovalDecision`'s own pending-approval tests override
+    this for their duration.
+    """
+    mocked = create_autospec(agent_run_repo_module, instance=False)
+    mocked.list_approvals_for_run.return_value = []
+    with patch(f"{WAKE_PATH}.agent_run_repo", new=mocked):
         yield mocked
 
 
@@ -107,3 +131,45 @@ class TestWakeAfterApprovalDecision:
         repo.create_outbox.side_effect = IntegrityError("insert", {}, Exception("dup"))
 
         await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+
+    async def test_another_pending_approval_on_the_same_run_defers_the_outbox_insert(
+        self, repo, worker_db, approvals_repo
+    ):
+        """A parked agent run with more than one pending approval must not
+
+        get an outbox row from the *first* decision - `AgentRunnerService.
+        _decisions` rejects a continuation while any approval on the run is
+        still undecided, and only one live outbox row is ever allowed per
+        node run, so dispatching now would strand the decision that clears
+        the last pending approval with nothing left to enqueue.
+        """
+        node_run = _node_run()
+        run = _run(id=node_run.workflow_run_id)
+        repo.find_node_run_waiting_on_agent_run.return_value = node_run
+        repo.get_run_by_id_for_update.return_value = run
+        approvals_repo.list_approvals_for_run.return_value = [
+            _approval(status=ApprovalStatus.APPROVED.value),
+            _approval(status=ApprovalStatus.PENDING.value),
+        ]
+
+        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_not_called()
+        repo.get_run_by_id_for_update.assert_not_called()
+
+    async def test_the_decision_that_clears_the_last_pending_approval_enqueues_it(
+        self, repo, worker_db, approvals_repo
+    ):
+        node_run = _node_run()
+        run = _run(id=node_run.workflow_run_id)
+        repo.find_node_run_waiting_on_agent_run.return_value = node_run
+        repo.get_run_by_id_for_update.return_value = run
+        approvals_repo.list_approvals_for_run.return_value = [
+            _approval(status=ApprovalStatus.APPROVED.value),
+            _approval(status=ApprovalStatus.REJECTED.value),
+        ]
+
+        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_awaited_once()
+        assert repo.create_outbox.await_args.kwargs["node_run_id"] == node_run.id

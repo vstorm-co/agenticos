@@ -26,6 +26,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunNotFoundError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.services.workflow_registry import WorkflowArchivedError
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -128,6 +129,39 @@ class TestStart:
             pytest.raises(NotFoundError),
         ):
             await service.start(_ctx(), workflow.id)
+
+    async def test_a_real_run_of_an_archived_workflow_is_refused(self):
+        """`ARCHIVED` keeps a workflow's history and its past runs but
+
+        refuses new ones - an archived workflow retains its
+        `current_version_id`, so without this check a real run of that
+        version would still be admitted, defeating archiving as a stop
+        switch.
+        """
+        workflow = _workflow(status=WorkflowStatus.ARCHIVED.value)
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(WorkflowArchivedError),
+        ):
+            await service.start(_ctx(), workflow.id)
+
+    async def test_a_test_run_of_an_archived_workflow_is_refused(self):
+        """The archived check applies before the `test`-mode draft-graph
+
+        branch too - an archived workflow's draft can still parse and
+        validate, so without this check a test run of it would still be
+        admitted.
+        """
+        workflow = _workflow(status=WorkflowStatus.ARCHIVED.value)
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(WorkflowArchivedError),
+        ):
+            await service.start(_ctx(), workflow.id, mode=WorkflowRunMode.TEST)
 
     async def test_a_real_run_with_no_published_version_is_refused(self):
         workflow = _workflow(current_version_id=None, status=WorkflowStatus.DRAFT.value)
@@ -342,19 +376,20 @@ class TestCancel:
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=None),
-            ),
+            ) as get_for_update,
             pytest.raises(WorkflowRunNotFoundError),
         ):
             await service.cancel(_ctx(), uuid.uuid4())
+        assert get_for_update.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
 
     async def test_cancelling_a_run_the_caller_cannot_reach_is_not_found(self):
         run = _run_row()
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
             ),
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=None)),
@@ -362,13 +397,35 @@ class TestCancel:
         ):
             await service.cancel(_ctx(), run.id)
 
+    async def test_cancelling_another_organizations_run_id_is_not_found_and_locks_nothing(self):
+        """A caller-controlled run id naming another tenant's row must come
+
+        back indistinguishable from a nonexistent one, before any foreign
+        row is locked or inspected - the scoped lookup itself is what
+        refuses it, not a permission check that runs after the row (and its
+        real `workflow_id`) has already been read into this transaction.
+        """
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
+                new=AsyncMock(return_value=None),
+            ) as get_for_update,
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock()) as workflow_get,
+            pytest.raises(WorkflowRunNotFoundError),
+        ):
+            await service.cancel(_ctx(), uuid.uuid4())
+        get_for_update.assert_awaited_once()
+        assert get_for_update.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+        workflow_get.assert_not_called()
+
     async def test_cancelling_an_already_terminal_run_is_refused(self):
         run = _run_row(status=WorkflowRunStatus.SUCCEEDED.value)
         workflow = _workflow(id=run.workflow_id)
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
             ),
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
@@ -384,7 +441,7 @@ class TestCancel:
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
             ),
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
