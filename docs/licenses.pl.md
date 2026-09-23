@@ -1,5 +1,5 @@
 ---
-source_sha: "ed41ce8850a9"
+source_sha: "55a137806ddc"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -114,6 +114,7 @@ not.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Atrybucja i link do źródła | Wymieniony wraz ze źródłem w notach |
 | AGPL-3.0-only (`pymupdf`) | 1 | Copyleft sieciowy: obraz jest przekazywany na warunkach AGPL-3.0, a zmodyfikowane wdrożenie jest winne swoim użytkownikom zmodyfikowane źródła (art. 13) | Utrzymany świadomie, warunki nazwane: [sekcja poniżej](#the-agpl-component) i plik `COPYING` wheela w obrazie |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 rodziny | Tekst licencji i noty o prawach autorskich przy fontach; zakaz sprzedaży samych fontów; zakaz używania zastrzeżonych nazw dla zmodyfikowanych fontów | `frontend/src/app/fonts/OFL.txt` niesie wszystkie trzy noty; fonty są serwowane bez modyfikacji |
+| OFL-1.1 (`@fontsource/poppins`) | 1 rodzina | Tekst licencji i noty o prawach autorskich przy foncie; zakaz sprzedaży samego fontu; zakaz używania zastrzeżonej nazwy dla zmodyfikowanego fontu | Własny plik `LICENSE` pakietu jest zbierany do obrazu obok niego; font jest serwowany bez modyfikacji |
 | CC0-1.0, CC-BY-4.0, MIT (glify marki) | 3 źródła | Atrybucja dla ikon Font Awesome; znaki pozostają znakami towarowymi swoich właścicieli | `NOTICE` wymienia źródła i stanowisko wobec znaków towarowych |
 
 **Pakietowi, który nie publikuje pliku licencji**, nie da się jej skopiować. Kilka

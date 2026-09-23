@@ -106,6 +106,7 @@ the current figure.
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Attribution and a link to the source | Named with its source in the notices |
 | AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft: the image is conveyed under AGPL-3.0 terms and a modified deployment owes its users the modified source (s.13) | Kept deliberately, terms stated: [the section below](#the-agpl-component) and the wheel's `COPYING` in the image |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 families | Licence text and copyright notices with the fonts; no selling the fonts alone; no reuse of the reserved names for modified fonts | `frontend/src/app/fonts/OFL.txt` carries all three notices; the fonts are served unmodified |
+| OFL-1.1 (`@fontsource/poppins`) | 1 family | Licence text and copyright notices with the font; no selling it alone; no reuse of the reserved name for a modified font | The package's own `LICENSE` is collected into the image beside it; the font is served unmodified |
 | CC0-1.0, CC-BY-4.0, MIT (brand glyphs) | 3 sources | Attribution for the Font Awesome icons; the marks stay their owners' trademarks | `NOTICE` names the sources and the trademark position |
 
 **A package that publishes no licence file** cannot have one copied. Several npm
