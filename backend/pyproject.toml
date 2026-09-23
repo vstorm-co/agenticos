@@ -859,6 +859,14 @@ include = [
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
     "app/api/routes/v1/_path_convertors.py",
+    # A saved table/kanban/list view (#1783): a console-only sub-resource of a
+    # table, sharing its service package but with its own model, repo, schema and
+    # route file. Every branch here is also a refusal - a private view another
+    # member owns, a rename that collides, a non-owner without `tables:edit` `ALL`.
+    "app/db/models/table_view.py",
+    "app/repositories/table_view.py",
+    "app/schemas/table_view.py",
+    "app/api/routes/v1/table_views.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1231,6 +1239,14 @@ include = [
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
     "app/api/routes/v1/_path_convertors.py",
+    # A saved table/kanban/list view (#1783): a console-only sub-resource of a
+    # table, sharing its service package but with its own model, repo, schema and
+    # route file. Every branch here is also a refusal - a private view another
+    # member owns, a rename that collides, a non-owner without `tables:edit` `ALL`.
+    "app/db/models/table_view.py",
+    "app/repositories/table_view.py",
+    "app/schemas/table_view.py",
+    "app/api/routes/v1/table_views.py",
 ]
 branch = true
 omit = [

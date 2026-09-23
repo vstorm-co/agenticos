@@ -77,7 +77,7 @@ class TableOperations(Operations):
             target_id=str(table.id),
             details={"name": table.name, "columns": len(columns)},
         )
-        return self._read(table, columns)
+        return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
     async def list_tables(
         self,
@@ -103,12 +103,20 @@ class TableOperations(Operations):
             skip=skip,
             limit=limit,
         )
-        return TableList(items=[TableSummary.model_validate(item) for item in items], total=total)
+        summaries = []
+        for item in items:
+            summary = TableSummary.model_validate(item)
+            summaries.append(
+                summary.model_copy(update={"can_edit": await self._can_edit(ctx, item)})
+            )
+        return TableList(items=summaries, total=total)
 
     async def describe_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
         """One table with the columns of its current schema."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        return self._read(table, await self._columns(table))
+        return self._read(
+            table, await self._columns(table), can_edit=await self._can_edit(ctx, table)
+        )
 
     async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:
         """Every schema version the table has had, oldest first."""
@@ -139,7 +147,7 @@ class TableOperations(Operations):
             target_id=str(table.id),
             details={"fields": sorted(changes)},
         )
-        return self._read(table, await self._columns(table))
+        return self._read(table, await self._columns(table), can_edit=True)
 
     async def archive_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
         """Archive a table: its records stay readable and it refuses writes.
@@ -150,7 +158,7 @@ class TableOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         columns = await self._columns(table)
         if table.archived_at is not None:
-            return self._read(table, columns)
+            return self._read(table, columns, can_edit=True)
         await self._refuse_dependents(ctx, table, column_ids=None)
         table = await virtual_table_repo.update_table(
             self.db, table=table, update_data={"archived_at": datetime.now(UTC)}
@@ -163,7 +171,7 @@ class TableOperations(Operations):
             target_type="table",
             target_id=str(table.id),
         )
-        return self._read(table, columns)
+        return self._read(table, columns, can_edit=True)
 
     async def update_schema(
         self, ctx: AuthContext, table_id: UUID, data: SchemaUpdate
@@ -196,7 +204,7 @@ class TableOperations(Operations):
             # Identical to what the table has, ids, order, labels and options included.
             # A new version, an audit row and a bumped `schema_version` would make every other
             # client's `expected_version` stale for a change that changed nothing.
-            return self._read(table, previous)
+            return self._read(table, previous, can_edit=True)
         change = diff(previous, columns)
         await self._refuse_empty_required(table, columns, change.required)
         await self._refuse_dependents(ctx, table, column_ids=change.archived)
@@ -220,7 +228,7 @@ class TableOperations(Operations):
             target_id=str(table.id),
             details={"version": version, "archived_columns": len(change.archived)},
         )
-        return self._read(table, columns)
+        return self._read(table, columns, can_edit=True)
 
     async def _claim_name(self, ctx: AuthContext, name: str) -> None:
         """Refuse a name a live table holds, serialized so two creates cannot both pass."""

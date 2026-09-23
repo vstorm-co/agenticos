@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "b4daf8d85123"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -162,6 +162,41 @@ sortują się według czasu utworzenia.
 Nie ma `total`, bo liczenie przefiltrowanej tabeli nie jest tanie. `has_more` mówi, czy
 następuje kolejna strona.
 
+## Zapisane widoki { #saved-views }
+
+**Widok** to zachowany filtr, sortowanie i grupowanie nad rekordami jednej tabeli -
+to, co zapisują ekrany konsoli table/kanban/list, żeby nikt nie budował tej samej
+tablicy przy każdej wizycie. Jest podzasobem tabeli, a nie osobnym zasobem
+współdzielonym: widok nie ma własnego właściciela ani grantów swojego rodzaju, a
+`shared` oznacza wyłącznie "widoczny dla każdego, kto już ma `tables:view` na
+tabeli nadrzędnej" - nigdy nie poszerza dostępu ponad to, na co pozwala sama
+tabela.
+
+`GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
+listują, tworzą, czytają, aktualizują i usuwają je. `config` to `{filters, sort,
+visible_columns, group_by}` - `RecordQuery` plus dwa pola potrzebne tylko
+renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę) i
+`group_by` (żywa kolumna `single_select`, dla kolumn tablicy kanban).
+
+| Pole | Znaczenie |
+|---|---|
+| `kind` | `table`, `kanban` lub `list` - widok jest zapisany *dla* jednego rodzaju |
+| `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
+| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub usunąć widok |
+
+Listowanie i odczyt rozwiązują się względem tabeli (`tables:view`); utworzenie
+widoku wymaga `tables:edit` na tabeli. Zmiana lub usunięcie widoku jest węższe:
+tylko jego właściciel albo wywołujący, którego [scope](permissions.md) dla
+`tables:edit` to `ALL` - nie "każdy, kto może edytować tabelę" - więc
+współdzielony edytor nie może po cichu przestawić zapisanego filtra innego
+członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasobie
+tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
+któremu go odmówiono.
+
+Zarchiwizowanie kolumny, której nadal używa zapisany widok do filtrowania,
+sortowania lub grupowania, jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok,
+tak samo jak każdy inny zarejestrowany zależny.
+
 ## Co zatwierdza się razem { #what-commits-together }
 
 Zapis rekordu, jego wiersz historii, jego potwierdzenie idempotencji i, dla create,
@@ -204,6 +239,14 @@ tabeli także przez organizację, więc nie może wskazać tabeli innego tenanta
 Tabela innej organizacji i tabela, do której wywołujący nie ma dostępu, to w obu
 przypadkach 404. Kontekst bez zalogowanego podmiotu nie dociera do niczego.
 
+Czy konkretny wywołujący może edytować konkretną tabelę, jest też bezpośrednio na
+przewodzie: `TableSummary.can_edit` i `TableRead.can_edit` są rozwiązywane po
+stronie serwera (scope roli lub jawny grant) i wysyłane przy każdym odczycie, tak
+samo jak `Agent.can_run` - więc wiersz katalogu albo strona szczegółów nigdy nie
+musi zgadywać, czy jej kontrolki edycji zostałyby odrzucone. Własne `can_manage`
+zapisanego widoku to ta sama idea, o jeden poziom niżej (zobacz
+[Zapisane widoki](#saved-views)).
+
 ## Błędy { #errors }
 
 Każda odmowa odpowiada `{"error": {"code", "message", "details"}}`, a `code` jest tym,
@@ -216,7 +259,7 @@ według czego klient się rozgałęzia.
 | `SCHEMA_VERSION_CONFLICT` | 409 | Schemat zmienił się od odczytu |
 | `SCHEMA_DEPENDENCY` | 409 | Coś zależy od tego, co zmiana usuwa |
 | `TABLE_ARCHIVED` | 409 | Tabela odrzuca zapisy |
-| `ALREADY_EXISTS` | 409 | Nazwa tabeli lub external id jest zajęte |
+| `ALREADY_EXISTS` | 409 | Nazwa tabeli, nazwa widoku lub external id jest zajęte |
 | `INVALID_RECORD` | 422 | Wartość nie pasuje do kolumny; `details.fields` wskazuje każdą |
 | `ARCHIVED_COLUMN` | 422 | Wartość wskazuje zarchiwizowaną kolumnę |
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
@@ -256,7 +299,12 @@ robi go sesja żądania, a worker ma własny zakres sesji.
 - **Podmiot dla kluczy API.** Dostęp, potwierdzenia i historia wskazują zalogowanego
   użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
   uzgodnione.
-- Narzędzia agenta, węzły workflow i ekrany konsoli, które będą wywoływać ten serwis.
-- Konsumenci outbox oraz checkery zależności dla workflow, widoków i triggerów.
+- Narzędzia agenta i typowane węzły workflow nad tabelami oraz triggery przy
+  tworzeniu rekordu. Ekrany konsoli (tworzenie tabeli, edycja schematu, CRUD
+  rekordów i zapisane widoki table/kanban/list opisane w sekcji
+  [Zapisane widoki](#saved-views)) już istnieją; dostęp do tego samego serwisu po
+  stronie agentów i workflow jeszcze nie.
+- Konsumenci outbox oraz checkery zależności dla workflow i triggerów - zapisane
+  widoki już rejestrują swój (zobacz [Zapisane widoki](#saved-views)).
 - Limity lub rate limity per tenant na przyrost historii i receipts oraz przechowywanie
   samych różnic.

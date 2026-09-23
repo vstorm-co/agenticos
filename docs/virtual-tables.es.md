@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "b4daf8d85123"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -163,6 +163,42 @@ momento de creación.
 No hay `total`, porque contar una tabla filtrada no es barato. `has_more` indica si sigue
 otra página.
 
+## Vistas guardadas { #saved-views }
+
+Una **vista** es un filtro, orden y agrupación guardados sobre los registros de una
+tabla - lo que guardan las pantallas de tabla/kanban/lista de la consola para que
+nadie tenga que rehacer el mismo tablero en cada visita. Es un subrecurso de la
+tabla, no un recurso compartible propio: una vista no tiene propietario ni grants
+de su propio tipo, y `shared` significa solo "visible para cualquiera que ya tenga
+`tables:view` sobre la tabla superior" - nunca amplía el acceso más allá de lo que
+permite la propia tabla.
+
+`GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
+listan, crean, leen, actualizan y borran. `config` es `{filters, sort,
+visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
+necesita la presentación de la consola: `visible_columns` (`null` significa cada
+columna viva) y `group_by` (una columna `single_select` viva, para los carriles de
+un tablero kanban).
+
+| Campo | Significado |
+|---|---|
+| `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
+| `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
+| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o borrarla |
+
+Listar y leer se resuelven contra la tabla (`tables:view`); crear una vista
+necesita `tables:edit` sobre la tabla. Cambiar o borrar una vista es más estrecho:
+solo su propietario, o un llamante cuyo [scope](permissions.md) de `tables:edit`
+sea `ALL` - no "cualquiera que pueda editar la tabla" - de modo que un editor
+compartido no pueda redirigir en silencio el filtro guardado de otro miembro. Se
+rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
+`NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
+llamante al que se le niega.
+
+Archivar una columna que una vista guardada aún usa para filtrar, ordenar o
+agrupar se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, igual que
+cualquier otro dependiente registrado.
+
 ## Qué se confirma junto { #what-commits-together }
 
 Una escritura de registro, su fila de historial, su recibo de idempotencia y, en un
@@ -206,6 +242,14 @@ nombrar una tabla de otro tenant.
 La tabla de otra organización y una a la que el llamante no puede acceder son ambas un
 404. Un contexto sin sujeto autenticado no alcanza nada.
 
+Si un llamante concreto puede editar una tabla concreta también está directamente
+en la respuesta: `TableSummary.can_edit` y `TableRead.can_edit` se resuelven en el
+servidor (scope del rol o un grant explícito) y se envían en cada lectura, igual
+que `Agent.can_run` - así una fila del catálogo o una página de detalle nunca
+tienen que adivinar si sus controles de edición serían rechazados. El propio
+`can_manage` de una vista guardada es la misma idea, un nivel más abajo (ver
+[Vistas guardadas](#saved-views)).
+
 ## Errores { #errors }
 
 Cada rechazo responde `{"error": {"code", "message", "details"}}`, y el `code` es lo que
@@ -218,7 +262,7 @@ un cliente usa para bifurcar.
 | `SCHEMA_VERSION_CONFLICT` | 409 | El esquema cambió desde que se leyó |
 | `SCHEMA_DEPENDENCY` | 409 | Algo depende de lo que el cambio elimina |
 | `TABLE_ARCHIVED` | 409 | La tabla rechaza escrituras |
-| `ALREADY_EXISTS` | 409 | El nombre de la tabla o el external id ya está en uso |
+| `ALREADY_EXISTS` | 409 | El nombre de la tabla, el de una vista o el external id ya está en uso |
 | `INVALID_RECORD` | 422 | Un valor no encaja con su columna; `details.fields` nombra cada uno |
 | `ARCHIVED_COLUMN` | 422 | Un valor nombra una columna archivada |
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
@@ -259,9 +303,13 @@ sesión.
 - **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
   a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
   está aún por acordar.
-- Las herramientas del agent, los nodos de workflow y las pantallas de la consola, que
-  llamarán a este servicio.
-- Consumidores del outbox y comprobadores de dependencias para workflows, vistas y
-  triggers.
+- Las herramientas del agent y los nodos tipados de workflow sobre tablas, y los
+  triggers al crear un registro. Las pantallas de la consola (crear tabla, editar
+  esquema, CRUD de registros y las vistas guardadas de tabla/kanban/lista que
+  describe la sección [Vistas guardadas](#saved-views)) ya existen; el acceso al
+  mismo servicio desde agents y workflows, todavía no.
+- Consumidores del outbox y comprobadores de dependencias para workflows y
+  triggers - las vistas guardadas ya registran el suyo (ver
+  [Vistas guardadas](#saved-views)).
 - Cuotas o límites de tasa por tenant para el crecimiento de historial y receipts, y guardar
   solo los cambios.

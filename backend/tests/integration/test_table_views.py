@@ -1,0 +1,278 @@
+"""Table Views against a real database: visibility, ownership, tenant isolation,
+
+and the dependency checker that refuses archiving a column a view still uses.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.db.models.resource_grant import GrantLevel
+from app.repositories import resource_grant_repo
+from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUpdate
+from app.schemas.virtual_table import RecordFilter, RecordSort, SchemaUpdate
+from app.services.access import TABLE
+from app.services.virtual_tables import TableViewService, VirtualTableService
+from app.services.virtual_tables.exceptions import SchemaDependencyError
+from tests.integration.virtual_table_support import (
+    column,
+    ctx_for,
+    make_org,
+    make_user,
+    orders_table,
+)
+
+pytestmark = pytest.mark.anyio
+
+
+async def _setup(db):
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    tables = VirtualTableService(db)
+    views = TableViewService(db)
+    ctx = ctx_for(owner, org)
+    table = await orders_table(tables, ctx)
+    return views, tables, ctx, owner, org, table
+
+
+async def test_a_view_is_created_and_read_back(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+
+    created = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(name="Open orders", kind="table", config=TableViewConfig()),
+    )
+
+    assert created.name == "Open orders"
+    assert created.kind == "table"
+    assert created.visibility == "private"
+    assert created.can_manage is True
+    fetched = await views.get_view(ctx, table.id, created.id)
+    assert fetched == created
+
+
+async def test_two_views_of_the_same_name_under_one_table_are_refused(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+    with pytest.raises(AlreadyExistsError):
+        await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="kanban"))
+
+
+async def test_creating_a_view_needs_table_edit_not_merely_view(db):
+    views, _tables, _ctx, _owner, org, table = await _setup(db)
+    colleague = await make_user(db)
+    viewer_ctx = ctx_for(colleague, org, "viewer")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.READ,
+    )
+
+    with pytest.raises(NotFoundError):
+        await views.create_view(viewer_ctx, table.id, TableViewCreate(name="Nope", kind="table"))
+
+
+async def test_a_private_view_is_invisible_to_a_colleague_and_a_shared_one_is_not(db):
+    views, _tables, ctx, owner, org, table = await _setup(db)
+    colleague = await make_user(db)
+    colleague_ctx = ctx_for(colleague, org, "member")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.EDIT,
+    )
+    private_view = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Private", kind="table")
+    )
+    shared_view = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Shared", kind="list", visibility="shared")
+    )
+
+    listing = await views.list_views(colleague_ctx, table.id)
+    assert [item.id for item in listing.items] == [shared_view.id]
+    with pytest.raises(NotFoundError):
+        await views.get_view(colleague_ctx, table.id, private_view.id)
+    seen_shared = await views.get_view(colleague_ctx, table.id, shared_view.id)
+    assert seen_shared.can_manage is False
+
+
+async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view(db):
+    views, _tables, ctx, owner, org, table = await _setup(db)
+    colleague = await make_user(db)
+    colleague_ctx = ctx_for(colleague, org, "member")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.EDIT,
+    )
+    shared_view = await views.create_view(
+        ctx, table.id, TableViewCreate(name="Shared", kind="list", visibility="shared")
+    )
+
+    # The colleague can see it (it is shared) but does not own it and holds no
+    # `tables:edit` scope of `ALL` - refused as a 404, the same as a private view.
+    with pytest.raises(NotFoundError):
+        await views.update_view(
+            colleague_ctx, table.id, shared_view.id, TableViewUpdate(name="Mine now")
+        )
+    with pytest.raises(NotFoundError):
+        await views.delete_view(colleague_ctx, table.id, shared_view.id)
+
+    # An admin (`tables:edit` = ALL) may manage it without being its owner.
+    admin = await make_user(db)
+    admin_ctx = ctx_for(admin, org, "admin")
+    renamed = await views.update_view(
+        admin_ctx, table.id, shared_view.id, TableViewUpdate(name="Renamed")
+    )
+    assert renamed.name == "Renamed"
+    await views.delete_view(admin_ctx, table.id, shared_view.id)
+    with pytest.raises(NotFoundError):
+        await views.get_view(ctx, table.id, shared_view.id)
+
+
+async def test_renaming_to_a_taken_name_is_refused_and_a_no_op_rename_is_not(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    await views.create_view(ctx, table.id, TableViewCreate(name="Taken", kind="table"))
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+    with pytest.raises(AlreadyExistsError):
+        await views.update_view(ctx, table.id, view.id, TableViewUpdate(name="Taken"))
+
+    same = await views.update_view(ctx, table.id, view.id, TableViewUpdate(name="Mine"))
+    assert same.name == "Mine"
+
+
+async def test_updating_config_and_visibility_persists_and_reads_back(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Board", kind="kanban"))
+
+    updated = await views.update_view(
+        ctx,
+        table.id,
+        view.id,
+        TableViewUpdate(
+            visibility="shared",
+            config=TableViewConfig(
+                filters=[RecordFilter(column_id=status_id, op="eq", value=str(status_id))],
+                sort=RecordSort(by="created_at", direction="desc"),
+                group_by=status_id,
+            ),
+        ),
+    )
+
+    assert updated.visibility == "shared"
+    assert updated.config.group_by == status_id
+    assert updated.config.filters[0].column_id == status_id
+    fetched = await views.get_view(ctx, table.id, view.id)
+    assert fetched.config.sort.direction == "desc"
+
+
+async def test_an_update_with_nothing_set_changes_nothing(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    view = await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+
+    same = await views.update_view(ctx, table.id, view.id, TableViewUpdate())
+
+    assert same == view
+
+
+async def test_listing_can_be_narrowed_to_one_kind(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    await views.create_view(ctx, table.id, TableViewCreate(name="Grid", kind="table"))
+    await views.create_view(ctx, table.id, TableViewCreate(name="Board", kind="kanban"))
+
+    only_kanban = await views.list_views(ctx, table.id, kind="kanban")
+
+    assert [item.name for item in only_kanban.items] == ["Board"]
+
+
+@pytest.mark.security
+async def test_another_organizations_table_has_no_views_to_see(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    await views.create_view(ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    outsider = await make_user(db)
+    other_org = await make_org(db, owner=outsider)
+    intruder = ctx_for(outsider, other_org, "owner")
+
+    with pytest.raises(NotFoundError):
+        await views.list_views(intruder, table.id)
+
+
+async def test_archiving_a_column_a_view_still_uses_is_refused(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Board",
+            kind="kanban",
+            config=TableViewConfig(group_by=status_id),
+        ),
+    )
+
+    with pytest.raises(SchemaDependencyError) as raised:
+        await tables.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(
+                expected_version=1,
+                columns=[
+                    column(c.label, c.type, id=c.id) for c in table.columns if c.label != "Status"
+                ],
+            ),
+        )
+    dependents = raised.value.details["dependents"]
+    assert {item["kind"] for item in dependents} == {"table_view"}
+
+
+async def test_archiving_a_column_no_view_uses_is_not_refused(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(name="Board", kind="kanban", config=TableViewConfig(group_by=status_id)),
+    )
+    quantity_id = next(c.id for c in table.columns if c.label == "Quantity")
+
+    changed = await tables.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[
+                column(c.label, c.type, id=c.id) for c in table.columns if c.label != "Quantity"
+            ],
+        ),
+    )
+
+    archived = next(c for c in changed.columns if c.id == quantity_id)
+    assert archived.archived is True
+
+
+async def test_archiving_the_whole_table_does_not_ask_the_view_checker(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(name="Board", kind="kanban", config=TableViewConfig(group_by=status_id)),
+    )
+
+    archived = await tables.archive_table(ctx, table.id)
+
+    assert archived.archived_at is not None

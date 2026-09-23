@@ -595,6 +595,16 @@ def get_virtual_table_service(db: DBSession) -> VirtualTableService:
 
 VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
 
+from app.services.virtual_tables import TableViewService
+
+
+def get_table_view_service(db: DBSession) -> TableViewService:
+    """Create TableViewService instance with database session."""
+    return TableViewService(db)
+
+
+TableViewSvc = Annotated[TableViewService, Depends(get_table_view_service)]
+
 from app.services.memory import MemoryService
 
 

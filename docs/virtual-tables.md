@@ -152,6 +152,38 @@ created and moves on each edit, so records nobody has edited sort by their creat
 There is no `total`, because counting a filtered table is not cheap. `has_more` says
 whether another page follows.
 
+## Saved views { #saved-views }
+
+A **view** is a kept filter, sort and grouping over one table's records - what the
+console's table/kanban/list screens save so a person does not rebuild the same
+board every visit. It is a sub-resource of the table, not a shareable resource of
+its own: a view has no owner-and-grants of its own kind, and `shared` means only
+"visible to anyone who already holds `tables:view` on the parent table" - it never
+widens access beyond what the table itself allows.
+
+`GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
+list, create, read, update and delete them. `config` is `{filters, sort,
+visible_columns, group_by}` - a `RecordQuery` plus the two fields only the
+console's own rendering needs: `visible_columns` (`null` means every live column)
+and `group_by` (a live `single_select` column, for a kanban board's lanes).
+
+| Field | Meaning |
+|---|---|
+| `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
+| `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
+| `can_manage` | Whether this caller may rename, reconfigure or delete it |
+
+Listing and reading resolve against the table (`tables:view`); creating one needs
+`tables:edit` on the table. Changing or deleting a view is narrower still: only its
+owner, or a caller whose `tables:edit` [scope](permissions.md) is `ALL` - not
+"anyone who can edit the table" - so a shared editor cannot silently repoint
+another member's saved filter. Refused the same way every other per-resource write
+here is: `NOT_FOUND` (404), never a 403 that would disclose a view's existence to a
+caller it refuses.
+
+Archiving a column a saved view still filters, sorts or groups by is refused with
+`SCHEMA_DEPENDENCY`, naming the view, the same as any other registered dependent.
+
 ## What commits together { #what-commits-together }
 
 A record write, its history row, its idempotency receipt and, for a create, a
@@ -190,6 +222,13 @@ routes as the other shared resources. Records inherit their table's access, and 
 outbox row references its table through the organization as well, so a row cannot name a
 table from another tenant.
 
+Whether a specific caller may edit a specific table is also on the wire directly:
+`TableSummary.can_edit` and `TableRead.can_edit` are resolved server-side (role
+scope or an explicit grant) and shipped on every read, the same way `Agent.can_run`
+is - so a catalog row or a detail page never has to guess whether its edit controls
+would be refused. A saved view's own `can_manage` is the same idea, one level down
+(see [Saved views](#saved-views)).
+
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.
 
@@ -205,7 +244,7 @@ what a client branches on.
 | `SCHEMA_VERSION_CONFLICT` | 409 | The schema changed since it was read |
 | `SCHEMA_DEPENDENCY` | 409 | Something depends on what the change removes |
 | `TABLE_ARCHIVED` | 409 | The table refuses writes |
-| `ALREADY_EXISTS` | 409 | The table name or the external id is taken |
+| `ALREADY_EXISTS` | 409 | The table name, a view name or the external id is taken |
 | `INVALID_RECORD` | 422 | A value does not fit its column; `details.fields` names each one |
 | `ARCHIVED_COLUMN` | 422 | A value names an archived column |
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
@@ -244,6 +283,11 @@ commits: the request's session does, and a worker owns its own session scope.
 
 - **A principal for API keys.** Access, receipts and history all name a signed-in
   user. How an API key acts on a table for the external API is still to be agreed.
-- Agent tools, workflow nodes and the console screens, which will call this service.
-- Consumers of the outbox and dependency checkers for workflows, views and triggers.
+- Agent tools and typed workflow nodes over tables, and triggers on record
+  creation. The console screens (table creation, schema editing, record CRUD and
+  the saved table/kanban/list views this page's [Saved views](#saved-views)
+  section describes) exist; agent- and workflow-side access to the same service
+  does not yet.
+- Consumers of the outbox, and dependency checkers for workflows and triggers -
+  saved views already register one (see [Saved views](#saved-views)).
 - Per-tenant quotas or rate limits on history and receipt growth, and delta storage for them.
