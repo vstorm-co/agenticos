@@ -61,6 +61,9 @@ export default defineConfig({
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
         "src/components/workflows/validation/**/*.{ts,tsx}",
+        // The workflow editor's node palette (#1787): the library, drag/click
+        // add, scope filtering and its store/drag seams, held to the gate.
+        "src/components/workflows/palette/**/*.{ts,tsx}",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
