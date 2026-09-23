@@ -2,7 +2,13 @@
 
 import { create } from "zustand";
 
-import type { NodeInstance, ScopeBoundary, Uuid, WorkflowEdge } from "@/lib/workflows/types";
+import type {
+  Binding,
+  NodeInstance,
+  ScopeBoundary,
+  Uuid,
+  WorkflowEdge,
+} from "@/lib/workflows/types";
 
 /**
  * The workflow editor's ephemeral state — everything that is *not* server data.
@@ -49,12 +55,17 @@ export interface EditorSelection {
 
 /**
  * A copied selection, ready to paste. The clipboard leaf produces this from the
- * working graph; the shape is the flat `WorkflowGraph` sub-lists, minus the
- * server-derived `body_node_ids` remapping the leaf handles on paste.
+ * working graph; the shape is the flat `WorkflowGraph` sub-lists — the copied
+ * nodes, the edges induced among them, the bindings those nodes target, and any
+ * fully contained scope. It is a self-contained snapshot: paste re-ids it
+ * against the current graph, so the originals may be deleted or the workflow
+ * switched without the clip going stale. `body_node_ids` is re-mapped on paste,
+ * never server-authored here.
  */
 export interface WorkflowClipboard {
   nodes: NodeInstance[];
   edges: WorkflowEdge[];
+  bindings: Binding[];
   scopes: ScopeBoundary[];
 }
 

@@ -110,6 +110,10 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        // The workflows visual editor's undo/redo history leaf (#1787).
+        "src/components/workflows/history.ts",
+        // The workflows visual editor's copy/paste clipboard leaf (#1787).
+        "src/components/workflows/clipboard.ts",
       ],
       exclude: [
         "node_modules",

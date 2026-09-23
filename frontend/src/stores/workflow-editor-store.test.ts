@@ -94,7 +94,7 @@ describe("useWorkflowEditorStore", () => {
 
   it("holds a clipboard and history flags for the leaf branches", () => {
     const store = useWorkflowEditorStore;
-    const clipboard = { nodes: [NODE], edges: [], scopes: [] };
+    const clipboard = { nodes: [NODE], edges: [], bindings: [], scopes: [] };
     store.getState().setClipboard(clipboard);
     expect(store.getState().clipboard).toBe(clipboard);
 
