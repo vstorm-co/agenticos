@@ -123,6 +123,8 @@ export default defineConfig({
         // above, listed here too so the pickers' data layer stays named beside them.
         "src/components/workflows/pickers/**/*.{ts,tsx}",
         "src/lib/workflows/tables-api.ts",
+        // The workflows list-page create dialog (#1787).
+        "src/components/workflows/workflow-create-dialog.tsx",
       ],
       exclude: [
         "node_modules",

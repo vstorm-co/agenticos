@@ -7,7 +7,12 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { WorkflowCreate, WorkflowDraftUpdate, WorkflowPublish } from "@/lib/workflows/types";
+import type {
+  WorkflowDraftUpdate,
+  WorkflowGraph,
+  WorkflowPublish,
+  WorkflowRead,
+} from "@/lib/workflows/types";
 import {
   createWorkflow,
   getNodeCatalog,
@@ -17,6 +22,32 @@ import {
   publishWorkflow,
   updateWorkflowDraft,
 } from "@/lib/workflows/workflows-api";
+
+/** Create a workflow, optionally seeding its draft graph — a template, or a copy. */
+export interface WorkflowSeed {
+  name: string;
+  graph?: WorkflowGraph | null;
+}
+
+/**
+ * Seed a freshly created workflow's draft graph, if a graph was given.
+ *
+ * `createWorkflow` always makes an *empty* draft, so a template or a duplicate is
+ * a create followed by one draft write against the revision the create returned
+ * (0 for a new row). A blank create passes no graph and skips the write.
+ */
+async function seedGraph(
+  workflow: WorkflowRead,
+  graph: WorkflowGraph | null | undefined,
+): Promise<WorkflowRead> {
+  if (graph) {
+    await updateWorkflowDraft(workflow.id, {
+      graph,
+      expected_revision: workflow.draft_revision,
+    });
+  }
+  return workflow;
+}
 
 /**
  * The workflow registry — the list and the create mutation.
@@ -42,10 +73,26 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
   );
 
   const create = useMutation({
-    mutationFn: (input: WorkflowCreate) => createWorkflow(input),
+    mutationFn: async ({ name, graph }: WorkflowSeed) =>
+      seedGraph(await createWorkflow({ name }), graph),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("created"));
+    },
+    onError: (err) => toast.error(getErrorMessage(err, tErrors)),
+  });
+
+  // Duplicate copies a source workflow's *current draft* graph into a brand-new
+  // workflow (never a version): read the source's draft, create a fresh row, seed
+  // it with what was read.
+  const duplicate = useMutation({
+    mutationFn: async ({ sourceId, name }: { sourceId: string; name: string }) => {
+      const source = await getWorkflow(sourceId);
+      return seedGraph(await createWorkflow({ name }), source.draft_graph);
+    },
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("duplicated"));
     },
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
   });
@@ -56,6 +103,7 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
     isLoading,
     error,
     create,
+    duplicate,
   };
 }
 

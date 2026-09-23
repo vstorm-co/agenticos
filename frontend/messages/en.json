@@ -2793,6 +2793,10 @@
         "title": "Set up your first routine?",
         "body": "A routine runs an agent with nobody at the keyboard - on a schedule, or when an event arrives. Want to set one up now? We'll walk you through it and fire the first run together."
       },
+      "create-workflow": {
+        "title": "Build a workflow?",
+        "body": "A workflow chains steps into an automation your agents run. Want to start one now? We'll open the create dialog so you can pick a blank canvas or a template."
+      },
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
@@ -2906,6 +2910,18 @@
       "context-new": {
         "title": "Add standing context",
         "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
+      },
+      "flow-workflow-create": {
+        "title": "Start a workflow",
+        "body": "Click here to begin. The dialog opens with a blank canvas and the ready-made templates — pick one and you land in the editor."
+      },
+      "workflows-new": {
+        "title": "Build a workflow",
+        "body": "A workflow chains steps into an automation your agents run. Start one here — from a blank canvas or a template."
+      },
+      "workflows-list": {
+        "title": "Draft, published, archived",
+        "body": "Every workflow you can see, grouped by status. Filter to drafts you're still building, the published versions that run, or the archived ones. Open one to edit it, or duplicate it into a fresh copy."
       },
       "dashboard-actions": {
         "title": "Start here",
@@ -3276,9 +3292,43 @@
       "untitledWorkflow": "Untitled workflow",
       "catalog": "Workflows",
       "shownCount": "{count, plural, =1 {1 workflow} other {# workflows}}",
+      "shownOfTotal": "{visible} of {total} shown",
       "noWorkflowsYet": "No workflows yet",
       "createFirst": "Create a workflow to chain steps into an automation.",
       "nobodyHasShared": "No workflow has been shared with you yet.",
+      "nothingMatches": "Nothing matches",
+      "noWorkflowHereMatches": "No workflow here has that status.",
+      "clearFilter": "Clear filter",
+      "filterByStatus": "Filter by status",
+      "filter": {
+        "all": "All",
+        "draft": "Drafts",
+        "published": "Published",
+        "archived": "Archived"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "archived": "Archived"
+      },
+      "duplicateWorkflow": "Duplicate {name}",
+      "copyOfName": "{name} (copy)",
+      "createDialogTitle": "New workflow",
+      "createDialogDescription": "Start from a blank canvas or a template.",
+      "blankTitle": "Blank workflow",
+      "blankDescription": "An empty canvas to build from scratch.",
+      "templatesHeading": "Templates",
+      "useTemplate": "Use",
+      "templates": {
+        "starter": {
+          "name": "Starter",
+          "description": "A single step to rename and wire up — the smallest useful starting point."
+        },
+        "sequence": {
+          "name": "Two-step sequence",
+          "description": "Two steps already connected, a starting point for a linear flow."
+        }
+      },
       "draftRevision": "Draft revision {revision}",
       "notFound": "Workflow not found",
       "notFoundDetail": "This workflow does not exist, or it is not shared with you.",
@@ -5353,6 +5403,7 @@
   },
   "workflows": {
     "created": "Workflow created",
+    "duplicated": "Workflow duplicated",
     "publishedVersion": "Published version {version}",
     "paletteTitle": "Nodes",
     "paletteHint": "Drag a node onto the canvas to add a step.",

@@ -27,6 +27,7 @@ export type FlowId =
   | "create-mcp"
   | "create-org"
   | "create-routine"
+  | "create-workflow"
   | "explore-chat";
 
 /**
@@ -763,6 +764,24 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  // Starting a workflow. One step: point at "New workflow" and end when its
+  // dialog opens — from there the reader picks a blank canvas or a template, and
+  // either lands them in the editor, which is the visual editor leaf's to teach,
+  // not this list's. An `opened` signal keeps the flow to the one thing this page
+  // owns and needs no new creatable-resource count in the coach's snapshot.
+  "create-workflow": {
+    id: "create-workflow",
+    permission: Perm.workflowsCreate,
+    steps: [
+      {
+        id: "flow-workflow-create",
+        page: ROUTES.WORKFLOWS,
+        target: "workflows-new",
+        permission: Perm.workflowsCreate,
+        signal: { kind: "opened" },
+      },
+    ],
+  },
   // A guided run of the chat surface, freezing it a control at a time to show how
   // a conversation is set up. The tour itself creates nothing — every step points,
   // explains, and advances on Next, because no resource's appearance could end it
@@ -827,6 +846,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-mcp";
     case ROUTES.ROUTINES:
       return "create-routine";
+    case ROUTES.WORKFLOWS:
+      return "create-workflow";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:
