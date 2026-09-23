@@ -1,0 +1,242 @@
+"use client";
+
+import { use, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Settings2, Share2 } from "lucide-react";
+
+import { PageHeader } from "@/components/dashboard/page-header";
+import { SharingPanel } from "@/components/sharing/sharing-panel";
+import { HasMorePager } from "@/components/tables/has-more-pager";
+import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
+import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
+import { TableGridView } from "@/components/tables/table-grid-view";
+import { TableKanbanView } from "@/components/tables/table-kanban-view";
+import { TableListView } from "@/components/tables/table-list-view";
+import { ViewSelect } from "@/components/tables/view-select";
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  PAGE_SIZE,
+} from "@/components/ui";
+import { LoadingState, ErrorState } from "@/components/states";
+import { useTable, useTableRecords, useTableViews } from "@/hooks";
+import { getRecord } from "@/lib/tables-api";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { useUrlState } from "@/hooks/use-url-state";
+import { emptyViewConfig } from "@/types/tables";
+import type { RecordFilter, RecordRead, RecordSort, ViewKind } from "@/types/tables";
+
+function parseTab(value: string | null): ViewKind {
+  return value === "kanban" || value === "list" ? value : "table";
+}
+
+export default function TableDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const t = useTranslations("pages.tables.detail");
+
+  const [tabParam, setTabParam] = useUrlState("view");
+  const tab = parseTab(tabParam);
+  const setTab = (next: ViewKind) => setTabParam(next === "table" ? null : next);
+  const [viewIdParam, setViewIdParam] = useUrlState("viewId");
+
+  const { table, isLoading, error, changeSchema } = useTable(id);
+  const {
+    views,
+    create: createView,
+    update: updateView,
+    remove: removeView,
+  } = useTableViews(id, tab);
+
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<RecordSort>({ by: "created_at", direction: "asc" });
+
+  const activeView = views.find((view) => view.id === viewIdParam) ?? null;
+  const filters: RecordFilter[] = activeView?.config.filters ?? [];
+  const effectiveSort = activeView?.config.sort ?? sort;
+  const groupBy = activeView?.config.group_by ?? null;
+
+  const {
+    records,
+    hasMore,
+    isLoading: recordsLoading,
+  } = useTableRecords(tab === "kanban" ? null : id, {
+    filters,
+    sort: effectiveSort,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+  });
+
+  if (isLoading) return <LoadingState />;
+  if (error || !table) return <ErrorState />;
+
+  const canEdit = table.can_edit;
+  const visibleColumns = activeView?.config.visible_columns;
+  const columns = table.columns.filter(
+    (column) =>
+      !column.archived &&
+      (visibleColumns === null ||
+        visibleColumns === undefined ||
+        visibleColumns.includes(column.id)),
+  );
+
+  return (
+    <div>
+      <PageHeader
+        title={table.name}
+        description={table.description ?? undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{t(`visibility.${table.visibility}`)}</Badge>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                data-tour="table-columns"
+                onClick={() => setSchemaOpen(true)}
+              >
+                <Settings2 className="h-4 w-4" /> {t("columns")}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <Share2 className="h-4 w-4" /> {t("share")}
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+          <TabsList data-tour="table-view-tabs">
+            <TabsTrigger value="table">{t("tabs.table")}</TabsTrigger>
+            <TabsTrigger value="kanban">{t("tabs.kanban")}</TabsTrigger>
+            <TabsTrigger value="list">{t("tabs.list")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <ViewSelect
+          kind={tab}
+          views={views}
+          activeViewId={viewIdParam}
+          onSelect={setViewIdParam}
+          canCreate={canEdit}
+          onCreate={(name, visibility) =>
+            createView.mutate(
+              { name, kind: tab, visibility, config: emptyViewConfig() },
+              { onSuccess: (created) => setViewIdParam(created.id) },
+            )
+          }
+          onRename={(viewId, name) => updateView.mutate({ viewId, data: { name } })}
+          onDelete={(viewId) => {
+            removeView.mutate(viewId);
+            if (viewId === viewIdParam) setViewIdParam(null);
+          }}
+        />
+      </div>
+
+      {tab === "table" && (
+        <>
+          <TableGridView
+            columns={columns}
+            records={records}
+            isLoading={recordsLoading}
+            sort={effectiveSort}
+            onSort={setSort}
+            onOpenRecord={setOpenRecord}
+          />
+          <div className="mt-3">
+            <HasMorePager
+              page={page}
+              hasMore={hasMore}
+              isLoading={recordsLoading}
+              onPage={setPage}
+            />
+          </div>
+        </>
+      )}
+
+      {tab === "kanban" &&
+        (groupBy ? (
+          <TableKanbanView
+            tableId={id}
+            columns={table.columns}
+            groupByColumnId={groupBy}
+            baseFilters={filters}
+            sort={effectiveSort}
+            onOpenRecord={setOpenRecord}
+          />
+        ) : (
+          <p className="text-muted-foreground text-sm">{t("kanbanNeedsView")}</p>
+        ))}
+
+      {tab === "list" && (
+        <>
+          <TableListView
+            columns={columns}
+            records={records}
+            isLoading={recordsLoading}
+            onOpenRecord={setOpenRecord}
+          />
+          <div className="mt-3">
+            <HasMorePager
+              page={page}
+              hasMore={hasMore}
+              isLoading={recordsLoading}
+              onPage={setPage}
+            />
+          </div>
+        </>
+      )}
+
+      <RecordDetailSheet
+        tableId={id}
+        columns={table.columns}
+        record={openRecord}
+        open={!!openRecord}
+        onOpenChange={(open) => !open && setOpenRecord(null)}
+        canEdit={canEdit}
+        onRefetchRecord={async () => {
+          if (!openRecord) return undefined;
+          const fresh = await getRecord(id, openRecord.id);
+          setOpenRecord(fresh);
+          return fresh;
+        }}
+      />
+
+      {canEdit && (
+        <SchemaEditorDialog
+          open={schemaOpen}
+          onOpenChange={setSchemaOpen}
+          table={table}
+          onSave={(cols) =>
+            changeSchema.mutate(
+              { expected_version: table.schema_version, columns: cols },
+              { onSuccess: () => setSchemaOpen(false) },
+            )
+          }
+          isSaving={changeSchema.isPending}
+          error={changeSchema.error}
+        />
+      )}
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className={`${DIALOG_SCROLL} ${DIALOG_FORM}`}>
+          <DialogHeader>
+            <DialogTitle>{t("shareTitle", { name: table.name })}</DialogTitle>
+            <DialogDescription>{t("shareDescription")}</DialogDescription>
+          </DialogHeader>
+          <SharingPanel resourceType="table" resourceId={id} canManage={canEdit} />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

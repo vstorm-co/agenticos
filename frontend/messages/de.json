@@ -1834,6 +1834,14 @@
           "title": "Noch nichts hier",
           "description": "Benachrichtigungen erscheinen hier."
         }
+      },
+      "tables": {
+        "title": "Tabellen",
+        "description": "Ihre Tabellen, zuletzt geänderte zuerst.",
+        "empty": {
+          "title": "Noch keine Tabellen",
+          "description": "Erstellen Sie eine, und ihre Datensätze erscheinen hier."
+        }
       }
     },
     "edit": {
@@ -2614,7 +2622,8 @@
     "deploymentSettings": "Deployment",
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
-    "expandSidebar": "Seitenleiste ausklappen"
+    "expandSidebar": "Seitenleiste ausklappen",
+    "tables": "Tabellen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4195,6 +4204,62 @@
     "routines": {
       "title": "Routinen",
       "description": "Alles, was Ihre Agents von allein tun — nach Zeitplan oder auf ein Ereignis."
+    },
+    "tables": {
+      "title": "Tabellen",
+      "description": "Typisierte Datensätze, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
+      "newTable": "Neue Tabelle",
+      "catalog": "Tabellen",
+      "shownCount": "{count, plural, one {1 Tabelle} other {# Tabellen}}",
+      "searchPlaceholder": "Tabellen durchsuchen…",
+      "empty": {
+        "title": "Noch keine Tabellen",
+        "description": "Eine Tabelle ist eine typisierte Menge von Datensätzen, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
+        "filteredTitle": "Keine passende Tabelle"
+      },
+      "created": "{name} erstellt",
+      "archived": "Tabelle archiviert",
+      "saved": "Gespeichert",
+      "schemaSaved": "Spalten gespeichert",
+      "visibility": {
+        "private": "Privat",
+        "team": "Team",
+        "org": "Organisation"
+      },
+      "detail": {
+        "columns": "Spalten",
+        "share": "Teilen",
+        "tabs": {
+          "table": "Tabelle",
+          "kanban": "Kanban",
+          "list": "Liste"
+        },
+        "kanbanNeedsView": "Speichern Sie eine Kanban-Ansicht mit einer Gruppierungsspalte, um dieses Board zu nutzen.",
+        "shareTitle": "Zugriff auf {name}",
+        "shareDescription": "Wer diese Tabelle sehen und bearbeiten kann.",
+        "visibility": {
+          "private": "Privat",
+          "team": "Team",
+          "org": "Organisation"
+        }
+      },
+      "views": {
+        "created": "Ansicht gespeichert",
+        "deleted": "Ansicht gelöscht",
+        "selectViewFor": "{kind, select, table {Tabellenansicht wählen} kanban {Kanban-Ansicht wählen} list {Listenansicht wählen} other {Ansicht wählen}}",
+        "unsavedView": "Ungespeicherte Ansicht",
+        "newView": "Neue Ansicht",
+        "rename": "Umbenennen",
+        "delete": "Löschen",
+        "namePlaceholder": "Name der Ansicht",
+        "visibilityLabel": "Sichtbarkeit",
+        "private": "Privat",
+        "shared": "Geteilt",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "deleteTitle": "Ansicht löschen",
+        "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden."
+      }
     }
   },
   "profile": {
@@ -5195,5 +5260,89 @@
     },
     "clearAll": "Alle löschen",
     "dismissRow": "Ausblenden"
+  },
+  "tables": {
+    "cells": {
+      "notSet": "Nicht gesetzt",
+      "true": "Wahr",
+      "false": "Falsch",
+      "noneSelected": "Nichts ausgewählt",
+      "noOptions": "Keine Optionen"
+    },
+    "create": {
+      "title": "Neue Tabelle",
+      "namePlaceholder": "Tabellenname",
+      "nameLabel": "Name",
+      "descriptionPlaceholder": "Beschreibung (optional)",
+      "descriptionLabel": "Beschreibung",
+      "visibilityLabel": "Sichtbarkeit",
+      "visibility": {
+        "private": "Privat",
+        "team": "Team",
+        "org": "Organisation"
+      },
+      "columnPlaceholder": "Spaltenbeschriftung",
+      "columnLabel": "Spaltenbeschriftung",
+      "columnType": "Spaltentyp",
+      "removeColumn": "Spalte entfernen",
+      "addColumn": "Spalte hinzufügen",
+      "cancel": "Abbrechen",
+      "submit": "Tabelle erstellen",
+      "types": {
+        "text": "Text",
+        "long_text": "Langer Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Wahrheitswert",
+        "date": "Datum",
+        "datetime": "Datum & Uhrzeit",
+        "single_select": "Einzelauswahl",
+        "multi_select": "Mehrfachauswahl"
+      }
+    },
+    "schema": {
+      "title": "Spalten",
+      "labelPlaceholder": "Spaltenbeschriftung",
+      "columnLabel": "Spaltenbeschriftung",
+      "columnType": "Spaltentyp",
+      "nullable": "Optional",
+      "archived": "Archiviert",
+      "removeColumn": "Spalte entfernen",
+      "optionPlaceholder": "Optionsbeschriftung",
+      "optionLabel": "Optionsbeschriftung",
+      "addOption": "Option hinzufügen",
+      "addColumn": "Spalte hinzufügen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "types": {
+        "text": "Text",
+        "long_text": "Langer Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Wahrheitswert",
+        "date": "Datum",
+        "datetime": "Datum & Uhrzeit",
+        "single_select": "Einzelauswahl",
+        "multi_select": "Mehrfachauswahl"
+      }
+    },
+    "sheet": {
+      "title": "Datensatz",
+      "conflict": "Jemand anderes hat dieses Feld geändert.",
+      "reloadAndReapply": "Neu laden und erneut anwenden",
+      "discard": "Verwerfen"
+    },
+    "kanban": {
+      "moveTo": "Verschieben nach",
+      "moveToShort": "Verschieben…",
+      "conflict": "Jemand anderes hat diesen Datensatz geändert.",
+      "reloadAndReapply": "Neu laden und erneut anwenden",
+      "discard": "Verwerfen",
+      "empty": "Keine Datensätze",
+      "moreAvailable": "Weitere Datensätze verfügbar",
+      "needsGroupingColumn": "Diese Ansicht benötigt eine Einzelauswahl-Gruppierungsspalte, um ein Board anzuzeigen.",
+      "noValue": "Kein Wert",
+      "archivedLane": "Archiviert"
+    }
   }
 }

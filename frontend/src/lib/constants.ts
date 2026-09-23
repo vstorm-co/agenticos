@@ -42,6 +42,8 @@ export const ROUTES = {
   WORKSPACE_DETAIL: (id: string) => `/workspaces/${id}`,
   SKILLS: "/skills",
   CONTEXT: "/context",
+  TABLES: "/tables",
+  TABLE_DETAIL: (id: string) => `/tables/${id}`,
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   BILLING: "/billing",
   BILLING_USAGE: "/billing/usage",

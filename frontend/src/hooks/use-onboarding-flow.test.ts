@@ -24,6 +24,7 @@ const rig = vi.hoisted(() => ({
   skillLoading: false,
   skillFetching: false,
   kbs: [] as unknown[],
+  tableTotal: 0,
   connections: [] as unknown[],
   personalConnections: [] as unknown[],
   mcpLoading: false,
@@ -61,6 +62,9 @@ vi.mock("@/hooks/use-skills", () => ({
 }));
 vi.mock("@/hooks/use-knowledge-bases", () => ({
   useKnowledgeBases: () => ({ kbs: rig.kbs, isLoading: false, isFetching: false }),
+}));
+vi.mock("@/hooks/use-tables", () => ({
+  useTables: () => ({ total: rig.tableTotal, isLoading: false, isFetching: false }),
 }));
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
   useOrgMcpConnections: () => ({

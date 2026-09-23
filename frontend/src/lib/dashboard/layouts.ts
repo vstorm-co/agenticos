@@ -352,6 +352,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "my-top-agents", span: "s6", rows: "r4" },
       { widget: "my-quality", span: "s3", rows: "r3" },
       { widget: "shared-with-you", span: "s3", rows: "r3" },
+      { widget: "tables", span: "s6", rows: "r3" },
     ],
   },
 ];

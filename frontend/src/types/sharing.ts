@@ -14,7 +14,7 @@ export type Visibility = "private" | "team" | "org";
 export type GrantLevel = "read" | "use" | "edit";
 
 /** The resource kinds that carry an owner, a visibility and a grant list. */
-export type SharingResourceType = "agent" | "skill" | "collection" | "secret";
+export type SharingResourceType = "agent" | "skill" | "collection" | "secret" | "table";
 
 export interface ResourceGrant {
   id: string;

@@ -1847,6 +1847,14 @@
           "title": "Nothing here yet",
           "description": "Notifications will show up here."
         }
+      },
+      "tables": {
+        "title": "Tables",
+        "description": "Your tables, most recently changed first.",
+        "empty": {
+          "title": "No tables yet",
+          "description": "Create one and its records show here."
+        }
       }
     },
     "edit": {
@@ -2745,7 +2753,8 @@
     "deploymentSettings": "Deployment",
     "routines": "Routines",
     "collapseSidebar": "Collapse the sidebar",
-    "expandSidebar": "Expand the sidebar"
+    "expandSidebar": "Expand the sidebar",
+    "tables": "Tables"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4329,6 +4338,62 @@
     "routines": {
       "title": "Routines",
       "description": "Everything your agents do on their own — on a schedule, or on an event."
+    },
+    "tables": {
+      "title": "Tables",
+      "description": "Typed records your agents, workflows and integrations can read and write.",
+      "newTable": "New table",
+      "catalog": "Tables",
+      "shownCount": "{count, plural, =1 {1 table} other {# tables}}",
+      "searchPlaceholder": "Search tables…",
+      "empty": {
+        "title": "No tables yet",
+        "description": "A table is a typed set of records your agents, workflows and integrations can read and write.",
+        "filteredTitle": "No table matches"
+      },
+      "created": "Created {name}",
+      "archived": "Table archived",
+      "saved": "Saved",
+      "schemaSaved": "Columns saved",
+      "visibility": {
+        "private": "Private",
+        "team": "Team",
+        "org": "Organization"
+      },
+      "detail": {
+        "columns": "Columns",
+        "share": "Share",
+        "tabs": {
+          "table": "Table",
+          "kanban": "Kanban",
+          "list": "List"
+        },
+        "kanbanNeedsView": "Save a kanban view with a grouping column to use this board.",
+        "shareTitle": "Access to {name}",
+        "shareDescription": "Who can see and edit this table.",
+        "visibility": {
+          "private": "Private",
+          "team": "Team",
+          "org": "Organization"
+        }
+      },
+      "views": {
+        "created": "View saved",
+        "deleted": "View deleted",
+        "selectViewFor": "{kind, select, table {Select a table view} kanban {Select a kanban view} list {Select a list view} other {Select a view}}",
+        "unsavedView": "Unsaved view",
+        "newView": "New view",
+        "rename": "Rename",
+        "delete": "Delete",
+        "namePlaceholder": "View name",
+        "visibilityLabel": "Visibility",
+        "private": "Private",
+        "shared": "Shared",
+        "cancel": "Cancel",
+        "save": "Save",
+        "deleteTitle": "Delete view",
+        "deleteDescription": "Delete “{name}”? This cannot be undone."
+      }
     }
   },
   "profile": {
@@ -5329,5 +5394,89 @@
     },
     "clearAll": "Clear all",
     "dismissRow": "Dismiss"
+  },
+  "tables": {
+    "cells": {
+      "notSet": "Not set",
+      "true": "True",
+      "false": "False",
+      "noneSelected": "None selected",
+      "noOptions": "No options"
+    },
+    "create": {
+      "title": "New table",
+      "namePlaceholder": "Table name",
+      "nameLabel": "Name",
+      "descriptionPlaceholder": "Description (optional)",
+      "descriptionLabel": "Description",
+      "visibilityLabel": "Visibility",
+      "visibility": {
+        "private": "Private",
+        "team": "Team",
+        "org": "Organization"
+      },
+      "columnPlaceholder": "Column label",
+      "columnLabel": "Column label",
+      "columnType": "Column type",
+      "removeColumn": "Remove column",
+      "addColumn": "Add column",
+      "cancel": "Cancel",
+      "submit": "Create table",
+      "types": {
+        "text": "Text",
+        "long_text": "Long text",
+        "number": "Number",
+        "integer": "Integer",
+        "boolean": "Boolean",
+        "date": "Date",
+        "datetime": "Date & time",
+        "single_select": "Single select",
+        "multi_select": "Multi select"
+      }
+    },
+    "schema": {
+      "title": "Columns",
+      "labelPlaceholder": "Column label",
+      "columnLabel": "Column label",
+      "columnType": "Column type",
+      "nullable": "Optional",
+      "archived": "Archived",
+      "removeColumn": "Remove column",
+      "optionPlaceholder": "Option label",
+      "optionLabel": "Option label",
+      "addOption": "Add option",
+      "addColumn": "Add column",
+      "cancel": "Cancel",
+      "save": "Save",
+      "types": {
+        "text": "Text",
+        "long_text": "Long text",
+        "number": "Number",
+        "integer": "Integer",
+        "boolean": "Boolean",
+        "date": "Date",
+        "datetime": "Date & time",
+        "single_select": "Single select",
+        "multi_select": "Multi select"
+      }
+    },
+    "sheet": {
+      "title": "Record",
+      "conflict": "Someone else changed this field.",
+      "reloadAndReapply": "Reload and reapply",
+      "discard": "Discard"
+    },
+    "kanban": {
+      "moveTo": "Move to",
+      "moveToShort": "Move…",
+      "conflict": "Someone else changed this record.",
+      "reloadAndReapply": "Reload and reapply",
+      "discard": "Discard",
+      "empty": "No records",
+      "moreAvailable": "More records available",
+      "needsGroupingColumn": "This view needs a single-select grouping column to show a board.",
+      "noValue": "No value",
+      "archivedLane": "Archived"
+    }
   }
 }

@@ -59,6 +59,10 @@ export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
+export { useTables, useTable } from "./use-tables";
+export { useTableRecords } from "./use-table-records";
+export { useTableViews } from "./use-table-views";
+export { useRecordMutation, isRevisionConflict } from "./use-record-mutation";
 export {
   useLocalSandboxService,
   useSandboxConnections,

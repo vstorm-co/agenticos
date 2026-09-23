@@ -65,6 +65,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/routines.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        // The tables card (#1783).
+        "src/components/dashboard/widgets/tables-widget.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
@@ -110,6 +112,7 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/tables/**/*.{ts,tsx}",
       ],
       exclude: [
         "node_modules",

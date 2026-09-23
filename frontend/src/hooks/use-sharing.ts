@@ -30,6 +30,7 @@ const SHARING_ROOT = {
   // only mounted on agents so far.
   collection: "/kb",
   secret: "/secrets",
+  table: "/tables",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**

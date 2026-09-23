@@ -56,7 +56,8 @@ export type WidgetId =
   | "knowledge"
   | "activity-rhythm"
   | "routines"
-  | "notifications";
+  | "notifications"
+  | "tables";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -258,6 +259,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
     seeAll: ROUTES.RAG,
+  },
+  tables: {
+    id: "tables",
+    gate: holds(Perm.tablesView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+    seeAll: ROUTES.TABLES,
   },
   notifications: {
     id: "notifications",

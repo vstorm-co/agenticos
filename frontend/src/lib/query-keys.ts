@@ -491,4 +491,19 @@ export const qk = {
     // so it never enters the query cache at all.
     notice: () => ["branding", "notice"] as const,
   },
+  tables: {
+    all: () => ["tables"] as const,
+    // The whole query object as the key, matching `skills.list`/`context.list`:
+    // the server applies `search`/`includeArchived`/paging, so two filters are
+    // two cache entries rather than one list narrowed on the client.
+    list: (query: { search: string; includeArchived: boolean; skip: number; limit: number }) =>
+      ["tables", "list", query] as const,
+    detail: (id: string) => ["tables", id] as const,
+    schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
+    // A table's records under one query - the active view's filters/sort/page,
+    // or a kanban lane's own narrowed one. Keyed on the whole query object so a
+    // lane's filtered fetch and the grid's unfiltered one never collide.
+    records: (tableId: string, query: unknown) => ["tables", tableId, "records", query] as const,
+    views: (tableId: string) => ["tables", tableId, "views"] as const,
+  },
 } as const;

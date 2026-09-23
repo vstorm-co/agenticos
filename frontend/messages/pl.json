@@ -96,7 +96,8 @@
     "allOrganizations": "Wszystkie organizacje",
     "deploymentSettings": "Instalacja",
     "collapseSidebar": "Zwiń panel boczny",
-    "expandSidebar": "Rozwiń panel boczny"
+    "expandSidebar": "Rozwiń panel boczny",
+    "tables": "Tabele"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -562,6 +563,62 @@
     },
     "runs": {
       "decidedByStandingConsent": "pominięte z góry dla konwersacji"
+    },
+    "tables": {
+      "title": "Tabele",
+      "description": "Typowane rekordy, które mogą odczytywać i zapisywać Twoi agenci, workflow i integracje.",
+      "newTable": "Nowa tabela",
+      "catalog": "Tabele",
+      "shownCount": "{count, plural, one {1 tabela} few {# tabele} many {# tabel} other {# tabeli}}",
+      "searchPlaceholder": "Szukaj tabel…",
+      "empty": {
+        "title": "Brak tabel",
+        "description": "Tabela to typowany zbiór rekordów, które mogą odczytywać i zapisywać Twoi agenci, workflow i integracje.",
+        "filteredTitle": "Brak pasującej tabeli"
+      },
+      "created": "Utworzono {name}",
+      "archived": "Tabela zarchiwizowana",
+      "saved": "Zapisano",
+      "schemaSaved": "Zapisano kolumny",
+      "visibility": {
+        "private": "Prywatna",
+        "team": "Zespół",
+        "org": "Organizacja"
+      },
+      "detail": {
+        "columns": "Kolumny",
+        "share": "Udostępnij",
+        "tabs": {
+          "table": "Tabela",
+          "kanban": "Kanban",
+          "list": "Lista"
+        },
+        "kanbanNeedsView": "Zapisz widok kanban z kolumną grupującą, aby zobaczyć tablicę.",
+        "shareTitle": "Dostęp do {name}",
+        "shareDescription": "Kto widzi i edytuje tę tabelę.",
+        "visibility": {
+          "private": "Prywatna",
+          "team": "Zespół",
+          "org": "Organizacja"
+        }
+      },
+      "views": {
+        "created": "Zapisano widok",
+        "deleted": "Usunięto widok",
+        "selectViewFor": "{kind, select, table {Wybierz widok tabeli} kanban {Wybierz widok kanban} list {Wybierz widok listy} other {Wybierz widok}}",
+        "unsavedView": "Niezapisany widok",
+        "newView": "Nowy widok",
+        "rename": "Zmień nazwę",
+        "delete": "Usuń",
+        "namePlaceholder": "Nazwa widoku",
+        "visibilityLabel": "Widoczność",
+        "private": "Prywatny",
+        "shared": "Udostępniony",
+        "cancel": "Anuluj",
+        "save": "Zapisz",
+        "deleteTitle": "Usuń widok",
+        "deleteDescription": "Usunąć widok „{name}”? Tej operacji nie można cofnąć."
+      }
     }
   },
   "rag": {
@@ -1135,6 +1192,14 @@
         "empty": {
           "title": "Nic jeszcze nie działa samo",
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
+        }
+      },
+      "tables": {
+        "title": "Tabele",
+        "description": "Twoje tabele, od ostatnio zmienionych.",
+        "empty": {
+          "title": "Brak tabel",
+          "description": "Utwórz tabelę, a jej rekordy pojawią się tutaj."
         }
       }
     },
@@ -2978,5 +3043,89 @@
     },
     "clearAll": "Wyczyść",
     "dismissRow": "Odrzuć"
+  },
+  "tables": {
+    "cells": {
+      "notSet": "Nie ustawiono",
+      "true": "Prawda",
+      "false": "Fałsz",
+      "noneSelected": "Nic nie wybrano",
+      "noOptions": "Brak opcji"
+    },
+    "create": {
+      "title": "Nowa tabela",
+      "namePlaceholder": "Nazwa tabeli",
+      "nameLabel": "Nazwa",
+      "descriptionPlaceholder": "Opis (opcjonalnie)",
+      "descriptionLabel": "Opis",
+      "visibilityLabel": "Widoczność",
+      "visibility": {
+        "private": "Prywatna",
+        "team": "Zespół",
+        "org": "Organizacja"
+      },
+      "columnPlaceholder": "Etykieta kolumny",
+      "columnLabel": "Etykieta kolumny",
+      "columnType": "Typ kolumny",
+      "removeColumn": "Usuń kolumnę",
+      "addColumn": "Dodaj kolumnę",
+      "cancel": "Anuluj",
+      "submit": "Utwórz tabelę",
+      "types": {
+        "text": "Tekst",
+        "long_text": "Długi tekst",
+        "number": "Liczba",
+        "integer": "Liczba całkowita",
+        "boolean": "Wartość logiczna",
+        "date": "Data",
+        "datetime": "Data i godzina",
+        "single_select": "Wybór pojedynczy",
+        "multi_select": "Wybór wielokrotny"
+      }
+    },
+    "schema": {
+      "title": "Kolumny",
+      "labelPlaceholder": "Etykieta kolumny",
+      "columnLabel": "Etykieta kolumny",
+      "columnType": "Typ kolumny",
+      "nullable": "Opcjonalna",
+      "archived": "Zarchiwizowana",
+      "removeColumn": "Usuń kolumnę",
+      "optionPlaceholder": "Etykieta opcji",
+      "optionLabel": "Etykieta opcji",
+      "addOption": "Dodaj opcję",
+      "addColumn": "Dodaj kolumnę",
+      "cancel": "Anuluj",
+      "save": "Zapisz",
+      "types": {
+        "text": "Tekst",
+        "long_text": "Długi tekst",
+        "number": "Liczba",
+        "integer": "Liczba całkowita",
+        "boolean": "Wartość logiczna",
+        "date": "Data",
+        "datetime": "Data i godzina",
+        "single_select": "Wybór pojedynczy",
+        "multi_select": "Wybór wielokrotny"
+      }
+    },
+    "sheet": {
+      "title": "Rekord",
+      "conflict": "Ktoś inny zmienił to pole.",
+      "reloadAndReapply": "Odśwież i zastosuj ponownie",
+      "discard": "Odrzuć"
+    },
+    "kanban": {
+      "moveTo": "Przenieś do",
+      "moveToShort": "Przenieś…",
+      "conflict": "Ktoś inny zmienił ten rekord.",
+      "reloadAndReapply": "Odśwież i zastosuj ponownie",
+      "discard": "Odrzuć",
+      "empty": "Brak rekordów",
+      "moreAvailable": "Dostępne są kolejne rekordy",
+      "needsGroupingColumn": "Ten widok potrzebuje kolumny grupującej typu wybór pojedynczy, aby pokazać tablicę.",
+      "noValue": "Brak wartości",
+      "archivedLane": "Zarchiwizowane"
+    }
   }
 }
