@@ -1,5 +1,5 @@
 ---
-source_sha: "25ca6d2da0fe"
+source_sha: "b88ea462937c"
 ---
 
 # Configuración { #configuration }
@@ -639,6 +639,26 @@ Una fuente `s3` nombra un secreto `aws_credentials` en el vault de su organizaci
 igual que una `gdrive` nombra una cuenta de servicio. El endpoint y la región siguen
 recurriendo a estos ajustes porque ninguno nombra a un principal: dicen dónde está el
 almacén, no quién pregunta.
+
+## Artefactos publicados { #published-artifacts }
+
+Páginas que los agents publican con la capability `artifacts`. Sus bytes viven en
+el almacenamiento de ficheros de arriba; estos ajustes los acotan y dicen desde
+dónde se sirven. Consulta [Artefactos](artifacts.md).
+
+| Variable | Por defecto | Descripción |
+|----------|-------------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
+| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+
+**`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
+las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
+consola. Fíjalo en el entorno del backend y en el del frontend; los ficheros de
+compose se lo pasan a ambos. Un valor en solo uno de ellos muestra un frame vacío,
+porque el navegador se niega a cargar la página desde un origen que la consola no
+ha permitido.
 
 ## Workspaces de los agents { #agent-workspaces }
 

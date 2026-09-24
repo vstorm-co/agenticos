@@ -15,8 +15,8 @@ No backfill. Nothing records which source a document already ingested came
 from; such documents are adopted the next time their source re-ingests them, and
 until then are left alone rather than guessed at.
 
-Revision ID: 0095_sync_removal
-Revises: 0094_organizational_unit
+Revision ID: 0096_sync_removal
+Revises: 0095_artifacts
 Create Date: 2026-09-22
 """
 
@@ -27,8 +27,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0095_sync_removal"
-down_revision: str | Sequence[str] | None = "0094_organizational_unit"
+revision: str = "0096_sync_removal"
+down_revision: str | Sequence[str] | None = "0095_artifacts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -33,11 +33,16 @@ import pytest
 
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
+from app.core.config import settings
 from app.db.models.notification import NotificationEventType
 from app.services.notification_center import NotificationCenterService
 from app.services.notifications import NotificationService
 
 MODULE = "app.services.notifications"
+
+# Pinned rather than read from the environment: half of what these tests assert
+# is that the email's copy of a link carries this and the stored column does not.
+FRONTEND = "https://console.example"
 
 
 def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallback=False):
@@ -103,6 +108,12 @@ def written(monkeypatch) -> _Written:
     recorder = _Written()
     monkeypatch.setattr(NotificationCenterService, "write", recorder)
     return recorder
+
+
+@pytest.fixture(autouse=True)
+def _pinned_frontend(monkeypatch):
+    """One origin for the whole file, so an assertion can name it."""
+    monkeypatch.setattr(settings, "FRONTEND_URL", FRONTEND)
 
 
 @pytest.fixture(autouse=True)
@@ -1008,7 +1019,7 @@ class TestSecurityEventAndConfigurationChanged:
         assert call["organization_id"] == entry.organization_id
         assert call["actor_user_id"] == entry.actor_user_id
         assert call["use_savepoint"] is True
-        assert "/vault" in call["context_url"]
+        assert call["context_url"] == f"/vault?org={entry.organization_id}"
 
     @pytest.mark.anyio
     async def test_an_impersonated_write_rate_limits_the_impersonator_not_the_target(self, written):
@@ -1056,8 +1067,7 @@ class TestSecurityEventAndConfigurationChanged:
         call = written.calls[0]
         assert call["recipients"] == [app_admin]
         assert call["organization_id"] is None
-        assert "?org=" not in call["context_url"]
-        assert "/admin/users" in call["context_url"]
+        assert call["context_url"] == "/admin/users"
 
     @pytest.mark.anyio
     async def test_an_unrecognised_target_type_falls_back_to_the_admin_console(self, written):
@@ -1068,7 +1078,7 @@ class TestSecurityEventAndConfigurationChanged:
                 _entry(action="something.new", org_id=None, target_type="something_new")
             )
 
-        assert written.calls[0]["context_url"].endswith("/admin")
+        assert written.calls[0]["context_url"] == "/admin"
 
     @pytest.mark.anyio
     async def test_an_action_with_no_curated_sentence_still_names_itself(self, written):
@@ -1452,6 +1462,7 @@ class TestEveryLinkNamesItsOrganization:
     @pytest.mark.anyio
     async def test_the_budget_alert_names_the_runs_organization(self, written):
         run = _run()
+        agent = _agent()
         with (
             patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
@@ -1459,15 +1470,15 @@ class TestEveryLinkNamesItsOrganization:
         ):
             await NotificationService(MagicMock()).budget_exceeded(
                 run,
-                agent=_agent(),
+                agent=agent,
                 spec=_spec(),
                 reason="cap",
                 scope=BudgetScope.AGENT,
             )
 
         call = written.calls[0]
-        assert call["render_context"]["run_url"].endswith(f"?org={run.organization_id}")
-        assert call["context_url"] == call["render_context"]["run_url"]
+        assert call["context_url"] == f"/agents/{agent.id}?org={run.organization_id}"
+        assert call["render_context"]["run_url"] == f"{FRONTEND}{call['context_url']}"
         assert call["organization_id"] == run.organization_id
 
     @pytest.mark.anyio
@@ -1485,8 +1496,8 @@ class TestEveryLinkNamesItsOrganization:
             )
 
         call = written.calls[0]
-        assert call["render_context"]["approvals_url"].endswith(f"&org={run.organization_id}")
-        assert call["context_url"] == call["render_context"]["approvals_url"]
+        assert call["context_url"] == f"/runs?tab=approvals&org={run.organization_id}"
+        assert call["render_context"]["approvals_url"] == f"{FRONTEND}{call['context_url']}"
 
     @pytest.mark.anyio
     async def test_the_organization_report_names_the_organization_it_reports_on(self, written):
@@ -1502,8 +1513,9 @@ class TestEveryLinkNamesItsOrganization:
                 organization_id, period="weekly", window_start=datetime.now(UTC)
             )
 
-        context = written.calls[0]["render_context"]
-        assert context["dashboard_url"].endswith(f"?org={organization_id}")
+        call = written.calls[0]
+        assert call["context_url"] == f"/agents?org={organization_id}"
+        assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
 
     @pytest.mark.anyio
     async def test_the_agent_report_names_the_agents_organization(self, written):
@@ -1522,20 +1534,22 @@ class TestEveryLinkNamesItsOrganization:
                 window_start=datetime.now(UTC),
             )
 
-        context = written.calls[0]["render_context"]
-        assert context["dashboard_url"].endswith(f"?org={agent.organization_id}")
+        call = written.calls[0]
+        assert call["context_url"] == f"/agents/{agent.id}?org={agent.organization_id}"
+        assert call["render_context"]["dashboard_url"] == f"{FRONTEND}{call['context_url']}"
 
     def test_the_parameter_name_is_decided_in_one_place(self):
         """Four call sites inventing one is what the issue is about, one level up."""
         service = NotificationService(MagicMock())
         organization_id = uuid.uuid4()
 
-        assert service._link("/agents", organization_id).endswith(f"/agents?org={organization_id}")
+        assert service._link("/agents", organization_id) == f"/agents?org={organization_id}"
         # The approvals link already carries `?tab=`, and a second `?` would
         # name no organization at all - the console would read the whole tail
         # as the tab.
-        assert service._link("/runs?tab=approvals", organization_id).endswith(
-            f"/runs?tab=approvals&org={organization_id}"
+        assert (
+            service._link("/runs?tab=approvals", organization_id)
+            == f"/runs?tab=approvals&org={organization_id}"
         )
 
 
@@ -1569,3 +1583,81 @@ class TestWhereAnAlertSends:
         # Named because it is what the link used to be, and the agent id is
         # still in scope at the call site.
         assert "/agents/" not in approvals_url
+
+
+class TestWhatTheColumnHoldsAndWhatAnEmailPrints:
+    """The column holds a path; the email's copy of it holds a URL.
+
+    A destination carrying an origin is somewhere else entirely as far as the
+    console's router is concerned, so the click reloaded the whole document to
+    reach a page the reader was usually already standing inside - throwing the
+    query cache away and racing the mark-read write against the unload. An
+    email has no origin to resolve a path against, which is the whole of why
+    the two differ. This file is the only place that sees every producer, so
+    the pairing is pinned here rather than once per event type.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_column_never_carries_an_origin(self, written):
+        """Across a run alert, a sync alert (the `&org=` separator, through
+        `_collection_link`) and an app-admin security event (no `?org=` at
+        all) - three shapes, one rule."""
+        run = _run()
+        app_admin = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
+            patch(
+                f"{MODULE}.member_repo.list_app_admin_ids",
+                new=AsyncMock(return_value=[app_admin]),
+            ),
+        ):
+            service = NotificationService(MagicMock())
+            await service.approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=_approvals("send_email")
+            )
+            await service.sync_completed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=uuid.uuid4(),
+                occurrence_id="log-1:2024-01-01",
+                collection_name="docs",
+                collection_id=uuid.uuid4(),
+                ingested=1,
+                updated=0,
+                skipped=0,
+                removed=0,
+                failed=0,
+            )
+            await service.security_event(
+                _entry(action="admin.user.impersonate", org_id=None, target_type="user")
+            )
+
+        assert len(written.calls) == 3
+        for call in written.calls:
+            context_url = call["context_url"]
+            assert context_url.startswith("/"), context_url
+            assert not context_url.startswith("//"), context_url
+            assert FRONTEND not in context_url
+
+    @pytest.mark.anyio
+    async def test_the_email_prints_the_same_destination_with_the_origin_back_on(self, written):
+        """`sync_url` is a `render_context` key no bespoke template reads yet.
+        It is absolute anyway, because "every `*_url` here is absolute" is one
+        rule a future template author can rely on, where a list of exceptions
+        is a thing they have to be told."""
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())):
+            await NotificationService(MagicMock()).sync_completed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=uuid.uuid4(),
+                occurrence_id="log-1:2024-01-01",
+                collection_name="docs",
+                collection_id=uuid.uuid4(),
+                ingested=1,
+                updated=0,
+                skipped=0,
+                removed=0,
+                failed=0,
+            )
+
+        call = written.calls[0]
+        assert call["render_context"]["sync_url"] == f"{FRONTEND}{call['context_url']}"

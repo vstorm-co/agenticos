@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import { isPublicSurface } from "./public-surfaces";
 
 describe("isPublicSurface", () => {
-  it.each(["/e/W-Buc9zD7bZOzro8FYEOmOpGrNxFGuN7", "/shared/abc123"])(
-    "recognises %s as served to somebody who is not a member",
-    (pathname) => {
-      expect(isPublicSurface(pathname)).toBe(true);
-    },
-  );
+  it.each([
+    "/e/W-Buc9zD7bZOzro8FYEOmOpGrNxFGuN7",
+    "/shared/abc123",
+    "/a/Vq3Zf0x9kD2mYh7LtR1sWc8nPb4eJ6uA",
+  ])("recognises %s as served to somebody who is not a member", (pathname) => {
+    expect(isPublicSurface(pathname)).toBe(true);
+  });
 
   it.each(["/", "/chat", "/agents/abc", "/legal/cookies", "/login"])(
     "leaves %s alone",
@@ -23,6 +24,8 @@ describe("isPublicSurface", () => {
     // worth of pages out of scope for anything gated on this.
     expect(isPublicSurface("/environments")).toBe(false);
     expect(isPublicSurface("/sharedrafts")).toBe(false);
+    expect(isPublicSurface("/artifacts")).toBe(false);
+    expect(isPublicSurface("/agents")).toBe(false);
   });
 
   it("expects the locale prefix already gone", () => {
