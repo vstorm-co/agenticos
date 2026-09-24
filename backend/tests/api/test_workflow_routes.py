@@ -345,6 +345,51 @@ async def test_listing_versions_returns_every_published_version(owner_client: Op
             response = await http.get(_url(f"/{workflow.id}/versions"))
     assert response.status_code == 200
     assert [item["version"] for item in response.json()["items"]] == [1]
+    # The list stays lean - a version's frozen graph is only on the detail route.
+    assert "graph" not in response.json()["items"][0]
+
+
+async def test_getting_one_version_answers_its_frozen_graph(owner_client: OpenClient):
+    workflow = _workflow()
+    version = MagicMock()
+    version.id = uuid.uuid4()
+    version.workflow_id = workflow.id
+    version.version = 1
+    version.note = "cut"
+    version.published_by_user_id = workflow.owner_user_id
+    version.budget_limit = None
+    version.created_at = None
+    version.graph = _graph().model_dump(mode="json")
+
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+    ):
+        async with owner_client() as http:
+            response = await http.get(_url(f"/{workflow.id}/versions/{version.id}"))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["version"] == 1
+    assert body["graph"]["entry_node_id"]
+
+
+async def test_getting_a_missing_version_is_a_404(owner_client: OpenClient):
+    workflow = _workflow()
+    with (
+        patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=None)),
+    ):
+        async with owner_client() as http:
+            response = await http.get(_url(f"/{workflow.id}/versions/{uuid.uuid4()}"))
+    assert response.status_code == 404
+
+
+@pytest.mark.security
+async def test_getting_a_version_of_a_cross_tenant_workflow_is_a_404(owner_client: OpenClient):
+    with patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=None)):
+        async with owner_client() as http:
+            response = await http.get(_url(f"/{uuid.uuid4()}/versions/{uuid.uuid4()}"))
+    assert response.status_code == 404
 
 
 async def test_listing_workflows_answers_the_paginated_envelope(owner_client: OpenClient):

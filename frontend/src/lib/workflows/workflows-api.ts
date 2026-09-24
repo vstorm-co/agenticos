@@ -15,6 +15,7 @@ import type {
   WorkflowList,
   WorkflowPublish,
   WorkflowRead,
+  WorkflowVersionDetail,
   WorkflowVersionList,
   WorkflowVersionRead,
 } from "@/lib/workflows/types";
@@ -53,9 +54,17 @@ export async function getWorkflow(workflowId: string): Promise<WorkflowDetail> {
   return apiClient.get<WorkflowDetail>(`${ROOT}/${workflowId}`);
 }
 
-/** Every published version of this workflow, newest first. */
+/** Every published version of this workflow, newest first. Lean - no graphs. */
 export async function listWorkflowVersions(workflowId: string): Promise<WorkflowVersionList> {
   return apiClient.get<WorkflowVersionList>(`${ROOT}/${workflowId}/versions`);
+}
+
+/** One published version with its frozen graph, for a read-only preview. */
+export async function getWorkflowVersion(
+  workflowId: string,
+  versionId: string,
+): Promise<WorkflowVersionDetail> {
+  return apiClient.get<WorkflowVersionDetail>(`${ROOT}/${workflowId}/versions/${versionId}`);
 }
 
 /**

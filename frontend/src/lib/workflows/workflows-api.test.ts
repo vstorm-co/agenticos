@@ -5,6 +5,7 @@ import {
   createWorkflow,
   getNodeCatalog,
   getWorkflow,
+  getWorkflowVersion,
   listWorkflowVersions,
   listWorkflows,
   publishWorkflow,
@@ -78,6 +79,12 @@ describe("workflows-api", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
     await listWorkflowVersions("wf-1");
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/versions");
+  });
+
+  it("fetches one version's frozen graph", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "v1", version: 1, graph: GRAPH });
+    await getWorkflowVersion("wf-1", "v1");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/versions/v1");
   });
 
   it("updates the draft graph against the expected revision", async () => {

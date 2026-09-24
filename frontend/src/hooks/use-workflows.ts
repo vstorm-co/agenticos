@@ -17,6 +17,7 @@ import {
   createWorkflow,
   getNodeCatalog,
   getWorkflow,
+  getWorkflowVersion,
   listWorkflowVersions,
   listWorkflows,
   publishWorkflow,
@@ -148,7 +149,7 @@ export function useWorkflow(workflowId: string | null) {
   return { workflow: data, isLoading, error, saveDraft, publish };
 }
 
-/** Every published version of a workflow, newest first. */
+/** Every published version of a workflow, newest first. Lean — no graphs. */
 export function useWorkflowVersions(workflowId: string | null) {
   const { data, isLoading } = useQuery({
     queryKey: qk.workflows.versions(workflowId ?? ""),
@@ -156,6 +157,23 @@ export function useWorkflowVersions(workflowId: string | null) {
     enabled: !!workflowId,
   });
   return { versions: data?.items ?? [], isLoading };
+}
+
+/**
+ * One published version with its frozen graph, fetched on demand.
+ *
+ * Enabled only while a version is selected for preview, so the graph is never
+ * pulled until someone opens a version — the list stays lean and the detail rides
+ * its own query, cached per version id (a frozen version never changes).
+ */
+export function useWorkflowVersion(workflowId: string, versionId: string | null) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.workflows.version(workflowId, versionId ?? ""),
+    queryFn: () => getWorkflowVersion(workflowId, versionId as string),
+    enabled: !!versionId,
+    staleTime: Infinity,
+  });
+  return { version: data, isLoading, error };
 }
 
 /**
