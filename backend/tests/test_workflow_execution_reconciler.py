@@ -176,11 +176,15 @@ class TestResolveOrphanedAttempts:
     @pytest.mark.parametrize(
         "outbox_overrides",
         [
-            # Reclaimed by another worker between the scan and the lock.
-            {"lease_expires_at": datetime.now(UTC) + timedelta(minutes=2)},
+            # Reclaimed by another worker between the scan and the lock - a
+            # lease computed when the test runs, not when it is collected.
+            pytest.param(
+                lambda: {"lease_expires_at": datetime.now(UTC) + timedelta(minutes=2)},
+                id="renewed",
+            ),
             # Closed (a cancel, another sweep) between the scan and the lock.
-            {"status": DispatchOutboxStatus.DONE.value},
-            {"status": DispatchOutboxStatus.CANCELLED.value},
+            pytest.param(lambda: {"status": DispatchOutboxStatus.DONE.value}, id="done"),
+            pytest.param(lambda: {"status": DispatchOutboxStatus.CANCELLED.value}, id="cancelled"),
         ],
     )
     async def test_an_orphan_whose_claim_changed_since_the_scan_is_left_alone(
@@ -197,7 +201,7 @@ class TestResolveOrphanedAttempts:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_outbox_for_node_run_for_update.return_value = _outbox(
-            node_run_id=node_run.id, **outbox_overrides
+            node_run_id=node_run.id, **outbox_overrides()
         )
         repo.get_attempt.return_value = attempt
 
