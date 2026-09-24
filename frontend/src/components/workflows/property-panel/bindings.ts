@@ -148,7 +148,7 @@ export function candidateByKey(
   return candidates.find((candidate) => candidate.key === key);
 }
 
-// --- Rebasing nested bindings when rows move ---
+// Rebasing nested bindings when rows move.
 
 /** The removals and re-writes one structural edit implies for the flat binding list. */
 export interface BindingRebase {
