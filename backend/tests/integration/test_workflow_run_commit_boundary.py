@@ -227,12 +227,10 @@ async def test_settle_commits_the_result_and_the_downstream_dispatch_together(
         await begin_db.commit()
     assert begun is not None
 
-    result, waiting_agent_run_id = await dispatcher.call_handler(begun)
+    outcome = await dispatcher.call_handler(begun)
 
     async with factory() as settle_db:
-        await dispatcher.settle(
-            settle_db, begun=begun, result=result, waiting_agent_run_id=waiting_agent_run_id
-        )
+        await dispatcher.settle(settle_db, begun=begun, outcome=outcome)
         await settle_db.commit()
 
     async with factory() as reader:
@@ -274,12 +272,10 @@ async def test_a_full_dispatch_tick_runs_the_one_node_graph_to_completion(
         await begin_db.commit()
     assert begun is not None
 
-    result, waiting_agent_run_id = await dispatcher.call_handler(begun)
+    outcome = await dispatcher.call_handler(begun)
 
     async with factory() as settle_db:
-        await dispatcher.settle(
-            settle_db, begun=begun, result=result, waiting_agent_run_id=waiting_agent_run_id
-        )
+        await dispatcher.settle(settle_db, begun=begun, outcome=outcome)
         await settle_db.commit()
 
     async with factory() as reader:
@@ -486,11 +482,9 @@ async def test_an_orphaned_in_flight_idempotent_attempt_is_auto_retried_not_dupl
         await begin_db.commit()
     assert begun_again is not None
     assert begun_again.attempt_no == 2
-    result, waiting_agent_run_id = await dispatcher.call_handler(begun_again)
+    outcome = await dispatcher.call_handler(begun_again)
     async with factory() as settle_db:
-        await dispatcher.settle(
-            settle_db, begun=begun_again, result=result, waiting_agent_run_id=waiting_agent_run_id
-        )
+        await dispatcher.settle(settle_db, begun=begun_again, outcome=outcome)
         await settle_db.commit()
 
     async with factory() as reader:
@@ -692,7 +686,7 @@ async def test_a_claim_closed_under_its_own_token_starts_no_attempt_and_settles_
         )
         await begin_db.commit()
     assert begun is not None
-    result, waiting_agent_run_id = await dispatcher.call_handler(begun)
+    outcome = await dispatcher.call_handler(begun)
 
     async with factory() as closer:
         row = (
@@ -711,9 +705,7 @@ async def test_a_claim_closed_under_its_own_token_starts_no_attempt_and_settles_
     assert again is None
 
     async with factory() as settle_db:
-        await dispatcher.settle(
-            settle_db, begun=begun, result=result, waiting_agent_run_id=waiting_agent_run_id
-        )
+        await dispatcher.settle(settle_db, begun=begun, outcome=outcome)
         await settle_db.commit()
     assert await _attempts(factory, node_run) == [NodeAttemptStatus.IN_FLIGHT.value]
     async with factory() as reader:

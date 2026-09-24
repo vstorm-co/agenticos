@@ -91,8 +91,13 @@ class WorkflowRunStatus(enum.StrEnum):
 
     @property
     def is_terminal(self) -> bool:
-        """Whether nothing further will ever dispatch for this run."""
+        """Whether nothing further will ever dispatch for this run.
+
+        `BUDGET_EXCEEDED` is terminal: no path resumes a run whose cap is
+        spent, so leaving it open would only strand it.
+        """
         return self in (
+            WorkflowRunStatus.BUDGET_EXCEEDED,
             WorkflowRunStatus.CANCELLED,
             WorkflowRunStatus.FAILED,
             WorkflowRunStatus.SUCCEEDED,

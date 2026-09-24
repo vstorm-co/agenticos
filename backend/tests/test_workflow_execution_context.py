@@ -7,6 +7,7 @@ have to ignore - see the module's own docstring.
 """
 
 import uuid
+from decimal import Decimal
 
 import pytest
 
@@ -102,3 +103,27 @@ class TestReportWaitingAgentRun:
                 context.report_waiting_agent_run(inner_agent_run)
             assert inner_scope.waiting_agent_run_id == inner_agent_run
         assert outer_scope.waiting_agent_run_id == outer_agent_run
+
+
+class TestReportCost:
+    def test_reports_add_up_and_one_partial_report_marks_the_total_a_floor(self):
+        scope = context.dispatching_as(_context())
+        with scope:
+            context.report_cost(Decimal("0.10"))
+            context.report_cost(Decimal("0.05"), partial=True)
+            context.report_cost(Decimal("0.01"))
+        assert scope.cost == Decimal("0.16")
+        assert scope.cost_is_partial is True
+
+    def test_no_report_leaves_the_scope_at_zero(self):
+        scope = context.dispatching_as(_context())
+        with scope:
+            pass
+        assert (scope.cost, scope.cost_is_partial) == (Decimal(0), False)
+
+    def test_a_negative_cost_is_refused(self):
+        with context.dispatching_as(_context()), pytest.raises(ValueError):
+            context.report_cost(Decimal("-0.01"))
+
+    def test_a_report_outside_any_dispatch_scope_is_a_no_op(self):
+        context.report_cost(Decimal("1"))

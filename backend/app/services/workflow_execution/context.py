@@ -17,15 +17,16 @@ Two directions, both scoped to one dispatch call by `dispatching_as`:
   exists by the time a parked node wakes).
 - **Out** - `report_waiting_agent_run` is how a handler that parks on
   `ApprovalGate` tells the dispatcher which `agent_runs` row `NodeRun.
-  waiting_agent_run_id` must point at. `NodeResult.Waiting` carries no such
-  field (56-shared-contracts.md fixes its shape), so there is no channel for
-  this in the return value at all - it has to travel beside it.
+  waiting_agent_run_id` must point at, and `report_cost` is how a handler
+  that spends money says how much. `NodeResult` (#1786's frozen contract)
+  carries neither, so both travel beside the return value rather than in it.
 """
 
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
+from decimal import Decimal
 from uuid import UUID
 
 from app.core.permissions import AuthContext
@@ -55,6 +56,8 @@ class _Outbox:
     """What a handler reports back, out of band, during one dispatch call."""
 
     waiting_agent_run_id: UUID | None = None
+    cost: Decimal = Decimal(0)
+    cost_is_partial: bool = False
 
 
 _current: ContextVar[DispatchContext | None] = ContextVar("workflow_dispatch_context", default=None)
@@ -93,6 +96,14 @@ class DispatchScope:
     def waiting_agent_run_id(self) -> UUID | None:
         return self._outbox.waiting_agent_run_id
 
+    @property
+    def cost(self) -> Decimal:
+        return self._outbox.cost
+
+    @property
+    def cost_is_partial(self) -> bool:
+        return self._outbox.cost_is_partial
+
 
 def dispatching_as(context: DispatchContext) -> DispatchScope:
     """Make `context` available to whatever a node handler calls, for its duration."""
@@ -123,3 +134,28 @@ def report_waiting_agent_run(agent_run_id: UUID) -> None:
     outbox = _outbox.get()
     if outbox is not None:
         outbox.waiting_agent_run_id = agent_run_id
+
+
+def report_cost(amount: Decimal, *, partial: bool = False) -> None:
+    """Book `amount` against the run this handler is executing for.
+
+    Call it for every spend, including one made before the handler goes on to
+    fail: the dispatcher books whatever was reported when it settles the
+    attempt, on the failed and uncertain paths as much as the completed one,
+    and the run's next dispatch is refused once the total reaches the
+    workflow's budget. Reports add up. `partial=True` says `amount` is a floor
+    rather than an exact figure (a price the snapshot did not know), and marks
+    the run's total a floor too.
+
+    A no-op outside `dispatching_as`, for the same reason
+    `report_waiting_agent_run` is one.
+
+    Raises:
+        ValueError: `amount` is negative - a spend cannot give money back.
+    """
+    if amount < 0:
+        raise ValueError("A reported cost cannot be negative")
+    outbox = _outbox.get()
+    if outbox is not None:
+        outbox.cost += amount
+        outbox.cost_is_partial = outbox.cost_is_partial or partial

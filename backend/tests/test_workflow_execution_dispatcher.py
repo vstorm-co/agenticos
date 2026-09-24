@@ -939,10 +939,11 @@ class TestCallHandler:
         node = _node_instance(test_node, config={"message": "hi"})
         definition = REGISTRY[test_node][1]
         begun = _begun(node, definition, handler_config=_EchoConfig(message="hi"))
-        result, waiting_agent_run_id = await dispatcher.call_handler(begun)
-        assert isinstance(result, Completed)
-        assert result.output.echoed == "hi"
-        assert waiting_agent_run_id is None
+        outcome = await dispatcher.call_handler(begun)
+        assert isinstance(outcome.result, Completed)
+        assert outcome.result.output.echoed == "hi"
+        assert outcome.waiting_agent_run_id is None
+        assert outcome.cost == Decimal(0)
 
     async def test_a_handler_reporting_a_waiting_agent_run_is_surfaced(self, test_node: str):
         node = _node_instance(test_node)
@@ -956,8 +957,24 @@ class TestCallHandler:
         patched = definition.__class__(**{**definition.__dict__, "handler": _parking_handler})
         begun = _begun(node, patched)
 
-        _result, waiting_agent_run_id = await dispatcher.call_handler(begun)
-        assert waiting_agent_run_id == reported
+        outcome = await dispatcher.call_handler(begun)
+        assert outcome.waiting_agent_run_id == reported
+
+    async def test_every_cost_a_handler_reports_is_summed_onto_its_outcome(self, test_node: str):
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+
+        async def _spending_handler(_config: object, _input: object) -> NodeResult:
+            context.report_cost(Decimal("0.25"))
+            context.report_cost(Decimal("0.5"), partial=True)
+            return Completed[_EchoOutput](output=_EchoOutput(echoed="spent"))
+
+        patched = definition.__class__(**{**definition.__dict__, "handler": _spending_handler})
+
+        outcome = await dispatcher.call_handler(_begun(node, patched))
+
+        assert outcome.cost == Decimal("0.75")
+        assert outcome.cost_is_partial is True
 
     async def test_a_definition_with_no_handler_raises(self, test_node: str):
         node = _node_instance(test_node)
@@ -1009,7 +1026,11 @@ class TestSettleCompleted:
         repo.has_live_outbox.return_value = False
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="done"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
         assert node_run.status == NodeRunStatus.SUCCEEDED.value
@@ -1022,7 +1043,99 @@ class TestSettleCompleted:
         begun = _begun(node, definition)
         repo.get_run_by_id_for_update.return_value = None
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="x"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
+        repo.settle_attempt.assert_not_called()
+
+
+class TestSettleBooksCost:
+    @pytest.mark.parametrize(
+        "result,attempt_status",
+        [
+            (Completed[_EchoOutput](output=_EchoOutput(echoed="x")), NodeAttemptStatus.COMPLETED),
+            (
+                Failed(error=WorkflowError(code="x", message="x", retryable=False)),
+                NodeAttemptStatus.FAILED,
+            ),
+            (Uncertain(detail="timed out"), NodeAttemptStatus.UNCERTAIN),
+        ],
+    )
+    async def test_the_reported_cost_lands_on_the_attempt_and_the_run_whatever_the_outcome(
+        self, repo, event_log, test_node, result, attempt_status
+    ):
+        """A spend that only lands on success is a budget with a hole in it:
+        a failed or uncertain attempt books what it reported too, partial
+        flag included."""
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            spent_cost=Decimal("1"),
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id, retry_guarantee=RetryGuarantee.NONE.value)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
+        repo.has_live_outbox.return_value = False
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=result, cost=Decimal("0.25"), cost_is_partial=True
+            ),
+        )
+
+        assert attempt.status == attempt_status.value
+        assert (attempt.cost, attempt.cost_is_partial) == (Decimal("0.25"), True)
+        assert (run.spent_cost, run.cost_is_partial) == (Decimal("1.25"), True)
+
+    async def test_a_stale_settle_still_books_its_spend_on_the_run(
+        self, repo, event_log, test_node
+    ):
+        """The reconciler already settled this attempt, so its row is not
+        rewritten - but the handler did spend the money, and the run's total
+        is what the next dispatch's budget check reads."""
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(spent_cost=Decimal("0"))
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        attempt = _attempt(node_run_id=node_run.id, status=NodeAttemptStatus.UNCERTAIN.value)
+        begun = _begun(node, definition, attempt_id=attempt.id)
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Completed[_EchoOutput](output=_EchoOutput(echoed="late")),
+                cost=Decimal("0.4"),
+            ),
+        )
+
+        assert run.spent_cost == Decimal("0.4")
         repo.settle_attempt.assert_not_called()
 
 
@@ -1056,7 +1169,11 @@ class TestSettleShortCircuits:
         repo.get_attempt.return_value = attempt
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="late"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
         repo.settle_attempt.assert_not_called()
@@ -1101,7 +1218,11 @@ class TestSettleShortCircuits:
         )
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         # The attempt itself honestly records what happened...
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
@@ -1160,7 +1281,9 @@ class TestSettleShortCircuits:
         )
 
         await dispatcher.settle(
-            object(), begun=begun, result=make_result(), waiting_agent_run_id=None
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=make_result(), waiting_agent_run_id=None),
         )
 
         assert attempt.status == expected_status
@@ -1197,7 +1320,11 @@ class TestSettleShortCircuits:
         repo.settle_attempt.side_effect = _settle_effect
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         repo.mark_outbox_done.assert_not_called()
 
@@ -1235,7 +1362,11 @@ class TestSettleShortCircuits:
         )
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
         assert node_run.status == NodeRunStatus.CANCELLED.value
@@ -1279,7 +1410,11 @@ class TestSettleShortCircuits:
         repo.get_outbox_for_node_run_for_update.return_value = reclaimed_outbox
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="stale"))
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         repo.mark_outbox_done.assert_not_called()
         repo.settle_attempt.assert_not_called()
@@ -1321,7 +1456,9 @@ class TestSettleWaiting:
         agent_run_id = uuid.uuid4()
         result = Waiting(reason="approval", resume_token="whatever-the-handler-sent")
         await dispatcher.settle(
-            object(), begun=begun, result=result, waiting_agent_run_id=agent_run_id
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=agent_run_id),
         )
 
         # The attempt itself succeeded - it started a real effect and parked.
@@ -1363,7 +1500,11 @@ class TestSettleWaiting:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = Waiting(reason="external_event", resume_token="x")
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         assert run.status == WorkflowRunStatus.WAITING_RETRY.value
 
@@ -1408,7 +1549,11 @@ class TestSettleWaiting:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = Waiting(reason="approval", resume_token="whatever-the-handler-sent")
-        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+        )
 
         # The attempt still records what genuinely happened...
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
@@ -1456,7 +1601,11 @@ class TestSettleFailed:
 
         error = WorkflowError(code="TRANSIENT", message="try again", retryable=True)
         await dispatcher.settle(
-            object(), begun=begun, result=Failed(error=error), waiting_agent_run_id=None
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Failed(error=error), waiting_agent_run_id=None
+            ),
         )
 
         assert node_run.status == NodeRunStatus.WAITING.value
@@ -1495,7 +1644,11 @@ class TestSettleFailed:
 
         error = WorkflowError(code="BAD_INPUT", message="nope", retryable=False)
         await dispatcher.settle(
-            object(), begun=begun, result=Failed(error=error), waiting_agent_run_id=None
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Failed(error=error), waiting_agent_run_id=None
+            ),
         )
 
         assert node_run.status == NodeRunStatus.FAILED.value
@@ -1545,7 +1698,11 @@ class TestSettleFailed:
 
         error = WorkflowError(code="TRANSIENT", message="try again", retryable=True)
         await dispatcher.settle(
-            object(), begun=begun, result=Failed(error=error), waiting_agent_run_id=None
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Failed(error=error), waiting_agent_run_id=None
+            ),
         )
 
         assert node_run.status == NodeRunStatus.FAILED.value
@@ -1582,8 +1739,7 @@ class TestSettleUncertain:
         await dispatcher.settle(
             object(),
             begun=begun,
-            result=Uncertain(detail="timed out mid-call"),
-            waiting_agent_run_id=None,
+            outcome=dispatcher.HandlerOutcome(result=Uncertain(detail="timed out mid-call")),
         )
 
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value

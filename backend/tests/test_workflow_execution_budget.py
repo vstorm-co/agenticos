@@ -60,15 +60,15 @@ class TestPastDeadline:
 class TestAccumulate:
     def test_adds_cost_onto_the_running_total(self):
         run = _run(spent_cost=Decimal("2.5"))
-        budget.accumulate(run, cost=Decimal("1.25"), cost_is_partial=False)
-        assert run.spent_cost == Decimal("3.75")
+        update = budget.accumulate(run, cost=Decimal("1.25"), cost_is_partial=False)
+        assert update["spent_cost"] == Decimal("3.75")
 
     def test_a_partial_cost_flags_the_run(self):
         run = _run(cost_is_partial=False)
-        budget.accumulate(run, cost=Decimal("1"), cost_is_partial=True)
-        assert run.cost_is_partial is True
+        update = budget.accumulate(run, cost=Decimal("1"), cost_is_partial=True)
+        assert update["cost_is_partial"] is True
 
     def test_an_exact_cost_never_unflags_an_already_partial_run(self):
         run = _run(cost_is_partial=True)
-        budget.accumulate(run, cost=Decimal("1"), cost_is_partial=False)
-        assert run.cost_is_partial is True
+        update = budget.accumulate(run, cost=Decimal("1"), cost_is_partial=False)
+        assert update["cost_is_partial"] is True

@@ -102,12 +102,10 @@ async def workflow_dispatch_node_flow(workflow_run_id: str, node_run_id: str) ->
     if begun is None:
         return "not_dispatched"
 
-    result, waiting_agent_run_id = await dispatcher.call_handler(begun)
+    outcome = await dispatcher.call_handler(begun)
 
     async with get_worker_db_context() as db:
-        await dispatcher.settle(
-            db, begun=begun, result=result, waiting_agent_run_id=waiting_agent_run_id
-        )
+        await dispatcher.settle(db, begun=begun, outcome=outcome)
     return "settled"
 
 

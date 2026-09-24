@@ -107,6 +107,16 @@ class BegunAttempt:
     one it actually still owns."""
 
 
+@dataclass(frozen=True, slots=True)
+class HandlerOutcome:
+    """What one handler call produced: its result, and what it reported beside it."""
+
+    result: NodeResult
+    waiting_agent_run_id: UUID | None = None
+    cost: Decimal = Decimal(0)
+    cost_is_partial: bool = False
+
+
 async def claim(
     db: AsyncSession,
     *,
@@ -357,12 +367,18 @@ async def begin_attempt(
         )
         return None
     if budget.over_budget(run):
-        await workflow_run_repo.update_run(
-            db, run=run, update_data={"status": WorkflowRunStatus.BUDGET_EXCEEDED.value}
-        )
-        await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
-        await events.append(
-            db, run=run, kind=events.EventKind.RUN_BUDGET_EXCEEDED, node_run_id=node_run.id
+        # Terminal, not a pause: nothing resumes a run once its cap is spent
+        # (raising the cap means publishing a new version and starting again).
+        await _end_run_before_dispatch(
+            db,
+            run=run,
+            node_run=node_run,
+            outbox=outbox,
+            run_status=WorkflowRunStatus.BUDGET_EXCEEDED,
+            node_status=NodeRunStatus.CANCELLED,
+            event=events.EventKind.RUN_BUDGET_EXCEEDED,
+            code="BUDGET_EXCEEDED",
+            message="This run's budget was spent before this node could be dispatched",
         )
         return None
 
@@ -495,7 +511,7 @@ async def begin_attempt(
     )
 
 
-async def call_handler(begun: BegunAttempt) -> tuple[NodeResult, UUID | None]:
+async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
     """Phase 3's non-transactional half: run the handler under `dispatching_as`.
 
     Not called from inside either of `begin_attempt`/`settle`'s sessions -
@@ -507,7 +523,49 @@ async def call_handler(begun: BegunAttempt) -> tuple[NodeResult, UUID | None]:
     scope = context.dispatching_as(begun.dispatch_context)
     with scope:
         result = await begun.definition.handler(begun.handler_config, begun.handler_input)
-    return result, scope.waiting_agent_run_id
+    return HandlerOutcome(
+        result=result,
+        waiting_agent_run_id=scope.waiting_agent_run_id,
+        cost=scope.cost,
+        cost_is_partial=scope.cost_is_partial,
+    )
+
+
+async def _end_run_before_dispatch(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    outbox: DispatchOutbox,
+    run_status: WorkflowRunStatus,
+    node_status: NodeRunStatus,
+    event: str,
+    code: str,
+    message: str,
+) -> None:
+    """End `run` for good before `node_run` ever got an attempt.
+
+    Terminal in every column a reader checks: the run's status, `ended_at` and
+    `error`; the node this dispatch was for; and every outbox row still live
+    for the run, so nothing else is claimed for it afterwards.
+    """
+    now = datetime.now(UTC)
+    await workflow_run_repo.update_run(
+        db,
+        run=run,
+        update_data={
+            "status": run_status.value,
+            "ended_at": now,
+            "paused_reason": None,
+            "error": {"code": code, "message": message, "details": {}, "retryable": False},
+        },
+    )
+    await workflow_run_repo.update_node_run(
+        db, node_run=node_run, update_data={"status": node_status.value, "ended_at": now}
+    )
+    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await events.append(db, run=run, kind=event, node_run_id=node_run.id, payload={"code": code})
+    await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
 
 
 async def _fail_run(
@@ -519,25 +577,17 @@ async def _fail_run(
     code: str,
     message: str,
 ) -> None:
-    now = datetime.now(UTC)
-    await workflow_run_repo.update_run(
+    await _end_run_before_dispatch(
         db,
         run=run,
-        update_data={
-            "status": WorkflowRunStatus.FAILED.value,
-            "ended_at": now,
-            "error": {"code": code, "message": message, "details": {}, "retryable": False},
-        },
+        node_run=node_run,
+        outbox=outbox,
+        run_status=WorkflowRunStatus.FAILED,
+        node_status=NodeRunStatus.FAILED,
+        event=events.EventKind.RUN_FAILED,
+        code=code,
+        message=message,
     )
-    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
-    await events.append(
-        db,
-        run=run,
-        kind=events.EventKind.RUN_FAILED,
-        node_run_id=node_run.id,
-        payload={"code": code},
-    )
-    await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
 
 
 def _backoff_seconds(attempt_no: int) -> float:
@@ -644,11 +694,11 @@ def _still_owns(outbox: DispatchOutbox | None, token: UUID) -> TypeGuard[Dispatc
     )
 
 
-def _terminal_attempt_status(result: NodeResult) -> str:
-    """The `NodeAttempt` status each `NodeResult` variant settles to, on its
-    own - shared by the ordinary path and the two short-circuits below, so
-    all three agree on what actually happened to the attempt even when the
-    run itself no longer cares."""
+def _attempt_status(result: NodeResult) -> str:
+    """The `NodeAttempt` status each `NodeResult` variant settles to - the
+    same on the ordinary path and on the terminal-run short-circuit, so both
+    agree on what actually happened to the attempt even when the run itself
+    no longer cares."""
     if isinstance(result, Completed | Waiting):
         # A `Waiting` attempt still settles `completed`: it started a real
         # effect and parked, a known and handled pause, not an error.
@@ -660,10 +710,13 @@ def _terminal_attempt_status(result: NodeResult) -> str:
     raise TypeError(f"Unknown NodeResult variant: {result!r}")  # pragma: no cover - closed union
 
 
-async def settle(
-    db: AsyncSession, *, begun: BegunAttempt, result: NodeResult, waiting_agent_run_id: UUID | None
-) -> None:
-    """Phase 4: persist the attempt's terminal outcome and advance the run."""
+async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome) -> None:
+    """Phase 4: persist the attempt's terminal outcome and advance the run.
+
+    What the handler reported spending is booked onto the run on every path,
+    including the ones that discard its result: the money was spent either
+    way, and a cost that only lands on success is a budget with a hole in it.
+    """
     run = await workflow_run_repo.get_run_by_id_for_update(db, begun.workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, begun.node_run_id)
     attempt = await workflow_run_repo.get_attempt(db, begun.attempt_id)
@@ -673,6 +726,8 @@ async def settle(
         )
         return
     now = datetime.now(UTC)
+    result = outcome.result
+    run = await _book_cost(db, run=run, outcome=outcome)
 
     # A stale settle: the lease expired while the handler was genuinely still
     # running, `workflow-reconcile` already resolved this same attempt (to
@@ -681,7 +736,8 @@ async def settle(
     # verdict must not be silently overwritten by a late result arriving for
     # an attempt that is no longer "current" - `attempt.status` moving off
     # `in_flight` is exactly what says a different settle (or the reconciler)
-    # already had the last word on this attempt.
+    # already had the last word on this attempt. Its cost is still on the run
+    # (above); the attempt row itself is terminal and is not rewritten.
     if attempt.status != NodeAttemptStatus.IN_FLIGHT.value:
         logger.warning(
             "workflow_dispatch_settle_stale_attempt",
@@ -695,15 +751,7 @@ async def settle(
     # transition and no `_advance` - `cancel()` already closed every outbox
     # row, so there is nothing left to dispatch even if this had completed.
     if WorkflowRunStatus(run.status).is_terminal:
-        await workflow_run_repo.settle_attempt(
-            db,
-            attempt=attempt,
-            status=_terminal_attempt_status(result),
-            result=result.model_dump(mode="json"),
-            cost=Decimal(0),
-            cost_is_partial=False,
-            ended_at=now,
-        )
+        await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
         await workflow_run_repo.update_node_run(
             db,
             node_run=node_run,
@@ -744,51 +792,59 @@ async def settle(
     # until this closes it. Checking that after closing it, rather than
     # before, is what makes "no live outbox left" actually mean it.
     await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
 
     if isinstance(result, Completed):
-        await _settle_completed(
-            db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
-        )
+        await _settle_completed(db, run=run, node_run=node_run, now=now)
     elif isinstance(result, Waiting):
         await _settle_waiting(
             db,
             run=run,
             node_run=node_run,
-            attempt=attempt,
             result=result,
-            waiting_agent_run_id=waiting_agent_run_id,
-            now=now,
+            waiting_agent_run_id=outcome.waiting_agent_run_id,
         )
     elif isinstance(result, Failed):
         await _settle_failed(
             db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
         )
     elif isinstance(result, Uncertain):
-        await _settle_uncertain(
-            db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
-        )
+        await _settle_uncertain(db, run=run, node_run=node_run, result=result)
     else:  # pragma: no cover - NodeResult is a closed discriminated union
         raise TypeError(f"Unknown NodeResult variant: {result!r}")
 
 
-async def _settle_completed(
-    db: AsyncSession,
-    *,
-    run: WorkflowRun,
-    node_run: NodeRun,
-    attempt: NodeAttempt,
-    result: Completed[Any],
-    now: datetime,
+async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutcome) -> WorkflowRun:
+    """Add what the handler reported spending to the run's total, under its lock."""
+    if outcome.cost == 0 and not outcome.cost_is_partial:
+        return run
+    return await workflow_run_repo.update_run(
+        db,
+        run=run,
+        update_data=budget.accumulate(
+            run, cost=outcome.cost, cost_is_partial=outcome.cost_is_partial
+        ),
+    )
+
+
+async def _record_attempt(
+    db: AsyncSession, *, attempt: NodeAttempt, outcome: HandlerOutcome, now: datetime
 ) -> None:
+    """Write the attempt's terminal row: what happened, and what it cost."""
     await workflow_run_repo.settle_attempt(
         db,
         attempt=attempt,
-        status=NodeAttemptStatus.COMPLETED.value,
-        result=result.model_dump(mode="json"),
-        cost=Decimal(0),
-        cost_is_partial=False,
+        status=_attempt_status(outcome.result),
+        result=outcome.result.model_dump(mode="json"),
+        cost=outcome.cost,
+        cost_is_partial=outcome.cost_is_partial,
         ended_at=now,
     )
+
+
+async def _settle_completed(
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, now: datetime
+) -> None:
     await workflow_run_repo.update_node_run(
         db,
         node_run=node_run,
@@ -808,23 +864,9 @@ async def _settle_waiting(
     *,
     run: WorkflowRun,
     node_run: NodeRun,
-    attempt: NodeAttempt,
     result: Waiting,
     waiting_agent_run_id: UUID | None,
-    now: datetime,
 ) -> None:
-    # The attempt itself succeeded - it started a real effect and parked, a
-    # known and handled pause, not an error - so it settles `completed`.
-    await workflow_run_repo.settle_attempt(
-        db,
-        attempt=attempt,
-        status=NodeAttemptStatus.COMPLETED.value,
-        result=result.model_dump(mode="json"),
-        cost=Decimal(0),
-        cost_is_partial=False,
-        ended_at=now,
-    )
-
     if result.reason == WaitingReason.APPROVAL.value and waiting_agent_run_id is None:
         # The one invariant that makes an approval wait durable: a handler
         # declaring `Waiting(reason="approval")` must also report the
@@ -891,15 +933,6 @@ async def _settle_failed(
     result: Failed,
     now: datetime,
 ) -> None:
-    await workflow_run_repo.settle_attempt(
-        db,
-        attempt=attempt,
-        status=NodeAttemptStatus.FAILED.value,
-        result=result.model_dump(mode="json"),
-        cost=Decimal(0),
-        cost_is_partial=False,
-        ended_at=now,
-    )
     # #1790 owns the real policy; the minimal placeholder this design calls
     # for is "idempotent/at_least_once nodes get a fixed small ceiling of
     # backoff retries, none gets zero" - narrowed further by the node's own
@@ -967,23 +1000,8 @@ async def _settle_failed(
 
 
 async def _settle_uncertain(
-    db: AsyncSession,
-    *,
-    run: WorkflowRun,
-    node_run: NodeRun,
-    attempt: NodeAttempt,
-    result: Uncertain,
-    now: datetime,
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, result: Uncertain
 ) -> None:
-    await workflow_run_repo.settle_attempt(
-        db,
-        attempt=attempt,
-        status=NodeAttemptStatus.UNCERTAIN.value,
-        result=result.model_dump(mode="json"),
-        cost=Decimal(0),
-        cost_is_partial=False,
-        ended_at=now,
-    )
     await workflow_run_repo.update_node_run(
         db, node_run=node_run, update_data={"status": NodeRunStatus.NEEDS_ATTENTION.value}
     )
