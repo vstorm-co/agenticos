@@ -238,6 +238,7 @@ class TestCancelRoute:
         workflow = _workflow(id=run.workflow_id)
         cancelled = _run_row(id=run.id, status=WorkflowRunStatus.CANCELLED.value)
         with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
@@ -259,6 +260,7 @@ class TestCancelRoute:
         run = _run_row(status=WorkflowRunStatus.SUCCEEDED.value)
         workflow = _workflow(id=run.workflow_id)
         with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
