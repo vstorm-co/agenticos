@@ -311,11 +311,11 @@ class NodeRun(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    # No index of its own: `uq_node_run_identity` leads with it.
     workflow_run_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("workflow_runs.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     # A `NodeInstance.id` from the run's own graph blob - not a foreign key,
     # since the graph it names is frozen JSONB, not a row.
@@ -378,11 +378,11 @@ class NodeAttempt(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    # No index of its own: `uq_node_attempt_number` leads with it.
     node_run_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("node_runs.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
     # Stable across attempts of the same logical operation, distinct across
@@ -520,18 +520,23 @@ class WorkflowEvent(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    # No index of its own: `uq_workflow_event_seq` leads with it.
     workflow_run_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("workflow_runs.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     # From `WorkflowRun.next_event_seq`, incremented in the same transaction
     # as this insert - a per-run monotonic counter, never a shared sequence.
     seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Indexed for the cascade from `node_runs`: deleting a workflow or an
+    # organization checks this table once per deleted node run.
     node_run_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("node_runs.id", ondelete="CASCADE"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("node_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
