@@ -726,21 +726,32 @@ class TestLeaseKeptAliveThroughTheFlow:
 async def test_the_settling_flow_submits_the_next_node_itself_after_its_commit(
     engine: AsyncEngine, node_kind
 ):
-    """Handed to a task the flow's process might not outlive, the next node's
-    submission could be lost and the chain would wait out the poll; the flow
-    now awaits it, and stamps the row so the poll does not submit it again."""
+    """The flow submits the node its settle made ready only once that settle
+    has committed: the submitted flow claims the row by id from a session of
+    its own, so a row still uncommitted at submission is one it cannot find.
+    The row is stamped submitted, so the poll does not submit it again."""
     seeded = await _seed(engine, _chain(node_kind(_echo), 2))
+    seen_at_submission: list[tuple[str, str | None]] = []
 
-    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as run_deployment:
+    async def submit(*, parameters: dict[str, str], **_kwargs: object) -> None:
+        async with seeded.factory() as reader:
+            row = (
+                await reader.execute(
+                    select(DispatchOutbox).where(
+                        DispatchOutbox.node_run_id == uuid.UUID(parameters["node_run_id"])
+                    )
+                )
+            ).scalar_one_or_none()
+        seen_at_submission.append(
+            (parameters["node_run_id"], row.status if row is not None else None)
+        )
+
+    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock(side_effect=submit)):
         status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
 
     assert status == "settled"
     second = (await _node_runs(seeded))[1]
-    run_deployment.assert_awaited_once()
-    assert run_deployment.await_args.kwargs["parameters"] == {
-        "workflow_run_id": str(seeded.run.id),
-        "node_run_id": str(second.id),
-    }
+    assert seen_at_submission == [(str(second.id), DispatchOutboxStatus.PENDING.value)]
     pending = [
         row
         for row in await _outbox_rows(seeded)
