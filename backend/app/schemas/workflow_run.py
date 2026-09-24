@@ -6,8 +6,11 @@ from uuid import UUID
 
 from pydantic import Field
 
-from app.db.models.workflow_run import WorkflowRunMode
+from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.schemas.base import BaseSchema, TimestampSchema
+
+MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
+"""The longest deadline a run may be started with: thirty days."""
 
 
 class WorkflowRunStart(BaseSchema):
@@ -22,14 +25,24 @@ class WorkflowRunStart(BaseSchema):
 
     workflow_id: UUID
     mode: WorkflowRunMode = WorkflowRunMode.REAL
+    deadline_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_RUN_DEADLINE_SECONDS,
+        description=(
+            "Seconds from now after which no further node of this run is dispatched; "
+            "a node refused for it fails the run with `DEADLINE_EXCEEDED`. A node "
+            "already running, or waiting on an approval, is not interrupted."
+        ),
+    )
 
 
 class WorkflowRunRead(BaseSchema, TimestampSchema):
     id: UUID
     workflow_id: UUID
     workflow_version_id: UUID | None
-    mode: str
-    status: str
+    mode: WorkflowRunMode
+    status: WorkflowRunStatus
     triggered_by: str
     budget_limit: float | None
     spent_cost: float
@@ -50,6 +63,9 @@ class WorkflowRunList(BaseSchema):
 
 
 class WorkflowEventRead(BaseSchema):
+    """One entry in a run's event stream. Events are append-only, so there is
+    no `updated_at` and this is not a `TimestampSchema`."""
+
     id: UUID
     seq: int
     kind: str
@@ -62,5 +78,9 @@ class WorkflowEventList(BaseSchema):
     items: list[WorkflowEventRead]
     next_cursor: str | None = Field(
         default=None,
-        description="Pass as `after` on the next call. Null once nothing newer exists.",
+        description=(
+            "Pass as `after` on the next call. Unchanged from `after` when nothing newer "
+            "exists yet, so a client tailing a live run keeps polling with it; null only "
+            "for a run with no events at all when no `after` was given."
+        ),
     )

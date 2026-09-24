@@ -58,14 +58,21 @@ async def _org(db: AsyncSession) -> Organization:
     return org
 
 
-async def _workflow(db: AsyncSession, org: Organization) -> Workflow:
+async def _workflow(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    owner_user_id: uuid.UUID | None = None,
+    visibility: Visibility = Visibility.PRIVATE,
+) -> Workflow:
     workflow = Workflow(
         id=uuid.uuid4(),
         organization_id=org.id,
+        owner_user_id=owner_user_id,
         slug=f"wf-{uuid.uuid4().hex[:8]}",
         name="Import orders",
         status=WorkflowStatus.PUBLISHED.value,
-        visibility=Visibility.PRIVATE.value,
+        visibility=visibility.value,
         draft_graph={},
     )
     db.add(workflow)
@@ -985,36 +992,40 @@ class TestListRuns:
         assert total == 1
         assert [item.id for item in items] == [run_a.id]
 
-    async def test_visible_workflow_ids_narrows_the_unfiltered_list(self, db: AsyncSession):
+    async def test_a_user_sees_runs_of_their_own_org_visible_and_shared_workflows(
+        self, db: AsyncSession
+    ):
+        """The same three ways in as the workflow listing - owned, visible to
+        the organization, shared - and another member's private workflow is
+        not one of them."""
         org = await _org(db)
-        visible_workflow = await _workflow(db, org)
-        hidden_workflow = await _workflow(db, org)
-        visible_run = await _run(db, org, visible_workflow)
-        await _run(db, org, hidden_workflow)
-        items, total = await workflow_run_repo.list_runs(
-            db, organization_id=org.id, visible_workflow_ids=[visible_workflow.id]
-        )
-        assert total == 1
-        assert [item.id for item in items] == [visible_run.id]
+        me, colleague = uuid.uuid4(), uuid.uuid4()
+        for user_id in (me, colleague):
+            db.add(User(id=user_id, email=f"{user_id.hex}@example.com", hashed_password="x"))
+        await db.flush()
+        mine = await _workflow(db, org, owner_user_id=me)
+        org_wide = await _workflow(db, org, owner_user_id=colleague, visibility=Visibility.ORG)
+        shared = await _workflow(db, org, owner_user_id=colleague)
+        private = await _workflow(db, org, owner_user_id=colleague)
+        runs = {wf.id: await _run(db, org, wf) for wf in (mine, org_wide, shared, private)}
 
-    async def test_an_empty_visible_list_narrows_to_nothing(self, db: AsyncSession):
+        items, total = await workflow_run_repo.list_runs(
+            db, organization_id=org.id, visible_to_user_id=me, shared_workflow_ids=[shared.id]
+        )
+
+        assert total == 3
+        assert {item.id for item in items} == {
+            runs[mine.id].id,
+            runs[org_wide.id].id,
+            runs[shared.id].id,
+        }
+
+    async def test_no_user_to_narrow_by_sees_everything(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)
         await _run(db, org, workflow)
-        items, total = await workflow_run_repo.list_runs(
-            db, organization_id=org.id, visible_workflow_ids=[]
-        )
-        assert total == 0
-        assert items == []
-
-    async def test_none_visible_ids_sees_everything(self, db: AsyncSession):
-        org = await _org(db)
-        workflow = await _workflow(db, org)
         await _run(db, org, workflow)
-        await _run(db, org, workflow)
-        _items, total = await workflow_run_repo.list_runs(
-            db, organization_id=org.id, visible_workflow_ids=None
-        )
+        _items, total = await workflow_run_repo.list_runs(db, organization_id=org.id)
         assert total == 2
 
 

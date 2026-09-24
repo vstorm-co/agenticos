@@ -4,7 +4,7 @@
 path segment, but the authorization shape is the same as a per-resource
 route: `WorkflowExecutionService` resolves access to that one workflow and
 reports a refusal as "not found", so no `require(...)` gate belongs here -
-see `.claude/rules/permissions-rbac.md`. `GET /workflow-runs` is the one true
+see the `permissions-rbac` skill. `GET /workflow-runs` is the one true
 collection route (it can list across every workflow the caller may see) and
 carries the collection gate to match.
 """
@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, WorkflowExecutionSvc, require
+from app.api.deps import Auth, WorkflowExecutionSvc, limit_workflow_run, require
 from app.core.permissions import Perm
 from app.schemas.workflow_run import (
     WorkflowEventList,
@@ -26,13 +26,23 @@ from app.schemas.workflow_run import (
 router = APIRouter()
 
 
-@router.post("", response_model=WorkflowRunRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=WorkflowRunRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_workflow_run)],
+)
 async def start_workflow_run(
     data: WorkflowRunStart, service: WorkflowExecutionSvc, ctx: Auth
 ) -> Any:
     """Start a run of `data.workflow_id`'s current published version (or, in
-    `test` mode, a snapshot of its current draft graph)."""
-    return await service.start(ctx, data.workflow_id, mode=data.mode)
+    `test` mode, a snapshot of its current draft graph).
+
+    Rate-limited per caller like `POST /agents/{id}/run`; over the allowance
+    answers 429 with `Retry-After`."""
+    return await service.start(
+        ctx, data.workflow_id, mode=data.mode, deadline_seconds=data.deadline_seconds
+    )
 
 
 @router.get(

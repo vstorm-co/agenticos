@@ -2,11 +2,9 @@
 
 `WorkflowEvent.seq` is a per-run monotonic counter, incremented in the same
 transaction as the insert - never a shared sequence, so a cursor for one run
-stays small, dense and meaningless for another. The codec below is
-`app.services.notification_center.encode_cursor`/`decode_cursor`'s shape,
-reused rather than reinvented, with the run-scoped `seq` in place of a
-timestamp tiebreak - there is nothing to tie-break here, since `seq` alone
-already orders a run's events without ambiguity.
+stays small, dense and meaningless for another. The cursor is that `seq`
+alone, as a string: unlike a timestamp-ordered listing there is nothing to
+tie-break, since `seq` already orders a run's events without ambiguity.
 """
 
 from __future__ import annotations
@@ -39,7 +37,6 @@ class EventKind:
     NODE_FAILED = "node_failed"
     NODE_WAITING = "node_waiting"
     NODE_UNCERTAIN = "node_uncertain"
-    NODE_SKIPPED = "node_skipped"
     NODE_RETRYING = "node_retrying"
     ATTEMPT_RECLAIMED = "attempt_reclaimed"
 
@@ -68,8 +65,21 @@ def encode_cursor(seq: int) -> str:
     return str(seq)
 
 
+_MAX_SEQ = 2**63 - 1
+"""`WorkflowEvent.seq` is a `BIGINT`; a larger cursor cannot be bound to it."""
+
+
 def decode_cursor(raw: str) -> int:
+    """The `seq` a cursor names.
+
+    Raises:
+        BadRequestError: Not an integer, or outside `0..2**63-1` - the range
+            `seq` can hold - rather than failing later as a database error.
+    """
     try:
-        return int(raw)
+        value = int(raw)
     except ValueError as exc:
         raise BadRequestError(message="Invalid pagination cursor", details={"cursor": raw}) from exc
+    if not 0 <= value <= _MAX_SEQ:
+        raise BadRequestError(message="Invalid pagination cursor", details={"cursor": raw})
+    return value

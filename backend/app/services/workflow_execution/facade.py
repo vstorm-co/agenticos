@@ -9,17 +9,24 @@ anything about the run itself is touched.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
-from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import (
+    ResourceRefKind,
+    WorkflowRun,
+    WorkflowRunMode,
+    WorkflowRunStatus,
+    WorkflowRunTrigger,
+)
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import (
@@ -79,10 +86,16 @@ class WorkflowExecutionService:
         workflow_id: UUID,
         *,
         mode: WorkflowRunMode = WorkflowRunMode.REAL,
-        triggered_by: str = "api",
+        triggered_by: WorkflowRunTrigger = WorkflowRunTrigger.API,
+        deadline_seconds: int | None = None,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
+
+        `deadline_seconds` sets the run's wall-clock deadline from now: a node
+        not yet dispatched when it passes is refused and the run fails with
+        `DEADLINE_EXCEEDED`. It is checked when a node is dispatched, so a node
+        already running, or parked on an approval, is not interrupted by it.
 
         Raises:
             NotFoundError: The workflow does not exist, or this caller may
@@ -115,6 +128,9 @@ class WorkflowExecutionService:
         )
 
         now = datetime.now(UTC)
+        deadline_at = (
+            now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
+        )
         run = await workflow_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
@@ -122,10 +138,10 @@ class WorkflowExecutionService:
             workflow_version_id=workflow_version_id,
             draft_graph_snapshot=draft_snapshot,
             mode=mode.value,
-            triggered_by=triggered_by,
+            triggered_by=triggered_by.value,
             execution_principal_user_id=ctx.subject_id,
             budget_limit=budget_limit,
-            deadline_at=None,
+            deadline_at=deadline_at,
             root_run_id=None,
             causation_run_id=None,
             visited_trigger_ids=[],
@@ -159,35 +175,47 @@ class WorkflowExecutionService:
     async def cancel(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
         """Stop a run: no further node ever dispatches for it.
 
-        Cancels every non-`done` `DispatchOutbox` row. What the design also
-        calls for - cancelling a live linked `agent_runs` row through its
-        existing path - has no existing path today: this codebase has no
-        agent-run cancellation mechanism to call (grepped across
-        `AgentRunnerService`, `agent_run_repo` and the run routes). Inventing
-        one is a different subsystem's scope, not #1788's; a `NodeRun` still
-        `waiting`/`approval` when its workflow is cancelled is left exactly
-        as it was; whichever issue adds agent-run cancellation should close
+        Who may: the person who started the run, while they may still run its
+        workflow (`workflows:run`), or anyone who may edit the workflow
+        (`workflows:edit`). Holding `workflows:run` alone - a Member on an
+        organization-visible workflow, a `use` grant - lets a caller start
+        their own runs, not stop a colleague's.
+
+        Cancels every `pending` or `claimed` `DispatchOutbox` row. What the
+        design also calls for - cancelling a live linked `agent_runs` row
+        through its existing path - has no existing path today: this codebase
+        has no agent-run cancellation mechanism to call. Inventing one is a
+        different subsystem's scope, not #1788's; a `NodeRun` still
+        `waiting`/`approval` when its workflow is cancelled is left exactly as
+        it was, and whichever issue adds agent-run cancellation should close
         this gap in the same change.
 
         Raises:
-            NotFoundError: No such run, or this caller may not reach its workflow.
-            AuthorizationError: The caller lacks `workflows:run`.
+            WorkflowRunNotFoundError: No such run, or this caller may not see
+                it - the same answer either way.
+            AuthorizationError: The caller may see the run but not cancel it.
             WorkflowRunAlreadyTerminalError: The run already ended.
         """
         # Scoped, not `get_run_by_id_for_update` - that lookup is for the
         # dispatcher and reconciler, which act on ids they already trust, not
         # on a caller-supplied one that still needs the organization boundary
-        # checked. An unscoped lookup would lock another tenant's row before
-        # `_authorize` ever runs, and the `NotFoundError` it eventually
-        # raises would name that row's own `workflow_id` in `details` - a
-        # cross-tenant identifier the caller never supplied and the scoped
-        # read routes never expose.
+        # checked before any row is locked.
         run = await workflow_run_repo.get_run_for_update(
             self.db, run_id, organization_id=ctx.organization_id
         )
-        if run is None:
+        workflow = (
+            await self._reachable(ctx, run.workflow_id, Perm.WORKFLOWS_VIEW)
+            if run is not None
+            else None
+        )
+        if run is None or workflow is None:
             raise WorkflowRunNotFoundError(run_id=run_id)
-        await self._authorize(ctx, run.workflow_id, Perm.WORKFLOWS_RUN)
+        if not await self._may_cancel(ctx, run, workflow):
+            raise AuthorizationError(
+                message="Only the person who started this run, or an editor of its "
+                "workflow, may cancel it",
+                details={"run_id": run.id},
+            )
         if WorkflowRunStatus(run.status).is_terminal:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 
@@ -216,23 +244,28 @@ class WorkflowExecutionService:
         If `workflow_id` is given, it is checked the same way `get` checks a
         single run's - a 404 rather than an empty page for a workflow the
         caller cannot reach, so this cannot be used to probe which workflow
-        ids exist. Otherwise, narrowed to the workflows this caller may see
-        at all - `visible_resource_ids` - so a role scoped to its own
-        workflows does not see every other workflow's run history just
-        because it asked for the unfiltered list.
+        ids exist. Otherwise, narrowed to the workflows this caller may see at
+        all - their own, organization-visible ones and those shared with them,
+        exactly what `GET /workflows` lists - so a role scoped to what it can
+        see does not see every other workflow's run history just because it
+        asked for the unfiltered list.
         """
-        visible_workflow_ids: list[UUID] | None = None
+        visible_to_user_id: UUID | None = None
+        shared: list[UUID] | None = None
         if workflow_id is not None:
             await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
         else:
-            visible_workflow_ids = await visible_resource_ids(
+            shared = await visible_resource_ids(
                 self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
             )
+            if shared is not None:
+                visible_to_user_id = ctx.subject_id
         items, total = await workflow_run_repo.list_runs(
             self.db,
             organization_id=ctx.organization_id,
             workflow_id=workflow_id,
-            visible_workflow_ids=visible_workflow_ids,
+            visible_to_user_id=visible_to_user_id,
+            shared_workflow_ids=shared,
             skip=skip,
             limit=limit,
         )
@@ -259,8 +292,8 @@ class WorkflowExecutionService:
             items=[WorkflowEventRead.model_validate(row) for row in rows], next_cursor=next_cursor
         )
 
-    async def _authorize(self, ctx: AuthContext, workflow_id: UUID, perm: Perm) -> Workflow:
-        """The workflow, if this caller may exercise `perm` on it.
+    async def _reachable(self, ctx: AuthContext, workflow_id: UUID, perm: Perm) -> Workflow | None:
+        """The workflow, if this caller may exercise `perm` on it; else `None`.
 
         A run's visibility mirrors its workflow's - there is no separate
         grant on a run - so authorizing a run action means resolving access
@@ -272,19 +305,41 @@ class WorkflowExecutionService:
         if workflow is None or not await resolve_access(
             self.db, ctx, workflow, perm, resource_type=WORKFLOW
         ):
+            return None
+        return workflow
+
+    async def _authorize(self, ctx: AuthContext, workflow_id: UUID, perm: Perm) -> Workflow:
+        """`_reachable`, for a workflow id the caller supplied themselves."""
+        workflow = await self._reachable(ctx, workflow_id, perm)
+        if workflow is None:
             raise NotFoundError(message="Workflow not found", details={"workflow_id": workflow_id})
         return workflow
 
     async def _load(self, ctx: AuthContext, run_id: UUID, perm: Perm) -> WorkflowRun:
+        """The run, if this caller may exercise `perm` on its workflow.
+
+        A missing run and a run whose workflow the caller may not reach get
+        the same `WorkflowRunNotFoundError`, naming only the id they asked
+        for: telling them apart would confirm the run exists, and naming its
+        workflow would hand out the id of a workflow they cannot see.
+        """
         run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
-        if run is None:
+        if run is None or await self._reachable(ctx, run.workflow_id, perm) is None:
             raise WorkflowRunNotFoundError(run_id=run_id)
-        await self._authorize(ctx, run.workflow_id, perm)
         return run
+
+    async def _may_cancel(self, ctx: AuthContext, run: WorkflowRun, workflow: Workflow) -> bool:
+        if await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        ):
+            return True
+        return run.execution_principal_user_id == ctx.user_id and await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        )
 
     async def _resolve_start_graph(
         self, ctx: AuthContext, workflow: Workflow, *, mode: WorkflowRunMode
-    ) -> tuple[WorkflowGraph, UUID | None, dict[str, Any] | None, Any]:
+    ) -> tuple[WorkflowGraph, UUID | None, dict[str, Any] | None, Decimal | None]:
         if mode is WorkflowRunMode.REAL:
             if workflow.current_version_id is None:
                 raise WorkflowNotRunnableError(workflow_id=workflow.id)
@@ -324,10 +379,10 @@ class WorkflowExecutionService:
     async def _record_resource_refs(self, run: WorkflowRun, graph: WorkflowGraph) -> None:
         """`FileRef`/`TableIORef` bindings, resolved once at run start.
 
-        Thin and unopinionated, matching the contract itself
-        (56-shared-contracts.md, decision 1/2): this records what the graph
-        named, not whether it still resolves against real storage - #1791's
-        job once it exists.
+        Thin and unopinionated, like the reference types themselves
+        (`app.workflows.contracts.io`): this records what the graph named, not
+        whether it still resolves against real storage - #1791's job once it
+        exists.
         """
         for binding in graph.bindings:
             if isinstance(binding.source, FileRef):
@@ -335,7 +390,7 @@ class WorkflowExecutionService:
                     self.db,
                     organization_id=run.organization_id,
                     workflow_run_id=run.id,
-                    kind="file",
+                    kind=ResourceRefKind.FILE.value,
                     ref=binding.source.model_dump(mode="json"),
                 )
             elif isinstance(binding.source, TableIORef):
@@ -343,7 +398,7 @@ class WorkflowExecutionService:
                     self.db,
                     organization_id=run.organization_id,
                     workflow_run_id=run.id,
-                    kind="table",
+                    kind=ResourceRefKind.TABLE.value,
                     ref=binding.source.model_dump(mode="json"),
                 )
 

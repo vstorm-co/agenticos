@@ -21,6 +21,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
+from app.db.models.workflow import Workflow
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -34,6 +35,7 @@ from app.db.models.workflow_run import (
     WorkflowRun,
     WorkflowRunStatus,
 )
+from app.repositories import workflow as workflow_repo
 
 # WorkflowRun
 
@@ -132,24 +134,30 @@ async def list_runs(
     *,
     organization_id: UUID,
     workflow_id: UUID | None = None,
-    visible_workflow_ids: list[UUID] | None = None,
+    visible_to_user_id: UUID | None = None,
+    shared_workflow_ids: list[UUID] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[WorkflowRun], int]:
     """Runs in `organization_id`, optionally narrowed to one workflow.
 
-    `visible_workflow_ids` is consulted only when `workflow_id` is not given
-    - `None` means the caller's role already reaches every workflow (the
-    same contract `app.services.access.visible_resource_ids` documents), and
-    an empty list is a caller with no visible workflow at all, not "no
-    filter" - so it must narrow the query to nothing, never be treated the
-    same as `None`.
+    Without `workflow_id`, a `visible_to_user_id` narrows the list to runs of
+    the workflows that user may see - their own, organization-visible ones
+    and `shared_workflow_ids` - by the same condition the workflow listing
+    uses (`workflow_repo.visible_to`). `None` means the caller's role already
+    reaches every workflow.
     """
     where = [WorkflowRun.organization_id == organization_id]
     if workflow_id is not None:
         where.append(WorkflowRun.workflow_id == workflow_id)
-    elif visible_workflow_ids is not None:
-        where.append(WorkflowRun.workflow_id.in_(visible_workflow_ids))
+    elif visible_to_user_id is not None:
+        visible = select(Workflow.id).where(
+            Workflow.organization_id == organization_id,
+            workflow_repo.visible_to(
+                user_id=visible_to_user_id, shared_ids=shared_workflow_ids or []
+            ),
+        )
+        where.append(WorkflowRun.workflow_id.in_(visible))
     total = await db.scalar(select(func.count()).select_from(WorkflowRun).where(*where)) or 0
     result = await db.execute(
         select(WorkflowRun)

@@ -393,7 +393,7 @@ class TestCancel:
                 new=AsyncMock(return_value=run),
             ),
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=None)),
-            pytest.raises(NotFoundError),
+            pytest.raises(WorkflowRunNotFoundError),
         ):
             await service.cancel(_ctx(), run.id)
 
@@ -490,6 +490,7 @@ class TestList:
 
     async def test_an_unfiltered_list_is_narrowed_to_visible_workflows(self):
         service = WorkflowExecutionService(MagicMock())
+        ctx = _ctx(OrgRoleName.MEMBER.value)
         visible_ids = [uuid.uuid4()]
         with (
             patch(
@@ -499,11 +500,23 @@ class TestList:
                 f"{FACADE_PATH}.workflow_run_repo.list_runs", new=AsyncMock(return_value=([], 0))
             ) as list_runs,
         ):
-            result = await service.list(_ctx())
+            result = await service.list(ctx)
 
         visible.assert_awaited_once()
-        assert list_runs.await_args.kwargs["visible_workflow_ids"] == visible_ids
+        assert list_runs.await_args.kwargs["visible_to_user_id"] == ctx.user_id
+        assert list_runs.await_args.kwargs["shared_workflow_ids"] == visible_ids
         assert result.total == 0
+
+    async def test_a_role_that_reaches_every_workflow_lists_unfiltered(self):
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_runs", new=AsyncMock(return_value=([], 0))
+            ) as list_runs,
+        ):
+            await service.list(_ctx())
+        assert list_runs.await_args.kwargs["visible_to_user_id"] is None
 
     async def test_a_workflow_scoped_list_is_authorized_against_that_workflow(self):
         workflow = _workflow()

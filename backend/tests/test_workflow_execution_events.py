@@ -47,3 +47,12 @@ class TestCursorCodec:
     def test_a_non_numeric_cursor_is_refused(self):
         with pytest.raises(BadRequestError):
             events.decode_cursor("not-a-number")
+
+    @pytest.mark.parametrize("raw", ["-1", str(2**63)])
+    def test_a_cursor_no_sequence_number_can_hold_is_refused(self, raw: str):
+        """Past `BIGINT`, binding the value failed in the database as a 500."""
+        with pytest.raises(BadRequestError):
+            events.decode_cursor(raw)
+
+    def test_the_largest_sequence_number_is_a_legitimate_cursor(self):
+        assert events.decode_cursor(str(2**63 - 1)) == 2**63 - 1

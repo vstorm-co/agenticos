@@ -716,6 +716,25 @@ async def limit_agent_run(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
 
 
+async def limit_workflow_run(ctx: Auth) -> None:
+    """Refuse a caller starting more workflow runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    each start queues dispatch work - outbox rows, worker flow runs, events -
+    and a run's nodes can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_workflow_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="workflow_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
+
+
 async def limit_ml_call(ctx: Auth) -> None:
     """Refuse a caller asking the ML services for more than their share.
 
