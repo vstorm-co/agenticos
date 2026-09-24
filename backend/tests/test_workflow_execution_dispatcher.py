@@ -14,6 +14,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, create_autospec, patch
 import pytest
 from pydantic import BaseModel
 
+from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import WorkflowVersion
 from app.db.models.workflow_run import (
     DispatchOutbox,
@@ -30,7 +31,10 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo_module
 from app.services.workflow_execution import context, dispatcher
-from app.services.workflow_execution.exceptions import WorkflowGraphUnresolvableError
+from app.services.workflow_execution.exceptions import (
+    PrincipalRevokedError,
+    WorkflowGraphUnresolvableError,
+)
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
@@ -49,22 +53,17 @@ pytestmark = pytest.mark.anyio
 DISPATCHER_PATH = "app.services.workflow_execution.dispatcher"
 
 
-@pytest.fixture(autouse=True)
-def _no_member_by_default():
-    """Most tests here do not care about the acting member's role - only
-    `TestAuthContextFor` does, and its own `with patch(...)` blocks override
-    this for their duration."""
-    with patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=None)):
-        yield
+_REAL_PRINCIPAL_CONTEXT = dispatcher._principal_context
 
 
 @pytest.fixture(autouse=True)
-def _no_app_admin_by_default():
-    """Most tests here do not care whether the acting principal is an app
-
-    admin - only `TestAuthContextFor` does, and its own `with patch(...)`
-    blocks override this for their duration."""
-    with patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=None)):
+def _principal_still_entitled():
+    """Most tests here are about something other than the principal recheck -
+    only `TestPrincipalContext` is, and it calls the real function directly."""
+    with patch(
+        f"{DISPATCHER_PATH}._principal_context",
+        new=AsyncMock(return_value=MagicMock(spec=AuthContext)),
+    ):
         yield
 
 
@@ -383,60 +382,92 @@ class TestResolveGraph:
             await dispatcher.resolve_graph(object(), run)
 
 
-class TestAuthContextFor:
-    async def test_no_principal_gets_no_subject(self):
-        run = _run(execution_principal_user_id=None)
-        auth = await dispatcher._auth_context_for(object(), run)
-        assert auth.user_id is None
-        assert auth.role == ""
+def _principal(**overrides: object) -> MagicMock:
+    return MagicMock(**{"is_active": True, "is_app_admin": False, **overrides})
 
-    async def test_an_active_member_gets_their_current_role(self):
-        run = _run()
-        member = MagicMock(role="admin")
-        with patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=member)):
-            auth = await dispatcher._auth_context_for(object(), run)
-        assert auth.role == "admin"
-        assert auth.user_id == run.execution_principal_user_id
 
-    async def test_a_principal_no_longer_an_active_member_gets_no_role(self):
-        run = _run()
-        with patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=None)):
-            auth = await dispatcher._auth_context_for(object(), run)
-        assert auth.role == ""
-        assert auth.user_id == run.execution_principal_user_id
+@pytest.mark.security
+class TestPrincipalContext:
+    """A parked node can wake days after its run started; each dispatch acts
+    with the authority its principal holds *now*, or is refused."""
 
-    async def test_an_app_admin_keeps_that_authority_even_with_no_membership(self):
-        """`is_app_admin` lives on the user row, independent of organization
-
-        membership (mirrors `app.api.deps.get_auth_context`) - an app admin
-        who started a run with no membership in the run's organization must
-        not have a node handler run with no permissions just because this
-        context never looked at the flag.
-        """
-        run = _run()
-        user = MagicMock(is_app_admin=True)
+    @pytest.fixture
+    def lookups(self):
         with (
-            patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=None)),
-            patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=user)),
+            patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock()) as user,
+            patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock()) as member,
+            patch(f"{DISPATCHER_PATH}.workflow_repo.get", new=AsyncMock()) as workflow,
+            patch(f"{DISPATCHER_PATH}.resolve_access", new=AsyncMock(return_value=True)) as access,
         ):
-            auth = await dispatcher._auth_context_for(object(), run)
+            user.return_value = _principal()
+            member.return_value = MagicMock(role="member")
+            yield {"user": user, "member": member, "workflow": workflow, "access": access}
+
+    async def test_an_entitled_member_acts_with_their_current_role(self, lookups):
+        run = _run()
+        auth = await _REAL_PRINCIPAL_CONTEXT(object(), run)
+        assert (auth.user_id, auth.role, auth.is_app_admin) == (
+            run.execution_principal_user_id,
+            "member",
+            False,
+        )
+        assert [call.args[3] for call in lookups["access"].await_args_list] == [Perm.WORKFLOWS_RUN]
+
+    async def test_a_test_mode_run_also_needs_edit_on_the_workflow(self, lookups):
+        await _REAL_PRINCIPAL_CONTEXT(object(), _run(mode=WorkflowRunMode.TEST.value))
+        assert [call.args[3] for call in lookups["access"].await_args_list] == [
+            Perm.WORKFLOWS_RUN,
+            Perm.WORKFLOWS_EDIT,
+        ]
+
+    async def test_an_active_app_admin_without_membership_keeps_that_authority(self, lookups):
+        lookups["user"].return_value = _principal(is_app_admin=True)
+        lookups["member"].return_value = None
+        auth = await _REAL_PRINCIPAL_CONTEXT(object(), _run())
         assert auth.is_app_admin is True
 
-    async def test_an_ordinary_member_does_not_get_app_admin_authority(self):
+    @pytest.mark.parametrize(
+        "revoke",
+        [
+            pytest.param(
+                lambda lookups, run: setattr(run, "execution_principal_user_id", None),
+                id="no-principal",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(lookups["user"], "return_value", None),
+                id="account-gone",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(
+                    lookups["user"], "return_value", _principal(is_active=False)
+                ),
+                id="deactivated",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(
+                    lookups["user"], "return_value", _principal(is_active=False, is_app_admin=True)
+                ),
+                id="deactivated-app-admin",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(lookups["member"], "return_value", None),
+                id="removed-member",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(lookups["workflow"], "return_value", None),
+                id="workflow-gone",
+            ),
+            pytest.param(
+                lambda lookups, run: setattr(lookups["access"], "return_value", False),
+                id="no-longer-may-run",
+            ),
+        ],
+    )
+    async def test_a_principal_no_longer_entitled_is_refused(self, lookups, revoke):
         run = _run()
-        user = MagicMock(is_app_admin=False)
-        member = MagicMock(role="admin")
-        with (
-            patch(f"{DISPATCHER_PATH}.member_repo.get_active", new=AsyncMock(return_value=member)),
-            patch(f"{DISPATCHER_PATH}.user_repo.get_by_id", new=AsyncMock(return_value=user)),
-        ):
-            auth = await dispatcher._auth_context_for(object(), run)
-        assert auth.is_app_admin is False
-
-    async def test_no_principal_gets_no_app_admin_authority(self):
-        run = _run(execution_principal_user_id=None)
-        auth = await dispatcher._auth_context_for(object(), run)
-        assert auth.is_app_admin is False
+        revoke(lookups, run)
+        with pytest.raises(PrincipalRevokedError):
+            await _REAL_PRINCIPAL_CONTEXT(object(), run)
 
 
 class TestClaim:

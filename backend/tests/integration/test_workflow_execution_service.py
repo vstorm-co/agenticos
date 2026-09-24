@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -178,6 +179,23 @@ class TestStartAndCancelOnARealSession:
             .all()
         )
         assert [row.status for row in rows] == [DispatchOutboxStatus.CANCELLED.value]
+
+
+@pytest.mark.security
+async def test_a_context_with_no_subject_cannot_start_a_run(db: AsyncSession):
+    """A run acts as the person who started it at every dispatch, so there
+    must be one: a subject-less context (an embed, a key with no user) is
+    refused at admission - even holding a role that could run it - and no
+    run row is written."""
+    owner = await _user(db)
+    org = await _org(db, owner=owner)
+    workflow = await _workflow(db, org=org, owner=owner, visibility=Visibility.ORG)
+    nobody = AuthContext(user_id=None, organization_id=org.id, role="owner")
+
+    with pytest.raises(NotFoundError):
+        await WorkflowExecutionService(db).start(nobody, workflow.id)
+
+    assert (await db.execute(select(WorkflowRun))).scalars().all() == []
 
 
 @pytest.fixture

@@ -48,7 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -59,17 +59,20 @@ from app.db.models.workflow_run import (
     RetryGuarantee,
     WaitingReason,
     WorkflowRun,
+    WorkflowRunMode,
     WorkflowRunStatus,
 )
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution import budget, context, events
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
     NodeDefinitionMissingError,
     NodeHandlerMissingError,
+    PrincipalRevokedError,
     WorkflowDispatchRefusedError,
     WorkflowGraphUnresolvableError,
 )
@@ -174,33 +177,55 @@ async def resolve_graph(db: AsyncSession, run: WorkflowRun) -> WorkflowGraph:
         raise WorkflowGraphUnresolvableError(run_id=run.id) from exc
 
 
-async def _auth_context_for(db: AsyncSession, run: WorkflowRun) -> AuthContext:
-    """The `AuthContext` a node handler acts with - built from the principal
-    pinned at admission, never from a request that no longer exists by the
-    time a parked node wakes.
+async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
+    """The `AuthContext` a node handler acts with, checked again at this dispatch.
+
+    Built from the principal pinned at admission, never from a request that
+    no longer exists by the time a parked node wakes - and re-checked here on
+    every dispatch, because that wake can be days later: an account removed
+    from the organization, deactivated, or no longer allowed to run this
+    workflow since it started the run must not keep acting through it.
+
+    Mirrors `app.api.deps.get_auth_context`, the request path's constructor:
+    an active membership's role, or no role for an active app admin with no
+    membership, so a handler acts with exactly the authority the same person
+    would have if they started the run again now. The permission check is the
+    admission check repeated - `workflows:run`, and `workflows:edit` as well
+    for a `test` run of an unpublished draft.
+
+    A run with no principal acts as nobody and is refused. Every route that
+    admits a run requires a signed-in subject (`AuthContext.subject_id`), so
+    the only way to get here without one is the account having been deleted
+    since (`execution_principal_user_id` is `SET NULL`).
+
+    Raises:
+        PrincipalRevokedError: Any of the above no longer holds.
     """
-    role = ""
-    is_app_admin = False
-    if run.execution_principal_user_id is not None:
-        member = await member_repo.get_active(
-            db, organization_id=run.organization_id, user_id=run.execution_principal_user_id
-        )
-        if member is not None:
-            role = member.role
-        # `is_app_admin` lives on the user row, independent of organization
-        # membership (`app.api.deps.get_auth_context` reads it the same way) -
-        # an app admin with no membership still has it, and skipping this
-        # lookup would silently drop that authority on every node handler
-        # this context reaches, not just the ones a role would have covered.
-        user = await user_repo.get_by_id(db, run.execution_principal_user_id)
-        if user is not None:
-            is_app_admin = user.is_app_admin
-    return AuthContext(
-        user_id=run.execution_principal_user_id,
+    user_id = run.execution_principal_user_id
+    if user_id is None:
+        raise PrincipalRevokedError()
+    user = await user_repo.get_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise PrincipalRevokedError()
+    member = await member_repo.get_active(db, organization_id=run.organization_id, user_id=user_id)
+    if member is None and not user.is_app_admin:
+        raise PrincipalRevokedError()
+    auth = AuthContext(
+        user_id=user_id,
         organization_id=run.organization_id,
-        role=role,
-        is_app_admin=is_app_admin,
+        role=member.role if member is not None else "",
+        is_app_admin=user.is_app_admin,
     )
+    workflow = await workflow_repo.get(db, run.workflow_id, organization_id=run.organization_id)
+    if workflow is None:
+        raise PrincipalRevokedError()
+    required = [Perm.WORKFLOWS_RUN]
+    if run.mode == WorkflowRunMode.TEST.value:
+        required.append(Perm.WORKFLOWS_EDIT)
+    for perm in required:
+        if not await resolve_access(db, auth, workflow, perm, resource_type=WORKFLOW):
+            raise PrincipalRevokedError()
+    return auth
 
 
 def idempotency_key(
@@ -468,6 +493,7 @@ async def begin_attempt(
         return None
 
     try:
+        auth = await _principal_context(db, run)
         call = await _resolve_call(db, run=run, node_run=node_run)
     except WorkflowDispatchRefusedError as exc:
         # Deterministic: every future attempt would fail the same way, before
@@ -533,7 +559,6 @@ async def begin_attempt(
             run=run,
             update_data={"status": WorkflowRunStatus.RUNNING.value, "paused_reason": None},
         )
-    auth = await _auth_context_for(db, run)
     await events.append(
         db,
         run=run,

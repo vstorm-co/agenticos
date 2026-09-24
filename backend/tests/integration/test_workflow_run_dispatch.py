@@ -453,3 +453,120 @@ class TestHandlerErrorsAndInterruptions:
         assert DispatchOutboxStatus.PENDING.value not in {
             row.status for row in await _outbox_rows(seeded)
         }
+
+
+async def _set_member_role(seeded: Seeded, role: str | None) -> None:
+    """Change the principal's membership role, or remove the membership."""
+    async with seeded.factory() as db:
+        member = (
+            await db.execute(
+                select(OrganizationMember).where(
+                    OrganizationMember.organization_id == seeded.org.id,
+                    OrganizationMember.user_id == seeded.principal.id,
+                )
+            )
+        ).scalar_one()
+        if role is None:
+            await db.delete(member)
+        else:
+            member.role = role
+        await db.commit()
+
+
+async def _set_principal(seeded: Seeded, **values: object) -> None:
+    async with seeded.factory() as db:
+        await db.execute(sql_update(User).where(User.id == seeded.principal.id).values(**values))
+        await db.commit()
+
+
+@pytest.mark.security
+class TestPrincipalRecheckedAtEveryDispatch:
+    """The run's first node dispatches as its principal; the second is refused
+    once that principal lost what starting the run required - removed from
+    the organization, deactivated, or no longer allowed to run it."""
+
+    @pytest.fixture
+    def calls(self) -> list[str]:
+        return []
+
+    @pytest.fixture
+    def recording(self, node_kind, calls: list[str]) -> str:
+        async def handler(_config: object, _input: object) -> NodeResult:
+            auth = context.current().auth
+            calls.append(f"{auth.role}|{auth.is_app_admin}")
+            return Completed[_Output](output=_Output(echoed="hi"))
+
+        return node_kind(handler)
+
+    async def _second_dispatch_after(
+        self, engine: AsyncEngine, node_id: str, revoke: Callable[[Seeded], Awaitable[None]]
+    ) -> Seeded:
+        seeded = await _seed(engine, _chain(node_id, 2))
+        await _tick(seeded, seeded.entry.id)
+        await revoke(seeded)
+        second = (await _node_runs(seeded))[1]
+        assert await _tick(seeded, second.id) is None
+        return seeded
+
+    @pytest.mark.parametrize(
+        "revoke",
+        [
+            pytest.param(lambda seeded: _set_member_role(seeded, None), id="removed-member"),
+            pytest.param(lambda seeded: _set_member_role(seeded, "viewer"), id="role-cannot-run"),
+            pytest.param(lambda seeded: _set_principal(seeded, is_active=False), id="deactivated"),
+        ],
+    )
+    async def test_a_revoked_principal_stops_the_next_node(
+        self, engine: AsyncEngine, recording: str, calls: list[str], revoke
+    ):
+        seeded = await self._second_dispatch_after(engine, recording, revoke)
+
+        assert calls == ["owner|False"]
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "PRINCIPAL_REVOKED"
+        assert [node.status for node in await _node_runs(seeded)] == [
+            NodeRunStatus.SUCCEEDED.value,
+            NodeRunStatus.FAILED.value,
+        ]
+
+    async def test_a_deactivated_app_admin_loses_that_authority_too(
+        self, engine: AsyncEngine, recording: str, calls: list[str]
+    ):
+        async def revoke(seeded: Seeded) -> None:
+            await _set_member_role(seeded, None)
+            await _set_principal(seeded, is_app_admin=True, is_active=False)
+
+        seeded = await self._second_dispatch_after(engine, recording, revoke)
+
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "PRINCIPAL_REVOKED"
+
+    async def test_a_deleted_principal_acts_as_nobody_and_is_refused(
+        self, engine: AsyncEngine, recording: str, calls: list[str]
+    ):
+        async def revoke(seeded: Seeded) -> None:
+            async with seeded.factory() as db:
+                await db.execute(
+                    sql_update(WorkflowRun)
+                    .where(WorkflowRun.id == seeded.run.id)
+                    .values(execution_principal_user_id=None)
+                )
+                await db.commit()
+
+        seeded = await self._second_dispatch_after(engine, recording, revoke)
+
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "PRINCIPAL_REVOKED"
+
+    async def test_an_active_app_admin_without_membership_still_dispatches(
+        self, engine: AsyncEngine, recording: str, calls: list[str]
+    ):
+        seeded = await _seed(engine, _chain(recording, 1))
+        await _set_member_role(seeded, None)
+        await _set_principal(seeded, is_app_admin=True)
+
+        assert await _tick(seeded, seeded.entry.id) is not None
+
+        assert calls == ["|True"]
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value

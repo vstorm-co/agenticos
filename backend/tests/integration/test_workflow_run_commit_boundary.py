@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus
@@ -49,6 +49,8 @@ pytestmark = pytest.mark.anyio
 
 
 async def _org(db: AsyncSession) -> Organization:
+    """An organization whose creator is its owner - the principal every run
+    here is started by, since each dispatch re-checks that principal."""
     user = User(
         id=uuid.uuid4(),
         email=f"{uuid.uuid4().hex}@example.com",
@@ -64,6 +66,10 @@ async def _org(db: AsyncSession) -> Organization:
         created_by_user_id=user.id,
     )
     db.add(org)
+    await db.flush()
+    db.add(
+        OrganizationMember(id=uuid.uuid4(), organization_id=org.id, user_id=user.id, role="owner")
+    )
     await db.flush()
     return org
 
@@ -110,7 +116,7 @@ async def _seeded_run(db: AsyncSession) -> tuple[WorkflowRun, NodeRun]:
         draft_graph_snapshot=graph.model_dump(mode="json"),
         mode=WorkflowRunMode.TEST.value,
         triggered_by="api",
-        execution_principal_user_id=None,
+        execution_principal_user_id=org.created_by_user_id,
         budget_limit=None,
         deadline_at=None,
         root_run_id=None,
@@ -526,7 +532,7 @@ async def test_an_orphaned_in_flight_none_guarantee_attempt_lands_in_needs_atten
         draft_graph_snapshot=graph.model_dump(mode="json"),
         mode=WorkflowRunMode.TEST.value,
         triggered_by="api",
-        execution_principal_user_id=None,
+        execution_principal_user_id=org.created_by_user_id,
         budget_limit=None,
         deadline_at=None,
         root_run_id=None,
