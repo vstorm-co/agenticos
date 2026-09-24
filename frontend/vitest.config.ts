@@ -133,6 +133,10 @@ export default defineConfig({
         // The workflows property panel (#1787): the form renderer, `BindingField`
         // and the validation display, gated as a unit like the pickers above.
         "src/components/workflows/property-panel/**/*.{ts,tsx}",
+        // The workflow editor's autosave, conflict banner, publish dialog and
+        // version history (#1787), including the autosave hook, held to the gate
+        // as a unit.
+        "src/components/workflows/editor/**/*.{ts,tsx}",
         // The workflows list-page create dialog (#1787).
         "src/components/workflows/workflow-create-dialog.tsx",
       ],

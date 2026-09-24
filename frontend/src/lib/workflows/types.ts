@@ -223,6 +223,8 @@ export interface WorkflowVersionRead {
   published_by_user_id: Uuid | null;
   budget_limit: number | null;
   created_at: string | null;
+  /** The frozen graph this version runs — what the history list opens read-only. */
+  graph: WorkflowGraph;
 }
 
 /** Every published version, newest first. Mirrors `WorkflowVersionList`. */

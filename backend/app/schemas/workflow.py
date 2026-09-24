@@ -101,6 +101,10 @@ class WorkflowVersionRead(BaseSchema):
     published_by_user_id: UUID | None = None
     budget_limit: float | None = None
     created_at: datetime | None = None
+    # The frozen graph this version runs, so the editor's version-history list can
+    # open a past version read-only. Typed rather than raw because a stored version
+    # graph always parsed at publish; it never round-trips back as a draft write.
+    graph: WorkflowGraph
 
 
 class WorkflowVersionList(BaseSchema):

@@ -302,6 +302,7 @@ class WorkflowRegistryService:
                     if version.budget_limit is not None
                     else None,
                     created_at=version.created_at,
+                    graph=WorkflowGraph.model_validate(version.graph),
                 )
                 for version in versions
             ]
@@ -391,6 +392,7 @@ class WorkflowRegistryService:
             published_by_user_id=version.published_by_user_id,
             budget_limit=float(version.budget_limit) if version.budget_limit is not None else None,
             created_at=version.created_at,
+            graph=graph,
         )
 
     async def _load(

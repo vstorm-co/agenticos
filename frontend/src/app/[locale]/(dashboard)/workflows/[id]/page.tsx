@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useRef } from "react";
 import { Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkflowCanvas } from "@/components/workflows/canvas";
+import { ConflictBanner, EditorActions, VersionHistory } from "@/components/workflows/editor";
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
 import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
@@ -28,26 +29,33 @@ const EMPTY_GRAPH: WorkflowGraph = {
 };
 
 /**
- * The workflow editor shell — palette, canvas and property panel.
+ * The workflow editor shell — palette, canvas, property panel, publish control,
+ * conflict banner and version history.
  *
  * It loads the workflow (`WorkflowDetail`, carrying `draft_graph`/`draft_revision`)
  * and the node catalog into TanStack Query and hands the coordination facts
- * (`workflowId`, `draft_revision`) to the editor store; the graph itself stays in
- * Query and the canvas leaf's own state, never the store. The editor tree is
- * keyed on the workflow id so a switch remounts it, and the store bumps its
- * generation on every `load`. Each region is a placeholder its leaf fills.
+ * (`workflowId`, `draft_revision`) to the editor store; the graph itself lives in
+ * the store, seeded once per workflow. The editor tree is keyed on the workflow id
+ * so a switch remounts it, and the store bumps its generation on every `load`.
+ *
+ * The seed is deliberately once-per-id: autosave's own success invalidates the
+ * detail query, and reseeding the store from that background refetch would throw
+ * away edits made while the save was in flight. The store's revision is advanced
+ * by autosave, not by the refetch.
  */
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
-  const { workflow, isLoading } = useWorkflow(id);
+  const { workflow, isLoading, saveDraft, publish } = useWorkflow(id);
   const { nodes } = useNodeCatalog();
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
+  const seededId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (workflow) {
+    if (workflow && seededId.current !== workflow.id) {
+      seededId.current = workflow.id;
       load({ workflowId: workflow.id, expectedRevision: workflow.draft_revision });
       seedGraph(workflow.draft_graph ?? EMPTY_GRAPH);
     }
@@ -55,7 +63,13 @@ export default function WorkflowEditorPage({ params }: PageProps) {
 
   // The store is torn down (not merely reset) on unmount, so no cross-workflow
   // or cross-organization state survives leaving the editor.
-  useEffect(() => () => teardown(), [teardown]);
+  useEffect(
+    () => () => {
+      teardown();
+      seededId.current = null;
+    },
+    [teardown],
+  );
 
   if (isLoading) {
     return (
@@ -86,12 +100,21 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         title={workflow.name}
         description={t("draftRevision", { revision: workflow.draft_revision })}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
+        actions={
+          <EditorActions
+            catalog={nodes}
+            saveDraft={saveDraft.mutateAsync}
+            publish={publish.mutateAsync}
+          />
+        }
       />
+      <ConflictBanner workflowId={workflow.id} />
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr_20rem]">
         <NodePalette nodes={nodes} />
         <WorkflowCanvas workflow={workflow} catalog={nodes} />
         <PropertyPanel />
       </div>
+      <VersionHistory workflowId={workflow.id} catalog={nodes} />
     </div>
   );
 }

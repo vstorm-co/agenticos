@@ -521,6 +521,7 @@ class TestListAndVersions:
         version.published_by_user_id = ctx.user_id
         version.budget_limit = None
         version.created_at = None
+        version.graph = _empty_graph().model_dump(mode="json")
 
         with (
             patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),

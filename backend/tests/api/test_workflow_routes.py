@@ -334,6 +334,7 @@ async def test_listing_versions_returns_every_published_version(owner_client: Op
     version.published_by_user_id = workflow.owner_user_id
     version.budget_limit = None
     version.created_at = None
+    version.graph = _graph().model_dump(mode="json")
 
     with (
         patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
