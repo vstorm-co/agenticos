@@ -76,3 +76,10 @@ class TestAccumulate:
         run = _run(cost_is_partial=True)
         update = budget.accumulate(run, cost=Decimal("1"), cost_is_partial=False)
         assert update["cost_is_partial"] is True
+
+    @pytest.mark.security
+    def test_a_total_past_the_column_is_capped_and_marked_partial(self):
+        """Capped rather than overflowing, the total still trips the budget."""
+        run = _run(spent_cost=budget.MAX_COST - Decimal("1"), cost_is_partial=False)
+        update = budget.accumulate(run, cost=Decimal("5"), cost_is_partial=False)
+        assert update == {"spent_cost": budget.MAX_COST, "cost_is_partial": True}

@@ -129,3 +129,15 @@ class TestReportCost:
 
     def test_a_report_outside_any_dispatch_scope_is_a_no_op(self):
         context.report_cost(Decimal("1"))
+
+    @pytest.mark.parametrize("raw", ["Infinity", "-Infinity", "NaN"])
+    def test_a_cost_that_is_not_a_finite_number_is_refused(self, raw: str):
+        with context.dispatching_as(_context()), pytest.raises(ValueError):
+            context.report_cost(Decimal(raw))
+
+    def test_a_total_past_what_the_columns_hold_is_capped_and_marked_partial(self):
+        scope = context.dispatching_as(_context())
+        with scope:
+            context.report_cost(Decimal("999999"))
+            context.report_cost(Decimal("5"))
+        assert (scope.cost, scope.cost_is_partial) == (Decimal("999999.999999"), True)

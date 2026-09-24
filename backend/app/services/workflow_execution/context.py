@@ -30,6 +30,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.core.permissions import AuthContext
+from app.services.workflow_execution import budget
 
 
 @dataclass(slots=True)
@@ -154,22 +155,30 @@ def report_cost(amount: Decimal, *, partial: bool = False) -> None:
     """Book `amount` against the run this handler is executing for.
 
     Call it for every spend, including one made before the handler goes on to
-    fail: the dispatcher books whatever was reported when it settles the
-    attempt, on the failed and uncertain paths as much as the completed one,
-    and the run's next dispatch is refused once the total reaches the
-    workflow's budget. Reports add up. `partial=True` says `amount` is a floor
+    fail: the dispatcher books whatever was reported onto the run and the
+    attempt when it settles, on the failed and uncertain paths as much as the
+    completed one - and onto the run and the attempt even when the result
+    itself arrives too late to be accepted - and the run's next dispatch is
+    refused once the total reaches the workflow's budget. Reports add up. `partial=True` says `amount` is a floor
     rather than an exact figure (a price the snapshot did not know), and marks
     the run's total a floor too.
 
     A no-op outside `dispatching_as`, for the same reason
     `report_waiting_agent_run` is one.
 
+    A total past what the cost columns hold is capped there and marked
+    partial, so it still stops the run at its budget rather than failing to
+    be recorded.
+
     Raises:
-        ValueError: `amount` is negative - a spend cannot give money back.
+        ValueError: `amount` is negative - a spend cannot give money back - or
+            not a finite number.
     """
+    if not Decimal(amount).is_finite():
+        raise ValueError("A reported cost must be a finite amount")
     if amount < 0:
         raise ValueError("A reported cost cannot be negative")
     outbox = _outbox.get()
     if outbox is not None:
-        outbox.cost += amount
-        outbox.cost_is_partial = outbox.cost_is_partial or partial
+        outbox.cost, capped = budget.saturating_add(outbox.cost, amount)
+        outbox.cost_is_partial = outbox.cost_is_partial or partial or capped

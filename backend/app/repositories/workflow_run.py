@@ -414,6 +414,23 @@ async def settle_attempt(
     return attempt
 
 
+async def book_attempt_cost(
+    db: AsyncSession, *, attempt: NodeAttempt, cost: Decimal, cost_is_partial: bool
+) -> NodeAttempt:
+    """Set an attempt's cost without touching its status or result.
+
+    The one write a terminal attempt takes: its cost column is the ledger of
+    what the call ran up, and a result that arrived too late to be accepted
+    still ran it up.
+    """
+    attempt.cost = cost
+    attempt.cost_is_partial = cost_is_partial
+    db.add(attempt)
+    await db.flush()
+    await db.refresh(attempt)
+    return attempt
+
+
 async def list_orphaned_in_flight(
     db: AsyncSession, *, before: datetime, closed_before: datetime, limit: int = 100
 ) -> list[NodeAttempt]:

@@ -944,13 +944,14 @@ async def settle(
     # verdict must not be silently overwritten by a late result arriving for
     # an attempt that is no longer "current" - `attempt.status` moving off
     # `in_flight` is exactly what says a different settle (or the reconciler)
-    # already had the last word on this attempt. Its cost is still on the run
-    # (above); the attempt row itself is terminal and is not rewritten.
+    # already had the last word on this attempt. Its verdict stands; only
+    # the cost it ran up is added to its row and the run's (above).
     if attempt.status != NodeAttemptStatus.IN_FLIGHT.value:
         logger.warning(
             "workflow_dispatch_settle_stale_attempt",
             extra={"attempt_id": str(attempt.id), "attempt_status": attempt.status},
         )
+        await _book_attempt_cost(db, attempt=attempt, outcome=outcome)
         return []
 
     # A run cancelled while this handler was running must stay cancelled: the
@@ -989,6 +990,9 @@ async def settle(
             "workflow_dispatch_settle_lost_claim",
             extra={"node_run_id": str(node_run.id), "attempt_id": str(attempt.id)},
         )
+        # The reclaimer resolves this attempt `uncertain` and keeps what is
+        # booked on it by then.
+        await _book_attempt_cost(db, attempt=attempt, outcome=outcome)
         return []
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
@@ -1031,6 +1035,21 @@ async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutc
         update_data=budget.accumulate(
             run, cost=outcome.cost, cost_is_partial=outcome.cost_is_partial
         ),
+    )
+
+
+async def _book_attempt_cost(
+    db: AsyncSession, *, attempt: NodeAttempt, outcome: HandlerOutcome
+) -> None:
+    """Add a discarded result's cost to its attempt row, leaving the verdict alone."""
+    if outcome.cost == 0 and not outcome.cost_is_partial:
+        return
+    cost, capped = budget.saturating_add(attempt.cost, outcome.cost)
+    await workflow_run_repo.book_attempt_cost(
+        db,
+        attempt=attempt,
+        cost=cost,
+        cost_is_partial=attempt.cost_is_partial or outcome.cost_is_partial or capped,
     )
 
 

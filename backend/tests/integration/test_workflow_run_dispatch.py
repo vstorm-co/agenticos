@@ -46,7 +46,7 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.approvals import ApprovalService
-from app.services.workflow_execution import WorkflowExecutionService, context, dispatcher
+from app.services.workflow_execution import WorkflowExecutionService, budget, context, dispatcher
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
@@ -1113,3 +1113,104 @@ class TestAttemptsBehindAClosedRow:
                 )
             ]
         assert kinds[-2:] == ["node_failed", "run_failed"]
+
+
+@pytest.mark.security
+class TestCostTheColumnsCannotHold:
+    async def test_a_cost_past_the_column_is_capped_and_still_stops_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Booked as reported, the amount overflowed `NUMERIC(12, 6)` and rolled
+        the settle back: nothing was recorded, the attempt was redispatched and
+        the budget check never saw the spend."""
+        calls: list[int] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            calls.append(context.current().attempt_no)
+            return await _spend("2000000")
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 2), budget_limit=Decimal("1"))
+
+        await _tick(seeded, seeded.entry.id)
+        second = (await _node_runs(seeded))[1]
+        assert await _tick(seeded, second.id) is None
+
+        assert calls == [1]
+        run = await _run_row(seeded)
+        assert (run.spent_cost, run.cost_is_partial) == (budget.MAX_COST, True)
+        assert run.status == WorkflowRunStatus.BUDGET_EXCEEDED.value
+        assert await _attempt_costs(seeded) == [budget.MAX_COST]
+
+    async def test_a_cost_that_is_not_a_number_fails_the_node_instead_of_the_settle(
+        self, engine: AsyncEngine, node_kind
+    ):
+        async def handler(_config: object, _input: object) -> NodeResult:
+            return await _spend("Infinity")
+
+        seeded = await _seed(engine, _chain(node_kind(handler, retry_guarantee="none"), 1))
+
+        assert await _tick(seeded, seeded.entry.id) is not None
+
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "HANDLER_ERROR"
+        assert await _attempt_statuses(seeded, seeded.entry.id) == [NodeAttemptStatus.FAILED.value]
+
+
+class TestALateResultsCost:
+    """A result that arrives after its attempt was reclaimed is discarded, but
+    what the call spent is booked onto the attempt as well as the run, so the
+    attempts still add up to the run's total."""
+
+    async def test_a_stale_settle_books_its_cost_onto_the_resolved_attempt(
+        self, engine: AsyncEngine, node_kind
+    ):
+        async def handler(_config: object, _input: object) -> NodeResult:
+            return await _spend("1.50")
+
+        seeded = await _seed(engine, _chain(node_kind(handler, retry_guarantee="none"), 1))
+        begun = await _claim_and_begin(seeded, seeded.entry.id)
+        await _expire_claims(seeded)
+        assert await _reconcile_orphans(seeded) == 1
+        outcome = await dispatcher.call_handler(begun)
+
+        async with seeded.factory() as db:
+            await dispatcher.settle(db, begun=begun, outcome=outcome)
+            await db.commit()
+
+        assert (await _run_row(seeded)).spent_cost == Decimal("1.50")
+        assert await _attempt_costs(seeded) == [Decimal("1.50")]
+        assert await _attempt_statuses(seeded, seeded.entry.id) == [
+            NodeAttemptStatus.UNCERTAIN.value
+        ]
+
+    async def test_a_lost_claim_settle_keeps_its_cost_through_the_reclaimers_resolution(
+        self, engine: AsyncEngine, node_kind
+    ):
+        async def handler(_config: object, _input: object) -> NodeResult:
+            return await _spend("1.50")
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+        begun = await _claim_and_begin(seeded, seeded.entry.id)
+        await _expire_claims(seeded)
+        async with seeded.factory() as db:
+            reclaim = await dispatcher.claim(db, node_run_id=seeded.entry.id)
+            await db.commit()
+        assert reclaim is not None and reclaim.claimed_by is not None
+        outcome = await dispatcher.call_handler(begun)
+        async with seeded.factory() as db:
+            await dispatcher.settle(db, begun=begun, outcome=outcome)
+            await db.commit()
+
+        async with seeded.factory() as db:
+            resolved = await dispatcher.begin_attempt(
+                db,
+                workflow_run_id=seeded.run.id,
+                node_run_id=seeded.entry.id,
+                token=reclaim.claimed_by,
+            )
+            await db.commit()
+
+        assert resolved is None
+        assert (await _run_row(seeded)).spent_cost == Decimal("1.50")
+        assert await _attempt_costs(seeded) == [Decimal("1.50")]

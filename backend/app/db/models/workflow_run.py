@@ -364,7 +364,8 @@ class NodeRun(Base, TimestampMixin):
 
 
 class NodeAttempt(Base, TimestampMixin):
-    """One try at a node's effect. Append-only - never mutated after terminal."""
+    """One try at a node's effect. Append-only - its verdict is never changed once
+    terminal; only a cost a late result reports is still added to it."""
 
     __tablename__ = "node_attempts"
 

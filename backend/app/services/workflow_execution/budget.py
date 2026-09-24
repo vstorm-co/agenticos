@@ -7,8 +7,9 @@ are the persisted form, and this module is the pre-call check and the
 post-attempt accumulation, both against those two columns.
 
 A handler reports what it spent through `context.report_cost`; the
-dispatcher books it onto the attempt and the run when it settles, whatever
-the outcome. A node that itself calls an agent constructs its own
+dispatcher books it onto the run when it settles, whatever the outcome, and
+onto the attempt - including one whose result arrived too late to be
+accepted. A node that itself calls an agent constructs its own
 `BudgetGuard` via `for_delegate`, attributed to the node instance and billed
 to the `WorkflowRun` - that wiring belongs to whichever node handler makes the
 call (`agent.run`, a later issue), not to this dispatch-level check. What is
@@ -42,6 +43,24 @@ def past_deadline(run: WorkflowRun, *, at: datetime) -> bool:
     return run.deadline_at is not None and at >= run.deadline_at
 
 
+MAX_COST = Decimal("999999.999999")
+"""The largest amount the `NUMERIC(12, 6)` cost columns hold."""
+
+
+def saturating_add(total: Decimal, cost: Decimal) -> tuple[Decimal, bool]:
+    """`total + cost`, capped at `MAX_COST`, and whether it had to be capped.
+
+    A capped total is a floor, not the spend: callers mark it partial. Capping
+    rather than overflowing matters because an overflow rolls the whole settle
+    back - the attempt is then redispatched with nothing booked, and the budget
+    check never sees what was spent.
+    """
+    added = total + cost
+    if added > MAX_COST:
+        return MAX_COST, True
+    return added, False
+
+
 def accumulate(run: WorkflowRun, *, cost: Decimal, cost_is_partial: bool) -> dict[str, object]:
     """The run update that adds one attempt's cost onto its running total.
 
@@ -55,7 +74,8 @@ def accumulate(run: WorkflowRun, *, cost: Decimal, cost_is_partial: bool) -> dic
     Returned as `update_data` for `workflow_run_repo.update_run` rather than
     applied here, so the write goes through the repository like every other.
     """
+    spent, capped = saturating_add(run.spent_cost, cost)
     return {
-        "spent_cost": run.spent_cost + cost,
-        "cost_is_partial": run.cost_is_partial or cost_is_partial,
+        "spent_cost": spent,
+        "cost_is_partial": run.cost_is_partial or cost_is_partial or capped,
     }
