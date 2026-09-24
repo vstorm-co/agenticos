@@ -122,6 +122,48 @@ describe("PublishDialog", () => {
     expect(screen.getByText("The graph is empty")).toBeVisible();
   });
 
+  it("surfaces a revision conflict through the store and closes the dialog", async () => {
+    // A publish into a stale revision comes back `409 REVISION_CONFLICT`,
+    // carrying the current revision but no field problems. It must reach the
+    // shared conflict banner (via the store), not vanish for want of a field.
+    seed(VALID_GRAPH, 3);
+    const conflict = new ApiError(409, "conflict", {
+      error: {
+        code: "REVISION_CONFLICT",
+        message: "conflict",
+        details: { current_revision: 7 },
+      },
+    });
+    const publish = vi.fn().mockRejectedValue(conflict);
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    await waitFor(() => expect(publish).toHaveBeenCalledWith({ note: null, expected_revision: 3 }));
+    await waitFor(() =>
+      expect(useWorkflowEditorStore.getState().conflict).toEqual({ currentRevision: 7 }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("treats a 409 without a current revision as an ordinary refusal", async () => {
+    // Defensive: a `409` that carries no numeric `current_revision` cannot seed
+    // the conflict banner, so it falls through to the normal problem handling
+    // and the dialog stays open rather than closing on nothing.
+    seed(VALID_GRAPH, 4);
+    const conflict = new ApiError(409, "conflict", {
+      error: { code: "REVISION_CONFLICT", message: "conflict", details: {} },
+    });
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn().mockRejectedValue(conflict)} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(useWorkflowEditorStore.getState().conflict).toBeNull();
+  });
+
   it("does nothing when a revision is not yet known", async () => {
     seed(VALID_GRAPH, null);
     const publish = vi.fn();

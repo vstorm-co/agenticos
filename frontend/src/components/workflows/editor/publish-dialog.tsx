@@ -19,7 +19,7 @@ import {
 import { ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import { validateGraph } from "@/components/workflows/validation";
-import { fieldProblems } from "@/lib/api-error";
+import { ApiError, fieldProblems } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type {
@@ -69,6 +69,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   const graph = useWorkflowEditorStore((state) => state.graph);
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
+  const setConflict = useWorkflowEditorStore((state) => state.setConflict);
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -102,6 +103,18 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
       setOpen(false);
       setNote("");
     } catch (error) {
+      // A `REVISION_CONFLICT` (`409`) means the draft moved on since this editor
+      // read it — publishing into a stale revision. It carries the current
+      // revision but no field problems, so it would otherwise vanish. Hand it to
+      // the shared conflict banner (Overwrite / Reload) and close the dialog.
+      if (error instanceof ApiError && error.status === 409) {
+        const current = error.details?.current_revision;
+        if (typeof current === "number") {
+          setConflict(current);
+          setOpen(false);
+          return;
+        }
+      }
       setServerProblems(
         fieldProblems(error).map((problem) => toValidationProblem(problem.field, problem.message)),
       );

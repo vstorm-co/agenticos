@@ -57,9 +57,14 @@ export function ConflictBanner({ workflowId }: { workflowId: string }) {
   const reload = useCallback(async () => {
     setReloading(true);
     try {
+      // `staleTime: 0` forces a network read: without it the global 5-minute
+      // stale window makes `fetchQuery` return the client's own cached draft —
+      // the very copy the conflict is about — so Reload would never escape the
+      // 409. Reload's whole job is to fetch the server's newer copy.
       const detail = await queryClient.fetchQuery({
         queryKey: qk.workflows.detail(workflowId),
         queryFn: () => getWorkflow(workflowId),
+        staleTime: 0,
       });
       seedGraph(detail.draft_graph ?? EMPTY_GRAPH);
       markSaved(detail.draft_revision);
