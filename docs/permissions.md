@@ -337,6 +337,28 @@ with me" would degenerate into "the whole organization minus mine". For kb it
 also excludes personal rows (the caller's by construction) and app-scope rows
 (the deployment's - never shared *with* anybody).
 
+### Workflow runs
+
+A run has no visibility of its own: it inherits its workflow's. Starting one
+takes `workflows:run` on the workflow, and a `test` run of the unpublished draft
+takes `workflows:edit` as well. Reading a run and its events takes
+`workflows:view`, and the unfiltered list shows runs of the workflows the caller
+can see - their own, organization-visible ones and those shared with them. A run
+the caller cannot see answers exactly like a run that does not exist.
+
+**Cancelling is narrower than starting.** The person who started a run may
+cancel it while they may still run the workflow, and anyone who may edit the
+workflow may cancel any of its runs. A Member who can run an organization-visible
+workflow can stop their own runs, not a colleague's; seeing the run without
+either right is refused with `403`.
+
+**A run acts as the person who started it, checked again at every node.** A
+node can be dispatched days after the run began, so each dispatch requires the
+account to still be active, still a member (or an active app admin) and still
+allowed `workflows:run` on the workflow. When any of that has changed, the run
+fails with `PRINCIPAL_REVOKED` before the node's handler runs. A run needs a
+person to act as, so a context with no subject cannot start one.
+
 ## Where the gates go
 
 !!! danger "`require(...)` belongs on collection routes, not per-resource ones"

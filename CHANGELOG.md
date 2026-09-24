@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow runs execute durably.** `POST /workflow-runs` starts a run of a
+  workflow's published version, or of its draft in `test` mode, and the nodes
+  run on Prefect workers one attempt at a time: each attempt commits `in_flight`
+  before its handler runs, its result commits together with the next node's
+  dispatch, a worker that dies mid-call is recovered without assuming either
+  outcome, and a node parked on an approval is woken when the approval is
+  decided or expires. Nodes report cost into the run, and a run whose version
+  carries a budget cap ends once it is spent - though publishing does not set a
+  version's cap yet, so no run has one today. A run can carry a deadline, is
+  rate-limited on start, and re-checks the person it acts as at every node. Runs, their events and cancel have routes of their
+  own; see [the HTTP API](docs/api.md#running-a-workflow) and
+  [Permissions](docs/permissions.md#workflow-runs). Migration
+  `0095_workflow_runs.py`. (#1788)
+
 - **Virtual Tables: typed records behind one service and an HTTP API.** A table is
   metadata plus JSONB, never a physical SQL table, with immutable schema versions,
   stable table, column and option ids, and nine column types (text, long text,

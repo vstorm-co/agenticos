@@ -1,5 +1,5 @@
 ---
-source_sha: "581fad10a861"
+source_sha: "dcb301ac972f"
 ---
 
 # Uprawnienia { #permissions }
@@ -352,6 +352,30 @@ swoich grantów przy zwykłym listowaniu, więc filtr i tak je pobiera — bez t
 Dla kb wyklucza dodatkowo wiersze osobiste (z konstrukcji należące do
 wywołującego) i wiersze o zasięgu aplikacji (należące do wdrożenia — nigdy nikomu
 nieudostępniane).
+
+### Runy workflowów { #workflow-runs }
+
+Run nie ma własnej widoczności: dziedziczy ją po swoim workflowie. Uruchomienie
+wymaga `workflows:run` na workflowie, a run w trybie `test`, na
+nieopublikowanym drafcie, wymaga dodatkowo `workflows:edit`. Odczyt runa i jego
+zdarzeń wymaga `workflows:view`, a lista bez filtra pokazuje runy workflowów,
+które wywołujący widzi - własnych, widocznych dla organizacji i udostępnionych
+mu. Run, którego wywołujący nie widzi, odpowiada dokładnie tak, jak run, który
+nie istnieje.
+
+**Anulowanie jest węższe niż uruchomienie.** Osoba, która uruchomiła run, może
+go anulować, dopóki wolno jej uruchamiać ten workflow, a każdy, kto może
+edytować workflow, może anulować każdy jego run. Member, który może uruchomić
+workflow widoczny dla organizacji, zatrzyma swoje runy, ale nie runy kolegi;
+widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
+
+**Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
+każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde
+wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem (albo
+aktywnym app adminem) i nadal miało `workflows:run` na workflowie. Gdy
+cokolwiek z tego się zmieniło, run kończy się błędem `PRINCIPAL_REVOKED`, zanim
+handler węzła się uruchomi. Run potrzebuje osoby, w której imieniu działa, więc
+kontekst bez podmiotu nie może go uruchomić.
 
 ## Gdzie stoją bramki { #where-the-gates-go }
 

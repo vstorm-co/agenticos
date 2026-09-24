@@ -1,5 +1,5 @@
 ---
-source_sha: "4af3be1ca985"
+source_sha: "2dfeea340c71"
 ---
 
 # La API HTTP { #the-http-api }
@@ -93,6 +93,31 @@ faceta** y **AND entre facetas**, con coincidencia sin distinguir
 mayúsculas/minúsculas (un valor de consulta se pliega como uno almacenado, y un
 valor en blanco se ignora). El filtro solo estrecha lo que ya podías ver — nunca
 cruza una frontera de tenant ni de grant.
+## Ejecutar un workflow { #running-a-workflow }
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+```
+
+Esto inicia un run de la versión publicada del workflow y responde `201` de
+inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
+su lugar el borrador actual y exige `workflows:edit`. `deadline_seconds` (hasta
+treinta días) hace fallar el run con `DEADLINE_EXCEEDED` si al cumplirse algún
+nodo sigue esperando a ser despachado. La ruta tiene un límite por llamante como
+la de runs de agents, y responde `429` con `Retry-After` al superarlo.
+
+`GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost` y
+`error`, y `POST /api/v1/workflow-runs/{id}/cancel` lo detiene. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` devuelve el flujo de eventos
+del run del más antiguo al más reciente, con un `next_cursor` que se devuelve
+como `after`: se mantiene igual mientras no exista nada más nuevo, así que
+consultar con él sigue un run en curso. Quién puede hacer cada cosa está en
+[Permisos](permissions.md#workflow-runs).
+
 ## Los servicios de ML { #the-ml-services }
 
 Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin

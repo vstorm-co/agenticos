@@ -84,6 +84,30 @@ query parameters: values **OR within a facet** and **AND across facets**, matche
 case-insensitively (a query value folds the way a stored one does, and a blank
 value is ignored). The filter only narrows what you could already see — it never
 crosses a tenant or a grant boundary.
+## Running a workflow
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+```
+
+This starts a run of the workflow's published version and answers `201` at
+once; the nodes run in the background. `"mode": "test"` runs the current draft
+instead and needs `workflows:edit`. `deadline_seconds` (up to thirty days) fails
+the run with `DEADLINE_EXCEEDED` if a node is still waiting to be dispatched
+when it passes. The route is rate-limited per caller like the agent run route,
+answering `429` with `Retry-After` past the allowance.
+
+`GET /api/v1/workflow-runs/{id}` returns the run's status, `spent_cost` and
+`error`, and `POST /api/v1/workflow-runs/{id}/cancel` stops it. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` returns the run's event stream
+oldest first, with a `next_cursor` to pass back as `after`: it stays the same
+while nothing newer exists, so polling with it tails a live run. Who may do each
+of these is in [Permissions](permissions.md#workflow-runs).
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no

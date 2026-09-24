@@ -329,6 +329,27 @@ deployment.
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
 
+## Workflow runs: an outbox and short transactions
+
+A workflow run can take days - a node can wait on an approval - so no process
+holds its position. Postgres does: `dispatch_outbox` names each node that is
+ready, and each worker flow claims one row, runs one attempt and settles it.
+The code is `app/services/workflow_execution/dispatcher.py`.
+
+Each attempt is three short transactions around a call that holds none. The
+claim commits a lease on the row; the attempt row commits `in_flight` before
+the handler is called, so a worker that dies mid-call leaves something the
+reconciler can find; and the settle commits the result, the cost and the next
+node's outbox row together, so a result is never durable without its next
+step. While the handler runs, the worker renews its lease in transactions of
+its own, and a renewal that finds the claim gone tells the handler.
+
+Every write after the claim is fenced on the claim's token and the row still
+being claimed, under a lock taken in one order - run, node run, outbox - by the
+dispatcher and the reconciler alike. An interrupted attempt is never assumed to
+have succeeded or failed: it becomes `uncertain`, and only a node declared
+idempotent is tried again automatically.
+
 ## Agent runs: a capability never fetches
 
 The layering above has one more rule inside an agent run, and it is the reason the

@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "ac26df2df437"
 ---
 
 # Architektura { #architecture }
@@ -346,6 +346,27 @@ przetrwać restart, jest deploymentem Prefecta.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Runy workflowów: outbox i krótkie transakcje { #workflow-runs-an-outbox-and-short-transactions }
+
+Run workflowu może trwać dni - węzeł może czekać na zatwierdzenie - więc żaden
+proces nie trzyma jego pozycji. Trzyma ją Postgres: `dispatch_outbox` wskazuje
+każdy gotowy węzeł, a każdy flow workera przejmuje jeden wiersz, wykonuje jedną
+próbę i ją rozlicza. Kod jest w `app/services/workflow_execution/dispatcher.py`.
+
+Każda próba to trzy krótkie transakcje wokół wywołania, które nie trzyma
+żadnej. Claim commituje lease na wierszu; wiersz próby jest commitowany jako
+`in_flight`, zanim handler zostanie wywołany, więc worker, który umrze w trakcie,
+zostawia coś, co reconciler może znaleźć; a rozliczenie commituje wynik, koszt i
+wiersz outboxa następnego węzła razem, więc wynik nigdy nie jest trwały bez
+kolejnego kroku. Dopóki handler działa, worker odnawia lease we własnych
+transakcjach, a odnowienie, które nie znajduje już claimu, informuje o tym handler.
+
+Każdy zapis po claimie jest chroniony tokenem claimu i tym, że wiersz nadal jest
+przejęty, pod blokadą braną w jednej kolejności - run, run węzła, outbox - przez
+dispatcher i reconciler tak samo. Przerwana próba nigdy nie jest uznawana za
+udaną ani nieudaną: staje się `uncertain`, a automatycznie ponawiany jest tylko
+węzeł zadeklarowany jako idempotentny.
 
 ## Runy agenta: capability nigdy nie pobiera { #agent-runs-a-capability-never-fetches }
 

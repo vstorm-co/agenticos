@@ -1,5 +1,5 @@
 ---
-source_sha: "27a3daceb509"
+source_sha: "a0b4b2ac3ab0"
 ---
 
 # Ochrona danych { #data-protection }
@@ -82,6 +82,7 @@ przez sprawdzenie rodzica.
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |
 | `rag_documents`, `knowledge_bases` i jedna tabela wektorowa na kolekcję | Wgrane i zsynchronizowane dokumenty, ich chunki i embeddingi | Tekst dokumentu i jego wektory, oryginalna ścieżka pliku w źródle | Wyszukiwanie |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka | Budżety, zatwierdzenia, historia runów |
+| `workflow_runs`, `node_runs`, `node_attempts`, `workflow_events`, `dispatch_outbox`, `resource_refs` | Każdy run workflowu, próby każdego węzła i strumień zdarzeń runa | Konto, w imieniu którego działa run; wynik każdej próby, zawierający to, co węzeł wytworzył z otrzymanych danych; kod i komunikat błędu; referencje do plików i tabel, które powiązał graf. Wiersze znikają razem z workflowem i organizacją, konto jest czyszczone z runa, gdy zostaje usunięte, a żadna z tych tabel nie ma jeszcze klasy retencji ani czyszczenia | Doprowadzenie workflowu do końca mimo restartów i pokazanie jego historii |
 | `agent_triggers` | Runy zaplanowane i wyzwalane zdarzeniem | Prompt oraz konfiguracja i filtr źródła zdarzeń | Uruchamianie agenta bez człowieka |
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Każde powiadomienie zaadresowane do kogoś oraz jego dostarczenie mailem. Wiersz powstaje nawet wtedy, gdy odbiorca wyłączył dla tego zdarzenia wszystkie kanały — to on nie pozwala zapisać tego samego wystąpienia dwa razy — i po prostu nigdy nie jest pokazywany ani wysyłany; warunkowy jest tylko wiersz dostawy | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |

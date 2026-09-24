@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "ac26df2df437"
 ---
 
 # Arquitectura { #architecture }
@@ -352,6 +352,29 @@ cualquier cosa que deba sobrevivir a un reinicio es un deployment de Prefect.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Runs de workflows: un outbox y transacciones cortas { #workflow-runs-an-outbox-and-short-transactions }
+
+Un run de workflow puede durar días - un nodo puede esperar una aprobación -,
+así que ningún proceso guarda su posición. La guarda Postgres: `dispatch_outbox`
+nombra cada nodo que está listo, y cada flow de worker reclama una fila, ejecuta
+un intento y lo liquida. El código está en
+`app/services/workflow_execution/dispatcher.py`.
+
+Cada intento son tres transacciones cortas alrededor de una llamada que no
+mantiene ninguna. El claim confirma un lease sobre la fila; la fila del intento
+se confirma como `in_flight` antes de llamar al handler, así que un worker que
+muere a mitad de la llamada deja algo que el reconciler puede encontrar; y la
+liquidación confirma juntos el resultado, el coste y la fila de outbox del
+siguiente nodo, así que un resultado nunca es duradero sin su siguiente paso.
+Mientras el handler se ejecuta, el worker renueva su lease en transacciones
+propias, y una renovación que ya no encuentra el claim se lo comunica al handler.
+
+Cada escritura tras el claim queda protegida por el token del claim y por que la
+fila siga reclamada, bajo un bloqueo que el dispatcher y el reconciler toman en
+el mismo orden - run, run de nodo, outbox. Un intento interrumpido nunca se da
+por logrado ni por fallido: pasa a `uncertain`, y solo un nodo declarado
+idempotente se reintenta automáticamente.
 
 ## Runs de agents: una capability nunca consulta { #agent-runs-a-capability-never-fetches }
 

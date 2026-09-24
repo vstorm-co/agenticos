@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "ac26df2df437"
 ---
 
 # Architektur { #architecture }
@@ -356,6 +356,31 @@ einen Neustart überleben muss, ist ein Prefect-Deployment.
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
+
+## Workflow-Runs: eine Outbox und kurze Transaktionen { #workflow-runs-an-outbox-and-short-transactions }
+
+Ein Workflow-Run kann Tage dauern - ein Knoten kann auf eine Freigabe warten -,
+deshalb hält kein Prozess seine Position. Das tut Postgres: `dispatch_outbox`
+nennt jeden Knoten, der bereit ist, und jeder Worker-Flow übernimmt eine Zeile,
+führt einen Versuch aus und schließt ihn ab. Der Code liegt in
+`app/services/workflow_execution/dispatcher.py`.
+
+Jeder Versuch besteht aus drei kurzen Transaktionen um einen Aufruf, der keine
+hält. Der Claim committet einen Lease auf die Zeile; die Versuchszeile wird als
+`in_flight` committet, bevor der Handler aufgerufen wird, sodass ein Worker, der
+mitten im Aufruf stirbt, etwas hinterlässt, das der Reconciler findet; und der
+Abschluss committet das Ergebnis, die Kosten und die Outbox-Zeile des nächsten
+Knotens gemeinsam, sodass kein Ergebnis ohne seinen nächsten Schritt dauerhaft
+ist. Solange der Handler läuft, erneuert der Worker seinen Lease in eigenen
+Transaktionen, und eine Erneuerung, die den Claim nicht mehr vorfindet, teilt
+das dem Handler mit.
+
+Jeder Schreibvorgang nach dem Claim ist an das Token des Claims gebunden und
+daran, dass die Zeile noch beansprucht ist, unter einer Sperre, die Dispatcher
+und Reconciler in derselben Reihenfolge nehmen - Run, Knoten-Run, Outbox. Ein
+unterbrochener Versuch gilt nie als gelungen oder gescheitert: Er wird
+`uncertain`, und nur ein als idempotent deklarierter Knoten wird automatisch
+erneut versucht.
 
 ## Agent-Runs: Eine Capability holt nie selbst { #agent-runs-a-capability-never-fetches }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "581fad10a861"
+source_sha: "dcb301ac972f"
 ---
 
 # Permisos { #permissions }
@@ -363,6 +363,30 @@ normal, así que el filtro las trae de todas formas - sin eso, el "compartido
 conmigo" de un Builder degeneraría en "toda la organización menos lo mío". Para
 kb excluye además las filas personales (las de quien llama, por construcción) y
 las de ámbito de aplicación (las del despliegue - nunca compartidas *con* nadie).
+
+### Runs de workflows { #workflow-runs }
+
+Un run no tiene visibilidad propia: hereda la de su workflow. Iniciar uno exige
+`workflows:run` sobre el workflow, y un run `test` del borrador sin publicar
+exige además `workflows:edit`. Leer un run y sus eventos exige
+`workflows:view`, y la lista sin filtro muestra los runs de los workflows que el
+llamante puede ver - los suyos, los visibles para la organización y los
+compartidos con él. Un run que el llamante no puede ver responde exactamente
+igual que un run que no existe.
+
+**Cancelar es más estricto que iniciar.** Quien inició un run puede cancelarlo
+mientras siga pudiendo ejecutar el workflow, y cualquiera que pueda editar el
+workflow puede cancelar cualquiera de sus runs. Un Member que puede ejecutar un
+workflow visible para la organización detiene sus propios runs, no los de un
+compañero; ver el run sin ninguno de los dos derechos se rechaza con `403`.
+
+**Un run actúa en nombre de quien lo inició, y eso se comprueba de nuevo en cada
+nodo.** Un nodo puede despacharse días después de que empezara el run, así que
+cada despacho exige que la cuenta siga activa, siga siendo miembro (o un app
+admin activo) y siga teniendo `workflows:run` sobre el workflow. Si algo de eso
+ha cambiado, el run falla con `PRINCIPAL_REVOKED` antes de que se ejecute el
+handler del nodo. Un run necesita a una persona en cuyo nombre actuar, así que
+un contexto sin sujeto no puede iniciarlo.
 
 ## Dónde van las puertas { #where-the-gates-go }
 
