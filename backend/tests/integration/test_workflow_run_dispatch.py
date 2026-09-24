@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.background import drain, start_deferred
 from app.core.config import settings
+from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.organization import Organization, OrganizationMember
@@ -45,7 +46,8 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.approvals import ApprovalService
-from app.services.workflow_execution import context, dispatcher
+from app.services.workflow_execution import WorkflowExecutionService, context, dispatcher
+from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
 from app.workflows._registry import REGISTRY, register
@@ -837,3 +839,277 @@ class TestWaits:
                     db, parked_on[0], organization_id=seeded.org.id
                 )
             ) is None
+
+
+async def _attempt_statuses(seeded: Seeded, node_run_id: uuid.UUID) -> list[str]:
+    async with seeded.factory() as db:
+        rows = (
+            await db.execute(
+                select(NodeAttempt)
+                .where(NodeAttempt.node_run_id == node_run_id)
+                .order_by(NodeAttempt.attempt_no)
+            )
+        ).scalars()
+        return [row.status for row in rows]
+
+
+async def _decide_all(seeded: Seeded, agent_run_id: uuid.UUID) -> None:
+    async with seeded.factory() as db:
+        await db.execute(
+            sql_update(ToolApproval)
+            .where(ToolApproval.run_id == agent_run_id)
+            .values(status=ApprovalStatus.APPROVED.value)
+        )
+        await db.commit()
+
+
+def _parks_first_then_echoes(entry: list[uuid.UUID], parked_on: list[uuid.UUID]) -> Handler:
+    """The entry node parks on an approval once; every other call completes."""
+
+    async def handler(_config: object, _input: object) -> NodeResult:
+        current = context.current()
+        if current.node_instance_id == entry[0] and current.resumed_agent_run_id is None:
+            context.report_waiting_agent_run(parked_on[0])
+            return Waiting(reason="approval", resume_token="t")
+        return Completed[_Output](output=_Output(echoed="ok"))
+
+    return handler
+
+
+async def _claim_and_begin(seeded: Seeded, node_run_id: uuid.UUID) -> dispatcher.BegunAttempt:
+    """Phases 1 and 2 only: the worker then dies before running the handler."""
+    async with seeded.factory() as db:
+        claim = await dispatcher.claim(db, node_run_id=node_run_id)
+        await db.commit()
+    assert claim is not None and claim.claimed_by is not None
+    async with seeded.factory() as db:
+        begun = await dispatcher.begin_attempt(
+            db, workflow_run_id=seeded.run.id, node_run_id=node_run_id, token=claim.claimed_by
+        )
+        await db.commit()
+    assert begun is not None
+    return begun
+
+
+async def _age_closed_rows(seeded: Seeded) -> None:
+    """Move every closed outbox row's last change back past a lease's grace."""
+    async with seeded.factory() as db:
+        await db.execute(
+            sql_update(DispatchOutbox)
+            .where(
+                DispatchOutbox.workflow_run_id == seeded.run.id,
+                DispatchOutbox.status.in_(
+                    [DispatchOutboxStatus.DONE.value, DispatchOutboxStatus.CANCELLED.value]
+                ),
+            )
+            .values(updated_at=datetime.now(UTC) - timedelta(days=1))
+        )
+        await db.commit()
+
+
+async def _reconcile_orphans(seeded: Seeded) -> int:
+    async with seeded.factory() as db:
+        resolved = await WorkflowReconcilerService(db).resolve_orphaned_attempts()
+        await db.commit()
+    return resolved
+
+
+class TestStrayOutboxRows:
+    async def test_a_backstop_sweep_overtaken_by_the_direct_wake_never_strands_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """The sweep scans the parked node, the direct wake dispatches it to
+        success meanwhile, and only then does the sweep take its locks. It used
+        to insert a row for the succeeded node anyway, which kept the run
+        `running` for ever after the last node settled."""
+        entry: list[uuid.UUID] = []
+        parked_on: list[uuid.UUID] = []
+        graph = _chain(node_kind(_parks_first_then_echoes(entry, parked_on)), 2)
+        entry.append(graph.entry_node_id)
+        seeded = await _seed(engine, graph)
+        parked_on.append(
+            (await _agent_run_awaiting_approval(seeded, raised_at=datetime.now(UTC))).id
+        )
+        await _tick(seeded, seeded.entry.id)
+        await _decide_all(seeded, parked_on[0])
+
+        scanned, resume = asyncio.Event(), asyncio.Event()
+        real_scan = workflow_run_repo.list_stale_approval_waits
+
+        async def scan_then_pause(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
+            rows = await real_scan(db, limit=limit)
+            scanned.set()
+            await resume.wait()
+            return rows
+
+        async def sweep() -> int:
+            async with seeded.factory() as db:
+                with patch.object(workflow_run_repo, "list_stale_approval_waits", scan_then_pause):
+                    woken = await WorkflowReconcilerService(db).wake_stale_approval_decisions()
+                await db.commit()
+            return woken
+
+        sweeping = asyncio.ensure_future(sweep())
+        await scanned.wait()
+        await wake_after_approval_decision(parked_on[0], organization_id=seeded.org.id)
+        await _tick(seeded, seeded.entry.id)
+        resume.set()
+
+        assert await sweeping == 0
+        second = (await _node_runs(seeded))[1]
+        await _tick(seeded, second.id)
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_closing_a_stray_row_after_the_last_node_settled_ends_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Whatever inserts a stray row, the run cannot stay `running` once
+        every node has succeeded: closing the stray row re-checks completion."""
+        seeded = await _seed(engine, _chain(node_kind(_echo), 2))
+        await _tick(seeded, seeded.entry.id)
+        async with seeded.factory() as db:
+            await workflow_run_repo.create_outbox(
+                db,
+                organization_id=seeded.org.id,
+                workflow_run_id=seeded.run.id,
+                node_run_id=seeded.entry.id,
+            )
+            await db.commit()
+        second = (await _node_runs(seeded))[1]
+        await _tick(seeded, second.id)
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+        assert {row.status for row in await _outbox_rows(seeded)} == {
+            DispatchOutboxStatus.DONE.value
+        }
+
+    async def test_the_live_row_is_the_one_a_claim_locks_whatever_its_created_at(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """`created_at` is the inserting transaction's start, so a row a long
+        sweep inserted can predate a row closed meanwhile. Locking the newest
+        by `created_at` locked the closed row, answered "lost claim" and left
+        the live row claimed, resubmitted every lease for ever."""
+        seeded = await _seed(engine, _chain(node_kind(_echo), 1))
+        await _tick(seeded, seeded.entry.id)
+        [done] = await _outbox_rows(seeded)
+        async with seeded.factory() as db:
+            stray = await workflow_run_repo.create_outbox(
+                db,
+                organization_id=seeded.org.id,
+                workflow_run_id=seeded.run.id,
+                node_run_id=seeded.entry.id,
+            )
+            await db.execute(
+                sql_update(DispatchOutbox)
+                .where(DispatchOutbox.id == stray.id)
+                .values(created_at=done.created_at - timedelta(seconds=1))
+            )
+            await db.commit()
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        statuses = {row.id: row.status for row in await _outbox_rows(seeded)}
+        assert statuses[stray.id] == DispatchOutboxStatus.DONE.value
+        await _expire_claims(seeded)
+        async with seeded.factory() as db:
+            assert await WorkflowReconcilerService(db).stale_claims() == []
+
+
+class TestAttemptsBehindAClosedRow:
+    """An attempt whose outbox row something else closed - a cancel while its
+    worker was dead, a reclaim that failed the run - used to stay `in_flight`
+    for ever: the sweep only looked behind rows still `claimed`."""
+
+    async def test_cancelling_while_the_worker_is_dead_settles_the_attempt_after_a_grace(
+        self, engine: AsyncEngine, node_kind
+    ):
+        seeded = await _seed(engine, _chain(node_kind(_echo), 1))
+        await _claim_and_begin(seeded, seeded.entry.id)
+        owner = AuthContext(
+            user_id=seeded.principal.id, organization_id=seeded.org.id, role="owner"
+        )
+        async with seeded.factory() as db:
+            await WorkflowExecutionService(db).cancel(owner, seeded.run.id)
+            await db.commit()
+
+        # Within the grace a worker still running the handler may settle it.
+        assert await _reconcile_orphans(seeded) == 0
+        await _age_closed_rows(seeded)
+        assert await _reconcile_orphans(seeded) == 1
+
+        assert await _attempt_statuses(seeded, seeded.entry.id) == [
+            NodeAttemptStatus.UNCERTAIN.value
+        ]
+        [node] = await _node_runs(seeded)
+        assert node.status == NodeRunStatus.CANCELLED.value
+        assert {row.status for row in await _outbox_rows(seeded)} == {
+            DispatchOutboxStatus.CANCELLED.value
+        }
+
+    async def test_a_reclaim_past_the_deadline_leaves_nothing_in_flight(
+        self, engine: AsyncEngine, node_kind
+    ):
+        seeded = await _seed(engine, _chain(node_kind(_echo), 1))
+        await _claim_and_begin(seeded, seeded.entry.id)
+        async with seeded.factory() as db:
+            await db.execute(
+                sql_update(WorkflowRun)
+                .where(WorkflowRun.id == seeded.run.id)
+                .values(deadline_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await db.commit()
+        await _expire_claims(seeded)
+        assert await _tick(seeded, seeded.entry.id) is None
+        await _age_closed_rows(seeded)
+
+        assert await _reconcile_orphans(seeded) == 1
+
+        assert await _attempt_statuses(seeded, seeded.entry.id) == [
+            NodeAttemptStatus.UNCERTAIN.value
+        ]
+        [node] = await _node_runs(seeded)
+        # Failed for the deadline, and not relabelled by the late resolution.
+        assert node.status == NodeRunStatus.FAILED.value
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "DEADLINE_EXCEEDED"
+
+    async def test_a_woken_node_failed_before_dispatch_forgets_its_wait_and_says_so(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """A node woken from an approval wait and failed for the deadline kept
+        its link to the agent run and emitted no node event."""
+        entry: list[uuid.UUID] = []
+        parked_on: list[uuid.UUID] = []
+        graph = _chain(node_kind(_parks_first_then_echoes(entry, parked_on)), 1)
+        entry.append(graph.entry_node_id)
+        seeded = await _seed(engine, graph)
+        parked_on.append(
+            (await _agent_run_awaiting_approval(seeded, raised_at=datetime.now(UTC))).id
+        )
+        await _tick(seeded, seeded.entry.id)
+        async with seeded.factory() as db:
+            await db.execute(
+                sql_update(WorkflowRun)
+                .where(WorkflowRun.id == seeded.run.id)
+                .values(deadline_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await db.commit()
+        await _decide_all(seeded, parked_on[0])
+        await wake_after_approval_decision(parked_on[0], organization_id=seeded.org.id)
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        [node] = await _node_runs(seeded)
+        assert node.status == NodeRunStatus.FAILED.value
+        assert (node.waiting_reason, node.waiting_agent_run_id) == (None, None)
+        async with seeded.factory() as db:
+            kinds = [
+                event.kind
+                for event in await workflow_run_repo.list_events_since(
+                    db, workflow_run_id=seeded.run.id, organization_id=seeded.org.id, after_seq=None
+                )
+            ]
+        assert kinds[-2:] == ["node_failed", "run_failed"]

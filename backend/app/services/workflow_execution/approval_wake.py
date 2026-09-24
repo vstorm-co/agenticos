@@ -23,12 +23,35 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.agent_run import ApprovalStatus
-from app.db.models.workflow_run import NodeRunStatus
+from app.db.models.workflow_run import (
+    NodeRun,
+    NodeRunStatus,
+    WaitingReason,
+    WorkflowRun,
+    WorkflowRunStatus,
+)
 from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import workflow_run as workflow_run_repo
 
 logger = logging.getLogger(__name__)
+
+
+def still_waiting_on(run: WorkflowRun, node_run: NodeRun, *, agent_run_id: UUID | None) -> bool:
+    """Whether `node_run`, read under `run`'s lock, is still parked on `agent_run_id`.
+
+    Both wakes find the node with an unlocked read and insert its outbox row
+    only once they hold the run's lock; anything the node did in between -
+    the other wake dispatched it, it succeeded, it re-parked on a different
+    agent run - must stop the insert.
+    """
+    return (
+        not WorkflowRunStatus(run.status).is_terminal
+        and node_run.status == NodeRunStatus.WAITING.value
+        and node_run.waiting_reason == WaitingReason.APPROVAL.value
+        and agent_run_id is not None
+        and node_run.waiting_agent_run_id == agent_run_id
+    )
 
 
 async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: UUID) -> None:
@@ -39,10 +62,10 @@ async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: U
     `node_runs.waiting_agent_run_id` settles that.
     """
     async with get_worker_db_context() as db:
-        node_run = await workflow_run_repo.find_node_run_waiting_on_agent_run(
+        found = await workflow_run_repo.find_node_run_waiting_on_agent_run(
             db, agent_run_id, organization_id=organization_id
         )
-        if node_run is None or node_run.status != NodeRunStatus.WAITING.value:
+        if found is None:
             return
         approvals = await agent_run_repo.list_approvals_for_run(
             db, run_id=agent_run_id, organization_id=organization_id
@@ -58,8 +81,13 @@ async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: U
             # per node run - would leave the decision that actually clears
             # the last pending approval with nothing left to enqueue.
             return
-        run = await workflow_run_repo.get_run_by_id_for_update(db, node_run.workflow_run_id)
-        if run is None:
+        run = await workflow_run_repo.get_run_by_id_for_update(db, found.workflow_run_id)
+        node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, found.id)
+        if (
+            run is None
+            or node_run is None
+            or not still_waiting_on(run, node_run, agent_run_id=agent_run_id)
+        ):
             return
         try:
             async with db.begin_nested():

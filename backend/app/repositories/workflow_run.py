@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -231,6 +231,14 @@ async def get_node_run_by_identity(
     return result.scalar_one_or_none()
 
 
+async def list_node_run_statuses(db: AsyncSession, *, workflow_run_id: UUID) -> list[str]:
+    """The status of every `NodeRun` of a run - what deciding "has it finished" reads."""
+    result = await db.execute(
+        select(NodeRun.status).where(NodeRun.workflow_run_id == workflow_run_id)
+    )
+    return list(result.scalars().all())
+
+
 async def find_node_run_waiting_on_agent_run(
     db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
 ) -> NodeRun | None:
@@ -407,29 +415,58 @@ async def settle_attempt(
 
 
 async def list_orphaned_in_flight(
-    db: AsyncSession, *, before: datetime, limit: int = 100
+    db: AsyncSession, *, before: datetime, closed_before: datetime, limit: int = 100
 ) -> list[NodeAttempt]:
-    """`in_flight` attempts whose owning outbox lease has expired.
+    """`in_flight` attempts nobody is still working on.
 
     The reconciler's starting point: an attempt committed `in_flight` before
     its handler ran (see `app.services.workflow_execution.dispatcher`), whose
-    process died before settling it. Joined through `DispatchOutbox` rather
-    than through the attempt's own `started_at`, because the lease - not the
-    attempt's age - is what says nobody is still working it.
+    process died before settling it. Two shapes:
 
-    Ordered by the owning run's id: the sweep locks each run in turn and holds
-    every lock until it commits, so any two sweeps must take them in the same
-    order or they can deadlock each other.
+    - its claim is still `claimed` but the lease ran out before `before` -
+      the worker died holding it;
+    - its outbox row was closed under it (a cancel, a reclaim that failed the
+      run for its deadline or budget) at least a lease ago, by
+      `closed_before` - the grace lets a worker still running the handler
+      settle it first, and without this shape such an attempt stayed
+      `in_flight` for ever.
+
+    An attempt with a live claim, or a pending row queued for it, is not
+    orphaned. Ordered by the owning run's id: the sweep locks each run in turn
+    and holds every lock until it commits, so any two sweeps must take them in
+    the same order or they can deadlock each other.
     """
+    same_node = DispatchOutbox.node_run_id == NodeAttempt.node_run_id
+    still_held = (
+        select(DispatchOutbox.id)
+        .where(
+            same_node,
+            (DispatchOutbox.status == DispatchOutboxStatus.PENDING.value)
+            | (
+                (DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value)
+                & (DispatchOutbox.lease_expires_at >= before)
+            ),
+        )
+        .exists()
+    )
+    closed_recently = (
+        select(DispatchOutbox.id)
+        .where(
+            same_node,
+            DispatchOutbox.status.in_(
+                [DispatchOutboxStatus.DONE.value, DispatchOutboxStatus.CANCELLED.value]
+            ),
+            DispatchOutbox.updated_at >= closed_before,
+        )
+        .exists()
+    )
     result = await db.execute(
         select(NodeAttempt)
-        .join(DispatchOutbox, DispatchOutbox.node_run_id == NodeAttempt.node_run_id)
         .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
         .where(
             NodeAttempt.status == NodeAttemptStatus.IN_FLIGHT.value,
-            DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
-            DispatchOutbox.lease_expires_at.is_not(None),
-            DispatchOutbox.lease_expires_at < before,
+            ~still_held,
+            ~closed_recently,
         )
         .order_by(NodeRun.workflow_run_id, NodeAttempt.id)
         .limit(limit)
@@ -627,21 +664,33 @@ async def mark_outbox_done(db: AsyncSession, *, outbox: DispatchOutbox) -> Dispa
 async def get_outbox_for_node_run_for_update(
     db: AsyncSession, *, node_run_id: UUID
 ) -> DispatchOutbox | None:
-    """This node run's latest outbox row, held for the caller's transaction.
+    """The row a claim on this node run is about, held for the caller's transaction.
 
-    `begin_attempt`'s own fencing-token check is a plain read otherwise - true
-    at the instant it runs, but not for the rest of that transaction, so a
-    worker that stalls *after* passing it (resolving the graph, io and auth
-    context, all before `create_attempt`) could still commit an attempt after
-    a reclaim changed `claimed_by` out from under it. Locking this row for the
-    whole of `begin_attempt` makes `claim_outbox`'s own CAS `UPDATE` - which
-    needs the same row - wait for that transaction to end rather than race it,
-    so the check stays true for as long as it needs to matter.
+    That is the live (`pending`/`claimed`) row when there is one - the partial
+    unique index allows at most one - and otherwise the newest closed row.
+    "Newest by `created_at`" alone is not enough: `created_at` is the inserting
+    transaction's start time, so a row a long sweep inserted can carry an
+    earlier stamp than a row another transaction inserted and closed meanwhile,
+    and the live row would be the one never locked.
+
+    `begin_attempt`, `settle` and the reconciler all take this lock, after the
+    run's and the node run's, so a fencing check made under it stays true for
+    the rest of the caller's transaction: `claim_outbox`'s reclaiming `UPDATE`
+    needs the same row and waits for that transaction to end.
     """
+    live_first = case(
+        (
+            DispatchOutbox.status.in_(
+                [DispatchOutboxStatus.PENDING.value, DispatchOutboxStatus.CLAIMED.value]
+            ),
+            0,
+        ),
+        else_=1,
+    )
     result = await db.execute(
         select(DispatchOutbox)
         .where(DispatchOutbox.node_run_id == node_run_id)
-        .order_by(DispatchOutbox.created_at.desc())
+        .order_by(live_first, DispatchOutbox.created_at.desc(), DispatchOutbox.id.desc())
         .limit(1)
         .with_for_update()
         .execution_options(populate_existing=True)

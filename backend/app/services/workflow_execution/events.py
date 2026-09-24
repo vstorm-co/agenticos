@@ -35,6 +35,7 @@ class EventKind:
     NODE_DISPATCHED = "node_dispatched"
     NODE_COMPLETED = "node_completed"
     NODE_FAILED = "node_failed"
+    NODE_CANCELLED = "node_cancelled"
     NODE_WAITING = "node_waiting"
     NODE_UNCERTAIN = "node_uncertain"
     NODE_RETRYING = "node_retrying"

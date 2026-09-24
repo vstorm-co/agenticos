@@ -654,7 +654,11 @@ async def test_a_reconcile_scan_overtaken_by_a_reclaim_never_runs_a_none_node_tw
     await _none_guarantee_orphan(factory, run, node_run)
 
     async with factory() as scan_db:
-        scanned = await workflow_run_repo.list_orphaned_in_flight(scan_db, before=datetime.now(UTC))
+        scanned = await workflow_run_repo.list_orphaned_in_flight(
+            scan_db,
+            before=datetime.now(UTC),
+            closed_before=datetime.now(UTC) - timedelta(minutes=2),
+        )
     assert len(scanned) == 1
 
     async with factory() as claim_db:

@@ -32,18 +32,25 @@ from app.core.config import settings
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatcher
+from app.services.workflow_execution.approval_wake import still_waiting_on
 
 logger = logging.getLogger(__name__)
 
 
-def _lease_expired(outbox: DispatchOutbox | None, *, at: datetime) -> bool:
-    """Whether `outbox` is still a claim nobody has renewed or closed by `at`."""
-    return (
-        outbox is not None
-        and outbox.status == DispatchOutboxStatus.CLAIMED.value
-        and outbox.lease_expires_at is not None
-        and outbox.lease_expires_at < at
-    )
+def _abandoned(outbox: DispatchOutbox | None, *, at: datetime, closed_before: datetime) -> bool:
+    """Whether nobody can still settle the attempt `outbox` fenced.
+
+    A claim nobody renewed by `at`; a row something closed (a cancel, a
+    failed reclaim) before `closed_before`; or no row at all. A pending row,
+    or a claim still leased, means somebody may yet.
+    """
+    if outbox is None:
+        return True
+    if outbox.status == DispatchOutboxStatus.CLAIMED.value:
+        return outbox.lease_expires_at is not None and outbox.lease_expires_at < at
+    if outbox.status == DispatchOutboxStatus.PENDING.value:
+        return False
+    return outbox.updated_at is None or outbox.updated_at < closed_before
 
 
 class WorkflowReconcilerService:
@@ -71,12 +78,16 @@ class WorkflowReconcilerService:
         return [(row.workflow_run_id, row.node_run_id) for row in rows]
 
     async def resolve_orphaned_attempts(self, *, limit: int = 100) -> int:
-        """Settle every `in_flight` attempt whose owning lease expired.
+        """Settle every `in_flight` attempt nobody can still settle.
 
-        Returns how many were resolved - zero on the ordinary sweep.
+        One whose claim's lease expired, or whose outbox row was closed under
+        it at least a lease ago (`list_orphaned_in_flight`). Returns how many
+        were resolved - zero on the ordinary sweep.
         """
+        scanned_at = datetime.now(UTC)
+        grace = timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS)
         attempts = await workflow_run_repo.list_orphaned_in_flight(
-            self.db, before=datetime.now(UTC), limit=limit
+            self.db, before=scanned_at, closed_before=scanned_at - grace, limit=limit
         )
         resolved = 0
         for attempt in attempts:
@@ -105,7 +116,9 @@ class WorkflowReconcilerService:
                 or node_run is None
                 or fresh is None
                 or fresh.status != NodeAttemptStatus.IN_FLIGHT.value
-                or not _lease_expired(outbox, at=datetime.now(UTC))
+                or not _abandoned(
+                    outbox, at=datetime.now(UTC), closed_before=datetime.now(UTC) - grace
+                )
             ):
                 continue
             await dispatcher.resolve_orphaned_attempt(
@@ -129,11 +142,18 @@ class WorkflowReconcilerService:
         """
         node_runs = await workflow_run_repo.list_stale_approval_waits(self.db, limit=limit)
         woken = 0
-        for node_run in node_runs:
-            run = await workflow_run_repo.get_run_by_id_for_update(
-                self.db, node_run.workflow_run_id
-            )
-            if run is None:
+        for scanned in node_runs:
+            run = await workflow_run_repo.get_run_by_id_for_update(self.db, scanned.workflow_run_id)
+            node_run = await workflow_run_repo.get_node_run_by_id_for_update(self.db, scanned.id)
+            # The scan is unlocked and this sweep is one long transaction: by
+            # now the direct wake may have dispatched the node and it may have
+            # succeeded. A row inserted for it anyway would outlive it and keep
+            # the run from ever being marked succeeded.
+            if (
+                run is None
+                or node_run is None
+                or not still_waiting_on(run, node_run, agent_run_id=scanned.waiting_agent_run_id)
+            ):
                 continue
             try:
                 async with self.db.begin_nested():

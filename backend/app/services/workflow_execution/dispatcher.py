@@ -464,8 +464,13 @@ async def begin_attempt(
         # `needs_attention`) or was cancelled must never run again, whatever
         # outbox row a racing wake left behind for it. The row is this
         # worker's own claim, so it is closed rather than left for
-        # `list_stale_claims` to resubmit.
+        # `take_stale_claims_for_resubmission` to resubmit - and closing it
+        # may be what leaves the run with nothing live, so the completion
+        # check `_advance` makes is made again here. Without it a stray row
+        # outliving the last node's settle stranded the run in `running`.
         await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+        if not WorkflowRunStatus(run.status).is_terminal:
+            await _succeed_if_finished(db, run=run)
         return None
 
     now = datetime.now(UTC)
@@ -475,8 +480,10 @@ async def begin_attempt(
             run=run,
             node_run=node_run,
             outbox=outbox,
-            code="DEADLINE_EXCEEDED",
-            message="This run's deadline passed before this node could be dispatched",
+            error=WorkflowError(
+                code="DEADLINE_EXCEEDED",
+                message="This run's deadline passed before this node could be dispatched",
+            ),
         )
         return None
     if budget.over_budget(run):
@@ -490,8 +497,10 @@ async def begin_attempt(
             run_status=WorkflowRunStatus.BUDGET_EXCEEDED,
             node_status=NodeRunStatus.CANCELLED,
             event=events.EventKind.RUN_BUDGET_EXCEEDED,
-            code="BUDGET_EXCEEDED",
-            message="This run's budget was spent before this node could be dispatched",
+            error=WorkflowError(
+                code="BUDGET_EXCEEDED",
+                message="This run's budget was spent before this node could be dispatched",
+            ),
         )
         return None
 
@@ -520,7 +529,11 @@ async def begin_attempt(
             extra={"node_run_id": str(node_run.id), "code": exc.code},
         )
         await _fail_run(
-            db, run=run, node_run=node_run, outbox=outbox, code=exc.code, message=exc.message
+            db,
+            run=run,
+            node_run=node_run,
+            outbox=outbox,
+            error=WorkflowError(code=exc.code, message=exc.message),
         )
         return None
     node = call.node
@@ -644,6 +657,81 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
     )
 
 
+async def _end_node(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    status: NodeRunStatus,
+    now: datetime,
+    error: WorkflowError | None = None,
+) -> None:
+    """Move `node_run` to a terminal status for good.
+
+    The one way a node leaves the graph without succeeding: it clears the
+    wait it may have been parked on - a woken node that fails must not keep
+    pointing at the agent run it waited for - and appends the node's own
+    event before whatever the caller does to the run, so a client rebuilding
+    node state from the stream sees every node end.
+    """
+    await workflow_run_repo.update_node_run(
+        db,
+        node_run=node_run,
+        update_data={
+            "status": status.value,
+            "ended_at": now,
+            "waiting_reason": None,
+            "waiting_agent_run_id": None,
+        },
+    )
+    kind = (
+        events.EventKind.NODE_FAILED
+        if status is NodeRunStatus.FAILED
+        else events.EventKind.NODE_CANCELLED
+    )
+    await events.append(
+        db,
+        run=run,
+        kind=kind,
+        node_run_id=node_run.id,
+        payload={"error": error.code} if error is not None else {},
+    )
+
+
+async def _end_run(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    run_status: WorkflowRunStatus,
+    node_status: NodeRunStatus,
+    event: str,
+    error: WorkflowError,
+    now: datetime,
+) -> None:
+    """End `node_run` and then `run` for good.
+
+    Terminal in every column a reader checks: the node, the run's status,
+    `ended_at` and `error`, and every outbox row still live for the run, so
+    nothing else is claimed for it afterwards.
+    """
+    await _end_node(db, run=run, node_run=node_run, status=node_status, now=now, error=error)
+    await workflow_run_repo.update_run(
+        db,
+        run=run,
+        update_data={
+            "status": run_status.value,
+            "ended_at": now,
+            "paused_reason": None,
+            "error": error.model_dump(mode="json"),
+        },
+    )
+    await events.append(
+        db, run=run, kind=event, node_run_id=node_run.id, payload={"code": error.code}
+    )
+    await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
+
+
 async def _end_run_before_dispatch(
     db: AsyncSession,
     *,
@@ -653,32 +741,20 @@ async def _end_run_before_dispatch(
     run_status: WorkflowRunStatus,
     node_status: NodeRunStatus,
     event: str,
-    code: str,
-    message: str,
+    error: WorkflowError,
 ) -> None:
-    """End `run` for good before `node_run` ever got an attempt.
-
-    Terminal in every column a reader checks: the run's status, `ended_at` and
-    `error`; the node this dispatch was for; and every outbox row still live
-    for the run, so nothing else is claimed for it afterwards.
-    """
-    now = datetime.now(UTC)
-    await workflow_run_repo.update_run(
+    """End `run` for good before `node_run` ever got an attempt, closing this claim."""
+    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await _end_run(
         db,
         run=run,
-        update_data={
-            "status": run_status.value,
-            "ended_at": now,
-            "paused_reason": None,
-            "error": {"code": code, "message": message, "details": {}, "retryable": False},
-        },
+        node_run=node_run,
+        run_status=run_status,
+        node_status=node_status,
+        event=event,
+        error=error,
+        now=datetime.now(UTC),
     )
-    await workflow_run_repo.update_node_run(
-        db, node_run=node_run, update_data={"status": node_status.value, "ended_at": now}
-    )
-    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
-    await events.append(db, run=run, kind=event, node_run_id=node_run.id, payload={"code": code})
-    await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
 
 
 async def _fail_run(
@@ -687,8 +763,7 @@ async def _fail_run(
     run: WorkflowRun,
     node_run: NodeRun,
     outbox: DispatchOutbox,
-    code: str,
-    message: str,
+    error: WorkflowError,
 ) -> None:
     await _end_run_before_dispatch(
         db,
@@ -698,9 +773,20 @@ async def _fail_run(
         run_status=WorkflowRunStatus.FAILED,
         node_status=NodeRunStatus.FAILED,
         event=events.EventKind.RUN_FAILED,
-        code=code,
-        message=message,
+        error=error,
     )
+
+
+async def _close_node_of_ended_run(
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, now: datetime
+) -> None:
+    """A node still live when its run ended is cancelled; one already ended keeps its status.
+
+    A run failed for its deadline has already marked the node `failed`, and a
+    late settle or an orphan resolution must not relabel it `cancelled`.
+    """
+    if node_run.status in _DISPATCHABLE:
+        await _end_node(db, run=run, node_run=node_run, status=NodeRunStatus.CANCELLED, now=now)
 
 
 def _backoff_seconds(attempt_no: int) -> float:
@@ -731,10 +817,13 @@ async def resolve_orphaned_attempt(
     whose previous claim already got this far - always a non-terminal run,
     since `begin_attempt` already refused a terminal one before reaching this
     call) and `app.services.workflow_execution.reconciler` (the standalone
-    sweep that finds the same shape on its own schedule, with no dispatch
-    trigger and no prior terminal-run check of its own - `cancel()` leaves a
-    `running` `NodeRun` exactly as it was, so a run cancelled while this
-    attempt was already stranded reaches here directly).
+    sweep that finds the same shape on its own schedule). The sweep also
+    reaches attempts whose outbox row something else closed under them - a
+    cancel while the worker was dead, a reclaim that failed the run for its
+    deadline or budget - which is how a terminal run arrives here: the
+    attempt still settles, and the node, if still live, is cancelled.
+
+    A cost already booked onto the attempt by a late settle is kept.
     """
     now = datetime.now(UTC)
     await workflow_run_repo.settle_attempt(
@@ -742,11 +831,13 @@ async def resolve_orphaned_attempt(
         attempt=attempt,
         status=NodeAttemptStatus.UNCERTAIN.value,
         result=None,
-        cost=Decimal(0),
-        cost_is_partial=False,
+        cost=attempt.cost,
+        cost_is_partial=attempt.cost_is_partial,
         ended_at=now,
     )
-    if outbox is not None:
+    # Only a claim still open is closed: a row a cancel or a failure already
+    # closed keeps the status that records why.
+    if outbox is not None and outbox.status == DispatchOutboxStatus.CLAIMED.value:
         await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
     await events.append(
         db,
@@ -756,17 +847,11 @@ async def resolve_orphaned_attempt(
         payload={"attempt_no": attempt.attempt_no, "retry_guarantee": attempt.retry_guarantee},
     )
     if WorkflowRunStatus(run.status).is_terminal:
-        # A run cancelled while this attempt was stranded must stay
-        # cancelled - the attempt still settled honestly above, but there is
+        # A run that ended while this attempt was stranded stays as it
+        # ended - the attempt still settled honestly above, but there is
         # nothing left to retry or escalate: no fresh outbox row, no
-        # `needs_attention`, matching `settle`'s own terminal short-circuit
-        # for the identical reason (`cancel()` already closed every other
-        # outbox row for this run).
-        await workflow_run_repo.update_node_run(
-            db,
-            node_run=node_run,
-            update_data={"status": NodeRunStatus.CANCELLED.value, "ended_at": now},
-        )
+        # `needs_attention`, matching `settle`'s own terminal short-circuit.
+        await _close_node_of_ended_run(db, run=run, node_run=node_run, now=now)
         return
     if attempt.retry_guarantee == RetryGuarantee.IDEMPOTENT.value:
         # The same ceiling and backoff a `Failed` result gets: a node whose
@@ -777,12 +862,11 @@ async def resolve_orphaned_attempt(
                 db,
                 run=run,
                 node_run=node_run,
-                error={
-                    "code": "ATTEMPTS_INTERRUPTED",
-                    "message": "Every attempt at this node was interrupted before it finished",
-                    "details": {"attempts": attempt.attempt_no},
-                    "retryable": False,
-                },
+                error=WorkflowError(
+                    code="ATTEMPTS_INTERRUPTED",
+                    message="Every attempt at this node was interrupted before it finished",
+                    details={"attempts": attempt.attempt_no},
+                ),
                 now=now,
             )
             return
@@ -876,11 +960,7 @@ async def settle(
     # row, so there is nothing left to dispatch even if this had completed.
     if WorkflowRunStatus(run.status).is_terminal:
         await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
-        await workflow_run_repo.update_node_run(
-            db,
-            node_run=node_run,
-            update_data={"status": NodeRunStatus.CANCELLED.value, "ended_at": now},
-        )
+        await _close_node_of_ended_run(db, run=run, node_run=node_run, now=now)
         # Only this attempt's own, still-open claim is closed: `cancel()`
         # already marked the row `cancelled`, and that record stays as it is.
         outbox = await workflow_run_repo.get_outbox_for_node_run_for_update(
@@ -1148,9 +1228,7 @@ async def _settle_failed(
     # Retries exhausted, or this failure was never retryable in the first
     # place - #1790 owns the real ceiling and any error-routing policy; this
     # is the minimal placeholder the design calls for.
-    await _fail_node_and_run(
-        db, run=run, node_run=node_run, error=result.error.model_dump(mode="json"), now=now
-    )
+    await _fail_node_and_run(db, run=run, node_run=node_run, error=result.error, now=now)
 
 
 async def _fail_node_and_run(
@@ -1158,39 +1236,20 @@ async def _fail_node_and_run(
     *,
     run: WorkflowRun,
     node_run: NodeRun,
-    error: dict[str, Any],
+    error: WorkflowError,
     now: datetime,
 ) -> None:
     """A node that ran and will not run again fails, and takes its run with it."""
-    await workflow_run_repo.update_node_run(
+    await _end_run(
         db,
+        run=run,
         node_run=node_run,
-        update_data={
-            "status": NodeRunStatus.FAILED.value,
-            "ended_at": now,
-            "waiting_reason": None,
-            "waiting_agent_run_id": None,
-        },
+        run_status=WorkflowRunStatus.FAILED,
+        node_status=NodeRunStatus.FAILED,
+        event=events.EventKind.RUN_FAILED,
+        error=error,
+        now=now,
     )
-    await events.append(
-        db,
-        run=run,
-        kind=events.EventKind.NODE_FAILED,
-        node_run_id=node_run.id,
-        payload={"error": error["code"]},
-    )
-    await workflow_run_repo.update_run(
-        db,
-        run=run,
-        update_data={
-            "status": WorkflowRunStatus.FAILED.value,
-            "ended_at": now,
-            "paused_reason": None,
-            "error": error,
-        },
-    )
-    await events.append(db, run=run, kind=events.EventKind.RUN_FAILED, node_run_id=node_run.id)
-    await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
 
 
 async def _settle_uncertain(
@@ -1215,8 +1274,7 @@ async def _advance(
         edge for edge in graph.edges if edge.source_node_id == completed_node_instance_id
     ]
     if not downstream_edges:
-        if not await workflow_run_repo.has_live_outbox(db, workflow_run_id=run.id):
-            await _succeed_run(db, run=run)
+        await _succeed_if_finished(db, run=run, graph=graph)
         return ready_pairs
 
     for edge in downstream_edges:
@@ -1273,6 +1331,24 @@ async def _advance(
         )
         ready_pairs.append((run.id, node_run.id))
     return ready_pairs
+
+
+async def _succeed_if_finished(
+    db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph | None = None
+) -> None:
+    """Mark `run` succeeded if every node of its graph has, and nothing is left to dispatch.
+
+    Called under the run's lock, both when the last node settles and when a
+    stray outbox row is closed, so whichever of the two happens last ends
+    the run.
+    """
+    if await workflow_run_repo.has_live_outbox(db, workflow_run_id=run.id):
+        return
+    graph = graph or await resolve_graph(db, run)
+    statuses = await workflow_run_repo.list_node_run_statuses(db, workflow_run_id=run.id)
+    finished = {NodeRunStatus.SUCCEEDED.value, NodeRunStatus.SKIPPED.value}
+    if len(statuses) == len(graph.nodes) and all(status in finished for status in statuses):
+        await _succeed_run(db, run=run)
 
 
 async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:

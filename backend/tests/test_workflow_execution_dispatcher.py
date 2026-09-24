@@ -1068,6 +1068,7 @@ class TestSettleCompleted:
         )
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
         repo.has_live_outbox.return_value = False
+        repo.list_node_run_statuses.return_value = [NodeRunStatus.SUCCEEDED.value]
 
         result = Completed[_EchoOutput](output=_EchoOutput(echoed="done"))
         await dispatcher.settle(
@@ -2038,11 +2039,37 @@ class TestAdvance:
             draft_graph_snapshot=graph.model_dump(mode="json"),
         )
         repo.has_live_outbox.return_value = False
+        repo.list_node_run_statuses.return_value = [NodeRunStatus.SUCCEEDED.value]
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         await dispatcher._advance(object(), run=run, completed_node_instance_id=node.id)
 
         assert run.status == WorkflowRunStatus.SUCCEEDED.value
+
+    @pytest.mark.parametrize(
+        "statuses",
+        [
+            [NodeRunStatus.SUCCEEDED.value, NodeRunStatus.WAITING.value],
+            # A node of the graph that has no node run yet.
+            [],
+        ],
+    )
+    async def test_a_run_with_a_node_not_yet_finished_is_not_succeeded(
+        self, repo, event_log, test_node, statuses
+    ):
+        node = _node_instance(test_node)
+        graph = _graph(node)
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=graph.model_dump(mode="json"),
+        )
+        repo.has_live_outbox.return_value = False
+        repo.list_node_run_statuses.return_value = statuses
+
+        await dispatcher._advance(object(), run=run, completed_node_instance_id=node.id)
+
+        assert run.status == WorkflowRunStatus.RUNNING.value
 
     async def test_no_downstream_but_a_live_outbox_remains_leaves_the_run_alone(
         self, repo, event_log, test_node

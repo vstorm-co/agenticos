@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.agent_run import ApprovalStatus
-from app.db.models.workflow_run import NodeRunStatus
+from app.db.models.workflow_run import NodeRunStatus, WaitingReason, WorkflowRunStatus
 from app.repositories import agent_run as agent_run_repo_module
 from app.repositories import workflow_run as workflow_run_repo_module
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
@@ -41,11 +41,16 @@ class _FakeNestedTxn:
         return False
 
 
+_AGENT_RUN = uuid.uuid4()
+
+
 def _node_run(**overrides: object):
     node_run = MagicMock()
     node_run.id = uuid.uuid4()
     node_run.workflow_run_id = uuid.uuid4()
     node_run.status = NodeRunStatus.WAITING.value
+    node_run.waiting_reason = WaitingReason.APPROVAL.value
+    node_run.waiting_agent_run_id = _AGENT_RUN
     for field, value in overrides.items():
         setattr(node_run, field, value)
     return node_run
@@ -55,6 +60,7 @@ def _run(**overrides: object):
     run = MagicMock()
     run.id = uuid.uuid4()
     run.organization_id = uuid.uuid4()
+    run.status = WorkflowRunStatus.WAITING_APPROVAL.value
     for field, value in overrides.items():
         setattr(run, field, value)
     return run
@@ -63,6 +69,11 @@ def _run(**overrides: object):
 @pytest.fixture
 def repo():
     mocked = create_autospec(workflow_run_repo_module, instance=False)
+    # The locked re-read answers with whatever the unlocked lookup found,
+    # unless a test says the node changed in between.
+    mocked.get_node_run_by_id_for_update.side_effect = lambda _db, _id: (
+        mocked.find_node_run_waiting_on_agent_run.return_value
+    )
     with patch(f"{WAKE_PATH}.workflow_run_repo", new=mocked):
         yield mocked
 
@@ -96,20 +107,21 @@ def worker_db():
 class TestWakeAfterApprovalDecision:
     async def test_no_node_run_waiting_on_this_agent_run_is_a_no_op(self, repo, worker_db):
         repo.find_node_run_waiting_on_agent_run.return_value = None
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
         repo.create_outbox.assert_not_called()
 
     async def test_a_node_run_no_longer_waiting_is_left_alone(self, repo, worker_db):
         repo.find_node_run_waiting_on_agent_run.return_value = _node_run(
             status=NodeRunStatus.SUCCEEDED.value
         )
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        repo.get_run_by_id_for_update.return_value = _run()
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
         repo.create_outbox.assert_not_called()
 
     async def test_a_run_that_no_longer_exists_is_a_no_op(self, repo, worker_db):
         repo.find_node_run_waiting_on_agent_run.return_value = _node_run()
         repo.get_run_by_id_for_update.return_value = None
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
         repo.create_outbox.assert_not_called()
 
     async def test_a_waiting_node_run_gets_a_fresh_outbox_row(self, repo, worker_db):
@@ -118,7 +130,7 @@ class TestWakeAfterApprovalDecision:
         repo.find_node_run_waiting_on_agent_run.return_value = node_run
         repo.get_run_by_id_for_update.return_value = run
 
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
 
         repo.create_outbox.assert_awaited_once()
         assert repo.create_outbox.await_args.kwargs["node_run_id"] == node_run.id
@@ -130,7 +142,7 @@ class TestWakeAfterApprovalDecision:
         repo.get_run_by_id_for_update.return_value = run
         repo.create_outbox.side_effect = IntegrityError("insert", {}, Exception("dup"))
 
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
 
     async def test_another_pending_approval_on_the_same_run_defers_the_outbox_insert(
         self, repo, worker_db, approvals_repo
@@ -152,7 +164,7 @@ class TestWakeAfterApprovalDecision:
             _approval(status=ApprovalStatus.PENDING.value),
         ]
 
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
 
         repo.create_outbox.assert_not_called()
         repo.get_run_by_id_for_update.assert_not_called()
@@ -169,7 +181,50 @@ class TestWakeAfterApprovalDecision:
             _approval(status=ApprovalStatus.REJECTED.value),
         ]
 
-        await wake_after_approval_decision(uuid.uuid4(), organization_id=uuid.uuid4())
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
 
         repo.create_outbox.assert_awaited_once()
         assert repo.create_outbox.await_args.kwargs["node_run_id"] == node_run.id
+
+
+class TestTheLockedReRead:
+    """The node is found with an unlocked read; by the time the run's lock is
+    held it may have moved on, and a row inserted for it anyway would outlive
+    it and keep the run from ever succeeding."""
+
+    async def test_a_node_dispatched_by_the_other_wake_meanwhile_gets_no_row(self, repo, worker_db):
+        found = _node_run()
+        repo.find_node_run_waiting_on_agent_run.return_value = found
+        repo.get_run_by_id_for_update.return_value = _run(id=found.workflow_run_id)
+        repo.get_node_run_by_id_for_update.side_effect = None
+        repo.get_node_run_by_id_for_update.return_value = _node_run(
+            id=found.id, status=NodeRunStatus.SUCCEEDED.value
+        )
+
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_not_called()
+
+    async def test_a_node_now_waiting_on_another_agent_run_gets_no_row(self, repo, worker_db):
+        found = _node_run()
+        repo.find_node_run_waiting_on_agent_run.return_value = found
+        repo.get_run_by_id_for_update.return_value = _run(id=found.workflow_run_id)
+        repo.get_node_run_by_id_for_update.side_effect = None
+        repo.get_node_run_by_id_for_update.return_value = _node_run(
+            id=found.id, waiting_agent_run_id=uuid.uuid4()
+        )
+
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_not_called()
+
+    async def test_a_run_that_ended_meanwhile_gets_no_row(self, repo, worker_db):
+        found = _node_run()
+        repo.find_node_run_waiting_on_agent_run.return_value = found
+        repo.get_run_by_id_for_update.return_value = _run(
+            id=found.workflow_run_id, status=WorkflowRunStatus.CANCELLED.value
+        )
+
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_not_called()

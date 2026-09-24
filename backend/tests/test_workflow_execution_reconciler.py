@@ -182,17 +182,31 @@ class TestResolveOrphanedAttempts:
                 lambda: {"lease_expires_at": datetime.now(UTC) + timedelta(minutes=2)},
                 id="renewed",
             ),
-            # Closed (a cancel, another sweep) between the scan and the lock.
-            pytest.param(lambda: {"status": DispatchOutboxStatus.DONE.value}, id="done"),
-            pytest.param(lambda: {"status": DispatchOutboxStatus.CANCELLED.value}, id="cancelled"),
+            # Closed (a cancel, another sweep) only just now: a worker still
+            # running the handler gets a lease to settle it first.
+            pytest.param(
+                lambda: {
+                    "status": DispatchOutboxStatus.DONE.value,
+                    "updated_at": datetime.now(UTC),
+                },
+                id="done-just-now",
+            ),
+            pytest.param(
+                lambda: {
+                    "status": DispatchOutboxStatus.CANCELLED.value,
+                    "updated_at": datetime.now(UTC),
+                },
+                id="cancelled-just-now",
+            ),
+            pytest.param(lambda: {"status": DispatchOutboxStatus.PENDING.value}, id="pending"),
         ],
     )
-    async def test_an_orphan_whose_claim_changed_since_the_scan_is_left_alone(
+    async def test_an_orphan_somebody_may_still_settle_is_left_alone(
         self, repo, event_log, outbox_overrides
     ):
-        """Only a claim that is still open and still expired under the lock is
-        abandoned; resolving on the scan's word would close a live claim and
-        let its holder run the node a second time."""
+        """Only an attempt nobody can still settle is resolved; resolving on the
+        scan's word would close a live claim and let its holder run the node a
+        second time."""
         node_run = _node_run(status=NodeRunStatus.RUNNING.value, waiting_agent_run_id=None)
         attempt = _attempt(node_run_id=node_run.id)
         run = _run(id=node_run.workflow_run_id)
@@ -211,17 +225,42 @@ class TestResolveOrphanedAttempts:
         assert attempt.status == NodeAttemptStatus.IN_FLIGHT.value
         repo.mark_outbox_done.assert_not_called()
 
-    async def test_an_orphan_with_no_outbox_row_left_is_left_alone(self, repo, event_log):
+    @pytest.mark.parametrize(
+        "outbox",
+        [
+            pytest.param(
+                lambda node_run_id: _outbox(
+                    node_run_id=node_run_id,
+                    status=DispatchOutboxStatus.CANCELLED.value,
+                    updated_at=datetime.now(UTC) - timedelta(hours=1),
+                ),
+                id="closed-long-ago",
+            ),
+            pytest.param(lambda _node_run_id: None, id="no-row"),
+        ],
+    )
+    async def test_an_orphan_behind_a_row_closed_long_ago_is_resolved_and_the_row_kept(
+        self, repo, event_log, outbox
+    ):
+        """A cancel while the worker was dead closed the row under the attempt;
+        the attempt still settles, and the row keeps the status that records
+        why it was closed."""
         node_run = _node_run(status=NodeRunStatus.RUNNING.value, waiting_agent_run_id=None)
         attempt = _attempt(node_run_id=node_run.id)
+        run = _run(id=node_run.workflow_run_id, status=WorkflowRunStatus.CANCELLED.value)
         repo.list_orphaned_in_flight.return_value = [attempt]
         repo.get_node_run_by_id.return_value = node_run
-        repo.get_run_by_id_for_update.return_value = _run(id=node_run.workflow_run_id)
+        repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = outbox(node_run.id)
         repo.get_attempt.return_value = attempt
+        repo.settle_attempt.side_effect = _settle_effect
 
-        assert await WorkflowReconcilerService(object()).resolve_orphaned_attempts() == 0
+        resolved = await WorkflowReconcilerService(object()).resolve_orphaned_attempts()
+
+        assert resolved == 1
+        assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
+        repo.mark_outbox_done.assert_not_called()
 
     async def test_a_node_run_that_no_longer_exists_is_skipped(self, repo, event_log):
         attempt = _attempt()
@@ -282,6 +321,7 @@ class TestWakeStaleApprovalDecisions:
         run = _run(id=node_run.workflow_run_id)
         repo.list_stale_approval_waits.return_value = [node_run]
         repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
         db = _nested_txn_db()
 
         service = WorkflowReconcilerService(db)
@@ -306,6 +346,7 @@ class TestWakeStaleApprovalDecisions:
         run = _run(id=node_run.workflow_run_id)
         repo.list_stale_approval_waits.return_value = [node_run]
         repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
         repo.create_outbox.side_effect = IntegrityError("insert", {}, Exception("dup"))
         db = _nested_txn_db()
 
@@ -313,6 +354,22 @@ class TestWakeStaleApprovalDecisions:
         woken = await service.wake_stale_approval_decisions()
 
         assert woken == 0
+
+    async def test_a_node_that_moved_on_since_the_scan_gets_no_row(self, repo):
+        """The scan is unlocked; a node the direct wake dispatched meanwhile must
+        not get a second row, which would outlive it and strand the run."""
+        scanned = _node_run()
+        run = _run(id=scanned.workflow_run_id)
+        repo.list_stale_approval_waits.return_value = [scanned]
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = _node_run(
+            id=scanned.id, status=NodeRunStatus.SUCCEEDED.value
+        )
+
+        woken = await WorkflowReconcilerService(_nested_txn_db()).wake_stale_approval_decisions()
+
+        assert woken == 0
+        repo.create_outbox.assert_not_called()
 
     async def test_nothing_stale_wakes_nothing(self, repo):
         repo.list_stale_approval_waits.return_value = []

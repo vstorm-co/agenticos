@@ -776,7 +776,9 @@ class TestOrphanedInFlightAttempts:
             retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
             started_at=datetime.now(UTC),
         )
-        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+        found = await workflow_run_repo.list_orphaned_in_flight(
+            db, before=datetime.now(UTC), closed_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
         assert attempt.id in {row.id for row in found}
 
     async def test_orphans_come_back_in_the_order_their_runs_are_locked(self, db: AsyncSession):
@@ -813,7 +815,9 @@ class TestOrphanedInFlightAttempts:
                 started_at=datetime.now(UTC),
             )
 
-        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+        found = await workflow_run_repo.list_orphaned_in_flight(
+            db, before=datetime.now(UTC), closed_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
 
         run_of = {node_run.id: node_run.workflow_run_id for node_run in node_runs}
         order = [run_of[attempt.node_run_id] for attempt in found]
@@ -856,7 +860,9 @@ class TestOrphanedInFlightAttempts:
             cost_is_partial=False,
             ended_at=datetime.now(UTC),
         )
-        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+        found = await workflow_run_repo.list_orphaned_in_flight(
+            db, before=datetime.now(UTC), closed_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
         assert attempt.id not in {row.id for row in found}
 
 
