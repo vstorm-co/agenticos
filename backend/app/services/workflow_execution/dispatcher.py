@@ -156,18 +156,17 @@ async def claim(
     )
 
 
-async def renew_lease(db: AsyncSession, *, begun: BegunAttempt) -> bool:
-    """Extend the claim `begun` was dispatched under by another full lease.
+async def renew_lease(db: AsyncSession, *, node_run_id: UUID, token: UUID) -> bool:
+    """Extend the claim made with `token` on `node_run_id` by another full lease.
 
-    Returns `False` once the claim is no longer `begun`'s own open claim -
-    reclaimed, closed or cancelled - and then extends nothing.
+    Returns `False` once it is no longer that open claim - reclaimed, closed
+    or cancelled - and then extends nothing.
     """
     return await workflow_run_repo.renew_lease(
         db,
-        node_run_id=begun.node_run_id,
-        token=begun.dispatch_token,
-        lease_expires_at=datetime.now(UTC)
-        + timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS),
+        node_run_id=node_run_id,
+        token=token,
+        lease_seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS,
     )
 
 
@@ -401,7 +400,12 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
 
 
 async def begin_attempt(
-    db: AsyncSession, *, workflow_run_id: UUID, node_run_id: UUID, token: UUID
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    node_run_id: UUID,
+    token: UUID,
+    claim: context.ClaimState | None = None,
 ) -> BegunAttempt | None:
     """Phase 2: resolve this node's call and commit its `in_flight` attempt.
 
@@ -602,6 +606,7 @@ async def begin_attempt(
         attempt_no=attempt_no,
         auth=auth,
         resumed_agent_run_id=node_run.waiting_agent_run_id,
+        claim=claim if claim is not None else context.ClaimState(),
     )
     return BegunAttempt(
         workflow_run_id=run.id,

@@ -15,7 +15,6 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from prefect import flow
@@ -24,9 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_worker_db_context
-
-if TYPE_CHECKING:
-    from app.services.workflow_execution.dispatcher import BegunAttempt
+from app.services.workflow_execution.context import ClaimState
 
 logger = logging.getLogger(__name__)
 
@@ -104,35 +101,41 @@ async def workflow_dispatch_node_flow(workflow_run_id: str, node_run_id: str) ->
     # `pending` row nobody has claimed yet, which this is not.
     assert outbox.claimed_by is not None
 
-    async with get_worker_db_context() as db:
-        begun = await dispatcher.begin_attempt(
-            db, workflow_run_id=run_id, node_run_id=node_id, token=outbox.claimed_by
-        )
-    if begun is None:
-        return "not_dispatched"
-
-    async with _lease_kept_alive(begun):
+    token = outbox.claimed_by
+    claim = ClaimState()
+    # From the claim to the settle's commit: a lease that runs out while
+    # `begin_attempt` resolves the call, or while `settle` waits for its lock,
+    # has a healthy attempt reclaimed just as surely as one that runs out
+    # mid-handler.
+    async with _lease_kept_alive(node_id, token, claim):
+        async with get_worker_db_context() as db:
+            begun = await dispatcher.begin_attempt(
+                db, workflow_run_id=run_id, node_run_id=node_id, token=token, claim=claim
+            )
+        if begun is None:
+            return "not_dispatched"
         outcome = await dispatcher.call_handler(begun)
-
-    async with get_worker_db_context() as db:
-        ready = await dispatcher.settle(db, begun=begun, outcome=outcome)
+        async with get_worker_db_context() as db:
+            ready = await dispatcher.settle(db, begun=begun, outcome=outcome)
     # After the commit, so each submitted flow can claim the row it names.
     await _submit_each(ready)
     return "settled"
 
 
 @contextlib.asynccontextmanager
-async def _lease_kept_alive(begun: BegunAttempt) -> AsyncIterator[None]:
-    """Renew the claim's lease for as long as the handler runs.
+async def _lease_kept_alive(
+    node_run_id: UUID, token: UUID, claim: ClaimState
+) -> AsyncIterator[None]:
+    """Renew the claim's lease for as long as the block runs.
 
     The lease frees a claim whose worker *died*; only the worker can tell
     "died" from "still running", so it renews on an interval well inside the
-    lease. Without this a healthy handler that ran past one lease was
+    lease. Without this a healthy attempt that ran past one lease was
     reclaimed mid-call: an idempotent node ran twice, and a non-idempotent
     one was escalated and its real result discarded. The same shape as
     `AgentTriggerService._keep_lease_alive`.
     """
-    renewer = asyncio.create_task(_renew_until_lost(begun))
+    renewer = asyncio.create_task(_renew_until_lost(node_run_id, token, claim))
     try:
         yield
     finally:
@@ -141,7 +144,7 @@ async def _lease_kept_alive(begun: BegunAttempt) -> AsyncIterator[None]:
             await renewer
 
 
-async def _renew_until_lost(begun: BegunAttempt) -> None:
+async def _renew_until_lost(node_run_id: UUID, token: UUID, claim: ClaimState) -> None:
     from app.services.workflow_execution import dispatcher
 
     interval = settings.WORKFLOW_DISPATCH_LEASE_SECONDS / 3
@@ -151,22 +154,19 @@ async def _renew_until_lost(begun: BegunAttempt) -> None:
             # Its own short transaction, so the new expiry commits and the
             # reconciler's sessions see it.
             async with get_worker_db_context() as db:
-                held = await dispatcher.renew_lease(db, begun=begun)
+                held = await dispatcher.renew_lease(db, node_run_id=node_run_id, token=token)
         except Exception:
             # One failed renewal is not a lost claim: the next tick tries
             # again, and if every one fails the lease simply runs out and the
             # fence in `settle` decides. Raising here would surface at the end
-            # of the handler call instead and discard its result.
+            # of the block instead and discard the attempt's result.
             logger.exception(
-                "workflow_dispatch_lease_renewal_failed",
-                extra={"node_run_id": str(begun.node_run_id)},
+                "workflow_dispatch_lease_renewal_failed", extra={"node_run_id": str(node_run_id)}
             )
             continue
         if not held:
-            begun.dispatch_context.claim.lost = True
-            logger.warning(
-                "workflow_dispatch_claim_lost", extra={"node_run_id": str(begun.node_run_id)}
-            )
+            claim.lost = True
+            logger.warning("workflow_dispatch_claim_lost", extra={"node_run_id": str(node_run_id)})
             return
 
 

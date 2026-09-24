@@ -11,12 +11,12 @@ and its caller already use.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, case, func, or_, select
+from sqlalchemy import Interval, Select, case, func, literal, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -670,9 +670,14 @@ async def _stamp_submitted(db: AsyncSession, ids: Select[tuple[UUID]]) -> list[D
 
 
 async def renew_lease(
-    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_expires_at: datetime
+    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_seconds: float
 ) -> bool:
     """Extend a claim's lease, but only while it is still this token's open claim.
+
+    The new expiry is `lease_seconds` from when the row is actually updated
+    (`clock_timestamp()`, evaluated once the row lock is held), not from when
+    the renewal was sent: a renewal that waits behind `begin_attempt`'s or
+    `settle`'s lock on the row would otherwise land an expiry already spent.
 
     Returns whether it was: `False` means the row was reclaimed, closed or
     cancelled since, and the holder has lost it.
@@ -684,7 +689,10 @@ async def renew_lease(
             DispatchOutbox.claimed_by == token,
             DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
         )
-        .values(lease_expires_at=lease_expires_at)
+        .values(
+            lease_expires_at=func.clock_timestamp()
+            + literal(timedelta(seconds=lease_seconds), Interval())
+        )
         .returning(DispatchOutbox.id)
         .execution_options(synchronize_session=False)
     )

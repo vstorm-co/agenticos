@@ -1159,3 +1159,44 @@ class TestResourceRefs:
             .all()
         )
         assert {(row.id, row.kind) for row in rows} == {(first.id, "file"), (second.id, "table")}
+
+
+class TestRenewLease:
+    async def test_only_the_open_claim_made_with_the_token_is_extended(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
+        )
+        await db.commit()
+        token = uuid.uuid4()
+        claimed = await workflow_run_repo.claim_outbox(
+            db,
+            node_run_id=node_run.id,
+            token=token,
+            lease_expires_at=datetime.now(UTC) + timedelta(seconds=1),
+        )
+        assert claimed is not None and claimed.lease_expires_at is not None
+        first_expiry = claimed.lease_expires_at
+        await db.commit()
+
+        assert not await workflow_run_repo.renew_lease(
+            db, node_run_id=node_run.id, token=uuid.uuid4(), lease_seconds=60
+        )
+        assert await workflow_run_repo.renew_lease(
+            db, node_run_id=node_run.id, token=token, lease_seconds=60
+        )
+        await db.commit()
+        renewed = await workflow_run_repo.get_outbox_for_node_run_for_update(
+            db, node_run_id=node_run.id
+        )
+        assert renewed is not None and renewed.lease_expires_at is not None
+        assert renewed.lease_expires_at > first_expiry + timedelta(seconds=30)
+
+        await workflow_run_repo.mark_outbox_done(db, outbox=renewed)
+        await db.commit()
+        assert not await workflow_run_repo.renew_lease(
+            db, node_run_id=node_run.id, token=token, lease_seconds=60
+        )

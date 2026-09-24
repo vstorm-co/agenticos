@@ -166,20 +166,13 @@ class TestSubmissionIsolation:
         assert result == {"reclaimed_claims": 1, "resolved_attempts": 1, "woken_approvals": 0}
 
 
-def _begun() -> MagicMock:
-    begun = MagicMock()
-    begun.node_run_id = uuid.uuid4()
-    begun.dispatch_context.claim = ClaimState()
-    return begun
-
-
 class TestLeaseRenewal:
     @pytest.fixture(autouse=True)
     def _fast_ticks(self, monkeypatch):
         monkeypatch.setattr(workflow_tasks.settings, "WORKFLOW_DISPATCH_LEASE_SECONDS", 0.03)
 
     async def test_a_lost_claim_stops_renewing_and_tells_the_handler(self):
-        begun = _begun()
+        claim = ClaimState()
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
@@ -187,13 +180,13 @@ class TestLeaseRenewal:
                 new=AsyncMock(side_effect=[True, False]),
             ) as renew,
         ):
-            await workflow_tasks._renew_until_lost(begun)
+            await workflow_tasks._renew_until_lost(uuid.uuid4(), uuid.uuid4(), claim)
 
         assert renew.await_count == 2
-        assert begun.dispatch_context.claim.lost is True
+        assert claim.lost is True
 
     async def test_a_failed_renewal_is_retried_rather_than_giving_the_claim_up(self):
-        begun = _begun()
+        claim = ClaimState()
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
@@ -201,13 +194,13 @@ class TestLeaseRenewal:
                 new=AsyncMock(side_effect=[RuntimeError("db blip"), False]),
             ) as renew,
         ):
-            await workflow_tasks._renew_until_lost(begun)
+            await workflow_tasks._renew_until_lost(uuid.uuid4(), uuid.uuid4(), claim)
 
         assert renew.await_count == 2
-        assert begun.dispatch_context.claim.lost is True
+        assert claim.lost is True
 
-    async def test_renewal_stops_when_the_handler_returns(self):
-        begun = _begun()
+    async def test_renewal_stops_when_the_block_ends(self):
+        claim = ClaimState()
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
@@ -215,11 +208,11 @@ class TestLeaseRenewal:
                 new=AsyncMock(return_value=True),
             ) as renew,
         ):
-            async with workflow_tasks._lease_kept_alive(begun):
+            async with workflow_tasks._lease_kept_alive(uuid.uuid4(), uuid.uuid4(), claim):
                 await asyncio.sleep(0.05)
             renewals = renew.await_count
             await asyncio.sleep(0.05)
 
         assert renewals >= 1
         assert renew.await_count == renewals
-        assert begun.dispatch_context.claim.lost is False
+        assert claim.lost is False

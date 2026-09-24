@@ -649,6 +649,47 @@ class TestLeaseKeptAliveThroughTheFlow:
             assert [attempt.status for attempt in attempts] == [NodeAttemptStatus.COMPLETED.value]
         assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
 
+    async def test_a_slow_begin_is_covered_by_the_lease_too(
+        self, engine: AsyncEngine, node_kind, monkeypatch
+    ):
+        """Renewal used to start with the handler, a third of a lease after it:
+        a `begin_attempt` slower than two thirds of a lease let the sweep
+        resolve a healthy attempt `uncertain`."""
+        # Past two thirds of the lease, where the first renewal used to land.
+        monkeypatch.setattr(settings, "WORKFLOW_DISPATCH_LEASE_SECONDS", 1.5)
+        real_principal = dispatcher._principal_context
+
+        async def slow_principal(db: AsyncSession, run: WorkflowRun) -> AuthContext:
+            await asyncio.sleep(1.2)
+            return await real_principal(db, run)
+
+        monkeypatch.setattr(dispatcher, "_principal_context", slow_principal)
+        sweeping = asyncio.Event()
+        resolved: list[int] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            await asyncio.sleep(0.3)
+            return Completed[_Output](output=_Output(echoed="ok"))
+
+        seeded = await _seed(engine, _chain(node_kind(handler, retry_guarantee="none"), 1))
+
+        async def sweep() -> None:
+            while not sweeping.is_set():
+                resolved.append(await _reconcile_orphans(seeded))
+                await asyncio.sleep(0.05)
+
+        sweeper = asyncio.ensure_future(sweep())
+        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+        sweeping.set()
+        await sweeper
+
+        assert status == "settled"
+        assert sum(resolved) == 0
+        assert await _attempt_statuses(seeded, seeded.entry.id) == [
+            NodeAttemptStatus.COMPLETED.value
+        ]
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
     async def test_a_handler_is_told_when_its_claim_is_lost(self, engine: AsyncEngine, node_kind):
         seeded_holder: list[Seeded] = []
         observed: list[bool] = []
