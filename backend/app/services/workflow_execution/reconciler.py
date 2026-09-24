@@ -22,12 +22,13 @@ findable:
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatcher
@@ -53,13 +54,19 @@ class WorkflowReconcilerService:
 
     async def stale_claims(self, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
         """`(workflow_run_id, node_run_id)` pairs whose claim expired with no
-        attempt ever made. Read-only: the caller (`app.worker.tasks.
-        workflow_tasks.workflow_reconcile_flow`) re-triggers
+        attempt ever made, and that were not resubmitted within the last lease.
+
+        Stamps each as submitted and claims nothing: the caller (`app.worker.
+        tasks.workflow_tasks.workflow_reconcile_flow`) re-triggers
         `workflow-dispatch-node` for each, which performs the actual claim -
         keeping exactly one code path responsible for the compare-and-swap.
         """
-        rows = await workflow_run_repo.list_stale_claims(
-            self.db, before=datetime.now(UTC), limit=limit
+        now = datetime.now(UTC)
+        rows = await workflow_run_repo.take_stale_claims_for_resubmission(
+            self.db,
+            before=now,
+            resubmit_before=now - timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS),
+            limit=limit,
         )
         return [(row.workflow_run_id, row.node_run_id) for row in rows]
 
@@ -135,7 +142,6 @@ class WorkflowReconcilerService:
                         organization_id=run.organization_id,
                         workflow_run_id=run.id,
                         node_run_id=node_run.id,
-                        available_at=datetime.now(UTC),
                     )
             except IntegrityError:
                 continue

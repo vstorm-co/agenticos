@@ -140,7 +140,7 @@ class TestStaleClaims:
     async def test_returns_the_run_and_node_run_ids_of_every_stale_claim(self, repo):
         run_id, node_run_id = uuid.uuid4(), uuid.uuid4()
         row = MagicMock(workflow_run_id=run_id, node_run_id=node_run_id)
-        repo.list_stale_claims.return_value = [row]
+        repo.take_stale_claims_for_resubmission.return_value = [row]
 
         service = WorkflowReconcilerService(object())
         pairs = await service.stale_claims()
@@ -148,7 +148,7 @@ class TestStaleClaims:
         assert pairs == [(run_id, node_run_id)]
 
     async def test_nothing_stale_is_an_empty_list(self, repo):
-        repo.list_stale_claims.return_value = []
+        repo.take_stale_claims_for_resubmission.return_value = []
         service = WorkflowReconcilerService(object())
         assert await service.stale_claims() == []
 

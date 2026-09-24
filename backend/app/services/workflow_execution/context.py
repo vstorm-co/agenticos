@@ -25,11 +25,24 @@ Two directions, both scoped to one dispatch call by `dispatching_as`:
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
 
 from app.core.permissions import AuthContext
+
+
+@dataclass(slots=True)
+class ClaimState:
+    """Whether the dispatch claim this handler runs under is still held.
+
+    The worker renews the claim's lease while the handler runs and sets
+    `lost` once a renewal finds the claim reclaimed, closed or cancelled.
+    From then on nothing the handler returns will be accepted, so a handler
+    doing long work can read this and stop early.
+    """
+
+    lost: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +62,7 @@ class DispatchContext:
     `AgentRunnerService` reads this to choose `resume` over `run`: calling
     `run` again on a wake would silently drop an approved call by re-sending
     the original prompt to a fresh agent."""
+    claim: ClaimState = field(default_factory=ClaimState)
 
 
 @dataclass(slots=True)

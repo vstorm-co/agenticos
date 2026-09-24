@@ -14,11 +14,13 @@ that a hung handler in one row could block every later row in the same batch.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.services.workflow_execution.context import ClaimState
 from app.worker.tasks import workflow_tasks
 
 pytestmark = pytest.mark.anyio
@@ -82,7 +84,7 @@ class TestPollFlowFanOut:
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
-                "app.repositories.workflow_run.list_pending_outbox",
+                "app.repositories.workflow_run.take_due_for_submission",
                 new=AsyncMock(return_value=[row_a, row_b]),
             ),
             patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
@@ -120,3 +122,104 @@ class TestReconcileFlowFanOut:
 
         assert result["reclaimed_claims"] == 1
         submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+
+
+class TestSubmissionIsolation:
+    async def test_one_failed_poll_submission_does_not_cost_the_rest_of_the_batch(self):
+        rows = [MagicMock(workflow_run_id=uuid.uuid4(), node_run_id=uuid.uuid4()) for _ in range(3)]
+
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.repositories.workflow_run.take_due_for_submission",
+                new=AsyncMock(return_value=rows),
+            ),
+            patch(
+                f"{TASKS_PATH}._submit_dispatch",
+                new=AsyncMock(side_effect=[RuntimeError("prefect down"), None, None]),
+            ) as submit,
+        ):
+            submitted = await workflow_tasks.workflow_dispatch_poll_flow()
+
+        assert submit.await_count == 3
+        assert submitted == 2
+
+    async def test_a_failed_reconcile_submission_still_reports_the_sweeps(self):
+        reconciler = MagicMock()
+        reconciler.stale_claims = AsyncMock(return_value=[(uuid.uuid4(), uuid.uuid4())] * 2)
+        reconciler.resolve_orphaned_attempts = AsyncMock(return_value=1)
+        reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
+
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.workflow_execution.reconciler.WorkflowReconcilerService",
+                return_value=reconciler,
+            ),
+            patch(
+                f"{TASKS_PATH}._submit_dispatch",
+                new=AsyncMock(side_effect=[RuntimeError("prefect down"), None]),
+            ),
+        ):
+            result = await workflow_tasks.workflow_reconcile_flow()
+
+        assert result == {"reclaimed_claims": 1, "resolved_attempts": 1, "woken_approvals": 0}
+
+
+def _begun() -> MagicMock:
+    begun = MagicMock()
+    begun.node_run_id = uuid.uuid4()
+    begun.dispatch_context.claim = ClaimState()
+    return begun
+
+
+class TestLeaseRenewal:
+    @pytest.fixture(autouse=True)
+    def _fast_ticks(self, monkeypatch):
+        monkeypatch.setattr(workflow_tasks.settings, "WORKFLOW_DISPATCH_LEASE_SECONDS", 0.03)
+
+    async def test_a_lost_claim_stops_renewing_and_tells_the_handler(self):
+        begun = _begun()
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.workflow_execution.dispatcher.renew_lease",
+                new=AsyncMock(side_effect=[True, False]),
+            ) as renew,
+        ):
+            await workflow_tasks._renew_until_lost(begun)
+
+        assert renew.await_count == 2
+        assert begun.dispatch_context.claim.lost is True
+
+    async def test_a_failed_renewal_is_retried_rather_than_giving_the_claim_up(self):
+        begun = _begun()
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.workflow_execution.dispatcher.renew_lease",
+                new=AsyncMock(side_effect=[RuntimeError("db blip"), False]),
+            ) as renew,
+        ):
+            await workflow_tasks._renew_until_lost(begun)
+
+        assert renew.await_count == 2
+        assert begun.dispatch_context.claim.lost is True
+
+    async def test_renewal_stops_when_the_handler_returns(self):
+        begun = _begun()
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.workflow_execution.dispatcher.renew_lease",
+                new=AsyncMock(return_value=True),
+            ) as renew,
+        ):
+            async with workflow_tasks._lease_kept_alive(begun):
+                await asyncio.sleep(0.05)
+            renewals = renew.await_count
+            await asyncio.sleep(0.05)
+
+        assert renewals >= 1
+        assert renew.await_count == renewals
+        assert begun.dispatch_context.claim.lost is False

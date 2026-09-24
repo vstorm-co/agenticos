@@ -67,19 +67,6 @@ def _principal_still_entitled():
         yield
 
 
-@pytest.fixture(autouse=True)
-def _no_advance_trigger():
-    """`_advance()`'s own low-latency trigger builds a real coroutine via
-    `spawn_after_commit` unless mocked - harmless against a real session, but
-    a `db=object()`/`MagicMock()` unit-test double neither awaits nor closes
-    it, which is slow and leaves an unawaited-coroutine warning across every
-    test that reaches `_advance()`. Only `TestAdvance` and
-    `TestAdvanceMoreBranches` (whose graphs have a downstream node) ever
-    reach it; captured here so those can still assert on it."""
-    with patch("app.worker.tasks.workflow_tasks.trigger_dispatch", new=MagicMock()) as trigger:
-        yield trigger
-
-
 class _EchoConfig(BaseModel):
     message: str = ""
 
@@ -1821,9 +1808,7 @@ def _nested_txn_db() -> MagicMock:
 
 
 class TestAdvance:
-    async def test_a_ready_downstream_node_gets_a_fresh_node_run_and_outbox(
-        self, repo, test_node, _no_advance_trigger
-    ):
+    async def test_a_ready_downstream_node_gets_a_fresh_node_run_and_outbox(self, repo, test_node):
         source = _node_instance(test_node)
         target = _node_instance(test_node)
         edge = Edge(
@@ -1853,19 +1838,19 @@ class TestAdvance:
         created = _node_run(workflow_run_id=run.id, node_instance_id=target.id)
         repo.create_node_run.return_value = created
 
-        await dispatcher._advance(_nested_txn_db(), run=run, completed_node_instance_id=source.id)
+        ready = await dispatcher._advance(
+            _nested_txn_db(), run=run, completed_node_instance_id=source.id
+        )
 
         repo.create_node_run.assert_awaited_once()
         assert repo.create_node_run.await_args.kwargs["node_instance_id"] == target.id
         repo.create_outbox.assert_awaited_once()
         assert repo.create_outbox.await_args.kwargs["node_run_id"] == created.id
-        # The same low-latency direct trigger the entry node gets on `start` -
-        # without this, every node past the first in a chain would wait out
-        # `workflow-dispatch-poll`'s own interval instead of dispatching as
-        # soon as its predecessor settles.
-        _no_advance_trigger.assert_called_once_with(
-            ANY, workflow_run_id=run.id, node_run_id=created.id
-        )
+        # Handed back for the settling flow to submit after its commit, and
+        # stamped so the poll does not submit it a second time - without it,
+        # every node past the first would wait out the poll's interval.
+        assert ready == [(run.id, created.id)]
+        assert repo.create_outbox.await_args.kwargs["submitted"] is True
 
     async def test_a_downstream_node_with_an_undone_predecessor_is_not_dispatched(
         self, repo, test_node

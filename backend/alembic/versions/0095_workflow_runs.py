@@ -11,8 +11,10 @@ updated after it reaches a terminal status - the same reason `agent_runs`
 never overwrites a row. `dispatch_outbox` is a transactional outbox: its
 partial unique index on live (`pending`/`claimed`) rows is what makes "at
 most one live dispatch per node run" a database fact rather than a
-convention every writer has to remember, and its partial index on `pending`
-rows is what the poller's claim scan leads with. `workflow_events` is an
+convention every writer has to remember; its partial indexes on `pending`
+and `claimed` rows serve the poller's scan and the reconciler's lease scans,
+and `submitted_at` is what keeps the poll from resubmitting a row it already
+handed to a worker. `workflow_events` is an
 append-only stream with a per-run monotonic `seq`. `resource_refs` holds the
 `FileRef`/`TableIORef` bindings a run resolved once at start.
 
@@ -131,12 +133,6 @@ def upgrade() -> None:
         op.f("workflow_runs_execution_principal_user_id_idx"),
         "workflow_runs",
         ["execution_principal_user_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("workflow_runs_organization_id_idx"),
-        "workflow_runs",
-        ["organization_id"],
         unique=False,
     )
     op.create_index(
@@ -262,6 +258,7 @@ def upgrade() -> None:
         sa.Column("available_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("claimed_by", sa.UUID(), nullable=True),
         sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column(
             "created_at",
@@ -309,10 +306,18 @@ def upgrade() -> None:
     op.create_index(
         "ix_dispatch_outbox_pending_claim",
         "dispatch_outbox",
-        ["status", "available_at"],
+        ["available_at"],
         unique=False,
         postgresql_where=sa.text("status = 'pending'"),
     )
+    op.create_index(
+        "ix_dispatch_outbox_claimed_lease",
+        "dispatch_outbox",
+        ["lease_expires_at"],
+        unique=False,
+        postgresql_where=sa.text("status = 'claimed'"),
+    )
+    op.create_index("ix_dispatch_outbox_node_run", "dispatch_outbox", ["node_run_id"], unique=False)
     op.create_index(
         "uq_dispatch_outbox_live_node_run",
         "dispatch_outbox",
@@ -370,6 +375,13 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("node_attempts_node_run_id_idx"), "node_attempts", ["node_run_id"], unique=False
+    )
+    op.create_index(
+        "ix_node_attempt_in_flight",
+        "node_attempts",
+        ["node_run_id"],
+        unique=False,
+        postgresql_where=sa.text("status = 'in_flight'"),
     )
     op.create_index(
         op.f("node_attempts_organization_id_idx"),
@@ -435,12 +447,23 @@ def downgrade() -> None:
     op.drop_index(op.f("workflow_events_organization_id_idx"), table_name="workflow_events")
     op.drop_table("workflow_events")
     op.drop_index(op.f("node_attempts_organization_id_idx"), table_name="node_attempts")
+    op.drop_index(
+        "ix_node_attempt_in_flight",
+        table_name="node_attempts",
+        postgresql_where=sa.text("status = 'in_flight'"),
+    )
     op.drop_index(op.f("node_attempts_node_run_id_idx"), table_name="node_attempts")
     op.drop_table("node_attempts")
     op.drop_index(
         "uq_dispatch_outbox_live_node_run",
         table_name="dispatch_outbox",
         postgresql_where=sa.text("status IN ('pending', 'claimed')"),
+    )
+    op.drop_index("ix_dispatch_outbox_node_run", table_name="dispatch_outbox")
+    op.drop_index(
+        "ix_dispatch_outbox_claimed_lease",
+        table_name="dispatch_outbox",
+        postgresql_where=sa.text("status = 'claimed'"),
     )
     op.drop_index(
         "ix_dispatch_outbox_pending_claim",
@@ -461,7 +484,6 @@ def downgrade() -> None:
     op.drop_index(op.f("workflow_runs_workflow_id_idx"), table_name="workflow_runs")
     op.drop_index(op.f("workflow_runs_status_idx"), table_name="workflow_runs")
     op.drop_index(op.f("workflow_runs_root_run_id_idx"), table_name="workflow_runs")
-    op.drop_index(op.f("workflow_runs_organization_id_idx"), table_name="workflow_runs")
     op.drop_index(op.f("workflow_runs_execution_principal_user_id_idx"), table_name="workflow_runs")
     op.drop_index("ix_workflow_run_org_status", table_name="workflow_runs")
     op.drop_table("workflow_runs")

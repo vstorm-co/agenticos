@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -467,19 +467,28 @@ async def create_outbox(
     organization_id: UUID,
     workflow_run_id: UUID,
     node_run_id: UUID,
-    available_at: datetime,
+    available_at: datetime | None = None,
+    submitted: bool = False,
 ) -> DispatchOutbox:
     """Insert a dispatch row. Raises `IntegrityError` if one is already live.
 
     Callers that must treat a live row as "already dispatched" rather than a
     failure wrap this in `db.begin_nested()`, the same savepoint shape
     `UserService.confirm_email_change` uses for its own race.
+
+    `available_at=None` means due now by the database's own clock - the clock
+    `claim_outbox` compares against - so an application host running slightly
+    ahead of the database cannot write a row that is not yet claimable when
+    its own trigger arrives. `submitted=True` is for a caller that submits
+    the row itself once its transaction commits, so the poll does not submit
+    it a second time.
     """
     outbox = DispatchOutbox(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_run_id=node_run_id,
-        available_at=available_at,
+        available_at=func.now() if available_at is None else available_at,
+        submitted_at=func.now() if submitted else None,
     )
     db.add(outbox)
     await db.flush()
@@ -521,60 +530,114 @@ async def claim_outbox(
             status=DispatchOutboxStatus.CLAIMED.value,
         )
         .returning(DispatchOutbox)
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
 
-async def list_pending_outbox(db: AsyncSession, *, limit: int = 100) -> list[DispatchOutbox]:
-    """Deployment-wide: `pending` rows due now - `workflow-dispatch-poll`'s scan.
+async def take_due_for_submission(
+    db: AsyncSession, *, resubmit_before: datetime, limit: int = 100
+) -> list[DispatchOutbox]:
+    """Deployment-wide: `pending` rows due now, stamped as submitted in the same statement.
+
+    `workflow-dispatch-poll`'s scan. A row submitted at or after
+    `resubmit_before` is left alone - its flow run is queued and will claim it
+    - so a backed-up worker pool gets one submission per row per interval, not
+    one per tick. `SKIP LOCKED` leaves a row a worker is claiming right now to
+    that worker.
 
     Unscoped like `agent_run_repo.list_stale_approvals` - the poller has no
     tenant of its own - and every write it triggers is still scoped by the
     node it dispatches. Lease-expired `claimed` rows are deliberately not
     here: reclaiming one safely needs to know whether an attempt was ever
-    created for it, which is `workflow-reconcile`'s job
-    (`list_stale_claims`/`list_orphaned_in_flight`), not the fast poller's.
+    created for it, which is `workflow-reconcile`'s job, not the fast poller's.
     """
-    result = await db.execute(
-        select(DispatchOutbox)
+    due = (
+        select(DispatchOutbox.id)
         .where(
             DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
             DispatchOutbox.available_at <= func.now(),
+            or_(
+                DispatchOutbox.submitted_at.is_(None),
+                DispatchOutbox.submitted_at < resubmit_before,
+            ),
         )
         .order_by(DispatchOutbox.available_at)
         .limit(limit)
+        .with_for_update(skip_locked=True)
     )
-    return list(result.scalars().all())
+    return await _stamp_submitted(db, due)
 
 
-async def list_stale_claims(
-    db: AsyncSession, *, before: datetime, limit: int = 100
+async def take_stale_claims_for_resubmission(
+    db: AsyncSession, *, before: datetime, resubmit_before: datetime, limit: int = 100
 ) -> list[DispatchOutbox]:
-    """`claimed` rows past their lease with no `in_flight` attempt yet.
+    """`claimed` rows past their lease with no `in_flight` attempt, stamped as submitted.
 
     The crash window between phase 1 (claim commits) and phase 2 (the
     `in_flight` attempt commits) - nothing was ever recorded for the
     reconciler's other query (`list_orphaned_in_flight`) to find, so this is
     the complementary scan: safe to reclaim exactly like a fresh `pending`
-    row, since no call was ever made.
+    row, since no call was ever made. The same once-per-interval rule as
+    `take_due_for_submission` applies.
     """
     in_flight_node_runs = (
         select(NodeAttempt.node_run_id)
         .where(NodeAttempt.status == NodeAttemptStatus.IN_FLIGHT.value)
         .distinct()
     )
-    result = await db.execute(
-        select(DispatchOutbox)
+    stale = (
+        select(DispatchOutbox.id)
         .where(
             DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
             DispatchOutbox.lease_expires_at.is_not(None),
             DispatchOutbox.lease_expires_at < before,
             DispatchOutbox.node_run_id.not_in(in_flight_node_runs),
+            or_(
+                DispatchOutbox.submitted_at.is_(None),
+                DispatchOutbox.submitted_at < resubmit_before,
+            ),
         )
         .order_by(DispatchOutbox.lease_expires_at)
         .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return await _stamp_submitted(db, stale)
+
+
+async def _stamp_submitted(db: AsyncSession, ids: Select[tuple[UUID]]) -> list[DispatchOutbox]:
+    result = await db.execute(
+        sql_update(DispatchOutbox)
+        .where(DispatchOutbox.id.in_(ids))
+        .values(submitted_at=func.now())
+        .returning(DispatchOutbox)
+        # A row this session already holds would otherwise come back with its
+        # pre-update values.
+        .execution_options(synchronize_session=False, populate_existing=True)
     )
     return list(result.scalars().all())
+
+
+async def renew_lease(
+    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_expires_at: datetime
+) -> bool:
+    """Extend a claim's lease, but only while it is still this token's open claim.
+
+    Returns whether it was: `False` means the row was reclaimed, closed or
+    cancelled since, and the holder has lost it.
+    """
+    result = await db.execute(
+        sql_update(DispatchOutbox)
+        .where(
+            DispatchOutbox.node_run_id == node_run_id,
+            DispatchOutbox.claimed_by == token,
+            DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
+        )
+        .values(lease_expires_at=lease_expires_at)
+        .returning(DispatchOutbox.id)
+        .execution_options(synchronize_session=False)
+    )
+    return result.first() is not None
 
 
 async def mark_outbox_done(db: AsyncSession, *, outbox: DispatchOutbox) -> DispatchOutbox:
@@ -641,7 +704,7 @@ async def has_live_outbox(db: AsyncSession, *, workflow_run_id: UUID) -> bool:
 
 
 async def cancel_live_outbox_for_run(db: AsyncSession, *, workflow_run_id: UUID) -> Sequence[UUID]:
-    """Cancel every non-`done` outbox row for a run. Returns the ids touched."""
+    """Cancel every `pending` or `claimed` outbox row for a run. Returns the ids touched."""
     result = await db.execute(
         sql_update(DispatchOutbox)
         .where(

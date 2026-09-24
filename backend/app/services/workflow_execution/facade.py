@@ -140,12 +140,14 @@ class WorkflowExecutionService:
             node_instance_id=graph.entry_node_id,
             scope_path=[],
         )
+        # Stamped submitted: `_trigger_dispatch` submits it once this request
+        # commits, so the poll leaves it alone unless that submission is lost.
         await workflow_run_repo.create_outbox(
             self.db,
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=entry_node_run.id,
-            available_at=now,
+            submitted=True,
         )
         run = await workflow_run_repo.update_run(
             self.db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}
@@ -347,8 +349,8 @@ class WorkflowExecutionService:
 
     def _trigger_dispatch(self, *, workflow_run_id: UUID, node_run_id: UUID) -> None:
         """The low-latency direct trigger. Losing this is not a bug -
-        `workflow-dispatch-poll` and `workflow-reconcile` both find the same
-        row on their own schedule - so this is best-effort, never awaited.
+        `workflow-dispatch-poll` resubmits the row once its submission is a
+        lease old - so this is best-effort, never awaited.
         """
         from app.worker.tasks.workflow_tasks import trigger_dispatch
 

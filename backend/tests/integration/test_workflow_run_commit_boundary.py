@@ -137,7 +137,6 @@ async def _seeded_run(db: AsyncSession) -> tuple[WorkflowRun, NodeRun]:
         organization_id=org.id,
         workflow_run_id=run.id,
         node_run_id=node_run.id,
-        available_at=datetime.now(UTC),
     )
     run = await workflow_run_repo.update_run(
         db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}
@@ -553,7 +552,6 @@ async def test_an_orphaned_in_flight_none_guarantee_attempt_lands_in_needs_atten
         organization_id=org.id,
         workflow_run_id=run.id,
         node_run_id=node_run.id,
-        available_at=datetime.now(UTC),
     )
     await db.commit()
 

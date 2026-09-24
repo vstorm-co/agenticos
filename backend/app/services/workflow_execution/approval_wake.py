@@ -18,7 +18,6 @@ rather than a second guarantee this module has to make itself.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -69,7 +68,6 @@ async def wake_after_approval_decision(agent_run_id: UUID, *, organization_id: U
                     organization_id=run.organization_id,
                     workflow_run_id=run.id,
                     node_run_id=node_run.id,
-                    available_at=datetime.now(UTC),
                 )
         except IntegrityError:
             # Already dispatched - `workflow-reconcile`'s own backstop insert

@@ -137,22 +137,36 @@ class HandlerOutcome:
 
 
 async def claim(
-    db: AsyncSession,
-    *,
-    node_run_id: UUID,
-    lease_seconds: float = settings.WORKFLOW_DISPATCH_LEASE_SECONDS,
+    db: AsyncSession, *, node_run_id: UUID, lease_seconds: float | None = None
 ) -> DispatchOutbox | None:
     """Phase 1: try to own this node's dispatch row.
 
     Returns `None` when there was nothing claimable - the row was already
     claimed by a live lease, already `done`/`cancelled`, or not yet
     `available_at`. None of those is an error: the caller (`workflow_tasks.
-    workflow_dispatch_node_flow`) simply stops.
+    workflow_dispatch_node_flow`) simply stops. The lease defaults to
+    `WORKFLOW_DISPATCH_LEASE_SECONDS`, read at call time.
     """
     token = uuid4()
-    lease_expires_at = datetime.now(UTC) + timedelta(seconds=lease_seconds)
+    seconds = settings.WORKFLOW_DISPATCH_LEASE_SECONDS if lease_seconds is None else lease_seconds
+    lease_expires_at = datetime.now(UTC) + timedelta(seconds=seconds)
     return await workflow_run_repo.claim_outbox(
         db, node_run_id=node_run_id, token=token, lease_expires_at=lease_expires_at
+    )
+
+
+async def renew_lease(db: AsyncSession, *, begun: BegunAttempt) -> bool:
+    """Extend the claim `begun` was dispatched under by another full lease.
+
+    Returns `False` once the claim is no longer `begun`'s own open claim -
+    reclaimed, closed or cancelled - and then extends nothing.
+    """
+    return await workflow_run_repo.renew_lease(
+        db,
+        node_run_id=begun.node_run_id,
+        token=begun.dispatch_token,
+        lease_expires_at=datetime.now(UTC)
+        + timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS),
     )
 
 
@@ -825,12 +839,18 @@ def _attempt_status(result: NodeResult) -> str:
     raise TypeError(f"Unknown NodeResult variant: {result!r}")  # pragma: no cover - closed union
 
 
-async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome) -> None:
+async def settle(
+    db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutcome
+) -> list[tuple[UUID, UUID]]:
     """Phase 4: persist the attempt's terminal outcome and advance the run.
 
     What the handler reported spending is booked onto the run on every path,
     including the ones that discard its result: the money was spent either
     way, and a cost that only lands on success is a budget with a hole in it.
+
+    Returns the `(workflow_run_id, node_run_id)` of every node this settle
+    made ready. Their outbox rows are already written and stamped submitted;
+    the caller submits them once this transaction has committed.
     """
     run = await workflow_run_repo.get_run_by_id_for_update(db, begun.workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, begun.node_run_id)
@@ -839,7 +859,7 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
         logger.error(
             "workflow_dispatch_settle_missing_row", extra={"attempt_id": str(begun.attempt_id)}
         )
-        return
+        return []
     now = datetime.now(UTC)
     result = outcome.result
     run = await _book_cost(db, run=run, outcome=outcome)
@@ -858,7 +878,7 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
             "workflow_dispatch_settle_stale_attempt",
             extra={"attempt_id": str(attempt.id), "attempt_status": attempt.status},
         )
-        return
+        return []
 
     # A run cancelled while this handler was running must stay cancelled: the
     # attempt itself still settles honestly (what actually happened is worth
@@ -879,7 +899,7 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
         )
         if _still_owns(outbox, begun.dispatch_token):
             await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
-        return
+        return []
 
     # Locked, not merely read: `begin_attempt`'s own reclaim check needs this
     # same row, and a plain read here would only be true at the instant it
@@ -900,7 +920,7 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
             "workflow_dispatch_settle_lost_claim",
             extra={"node_run_id": str(node_run.id), "attempt_id": str(attempt.id)},
         )
-        return
+        return []
     # Closed *before* dispatching to a `_settle_*` handler: `_settle_completed`
     # calls `_advance`, which decides the run is done by checking whether any
     # live outbox row remains - and this node's own row is still `claimed`
@@ -910,8 +930,8 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
     await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
 
     if isinstance(result, Completed):
-        await _settle_completed(db, run=run, node_run=node_run, now=now)
-    elif isinstance(result, Waiting):
+        return await _settle_completed(db, run=run, node_run=node_run, now=now)
+    if isinstance(result, Waiting):
         await _settle_waiting(
             db,
             run=run,
@@ -927,6 +947,7 @@ async def settle(db: AsyncSession, *, begun: BegunAttempt, outcome: HandlerOutco
         await _settle_uncertain(db, run=run, node_run=node_run, result=result)
     else:  # pragma: no cover - NodeResult is a closed discriminated union
         raise TypeError(f"Unknown NodeResult variant: {result!r}")
+    return []
 
 
 async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutcome) -> WorkflowRun:
@@ -959,7 +980,7 @@ async def _record_attempt(
 
 async def _settle_completed(
     db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, now: datetime
-) -> None:
+) -> list[tuple[UUID, UUID]]:
     await workflow_run_repo.update_node_run(
         db,
         node_run=node_run,
@@ -971,7 +992,7 @@ async def _settle_completed(
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
-    await _advance(db, run=run, completed_node_instance_id=node_run.node_instance_id)
+    return await _advance(db, run=run, completed_node_instance_id=node_run.node_instance_id)
 
 
 async def _settle_waiting(
@@ -1150,13 +1171,17 @@ async def _settle_uncertain(
     )
 
 
-async def _advance(db: AsyncSession, *, run: WorkflowRun, completed_node_instance_id: UUID) -> None:
-    """After a node succeeds: dispatch what is now ready, or close out the run.
+async def _advance(
+    db: AsyncSession, *, run: WorkflowRun, completed_node_instance_id: UUID
+) -> list[tuple[UUID, UUID]]:
+    """After a node succeeds: queue what is now ready, or close out the run.
 
     Every graph this dispatches is a single chain (module docstring), so
     "ready" reduces to "every predecessor of this edge's target has
     succeeded" - no branch, no fan-in beyond a chain's own single edge.
+    Returns what it queued, for the caller to submit after commit.
     """
+    ready_pairs: list[tuple[UUID, UUID]] = []
     graph = await resolve_graph(db, run)
     downstream_edges = [
         edge for edge in graph.edges if edge.source_node_id == completed_node_instance_id
@@ -1164,7 +1189,7 @@ async def _advance(db: AsyncSession, *, run: WorkflowRun, completed_node_instanc
     if not downstream_edges:
         if not await workflow_run_repo.has_live_outbox(db, workflow_run_id=run.id):
             await _succeed_run(db, run=run)
-        return
+        return ready_pairs
 
     for edge in downstream_edges:
         target = graph.node_by_id.get(edge.target_node_id)
@@ -1207,20 +1232,19 @@ async def _advance(db: AsyncSession, *, run: WorkflowRun, completed_node_instanc
                 )
         except IntegrityError:
             continue
+        # Stamped submitted: the settling flow submits it straight after this
+        # transaction commits, so a chain's next node starts as soon as its
+        # predecessor settles instead of waiting out the poll - and the poll
+        # does not submit it a second time.
         await workflow_run_repo.create_outbox(
             db,
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
+            submitted=True,
         )
-        # The same low-latency direct trigger `WorkflowExecutionService.start`
-        # fires for the entry node - without it, every node past the first in
-        # a chain would wait out `workflow-dispatch-poll`'s own interval
-        # instead of dispatching as soon as its predecessor settles.
-        from app.worker.tasks.workflow_tasks import trigger_dispatch
-
-        trigger_dispatch(db, workflow_run_id=run.id, node_run_id=node_run.id)
+        ready_pairs.append((run.id, node_run.id))
+    return ready_pairs
 
 
 async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:
@@ -1238,10 +1262,12 @@ async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:
 
 __all__ = [
     "BegunAttempt",
+    "HandlerOutcome",
     "begin_attempt",
     "call_handler",
     "claim",
     "idempotency_key",
+    "renew_lease",
     "resolve_graph",
     "resolve_orphaned_attempt",
     "settle",

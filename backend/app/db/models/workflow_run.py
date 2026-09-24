@@ -19,6 +19,7 @@ the state machine these tables drive and why each shape is what it is.
 
 import enum
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -185,11 +186,11 @@ class WorkflowRun(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    # No index of its own: `ix_workflow_run_org_status` leads with it.
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     workflow_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -235,7 +236,7 @@ class WorkflowRun(Base, TimestampMixin):
     budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
-    deadline_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
     # Incremented in the same transaction as each `WorkflowEvent` insert -
     # never a shared sequence, so a cursor for one run stays small, dense and
     # meaningless for another. See `app.services.workflow_execution.events`.
@@ -264,8 +265,8 @@ class WorkflowRun(Base, TimestampMixin):
     )
     visited_trigger_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    started_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
-    ended_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -339,8 +340,8 @@ class NodeRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    started_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
-    ended_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint(
@@ -394,8 +395,8 @@ class NodeAttempt(Base, TimestampMixin):
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
-    started_at: Mapped[Any] = mapped_column(SADateTime(timezone=True), nullable=False)
-    ended_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("node_run_id", "attempt_no", name="uq_node_attempt_number"),
@@ -409,6 +410,13 @@ class NodeAttempt(Base, TimestampMixin):
             name="ck_node_attempt_status",
         ),
         CheckConstraint("cost >= 0", name="ck_node_attempt_cost"),
+        # The reconciler's orphan scan and `list_stale_claims` both ask "is
+        # anything in flight for this node run" on every tick.
+        Index(
+            "ix_node_attempt_in_flight",
+            "node_run_id",
+            postgresql_where=text("status = 'in_flight'"),
+        ),
     )
 
     def __repr__(self) -> str:
@@ -444,12 +452,19 @@ class DispatchOutbox(Base, TimestampMixin):
         ForeignKey("node_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
-    available_at: Mapped[Any] = mapped_column(SADateTime(timezone=True), nullable=False)
+    available_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
     # A fencing token minted fresh per claim - not a Prefect flow-run identity
     # - so a hung flow and a reclaiming poller's flow can never both believe
     # they own the row: every write after a claim re-checks `claimed_by`.
     claimed_by: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
-    lease_expires_at: Mapped[Any | None] = mapped_column(SADateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        SADateTime(timezone=True), nullable=True
+    )
+    # When this row was last handed to `workflow-dispatch-node`. The poll and
+    # the stale-claim sweep submit only rows not submitted within a lease, and
+    # stamp this in the same statement - without it every tick submitted every
+    # due row again until a worker finally claimed it.
+    submitted_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=DispatchOutboxStatus.PENDING.value
     )
@@ -461,10 +476,19 @@ class DispatchOutbox(Base, TimestampMixin):
         ),
         Index(
             "ix_dispatch_outbox_pending_claim",
-            "status",
             "available_at",
             postgresql_where=text("status = 'pending'"),
         ),
+        # The reconciler's scans for claims whose lease has run out.
+        Index(
+            "ix_dispatch_outbox_claimed_lease",
+            "lease_expires_at",
+            postgresql_where=text("status = 'claimed'"),
+        ),
+        # Every dispatch reads a node run's latest row without a status
+        # filter, which the partial indexes cannot serve; this also backs the
+        # foreign key's cascade from `node_runs`.
+        Index("ix_dispatch_outbox_node_run", "node_run_id"),
         # At most one live (pending/claimed) dispatch per `NodeRun` - what
         # closes the approval double-wake race: a reconciler backstop insert
         # racing a direct wake hits this constraint and is read back as

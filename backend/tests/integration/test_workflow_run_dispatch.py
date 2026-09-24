@@ -8,12 +8,14 @@ what no shipped node does yet: spend money, raise, wait.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import BaseModel
@@ -41,6 +43,7 @@ from app.db.models.workflow_run import (
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import context, dispatcher
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
+from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.results import Completed, NodeResult
@@ -203,7 +206,6 @@ async def _seed(
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=entry.id,
-            available_at=datetime.now(UTC),
         )
         run = await workflow_run_repo.update_run(
             db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}
@@ -570,3 +572,107 @@ class TestPrincipalRecheckedAtEveryDispatch:
 
         assert calls == ["|True"]
         assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+
+class TestLeaseKeptAliveThroughTheFlow:
+    """`workflow_dispatch_node_flow` itself, run in-process: the handler runs
+    between the flow's own transactions while the reconciler sweeps."""
+
+    @pytest.fixture(autouse=True)
+    def _short_lease(self, monkeypatch):
+        monkeypatch.setattr(settings, "WORKFLOW_DISPATCH_LEASE_SECONDS", 0.6)
+        with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()):
+            yield
+
+    async def test_a_handler_that_outlives_the_lease_settles_completed_exactly_once(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Without renewal the lease ran out mid-call: the sweep marked the
+        attempt `uncertain` and requeued the node, and the real result was
+        discarded as stale when it finally arrived."""
+        seeded_holder: list[Seeded] = []
+        sweeps: list[tuple[int, int]] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            for _ in range(8):
+                await asyncio.sleep(0.2)
+                async with seeded_holder[0].factory() as db:
+                    service = WorkflowReconcilerService(db)
+                    sweeps.append(
+                        (
+                            await service.resolve_orphaned_attempts(),
+                            len(await service.stale_claims()),
+                        )
+                    )
+                    await db.commit()
+            return Completed[_Output](output=_Output(echoed="slow"))
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+        seeded_holder.append(seeded)
+
+        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+
+        assert status == "settled"
+        assert sweeps == [(0, 0)] * 8
+        async with seeded.factory() as db:
+            attempts = (
+                await db.execute(
+                    select(NodeAttempt).where(NodeAttempt.node_run_id == seeded.entry.id)
+                )
+            ).scalars()
+            assert [attempt.status for attempt in attempts] == [NodeAttemptStatus.COMPLETED.value]
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_a_handler_is_told_when_its_claim_is_lost(self, engine: AsyncEngine, node_kind):
+        seeded_holder: list[Seeded] = []
+        observed: list[bool] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            async with seeded_holder[0].factory() as db:
+                await db.execute(
+                    sql_update(DispatchOutbox)
+                    .where(DispatchOutbox.node_run_id == seeded_holder[0].entry.id)
+                    .values(status=DispatchOutboxStatus.CANCELLED.value)
+                )
+                await db.commit()
+            for _ in range(20):
+                if context.current().claim.lost:
+                    break
+                await asyncio.sleep(0.1)
+            observed.append(context.current().claim.lost)
+            return Completed[_Output](output=_Output(echoed="unwanted"))
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+        seeded_holder.append(seeded)
+
+        await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+
+        assert observed == [True]
+        # And what it returned anyway was not accepted.
+        assert [node.status for node in await _node_runs(seeded)] == [NodeRunStatus.RUNNING.value]
+
+
+async def test_the_settling_flow_submits_the_next_node_itself_after_its_commit(
+    engine: AsyncEngine, node_kind
+):
+    """Handed to a task the flow's process might not outlive, the next node's
+    submission could be lost and the chain would wait out the poll; the flow
+    now awaits it, and stamps the row so the poll does not submit it again."""
+    seeded = await _seed(engine, _chain(node_kind(_echo), 2))
+
+    with patch("app.worker.tasks.workflow_tasks.run_deployment", new=AsyncMock()) as run_deployment:
+        status = await workflow_dispatch_node_flow.fn(str(seeded.run.id), str(seeded.entry.id))
+
+    assert status == "settled"
+    second = (await _node_runs(seeded))[1]
+    run_deployment.assert_awaited_once()
+    assert run_deployment.await_args.kwargs["parameters"] == {
+        "workflow_run_id": str(seeded.run.id),
+        "node_run_id": str(second.id),
+    }
+    pending = [
+        row
+        for row in await _outbox_rows(seeded)
+        if row.status == DispatchOutboxStatus.PENDING.value
+    ]
+    assert len(pending) == 1 and pending[0].submitted_at is not None

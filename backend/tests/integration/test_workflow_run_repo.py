@@ -269,7 +269,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         # `func.now()` in `claim_outbox`'s own predicate is the *transaction's*
         # start time in Postgres, not wall-clock at statement time - frozen
@@ -298,7 +297,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         await workflow_run_repo.claim_outbox(
@@ -326,7 +324,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         # A lease that already expired, exactly the shape a dead worker leaves.
@@ -380,7 +377,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         with pytest.raises(IntegrityError):
             await workflow_run_repo.create_outbox(
@@ -388,7 +384,6 @@ class TestDispatchOutboxClaim:
                 organization_id=org.id,
                 workflow_run_id=run.id,
                 node_run_id=node_run.id,
-                available_at=datetime.now(UTC),
             )
 
     async def test_a_new_outbox_row_is_allowed_once_the_old_one_is_done(self, db: AsyncSession):
@@ -401,7 +396,6 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await workflow_run_repo.mark_outbox_done(db, outbox=first)
         second = await workflow_run_repo.create_outbox(
@@ -409,11 +403,10 @@ class TestDispatchOutboxClaim:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         assert second.id != first.id
 
-    async def test_list_pending_outbox_only_returns_due_pending_rows(self, db: AsyncSession):
+    async def test_only_due_pending_rows_are_taken_and_stamped_submitted(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
@@ -434,10 +427,63 @@ class TestDispatchOutboxClaim:
             available_at=datetime.now(UTC) + timedelta(hours=1),
         )
         await db.commit()  # fresh `func.now()` for the scan below
-        rows = await workflow_run_repo.list_pending_outbox(db)
+        rows = await workflow_run_repo.take_due_for_submission(
+            db, resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
         ids = {row.id for row in rows}
         assert due.id in ids
         assert all(row.node_run_id != future_node_run.id for row in rows)
+        assert all(row.submitted_at is not None for row in rows)
+
+    async def test_a_row_submitted_within_the_interval_is_not_taken_again(self, db: AsyncSession):
+        """One submission per row per interval: a backed-up worker pool must
+        not get a fresh flow run for the same row on every poll tick."""
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        row = await workflow_run_repo.create_outbox(
+            db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
+        )
+        await db.commit()
+        resubmit_before = datetime.now(UTC) - timedelta(minutes=2)
+
+        first = await workflow_run_repo.take_due_for_submission(db, resubmit_before=resubmit_before)
+        await db.commit()
+        second = await workflow_run_repo.take_due_for_submission(
+            db, resubmit_before=resubmit_before
+        )
+        await db.commit()
+        # Once the interval has passed with the row still unclaimed, it is due again.
+        third = await workflow_run_repo.take_due_for_submission(
+            db, resubmit_before=datetime.now(UTC) + timedelta(seconds=1)
+        )
+
+        assert [taken.id for taken in first] == [row.id]
+        assert second == []
+        assert [taken.id for taken in third] == [row.id]
+
+    async def test_a_row_its_creator_submits_itself_is_left_to_that_submission(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=org.id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            submitted=True,
+        )
+        await db.commit()
+
+        taken = await workflow_run_repo.take_due_for_submission(
+            db, resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
+
+        assert taken == []
 
 
 class TestEvents:
@@ -676,7 +722,6 @@ class TestStaleApprovalWaits:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         found = await workflow_run_repo.list_stale_approval_waits(db)
         assert node_run.id not in {row.id for row in found}
@@ -693,7 +738,6 @@ class TestOrphanedInFlightAttempts:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         await workflow_run_repo.claim_outbox(
@@ -729,7 +773,6 @@ class TestOrphanedInFlightAttempts:
                 organization_id=org.id,
                 workflow_run_id=run.id,
                 node_run_id=node_run.id,
-                available_at=datetime.now(UTC),
             )
             node_runs.append(node_run)
         await db.commit()
@@ -766,7 +809,6 @@ class TestOrphanedInFlightAttempts:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         await workflow_run_repo.claim_outbox(
@@ -809,7 +851,6 @@ class TestStaleClaims:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         await workflow_run_repo.claim_outbox(
@@ -819,8 +860,16 @@ class TestStaleClaims:
             lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
         )
         await db.commit()
-        found = await workflow_run_repo.list_stale_claims(db, before=datetime.now(UTC))
+        found = await workflow_run_repo.take_stale_claims_for_resubmission(
+            db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
         assert outbox.id in {row.id for row in found}
+        await db.commit()
+        again = await workflow_run_repo.take_stale_claims_for_resubmission(
+            db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC) - timedelta(minutes=2)
+        )
+        # Stamped when it was taken, so the next sweep leaves it to that submission.
+        assert again == []
 
     async def test_a_claim_with_an_in_flight_attempt_is_not_a_stale_claim(self, db: AsyncSession):
         # It is an orphaned *attempt* instead - `list_orphaned_in_flight`'s job.
@@ -833,7 +882,6 @@ class TestStaleClaims:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         await db.commit()
         await workflow_run_repo.claim_outbox(
@@ -852,7 +900,9 @@ class TestStaleClaims:
             retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
             started_at=datetime.now(UTC),
         )
-        found = await workflow_run_repo.list_stale_claims(db, before=datetime.now(UTC))
+        found = await workflow_run_repo.take_stale_claims_for_resubmission(
+            db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC)
+        )
         assert outbox.id not in {row.id for row in found}
 
 
@@ -876,7 +926,6 @@ class TestReprs:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=datetime.now(UTC),
         )
         event = await workflow_run_repo.append_event(
             db, run=run, kind="run_started", node_run_id=None, payload={}
@@ -1091,14 +1140,12 @@ class TestCancelLiveOutboxForRun:
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=pending_node_run.id,
-            available_at=datetime.now(UTC),
         )
         done = await workflow_run_repo.create_outbox(
             db,
             organization_id=org.id,
             workflow_run_id=run.id,
             node_run_id=done_node_run.id,
-            available_at=datetime.now(UTC),
         )
         await workflow_run_repo.mark_outbox_done(db, outbox=done)
 
