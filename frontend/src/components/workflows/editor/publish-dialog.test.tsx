@@ -27,7 +27,6 @@ function publishedVersion(): WorkflowVersionRead {
     published_by_user_id: null,
     budget_limit: null,
     created_at: null,
-    graph: VALID_GRAPH,
   };
 }
 

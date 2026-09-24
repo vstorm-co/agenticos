@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useNodeCatalog, useWorkflow, useWorkflowVersions, useWorkflows } from "./use-workflows";
+import {
+  useNodeCatalog,
+  useWorkflow,
+  useWorkflowVersion,
+  useWorkflowVersions,
+  useWorkflows,
+} from "./use-workflows";
 import * as api from "@/lib/workflows/workflows-api";
 import { ApiError } from "@/lib/api-error";
 import type { WorkflowGraph } from "@/lib/workflows/types";
@@ -14,6 +20,7 @@ vi.mock("@/lib/workflows/workflows-api", () => ({
   createWorkflow: vi.fn(),
   getWorkflow: vi.fn(),
   listWorkflowVersions: vi.fn(),
+  getWorkflowVersion: vi.fn(),
   updateWorkflowDraft: vi.fn(),
   publishWorkflow: vi.fn(),
   getNodeCatalog: vi.fn(),
@@ -237,6 +244,22 @@ describe("useWorkflowVersions", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.versions).toEqual([]);
     expect(api.listWorkflowVersions).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWorkflowVersion", () => {
+  it("fetches one version's frozen graph when a version is selected", async () => {
+    vi.mocked(api.getWorkflowVersion).mockResolvedValue({ id: "v1", version: 1 } as never);
+    const { result } = renderHook(() => useWorkflowVersion("wf-1", "v1"), { wrapper });
+    await waitFor(() => expect(result.current.version).toEqual({ id: "v1", version: 1 }));
+    expect(api.getWorkflowVersion).toHaveBeenCalledWith("wf-1", "v1");
+  });
+
+  it("does not fetch until a version is selected", async () => {
+    const { result } = renderHook(() => useWorkflowVersion("wf-1", null), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.version).toBeUndefined();
+    expect(api.getWorkflowVersion).not.toHaveBeenCalled();
   });
 });
 

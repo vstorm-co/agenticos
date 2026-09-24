@@ -5431,6 +5431,7 @@
     "versionView": "View",
     "versionPreviewHint": "A published version is read-only. Keep editing the draft to make changes.",
     "versionPreviewLabel": "Published workflow version",
+    "versionPreviewError": "This version could not be loaded.",
     "paletteTitle": "Nodes",
     "paletteHint": "Drag a node onto the canvas to add a step.",
     "paletteSearch": "Search nodes",

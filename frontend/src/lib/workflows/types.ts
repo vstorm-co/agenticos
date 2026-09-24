@@ -215,7 +215,7 @@ export interface WorkflowList {
   total: number;
 }
 
-/** One published, immutable version. Mirrors `WorkflowVersionRead`. */
+/** One published, immutable version, as the lean history list shows it. Mirrors `WorkflowVersionRead`. */
 export interface WorkflowVersionRead {
   id: Uuid;
   version: number;
@@ -223,7 +223,13 @@ export interface WorkflowVersionRead {
   published_by_user_id: Uuid | null;
   budget_limit: number | null;
   created_at: string | null;
-  /** The frozen graph this version runs — what the history list opens read-only. */
+}
+
+/**
+ * One version plus its frozen graph, fetched on demand to view it read-only.
+ * Mirrors `WorkflowVersionDetail`. The list stays lean; the graph rides only here.
+ */
+export interface WorkflowVersionDetail extends WorkflowVersionRead {
   graph: WorkflowGraph;
 }
 

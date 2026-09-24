@@ -31,6 +31,7 @@ from app.schemas.workflow import (
     WorkflowList,
     WorkflowPublish,
     WorkflowRead,
+    WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRead,
 )
@@ -302,10 +303,41 @@ class WorkflowRegistryService:
                     if version.budget_limit is not None
                     else None,
                     created_at=version.created_at,
-                    graph=WorkflowGraph.model_validate(version.graph),
                 )
                 for version in versions
             ]
+        )
+
+    async def get_version(
+        self, ctx: AuthContext, workflow_id: UUID, version_id: UUID
+    ) -> WorkflowVersionDetail:
+        """One published version with its frozen graph, for a read-only preview.
+
+        Gated the same way `get` and `list_versions` are - the caller must be able
+        to view the workflow the version belongs to. A version id that names no
+        row, or one belonging to another workflow or organization, is a 404: the
+        version is reached through its workflow, so it cannot leak past it.
+
+        Raises:
+            NotFoundError: The workflow or the version does not exist, or the
+                caller may not view it.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        version = await workflow_repo.get_version(
+            self.db, version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.workflow_id != workflow.id:
+            raise NotFoundError(
+                message="Workflow version not found", details={"version_id": version_id}
+            )
+        return WorkflowVersionDetail(
+            id=version.id,
+            version=version.version,
+            note=version.note,
+            published_by_user_id=version.published_by_user_id,
+            budget_limit=float(version.budget_limit) if version.budget_limit is not None else None,
+            created_at=version.created_at,
+            graph=WorkflowGraph.model_validate(version.graph),
         )
 
     async def update_draft(
@@ -392,7 +424,6 @@ class WorkflowRegistryService:
             published_by_user_id=version.published_by_user_id,
             budget_limit=float(version.budget_limit) if version.budget_limit is not None else None,
             created_at=version.created_at,
-            graph=graph,
         )
 
     async def _load(
