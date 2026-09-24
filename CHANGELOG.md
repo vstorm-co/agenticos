@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.493] - 2026-09-25
+
 ### Fixed
 
 - **A notification opened its destination by reloading the whole console.**
