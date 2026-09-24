@@ -4,11 +4,16 @@ import {
   DEBUG_ECHO,
   DEBUG_ECHO_OUTPUT,
   INTEGER,
+  INT_STR_TUPLE,
   LETTER,
   NUMBER,
+  OPTIONAL_INTEGER,
+  OPTIONAL_STRING,
   PLAIN_OUTPUT,
   REQUIRED_INPUT,
   STRING,
+  STRING_LIST,
+  STRING_SET,
   makeDefinition,
   objectSchema,
   port,
@@ -46,6 +51,32 @@ describe("schemaTypeToken", () => {
   it("falls back to a title with no type, then to unknown", () => {
     expect(schemaTypeToken({ title: "Bare" })).toBe("Bare");
     expect(schemaTypeToken({})).toBe("unknown");
+  });
+
+  it("distinguishes list, set and tuple the way the backend names them", () => {
+    expect(schemaTypeToken(STRING_LIST)).toBe("array");
+    expect(schemaTypeToken(STRING_SET)).toBe("array:set");
+    expect(schemaTypeToken(INT_STR_TUPLE)).toBe("array:tuple");
+  });
+
+  it("keeps a list's token independent of its item type, as list[str] and list[int] share a name", () => {
+    expect(schemaTypeToken({ type: "array", items: INTEGER })).toBe("array");
+    expect(typesCompatible(STRING_LIST, { type: "array", items: INTEGER })).toBe(true);
+  });
+
+  it("builds a composite union token, distinguishing str|None from int|None", () => {
+    expect(schemaTypeToken(OPTIONAL_STRING)).toBe("union(string|null)");
+    expect(schemaTypeToken(OPTIONAL_INTEGER)).toBe("union(integer|null)");
+    expect(typesCompatible(OPTIONAL_STRING, OPTIONAL_INTEGER)).toBe(false);
+  });
+
+  it("preserves union member order and recurses into oneOf and non-schema members", () => {
+    expect(schemaTypeToken({ anyOf: [STRING, INTEGER] })).toBe("union(string|integer)");
+    expect(schemaTypeToken({ anyOf: [INTEGER, STRING] })).toBe("union(integer|string)");
+    expect(schemaTypeToken({ oneOf: [{ $ref: "#/$defs/Letter" }, { type: "null" }] })).toBe(
+      "union(Letter|null)",
+    );
+    expect(schemaTypeToken({ anyOf: ["not-a-schema"] })).toBe("union(unknown)");
   });
 });
 
@@ -86,6 +117,20 @@ describe("portShapesCompatible", () => {
     const oddLeft = { type: "object", properties: { x: "not-a-schema" } };
     const oddRight = { type: "object", properties: { x: 42 } };
     expect(portShapesCompatible(oddLeft, oddRight)).toBe(true);
+  });
+
+  it("carries the refined collection tokens into object-shape comparison", () => {
+    const listModel = { type: "object", title: "M", properties: { xs: STRING_LIST } };
+    const setModel = { type: "object", title: "M", properties: { xs: STRING_SET } };
+    const listOfInts = {
+      type: "object",
+      title: "M",
+      properties: { xs: { type: "array", items: INTEGER } },
+    };
+    // A list field and a set field carry different `__name__`s on the server.
+    expect(portShapesCompatible(listModel, setModel)).toBe(false);
+    // Two list fields differing only in item type share the "list" name.
+    expect(portShapesCompatible(listModel, listOfInts)).toBe(true);
   });
 });
 

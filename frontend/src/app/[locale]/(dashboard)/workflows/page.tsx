@@ -46,9 +46,13 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
 export default function WorkflowsPage() {
   const t = useTranslations("pages.workflows");
   const router = useRouter();
-  const { workflows, total, isLoading, create, duplicate } = useWorkflows();
   const { can } = usePermissions();
   const canCreate = can(Perm.workflowsCreate);
+  // Gate the list query so a caller without workflows:view never hits the network
+  // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
+  const { workflows, total, isLoading, create, duplicate } = useWorkflows({
+    enabled: can(Perm.workflowsView),
+  });
 
   const [filter, setFilter] = useState<Filter>("all");
   const [createOpen, setCreateOpen] = useState(false);

@@ -66,6 +66,20 @@ describe("AgentVersionPicker", () => {
     expect(screen.getByText("Pick a version to pin.")).toBeVisible();
   });
 
+  it("warns when the pinned version names no version the agent still publishes", () => {
+    mount({ agent_id: "a1", version_id: "v9" });
+
+    expect(screen.getByText("The pinned version is no longer available.")).toBeVisible();
+    expect(screen.getByText("v9")).toBeVisible();
+  });
+
+  it("shows no orphaned-version warning while the version list is still loading", () => {
+    useAllAgentVersionsMock.mockReturnValue({ versions: [], isLoading: true });
+    mount({ agent_id: "a1", version_id: "v9" });
+
+    expect(screen.queryByText("The pinned version is no longer available.")).toBeNull();
+  });
+
   it("keeps the version step disabled until an agent is chosen", () => {
     mount({ agent_id: null, version_id: null });
 

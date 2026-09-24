@@ -59,6 +59,13 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
   // the graph, and publish is otherwise where it first surfaces.
   const agentOrphaned = value.agent_id !== null && !agentsLoading && chosenAgent === undefined;
   const versionMissing = value.agent_id !== null && value.version_id === null;
+  // A pinned version id that names no version the agent still publishes: surfaced,
+  // not dropped, for the same reason as the orphaned agent above - it is in the
+  // graph and publish is otherwise where it first surfaces.
+  const versionOrphaned =
+    value.version_id !== null &&
+    !versionsLoading &&
+    !versions.some((version) => version.id === value.version_id);
 
   return (
     <div className="space-y-3">
@@ -118,6 +125,13 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
           <p className="text-foreground/70 flex items-center gap-1.5 text-xs">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             {t("pickerVersionRequired")}
+          </p>
+        )}
+        {versionOrphaned && !agentOrphaned && versions.length > 0 && (
+          <p className="text-foreground/70 flex items-center gap-1.5 text-xs">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {t("pickerVersionOrphaned")}{" "}
+            <span className="font-mono break-all">{value.version_id}</span>
           </p>
         )}
       </div>

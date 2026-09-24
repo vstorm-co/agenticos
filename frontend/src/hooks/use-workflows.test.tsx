@@ -34,6 +34,25 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+/** A wrapper whose one client's `invalidateQueries` is spied, to read the keys a mutation invalidates. */
+function spyWrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+  const wrap = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { wrap, invalidateQueries };
+}
+
+/** The `queryKey`s a spied `invalidateQueries` was asked to invalidate, in call order. */
+function invalidatedKeys(spy: ReturnType<typeof vi.spyOn>): unknown[] {
+  return spy.mock.calls.map(
+    (call: unknown[]) => (call[0] as { queryKey?: unknown } | undefined)?.queryKey,
+  );
+}
+
 const GRAPH: WorkflowGraph = {
   entry_node_id: "n1",
   nodes: [],
@@ -76,6 +95,26 @@ describe("useWorkflows", () => {
 
     expect(api.createWorkflow).toHaveBeenCalledWith({ name: "New one" });
     expect(toast.success).toHaveBeenCalledWith("Workflow created");
+  });
+
+  it("invalidates only the new workflow's detail and the list, not the whole subtree", async () => {
+    vi.mocked(api.listWorkflows).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.createWorkflow).mockResolvedValue({ id: "wf-2" } as never);
+    const { wrap, invalidateQueries } = spyWrapper();
+    const { result } = renderHook(() => useWorkflows(), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    invalidateQueries.mockClear();
+
+    await act(async () => {
+      await result.current.create.mutateAsync({ name: "New one" });
+    });
+
+    const keys = invalidatedKeys(invalidateQueries);
+    expect(keys).toContainEqual(["workflows", "wf-2"]);
+    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    // Never the `all()` root — it would drop the immutable node catalog and every
+    // other workflow's frozen versions.
+    expect(keys).not.toContainEqual(["workflows"]);
   });
 
   it("toasts a create failure", async () => {
@@ -198,6 +237,45 @@ describe("useWorkflow", () => {
       graph: GRAPH,
       expected_revision: 3,
     });
+  });
+
+  it("invalidates only this workflow's detail and the list on a draft save", async () => {
+    vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1" } as never);
+    vi.mocked(api.updateWorkflowDraft).mockResolvedValue({
+      id: "wf-1",
+      draft_revision: 4,
+    } as never);
+    const { wrap, invalidateQueries } = spyWrapper();
+    const { result } = renderHook(() => useWorkflow("wf-1"), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    invalidateQueries.mockClear();
+
+    await act(async () => {
+      await result.current.saveDraft.mutateAsync({ graph: GRAPH, expected_revision: 3 });
+    });
+
+    const keys = invalidatedKeys(invalidateQueries);
+    expect(keys).toContainEqual(["workflows", "wf-1"]);
+    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    expect(keys).not.toContainEqual(["workflows"]);
+  });
+
+  it("invalidates only this workflow's detail and the list on publish", async () => {
+    vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1" } as never);
+    vi.mocked(api.publishWorkflow).mockResolvedValue({ id: "v1", version: 2 } as never);
+    const { wrap, invalidateQueries } = spyWrapper();
+    const { result } = renderHook(() => useWorkflow("wf-1"), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    invalidateQueries.mockClear();
+
+    await act(async () => {
+      await result.current.publish.mutateAsync({ note: null, expected_revision: 3 });
+    });
+
+    const keys = invalidatedKeys(invalidateQueries);
+    expect(keys).toContainEqual(["workflows", "wf-1"]);
+    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    expect(keys).not.toContainEqual(["workflows"]);
   });
 
   it("publishes and toasts the version", async () => {

@@ -19,6 +19,14 @@ export interface HistoryRecorder {
   redo: () => WorkflowGraph | null;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  /**
+   * Release the recorder: cancel any pending debounce timer and detach
+   * `onFlagsChange`. Called by the store before it drops a recorder (a
+   * `seedGraph`, `load` or `teardown`), so a timer armed under the old recorder
+   * cannot fire its flush after the store has moved on and report flags for a
+   * graph that is no longer loaded.
+   */
+  dispose: () => void;
 }
 
 /**
@@ -147,12 +155,20 @@ function clone(graph: WorkflowGraph): WorkflowGraph {
  * recorder is created per editor mount — the tree is keyed on `workflowId` and
  * remounted on switch — so there is no cross-workflow reset method and no
  * module-level state.
+ *
+ * Reachability is reported the instant a real edit arrives, not only when the
+ * debounce settles: a pending edit is already undoable (`undo` flushes it
+ * first), so `canUndo` counts it and `record` reports immediately. The undo
+ * control therefore enables the moment an edit begins rather than 250ms later. A
+ * pending edit that nets back to the last committed state is not undoable, so it
+ * does not count and does not report.
  */
 export function createHistoryRecorder(
   initial: WorkflowGraph,
   options: HistoryRecorderOptions = {},
 ): HistoryRecorder {
-  const { limit = DEFAULT_HISTORY_LIMIT, delayMs = DEFAULT_DEBOUNCE_MS, onFlagsChange } = options;
+  const { limit = DEFAULT_HISTORY_LIMIT, delayMs = DEFAULT_DEBOUNCE_MS } = options;
+  let onFlagsChange = options.onFlagsChange;
 
   const history = new History<WorkflowGraph>(limit);
   history.reset(clone(initial));
@@ -162,8 +178,14 @@ export function createHistoryRecorder(
   let pendingKey = "";
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  /** A pending edit that will change the graph — undoable before it even commits. */
+  const hasPendingEdit = (): boolean => pending !== null && pendingKey !== lastKey;
+
+  const canUndo = (): boolean => history.canUndo || hasPendingEdit();
+  const canRedo = (): boolean => history.canRedo;
+
   const report = (): void => {
-    onFlagsChange?.({ canUndo: history.canUndo, canRedo: history.canRedo });
+    onFlagsChange?.({ canUndo: canUndo(), canRedo: canRedo() });
   };
 
   const clearTimer = (): void => {
@@ -192,6 +214,7 @@ export function createHistoryRecorder(
       pendingKey = graphKey(graph);
       clearTimer();
       timer = setTimeout(flush, delayMs);
+      report();
     },
     undo() {
       flush();
@@ -209,7 +232,11 @@ export function createHistoryRecorder(
       report();
       return clone(snapshot);
     },
-    canUndo: () => history.canUndo,
-    canRedo: () => history.canRedo,
+    canUndo,
+    canRedo,
+    dispose() {
+      clearTimer();
+      onFlagsChange = undefined;
+    },
   };
 }

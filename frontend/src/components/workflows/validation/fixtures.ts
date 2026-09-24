@@ -38,6 +38,26 @@ export const STRING: JsonSchema = { type: "string" };
 export const INTEGER: JsonSchema = { type: "integer" };
 export const DATETIME: JsonSchema = { type: "string", format: "date-time" };
 
+// The collection and union facets, exactly as Pydantic serializes them — the
+// analogs of `list`/`set`/`tuple` and `X | None`, which the backend's `_type_name`
+// gives distinct names and the token must too (#1787 V1).
+
+/** `list[str]` — a plain array. */
+export const STRING_LIST: JsonSchema = { type: "array", items: STRING };
+/** `set[str]` — Pydantic marks a set with `uniqueItems`. */
+export const STRING_SET: JsonSchema = { type: "array", items: STRING, uniqueItems: true };
+/** `tuple[int, str]` — Pydantic marks a fixed tuple with `prefixItems`. */
+export const INT_STR_TUPLE: JsonSchema = {
+  type: "array",
+  prefixItems: [INTEGER, STRING],
+  minItems: 2,
+  maxItems: 2,
+};
+/** `str | None` — an optional serializes as an `anyOf` with a `null` branch. */
+export const OPTIONAL_STRING: JsonSchema = { anyOf: [STRING, { type: "null" }] };
+/** `int | None` — a different union, and so a different token. */
+export const OPTIONAL_INTEGER: JsonSchema = { anyOf: [INTEGER, { type: "null" }] };
+
 /** An object schema with a title, properties and a required list — a Pydantic model. */
 export function objectSchema(
   title: string,

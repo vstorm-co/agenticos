@@ -68,16 +68,22 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
     enabled,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.workflows.all() }),
+  // A create writes the list and the new row's detail — invalidate exactly those,
+  // never the whole `workflows` subtree, so the immutable node catalog, the frozen
+  // version graphs and every other workflow's versions stay cached (#1787 F2).
+  const invalidateWorkflow = useCallback(
+    async (id: string) => {
+      await queryClient.invalidateQueries({ queryKey: qk.workflows.detail(id) });
+      await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    },
     [queryClient],
   );
 
   const create = useMutation({
     mutationFn: async ({ name, graph }: WorkflowSeed) =>
       seedGraph(await createWorkflow({ name }), graph),
-    onSuccess: async () => {
-      await invalidate();
+    onSuccess: async (workflow) => {
+      await invalidateWorkflow(workflow.id);
       toast.success(t("created"));
     },
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
@@ -91,8 +97,8 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
       const source = await getWorkflow(sourceId);
       return seedGraph(await createWorkflow({ name }), source.draft_graph);
     },
-    onSuccess: async () => {
-      await invalidate();
+    onSuccess: async (workflow) => {
+      await invalidateWorkflow(workflow.id);
       toast.success(t("duplicated"));
     },
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
@@ -127,10 +133,14 @@ export function useWorkflow(workflowId: string | null) {
     enabled: !!workflowId,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.workflows.all() }),
-    [queryClient],
-  );
+  // A draft save or a publish changes this workflow's detail and its row in the
+  // list — invalidate just those two keys, never the whole `workflows` subtree,
+  // so the immutable node catalog and the frozen version graphs stay cached
+  // (#1787 F2). The published-version list rides `detail`'s key prefix.
+  const invalidate = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId as string) });
+    await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+  }, [queryClient, workflowId]);
 
   const saveDraft = useMutation({
     mutationFn: (update: WorkflowDraftUpdate) => updateWorkflowDraft(workflowId as string, update),
