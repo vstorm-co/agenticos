@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -587,3 +588,173 @@ async def test_an_orphaned_in_flight_none_guarantee_attempt_lands_in_needs_atten
             )
         ).scalar_one()
         assert outbox_row.status == DispatchOutboxStatus.DONE.value
+
+
+async def _none_guarantee_orphan(
+    factory: async_sessionmaker[AsyncSession], run: WorkflowRun, node_run: NodeRun
+) -> tuple[DispatchOutbox, NodeAttempt]:
+    """A claim whose lease is already expired, with an `in_flight` attempt of a
+    node that must never run twice - the shape a worker leaves behind when it
+    dies mid-handler."""
+    async with factory() as claim_db:
+        claim = await dispatcher.claim(claim_db, node_run_id=node_run.id, lease_seconds=0)
+        await claim_db.commit()
+    assert claim is not None
+    async with factory() as begin_db:
+        attempt = await workflow_run_repo.create_attempt(
+            begin_db,
+            organization_id=run.organization_id,
+            node_run_id=node_run.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.NONE.value,
+            started_at=datetime.now(UTC),
+        )
+        await begin_db.commit()
+    return claim, attempt
+
+
+async def _attempts(factory: async_sessionmaker[AsyncSession], node_run: NodeRun) -> list[str]:
+    async with factory() as reader:
+        rows = (
+            await reader.execute(
+                select(NodeAttempt)
+                .where(NodeAttempt.node_run_id == node_run.id)
+                .order_by(NodeAttempt.attempt_no)
+            )
+        ).scalars()
+        return [row.status for row in rows]
+
+
+async def test_a_reconcile_scan_overtaken_by_a_reclaim_never_runs_a_none_node_twice(
+    engine: AsyncEngine, db: AsyncSession
+):
+    """The sweep scans an orphan, a second worker reclaims the same expired
+    row before the sweep takes its locks, and only then does the sweep act.
+
+    Resolving on the scan's word marked the reclaimer's live row `done` under
+    its own token; the reclaimer's `begin_attempt` then saw its token, no
+    `in_flight` attempt, and ran the `retry_guarantee="none"` node a second
+    time - and that duplicate's settle moved the escalated run to `succeeded`.
+    """
+    run, node_run = await _seeded_run(db)
+    factory = await _fresh(engine)
+    await _none_guarantee_orphan(factory, run, node_run)
+
+    async with factory() as scan_db:
+        scanned = await workflow_run_repo.list_orphaned_in_flight(scan_db, before=datetime.now(UTC))
+    assert len(scanned) == 1
+
+    async with factory() as claim_db:
+        reclaim = await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        await claim_db.commit()
+    assert reclaim is not None
+
+    with patch(
+        "app.services.workflow_execution.reconciler.workflow_run_repo.list_orphaned_in_flight",
+        new=AsyncMock(return_value=scanned),
+    ):
+        async with factory() as reconcile_db:
+            resolved = await WorkflowReconcilerService(reconcile_db).resolve_orphaned_attempts()
+            await reconcile_db.commit()
+    assert resolved == 0
+
+    async with factory() as begin_db:
+        begun = await dispatcher.begin_attempt(
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=reclaim.claimed_by
+        )
+        await begin_db.commit()
+    # The reclaimer found the orphan itself and escalated it - no second call.
+    assert begun is None
+    assert await _attempts(factory, node_run) == [NodeAttemptStatus.UNCERTAIN.value]
+    async with factory() as reader:
+        run_row = (
+            await reader.execute(select(WorkflowRun).where(WorkflowRun.id == run.id))
+        ).scalar_one()
+    assert run_row.status == WorkflowRunStatus.NEEDS_ATTENTION.value
+
+
+async def test_a_claim_closed_under_its_own_token_starts_no_attempt_and_settles_nothing(
+    engine: AsyncEngine, db: AsyncSession
+):
+    """A token that still matches is not ownership once the row is closed:
+    `begin_attempt` refuses without touching the row, and a settle for an
+    attempt whose row was closed after it began is discarded."""
+    run, node_run = await _seeded_run(db)
+    factory = await _fresh(engine)
+    async with factory() as claim_db:
+        claim = await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        await claim_db.commit()
+    assert claim is not None
+    async with factory() as begin_db:
+        begun = await dispatcher.begin_attempt(
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=claim.claimed_by
+        )
+        await begin_db.commit()
+    assert begun is not None
+    result, waiting_agent_run_id = await dispatcher.call_handler(begun)
+
+    async with factory() as closer:
+        row = (
+            await closer.execute(
+                select(DispatchOutbox).where(DispatchOutbox.node_run_id == node_run.id)
+            )
+        ).scalar_one()
+        row.status = DispatchOutboxStatus.DONE.value
+        await closer.commit()
+
+    async with factory() as begin_db:
+        again = await dispatcher.begin_attempt(
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=claim.claimed_by
+        )
+        await begin_db.commit()
+    assert again is None
+
+    async with factory() as settle_db:
+        await dispatcher.settle(
+            settle_db, begun=begun, result=result, waiting_agent_run_id=waiting_agent_run_id
+        )
+        await settle_db.commit()
+    assert await _attempts(factory, node_run) == [NodeAttemptStatus.IN_FLIGHT.value]
+    async with factory() as reader:
+        run_row = (
+            await reader.execute(select(WorkflowRun).where(WorkflowRun.id == run.id))
+        ).scalar_one()
+    assert run_row.status == WorkflowRunStatus.RUNNING.value
+
+
+@pytest.mark.parametrize(
+    "settled_status", [NodeRunStatus.SUCCEEDED.value, NodeRunStatus.NEEDS_ATTENTION.value]
+)
+async def test_a_stray_outbox_row_never_reruns_a_node_that_already_settled(
+    engine: AsyncEngine, db: AsyncSession, settled_status: str
+):
+    """A wake racing the node's own settle can leave a fresh `pending` row for
+    a node that has since succeeded or been escalated. Claiming it must close
+    it, not run the node again."""
+    run, node_run = await _seeded_run(db)
+    node_run = await workflow_run_repo.update_node_run(
+        db, node_run=node_run, update_data={"status": settled_status}
+    )
+    await db.commit()
+    factory = await _fresh(engine)
+
+    async with factory() as claim_db:
+        claim = await dispatcher.claim(claim_db, node_run_id=node_run.id)
+        await claim_db.commit()
+    assert claim is not None
+    async with factory() as begin_db:
+        begun = await dispatcher.begin_attempt(
+            begin_db, workflow_run_id=run.id, node_run_id=node_run.id, token=claim.claimed_by
+        )
+        await begin_db.commit()
+
+    assert begun is None
+    assert await _attempts(factory, node_run) == []
+    async with factory() as reader:
+        row = (
+            await reader.execute(
+                select(DispatchOutbox).where(DispatchOutbox.node_run_id == node_run.id)
+            )
+        ).scalar_one()
+    assert row.status == DispatchOutboxStatus.DONE.value

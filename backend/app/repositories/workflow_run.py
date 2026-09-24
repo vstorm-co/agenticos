@@ -102,6 +102,7 @@ async def get_run_for_update(
         select(WorkflowRun)
         .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -111,8 +112,18 @@ async def get_run_by_id_for_update(db: AsyncSession, run_id: UUID) -> WorkflowRu
     ids a trusted internal caller supplies (a Prefect flow argument, a sweep's
     own scan), never on a caller-supplied id an organization boundary must
     still be checked against. Every write this makes is still stamped with
-    the row's own `organization_id`."""
-    result = await db.execute(select(WorkflowRun).where(WorkflowRun.id == run_id).with_for_update())
+    the row's own `organization_id`.
+
+    Every locking read here also sets `populate_existing`: a row this session
+    already loaded (a sweep's own scan) would otherwise come back with the
+    attributes it had *before* the lock was granted, and a check made on
+    those after waiting for the lock would be a check of stale values."""
+    result = await db.execute(
+        select(WorkflowRun)
+        .where(WorkflowRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 
@@ -211,7 +222,12 @@ async def get_node_run_by_id(db: AsyncSession, node_run_id: UUID) -> NodeRun | N
 
 
 async def get_node_run_by_id_for_update(db: AsyncSession, node_run_id: UUID) -> NodeRun | None:
-    result = await db.execute(select(NodeRun).where(NodeRun.id == node_run_id).with_for_update())
+    result = await db.execute(
+        select(NodeRun)
+        .where(NodeRun.id == node_run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 
@@ -314,7 +330,8 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
             ~still_pending,
             NodeRun.id.not_in(live_outbox),
         )
-        .order_by(NodeRun.updated_at)
+        # By run id, for the same lock-order reason as `list_orphaned_in_flight`.
+        .order_by(NodeRun.workflow_run_id, NodeRun.id)
         .limit(limit)
     )
     return list(result.scalars().all())
@@ -360,7 +377,13 @@ async def create_attempt(
 
 
 async def get_attempt(db: AsyncSession, attempt_id: UUID) -> NodeAttempt | None:
-    result = await db.execute(select(NodeAttempt).where(NodeAttempt.id == attempt_id))
+    """Always re-read from the database: callers read it under the owning run's
+    lock to decide whether the attempt is still `in_flight`."""
+    result = await db.execute(
+        select(NodeAttempt)
+        .where(NodeAttempt.id == attempt_id)
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 
@@ -414,17 +437,22 @@ async def list_orphaned_in_flight(
     process died before settling it. Joined through `DispatchOutbox` rather
     than through the attempt's own `started_at`, because the lease - not the
     attempt's age - is what says nobody is still working it.
+
+    Ordered by the owning run's id: the sweep locks each run in turn and holds
+    every lock until it commits, so any two sweeps must take them in the same
+    order or they can deadlock each other.
     """
     result = await db.execute(
         select(NodeAttempt)
         .join(DispatchOutbox, DispatchOutbox.node_run_id == NodeAttempt.node_run_id)
+        .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
         .where(
             NodeAttempt.status == NodeAttemptStatus.IN_FLIGHT.value,
             DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
             DispatchOutbox.lease_expires_at.is_not(None),
             DispatchOutbox.lease_expires_at < before,
         )
-        .order_by(NodeAttempt.started_at)
+        .order_by(NodeRun.workflow_run_id, NodeAttempt.id)
         .limit(limit)
     )
     return list(result.scalars().all())
@@ -587,6 +615,7 @@ async def get_outbox_for_node_run_for_update(
         .order_by(DispatchOutbox.created_at.desc())
         .limit(1)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

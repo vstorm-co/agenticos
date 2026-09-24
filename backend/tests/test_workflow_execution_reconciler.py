@@ -7,7 +7,7 @@ its own sake.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
@@ -15,6 +15,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.workflow_run import (
+    DispatchOutbox,
+    DispatchOutboxStatus,
     NodeAttempt,
     NodeAttemptStatus,
     NodeRun,
@@ -99,6 +101,22 @@ def _node_run(**overrides: object) -> NodeRun:
     return NodeRun(**defaults)
 
 
+def _outbox(*, node_run_id: uuid.UUID, **overrides: object) -> DispatchOutbox:
+    """A claim whose lease has already run out - what the orphan sweep acts on."""
+    defaults: dict[str, object] = {
+        "id": uuid.uuid4(),
+        "organization_id": uuid.uuid4(),
+        "workflow_run_id": uuid.uuid4(),
+        "node_run_id": node_run_id,
+        "available_at": datetime.now(UTC),
+        "claimed_by": uuid.uuid4(),
+        "lease_expires_at": datetime.now(UTC) - timedelta(seconds=1),
+        "status": DispatchOutboxStatus.CLAIMED.value,
+    }
+    defaults.update(overrides)
+    return DispatchOutbox(**defaults)
+
+
 def _attempt(**overrides: object) -> NodeAttempt:
     defaults: dict[str, object] = {
         "id": uuid.uuid4(),
@@ -144,15 +162,62 @@ class TestResolveOrphanedAttempts:
         repo.list_orphaned_in_flight.return_value = [attempt]
         repo.get_node_run_by_id.return_value = node_run
         repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(node_run_id=node_run.id)
         repo.get_attempt.return_value = attempt
         repo.settle_attempt.side_effect = _settle_effect
-        repo.get_outbox_for_node_run.return_value = None
 
         service = WorkflowReconcilerService(object())
         resolved = await service.resolve_orphaned_attempts()
 
         assert resolved == 1
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
+
+    @pytest.mark.parametrize(
+        "outbox_overrides",
+        [
+            # Reclaimed by another worker between the scan and the lock.
+            {"lease_expires_at": datetime.now(UTC) + timedelta(minutes=2)},
+            # Closed (a cancel, another sweep) between the scan and the lock.
+            {"status": DispatchOutboxStatus.DONE.value},
+            {"status": DispatchOutboxStatus.CANCELLED.value},
+        ],
+    )
+    async def test_an_orphan_whose_claim_changed_since_the_scan_is_left_alone(
+        self, repo, event_log, outbox_overrides
+    ):
+        """Only a claim that is still open and still expired under the lock is
+        abandoned; resolving on the scan's word would close a live claim and
+        let its holder run the node a second time."""
+        node_run = _node_run(status=NodeRunStatus.RUNNING.value, waiting_agent_run_id=None)
+        attempt = _attempt(node_run_id=node_run.id)
+        run = _run(id=node_run.workflow_run_id)
+        repo.list_orphaned_in_flight.return_value = [attempt]
+        repo.get_node_run_by_id.return_value = node_run
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, **outbox_overrides
+        )
+        repo.get_attempt.return_value = attempt
+
+        resolved = await WorkflowReconcilerService(object()).resolve_orphaned_attempts()
+
+        assert resolved == 0
+        assert attempt.status == NodeAttemptStatus.IN_FLIGHT.value
+        repo.mark_outbox_done.assert_not_called()
+
+    async def test_an_orphan_with_no_outbox_row_left_is_left_alone(self, repo, event_log):
+        node_run = _node_run(status=NodeRunStatus.RUNNING.value, waiting_agent_run_id=None)
+        attempt = _attempt(node_run_id=node_run.id)
+        repo.list_orphaned_in_flight.return_value = [attempt]
+        repo.get_node_run_by_id.return_value = node_run
+        repo.get_run_by_id_for_update.return_value = _run(id=node_run.workflow_run_id)
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_attempt.return_value = attempt
+
+        assert await WorkflowReconcilerService(object()).resolve_orphaned_attempts() == 0
 
     async def test_a_node_run_that_no_longer_exists_is_skipped(self, repo, event_log):
         attempt = _attempt()

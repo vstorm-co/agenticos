@@ -715,6 +715,47 @@ class TestOrphanedInFlightAttempts:
         found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
         assert attempt.id in {row.id for row in found}
 
+    async def test_orphans_come_back_in_the_order_their_runs_are_locked(self, db: AsyncSession):
+        """The sweep locks each orphan's run in scan order and holds every lock
+        to its commit; two sweeps agree on the order only if the scan does."""
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        node_runs = []
+        for _ in range(3):
+            run = await _run(db, org, workflow)
+            node_run = await _node_run(db, run)
+            await workflow_run_repo.create_outbox(
+                db,
+                organization_id=org.id,
+                workflow_run_id=run.id,
+                node_run_id=node_run.id,
+                available_at=datetime.now(UTC),
+            )
+            node_runs.append(node_run)
+        await db.commit()
+        for node_run in node_runs:
+            await workflow_run_repo.claim_outbox(
+                db,
+                node_run_id=node_run.id,
+                token=uuid.uuid4(),
+                lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            )
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=org.id,
+                node_run_id=node_run.id,
+                attempt_no=1,
+                idempotency_key="k",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+
+        found = await workflow_run_repo.list_orphaned_in_flight(db, before=datetime.now(UTC))
+
+        run_of = {node_run.id: node_run.workflow_run_id for node_run in node_runs}
+        order = [run_of[attempt.node_run_id] for attempt in found]
+        assert order == sorted(run_of.values())
+
     async def test_a_completed_attempt_is_never_orphaned(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)

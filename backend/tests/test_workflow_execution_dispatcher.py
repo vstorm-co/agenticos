@@ -1089,12 +1089,12 @@ class TestSettleShortCircuits:
         begun = _begun(
             node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
         )
-        outbox = _outbox(node_run_id=node_run.id)
+        outbox = _outbox(node_run_id=node_run.id, claimed_by=begun.dispatch_token)
 
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1148,12 +1148,12 @@ class TestSettleShortCircuits:
         begun = _begun(
             node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
         )
-        outbox = _outbox(node_run_id=node_run.id)
+        outbox = _outbox(node_run_id=node_run.id, claimed_by=begun.dispatch_token)
 
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = outbox
+        repo.get_outbox_for_node_run_for_update.return_value = outbox
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1165,6 +1165,41 @@ class TestSettleShortCircuits:
 
         assert attempt.status == expected_status
         assert node_run.status == NodeRunStatus.CANCELLED.value
+
+    async def test_a_cancelled_run_settle_leaves_the_cancelled_outbox_row_as_cancel_wrote_it(
+        self, repo, event_log, test_node
+    ):
+        """`cancel()` marks the live row `cancelled`; a late settle closes only
+        a claim that is still open and still its own, so that record stands."""
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            status=WorkflowRunStatus.CANCELLED.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id,
+            claimed_by=begun.dispatch_token,
+            status=DispatchOutboxStatus.CANCELLED.value,
+        )
+        repo.settle_attempt.side_effect = _settle_effect
+
+        result = Completed[_EchoOutput](output=_EchoOutput(echoed="too-late"))
+        await dispatcher.settle(object(), begun=begun, result=result, waiting_agent_run_id=None)
+
+        repo.mark_outbox_done.assert_not_called()
 
     async def test_a_cancelled_run_settle_with_no_outbox_row_still_settles(
         self, repo, event_log, test_node
@@ -1193,7 +1228,7 @@ class TestSettleShortCircuits:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = None
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1318,7 +1353,9 @@ class TestSettleWaiting:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1408,7 +1445,9 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1445,7 +1484,9 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1493,7 +1534,9 @@ class TestSettleFailed:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data
@@ -1527,7 +1570,9 @@ class TestSettleUncertain:
         repo.get_run_by_id_for_update.return_value = run
         repo.get_node_run_by_id_for_update.return_value = node_run
         repo.get_attempt.return_value = attempt
-        repo.get_outbox_for_node_run_for_update.return_value = None
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data

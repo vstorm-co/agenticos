@@ -38,7 +38,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypeGuard
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -50,6 +50,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.db.models.workflow_run import (
     DispatchOutbox,
+    DispatchOutboxStatus,
     NodeAttempt,
     NodeAttemptStatus,
     NodeRun,
@@ -77,6 +78,11 @@ from app.workflows.contracts.results import Completed, Failed, NodeResult, Uncer
 from app.workflows.graph.model import NodeInstance, WorkflowGraph
 
 logger = logging.getLogger(__name__)
+
+# The `NodeRun` statuses a claimed outbox row may still start an attempt for.
+_DISPATCHABLE = frozenset(
+    {NodeRunStatus.PENDING.value, NodeRunStatus.RUNNING.value, NodeRunStatus.WAITING.value}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,13 +325,23 @@ async def begin_attempt(
             extra={"node_run_id": str(node_run_id), "token": str(token)},
         )
         return None
+    if outbox.status != DispatchOutboxStatus.CLAIMED.value:
+        # The token is still this worker's, but the row was closed under it -
+        # the reconciler resolved the attempt it was fencing, or the run was
+        # cancelled or failed. A closed row authorizes nothing, and it is
+        # not this worker's to reopen or re-close.
+        logger.warning(
+            "workflow_dispatch_closed_claim",
+            extra={"node_run_id": str(node_run_id), "outbox_status": outbox.status},
+        )
+        return None
 
-    if WorkflowRunStatus(run.status).is_terminal or node_run.status in (
-        NodeRunStatus.CANCELLED.value,
-        NodeRunStatus.SKIPPED.value,
-    ):
-        # `outbox` is never `None` past the token check above - only ever
-        # closing the row this worker was just confirmed to still own.
+    if WorkflowRunStatus(run.status).is_terminal or node_run.status not in _DISPATCHABLE:
+        # A node that already settled (succeeded, failed, escalated to
+        # `needs_attention`) or was cancelled must never run again, whatever
+        # outbox row a racing wake left behind for it. The row is this
+        # worker's own claim, so it is closed rather than left for
+        # `list_stale_claims` to resubmit.
         await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
         return None
 
@@ -619,6 +635,15 @@ async def resolve_orphaned_attempt(
     )
 
 
+def _still_owns(outbox: DispatchOutbox | None, token: UUID) -> TypeGuard[DispatchOutbox]:
+    """Whether `outbox` is still an open claim made with `token`."""
+    return (
+        outbox is not None
+        and outbox.claimed_by == token
+        and outbox.status == DispatchOutboxStatus.CLAIMED.value
+    )
+
+
 def _terminal_attempt_status(result: NodeResult) -> str:
     """The `NodeAttempt` status each `NodeResult` variant settles to, on its
     own - shared by the ordinary path and the two short-circuits below, so
@@ -684,8 +709,12 @@ async def settle(
             node_run=node_run,
             update_data={"status": NodeRunStatus.CANCELLED.value, "ended_at": now},
         )
-        outbox = await workflow_run_repo.get_outbox_for_node_run(db, node_run_id=node_run.id)
-        if outbox is not None:
+        # Only this attempt's own, still-open claim is closed: `cancel()`
+        # already marked the row `cancelled`, and that record stays as it is.
+        outbox = await workflow_run_repo.get_outbox_for_node_run_for_update(
+            db, node_run_id=node_run.id
+        )
+        if _still_owns(outbox, begun.dispatch_token):
             await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
         return
 
@@ -701,7 +730,9 @@ async def settle(
     # longer owns and, for a `Completed` result, `_advance` past a node the
     # reclaiming worker's own `begin_attempt` may already be re-running -
     # a duplicate attempt for a node this settle is about to mark succeeded.
-    if outbox is not None and outbox.claimed_by != begun.dispatch_token:
+    # A row still carrying this token but already closed is the same verdict
+    # from the other direction: somebody else had the last word on it.
+    if not _still_owns(outbox, begun.dispatch_token):
         logger.warning(
             "workflow_dispatch_settle_lost_claim",
             extra={"node_run_id": str(node_run.id), "attempt_id": str(attempt.id)},
@@ -712,8 +743,7 @@ async def settle(
     # live outbox row remains - and this node's own row is still `claimed`
     # until this closes it. Checking that after closing it, rather than
     # before, is what makes "no live outbox left" actually mean it.
-    if outbox is not None:
-        await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
 
     if isinstance(result, Completed):
         await _settle_completed(

@@ -147,11 +147,14 @@ async def workflow_reconcile_flow() -> dict[str, int]:
     """
     from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 
+    # One transaction per sweep: each commits on its own, so a sweep that
+    # aborts (a deadlock Postgres broke, say) takes only its own work with it.
     async with get_worker_db_context() as db:
-        service = WorkflowReconcilerService(db)
-        stale_pairs = await service.stale_claims()
-        resolved = await service.resolve_orphaned_attempts()
-        woken = await service.wake_stale_approval_decisions()
+        stale_pairs = await WorkflowReconcilerService(db).stale_claims()
+    async with get_worker_db_context() as db:
+        resolved = await WorkflowReconcilerService(db).resolve_orphaned_attempts()
+    async with get_worker_db_context() as db:
+        woken = await WorkflowReconcilerService(db).wake_stale_approval_decisions()
 
     for workflow_run_id, node_run_id in stale_pairs:
         await _submit_dispatch(workflow_run_id=str(workflow_run_id), node_run_id=str(node_run_id))
