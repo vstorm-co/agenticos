@@ -170,6 +170,19 @@ if (inBrowser && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
+// `@xyflow/react` measures an edge label with `SVGElement.getBBox`, which jsdom
+// does not implement — the workflow canvas (#1787) draws a control node's branch
+// label through it. A zero-size box lets the label mount and be queried; nothing
+// in these tests depends on a real measurement.
+const svgProto =
+  typeof SVGElement !== "undefined"
+    ? (SVGElement.prototype as unknown as Record<string, unknown>)
+    : null;
+if (inBrowser && svgProto !== null && typeof svgProto["getBBox"] !== "function") {
+  svgProto["getBBox"] = () =>
+    ({ x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 }) as DOMRect;
+}
+
 /**
  * `useTranslations` backed by the real English catalog.
  *

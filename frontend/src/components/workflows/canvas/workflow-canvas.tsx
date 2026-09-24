@@ -1,36 +1,38 @@
 "use client";
 
 import { ReactFlowProvider } from "@xyflow/react";
-import { useTranslations } from "next-intl";
 
-import type { WorkflowDetail } from "@/lib/workflows/types";
+import type { NodeDefinition, WorkflowDetail } from "@/lib/workflows/types";
+
+import { WorkflowGraphView } from "./workflow-graph-view";
+
+import "@xyflow/react/dist/style.css";
 
 interface WorkflowCanvasProps {
-  /** The workflow being edited; the canvas leaf renders its `draft_graph`. */
+  /** The workflow being edited; its `draft_graph` is seeded into the store by the page. */
   workflow: WorkflowDetail;
+  /** The node catalog, for resolving definitions and the connection rules. */
+  catalog: NodeDefinition[];
+  /** A published version renders read-only. Defaults to the editable draft. */
+  readOnly?: boolean;
 }
 
 /**
- * The editor canvas — the seam the #1787 canvas leaf fills.
+ * The editor canvas — a per-instance `<ReactFlowProvider>` (never a module
+ * singleton, so one workflow's editor cannot bleed into another's) wrapping the
+ * controlled graph view.
  *
- * Already wrapped in a per-instance `<ReactFlowProvider>`, the boundary the
- * design fixes (per-instance, never a module singleton), so the leaf drops
- * `<ReactFlow>`, `<Background>`, `<Controls>`, the per-`kind` node components,
- * the typed edges and `isValidConnection` in here without re-deciding it.
- * Read-only mode (a published version) reuses this with `nodesDraggable={false}`.
+ * The working graph itself lives in the editor store, seeded by the page from
+ * `WorkflowDetail.draft_graph`; the canvas only renders it and applies changes
+ * back. Read-only mode reuses the same view with dragging, connecting and
+ * handles switched off.
  */
-export function WorkflowCanvas({ workflow }: WorkflowCanvasProps) {
-  const t = useTranslations("workflows");
+export function WorkflowCanvas({ workflow, catalog, readOnly = false }: WorkflowCanvasProps) {
   return (
-    <ReactFlowProvider>
-      <section
-        aria-label={t("canvasTitle")}
-        data-workflow-region="canvas"
-        data-workflow-id={workflow.id}
-        className="border-border flex min-h-[24rem] items-center justify-center rounded-xl border border-dashed"
-      >
-        <p className="text-muted-foreground text-sm">{t("canvasHint")}</p>
-      </section>
-    </ReactFlowProvider>
+    <div data-workflow-id={workflow.id}>
+      <ReactFlowProvider>
+        <WorkflowGraphView catalog={catalog} readOnly={readOnly} />
+      </ReactFlowProvider>
+    </div>
   );
 }

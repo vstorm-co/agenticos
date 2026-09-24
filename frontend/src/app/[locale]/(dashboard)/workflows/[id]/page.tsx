@@ -11,11 +11,21 @@ import { PropertyPanel } from "@/components/workflows/property-panel";
 import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useNodeCatalog, useWorkflow } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import type { WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
+
+/** The graph a workflow nobody has edited starts from, since its `draft_graph` is null. */
+const EMPTY_GRAPH: WorkflowGraph = {
+  entry_node_id: "",
+  nodes: [],
+  edges: [],
+  bindings: [],
+  scopes: [],
+};
 
 /**
  * The workflow editor shell — palette, canvas and property panel.
@@ -33,11 +43,15 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const { workflow, isLoading } = useWorkflow(id);
   const { nodes } = useNodeCatalog();
   const load = useWorkflowEditorStore((state) => state.load);
+  const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
 
   useEffect(() => {
-    if (workflow) load({ workflowId: workflow.id, expectedRevision: workflow.draft_revision });
-  }, [workflow, load]);
+    if (workflow) {
+      load({ workflowId: workflow.id, expectedRevision: workflow.draft_revision });
+      seedGraph(workflow.draft_graph ?? EMPTY_GRAPH);
+    }
+  }, [workflow, load, seedGraph]);
 
   // The store is torn down (not merely reset) on unmount, so no cross-workflow
   // or cross-organization state survives leaving the editor.
@@ -75,7 +89,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       />
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr_20rem]">
         <NodePalette nodes={nodes} />
-        <WorkflowCanvas workflow={workflow} />
+        <WorkflowCanvas workflow={workflow} catalog={nodes} />
         <PropertyPanel />
       </div>
     </div>
