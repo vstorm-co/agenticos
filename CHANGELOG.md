@@ -40,6 +40,17 @@ Two things are versioned separately from this file and worth knowing about:
   can move it to a domain of its own.
   ([#70](https://github.com/vstorm-co/agenticos/issues/70))
 
+## [0.0.494] - 2026-09-25
+
+### Fixed
+
+- **The `objectstore` compose profile could not start MinIO.** MinIO stopped
+  publishing images, and `quay.io/minio/minio` now answers 401 for every tag,
+  so `make docker-minio` failed on every machine and CI's backend job with it.
+  The profile runs `pgsty/minio`, the community-maintained build of the same
+  server, pinned to `RELEASE.2026-08-04T00-00-00Z`. Nothing changes for a
+  deployment that keeps the local file backend or points at another S3 store.
+
 ## [0.0.493] - 2026-09-25
 
 ### Fixed

@@ -313,13 +313,13 @@ services:
     # local backend needs no object store at all: `docker compose --profile
     # objectstore up -d minio`, or `make docker-minio`.
     #
-    # From quay.io rather than Docker Hub, which is where MinIO publishes: the
-    # Hub repository answers "pull access denied" for a tag, so a compose file
-    # naming it fails on a fresh machine with an error that reads like a login
-    # problem. `RELEASE.2025-04-22T22-12-26Z` rather than `latest`, because the
-    # tag after it removed most of the web console and pinning a store people
-    # click around in is worth the version bump being a decision.
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # `pgsty/minio`, the community-maintained build of MinIO, because MinIO
+    # stopped publishing images: `quay.io/minio/minio` and `minio/minio` both
+    # answer 401 for every tag now, so a pin to either fails on every machine
+    # with an error that reads like a login problem. Same binary, same `mc`
+    # for the healthcheck below, and its web console is the full one. A dated
+    # release rather than `latest`, so a version bump stays a decision.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     profiles: [objectstore]
     command: server /data --console-address ":9001"
     environment:
