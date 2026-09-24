@@ -1,5 +1,5 @@
 ---
-source_sha: "c2a5d49b6e4d"
+source_sha: "d22d5fce4b79"
 ---
 
 # Workflows { #workflows }
@@ -13,8 +13,8 @@ działa.
 
 Ta strona opisuje edytor wizualny: listę, kanwę i paletę, sposób konfiguracji
 węzła, autozapis i publikowanie oraz drogi klawiaturowe przez to wszystko. Edytor
-znajduje się w sekcji **Workflows** w konsoli, a jego **"?"** odtwarza przewodnik
-po stronie, na której właśnie jesteś.
+znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
+**"?"**, które odtwarza przewodnik po tej liście; sam edytor nie ma przewodnika.
 
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
@@ -104,9 +104,10 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 | **Table** i **Columns** | [Virtual Table](virtual-tables.md), a potem kolumny, które krok odczytuje — ograniczone do bieżącego schematu tej tabeli |
 | **Secret** | Sekret w [vault](secrets.md), przez referencję. Krok zapisuje id sekretu, nigdy jego wartość |
 
-Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst, oferuje wyjście
-awaryjne do utworzenia nowego, gdy lista jest pusta, i oznacza referencję, której cel
-zniknął. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
+Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
+referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do
+utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole wyboru
+**Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
 **Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
 zachętą, a nie cichym pęknięciem.
 

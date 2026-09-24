@@ -10,9 +10,10 @@ import { ConflictBanner, EditorActions, VersionHistory } from "@/components/work
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
 import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
-import { useNodeCatalog, useWorkflow } from "@/hooks";
+import { useNodeCatalog, usePermissions, useWorkflow } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
+import { Perm } from "@/types/permissions";
 import { useWorkflowEditorStore } from "@/stores";
 
 interface PageProps {
@@ -42,12 +43,21 @@ const EMPTY_GRAPH: WorkflowGraph = {
  * detail query, and reseeding the store from that background refetch would throw
  * away edits made while the save was in flight. The store's revision is advanced
  * by autosave, not by the refetch.
+ *
+ * A caller with only `workflows:view` gets a read-only editor: the canvas renders
+ * with `readOnly`, and the edit chrome — palette, autosave/publish actions,
+ * property panel and conflict banner — is not rendered at all, so no autosave
+ * fires to 403. This is the "not rendered, then 403" rule: never show a control
+ * the server would refuse. `can()` gates the UI only; every write is re-checked
+ * server-side.
  */
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
   const { workflow, isLoading, saveDraft, publish } = useWorkflow(id);
   const { nodes } = useNodeCatalog();
+  const { can } = usePermissions();
+  const canEdit = can(Perm.workflowsEdit);
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
@@ -101,19 +111,25 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         description={t("draftRevision", { revision: workflow.draft_revision })}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         actions={
-          <EditorActions
-            catalog={nodes}
-            saveDraft={saveDraft.mutateAsync}
-            publish={publish.mutateAsync}
-          />
+          canEdit ? (
+            <EditorActions
+              catalog={nodes}
+              saveDraft={saveDraft.mutateAsync}
+              publish={publish.mutateAsync}
+            />
+          ) : undefined
         }
       />
-      <ConflictBanner workflowId={workflow.id} />
-      <div className="grid gap-4 lg:grid-cols-[16rem_1fr_20rem]">
-        <NodePalette nodes={nodes} />
-        <WorkflowCanvas workflow={workflow} catalog={nodes} />
-        <PropertyPanel />
-      </div>
+      {canEdit && <ConflictBanner workflowId={workflow.id} />}
+      {canEdit ? (
+        <div className="grid gap-4 lg:grid-cols-[16rem_1fr_20rem]">
+          <NodePalette nodes={nodes} />
+          <WorkflowCanvas workflow={workflow} catalog={nodes} />
+          <PropertyPanel />
+        </div>
+      ) : (
+        <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly />
+      )}
       <VersionHistory workflowId={workflow.id} catalog={nodes} />
     </div>
   );

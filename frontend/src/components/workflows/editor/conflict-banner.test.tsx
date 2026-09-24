@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { qk } from "@/lib/query-keys";
 import type { WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
 import { getWorkflow } from "@/lib/workflows/workflows-api";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -118,6 +119,39 @@ describe("ConflictBanner", () => {
     expect(store.expectedRevision).toBe(12);
     expect(store.isDirty).toBe(false);
     expect(getWorkflow).toHaveBeenCalledWith("w1");
+  });
+
+  it("reload fetches the server copy even when the detail is fresh in the cache", async () => {
+    // The 5-minute global stale window in practice: seed the client's OWN cached
+    // draft — the stale copy the 409 is about — as a fresh query. Without
+    // `staleTime: 0` on the reload's `fetchQuery`, TanStack would serve this
+    // cached copy and never call `getWorkflow`, so Reload could not escape the
+    // conflict.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+    });
+    const staleDetail: WorkflowDetail = {
+      ...serverDetail(),
+      draft_graph: LOCAL_GRAPH,
+      draft_revision: 4,
+    };
+    client.setQueryData(qk.workflows.detail("w1"), staleDetail);
+    vi.mocked(getWorkflow).mockResolvedValue(serverDetail());
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    render(<ConflictBanner workflowId="w1" />, { wrapper });
+    act(() => useWorkflowEditorStore.getState().setConflict(9));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Reload" }));
+
+    await waitFor(() => expect(useWorkflowEditorStore.getState().conflict).toBeNull());
+    // The server was actually read, not served the client's stale cache.
+    expect(getWorkflow).toHaveBeenCalledWith("w1");
+    const store = useWorkflowEditorStore.getState();
+    expect(store.getGraph()?.entry_node_id).toBe("server");
+    expect(store.expectedRevision).toBe(12);
+    expect(store.isDirty).toBe(false);
   });
 
   it("reloads a workflow whose server draft is empty", async () => {
