@@ -18,7 +18,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
 
@@ -118,11 +118,12 @@ export function CreateTableDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className={DIALOG_FORM}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        {/* Grows a row per column, so it scrolls and the footer's Create stays on screen. */}
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           <div className="space-y-1.5" data-tour="table-dialog-name">
             <Input
               value={name}

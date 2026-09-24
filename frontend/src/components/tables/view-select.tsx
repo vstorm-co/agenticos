@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
 import {
@@ -19,16 +19,109 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
-import { submitFailure } from "@/lib/api-error";
+import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import type { TableViewRead, ViewKind, ViewVisibility } from "@/types/tables";
 
-const CREATE_FORM = { fields: ["name"], identifiedBy: "name" } as const;
+const NAME_FORM = { fields: ["name"], identifiedBy: "name" } as const;
+
+/**
+ * A dialog that names a view and saves it: the create and the rename dialog.
+ *
+ * `onSave` settles with the write's own outcome. The dialog closes only once
+ * it resolves; a refusal keeps it open with the typed name, the name problem
+ * (a taken name, 409) beside the input and anything else below it.
+ */
+function ViewNameDialog({
+  open,
+  onOpenChange,
+  title,
+  initialName,
+  onSave,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  initialName: string;
+  onSave: (name: string) => Promise<unknown>;
+  children?: ReactNode;
+}) {
+  const t = useTranslations("pages.tables.views");
+  const tErrors = useTranslations("errors");
+  const [name, setName] = useState(initialName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+
+  // Each opening starts from the caller's name and no error: a refusal from
+  // the last time the dialog was open is not about what is typed now.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setName(initialName);
+      setError(null);
+    }
+  }
+
+  // `NO_FAILURE` when there is no error: `submitFailure` reads anything that
+  // is not an `ApiError`, `null` included, as an unexpected failure.
+  const failure = error != null ? submitFailure(error, NAME_FORM, tErrors) : NO_FAILURE;
+  const nameProblem = failure.fields.name;
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(name.trim());
+      onOpenChange(false);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={DIALOG_CONFIRM}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("namePlaceholder")}
+              aria-label={t("namePlaceholder")}
+              aria-invalid={nameProblem ? true : undefined}
+            />
+            {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
+          </div>
+          {children}
+        </div>
+        {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {t("cancel")}
+          </Button>
+          <Button type="button" disabled={!name.trim() || saving} onClick={() => void save()}>
+            {t("save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 /**
  * The saved-view picker for the active kind, and its owner-only rename/delete
  * controls. Gated on `view.can_manage`, never on `table.can_edit`: a table
  * editor another member shared a view with may not silently repoint their
  * saved filter (see `docs/virtual-tables.md#saved-views`).
+ *
+ * `onCreate` and `onRename` settle with their write's outcome, which is what
+ * decides whether their dialog closes.
  */
 export function ViewSelect({
   kind,
@@ -36,8 +129,6 @@ export function ViewSelect({
   activeViewId,
   onSelect,
   onCreate,
-  isCreating,
-  createError,
   onRename,
   onDelete,
   canCreate,
@@ -46,37 +137,16 @@ export function ViewSelect({
   views: TableViewRead[];
   activeViewId: string | null;
   onSelect: (viewId: string | null) => void;
-  onCreate: (name: string, visibility: ViewVisibility) => void;
-  /** Whether `onCreate`'s write is in flight - disables Save and holds the dialog open. */
-  isCreating: boolean;
-  /**
-   * `onCreate`'s last failure, if any - most often a taken name (409). Read
-   * reactively rather than caught here, because `onCreate` itself returns
-   * nothing: the caller's mutation is the one thing that knows how it went.
-   */
-  createError: unknown;
-  onRename: (viewId: string, name: string) => void;
+  onCreate: (name: string, visibility: ViewVisibility) => Promise<unknown>;
+  onRename: (viewId: string, name: string) => Promise<unknown>;
   onDelete: (viewId: string) => void;
   canCreate: boolean;
 }) {
   const t = useTranslations("pages.tables.views");
-  const tErrors = useTranslations("errors");
   const [createOpen, setCreateOpen] = useState(false);
+  const [draftVisibility, setDraftVisibility] = useState<ViewVisibility>("private");
   const [renaming, setRenaming] = useState<TableViewRead | null>(null);
   const [deleting, setDeleting] = useState<TableViewRead | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [draftVisibility, setDraftVisibility] = useState<ViewVisibility>("private");
-
-  // Closes itself once a create this dialog started finishes without error -
-  // detected by `isCreating` going from true back to false, rather than by
-  // `onCreate`'s own return, which carries nothing back. A create that fails
-  // leaves the dialog open with the conflict shown beside the name it named.
-  const [wasCreating, setWasCreating] = useState(isCreating);
-  if (isCreating !== wasCreating) {
-    setWasCreating(isCreating);
-    if (wasCreating && !createError) setCreateOpen(false);
-  }
-  const nameProblem = submitFailure(createError, CREATE_FORM, tErrors).fields.name;
 
   const active = views.find((view) => view.id === activeViewId) ?? null;
 
@@ -105,7 +175,6 @@ export function ViewSelect({
           size="sm"
           data-tour="table-view-new"
           onClick={() => {
-            setDraftName("");
             setDraftVisibility("private");
             setCreateOpen(true);
           }}
@@ -116,15 +185,7 @@ export function ViewSelect({
       )}
       {active?.can_manage && (
         <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setDraftName(active.name);
-              setRenaming(active);
-            }}
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(active)}>
             {t("rename")}
           </Button>
           <Button
@@ -139,87 +200,35 @@ export function ViewSelect({
         </>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className={DIALOG_CONFIRM}>
-          <DialogHeader>
-            <DialogTitle>{t("newView")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Input
-                value={draftName}
-                onChange={(event) => setDraftName(event.target.value)}
-                placeholder={t("namePlaceholder")}
-                aria-label={t("namePlaceholder")}
-                aria-invalid={nameProblem ? true : undefined}
-              />
-              {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
-            </div>
-            <Select
-              value={draftVisibility}
-              onValueChange={(next) => setDraftVisibility(next as ViewVisibility)}
-            >
-              <SelectTrigger aria-label={t("visibilityLabel")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">{t("private")}</SelectItem>
-                <SelectItem value="shared">{t("shared")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-              {t("cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={!draftName.trim() || isCreating}
-              onClick={() => onCreate(draftName.trim(), draftVisibility)}
-            >
-              {t("save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ViewNameDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title={t("newView")}
+        initialName=""
+        onSave={(name) => onCreate(name, draftVisibility)}
+      >
+        <Select
+          value={draftVisibility}
+          onValueChange={(next) => setDraftVisibility(next as ViewVisibility)}
+        >
+          <SelectTrigger aria-label={t("visibilityLabel")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="private">{t("private")}</SelectItem>
+            <SelectItem value="shared">{t("shared")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </ViewNameDialog>
 
-      {/*
-        Save and Cancel both clear `renaming` directly, so this handler only
-        ever fires from an in-dialog close this component did not initiate
-        (Escape, the overlay, the close button) - always with `open: false`,
-        since nothing here reopens the dialog through Radix. Clearing
-        unconditionally is therefore equivalent to checking `open` first.
-      */}
-      <Dialog open={!!renaming} onOpenChange={() => setRenaming(null)}>
-        <DialogContent className={DIALOG_CONFIRM}>
-          <DialogHeader>
-            <DialogTitle>{t("rename")}</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            aria-label={t("namePlaceholder")}
-          />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-              {t("cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={!draftName.trim()}
-              onClick={() => {
-                // This button only exists while the dialog is open, and the
-                // dialog is only open while `renaming` is set (`open={!!renaming}`
-                // above), so `renaming` is never null here.
-                onRename(renaming!.id, draftName.trim());
-                setRenaming(null);
-              }}
-            >
-              {t("save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ViewNameDialog
+        open={renaming !== null}
+        onOpenChange={(open) => !open && setRenaming(null)}
+        title={t("rename")}
+        initialName={renaming?.name ?? ""}
+        // Rendered open only while `renaming` is set, so it is set whenever Save runs.
+        onSave={(name) => onRename(renaming!.id, name)}
+      />
 
       <ConfirmDialog
         open={!!deleting}

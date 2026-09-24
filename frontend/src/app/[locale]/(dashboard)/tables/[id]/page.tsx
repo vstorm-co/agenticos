@@ -46,7 +46,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const setTab = (next: ViewKind) => setTabParam(next === "table" ? null : next);
   const [viewIdParam, setViewIdParam] = useUrlState("viewId");
 
-  const { table, isLoading, error, changeSchema } = useTable(id);
+  const { table, isLoading, error, changeSchema, invalidate: refreshTable } = useTable(id);
   const {
     views,
     create: createView,
@@ -95,6 +95,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     records,
     hasMore,
     isLoading: recordsLoading,
+    isPlaceholderData: recordsPlaceholder,
   } = useTableRecords(tab === "kanban" ? null : id, {
     filters,
     sort,
@@ -128,7 +129,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 variant="outline"
                 size="sm"
                 data-tour="table-columns"
-                onClick={() => setSchemaOpen(true)}
+                onClick={() => {
+                  // The last save's refusal is not about this editing session.
+                  changeSchema.reset();
+                  setSchemaOpen(true);
+                }}
               >
                 <Settings2 className="h-4 w-4" /> {t("columns")}
               </Button>
@@ -154,19 +159,26 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           activeViewId={viewIdParam}
           onSelect={setViewIdParam}
           canCreate={canEdit}
-          onCreate={(name, visibility) =>
-            createView.mutate(
-              { name, kind: tab, visibility, config: emptyViewConfig() },
-              { onSuccess: (created) => setViewIdParam(created.id) },
+          onCreate={async (name, visibility) => {
+            const created = await createView.mutateAsync({
+              name,
+              kind: tab,
+              visibility,
+              config: emptyViewConfig(),
+            });
+            setViewIdParam(created.id);
+          }}
+          onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
+          onDelete={(viewId) =>
+            // Deselected only once it is gone: a refused delete (toasted by the
+            // hook) leaves the view in place and still selected.
+            removeView.mutateAsync(viewId).then(
+              () => {
+                if (viewId === viewIdParam) setViewIdParam(null);
+              },
+              () => undefined,
             )
           }
-          isCreating={createView.isPending}
-          createError={createView.error}
-          onRename={(viewId, name) => updateView.mutate({ viewId, data: { name } })}
-          onDelete={(viewId) => {
-            removeView.mutate(viewId);
-            if (viewId === viewIdParam) setViewIdParam(null);
-          }}
         />
       </div>
 
@@ -184,7 +196,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <HasMorePager
               page={page}
               hasMore={hasMore}
-              isLoading={recordsLoading}
+              // The previous page stands in while the next one loads; its
+              // `has_more` says nothing about the page being fetched.
+              isLoading={recordsLoading || recordsPlaceholder}
               onPage={setPage}
             />
           </div>
@@ -218,7 +232,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <HasMorePager
               page={page}
               hasMore={hasMore}
-              isLoading={recordsLoading}
+              isLoading={recordsLoading || recordsPlaceholder}
               onPage={setPage}
             />
           </div>
@@ -255,7 +269,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         />
       )}
 
-      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+      <Dialog
+        open={shareOpen}
+        onOpenChange={(open) => {
+          setShareOpen(open);
+          // A visibility change there is this table's own field: the badge
+          // above and the catalog both read it.
+          if (!open) void refreshTable();
+        }}
+      >
         <DialogContent className={`${DIALOG_SCROLL} ${DIALOG_FORM}`}>
           <DialogHeader>
             <DialogTitle>{t("shareTitle", { name: table.name })}</DialogTitle>

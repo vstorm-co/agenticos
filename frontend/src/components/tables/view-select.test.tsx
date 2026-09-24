@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ViewSelect } from "./view-select";
@@ -29,44 +30,59 @@ function view(overrides: Partial<TableViewRead> = {}): TableViewRead {
   };
 }
 
+const taken = () =>
+  new ApiError(409, "A view named 'Mine' already exists.", {
+    error: {
+      code: "ALREADY_EXISTS",
+      message: "A view named 'Mine' already exists.",
+      details: { name: "Mine" },
+    },
+  });
+
+function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+type Props = ComponentProps<typeof ViewSelect>;
+
+function renderSelect(overrides: Partial<Props> = {}) {
+  const props: Props = {
+    kind: "table",
+    views: [view()],
+    activeViewId: null,
+    onSelect: vi.fn(),
+    onCreate: vi.fn().mockResolvedValue(undefined),
+    onRename: vi.fn().mockResolvedValue(undefined),
+    onDelete: vi.fn(),
+    canCreate: true,
+    ...overrides,
+  };
+  render(<ViewSelect {...props} />);
+  return props;
+}
+
+async function openCreate(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /new view/i }));
+  return screen.getByRole("dialog");
+}
+
 describe("ViewSelect", () => {
   it("shows the unsaved-view placeholder when no view is active", () => {
-    render(
-      <ViewSelect
-        kind="table"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    renderSelect({ views: [] });
     expect(screen.getByRole("combobox", { name: /select a table view/i })).toHaveTextContent(
       "Unsaved view",
     );
   });
 
   it("selecting a saved view calls onSelect with its id", async () => {
-    const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId={null}
-        onSelect={onSelect}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    const { onSelect } = renderSelect();
 
     await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
     await user.click(screen.getByRole("option", { name: "Mine" }));
@@ -75,386 +91,175 @@ describe("ViewSelect", () => {
   });
 
   it("selecting the unsaved-view option calls onSelect with null", async () => {
-    const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={onSelect}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    const { onSelect } = renderSelect({ activeViewId: "v1" });
 
     await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
-    const listbox = screen.getByRole("listbox");
-    await user.click(within(listbox).getByRole("option", { name: "Unsaved view" }));
+    await user.click(screen.getByRole("option", { name: "Unsaved view" }));
 
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 
   it("hides the new-view control when the caller may not create one", () => {
-    render(
-      <ViewSelect
-        kind="kanban"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate={false}
-      />,
-    );
+    renderSelect({ canCreate: false });
     expect(screen.queryByRole("button", { name: /new view/i })).not.toBeInTheDocument();
   });
 
-  it("creates a view with the typed name and chosen visibility, and keeps the dialog open while the write is in flight", async () => {
-    const onCreate = vi.fn();
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={onCreate}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+  describe("creating a view", () => {
+    it("creates it with the typed name and chosen visibility, holding the dialog open until it lands", async () => {
+      const write = deferred();
+      const onCreate = vi.fn().mockReturnValue(write.promise);
+      const user = userEvent.setup();
+      renderSelect({ onCreate });
 
-    await user.click(screen.getByRole("button", { name: /new view/i }));
-    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "  My list  " } });
-    await user.click(screen.getByRole("combobox", { name: "Visibility" }));
-    await user.click(screen.getByRole("option", { name: "Shared" }));
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+      const dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), {
+        target: { value: "  My list " },
+      });
+      await user.click(within(dialog).getByRole("combobox", { name: /visibility/i }));
+      await user.click(screen.getByRole("option", { name: "Shared" }));
+      await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
-    expect(onCreate).toHaveBeenCalledWith("My list", "shared");
-    // `onCreate` itself carries no result - the caller's mutation state is
-    // what actually says whether the write is still running.
-    rerender(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={onCreate}
-        isCreating
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
+      expect(onCreate).toHaveBeenCalledWith("My list", "shared");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: /^save$/i })).toBeDisabled();
 
-  it("closes the create dialog once a create that was in flight finishes without error", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: /new view/i }));
-    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "My list" } });
+      write.resolve();
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
 
-    rerender(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    it("keeps the dialog open and shows a taken name beside the input", async () => {
+      const user = userEvent.setup();
+      renderSelect({ onCreate: vi.fn().mockRejectedValue(taken()) });
 
-    rerender(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+      const dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Mine" } });
+      await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
+      expect(await within(dialog).findByText(/already exists/i)).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("View name")).toHaveAttribute("aria-invalid", "true");
+      expect(within(dialog).getByLabelText("View name")).toHaveValue("Mine");
+    });
 
-  it("keeps the create dialog open and shows the conflict when a create fails", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: /new view/i }));
-    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "My list" } });
+    it("shows a failure that is not about the name, rather than stopping silently", async () => {
+      // Only the name problem used to render; a 404 (edit access lost) or a
+      // 500 left the dialog open with no message at all.
+      const user = userEvent.setup();
+      renderSelect({ onCreate: vi.fn().mockRejectedValue(new ApiError(404, "Table not found")) });
 
-    rerender(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+      const dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Board" } });
+      await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
-    rerender(
-      <ViewSelect
-        kind="list"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={
-          new ApiError(409, "A view named 'My list' already exists.", {
-            error: {
-              code: "ALREADY_EXISTS",
-              message: "A view named 'My list' already exists.",
-              details: { name: "My list" },
-            },
-          })
-        }
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+      expect(await within(dialog).findByText("Table not found")).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("View name")).not.toHaveAttribute("aria-invalid");
+    });
 
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("A view named 'My list' already exists.")).toBeInTheDocument();
-  });
+    it("reopens with no error left over from the last attempt", async () => {
+      const user = userEvent.setup();
+      renderSelect({ onCreate: vi.fn().mockRejectedValue(taken()) });
 
-  it("disables save in the create dialog while the name is blank", async () => {
-    const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+      let dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Mine" } });
+      await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
+      await within(dialog).findByText(/already exists/i);
+      await user.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
 
-    await user.click(screen.getByRole("button", { name: /new view/i }));
+      dialog = await openCreate(user);
 
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
-  });
+      expect(within(dialog).queryByText(/already exists/i)).not.toBeInTheDocument();
+      expect(within(dialog).getByLabelText("View name")).toHaveValue("");
+      expect(within(dialog).getByLabelText("View name")).not.toHaveAttribute("aria-invalid");
+    });
 
-  it("cancelling the create dialog does not call onCreate", async () => {
-    const onCreate = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={onCreate}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    it("disables save while the name is blank", async () => {
+      const user = userEvent.setup();
+      renderSelect();
 
-    await user.click(screen.getByRole("button", { name: /new view/i }));
-    fireEvent.change(screen.getByLabelText("View name"), { target: { value: "Draft" } });
-    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+      const dialog = await openCreate(user);
 
-    expect(onCreate).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: /^save$/i })).toBeDisabled();
+    });
+
+    it("cancelling does not call onCreate", async () => {
+      const user = userEvent.setup();
+      const { onCreate } = renderSelect();
+
+      const dialog = await openCreate(user);
+      await user.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+
+      expect(onCreate).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 
   it("shows no manage controls for a view the caller cannot manage", () => {
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view({ can_manage: false })]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    renderSelect({ views: [view({ can_manage: false })], activeViewId: "v1" });
     expect(screen.queryByRole("button", { name: /^rename$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
   });
 
   it("shows no manage controls when no view is active", () => {
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId={null}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    renderSelect();
     expect(screen.queryByRole("button", { name: /^rename$/i })).not.toBeInTheDocument();
   });
 
-  it("renames the active view with the edited, trimmed name", async () => {
-    const onRename = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={onRename}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+  describe("renaming the active view", () => {
+    it("renames it with the edited, trimmed name and closes once the rename lands", async () => {
+      const user = userEvent.setup();
+      const { onRename } = renderSelect({ activeViewId: "v1" });
 
-    await user.click(screen.getByRole("button", { name: /^rename$/i }));
-    const input = screen.getByLabelText("View name");
-    expect(input).toHaveValue("Mine");
-    fireEvent.change(input, { target: { value: "  Renamed  " } });
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+      await user.click(screen.getByRole("button", { name: /^rename$/i }));
+      const input = screen.getByLabelText("View name");
+      expect(input).toHaveValue("Mine");
+      fireEvent.change(input, { target: { value: "  Renamed  " } });
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    expect(onRename).toHaveBeenCalledWith("v1", "Renamed");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
+      expect(onRename).toHaveBeenCalledWith("v1", "Renamed");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
 
-  it("cancelling rename does not call onRename", async () => {
-    const onRename = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={onRename}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    it("stays open with the typed name and the conflict when the rename is refused", async () => {
+      // The dialog used to close before the write answered, taking the typed
+      // name with it; only a toast said the name was taken.
+      const user = userEvent.setup();
+      renderSelect({ activeViewId: "v1", onRename: vi.fn().mockRejectedValue(taken()) });
 
-    await user.click(screen.getByRole("button", { name: /^rename$/i }));
-    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+      await user.click(screen.getByRole("button", { name: /^rename$/i }));
+      fireEvent.change(screen.getByLabelText("View name"), { target: { value: "Taken" } });
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    expect(onRename).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
+      const dialog = screen.getByRole("dialog");
+      expect(await within(dialog).findByText(/already exists/i)).toBeInTheDocument();
+      expect(within(dialog).getByLabelText("View name")).toHaveValue("Taken");
+    });
 
-  it("closing the rename dialog via its own close control also clears the draft", async () => {
-    const onRename = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={onRename}
-        onDelete={vi.fn()}
-        canCreate
-      />,
-    );
+    it("cancelling does not call onRename", async () => {
+      const user = userEvent.setup();
+      const { onRename } = renderSelect({ activeViewId: "v1" });
 
-    await user.click(screen.getByRole("button", { name: /^rename$/i }));
-    await user.click(screen.getByRole("button", { name: /^close$/i }));
+      await user.click(screen.getByRole("button", { name: /^rename$/i }));
+      await user.click(screen.getByRole("button", { name: /^cancel$/i }));
 
-    expect(onRename).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(onRename).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("closing via the dialog's own close control does not rename", async () => {
+      const user = userEvent.setup();
+      const { onRename } = renderSelect({ activeViewId: "v1" });
+
+      await user.click(screen.getByRole("button", { name: /^rename$/i }));
+      await user.click(screen.getByRole("button", { name: /^close$/i }));
+
+      expect(onRename).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 
   it("deletes the active view after confirming, naming it in the confirmation", async () => {
-    const onDelete = vi.fn();
     const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={onDelete}
-        canCreate
-      />,
-    );
+    const { onDelete } = renderSelect({ activeViewId: "v1" });
 
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
     const dialog = screen.getByRole("dialog");
@@ -467,22 +272,8 @@ describe("ViewSelect", () => {
   });
 
   it("cancelling the delete confirmation does not call onDelete", async () => {
-    const onDelete = vi.fn();
     const user = userEvent.setup();
-    render(
-      <ViewSelect
-        kind="table"
-        views={[view()]}
-        activeViewId="v1"
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        isCreating={false}
-        createError={null}
-        onRename={vi.fn()}
-        onDelete={onDelete}
-        canCreate
-      />,
-    );
+    const { onDelete } = renderSelect({ activeViewId: "v1" });
 
     await user.click(screen.getByRole("button", { name: /^delete$/i }));
     const dialog = screen.getByRole("dialog");

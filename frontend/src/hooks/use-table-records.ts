@@ -11,7 +11,7 @@ import type { RecordQuery } from "@/types/tables";
  * differs; the query is always `POST .../records/query`.
  */
 export function useTableRecords(tableId: string | null, query: RecordQuery) {
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: qk.tables.records(tableId ?? "", query),
     queryFn: () => queryRecords(tableId as string, query),
     enabled: !!tableId,
@@ -23,6 +23,8 @@ export function useTableRecords(tableId: string | null, query: RecordQuery) {
     hasMore: data?.has_more ?? false,
     isLoading,
     isFetching,
+    /** The previous query's page, standing in while this one loads. */
+    isPlaceholderData,
     error,
     refetch,
   };

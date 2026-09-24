@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TableDetailPage from "./page";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
+import { toast } from "sonner";
 import { PAGE_SIZE } from "@/components/ui";
 import type { RecordRead, TableRead, TableViewList } from "@/types/tables";
 
@@ -65,8 +66,23 @@ vi.mock("@/components/tables/table-kanban-view", () => ({
   ),
 }));
 vi.mock("@/components/tables/schema-editor-dialog", () => ({
-  SchemaEditorDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog" aria-label="schema-dialog" /> : null,
+  SchemaEditorDialog: ({
+    open,
+    error,
+    onSave,
+    onOpenChange,
+  }: {
+    open: boolean;
+    error: unknown;
+    onSave: (columns: unknown[]) => void;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="schema-dialog" data-error={error ? "shown" : "none"}>
+        <button onClick={() => onSave([])}>save-schema</button>
+        <button onClick={() => onOpenChange(false)}>close-schema</button>
+      </div>
+    ) : null,
 }));
 interface SheetStubProps {
   record: RecordRead | null;
@@ -243,6 +259,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
   arriveAt("");
@@ -479,5 +496,96 @@ describe("the table detail page", () => {
     const sheet = screen.getByRole("dialog", { name: "record-sheet" });
     expect(sheet).toHaveAttribute("data-record-id", "r1");
     expect(sheet).toHaveAttribute("data-revision", "1");
+  });
+
+  it("keeps a view selected when deleting it is refused, and deselects it once a delete lands", async () => {
+    serve();
+    arriveAt("viewId=v-table");
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new ApiError(404, "View not found"));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+
+    async function deleteActive() {
+      await user.click(screen.getByRole("button", { name: /^delete$/i }));
+      const confirm = screen.getByRole("dialog");
+      await user.click(within(confirm).getByRole("button", { name: /^delete$/i }));
+    }
+
+    await deleteActive();
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("View not found"));
+    expect(new URL(window.location.href).searchParams.get("viewId")).toBe("v-table");
+    expect(screen.getByRole("combobox", { name: /select a table view/i })).toHaveTextContent(
+      "By customer",
+    );
+
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(undefined);
+    await deleteActive();
+    await waitFor(() =>
+      expect(new URL(window.location.href).searchParams.get("viewId")).toBeNull(),
+    );
+  });
+
+  it("holds the pager while the next page is still loading", async () => {
+    // The previous page stands in as placeholder data while the next one
+    // loads; its `has_more` kept "Next" enabled, so a double click skipped a
+    // page and could land past the end.
+    serve();
+    let releaseSecondPage!: () => void;
+    vi.mocked(apiClient.post).mockImplementation((path: string, body?: unknown) => {
+      if (path !== "/tables/t1/records/query") return Promise.resolve({});
+      if ((body as { skip: number }).skip === 0)
+        return Promise.resolve({ items: [RECORD], has_more: true });
+      return new Promise((resolve) => {
+        releaseSecondPage = () => resolve({ items: [RECORD], has_more: true });
+      });
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled());
+
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled());
+    act(() => releaseSecondPage());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled());
+  });
+
+  it("refetches the table when the sharing dialog closes, so its visibility badge is current", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: /share/i }));
+    vi.mocked(apiClient.get).mockClear();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1"));
+  });
+
+  it("opens the schema editor without the last save's refusal", async () => {
+    serve();
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new ApiError(409, "Schema changed"));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: /columns/i }));
+    await user.click(screen.getByRole("button", { name: "save-schema" }));
+    await waitFor(() =>
+      expect(screen.getByRole("dialog", { name: "schema-dialog" })).toHaveAttribute(
+        "data-error",
+        "shown",
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "close-schema" }));
+    await user.click(screen.getByRole("button", { name: /columns/i }));
+
+    expect(screen.getByRole("dialog", { name: "schema-dialog" })).toHaveAttribute(
+      "data-error",
+      "none",
+    );
   });
 });

@@ -503,6 +503,9 @@ export const qk = {
       skip: number;
       limit: number;
     }) => ["tables", "list", query] as const,
+    // Every `list(...)` page at once: what creating, renaming or archiving a
+    // table invalidates, without refetching every cached table's records.
+    lists: () => ["tables", "list"] as const,
     detail: (id: string) => ["tables", id] as const,
     schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
     // A table's records under one query - the active view's filters/sort/page,

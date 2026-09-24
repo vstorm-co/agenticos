@@ -27,8 +27,9 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
     await queryClient.invalidateQueries({ queryKey: qk.tables.views(tableId) });
   }, [queryClient, tableId]);
 
-  // No `onError`: a taken name is shown beside the input in the dialog still
-  // on screen, the same reason `useSkills.create` has none.
+  // No `onError` on create or update: the dialog still on screen shows the
+  // failure - a taken name beside the input - the same reason
+  // `useSkills.create` has none.
   const create = useMutation({
     mutationFn: (data: TableViewCreate) => createView(tableId as string, data),
     onSuccess: async () => {
@@ -43,7 +44,6 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
     onSuccess: async () => {
       await invalidate();
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({

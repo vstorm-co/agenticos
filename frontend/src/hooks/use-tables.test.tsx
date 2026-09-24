@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTable, useTables } from "./use-tables";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -175,5 +176,74 @@ describe("useTable", () => {
 
     await waitFor(() => expect(result.current.changeSchema.isError).toBe(true));
     expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
+describe("what a table write refreshes", () => {
+  const LIST = qk.tables.list({
+    search: "",
+    includeArchived: false,
+    sort: "name",
+    skip: 0,
+    limit: 50,
+  });
+  const UNDER_T1 = [
+    qk.tables.records("t1", { skip: 0 }),
+    qk.tables.views("t1"),
+    qk.tables.schemaVersions("t1"),
+  ];
+  const OTHER_TABLE = qk.tables.records("t2", { skip: 0 });
+
+  function seeded() {
+    // `staleTime: Infinity` so a seeded entry never refetches on its own.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity, enabled: false } },
+    });
+    for (const key of [LIST, qk.tables.detail("t1"), ...UNDER_T1, OTHER_TABLE]) {
+      client.setQueryData(key, { seeded: true });
+    }
+    const withClient = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const invalidated = (key: readonly unknown[]) => client.getQueryState(key)?.isInvalidated;
+    return { withClient, invalidated };
+  }
+
+  it("a rename or a sharing change refreshes the table and the catalog, not its records or views", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "t1", columns: [] });
+    const { withClient, invalidated } = seeded();
+    const { result } = renderHook(() => useTable("t1"), { wrapper: withClient });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    vi.mocked(apiClient.get).mockClear();
+
+    await result.current.invalidate();
+
+    // The table is on screen, so invalidating it refetches it at once.
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1"));
+    expect(invalidated(LIST)).toBe(true);
+    for (const key of [...UNDER_T1, OTHER_TABLE]) expect(invalidated(key)).toBe(false);
+  });
+
+  it("a schema change also refreshes the table's records, views and schema versions", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "t1", columns: [], schema_version: 2 });
+    const { withClient, invalidated } = seeded();
+    const { result } = renderHook(() => useTable("t1"), { wrapper: withClient });
+
+    await result.current.changeSchema.mutateAsync({ expected_version: 1, columns: [] });
+
+    for (const key of UNDER_T1) expect(invalidated(key)).toBe(true);
+    expect(invalidated(OTHER_TABLE)).toBe(false);
+  });
+
+  it("archiving refreshes the catalog and that table, not every table's records", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", archived_at: "2026-09-23" });
+    const { withClient, invalidated } = seeded();
+    const { result } = renderHook(() => useTables(), { wrapper: withClient });
+
+    await result.current.archive.mutateAsync("t1");
+
+    expect(invalidated(LIST)).toBe(true);
+    expect(invalidated(qk.tables.detail("t1"))).toBe(true);
+    for (const key of [...UNDER_T1, OTHER_TABLE]) expect(invalidated(key)).toBe(false);
   });
 });

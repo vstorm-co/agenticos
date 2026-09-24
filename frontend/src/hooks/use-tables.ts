@@ -41,9 +41,9 @@ export function useTables(query: TableListQuery = {}) {
     placeholderData: (previous) => previous,
   });
 
-  const invalidate = useCallback(async () => {
-    await queryClient.cancelQueries({ queryKey: qk.tables.all() });
-    await queryClient.invalidateQueries({ queryKey: qk.tables.all() });
+  const invalidateLists = useCallback(async () => {
+    await queryClient.cancelQueries({ queryKey: qk.tables.lists() });
+    await queryClient.invalidateQueries({ queryKey: qk.tables.lists() });
   }, [queryClient]);
 
   // No `onError`: a create can fail on a taken name, which the dialog still on
@@ -51,15 +51,16 @@ export function useTables(query: TableListQuery = {}) {
   const create = useMutation({
     mutationFn: (data: TableCreate) => createTable(data),
     onSuccess: async (table) => {
-      await invalidate();
+      await invalidateLists();
       toast.success(t("created", { name: table.name }));
     },
   });
 
   const archive = useMutation({
     mutationFn: (tableId: string) => archiveTable(tableId),
-    onSuccess: async () => {
-      await invalidate();
+    onSuccess: async (table) => {
+      await invalidateLists();
+      await queryClient.invalidateQueries({ queryKey: qk.tables.detail(table.id), exact: true });
       toast.success(t("archived"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -89,11 +90,16 @@ export function useTable(tableId: string | null) {
     enabled: !!tableId,
   });
 
+  /**
+   * Refetch this table and the catalog pages listing it - after a rename, or
+   * after its sharing changed. Not its records or views: neither changes.
+   */
   const invalidate = useCallback(async () => {
     if (!tableId) return;
-    await queryClient.cancelQueries({ queryKey: qk.tables.detail(tableId) });
-    await queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId) });
-    await queryClient.invalidateQueries({ queryKey: qk.tables.all() });
+    const detail = { queryKey: qk.tables.detail(tableId), exact: true };
+    await queryClient.cancelQueries(detail);
+    await queryClient.invalidateQueries(detail);
+    await queryClient.invalidateQueries({ queryKey: qk.tables.lists() });
   }, [queryClient, tableId]);
 
   const update = useMutation({
@@ -113,7 +119,9 @@ export function useTable(tableId: string | null) {
     mutationFn: (data: SchemaUpdate) => updateSchema(tableId as string, data),
     onSuccess: async () => {
       await invalidate();
-      await queryClient.invalidateQueries({ queryKey: qk.tables.schemaVersions(tableId ?? "") });
+      // Everything under the table: its records and saved views are read
+      // through the new columns, and it has a new schema version.
+      await queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId ?? "") });
       toast.success(t("schemaSaved"));
     },
   });

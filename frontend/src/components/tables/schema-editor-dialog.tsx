@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage } from "@/lib/api-error";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 
@@ -198,7 +198,7 @@ export function SchemaEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_COLUMN}`}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>

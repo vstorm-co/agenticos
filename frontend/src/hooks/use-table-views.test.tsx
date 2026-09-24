@@ -101,7 +101,7 @@ describe("useTableViews", () => {
     await waitFor(() => expect(result.current.update.isSuccess).toBe(true));
   });
 
-  it("toasts a localized message when updating a view is refused", async () => {
+  it("leaves a refused update to the rename dialog, which shows it - no toast", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(404, "View not found"));
     const { result } = renderHook(() => useTableViews("t1"), { wrapper });
@@ -110,7 +110,7 @@ describe("useTableViews", () => {
     result.current.update.mutate({ viewId: "v1", data: { name: "Renamed" } });
 
     await waitFor(() => expect(result.current.update.isError).toBe(true));
-    expect(toastError).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("deletes a view and toasts on success", async () => {
