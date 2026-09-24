@@ -789,8 +789,9 @@ async def _close_node_of_ended_run(
         await _end_node(db, run=run, node_run=node_run, status=NodeRunStatus.CANCELLED, now=now)
 
 
-def _backoff_seconds(attempt_no: int) -> float:
-    seconds = settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS * (2 ** (attempt_no - 1))
+def _backoff_seconds(step: int) -> float:
+    """The wait before the next attempt: the base, doubled per `step` after the first."""
+    seconds = settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS * (2 ** (max(step, 1) - 1))
     return min(seconds, settings.WORKFLOW_RETRY_BACKOFF_MAX_SECONDS)
 
 
@@ -857,15 +858,19 @@ async def resolve_orphaned_attempt(
         # The same ceiling and backoff a `Failed` result gets: a node whose
         # every attempt dies mid-call (a handler that crashes its worker) must
         # end, not be redispatched on every reconcile tick for ever.
-        if attempt.attempt_no >= settings.WORKFLOW_RETRY_CEILING:
+        failures = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
+        if failures >= settings.WORKFLOW_RETRY_CEILING:
             await _fail_node_and_run(
                 db,
                 run=run,
                 node_run=node_run,
                 error=WorkflowError(
                     code="ATTEMPTS_INTERRUPTED",
-                    message="Every attempt at this node was interrupted before it finished",
-                    details={"attempts": attempt.attempt_no},
+                    message=(
+                        "This node was interrupted or failed as many times as the retry "
+                        "ceiling allows"
+                    ),
+                    details={"failed_attempts": failures},
                 ),
                 now=now,
             )
@@ -875,7 +880,7 @@ async def resolve_orphaned_attempt(
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
+            available_at=now + timedelta(seconds=_backoff_seconds(failures)),
         )
         return
 
@@ -1154,7 +1159,10 @@ async def _settle_waiting(
     )
     if result.reason == WaitingReason.RETRY_BACKOFF.value:
         # The wake is the outbox row itself, due once the backoff has passed -
-        # the same capped schedule a retryable failure gets.
+        # the same capped schedule a retryable failure gets, stepped by the
+        # attempt number. A wait does not count against the retry ceiling, so
+        # only the run's deadline, budget or a cancel bounds how often a
+        # handler asks for one.
         await workflow_run_repo.create_outbox(
             db,
             organization_id=run.organization_id,
@@ -1208,7 +1216,10 @@ async def _settle_failed(
     # this generic dispatcher to say a given failure (a validation error, say)
     # is not worth trying again even when its kind usually is.
     retryable = attempt.retry_guarantee != RetryGuarantee.NONE.value and result.error.retryable
-    if retryable and attempt.attempt_no < settings.WORKFLOW_RETRY_CEILING:
+    # Counted over failed and interrupted attempts only (this one included,
+    # recorded before this runs): a wait is not a failure.
+    failures = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
+    if retryable and failures < settings.WORKFLOW_RETRY_CEILING:
         await workflow_run_repo.update_node_run(
             db,
             node_run=node_run,
@@ -1225,7 +1236,11 @@ async def _settle_failed(
             run=run,
             kind=events.EventKind.NODE_RETRYING,
             node_run_id=node_run.id,
-            payload={"attempt_no": attempt.attempt_no, "error": result.error.code},
+            payload={
+                "attempt_no": attempt.attempt_no,
+                "failed_attempts": failures,
+                "error": result.error.code,
+            },
         )
         await workflow_run_repo.update_run(
             db,
@@ -1240,7 +1255,7 @@ async def _settle_failed(
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
+            available_at=now + timedelta(seconds=_backoff_seconds(failures)),
         )
         return
 

@@ -40,6 +40,8 @@ def repo():
     `dispatcher.resolve_orphaned_attempt`, which reads its own separate
     import binding of the repository, not reconciler's."""
     mocked = create_autospec(workflow_run_repo_module, instance=False)
+    # This attempt is the node's first failure unless a test says otherwise.
+    mocked.count_failed_attempts.return_value = 1
     with (
         patch(f"{RECONCILER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatcher.workflow_run_repo", new=mocked),

@@ -482,6 +482,8 @@ def repo():
     """`workflow_run_repo`, autospecced so every function is the right kind of
     mock (async where the real one is) and a typo'd attribute fails loudly."""
     mocked = create_autospec(workflow_run_repo_module, instance=False)
+    # This attempt is the node's first failure unless a test says otherwise.
+    mocked.count_failed_attempts.return_value = 1
     with patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked):
         yield mocked
 
@@ -1778,6 +1780,7 @@ class TestSettleFailed:
         repo.get_outbox_for_node_run_for_update.return_value = _outbox(
             node_run_id=node_run.id, claimed_by=begun.dispatch_token
         )
+        repo.count_failed_attempts.return_value = app_settings.WORKFLOW_RETRY_CEILING
         repo.settle_attempt.side_effect = _settle_effect
         repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
             node_run, update_data

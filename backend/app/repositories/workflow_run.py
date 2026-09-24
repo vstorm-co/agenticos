@@ -414,6 +414,27 @@ async def settle_attempt(
     return attempt
 
 
+async def count_failed_attempts(db: AsyncSession, *, node_run_id: UUID) -> int:
+    """How many of a node run's attempts failed or were interrupted.
+
+    What the retry ceiling counts: an attempt that parked on a wait is not a
+    failure, and must not use up the retries a later failure is owed.
+    """
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(NodeAttempt)
+            .where(
+                NodeAttempt.node_run_id == node_run_id,
+                NodeAttempt.status.in_(
+                    [NodeAttemptStatus.FAILED.value, NodeAttemptStatus.UNCERTAIN.value]
+                ),
+            )
+        )
+        or 0
+    )
+
+
 async def book_attempt_cost(
     db: AsyncSession, *, attempt: NodeAttempt, cost: Decimal, cost_is_partial: bool
 ) -> NodeAttempt:

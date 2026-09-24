@@ -427,8 +427,8 @@ write — so set it well past your longest legitimate run and no closer. See
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
-| `WORKFLOW_RETRY_CEILING` | `3` | The most attempts a node gets, counting both failed attempts and attempts interrupted by a worker dying |
-| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's second attempt; each later wait doubles |
+| `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to |
 
 A workflow run moves through three Prefect deployments. `workflow-dispatch-node`

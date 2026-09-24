@@ -1,5 +1,5 @@
 ---
-source_sha: "8e1129f01f7d"
+source_sha: "e063ac4f8f47"
 ---
 
 # Configuración { #configuration }
@@ -445,14 +445,14 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Cuánto dura el claim de un worker sobre un nodo de workflow antes de darlo por abandonado. El worker lo renueva cada tercio de ese tiempo mientras el nodo se ejecuta, así que acota cuánto tarda en notarse un worker muerto, no cuánto puede durar un nodo |
-| `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos de un nodo, contando tanto los fallidos como los interrumpidos por la muerte de un worker |
-| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del segundo intento de un nodo; cada espera posterior se duplica |
+| `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera |
 
 Un run de workflow pasa por tres deployments de Prefect. `workflow-dispatch-node`
 ejecuta un intento de un nodo y se envía bajo demanda; `workflow-dispatch-poll`
-se ejecuta cada 10 segundos y envía cada nodo pendiente que no se envió durante
-el último claim; `workflow-reconcile` se ejecuta cada 30 segundos y recupera los
+se ejecuta cada 10 segundos y envía cada nodo pendiente que no se envió dentro
+de la última duración de un claim; `workflow-reconcile` se ejecuta cada 30 segundos y recupera los
 claims e intentos que dejó un worker muerto. Incluso sin trabajo, las dos
 programaciones crean unos 11.500 flow runs al día, así que dimensiona para ello
 la base de datos del servidor de Prefect y la retención de flow runs.

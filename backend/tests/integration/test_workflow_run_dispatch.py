@@ -440,6 +440,26 @@ class TestHandlerErrorsAndInterruptions:
             await dispatcher.claim(db, node_run_id=seeded.entry.id, lease_seconds=0)
             await db.commit()
         async with seeded.factory() as db:
+            # The earlier attempts, each already interrupted and resolved.
+            for attempt_no in range(1, settings.WORKFLOW_RETRY_CEILING):
+                earlier = await workflow_run_repo.create_attempt(
+                    db,
+                    organization_id=seeded.org.id,
+                    node_run_id=seeded.entry.id,
+                    attempt_no=attempt_no,
+                    idempotency_key="k",
+                    retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                    started_at=datetime.now(UTC),
+                )
+                await workflow_run_repo.settle_attempt(
+                    db,
+                    attempt=earlier,
+                    status=NodeAttemptStatus.UNCERTAIN.value,
+                    result=None,
+                    cost=Decimal(0),
+                    cost_is_partial=False,
+                    ended_at=datetime.now(UTC),
+                )
             await workflow_run_repo.create_attempt(
                 db,
                 organization_id=seeded.org.id,
@@ -1214,3 +1234,44 @@ class TestALateResultsCost:
         assert resolved is None
         assert (await _run_row(seeded)).spent_cost == Decimal("1.50")
         assert await _attempt_costs(seeded) == [Decimal("1.50")]
+
+
+async def _release_backoff(seeded: Seeded) -> None:
+    """Make every row a backoff scheduled due now."""
+    async with seeded.factory() as db:
+        await db.execute(
+            sql_update(DispatchOutbox)
+            .where(
+                DispatchOutbox.workflow_run_id == seeded.run.id,
+                DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
+            )
+            .values(available_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await db.commit()
+
+
+async def test_waits_do_not_use_up_the_retries_a_later_failure_is_owed(
+    engine: AsyncEngine, node_kind
+):
+    """Two backoff waits used to count as two of the three attempts, so the
+    node's first real failure failed the run with no retry at all."""
+    calls: list[int] = []
+
+    async def handler(_config: object, _input: object) -> NodeResult:
+        calls.append(context.current().attempt_no)
+        if len(calls) <= 2:
+            return Waiting(reason="retry_backoff", resume_token="t")
+        return Failed(error=WorkflowError(code="FLAKY", message="try again", retryable=True))
+
+    seeded = await _seed(engine, _chain(node_kind(handler), 1))
+    await _tick(seeded, seeded.entry.id)
+    for _ in range(2 + settings.WORKFLOW_RETRY_CEILING - 1):
+        await _release_backoff(seeded)
+        await _tick(seeded, seeded.entry.id)
+        if calls[-1] == 3:
+            # The first failure is retried, not fatal.
+            assert (await _run_row(seeded)).status == WorkflowRunStatus.WAITING_RETRY.value
+
+    statuses = await _attempt_statuses(seeded, seeded.entry.id)
+    assert statuses == ["completed", "completed"] + ["failed"] * settings.WORKFLOW_RETRY_CEILING
+    assert (await _run_row(seeded)).status == WorkflowRunStatus.FAILED.value

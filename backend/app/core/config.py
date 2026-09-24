@@ -512,8 +512,10 @@ class Settings(BaseSettings):
     WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
     # #1790 owns the real retry ceiling and backoff schedule; this is the
     # minimum fixed policy #1788 needs so #1789/#1792 have somewhere to run in
-    # the meantime. The ceiling bounds both failed and interrupted attempts;
-    # the backoff doubles from the base per attempt, capped at the max.
+    # the meantime. The ceiling counts failed and interrupted attempts only -
+    # an attempt that waits (an approval, a backoff the node asked for) does
+    # not use it up - and the backoff doubles from the base per such attempt,
+    # capped at the max.
     WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
     WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
     WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)

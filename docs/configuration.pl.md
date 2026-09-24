@@ -1,5 +1,5 @@
 ---
-source_sha: "8e1129f01f7d"
+source_sha: "e063ac4f8f47"
 ---
 
 # Konfiguracja { #configuration }
@@ -435,8 +435,8 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
-| `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba prób węzła, licząc zarówno próby zakończone błędem, jak i przerwane śmiercią workera |
-| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed drugą próbą węzła; każde kolejne oczekiwanie jest dwa razy dłuższe |
+| `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie |
 
 Run workflowu przechodzi przez trzy deploymenty Prefecta. `workflow-dispatch-node`
