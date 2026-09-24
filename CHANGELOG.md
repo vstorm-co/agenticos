@@ -19,13 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
 - **A Git repository can feed a knowledge base.** A `git` sync source reads a
   repository's documentation over HTTPS from GitHub, GitLab or any host that
   serves git, with an access token from the Vault. By default it reads
-  Markdown and plain text, not the source tree. Scheduled syncs are cheap: a
-  sync first asks for the branch's head commit, and when that has not moved
-  since the last clean run, it stops there. When the commit has moved, it makes
-  a shallow, sparse clone of the documentation only. The repository's host is
+  Markdown and plain text, not the source tree. It makes a shallow, sparse
+  clone of the documentation only, and a file deleted from the branch is
+  removed like any other the source stops listing. The repository's host is
   checked and pinned like any other tenant-chosen address, and an internal host
   is refused. What a clone would write is measured before it is written: a file
   over the knowledge base's document cap, or more than 512 MB in all, fails the
@@ -34,20 +45,46 @@ Two things are versioned separately from this file and worth knowing about:
   A Git source takes only a `git_token`, and sends it only to the host it was
   added with, so editing a source cannot aim the organization's token, or any
   other key, at a server of the editor's choosing.
-- **A file deleted from a Git source is deleted from the collection.** After a
-  listing that completed, a document the source brought in and no longer lists
-  is removed, vectors first, then its row. Documents now record which source
-  brought them in, so two sources feeding one collection never remove each
-  other's. The sync history counts these as `removed`. Google Drive and S3
-  sources still keep what they ingested.
-- **One run of a sync source at a time.** A run triggered while the same source
-  is still syncing does not start, and its log says why.
+- **An unchanged source is not read again.** A connector that can say cheaply
+  what its source is at - a Git branch's head commit - is asked first, and a
+  scheduled sync that finds the same answer under the same configuration as the
+  last clean run stops there, without listing or downloading anything. A run
+  with a failed file records nothing, so the next one reads everything again.
+  The answer is kept in the new `sync_sources.sync_state` (migration
+  `0096_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
+  the answer and `aclose` for what a sync made, such as a clone.
+
+### Changed
+
+- **A sync now removes what its source no longer holds.** A page taken off a
+  site, a file deleted from a Drive folder or an object removed from a bucket
+  used to stay searchable for good. Each sync now removes the documents its own
+  source brought in earlier and no longer lists, and counts them in the sync
+  log's new `removed` column. It removes nothing after a listing that stopped
+  short, such as a crawl at its page limit or one that could not read a page: it
+  says so in the log, and the next complete sync catches up. Documents are
+  matched to the source that brought them in through the new
+  `rag_documents.sync_source_id` (migration `0095_sync_removal.py`). Uploads,
+  and documents another source brought into the same collection, are never
+  touched. A document that could not be removed counts as a failed file, and
+  the completion notification counts what was removed (#984).
+- **One sync of a source runs at a time.** A sync started while another run of
+  the same source is still going does not start, and its log says so: an older
+  run's listing would otherwise remove what the newer run had just ingested.
+- `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
+  the files, whether that is all of them, and what could not be read. A
+  connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
+  out not to hold, which the sync removes rather than counts as failed.
 
 ### Fixed
 
-- **A sync that stopped before reaching a file says why.** A refused
-  credential, a missing branch or an unreachable host used to be logged as
-  "1 files failed". The sync log and the source now carry the reason.
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
 
 ## [0.0.492] - 2026-09-22
 

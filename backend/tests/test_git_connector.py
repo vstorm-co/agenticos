@@ -127,7 +127,7 @@ class TestWhatASyncReads:
     async def test_the_default_patterns_list_documentation_and_not_code(self) -> None:
         connector = GitConnector()
         try:
-            files = await connector.list_files(_config(), _token())
+            files = (await connector.list_files(_config(), _token())).files
         finally:
             await connector.aclose()
 
@@ -142,7 +142,7 @@ class TestWhatASyncReads:
         """git writes it as a plain file holding `/etc/passwd`; the index says what it is."""
         connector = GitConnector()
         try:
-            files = await connector.list_files(_config(), _token())
+            files = (await connector.list_files(_config(), _token())).files
         finally:
             await connector.aclose()
 
@@ -151,9 +151,10 @@ class TestWhatASyncReads:
     async def test_a_path_prefix_narrows_the_listing_and_roots_the_source_path(self) -> None:
         connector = GitConnector()
         try:
-            files = await connector.list_files(
+            listing = await connector.list_files(
                 _config(path_prefix="/docs/", include=["*.md"]), _token()
             )
+            files = listing.files
         finally:
             await connector.aclose()
 
@@ -181,7 +182,9 @@ class TestWhatASyncReads:
         dest.mkdir()
         connector = GitConnector()
         try:
-            files = await connector.list_files(_config(include=["docs/guides/*.md"]), _token())
+            files = (
+                await connector.list_files(_config(include=["docs/guides/*.md"]), _token())
+            ).files
             landed = await connector.download_file(files[0], dest)
         finally:
             await connector.aclose()
@@ -235,14 +238,14 @@ class TestWhatASyncReads:
                     with pytest.raises(BadRequestError, match="one sync may check out"):
                         await connector.list_files(_config(), _token())
                 else:
-                    assert len(await connector.list_files(_config(), _token())) == 4
+                    assert len((await connector.list_files(_config(), _token())).files) == 4
         finally:
             await connector.aclose()
 
     async def test_patterns_matching_nothing_list_nothing(self) -> None:
         connector = GitConnector()
         try:
-            files = await connector.list_files(_config(include=["handbook/*.md"]), _token())
+            files = (await connector.list_files(_config(include=["handbook/*.md"]), _token())).files
         finally:
             await connector.aclose()
 
@@ -308,8 +311,16 @@ class TestTheChangeSignal:
         assert root("https://git.test:443/acme/handbook.git") == root(URL)
         assert root("https://[2606:4700::1]:8443/a/b.git") == "git://[2606:4700::1]:8443/a/b@main/"
 
-    def test_a_git_source_deletes_what_it_no_longer_lists(self) -> None:
-        assert GitConnector.REMOVES_UNLISTED is True
+    async def test_a_clone_is_a_complete_listing(self) -> None:
+        """So a file the branch no longer holds is removed from the collection."""
+        connector = GitConnector()
+        try:
+            listing = await connector.list_files(_config(), _token())
+        finally:
+            await connector.aclose()
+
+        assert listing.complete is True
+        assert listing.problems == []
 
 
 class TestWhatGitIsTold:

@@ -1,11 +1,12 @@
 """Which rows a sync may delete as no longer listed, asked of a real Postgres (#987).
 
-`list_settled_for_source` is what a sync reads before deleting what its source
-stopped listing, so its `WHERE` is the whole of what keeps that delete inside one
-source's own documents. It asks by the source's id: two sources can read the same
-repository and branch into one collection with different include patterns, and
-an address prefix would have each delete what only the other lists. A
-`PROCESSING` row belongs to an attempt still running and is not a candidate.
+`get_settled_for_sync_source` is what a sync reads before deleting what its
+source stopped listing, so its `WHERE` is the whole of what keeps that delete
+inside one source's own documents. It asks by the source's id: two sources can
+read the same repository and branch into one collection with different include
+patterns, and an address prefix would have each delete what only the other
+lists. A `PROCESSING` row is not a candidate: it is `get_stale_for_sync_source`'s,
+which the run holding the source's lock settles first.
 
 The per-source run lock is here too, because what it promises - a second session
 cannot take it, and closing the first releases it - is Postgres's behaviour and
@@ -133,11 +134,70 @@ class TestWhatASyncMayDeleteAsUnlisted:
             collection_name="elsewhere",
         )
 
-        rows = await rag_document_repo.list_settled_for_source(
+        rows = await rag_document_repo.get_settled_for_sync_source(
             db, sync_source_id=mine.id, collection_name=COLLECTION
         )
 
         assert {row.id for row in rows} == {done.id, failed.id}
+
+    async def test_the_stale_rows_are_this_sources_processing_ones(self, db: AsyncSession) -> None:
+        org = await _org(db)
+        mine, other = await _source(db, org), await _source(db, org)
+        stale = await _row(
+            db,
+            organization_id=org.id,
+            source_path=f"{ROOT}a.md",
+            sync_source_id=mine.id,
+            status=DocumentStatus.PROCESSING,
+        )
+        await _row(db, organization_id=org.id, source_path=f"{ROOT}b.md", sync_source_id=mine.id)
+        await _row(
+            db,
+            organization_id=org.id,
+            source_path=f"{ROOT}a.md",
+            sync_source_id=other.id,
+            status=DocumentStatus.PROCESSING,
+        )
+        await _row(
+            db,
+            organization_id=org.id,
+            source_path=f"{ROOT}c.md",
+            sync_source_id=mine.id,
+            status=DocumentStatus.PROCESSING,
+            collection_name="elsewhere",
+        )
+
+        rows = await rag_document_repo.get_stale_for_sync_source(
+            db, sync_source_id=mine.id, collection_name=COLLECTION
+        )
+
+        assert [row.id for row in rows] == [stale.id]
+
+    async def test_a_stored_document_is_tracked_by_any_row_of_the_collection(
+        self, db: AsyncSession
+    ) -> None:
+        """Another source's row, or an upload's, tracks a document as much as this source's."""
+        org = await _org(db)
+        await _row(db, organization_id=org.id, source_path=f"{ROOT}a.md", sync_source_id=None)
+        await _row(
+            db,
+            organization_id=org.id,
+            source_path=f"{ROOT}b.md",
+            sync_source_id=None,
+            collection_name="elsewhere",
+        )
+
+        tracked = await rag_document_repo.get_tracked_vector_ids(
+            db, collection_name=COLLECTION, vector_document_ids={"vec", "orphan"}
+        )
+
+        assert tracked == {"vec"}
+        assert (
+            await rag_document_repo.get_tracked_vector_ids(
+                db, collection_name=COLLECTION, vector_document_ids=set()
+            )
+            == set()
+        )
 
     async def test_deleting_the_source_keeps_what_it_ingested(self, db: AsyncSession) -> None:
         org = await _org(db)

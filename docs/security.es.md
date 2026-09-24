@@ -1,5 +1,5 @@
 ---
-source_sha: "e5ee0101434e"
+source_sha: "273797bb8155"
 ---
 
 # Seguridad { #security }
@@ -35,6 +35,7 @@ de camino a los datos.
 | API → PostgreSQL / Redis | Consultas y lecturas de caché, sobre TLS cuando está configurado | Sí — el almacén es del operador; lo que protege en reposo está bajo «Qué se cifra y dónde» |
 | API / worker → proveedores de modelos, canales, servidores MCP, proveedores de búsqueda, Logfire | Prompts, llamadas a herramientas, consultas, respuestas, trazas | No — son terceros; lo que les llega es una decisión por agent, salvo el tracing a nivel de deployment (abajo) |
 | Worker → conectores (Google Drive, S3, …) | Credenciales desselladas del vault, documentos descargados | No — la credencial de un conector es un secreto del vault referenciado por id |
+| Worker → sitios web públicos (el conector `web`) | Peticiones GET de páginas, sitemaps y robots.txt; sin credencial | No — la URL de inicio la escribe un tenant y cada enlace posterior lo elige el sitio, así que cada petición y cada redirección pasan la comprobación SSRF, se conectan a la dirección comprobada (`app/core/pinned_http.py`) y se quedan en un único host |
 
 La autoridad dentro de un tenant nunca es un nombre de rol en una ruta: es una
 fila de membresía más el catálogo de permisos (`app/core/permissions.py`),

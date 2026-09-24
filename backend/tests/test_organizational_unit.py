@@ -29,7 +29,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.schemas.sync_source import SyncSourceCreate, SyncSourceUpdate
-from app.services.rag.connectors import RemoteFile
+from app.services.rag.connectors import RemoteFile, RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.services.rag_document import RAGDocumentService
 from app.worker.tasks import rag_tasks
@@ -195,11 +195,12 @@ async def _connector_sync(
 
     connector = MagicMock(
         list_files=AsyncMock(
-            return_value=[RemoteFile(id="f1", name="handbook.md", source_path="gdrive://f1")]
+            return_value=RemoteListing(
+                files=[RemoteFile(id="f1", name="handbook.md", source_path="gdrive://f1")]
+            )
         ),
         download_file=AsyncMock(side_effect=download),
         remote_version=AsyncMock(return_value=None),
-        REMOVES_UNLISTED=False,
         aclose=AsyncMock(),
     )
     store = MagicMock(get_documents=AsyncMock(return_value=[]))
@@ -230,6 +231,8 @@ async def _connector_sync(
         create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
+        unlisted_by_source=AsyncMock(return_value=[]),
+        stale_for_source=AsyncMock(return_value=[]),
     )
 
     @asynccontextmanager

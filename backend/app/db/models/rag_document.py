@@ -56,6 +56,18 @@ class RAGDocument(TimestampMixin, Base):
     # refuses a key over about 2700 bytes at insert time, which would turn a long
     # path into the error the `Text` was chosen to avoid.
     source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The sync source that brought this document in, so a later sync of the same
+    # source can remove what it no longer lists. `source_path` cannot answer that
+    # alone: two sources may feed one collection - two sites, or a site and the
+    # uploads beside it - and a page one of them stopped listing is not the
+    # other's to delete. Null for an upload or a CLI ingest, and on a document
+    # whose source was deleted, which then stays until someone removes it.
+    sync_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("sync_sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     __table_args__ = (
         Index("rag_documents_source_path_idx", "source_path", postgresql_using="hash"),
@@ -108,19 +120,6 @@ class RAGDocument(TimestampMixin, Base):
     knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    # Which sync source brought this document in, when one did. It is what a
-    # sync deletes by: a document its source no longer lists is removed, and
-    # "its source" has to be this row's own rather than an address prefix -
-    # two sources can read one repository with different patterns, and a
-    # source whose repository or branch was edited still owns what it read
-    # under the old one (#987). SET NULL: deleting the source keeps what it
-    # ingested, as it always has.
-    sync_source_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("sync_sources.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

@@ -281,9 +281,12 @@ class TestWhatTheConnectorsDeclare:
 
         kinds = {name: cls.SECRET_KIND.value for name, cls in CONNECTOR_REGISTRY.items()}
 
+        # `none` is a declaration too: a public website has no credential to
+        # offer, and the wizard skips the step rather than listing every secret.
         assert kinds == {
             "gdrive": "gcp_service_account",
             "s3": "aws_credentials",
+            "web": "none",
             "git": "git_token",
         }
 

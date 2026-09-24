@@ -1,19 +1,21 @@
 ---
-source_sha: "0239a6e6515f"
+source_sha: "86769ff55566"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
 
 Las fuentes de sincronización traen documentos de servicios externos (Google
-Drive, S3/MinIO, repositorios Git) a las colecciones de conocimiento por su
+Drive, S3/MinIO, un sitio web público, un repositorio Git) a las colecciones de conocimiento por su
 cuenta. Cada fuente guarda un tipo de connector, una colección de destino,
 opciones propias del connector, un modo de sincronización, un horario opcional y
-el id del [secreto del vault](../secrets.md) que la autentica.
+el id del [secreto del vault](../secrets.md) que la autentica - un sitio web no
+necesita ninguno.
 
 Cuando se ejecuta una sincronización, el connector lista los archivos remotos,
 los descarga a un directorio temporal y los pasa por la cadena de ingesta
-habitual (parsear, trocear, embeber, almacenar). Una entrada de `SyncLog` deja
-constancia del resultado de cada operación de sincronización.
+habitual (parsear, trocear, embeber, almacenar). Cuando el listado está completo,
+se eliminan los documentos que la fuente trajo antes y ya no lista. Una entrada
+de `SyncLog` deja constancia del resultado de cada operación de sincronización.
 
 ### La arquitectura de un vistazo { #architecture-at-a-glance }
 
@@ -103,8 +105,10 @@ el listado de `rag-sources`.
 
 1. Ve a **Knowledge Base** y abre la pestaña **Sync**.
 2. Pulsa **"+ Add Source"**.
-3. Elige un tipo de connector (Google Drive, S3, Git repository). Los campos del
-   formulario se generan a partir del JSON Schema del `CONFIG_MODEL` del connector.
+3. Elige un tipo de connector (Google Drive, S3, Website, Git
+   repository). Los campos del
+   formulario se generan a partir del JSON Schema del `CONFIG_MODEL` del
+   connector. Un sitio web no tiene paso de credencial.
 4. Rellena los campos de configuración propios del connector (por ejemplo, el
    ID de la carpeta o el nombre del bucket).
 5. Elige una colección de destino, un modo de sincronización y un intervalo de
@@ -132,6 +136,29 @@ cualquier cliente HTTP.
     `update_only` refresca los documentos existentes sin añadir ninguno nuevo;
     `full` es una reimportación limpia cada vez.
 
+### Qué elimina una sincronización { #what-a-sync-removes }
+
+En todos los modos, una sincronización elimina los documentos que su fuente trajo
+antes y ya no lista: una página retirada del sitio, un archivo borrado de la
+carpeta de Drive, un objeto quitado del bucket. El registro de sincronización los
+cuenta en `removed`.
+
+No elimina nada salvo que el listado estuviera **completo**. Un crawl que se
+detuvo en su límite de páginas, o que no pudo leer una de ellas, no ha visto lo
+que no lista. Ese run conserva todos los documentos y lo indica en el mensaje del
+registro de sincronización. La siguiente sincronización con un listado completo
+elimina lo que ya no está. Un documento que no se pudo eliminar cuenta como un
+archivo fallido, y la siguiente sincronización lo vuelve a intentar.
+
+Cada fuente ejecuta una sola sincronización a la vez. Una sincronización iniciada
+mientras otra de la misma fuente sigue en marcha no arranca, y su registro lo
+indica.
+
+Solo se eliminan los documentos de la propia fuente. Una subida, o un documento
+que otra fuente trajo a la misma colección, no se toca nunca. Un documento
+ingestado antes de que su fuente registrara esto (septiembre de 2026) se
+conserva hasta que la fuente vuelva a ingestarlo.
+
 ### Qué hace una segunda sincronización { #what-a-second-sync-does }
 
 Una sincronización posterior a la primera hace tan poco como la fuente le
@@ -145,20 +172,13 @@ permite:
   registra después de cada ejecución que termina sin ningún fallo. La siguiente
   ejecución `new_only` o `update_only` que encuentra el mismo valor, con la misma
   configuración, se detiene antes de listar nada: su registro no muestra ningún
-  archivo procesado. Cambiar la configuración, la colección o el modo hace que la
+  archivo procesado, y no elimina nada. Cambiar la configuración, la colección o el modo hace que la
   siguiente ejecución lo vuelva a leer todo, y `full` nunca se detiene antes.
-- **Un archivo borrado se elimina.** Tras un listado completo, un documento que
-  la fuente ingirió antes y que ya no aparece en el listado se borra de la
-  colección —primero los vectores, luego su fila— y se cuenta como `removed`. Un
-  listado que falla no elimina nada. Solo los documentos propios de la fuente son
-  candidatos: dos fuentes que alimentan una colección nunca eliminan los de la
-  otra, y una fuente cuyo repositorio o rama ha cambiado retira lo que leyó antes.
-  Las fuentes Git lo hacen; las fuentes de Google Drive y S3 conservan todos los
-  documentos que han ingerido hasta que alguien los borra a mano.
-- **Una ejecución de una fuente a la vez.** Una segunda ejecución de una fuente
-  que todavía se está sincronizando no arranca, y su registro lo dice. De lo
-  contrario, dos ejecuciones solapadas podrían hacer que el listado más antiguo
-  borrara lo que la ejecución más reciente acababa de ingerir.
+- **Un archivo que una sincronización interrumpida dejó a medias se corrige.**
+  Un worker detenido después de guardar los vectores de un archivo y antes de
+  registrarlos los deja sin ninguna fila que los siga. La siguiente sincronización
+  de esa fuente borra lo que nada sigue y vuelve a ingerir el archivo; mientras
+  un archivo así espera, no se detiene antes.
 
 Una ejecución con un archivo fallido no registra ningún estado, así que la
 siguiente lee la fuente entera y vuelve a intentarlo.
@@ -268,6 +288,71 @@ En MinIO, el endpoint suele ser `http://minio:9000` (Docker) o
 |-------|------|----------|---------|-------------|
 | `bucket` | string | Sí | -- | Nombre del bucket de S3 |
 | `prefix` | string | No | `""` | Prefijo de clave que acota el alcance de la sincronización (por ejemplo, `documents/legal/`). Déjalo vacío para el bucket entero. |
+
+## Configurar un sitio web { #website-setup }
+
+Una fuente `web` lee un sitio web público, normalmente el sitio de documentación
+de un producto. No necesita credencial ni entrada en el vault. Dale una URL de
+inicio y, o bien sigue los enlaces desde esa página, o bien lee las páginas que
+lista un sitemap.
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Product docs" \
+  --type web \
+  --org 0c8f2b1e-... \
+  --collection product-docs \
+  --config '{"root_url": "https://docs.example.com/guide/", "max_depth": 3}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+### Campos de configuración del connector de sitio web { #website-connector-config-fields }
+
+| Campo | Tipo | Obligatorio | Valor por defecto | Descripción |
+|-------|------|----------|---------|-------------|
+| `root_url` | string | Sí | -- | La página desde la que empieza el crawl. Su host es el único host que lee la fuente. |
+| `max_depth` | integer | No | `2` | A cuántos enlaces de distancia de la URL de inicio seguir, de `0` a `10`. `0` lee solo la página de inicio. |
+| `path_prefix` | string | No | la carpeta de la URL de inicio | Solo se leen las páginas cuya ruta empieza por esto. `https://docs.example.com/guide/intro` lee `/guide/` por defecto; pon `/` para el host entero. |
+| `sitemap_url` | string | No | -- | Lee las páginas que lista este sitemap en lugar de seguir enlaces. Tiene que estar en el host de la URL de inicio y usar `https://` cuando la URL de inicio lo usa. Un índice de sitemaps se sigue hasta sus sitemaps. |
+| `max_pages` | integer | No | `500` | El crawl se detiene tras leer este número de páginas, de `1` a `5000`. |
+
+### Qué acota un crawl { #what-bounds-a-crawl }
+
+- **Un host y una ruta.** Los enlaces a otros hosts, y a rutas fuera de
+  `path_prefix`, no se siguen. Una redirección que salga de ellos tampoco se
+  sigue. Una URL de inicio en `https://` nunca se abandona por `http://`: no se
+  sigue un enlace ni una redirección a una página sin cifrar.
+- **La red del deployment queda fuera de alcance.** Cada petición - robots.txt,
+  el sitemap, cada página y cada redirección - se comprueba contra la misma
+  política SSRF que los webhooks y los servidores MCP. Se envía a la dirección que
+  pasó la comprobación. Una URL de inicio que resuelve a una dirección privada, de
+  loopback, link-local o de metadatos de la nube se rechaza al guardar la fuente.
+- **Se respeta robots.txt** para sitemaps y páginas, incluido `Crawl-delay` de
+  hasta diez segundos. El crawler se identifica como `AgenticOS-Crawler`. Espera
+  al menos medio segundo entre peticiones, y se respeta una página que diga
+  `noindex` o `nofollow`. Una página que un sitemap sigue listando después de
+  decir `noindex`, o de desaparecer, se elimina de la colección.
+- **Tamaño y tiempo.** Una página de más de 5 MB no se lee. El crawl se detiene en
+  `max_pages`. Una sincronización deja de leer el sitio al cabo de seis horas, y
+  una sincronización que se detuvo no elimina nada.
+
+Cada página se guarda como un documento Markdown que contiene su texto y la URL
+de la que procede, sin su query string. La navegación, las cabeceras, los pies de página y los scripts
+se dejan fuera. Una página solo se vuelve a embeber cuando cambia su texto. Un
+nuevo sello de build o un script de seguimiento en el marcado no cuentan como
+cambio.
+
+### Quién puede leer lo que importa { #who-can-read-what-it-imports }
+
+Una fuente de sitio web no tiene credencial, así que su alcance es lo que el
+sitio muestra a cualquiera en internet. Nunca pasa de un login. Todo lo que
+importa lo puede buscar cualquiera que pueda buscar en la colección que alimenta,
+como con cualquier otra fuente. Consulta
+[quién acaba pudiendo leer lo que ingirió una fuente](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Solo se importan páginas HTML. Un PDF u otro archivo enlazado desde una página no
+se descarga.
 
 ## Configurar un repositorio Git { #git-repository-setup }
 
@@ -464,9 +549,9 @@ Cada sincronización crea una entrada de `SyncLog` con estos campos:
 | `ingested` | Ingestados correctamente (nuevos) |
 | `updated` | Reingestados correctamente (reemplazados) |
 | `skipped` | Omitidos (ya presentes o sin cambios) |
-| `removed` | Borrados porque la fuente ya no los lista |
-| `failed` | No se pudieron ingestar |
-| `error_message` | Por qué se detuvo la sincronización, o cuántos archivos fallaron (si `status` es `error`) |
+| `failed` | No se pudieron ingestar, incluidas las páginas o archivos que el listado no pudo leer y los documentos que no se pudieron eliminar |
+| `removed` | Eliminados porque la fuente ya no los lista (consulta [qué elimina una sincronización](#what-a-sync-removes)) |
+| `error_message` | Qué salió mal, o por qué no se eliminó nada. Un run puede estar en `done` y aun así tener un mensaje, por ejemplo cuando un crawl se detuvo en su límite de páginas |
 | `started_at` | Cuándo empezó la sincronización |
 | `completed_at` | Cuándo terminó la sincronización |
 
@@ -512,6 +597,7 @@ los tipos disponibles con `rag-sources` o con
 `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) está disponible.
 S3 (`s3`) está disponible.
+Website (`web`) está disponible.
 Git (`git`) está disponible.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
@@ -543,6 +629,47 @@ La cuenta de servicio necesita al menos acceso Viewer.
 Comprueba que `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` y `S3_RAG_ENDPOINT` están
 bien puestos en el `.env`. En MinIO, asegúrate de que el endpoint incluye el
 puerto (por ejemplo, `http://localhost:9000`).
+
+### Sitio web: "resolves to private/internal address" { #website-resolves-to-privateinternal-address }
+
+La URL de inicio, o el sitemap, apunta dentro de la red del deployment, o su
+nombre resuelve ahí. Una fuente de sitio web solo lee direcciones públicas. Para
+indexar un sitio interno, publica sus páginas en algún lugar público o sube los
+archivos directamente.
+
+### Sitio web: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
+
+`/robots.txt` en el host de la URL de inicio agotó el tiempo de espera o
+respondió con un error del servidor (5xx) tres veces seguidas. El crawler no
+adivina qué permitiría un robots.txt inaccesible, así que el run se detiene. Un
+robots.txt que falta (404) o que está prohibido (403) significa que no hay
+reglas, y el crawl sigue adelante.
+
+### Sitio web: "The start URL … did not lead to an HTML page" { #website-the-start-url-did-not-lead-to-an-html-page }
+
+La URL de inicio respondió 404, redirigió a otro host o fuera de `path_prefix`,
+o sirvió algo que no es HTML. Ábrela en un navegador y usa como `root_url` la
+dirección en la que acaba.
+
+### Sitio web: "robots.txt does not allow the start URL" { #website-robotstxt-does-not-allow-the-start-url }
+
+El sitio pide a los crawlers que no entren en esa ruta. Elige una URL de inicio
+que el sitio permita, o pide al propietario del sitio que permita
+`AgenticOS-Crawler`.
+
+### Sitio web: "… answered HTTP 403" o "… could not be reached" { #website-answered-http-403-or-could-not-be-reached }
+
+La página necesita un login, o el sitio rechazó al crawler. Falló tras tres
+intentos si la respuesta fue un timeout, un 429 o un 5xx. Cada página así cuenta
+como un archivo fallido. En ese run no se elimina nada, porque no se vieron las
+páginas que había detrás.
+
+### "The source could not be listed completely, so documents it may no longer hold were kept" { #the-source-could-not-be-listed-completely-so-documents-it-may-no-longer-hold-were-kept }
+
+El listado se quedó corto: un crawl alcanzó `max_pages`, o algunas páginas no se
+pudieron leer. Lo que se encontró se ingestó, y no se eliminó nada. Sube
+`max_pages`, o acota el crawl con `path_prefix`, hasta que un run termine sin este
+mensaje.
 
 ### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
 

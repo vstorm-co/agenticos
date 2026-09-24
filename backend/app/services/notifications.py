@@ -393,6 +393,7 @@ class NotificationService:
         ingested: int,
         updated: int,
         skipped: int,
+        removed: int,
         failed: int,
     ) -> None:
         """A connector sync's whole-attempt outcome.
@@ -416,7 +417,7 @@ class NotificationService:
             occurrence_id=occurrence_id,
             summary=(
                 f"Sync of '{collection_name}' finished: {ingested} ingested, "
-                f"{updated} updated, {skipped} skipped, {failed} failed."
+                f"{updated} updated, {skipped} skipped, {removed} removed, {failed} failed."
             ),
             context_url=collection_url,
             render_context={

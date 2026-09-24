@@ -28,6 +28,7 @@ boundaries that matter are the ones a request crosses on its way to the data.
 | API → PostgreSQL / Redis | Queries and cache reads, over TLS when configured | Yes — the store is the operator's; what it protects at rest is under "What is encrypted where" |
 | API / worker → model providers, channels, MCP servers, search vendors, Logfire | Prompts, tool calls, queries, replies, traces | No — these are third parties; what reaches them is a per-agent decision, except deployment-wide tracing (below) |
 | Worker → connectors (Google Drive, S3, …) | Credentials unsealed from the vault, fetched documents | No — a connector credential is a vault secret referenced by id |
+| Worker → public websites (the `web` connector) | GET requests for pages, sitemaps and robots.txt; no credential | No — the start URL is typed by a tenant and every link after it is chosen by the site, so each request and redirect is SSRF-checked and dialled at the checked address (`app/core/pinned_http.py`), and stays on one host |
 
 Authority inside a tenant is never a role name on a route: it is a membership row
 plus the permission catalog (`app/core/permissions.py`), resolved per resource.

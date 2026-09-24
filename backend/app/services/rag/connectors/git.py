@@ -60,6 +60,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 logger = logging.getLogger(__name__)
@@ -246,9 +247,6 @@ class GitConnector(BaseSyncConnector):
     DISPLAY_NAME: ClassVar[str] = "Git repository"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GIT_TOKEN
     CONFIG_MODEL: ClassVar[type[BaseModel]] = GitConfig
-    # A clone of a branch is the whole of what the source reads, so a file it no
-    # longer lists was deleted or moved upstream, or fell outside the patterns.
-    REMOVES_UNLISTED: ClassVar[bool] = True
 
     def __init__(self) -> None:
         self._workdir: Path | None = None
@@ -308,8 +306,13 @@ class GitConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        """Clone what the include patterns match and answer every regular file in it."""
+    ) -> RemoteListing:
+        """Clone what the include patterns match and answer every regular file in it.
+
+        Always complete: a clone of a branch is the whole of what the source
+        reads, or it raises. So a file it no longer lists was deleted or moved
+        upstream, or fell outside the patterns, and its document is removed.
+        """
         parsed = GitConfig.model_validate(config)
         env = await self._environment(parsed, credential)
         await self.aclose()
@@ -358,7 +361,8 @@ class GitConnector(BaseSyncConnector):
         )
         self._checkout = checkout
         staged = await self._git("ls-files", "-z", "--stage", env=env, timeout=60.0, cwd=checkout)
-        return await asyncio.to_thread(self._listing, checkout, staged, parsed)
+        files = await asyncio.to_thread(self._listing, checkout, staged, parsed)
+        return RemoteListing(files=files, complete=True)
 
     @staticmethod
     def source_root(parsed: GitConfig) -> str:

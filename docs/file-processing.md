@@ -1271,6 +1271,15 @@ rather than a feature:
   listing is still a full scan
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), so a connector that
   brings thousands of files makes that pagination urgent rather than tidy.
+- **A listing that knows whether it is whole.** A sync removes the documents its
+  source brought in earlier and no longer lists, so `list_files` answers a
+  `RemoteListing` whose `complete` says whether what it names is everything. A
+  listing that finishes or raises is complete by construction. One that can stop
+  part-way - the web crawler at its page ceiling, or past a page that timed out -
+  says `complete=False`, and that run removes nothing
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Removal is scoped
+  by `rag_documents.sync_source_id`, not by `source_path`: two sources can feed
+  one collection, and neither may remove what the other brought in.
 
 **A sync connector is not an MCP server.** MCP is how an agent reaches a product
 *live*, mid-run; a sync source is a scheduled bulk pull with change detection
@@ -1281,7 +1290,8 @@ question to answer before writing one is which half is being built — see
 
 Which connectors are being built, and in what order, is decided in
 [#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
+([#984](https://github.com/vstorm-co/agenticos/issues/984), shipped as the `web`
+connector - see [website setup](howto/configure-sync-sources.md#website-setup)), SharePoint and
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and

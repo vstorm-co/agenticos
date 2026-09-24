@@ -215,8 +215,8 @@ class RAGSyncLogItem(BaseSchema):
     ingested: int = 0
     updated: int = 0
     skipped: int = 0
-    removed: int = 0
     failed: int = 0
+    removed: int = 0
     error_message: str | None = None
     started_at: str | None = None
     completed_at: str | None = None

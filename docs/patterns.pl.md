@@ -1,5 +1,5 @@
 ---
-source_sha: "141e97d23d12"
+source_sha: "fb652aa6c40d"
 ---
 
 # Wzorce w kodzie { #code-patterns }
@@ -313,6 +313,7 @@ from app.services.rag.connectors import (
     BaseSyncConnector,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 class SharePointConfig(BaseModel):
@@ -330,8 +331,9 @@ class SharePointConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        # Return metadata for available files
+    ) -> RemoteListing:
+        # Metadata for the available files, and complete=False if the listing
+        # stopped short - the sync removes nothing against a partial one
         ...
 
     async def _fetch(
@@ -351,7 +353,8 @@ CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector
 
 `RagSyncService` używa `CONNECTOR_REGISTRY`, żeby odnaleźć właściwy konektor po
 typie, zwalidować jego konfigurację, wylistować zdalne pliki, pobrać je i
-przekazać do pipeline'u ingestii.
+przekazać do pipeline'u ingestii. Po kompletnym listingu usuwa dokumenty, które
+source wprowadził wcześniej, a których już nie wypisuje.
 
 ## Wzorce frontendowe { #frontend-patterns }
 

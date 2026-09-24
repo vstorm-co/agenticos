@@ -46,7 +46,7 @@ from app.services.ingestion_config import (
 )
 from app.services.notifications import NotificationService
 from app.services.rag.config import DocumentExtensions
-from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing, WithdrawnFile
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -812,13 +812,13 @@ async def _open_document_row(
             filesize=filesize,
             filetype=Path(filename).suffix.lstrip(".").lower(),
             source_path=source_path,
+            sync_source_id=sync_source_id,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=ingestion_config,
             image_description_model=image_description_model,
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
-            sync_source_id=sync_source_id,
         )
         return str(row.id)
 
@@ -911,6 +911,165 @@ async def _notify_sync_start_failure(
         collection_id=kb.id if kb else None,
         error=message,
     )
+
+
+# How many of a listing's problems a sync log names before it counts the rest.
+_NAMED_PROBLEMS = 3
+
+
+async def _remove_unlisted(
+    ingester: IngestionService,
+    *,
+    listing: RemoteListing,
+    withdrawn: set[str],
+    source_id: UUID,
+    collection_name: str,
+    notes: list[str],
+) -> tuple[int, int]:
+    """Remove what this source brought in earlier and no longer lists.
+
+    Answers how many documents went and how many could not. `withdrawn` are
+    the listed files whose fetch found the source no longer holds them (see
+    `WithdrawnFile`): named by the listing, but not vouched for by it.
+
+    Only against a complete listing. A partial one - a crawl stopped at its page
+    ceiling, a page that timed out - did not see what it does not name, and
+    removing on its word would empty a collection because of one bad night; it
+    says so in `notes` instead, and the next complete run catches up.
+
+    Vectors first, then the row, one document at a time: a vector delete that
+    fails keeps its row, so the document is still visible, deletable, and tried
+    again by the next run - the other order leaves searchable chunks nothing
+    tracks (#992). A document whose vectors would not delete is a failure of
+    this run rather than a detail: the caller counts it, so the run does not
+    report success while a document its source no longer holds stays searchable.
+    """
+    if not listing.complete:
+        # First, so it is never among the notes the summary counts rather than names.
+        notes.insert(
+            0,
+            "The source could not be listed completely, so documents it may no longer "
+            "hold were kept. They are removed by the next complete sync.",
+        )
+        return 0, 0
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        unlisted = await RAGDocumentService(db).unlisted_by_source(
+            sync_source_id=source_id,
+            collection_name=collection_name,
+            listed={file.source_path for file in listing.files} - withdrawn,
+        )
+        targets = [(str(row.id), row.vector_document_id) for row in unlisted]
+    removed = 0
+    for row_id, vector_document_id in targets:
+        if vector_document_id and not await ingester.remove_document(
+            collection_name, vector_document_id
+        ):
+            continue
+        async with get_worker_db_context() as db:
+            await RAGDocumentService(db).forget_document(row_id)
+        removed += 1
+    unremoved = len(targets) - removed
+    if unremoved:
+        notes.append(
+            f"{unremoved} documents the source no longer lists could not be "
+            "removed and will be tried again by the next sync."
+        )
+    return removed, unremoved
+
+
+async def _stale_rows(*, source_id: UUID, collection_name: str) -> dict[str, list[str]]:
+    """Row ids a dead run of this source left `PROCESSING`, by the address each was for."""
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        rows = await RAGDocumentService(db).stale_for_source(
+            sync_source_id=source_id, collection_name=collection_name
+        )
+        by_path: dict[str, list[str]] = {}
+        for row in rows:
+            if row.source_path is not None:
+                by_path.setdefault(row.source_path, []).append(str(row.id))
+        return by_path
+
+
+async def _reconcile_stale_rows(
+    ingester: IngestionService,
+    *,
+    stale: dict[str, list[str]],
+    source_id: UUID,
+    collection_name: str,
+    notes: list[str],
+) -> int:
+    """Settle what a worker that died mid-file left, and answer how many rows could not be.
+
+    A worker killed after `ingest_file` stored the vectors and before
+    `_settle_document_row` recorded their id leaves a `PROCESSING` row and
+    searchable vectors that no row names. Left alone, the next run matches
+    those vectors by address and hash, skips the file as unchanged, and a
+    removal later has no id to delete them by - so they stay searchable after
+    the file is gone upstream.
+
+    Per address, then: the stored documents nothing in the collection tracks
+    are deleted, vectors first; this source's rows whose vectors are gone
+    (a death after the old document was replaced) are dropped with the stale
+    ones; and the file, now absent from the store, is ingested again by the run
+    that called this. A lookup or delete that fails keeps every row at that
+    address and counts it, so the run records no state and the next one tries
+    again - a row is never dropped without its address having been read.
+    """
+    from app.services.rag_document import RAGDocumentService
+
+    unsettled = 0
+    for source_path, row_ids in stale.items():
+        try:
+            stored = set(await ingester.document_ids_at(collection_name, source_path))
+            async with get_worker_db_context() as db:
+                documents = RAGDocumentService(db)
+                tracked = await documents.tracked_vector_ids(
+                    collection_name=collection_name, vector_document_ids=stored
+                )
+                gone = [
+                    str(row.id)
+                    for row in await documents.settled_at(
+                        sync_source_id=source_id,
+                        collection_name=collection_name,
+                        source_path=source_path,
+                    )
+                    if row.vector_document_id and row.vector_document_id not in stored
+                ]
+            cleared = True
+            for vector_document_id in sorted(stored - tracked):
+                if not await ingester.remove_document(collection_name, vector_document_id):
+                    cleared = False
+                    break
+            if not cleared:
+                unsettled += len(row_ids)
+                continue
+            async with get_worker_db_context() as db:
+                documents = RAGDocumentService(db)
+                for row_id in [*row_ids, *gone]:
+                    await documents.forget_document(row_id)
+        except Exception:
+            logger.exception("Could not settle the rows a stopped sync left at %s", source_path)
+            unsettled += len(row_ids)
+    if unsettled:
+        notes.append(
+            f"{unsettled} documents a stopped sync left half-ingested could not be "
+            "cleaned up and will be tried again by the next sync."
+        )
+    return unsettled
+
+
+def _sync_summary(failed: int, notes: list[str]) -> str | None:
+    """The sentence a finished sync stores beside its counts, or `None` when there is nothing to say."""
+    named = notes[:_NAMED_PROBLEMS]
+    rest = len(notes) - len(named)
+    parts = ([f"{failed} files failed."] if failed else []) + named
+    if rest:
+        parts.append(f"And {rest} more.")
+    return " ".join(parts) or None
 
 
 OVERLAPPING_RUN = "Another sync of this source is still running, so this one did not start."
@@ -1085,13 +1244,16 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
 
     connector = connector_cls()
 
-    ingested = updated = skipped = removed = failed = 0
+    ingested = updated = skipped = failed = removed = 0
     total = 0
+    # What the sync log says beyond its counts: the pages a listing could not
+    # read, a removal skipped because the listing was partial, or why the whole
+    # run stopped. Sentences this repository wrote, like every stored failure.
+    notes: list[str] = []
+    # Listed files a fetch found the source no longer holds - a sitemap page now
+    # marked `noindex`, or gone. Not failures: removed like any unlisted file.
+    withdrawn: set[str] = set()
     ledger = SpendLedger(organization_id=organization_id)
-    # Why the sync as a whole stopped, when it did - a refused token, a missing
-    # branch. Without it the log said "1 files failed" about a run that never
-    # reached a file, which is no answer to "is it the credential?".
-    sync_error: str | None = None
     version: str | None = None
 
     async with _ingestion_service(
@@ -1101,15 +1263,38 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             # Asked before anything is listed: the same version under the same
             # configuration as the last clean run means nothing upstream moved,
             # and for a repository that is one `ls-remote` in place of a clone.
-            # `full` promises a re-import every time, so it never stops here.
+            # `full` promises a re-import every time, so it never stops here,
+            # and neither does a source a dead run left half-ingested.
             version = await connector.remote_version(config, credential)
+            stale = await _stale_rows(source_id=UUID(source_id), collection_name=collection_name)
             unchanged = (
                 version is not None
                 and sync_mode != "full"
+                and not stale
                 and stored_state == SyncState(version=version, fingerprint=fingerprint).model_dump()
             )
-            files = [] if unchanged else await connector.list_files(config, credential)
-            total = len(files)
+            listing = (
+                RemoteListing(files=[])
+                if unchanged
+                else await connector.list_files(config, credential)
+            )
+            # After the listing and before the files, so what it clears is
+            # ingested again by this same run rather than missing until the next.
+            unsettled = await _reconcile_stale_rows(
+                ingester,
+                stale=stale,
+                source_id=UUID(source_id),
+                collection_name=collection_name,
+                notes=notes,
+            )
+            files = listing.files
+            # A problem is a page the listing could not read, and a stale row
+            # that could not be settled a document this run could not put right;
+            # both count as failed, so both are in the total, or `failed`
+            # exceeds it.
+            total = len(files) + len(listing.problems) + unsettled
+            failed += len(listing.problems) + unsettled
+            notes.extend(listing.problems)
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 for remote_file in files:
@@ -1174,8 +1359,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                             # The same default the ingest stamps on the chunks, so
                             # the tracked row says what the vectors carry (#1777).
                             organizational_unit=source.organizational_unit,
-                            # What this source's later runs delete by (#987).
-                            sync_source_id=source.id,
+                            sync_source_id=UUID(source_id),
                         )
 
                         with metered_by(ledger):
@@ -1218,6 +1402,10 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 ingested += 1
                         else:
                             failed += 1
+                    except WithdrawnFile as e:
+                        logger.info("Not syncing %s: %s", remote_file.name, e.message)
+                        withdrawn.add(remote_file.source_path)
+                        total -= 1
                     except Exception as e:
                         logger.warning("Failed to sync %s: %s", remote_file.name, e)
                         failed += 1
@@ -1242,25 +1430,24 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 ),
                             )
 
-            # Only here, after a listing that completed: a listing that raised
-            # is not evidence that anything was deleted upstream, and acting on
-            # one would empty the collection on a network blip.
-            if connector.REMOVES_UNLISTED and not unchanged:
+            # An early stop listed nothing, which is no evidence anything went.
+            if not unchanged:
                 removed, unremoved = await _remove_unlisted(
                     ingester,
-                    sync_source_id=source.id,
+                    listing=listing,
+                    withdrawn=withdrawn,
+                    source_id=UUID(source_id),
                     collection_name=collection_name,
-                    listed={remote_file.source_path for remote_file in files},
+                    notes=notes,
                 )
-                # A document whose vectors would not delete is a failure of this
-                # run, not a detail: counted, the run records no state, so the
-                # next one lists again and retries it rather than stopping early
-                # at the same commit and leaving the document searchable.
                 failed += unremoved
         except Exception as e:
             logger.exception("Source sync failed for %s", source_id)
-            sync_error = failure_summary(e, stage=IngestionStage.SYNC)
             failed = max(failed, 1)
+            # Through `failure_summary`: a connector's own refusal - robots.txt
+            # unreachable, a credential of the wrong kind - is ours and kept
+            # whole, and anything else is reduced to its type (#423).
+            notes.append(failure_summary(e, stage=IngestionStage.SYNC))
         finally:
             await connector.aclose()
 
@@ -1271,7 +1458,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         source_svc = SyncSourceService(db)
         try:
             status = "done" if not failed else "error"
-            error = sync_error or (f"{failed} files failed" if failed else None)
+            summary = _sync_summary(failed, notes)
             log = await sync_svc.complete_sync(
                 log_id,
                 status=status,
@@ -1279,14 +1466,14 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 ingested=ingested,
                 updated=updated,
                 skipped=skipped,
-                removed=removed,
                 failed=failed,
-                error_message=error,
+                removed=removed,
+                error_message=summary,
             )
             await source_svc.update_after_sync(
                 source_id,
                 status=status,
-                error=error,
+                error=summary if failed else None,
                 # Only a clean run is a state worth stopping early on: one with a
                 # failed file has to be read again in full, or that file waits
                 # for the next upstream change to be retried.
@@ -1323,6 +1510,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                             ingested=ingested,
                             updated=updated,
                             skipped=skipped,
+                            removed=removed,
                             failed=failed,
                         )
                     else:
@@ -1332,7 +1520,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                             occurrence_id=occurrence_id,
                             collection_name=collection_name,
                             collection_id=kb.id if kb else None,
-                            error=error or f"{failed} files failed",
+                            error=summary or f"{failed} files failed",
                         )
                 except Exception:
                     logger.exception(
@@ -1342,14 +1530,15 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, removed=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d, "
+        "removed=%d",
         source_id,
         total,
         ingested,
         updated,
         skipped,
-        removed,
         failed,
+        removed,
     )
     return {
         "status": "done" if not failed else "error",
@@ -1360,48 +1549,6 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         "removed": removed,
         "failed": failed,
     }
-
-
-async def _remove_unlisted(
-    ingester: IngestionService,
-    *,
-    sync_source_id: UUID,
-    collection_name: str,
-    listed: set[str],
-) -> tuple[int, int]:
-    """Delete what this source ingested before and no longer lists.
-
-    Answers how many documents went and how many could not. It reads the
-    source's own rows - by id, not by address, so another source reading the
-    same repository keeps what only it lists, and a source whose repository or
-    branch was edited still retires what it read under the old one.
-
-    Vectors first, then the row - the order that can be retried. A row removed
-    before its vectors, with the vector delete then failing, leaves chunks
-    searchable and nothing that names them; the other way round, a failed
-    vector delete keeps the row, and the next run finds it and tries again.
-    `remove_document` answers `False` rather than raising, which is that case.
-    """
-    async with get_worker_db_context() as db:
-        rows = await rag_document_repo.list_settled_for_source(
-            db, sync_source_id=sync_source_id, collection_name=collection_name
-        )
-    gone: list[UUID] = []
-    unremoved = 0
-    for row in rows:
-        if row.source_path in listed:
-            continue
-        if row.vector_document_id and not await ingester.remove_document(
-            collection_name, row.vector_document_id
-        ):
-            unremoved += 1
-            continue
-        gone.append(row.id)
-    if gone:
-        async with get_worker_db_context() as db:
-            for row_id in gone:
-                await rag_document_repo.delete(db, row_id)
-    return len(gone), unremoved
 
 
 @flow(name="retention-sweep", log_prints=True)

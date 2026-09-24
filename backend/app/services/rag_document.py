@@ -126,6 +126,7 @@ class RAGDocumentService:
         filetype: str,
         storage_path: str | None = None,
         source_path: str | None = None,
+        sync_source_id: UUID | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         ingestion_config: IngestionConfig | None = None,
@@ -134,7 +135,6 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
-        sync_source_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -155,16 +155,16 @@ class RAGDocumentService:
         passes none, and their `ingestion_completed`/`ingestion_failed` falls
         back to the organization's administrators instead.
 
-        `sync_source_id` is the sync source that brought the file in - what
-        that source's later runs delete by when it stops listing the file
-        (#987). An upload and a local sync pass none.
-
         `organizational_unit` is which part of the organization this document
         belongs to - the FA-039 retrieval dimension. It is stored on the row so
         the worker reads what this upload decided rather than a flow parameter a
         queued run would not carry, exactly as the resolved `ingestion_config`
         is. `None` leaves the dimension absent, which is what every chunk
         carried before anything wrote it (#1777).
+
+        `sync_source_id` is the source a connector sync ingested this for, which
+        is what lets a later run of that source remove it once it is no longer
+        listed (`unlisted_by_source`).
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -178,6 +178,7 @@ class RAGDocumentService:
             filetype=filetype,
             storage_path=storage_path or "",
             source_path=source_path,
+            sync_source_id=sync_source_id,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=(
@@ -192,7 +193,6 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
-            sync_source_id=sync_source_id,
         )
 
     async def dispatch_upload(
@@ -641,6 +641,56 @@ class RAGDocumentService:
             spawn_after_commit(
                 self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
             )
+
+    async def unlisted_by_source(
+        self, *, sync_source_id: UUID, collection_name: str, listed: set[str]
+    ) -> list[RAGDocument]:
+        """The documents a source brought in that its latest listing no longer names.
+
+        `listed` is every `source_path` the listing answered, whether or not this
+        run ingested it: a file skipped as unchanged, or one that failed to
+        download, is still there.
+        """
+        rows = await rag_document_repo.get_settled_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+        return [row for row in rows if row.source_path not in listed]
+
+    async def stale_for_source(
+        self, *, sync_source_id: UUID, collection_name: str
+    ) -> list[RAGDocument]:
+        """The rows a dead run of this source left `PROCESSING` (`get_stale_for_sync_source`)."""
+        return await rag_document_repo.get_stale_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+
+    async def settled_at(
+        self, *, sync_source_id: UUID, collection_name: str, source_path: str
+    ) -> list[RAGDocument]:
+        """This source's settled rows at one address."""
+        rows = await rag_document_repo.get_settled_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+        return [row for row in rows if row.source_path == source_path]
+
+    async def tracked_vector_ids(
+        self, *, collection_name: str, vector_document_ids: set[str]
+    ) -> set[str]:
+        """Which of these stored documents some row of the collection tracks."""
+        return await rag_document_repo.get_tracked_vector_ids(
+            self.db, collection_name=collection_name, vector_document_ids=vector_document_ids
+        )
+
+    async def forget_document(self, doc_id: str) -> None:
+        """Delete a document's row alone, once its vectors are already gone.
+
+        The worker's half of `delete_document`: a sync removing what its source
+        no longer lists holds the ingester for the collection, removes the
+        vectors through it first and calls this only when that succeeded - so a
+        failed vector delete leaves the row for the next run to try again,
+        rather than vectors nothing tracks. A synced document stores no file.
+        """
+        await rag_document_repo.delete(self.db, UUID(doc_id))
 
     async def delete_by_collection(self, collection_name: str) -> None:
         """Delete a collection's document rows and unlink their stored uploads.

@@ -72,8 +72,8 @@ async def update_status(
     ingested: int | None = None,
     updated: int | None = None,
     skipped: int | None = None,
-    removed: int | None = None,
     failed: int | None = None,
+    removed: int | None = None,
     error_message: str | None = None,
     completed_at: Any = None,
 ) -> SyncLog | None:
@@ -90,10 +90,10 @@ async def update_status(
         log.updated = updated
     if skipped is not None:
         log.skipped = skipped
-    if removed is not None:
-        log.removed = removed
     if failed is not None:
         log.failed = failed
+    if removed is not None:
+        log.removed = removed
     if error_message is not None:
         log.error_message = error_message
     if completed_at is not None:

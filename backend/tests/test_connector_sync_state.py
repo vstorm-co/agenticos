@@ -1,18 +1,17 @@
-"""What a connector sync remembers, what it removes, and what it says when it stops (#987).
+"""What a connector sync remembers, and what it puts right before it reads (#987).
 
-Three behaviours `_run_source_sync` gained for connectors that can answer them:
+Two behaviours `_sync_source` has on top of the listing and removal
+`tests/test_sync_removal.py` covers:
 
 - **An unchanged source stops early.** A connector's `remote_version`, stored
   after a clean run with a fingerprint of the configuration, lets the next run
   that finds the same pair skip listing entirely - for a repository, one
   `ls-remote` instead of a clone.
-- **A file the source no longer lists is removed**, vectors then row, but only
-  after a listing that completed, only for a connector that opts in with
-  `REMOVES_UNLISTED`, and only among the rows this source brought in.
-- **A sync that stopped says why.** It used to record "1 files failed" about a
-  run that never reached a file.
-- **One run of a source at a time**, because an older listing overlapping a
-  newer run would delete what the newer one had just ingested.
+- **What a dead run left half-ingested is settled first.** A worker killed
+  between storing a file's vectors and recording their id leaves a `PROCESSING`
+  row and vectors nothing tracks; the next run clears them and ingests the file
+  again, rather than skipping it as unchanged and leaving vectors a removal can
+  never find.
 
 The connector here is a real `BaseSyncConnector` subclass, so the hooks it does
 not override are the base's own answers rather than a mock's.
@@ -30,10 +29,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import StorableSecret
 from app.db.models.rag_document import DocumentStatus
-from app.services.rag.connectors import BaseSyncConnector, ConnectorConfig, RemoteFile
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConnectorConfig,
+    RemoteFile,
+    RemoteListing,
+)
 from app.services.rag.models import IngestionStatus
 from app.services.sync_source import SyncState, sync_fingerprint
 from app.worker.tasks import rag_tasks
@@ -51,7 +54,6 @@ class _Connector(BaseSyncConnector):
     """A source whose version, listing and failures a test decides."""
 
     CONNECTOR_TYPE = "fake"
-    REMOVES_UNLISTED = True
 
     def __init__(
         self,
@@ -73,11 +75,15 @@ class _Connector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         self.listed += 1
         if self.listing_error is not None:
             raise self.listing_error
-        return [RemoteFile(id=name, name=name, source_path=f"{ROOT}{name}") for name in self.files]
+        return RemoteListing(
+            files=[
+                RemoteFile(id=name, name=name, source_path=f"{ROOT}{name}") for name in self.files
+            ]
+        )
 
     async def aclose(self) -> None:
         self.closed += 1
@@ -92,21 +98,22 @@ class _Connector(BaseSyncConnector):
         dest_path.write_text(f"contents of {file.id}")
 
 
-class _KeepingConnector(_Connector):
-    """What Drive and S3 are: a source that deletes nothing it stops listing."""
-
-    REMOVES_UNLISTED = False
-
-
 def _row(
-    name: str, *, vector_id: str | None = "vec", status: str = DocumentStatus.DONE
+    name: str, *, vector_id: str | None = None, status: str = DocumentStatus.PROCESSING
 ) -> MagicMock:
     return MagicMock(
-        id=uuid.uuid4(),
-        source_path=f"{ROOT}{name}",
-        vector_document_id=f"{vector_id}-{name}" if vector_id else None,
-        status=status,
+        id=uuid.uuid4(), source_path=f"{ROOT}{name}", vector_document_id=vector_id, status=status
     )
+
+
+@dataclass
+class _Store:
+    """What the vector store holds, by address, and which deletes it refuses."""
+
+    at: dict[str, list[str]] = field(default_factory=dict)
+    refuses: set[str] = field(default_factory=set)
+    lookup_error: Exception | None = None
+    removed: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -117,9 +124,8 @@ class _Run:
     complete: AsyncMock
     after: AsyncMock
     documents: MagicMock
-    removed_vectors: list[str] = field(default_factory=list)
-    deleted_rows: list[uuid.UUID] = field(default_factory=list)
-    listed_rows_scope: dict[str, Any] | None = None
+    store: _Store
+    forgotten: list[str] = field(default_factory=list)
 
     @property
     def stored_state(self) -> dict[str, str] | None:
@@ -141,11 +147,11 @@ async def _sync(
     *,
     mode: str = "new_only",
     stored_state: dict[str, str] | None = None,
-    rows: list[MagicMock] | None = None,
-    vector_delete_fails: set[str] | None = None,
+    stale: list[MagicMock] | None = None,
+    settled: list[MagicMock] | None = None,
+    tracked: set[str] | None = None,
+    store: _Store | None = None,
     ingest_status: IngestionStatus = IngestionStatus.DONE,
-    held: bool = True,
-    sync_log_id: str | None = "log-1",
 ) -> _Run:
     source = MagicMock(
         id=SOURCE_ID,
@@ -161,7 +167,7 @@ async def _sync(
     after = AsyncMock()
     sources = MagicMock(get_source=AsyncMock(return_value=source), update_after_sync=after)
     complete = AsyncMock(return_value=None)
-    store = MagicMock(find_existing_document=AsyncMock(return_value=None))
+    vector_store = MagicMock(find_existing_document=AsyncMock(return_value=None))
     ingest = AsyncMock(
         return_value=MagicMock(
             status=ingest_status,
@@ -171,29 +177,43 @@ async def _sync(
             error_message=None if ingest_status is IngestionStatus.DONE else "parse failed",
         )
     )
-    documents = MagicMock(
-        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-        complete_ingestion=AsyncMock(),
-        fail_ingestion=AsyncMock(),
-    )
+    held = store or _Store()
     run = _Run(
         answer={},
         connector=connector,
         ingest=ingest,
         complete=complete,
         after=after,
-        documents=documents,
+        documents=MagicMock(),
+        store=held,
     )
-    failing = vector_delete_fails or set()
+
+    async def forget(row_id: str) -> None:
+        run.forgotten.append(row_id)
+
+    async def settled_at(**kwargs: Any) -> list[MagicMock]:
+        return [row for row in settled or [] if row.source_path == kwargs["source_path"]]
+
+    run.documents = MagicMock(
+        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        complete_ingestion=AsyncMock(),
+        fail_ingestion=AsyncMock(),
+        stale_for_source=AsyncMock(return_value=stale or []),
+        settled_at=AsyncMock(side_effect=settled_at),
+        tracked_vector_ids=AsyncMock(return_value=tracked or set()),
+        unlisted_by_source=AsyncMock(return_value=[]),
+        forget_document=AsyncMock(side_effect=forget),
+    )
+
+    async def document_ids_at(_self: Any, _collection: str, source_path: str) -> list[str]:
+        if held.lookup_error is not None:
+            raise held.lookup_error
+        return held.at.get(source_path, [])
 
     async def remove_document(_self: Any, _collection: str, document_id: str, *_: Any) -> bool:
-        if document_id in failing:
+        if document_id in held.refuses:
             return False
-        run.removed_vectors.append(document_id)
-        return True
-
-    async def delete_row(_db: Any, row_id: uuid.UUID) -> bool:
-        run.deleted_rows.append(row_id)
+        held.removed.append(document_id)
         return True
 
     @asynccontextmanager
@@ -202,10 +222,10 @@ async def _sync(
 
     @asynccontextmanager
     async def _lock(_source_id: str) -> AsyncIterator[bool]:
-        yield held
+        yield True
 
     with (
-        patch.object(rag_tasks, "VectorStore", return_value=store),
+        patch.object(rag_tasks, "VectorStore", return_value=vector_store),
         patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
         patch.object(rag_tasks, "get_worker_db_context", new=_db),
         patch.object(rag_tasks, "_exclusive_source_run", new=_lock),
@@ -224,22 +244,16 @@ async def _sync(
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),
         patch.object(rag_tasks.IngestionService, "remove_document", new=remove_document),
-        patch.object(
-            rag_tasks.rag_document_repo,
-            "list_settled_for_source",
-            new=AsyncMock(return_value=rows or []),
-        ) as listed_rows,
-        patch.object(rag_tasks.rag_document_repo, "delete", new=delete_row),
+        patch.object(rag_tasks.IngestionService, "document_ids_at", new=document_ids_at),
         patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"fake": lambda: connector}),
         patch(
             "app.services.rag_sync.RAGSyncService", return_value=MagicMock(complete_sync=complete)
         ),
-        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+        patch("app.services.rag_document.RAGDocumentService", return_value=run.documents),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
         config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
-        run.answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=sync_log_id)
-        run.listed_rows_scope = listed_rows.await_args.kwargs if listed_rows.await_args else None
+        run.answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id="log-1")
     return run
 
 
@@ -252,6 +266,12 @@ class TestAnUnchangedSourceStopsEarly:
         assert connector.listed == 0
         run.ingest.assert_not_awaited()
         assert run.answer["status"] == "done"
+
+    async def test_an_early_stop_removes_nothing(self) -> None:
+        """It listed nothing, which is no evidence anything went upstream."""
+        run = await _sync(_Connector(files=[], version="sha-1"), stored_state=_state("sha-1"))
+
+        run.documents.unlisted_by_source.assert_not_awaited()
 
     async def test_a_new_version_lists_and_records_itself(self) -> None:
         connector = _Connector(files=["a.md"], version="sha-2")
@@ -297,107 +317,6 @@ class TestAnUnchangedSourceStopsEarly:
         assert connector.listed == 1
         assert run.stored_state is None
 
-
-class TestAFileTheSourceNoLongerListsIsRemoved:
-    async def test_an_unlisted_document_loses_its_vectors_and_its_row(self) -> None:
-        kept, gone = _row("kept.md"), _row("gone.md")
-        connector = _Connector(files=["kept.md"])
-
-        run = await _sync(connector, rows=[kept, gone])
-
-        assert run.removed_vectors == ["vec-gone.md"]
-        assert run.deleted_rows == [gone.id]
-        assert run.answer["removed"] == 1
-        assert run.complete.await_args.kwargs["removed"] == 1
-
-    async def test_the_rows_read_are_this_sources_own(self) -> None:
-        """By the source's id: another source reading the same repository with other
-        patterns, or this one before its branch was edited, is not an address prefix."""
-        run = await _sync(_Connector(files=[]), rows=[])
-
-        assert run.listed_rows_scope == {"sync_source_id": SOURCE_ID, "collection_name": "docs"}
-
-    async def test_every_row_a_sync_opens_is_stamped_with_its_source(self) -> None:
-        run = await _sync(_Connector(files=["a.md"]))
-
-        assert run.documents.create_document.await_args.kwargs["sync_source_id"] == SOURCE_ID
-
-    async def test_a_row_whose_vectors_would_not_delete_is_kept_and_fails_the_run(self) -> None:
-        """Failed, the run records no state - so the next one, at the same commit,
-        lists again and retries rather than stopping early for good."""
-        gone = _row("gone.md")
-
-        run = await _sync(
-            _Connector(files=[]),
-            rows=[gone],
-            vector_delete_fails={"vec-gone.md"},
-            stored_state=_state("sha-1"),
-        )
-
-        assert run.deleted_rows == []
-        assert run.answer["removed"] == 0
-        assert run.answer["status"] == "error"
-        assert run.stored_state is None
-
-    async def test_a_failed_attempt_with_no_vectors_is_removed_as_a_row(self) -> None:
-        failed = _row("broken.md", vector_id=None, status=DocumentStatus.ERROR)
-
-        run = await _sync(_Connector(files=[]), rows=[failed])
-
-        assert run.removed_vectors == []
-        assert run.deleted_rows == [failed.id]
-
-    async def test_a_listing_that_raised_removes_nothing(self) -> None:
-        """A network blip is not evidence the repository was emptied."""
-        connector = _Connector(files=[], listing_error=RuntimeError("connection reset"))
-
-        run = await _sync(connector, rows=[_row("a.md")])
-
-        assert run.deleted_rows == []
-        assert run.answer["removed"] == 0
-
-    async def test_an_unchanged_source_removes_nothing(self) -> None:
-        connector = _Connector(files=[], version="sha-1")
-
-        run = await _sync(connector, stored_state=_state("sha-1"), rows=[_row("a.md")])
-
-        assert run.deleted_rows == []
-
-    async def test_a_connector_that_does_not_opt_in_never_deletes(self) -> None:
-        """Drive and S3 keep every document they ever ingested."""
-        run = await _sync(_KeepingConnector(files=[]), rows=[_row("a.md")])
-
-        assert run.deleted_rows == []
-        assert run.listed_rows_scope is None
-
-
-class TestASyncThatStoppedSaysWhy:
-    async def test_our_refusal_reaches_the_log_and_the_source_whole(self) -> None:
-        refusal = BadRequestError(message="The repository refused the source's token.")
-        connector = _Connector(files=[], listing_error=refusal)
-
-        run = await _sync(connector)
-
-        assert run.answer["status"] == "error"
-        assert run.complete.await_args.kwargs["error_message"] == refusal.message
-        assert run.after.await_args.kwargs["error"] == refusal.message
-
-    async def test_a_foreign_error_is_stored_as_its_class_and_never_its_text(self) -> None:
-        connector = _Connector(
-            files=[], listing_error=RuntimeError("https://user:pw@internal/x failed")
-        )
-
-        run = await _sync(connector)
-
-        stored = run.complete.await_args.kwargs["error_message"]
-        assert "RuntimeError" in stored
-        assert "internal" not in stored
-
-    async def test_a_partial_failure_still_counts_its_files(self) -> None:
-        run = await _sync(_Connector(files=["a.md", "b.md"]), ingest_status=IngestionStatus.ERROR)
-
-        assert run.complete.await_args.kwargs["error_message"] == "2 files failed"
-
     async def test_the_connector_is_closed_whichever_way_the_sync_went(self) -> None:
         ok = _Connector(files=["a.md"])
         broken = _Connector(files=[], listing_error=RuntimeError("boom"))
@@ -408,23 +327,75 @@ class TestASyncThatStoppedSaysWhy:
         assert (ok.closed, broken.closed) == (1, 1)
 
 
-class TestOneRunOfASourceAtATime:
-    async def test_a_run_that_cannot_take_the_lock_reads_nothing_and_says_why(self) -> None:
-        connector = _Connector(files=["a.md"])
+class TestWhatADeadRunLeftIsSettledFirst:
+    async def test_vectors_nothing_tracks_are_cleared_and_the_file_ingested_again(self) -> None:
+        """Codex on #1867: the vectors were stored, the row never learned their id.
+        Left alone the next run skipped the file by its hash, and removing it later
+        had no id to delete by."""
+        stale = _row("a.md")
+        store = _Store(at={f"{ROOT}a.md": ["orphan"]})
 
-        run = await _sync(connector, held=False, rows=[_row("a.md")])
+        run = await _sync(_Connector(files=["a.md"]), stale=[stale], store=store)
 
-        assert connector.listed == 0
-        assert run.deleted_rows == []
-        assert run.answer["status"] == "skipped"
-        assert run.complete.await_args.kwargs == {
-            "status": "error",
-            "error_message": rag_tasks.OVERLAPPING_RUN,
-        }
-        run.after.assert_not_awaited()
+        assert store.removed == ["orphan"]
+        assert run.forgotten == [str(stale.id)]
+        assert run.answer["ingested"] == 1
+        assert run.stored_state == _state("sha-2")
 
-    async def test_a_scheduler_dispatch_with_no_log_writes_none(self) -> None:
-        run = await _sync(_Connector(files=["a.md"]), held=False, sync_log_id=None)
+    async def test_vectors_a_row_tracks_are_kept_and_only_the_stale_row_goes(self) -> None:
+        """A run that died before it stored anything left the old document in place."""
+        stale = _row("a.md")
+        store = _Store(at={f"{ROOT}a.md": ["live"]})
 
-        assert run.answer["status"] == "skipped"
-        run.complete.assert_not_awaited()
+        run = await _sync(_Connector(files=["a.md"]), stale=[stale], store=store, tracked={"live"})
+
+        assert store.removed == []
+        assert run.forgotten == [str(stale.id)]
+
+    async def test_a_row_whose_vectors_the_dead_run_replaced_goes_with_it(self) -> None:
+        """Died after replacing the old document and before settling: the old row
+        names vectors that are gone, and would otherwise count the file twice."""
+        stale = _row("a.md")
+        replaced = _row("a.md", vector_id="old", status=DocumentStatus.DONE)
+        store = _Store(at={f"{ROOT}a.md": ["new"]})
+
+        run = await _sync(
+            _Connector(files=["a.md"]), stale=[stale], settled=[replaced], store=store
+        )
+
+        assert store.removed == ["new"]
+        assert run.forgotten == [str(stale.id), str(replaced.id)]
+
+    @pytest.mark.parametrize(
+        "store",
+        [
+            _Store(at={f"{ROOT}a.md": ["orphan"]}, refuses={"orphan"}),
+            _Store(lookup_error=RuntimeError("store unavailable")),
+        ],
+        ids=["a vector delete refused", "the lookup failed"],
+    )
+    async def test_a_row_that_could_not_be_settled_is_kept_and_fails_the_run(
+        self, store: _Store
+    ) -> None:
+        """Never dropped unread: failed, the run records no state and the next retries."""
+        stale = _row("a.md")
+
+        run = await _sync(
+            _Connector(files=[], version="sha-1"),
+            stale=[stale],
+            store=store,
+            stored_state=_state("sha-0"),
+        )
+
+        assert run.forgotten == []
+        assert run.answer["status"] == "error"
+        assert run.stored_state is None
+        assert "left half-ingested" in run.complete.await_args.kwargs["error_message"]
+
+    async def test_a_stale_row_keeps_an_unchanged_source_from_stopping_early(self) -> None:
+        connector = _Connector(files=["a.md"], version="sha-1")
+
+        run = await _sync(connector, stored_state=_state("sha-1"), stale=[_row("a.md")])
+
+        assert connector.listed == 1
+        assert run.answer["ingested"] == 1

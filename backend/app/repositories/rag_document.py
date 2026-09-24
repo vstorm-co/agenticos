@@ -112,6 +112,7 @@ async def create(
     filetype: str,
     storage_path: str,
     source_path: str | None = None,
+    sync_source_id: UUID | None = None,
     status: DocumentStatus = DocumentStatus.PROCESSING,
     organization_id: UUID | None = None,
     knowledge_base_id: UUID | None = None,
@@ -121,7 +122,6 @@ async def create(
     embedding_model: str | None = None,
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
-    sync_source_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record."""
     doc = RAGDocument(
@@ -131,6 +131,7 @@ async def create(
         filetype=filetype,
         storage_path=storage_path,
         source_path=source_path,
+        sync_source_id=sync_source_id,
         status=status,
         organization_id=organization_id,
         knowledge_base_id=knowledge_base_id,
@@ -140,7 +141,6 @@ async def create(
         embedding_model=embedding_model,
         organizational_unit=organizational_unit,
         initiated_by_user_id=initiated_by_user_id,
-        sync_source_id=sync_source_id,
     )
     db.add(doc)
     await db.flush()
@@ -280,20 +280,19 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     return int(result.rowcount or 0)
 
 
-async def list_settled_for_source(
+async def get_settled_for_sync_source(
     db: AsyncSession, *, sync_source_id: UUID, collection_name: str
 ) -> list[RAGDocument]:
-    """The settled rows one sync source filed in the collection it syncs into.
+    """The settled rows one sync source brought into one collection.
 
-    By the source's id, not by an address prefix: two sources can read the same
-    repository and branch with different include patterns, and a prefix would
-    have each delete what only the other lists. The id also follows a source
-    whose repository or branch was edited, so what it read under the old one is
-    still its own to retire (#987).
+    `PROCESSING` is left out for the reason `discard_failed` gives: such a row
+    belongs to an attempt that may still be running, and removing it would
+    strand the vectors that attempt is about to write. One a dead run left
+    behind is `get_stale_for_sync_source`'s, and settled before this is asked.
 
-    `PROCESSING` rows are left out for the reason `discard_failed` gives: they
-    belong to an attempt still running, and removing one would leave that
-    attempt's vectors tracked by nothing.
+    Scoped to the source's *current* collection: rows it brought into one it was
+    repointed away from are that collection's now, and a sync of the new one has
+    no business reaching them.
     """
     result = await db.execute(
         select(RAGDocument).where(
@@ -303,6 +302,43 @@ async def list_settled_for_source(
         )
     )
     return list(result.scalars().all())
+
+
+async def get_stale_for_sync_source(
+    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+) -> list[RAGDocument]:
+    """The `PROCESSING` rows one sync source left in one collection.
+
+    Asked by a run holding the source's run lock, so none of these belongs to a
+    run still going: each is what a worker that died mid-file left, whose
+    vectors may or may not have been written. A row with no `source_path` is not
+    one a sync opened - `_open_document_row` always gives it one - and is left
+    for whoever did.
+    """
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.sync_source_id == sync_source_id,
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.status == DocumentStatus.PROCESSING,
+            RAGDocument.source_path.is_not(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_tracked_vector_ids(
+    db: AsyncSession, *, collection_name: str, vector_document_ids: set[str]
+) -> set[str]:
+    """Which of these stored documents a row of the collection points at."""
+    if not vector_document_ids:
+        return set()
+    result = await db.execute(
+        select(RAGDocument.vector_document_id).where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.vector_document_id.in_(vector_document_ids),
+        )
+    )
+    return {str(value) for value in result.scalars().all() if value}
 
 
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:
