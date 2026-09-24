@@ -34,7 +34,11 @@ import { nodeTypes } from "./workflow-node";
 interface WorkflowGraphViewProps {
   /** The node catalog, for resolving each instance's definition and connection rules. */
   catalog: NodeDefinition[];
-  /** A published version renders read-only: no dragging, connecting or handles. */
+  /**
+   * A published version renders read-only: no dragging, connecting, selecting or
+   * deleting. Port handles still mount (non-interactive) so xyflow can position
+   * the edges that reference them.
+   */
   readOnly: boolean;
 }
 
@@ -182,6 +186,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           isValidConnection={isValid}
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}
+          elementsSelectable={!readOnly}
+          deleteKeyCode={readOnly ? null : "Backspace"}
           colorMode={colorMode}
           fitView
           proOptions={{ hideAttribution: true }}

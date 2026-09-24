@@ -25,8 +25,8 @@ interface WorkflowCanvasProps {
  *
  * The working graph itself lives in the editor store, seeded by the page from
  * `WorkflowDetail.draft_graph`; the canvas only renders it and applies changes
- * back. Read-only mode reuses the same view with dragging, connecting and
- * handles switched off.
+ * back. Read-only mode reuses the same view with dragging, connecting, selecting
+ * and deleting switched off; the port handles still mount so edges keep drawing.
  */
 export function WorkflowCanvas({ workflow, catalog, readOnly = false }: WorkflowCanvasProps) {
   return (

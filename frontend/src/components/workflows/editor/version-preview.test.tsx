@@ -38,11 +38,16 @@ const GRAPH: WorkflowGraph = {
 };
 
 describe("VersionPreview", () => {
-  it("draws the frozen graph's nodes without editing handles", () => {
+  it("draws the frozen graph's nodes with non-interactive handles", () => {
     const { container } = render(<VersionPreview graph={GRAPH} catalog={[DEFINITION]} />);
     expect(container.querySelector('[data-node-id="a"]')).toBeTruthy();
-    // Read-only: a node shows no input handle to drag a connection to.
-    expect(container.querySelector('[data-node-id="a"] .react-flow__handle')).toBeNull();
+    // Read-only still mounts the port handles so edges keep anchoring (error 008
+    // otherwise), but they carry no pointer interaction and offer no connect
+    // control to drag from.
+    const handle = container.querySelector('[data-node-id="a"] .react-flow__handle');
+    expect(handle).toBeTruthy();
+    expect(handle?.className).toContain("pointer-events-none");
+    expect(container.querySelector('[data-node-id="a"] button')).toBeNull();
     expect(container.querySelector("[data-version-preview]")).toBeTruthy();
   });
 
