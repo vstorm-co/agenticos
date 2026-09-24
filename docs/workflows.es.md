@@ -1,5 +1,5 @@
 ---
-source_sha: "c2a5d49b6e4d"
+source_sha: "d22d5fce4b79"
 ---
 
 # Workflows { #workflows }
@@ -12,8 +12,9 @@ entre sí y lo publicas como una versión inmutable — la misma forma que tiene
 
 Esta página describe el editor visual: la lista, el lienzo y la paleta, cómo se
 configura un nodo, el autoguardado y la publicación, y las rutas de teclado por todo
-ello. El editor está en **Workflows** en la consola, y su **"?"** reproduce un
-recorrido por la página en la que estás.
+ello. El editor está en **Workflows** en la consola. La página de **lista** de
+Workflows tiene un **"?"** que reproduce un recorrido por esa lista; el editor en
+sí no tiene recorrido.
 
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
@@ -104,9 +105,10 @@ que un paso nombre algo real que tu organización tiene:
 | **Table** y **Columns** | Una [Virtual Table](virtual-tables.md), y luego las columnas que el paso lee — acotadas al esquema actual de esa tabla |
 | **Secret** | Un secreto del [vault](secrets.md), por referencia. Un paso guarda la id del secreto, nunca su valor |
 
-Cada selector desambigua filas con el mismo nombre mediante contexto, ofrece una
-salida para crear uno nuevo cuando la lista está vacía, y marca una referencia cuyo
-destino ha desaparecido. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
+Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
+referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
+ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la lista
+está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
 ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
 un aviso visible y no una ruptura silenciosa.
 

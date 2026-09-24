@@ -1,5 +1,5 @@
 ---
-source_sha: "c2a5d49b6e4d"
+source_sha: "d22d5fce4b79"
 ---
 
 # Workflows { #workflows }
@@ -13,8 +13,9 @@ Draft, den Sie bearbeiten, und eine veröffentlichte Version, die läuft.
 
 Diese Seite beschreibt den visuellen Editor: die Liste, die Zeichenfläche und die
 Palette, wie ein Knoten konfiguriert wird, Autosave und Veröffentlichen sowie die
-Tastaturwege durch all das. Der Editor liegt unter **Workflows** in der Konsole,
-und sein **"?"** spielt eine Führung durch die Seite ab, auf der Sie gerade sind.
+Tastaturwege durch all das. Der Editor liegt unter **Workflows** in der Konsole.
+Die **Liste** unter Workflows hat ein **"?"**, das eine Führung durch diese Liste
+abspielt; der Editor selbst hat keine Führung.
 
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
@@ -50,7 +51,7 @@ Verbindung, die die Ausgabe eines Schritts in den nächsten trägt. Die Zeichenf
 lässt sich verschieben und zoomen, und ihre Bedienelemente sitzen in der Ecke —
 eine Minimap gibt es nicht.
 
-Die **Nodes**-Palette an der Seite listet die Knotentypen, die Ihre Deployment
+Die **Nodes**-Palette an der Seite listet die Knotentypen, die Ihr Deployment
 registriert hat, gruppiert nach Kategorie, jeder mit Icon, Namen und Beschreibung.
 **Search nodes** filtert die Liste. Sie fügen einen Schritt auf zwei Wegen hinzu:
 
@@ -65,7 +66,7 @@ Liste, die Sie sehen, im gerade bearbeiteten Scope immer hinzufügbar ist.
 
 !!! note "Der Knotenkatalog wächst mit der Zeit"
 
-    Die Palette wird von den registrierten Knoten der Deployment gespeist, nicht
+    Die Palette wird von den registrierten Knoten des Deployments gespeist, nicht
     von einer festen Liste. Anfangs ist der Katalog klein; mehr Knotenarten —
     einen Agent aufrufen, eine Tabelle lesen und schreiben, verzweigen und in
     Schleifen laufen — kommen hinzu, sobald spätere Milestones sie registrieren,
@@ -114,9 +115,10 @@ hat:
 | **Table** und **Columns** | Eine [Virtual Table](virtual-tables.md), dann die Spalten, die der Schritt liest — begrenzt auf das aktuelle Schema dieser Tabelle |
 | **Secret** | Ein [Vault](secrets.md)-Secret, per Referenz. Ein Schritt speichert die id des Secrets, nie seinen Wert |
 
-Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext, bietet einen
-Ausweg zum Neuanlegen, wenn die Liste leer ist, und markiert eine Referenz, deren
-Ziel verschwunden ist. Eine Tabelle, deren Schema sich seit dem Binden geändert
+Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
+eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
+**Secret** bieten zusätzlich einen Link zum Neuanlegen — immer, nicht nur wenn die
+Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
 hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
 Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
 

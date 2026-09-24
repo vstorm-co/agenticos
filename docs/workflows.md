@@ -8,8 +8,9 @@ and a published version that runs.
 
 This page is the visual editor: the list, the canvas and palette, how a node is
 configured, autosave and publishing, and the keyboard paths through all of it.
-The editor lives under **Workflows** in the console, and its **"?"** replays a
-walkthrough of the page you are on.
+The editor lives under **Workflows** in the console. The Workflows **list** page
+carries a **"?"** that replays a walkthrough of that list; the editor itself has
+no walkthrough.
 
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
@@ -100,9 +101,10 @@ step names a real thing your organization has:
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
 | **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
 
-Each picker disambiguates same-named rows with context, offers a create-new
-escape hatch when the list is empty, and marks a reference whose target has gone
-away. A table whose schema changed since it was bound says so and offers
+Each picker disambiguates same-named rows with context and marks a reference
+whose target has gone away. The **Agent** and **Secret** pickers also carry a
+create-new link — always, not only when the list is empty — while the **Table**
+picker has none. A table whose schema changed since it was bound says so and offers
 **Rebind to the current schema**, so a stale column set is a visible prompt
 rather than a silent break.
 
