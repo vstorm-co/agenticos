@@ -1,8 +1,8 @@
 # Virtual Tables
 
 A **virtual table** is a typed table of records that an organization keeps for its
-agents, workflows and integrations: orders to reconcile, files to process, leads
-to follow up.
+agents, [workflows](workflows.md) and integrations: orders to reconcile, files to
+process, leads to follow up.
 
 Tables are metadata plus JSONB. Nothing creates a physical SQL table, so making a
 table costs one row, renaming a column changes no record, and no tenant can grow
