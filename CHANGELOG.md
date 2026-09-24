@@ -24,11 +24,13 @@ Two things are versioned separately from this file and worth knowing about:
   imports each page as a Markdown document of its text. It needs no credential.
   Every request, redirect included, goes through the SSRF-checked, pinned HTTP
   client, and the crawl stays on the start URL's host and under one path. It
-  obeys robots.txt and its `Crawl-delay`, and it stops at a page limit. A page is
-  re-embedded only when its text changes, not when its markup does, so a nightly
-  sync of an unchanged site costs no embeddings. Transient failures are retried
-  three times. A page that still cannot be read counts as a failed file and is
-  named on the sync log (#984).
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
 
 ### Changed
 
@@ -42,9 +44,15 @@ Two things are versioned separately from this file and worth knowing about:
   matched to the source that brought them in through the new
   `rag_documents.sync_source_id` (migration `0095_sync_removal.py`). Uploads,
   and documents another source brought into the same collection, are never
-  touched (#984).
+  touched. A document that could not be removed counts as a failed file, and
+  the completion notification counts what was removed (#984).
+- **One sync of a source runs at a time.** A sync started while another run of
+  the same source is still going does not start, and its log says so: an older
+  run's listing would otherwise remove what the newer run had just ingested.
 - `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
-  the files, whether that is all of them, and what could not be read.
+  the files, whether that is all of them, and what could not be read. A
+  connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
+  out not to hold, which the sync removes rather than counts as failed.
 
 ## [0.0.492] - 2026-09-22
 

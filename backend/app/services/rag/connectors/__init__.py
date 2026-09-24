@@ -61,6 +61,22 @@ class RemoteListing(BaseModel):
     problems: list[str] = []
 
 
+class WithdrawnFile(Exception):
+    """A listed file its source turned out not to hold, found only when it was fetched.
+
+    A sitemap names a page before anything reads it, so its listing cannot know
+    that the page now says `noindex` or has gone. Raised from `_fetch`, this tells
+    the sync that the file is not a failure to retry but no longer the source's:
+    it is left out of what the listing vouches for, so a document it brought in
+    earlier is removed like any other the source stopped listing. `message` is a
+    sentence this repository wrote, as a listing's `problems` are.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 class ConfigRefusal(BaseModel):
     """Why a connector will not accept a config, and which of its fields.
 

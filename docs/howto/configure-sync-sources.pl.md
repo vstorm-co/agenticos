@@ -1,5 +1,5 @@
 ---
-source_sha: "86345131ee3a"
+source_sha: "7dfde94e116e"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -128,7 +128,12 @@ Nie usuwa niczego, jeśli lista nie była **kompletna**. Crawl, który zatrzyma�
 na limicie stron albo nie zdołał odczytać jednej z nich, nie widział tego, czego
 nie wypisuje. Taki przebieg zachowuje wszystkie dokumenty i mówi o tym w
 komunikacie logu synchronizacji. Następna synchronizacja z kompletną listą usuwa
-to, czego już nie ma.
+to, czego już nie ma. Dokument, którego nie udało się usunąć, liczy się jako
+nieudany plik, a następna synchronizacja próbuje ponownie.
+
+Jedno źródło ma naraz tylko jedną synchronizację. Synchronizacja uruchomiona, gdy
+inna synchronizacja tego samego źródła wciąż trwa, nie startuje, a jej log mówi o
+tym.
 
 Usuwane są wyłącznie dokumenty samego źródła. Przesłany plik ani dokument, który
 do tej samej kolekcji wprowadziło inne źródło, nigdy nie są ruszane. Dokument
@@ -266,27 +271,31 @@ uv run agenticos cmd rag-source-add \
 | `root_url` | string | Tak | -- | Strona, od której zaczyna się crawl. Jej host jest jedynym hostem, który źródło czyta. |
 | `max_depth` | integer | Nie | `2` | Na ile linków od początkowego adresu URL podążać, od `0` do `10`. `0` czyta tylko stronę początkową. |
 | `path_prefix` | string | Nie | folder początkowego adresu URL | Czytane są tylko strony, których ścieżka zaczyna się od tej wartości. `https://docs.example.com/guide/intro` domyślnie czyta `/guide/`; ustaw `/`, aby objąć cały host. |
-| `sitemap_url` | string | Nie | -- | Czyta strony wypisane w tej sitemapie zamiast podążać za linkami. Musi leżeć na hoście początkowego adresu URL. Indeks sitemap jest rozwijany do jego sitemap. |
+| `sitemap_url` | string | Nie | -- | Czyta strony wypisane w tej sitemapie zamiast podążać za linkami. Musi leżeć na hoście początkowego adresu URL i używać `https://`, gdy używa go początkowy adres URL. Indeks sitemap jest rozwijany do jego sitemap. |
 | `max_pages` | integer | Nie | `500` | Crawl zatrzymuje się po odczytaniu tylu stron, od `1` do `5000`. |
 
 ### Co ogranicza crawl { #what-bounds-a-crawl }
 
 - **Jeden host i jedna ścieżka.** Linki do innych hostów i do ścieżek spoza
   `path_prefix` nie są śledzone. Przekierowanie, które je opuszcza, także nie.
+  Początkowy adres URL na `https://` nigdy nie jest opuszczany na rzecz
+  `http://`: link ani przekierowanie do strony bez szyfrowania nie są śledzone.
 - **Sieć deploymentu jest poza zasięgiem.** Każde żądanie - robots.txt, sitemapa,
   każda strona i każde przekierowanie - jest sprawdzane według tej samej polityki
   SSRF co webhooki i serwery MCP. Wysyłane jest na adres, który przeszedł
   sprawdzenie. Początkowy adres URL, który rozwiązuje się na adres prywatny,
   loopback, link-local albo metadanych chmury, jest odrzucany przy zapisie źródła.
-- **robots.txt jest przestrzegany**, łącznie z `Crawl-delay` do dziesięciu sekund.
-  Crawler przedstawia się jako `AgenticOS-Crawler`. Między żądaniami czeka co
-  najmniej pół sekundy, a strona oznaczona `noindex` lub `nofollow` jest
-  respektowana.
-- **Rozmiar.** Strona większa niż 5 MB nie jest czytana. Crawl zatrzymuje się na
-  `max_pages`.
+- **robots.txt jest przestrzegany** dla sitemap i stron, łącznie z `Crawl-delay`
+  do dziesięciu sekund. Crawler przedstawia się jako `AgenticOS-Crawler`. Między
+  żądaniami czeka co najmniej pół sekundy, a strona oznaczona `noindex` lub
+  `nofollow` jest respektowana. Strona, którą sitemapa wciąż wypisuje, choć jest
+  oznaczona `noindex` albo już nie istnieje, jest usuwana z kolekcji.
+- **Rozmiar i czas.** Strona większa niż 5 MB nie jest czytana. Crawl zatrzymuje
+  się na `max_pages`. Synchronizacja przestaje czytać witrynę po sześciu
+  godzinach, a synchronizacja, która się zatrzymała, niczego nie usuwa.
 
 Każda strona jest zapisywana jako dokument Markdown zawierający jej tekst i adres
-URL, z którego pochodzi. Nawigacja, nagłówki, stopki i skrypty są pomijane. Strona
+URL, z którego pochodzi, bez query stringa. Nawigacja, nagłówki, stopki i skrypty są pomijane. Strona
 jest embedowana ponownie tylko wtedy, gdy zmieni się jej tekst. Nowy znacznik
 builda albo skrypt śledzący w znacznikach HTML nie liczy się jako zmiana.
 
@@ -404,7 +413,7 @@ Każda synchronizacja tworzy wpis `SyncLog` z następującymi polami:
 | `ingested` | Poprawnie przetworzone (nowe) |
 | `updated` | Poprawnie przetworzone ponownie (zastąpione) |
 | `skipped` | Pominięte (już obecne lub bez zmian) |
-| `failed` | Nieudane przetworzenie, łącznie ze stronami lub plikami, których lista nie zdołała odczytać |
+| `failed` | Nieudane przetworzenie, łącznie ze stronami lub plikami, których lista nie zdołała odczytać, oraz dokumentami, których nie udało się usunąć |
 | `removed` | Usunięte, bo źródło już ich nie wypisuje (zobacz [co usuwa synchronizacja](#what-a-sync-removes)) |
 | `error_message` | Co poszło nie tak albo dlaczego nic nie usunięto. Przebieg może mieć status `done` i mimo to komunikat, na przykład gdy crawl zatrzymał się na limicie stron |
 | `started_at` | Kiedy synchronizacja się zaczęła |

@@ -35,7 +35,7 @@ from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 BODY = b"the handbook, unchanged since last night"
 BODY_HASH = hashlib.sha256(BODY).hexdigest()

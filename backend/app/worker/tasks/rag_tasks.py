@@ -22,10 +22,11 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.sync_source import SyncSource
-from app.db.session import get_worker_db_context
+from app.db.session import get_worker_connection, get_worker_db_context
 from app.repositories import (
     collection_teardown_repo,
     ingestion_spend_repo,
@@ -45,7 +46,7 @@ from app.services.ingestion_config import (
 )
 from app.services.notifications import NotificationService
 from app.services.rag.config import DocumentExtensions
-from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing
+from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteListing, WithdrawnFile
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -920,11 +921,16 @@ async def _remove_unlisted(
     ingester: IngestionService,
     *,
     listing: RemoteListing,
+    withdrawn: set[str],
     source_id: UUID,
     collection_name: str,
     notes: list[str],
-) -> int:
-    """Remove what this source brought in earlier and no longer lists; answer how many.
+) -> tuple[int, int]:
+    """Remove what this source brought in earlier and no longer lists.
+
+    Answers how many documents went and how many could not. `withdrawn` are
+    the listed files whose fetch found the source no longer holds them (see
+    `WithdrawnFile`): named by the listing, but not vouched for by it.
 
     Only against a complete listing. A partial one - a crawl stopped at its page
     ceiling, a page that timed out - did not see what it does not name, and
@@ -934,7 +940,9 @@ async def _remove_unlisted(
     Vectors first, then the row, one document at a time: a vector delete that
     fails keeps its row, so the document is still visible, deletable, and tried
     again by the next run - the other order leaves searchable chunks nothing
-    tracks (#992).
+    tracks (#992). A document whose vectors would not delete is a failure of
+    this run rather than a detail: the caller counts it, so the run does not
+    report success while a document its source no longer holds stays searchable.
     """
     if not listing.complete:
         # First, so it is never among the notes the summary counts rather than names.
@@ -943,14 +951,14 @@ async def _remove_unlisted(
             "The source could not be listed completely, so documents it may no longer "
             "hold were kept. They are removed by the next complete sync.",
         )
-        return 0
+        return 0, 0
     from app.services.rag_document import RAGDocumentService
 
     async with get_worker_db_context() as db:
         unlisted = await RAGDocumentService(db).unlisted_by_source(
             sync_source_id=source_id,
             collection_name=collection_name,
-            listed={file.source_path for file in listing.files},
+            listed={file.source_path for file in listing.files} - withdrawn,
         )
         targets = [(str(row.id), row.vector_document_id) for row in unlisted]
     removed = 0
@@ -962,12 +970,13 @@ async def _remove_unlisted(
         async with get_worker_db_context() as db:
             await RAGDocumentService(db).forget_document(row_id)
         removed += 1
-    if removed < len(targets):
+    unremoved = len(targets) - removed
+    if unremoved:
         notes.append(
-            f"{len(targets) - removed} documents the source no longer lists could not be "
+            f"{unremoved} documents the source no longer lists could not be "
             "removed and will be tried again by the next sync."
         )
-    return removed
+    return removed, unremoved
 
 
 def _sync_summary(failed: int, notes: list[str]) -> str | None:
@@ -980,12 +989,52 @@ def _sync_summary(failed: int, notes: list[str]) -> str | None:
     return " ".join(parts) or None
 
 
+OVERLAPPING_RUN = "Another sync of this source is still running, so this one did not start."
+
+
+@asynccontextmanager
+async def _exclusive_source_run(source_id: str) -> AsyncIterator[bool]:
+    """Whether this run is the only one of its source, held for as long as it runs.
+
+    A connection of its own, kept open for the whole sync, because the lock
+    lives on it and is released when it closes - including when the worker dies
+    mid-run.
+    """
+    async with get_worker_connection() as connection:
+        yield await try_hold_subject_on_connection(
+            connection, LockScope.SYNC_SOURCE_RUN, UUID(source_id)
+        )
+
+
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
     """Core sync logic for connector-based sources (shared between all task frameworks).
 
     Fetches files from a remote connector (e.g. Google Drive, S3), downloads them
     to a temporary directory, and ingests each into the vector store.
+
+    **One run of a source at a time.** A manual trigger is not refused while a
+    run is going, and the scheduler can dispatch a due source twice, because
+    `last_sync_at` moves only when a run finishes. Two overlapping runs are
+    harmless until one of them deletes: the older listing does not name a file
+    the newer run just ingested, and would remove it (#987). So the second run
+    does not start, and says so on its log.
     """
+    async with _exclusive_source_run(source_id) as held:
+        if held:
+            return await _sync_source(source_id, sync_log_id)
+    from app.services.rag_sync import RAGSyncService
+
+    if sync_log_id is not None:
+        async with get_worker_db_context() as db:
+            await RAGSyncService(db).complete_sync(
+                sync_log_id, status="error", error_message=OVERLAPPING_RUN
+            )
+    logger.info("Sync of source %s not started: another run holds it", source_id)
+    return {"status": "skipped", "message": OVERLAPPING_RUN}
+
+
+async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any]:
+    """One run of a source, which `_run_source_sync` has made the only one."""
     from app.services.rag_sync import RAGSyncService
 
     async with get_worker_db_context() as db:
@@ -1116,6 +1165,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     # read, a removal skipped because the listing was partial, or why the whole
     # run stopped. Sentences this repository wrote, like every stored failure.
     notes: list[str] = []
+    # Listed files a fetch found the source no longer holds - a sitemap page now
+    # marked `noindex`, or gone. Not failures: removed like any unlisted file.
+    withdrawn: set[str] = set()
     ledger = SpendLedger(organization_id=organization_id)
 
     async with _ingestion_service(
@@ -1124,7 +1176,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         try:
             listing = await connector.list_files(config, credential)
             files = listing.files
-            total = len(files)
+            # A problem is a page the listing could not read, and counts as a
+            # failed file - so it is one of the total, or `failed` exceeds it.
+            total = len(files) + len(listing.problems)
             failed += len(listing.problems)
             notes.extend(listing.problems)
 
@@ -1234,6 +1288,10 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                 ingested += 1
                         else:
                             failed += 1
+                    except WithdrawnFile as e:
+                        logger.info("Not syncing %s: %s", remote_file.name, e.message)
+                        withdrawn.add(remote_file.source_path)
+                        total -= 1
                     except Exception as e:
                         logger.warning("Failed to sync %s: %s", remote_file.name, e)
                         failed += 1
@@ -1258,13 +1316,15 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                 ),
                             )
 
-            removed = await _remove_unlisted(
+            removed, unremoved = await _remove_unlisted(
                 ingester,
                 listing=listing,
+                withdrawn=withdrawn,
                 source_id=UUID(source_id),
                 collection_name=collection_name,
                 notes=notes,
             )
+            failed += unremoved
         except Exception as e:
             logger.exception("Source sync failed for %s", source_id)
             failed = max(failed, 1)
@@ -1324,6 +1384,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             ingested=ingested,
                             updated=updated,
                             skipped=skipped,
+                            removed=removed,
                             failed=failed,
                         )
                     else:
@@ -1359,6 +1420,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         "ingested": ingested,
         "updated": updated,
         "skipped": skipped,
+        "removed": removed,
         "failed": failed,
     }
 

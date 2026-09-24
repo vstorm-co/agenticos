@@ -1,5 +1,5 @@
 ---
-source_sha: "86345131ee3a"
+source_sha: "7dfde94e116e"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -129,7 +129,13 @@ Er entfernt nichts, solange die Auflistung nicht **vollständig** war. Ein Crawl
 der an seinem Seitenlimit angehalten hat oder eine der Seiten nicht lesen konnte,
 hat nicht gesehen, was er nicht auflistet. Dieser Lauf behält jedes Dokument und
 sagt das in der Meldung des Sync-Protokolls. Der nächste Sync mit einer
-vollständigen Auflistung entfernt, was verschwunden ist.
+vollständigen Auflistung entfernt, was verschwunden ist. Ein Dokument, das nicht
+entfernt werden konnte, zählt als fehlgeschlagene Datei, und der nächste Sync
+versucht es erneut.
+
+Pro Quelle läuft immer nur ein Sync. Ein Sync, der gestartet wird, während ein
+anderer Sync derselben Quelle noch läuft, startet nicht, und sein Protokoll sagt
+das.
 
 Entfernt werden nur die eigenen Dokumente der Quelle. Ein Upload oder ein
 Dokument, das eine andere Quelle in dieselbe Collection gebracht hat, wird nie
@@ -269,28 +275,33 @@ uv run agenticos cmd rag-source-add \
 | `root_url` | string | Ja | -- | Die Seite, von der der Crawl ausgeht. Ihr Host ist der einzige Host, den die Quelle liest. |
 | `max_depth` | integer | Nein | `2` | Wie viele Links weit von der Start-URL aus gefolgt wird, `0` bis `10`. `0` liest nur die Startseite. |
 | `path_prefix` | string | Nein | der Ordner der Start-URL | Nur Seiten, deren Pfad damit beginnt, werden gelesen. `https://docs.example.com/guide/intro` liest vorgabemäßig `/guide/`; `/` setzen für den ganzen Host. |
-| `sitemap_url` | string | Nein | -- | Die Seiten lesen, die diese Sitemap auflistet, statt Links zu folgen. Sie muss auf dem Host der Start-URL liegen. Einem Sitemap-Index wird bis zu seinen Sitemaps gefolgt. |
+| `sitemap_url` | string | Nein | -- | Die Seiten lesen, die diese Sitemap auflistet, statt Links zu folgen. Sie muss auf dem Host der Start-URL liegen und `https://` verwenden, wenn die Start-URL es tut. Einem Sitemap-Index wird bis zu seinen Sitemaps gefolgt. |
 | `max_pages` | integer | Nein | `500` | Der Crawl hält an, nachdem er so viele Seiten gelesen hat, `1` bis `5000`. |
 
 ### Was einen Crawl begrenzt { #what-bounds-a-crawl }
 
 - **Ein Host und ein Pfad.** Links auf andere Hosts und auf Pfade außerhalb von
   `path_prefix` werden nicht verfolgt. Einer Weiterleitung, die sie verlässt,
-  ebenfalls nicht.
+  ebenfalls nicht. Eine Start-URL auf `https://` wird nie für `http://`
+  verlassen: Einem Link oder einer Weiterleitung auf eine unverschlüsselte Seite
+  wird nicht gefolgt.
 - **Das Netz des Deployments ist unerreichbar.** Jede Anfrage - robots.txt, die
   Sitemap, jede Seite und jede Weiterleitung - wird gegen dieselbe SSRF-Richtlinie
   geprüft wie Webhooks und MCP-Server. Sie geht an die Adresse, die die Prüfung
   bestanden hat. Eine Start-URL, die auf eine private, Loopback-, Link-Local- oder
   Cloud-Metadata-Adresse auflöst, wird beim Speichern der Quelle abgelehnt.
-- **robots.txt wird befolgt**, einschließlich `Crawl-delay` bis zu zehn Sekunden.
-  Der Crawler gibt sich als `AgenticOS-Crawler` zu erkennen. Er wartet zwischen
-  Anfragen mindestens eine halbe Sekunde, und eine Seite, die `noindex` oder
-  `nofollow` angibt, wird respektiert.
-- **Größe.** Eine Seite über 5 MB wird nicht gelesen. Der Crawl hält bei
-  `max_pages` an.
+- **robots.txt wird befolgt**, für Sitemaps und Seiten, einschließlich
+  `Crawl-delay` bis zu zehn Sekunden. Der Crawler gibt sich als
+  `AgenticOS-Crawler` zu erkennen. Er wartet zwischen Anfragen mindestens eine
+  halbe Sekunde, und eine Seite, die `noindex` oder `nofollow` angibt, wird
+  respektiert. Eine Seite, die eine Sitemap noch auflistet, nachdem sie `noindex`
+  angibt oder verschwunden ist, wird aus der Collection entfernt.
+- **Größe und Zeit.** Eine Seite über 5 MB wird nicht gelesen. Der Crawl hält bei
+  `max_pages` an. Ein Sync hört nach sechs Stunden auf, die Website zu lesen, und
+  ein Sync, der angehalten hat, entfernt nichts.
 
 Jede Seite wird als Markdown-Dokument gespeichert, das ihren Text und die URL
-enthält, von der sie stammt. Navigation, Kopf- und Fußzeilen und Skripte bleiben
+enthält, von der sie stammt, ohne ihren Query-String. Navigation, Kopf- und Fußzeilen und Skripte bleiben
 außen vor. Eine Seite wird nur neu eingebettet, wenn sich ihr Text ändert. Ein
 neuer Build-Stempel oder ein Tracking-Skript im Markup zählt nicht als Änderung.
 
@@ -410,7 +421,7 @@ Jeder Sync erzeugt einen `SyncLog`-Eintrag mit den folgenden Feldern:
 | `ingested` | Erfolgreich aufgenommen (neu) |
 | `updated` | Erfolgreich erneut aufgenommen (ersetzt) |
 | `skipped` | Übersprungen (bereits vorhanden oder unverändert) |
-| `failed` | Aufnahme fehlgeschlagen, einschließlich Seiten oder Dateien, die die Auflistung nicht lesen konnte |
+| `failed` | Aufnahme fehlgeschlagen, einschließlich Seiten oder Dateien, die die Auflistung nicht lesen konnte, und Dokumenten, die nicht entfernt werden konnten |
 | `removed` | Entfernt, weil die Quelle sie nicht mehr auflistet (siehe [was ein Sync entfernt](#what-a-sync-removes)) |
 | `error_message` | Was schiefging oder warum nichts entfernt wurde. Ein Lauf kann `done` sein und trotzdem eine Meldung tragen, etwa wenn ein Crawl an seinem Seitenlimit angehalten hat |
 | `started_at` | Wann der Sync begann |

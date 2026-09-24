@@ -119,7 +119,11 @@ object removed from the bucket. The sync log counts them under `removed`.
 It removes nothing unless the listing was **complete**. A crawl that stopped at its
 page limit, or could not read one of the pages, has not seen what it does not list.
 That run keeps every document and says so in the sync log's message. The next sync
-with a complete listing removes what is gone.
+with a complete listing removes what is gone. A document that could not be removed
+counts as a failed file, and the next sync tries again.
+
+One sync of a source runs at a time. A sync started while another sync of the same
+source is still running does not start, and its log says so.
 
 Only the source's own documents are removed. An upload, or a document another
 source brought into the same collection, is never touched. A document ingested
@@ -254,26 +258,31 @@ uv run agenticos cmd rag-source-add \
 | `root_url` | string | Yes | -- | The page the crawl starts from. Its host is the only host the source reads. |
 | `max_depth` | integer | No | `2` | How many links away from the start URL to follow, `0` to `10`. `0` reads the start page only. |
 | `path_prefix` | string | No | the start URL's folder | Only pages whose path starts with this are read. `https://docs.example.com/guide/intro` reads `/guide/` by default; set `/` for the whole host. |
-| `sitemap_url` | string | No | -- | Read the pages this sitemap lists instead of following links. It must be on the start URL's host. A sitemap index is followed to its sitemaps. |
+| `sitemap_url` | string | No | -- | Read the pages this sitemap lists instead of following links. It must be on the start URL's host, and use `https://` when the start URL does. A sitemap index is followed to its sitemaps. |
 | `max_pages` | integer | No | `500` | The crawl stops after reading this many pages, `1` to `5000`. |
 
 ### What bounds a crawl
 
 - **One host and one path.** Links to other hosts, and to paths outside
   `path_prefix`, are not followed. A redirect that leaves them is not followed
-  either.
+  either. A start URL on `https://` is never left for `http://`: a link or a
+  redirect to a cleartext page is not followed.
 - **The deployment's network is out of reach.** Every request - robots.txt, the
   sitemap, each page and each redirect - is checked against the same SSRF policy as
   webhooks and MCP servers. It is sent to the address that passed the check. A start
   URL that resolves to a private, loopback, link-local or cloud-metadata address is
   refused when you save the source.
-- **robots.txt is obeyed**, including `Crawl-delay` up to ten seconds. The crawler
-  identifies itself as `AgenticOS-Crawler`. It waits at least half a second
-  between requests, and a page that says `noindex` or `nofollow` is honoured.
-- **Size.** A page larger than 5 MB is not read. The crawl stops at `max_pages`.
+- **robots.txt is obeyed** for sitemaps and pages, including `Crawl-delay` up to
+  ten seconds. The crawler identifies itself as `AgenticOS-Crawler`. It waits at
+  least half a second between requests, and a page that says `noindex` or
+  `nofollow` is honoured. A page that a sitemap still lists after it says
+  `noindex`, or after it is gone, is removed from the collection.
+- **Size and time.** A page larger than 5 MB is not read. The crawl stops at
+  `max_pages`. A sync stops reading the site after six hours, and a sync that
+  stopped removes nothing.
 
 Each page is stored as a Markdown document holding its text and the URL it came
-from. Navigation, headers, footers and scripts are left out. A page is re-embedded
+from, without its query string. Navigation, headers, footers and scripts are left out. A page is re-embedded
 only when its text changes. A new build stamp or tracking script in the markup does
 not count as a change.
 
@@ -390,7 +399,7 @@ Every sync creates a `SyncLog` entry with the following fields:
 | `ingested` | Successfully ingested (new) |
 | `updated` | Successfully re-ingested (replaced) |
 | `skipped` | Skipped (already present or unchanged) |
-| `failed` | Failed to ingest, including pages or files the listing could not read |
+| `failed` | Failed to ingest, including pages or files the listing could not read, and documents that could not be removed |
 | `removed` | Removed because the source no longer lists them (see [what a sync removes](#what-a-sync-removes)) |
 | `error_message` | What went wrong, or why nothing was removed. A run can be `done` and still have a message, for example when a crawl stopped at its page limit |
 | `started_at` | When the sync started |

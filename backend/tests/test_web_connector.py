@@ -12,14 +12,21 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from pathlib import Path
 
 import httpx2
 import pytest
 
 from app.core.exceptions import BadRequestError
-from app.services.rag.connectors import CONNECTOR_REGISTRY, RemoteFile, RemoteListing
-from app.services.rag.connectors.web import WebConnector, normalized_url
+from app.services.rag.connectors import (
+    CONNECTOR_REGISTRY,
+    RemoteFile,
+    RemoteListing,
+    WithdrawnFile,
+)
+from app.services.rag.connectors.web import WebConnector, _retry_wait, normalized_url
 
 pytestmark = pytest.mark.anyio
 
@@ -41,6 +48,10 @@ def _status(code: int, **headers: str) -> Page:
     return code, headers, b""
 
 
+def _in(seconds: float) -> datetime:
+    return datetime.now(UTC) + timedelta(seconds=seconds)
+
+
 class _Site(httpx2.AsyncBaseTransport):
     """A web of pages keyed by `host/path`, recording every request that reached it."""
 
@@ -48,6 +59,7 @@ class _Site(httpx2.AsyncBaseTransport):
         self._pages = pages
         self.requested: list[str] = []
         self.dialled: list[str] = []
+        self.schemes: list[str] = []
         self._hosts: set[str] = set()
 
     def hosts(self) -> set[str]:
@@ -59,6 +71,7 @@ class _Site(httpx2.AsyncBaseTransport):
         key = request.headers["host"] + request.url.raw_path.decode()
         self.requested.append(key)
         self.dialled.append(request.url.host)
+        self.schemes.append(request.url.scheme)
         answer = self._pages.get(key, _status(404))
         if isinstance(answer, list):
             answer = answer.pop(0) if len(answer) > 1 else answer[0]
@@ -194,6 +207,84 @@ class TestWhereACrawlGoes:
 
         assert not listing.complete
         assert listing.problems == ["docs.example.com/guide/loop redirected more than 5 times."]
+
+    async def test_a_redirect_to_a_location_that_is_no_url_is_a_broken_link(self) -> None:
+        """`urljoin` raises on `http://a]b/` rather than answering, where the HTTP
+        client lets it through; one server's header used to abort the whole
+        listing."""
+        site = _Site(
+            {
+                "docs.example.com/guide/": _html(
+                    '<p>root</p><a href="odd">odd</a><a href="fine">fine</a>'
+                ),
+                "docs.example.com/guide/odd": _status(301, location="http://a]b/"),
+                "docs.example.com/guide/fine": _html("<p>fine</p>"),
+            }
+        )
+
+        listing = await _list(site)
+
+        assert [f.id for f in listing.files] == [
+            "https://docs.example.com/guide/",
+            "https://docs.example.com/guide/fine",
+        ]
+        assert listing.complete
+
+    async def test_a_redirect_with_no_location_is_a_broken_link(self) -> None:
+        site = _Site(
+            {
+                "docs.example.com/guide/": _html('<p>root</p><a href="nowhere">n</a>'),
+                "docs.example.com/guide/nowhere": _status(302),
+            }
+        )
+
+        listing = await _list(site)
+
+        assert [f.id for f in listing.files] == ["https://docs.example.com/guide/"]
+        assert listing.complete
+
+    async def test_a_start_url_redirecting_to_no_url_is_a_problem(self) -> None:
+        site = _Site({"docs.example.com/guide/": _status(302, location="http://a]b/")})
+
+        listing = await _list(site)
+
+        assert listing.files == []
+        assert not listing.complete
+
+    async def test_an_https_crawl_never_follows_a_link_or_redirect_to_http(self) -> None:
+        """A cleartext page is one anybody on the path can write into the
+        collection, so a site served over https is only ever read over it."""
+        site = _Site(
+            {
+                "docs.example.com/guide/": _html(
+                    '<p>root</p><a href="http://docs.example.com/guide/plain">plain</a>'
+                    '<a href="moved">moved</a>'
+                ),
+                "docs.example.com/guide/plain": _html("<p>plain</p>"),
+                "docs.example.com/guide/moved": _status(
+                    301, location="http://docs.example.com/guide/plain"
+                ),
+            }
+        )
+
+        listing = await _list(site)
+
+        assert [f.id for f in listing.files] == ["https://docs.example.com/guide/"]
+        assert set(site.schemes) == {"https"}
+
+    async def test_an_http_crawl_follows_a_site_upgrading_to_https(self) -> None:
+        site = _Site(
+            {
+                "docs.example.com/guide/": _html(
+                    '<p>root</p><a href="https://docs.example.com/guide/secure">secure</a>'
+                ),
+                "docs.example.com/guide/secure": _html("<p>secure</p>"),
+            }
+        )
+
+        listing = await _list(site, root_url="http://docs.example.com/guide/")
+
+        assert "https://docs.example.com/guide/secure" in {f.id for f in listing.files}
 
     async def test_path_prefix_widens_the_crawl_beyond_the_start_folder(self) -> None:
         site = _Site(
@@ -366,6 +457,50 @@ class TestWhatStopsAListingBeingWhole:
         assert len(listing.files) == 1
         assert listing.complete
         assert site.requested.count("docs.example.com/guide/") == 2
+
+    async def test_a_retry_after_date_is_waited_for(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        waits: list[float] = []
+
+        async def recorded(seconds: float) -> None:
+            waits.append(seconds)
+
+        monkeypatch.setattr("app.services.rag.connectors.web.asyncio.sleep", recorded)
+        site = _Site(
+            {
+                "docs.example.com/guide/": [
+                    _status(429, **{"retry-after": format_datetime(_in(20), usegmt=True)}),
+                    _html("<p>root</p>"),
+                ],
+            }
+        )
+
+        listing = await _list(site)
+
+        assert len(listing.files) == 1
+        assert len(waits) == 1
+        assert 15 < waits[0] <= 20
+
+    @pytest.mark.parametrize(
+        ("retry_after", "expected"),
+        [
+            ("7", 7.0),
+            ("600", 30.0),
+            (None, 2.0),
+            ("soon", 2.0),
+            # An HTTP date: capped like seconds, and one already past is no wait.
+            # Named, because a date in the id differs between xdist workers.
+            pytest.param(format_datetime(_in(3600), usegmt=True), 30.0, id="date-ahead"),
+            pytest.param(format_datetime(_in(-60), usegmt=True), 0.0, id="date-past"),
+            # `-0000` parses with no zone; an HTTP date is GMT all the same.
+            pytest.param(
+                format_datetime(_in(3600)).replace("+0000", "-0000"), 30.0, id="date-no-zone"
+            ),
+        ],
+    )
+    def test_retry_after_is_seconds_or_an_http_date(
+        self, retry_after: str | None, expected: float
+    ) -> None:
+        assert _retry_wait(retry_after, 2.0) == expected
 
     async def test_a_persistent_failure_is_a_problem_after_three_attempts(self) -> None:
         site = _Site(
@@ -578,6 +713,85 @@ class TestTheSitemap:
         assert len(listing.files) == 1
         assert not listing.complete
 
+    async def test_once_the_page_limit_is_proved_no_further_sitemap_is_read(self) -> None:
+        index = (
+            200,
+            {},
+            b"""<sitemapindex>
+  <sitemap><loc>https://docs.example.com/s1.xml</loc></sitemap>
+  <sitemap><loc>https://docs.example.com/s2.xml</loc></sitemap>
+</sitemapindex>""",
+        )
+        site = _Site(
+            {
+                "docs.example.com/sitemap.xml": index,
+                "docs.example.com/s1.xml": self._SITEMAP,
+                "docs.example.com/s2.xml": self._SITEMAP,
+            }
+        )
+
+        listing = await _list(site, sitemap_url="https://docs.example.com/sitemap.xml", max_pages=1)
+
+        assert len(listing.files) == 1
+        assert not listing.complete
+        assert "docs.example.com/s2.xml" not in site.requested
+
+    async def test_a_sitemap_robots_forbids_is_not_read(self) -> None:
+        index = (
+            200,
+            {},
+            b"""<sitemapindex>
+  <sitemap><loc>https://docs.example.com/private/s1.xml</loc></sitemap>
+  <sitemap><loc>https://docs.example.com/s2.xml</loc></sitemap>
+</sitemapindex>""",
+        )
+        site = _Site(
+            {
+                "docs.example.com/robots.txt": (200, {}, b"User-agent: *\nDisallow: /private/\n"),
+                "docs.example.com/sitemap.xml": index,
+                "docs.example.com/private/s1.xml": self._SITEMAP,
+                "docs.example.com/s2.xml": self._SITEMAP,
+            }
+        )
+
+        listing = await _list(site, sitemap_url="https://docs.example.com/sitemap.xml")
+
+        assert "docs.example.com/private/s1.xml" not in site.requested
+        assert len(listing.files) == 2
+        assert not listing.complete
+        assert listing.problems == [
+            "robots.txt does not allow the sitemap docs.example.com/private/s1.xml."
+        ]
+
+    async def test_a_configured_sitemap_robots_forbids_is_not_read(self) -> None:
+        site = _Site(
+            {
+                "docs.example.com/robots.txt": (200, {}, b"User-agent: *\nDisallow: /sitemap\n"),
+                "docs.example.com/sitemap.xml": self._SITEMAP,
+            }
+        )
+
+        listing = await _list(site, sitemap_url="https://docs.example.com/sitemap.xml")
+
+        assert site.requested == ["docs.example.com/robots.txt"]
+        assert listing.files == []
+        assert not listing.complete
+
+    async def test_an_https_sitemap_lists_no_http_page(self) -> None:
+        sitemap = (
+            200,
+            {},
+            b"""<urlset>
+  <url><loc>http://docs.example.com/guide/plain</loc></url>
+  <url><loc>https://docs.example.com/guide/a</loc></url>
+</urlset>""",
+        )
+        site = _Site({"docs.example.com/sitemap.xml": sitemap})
+
+        listing = await _list(site, sitemap_url="https://docs.example.com/sitemap.xml")
+
+        assert [f.id for f in listing.files] == ["https://docs.example.com/guide/a"]
+
     async def test_a_sitemap_listed_page_is_read_when_it_is_fetched(self, tmp_path: Path) -> None:
         site = _Site(
             {
@@ -599,12 +813,8 @@ class TestTheSitemap:
     @pytest.mark.parametrize(
         ("page", "message"),
         [
-            (_status(404), "docs.example.com/guide/a is no longer an HTML page on this site."),
             (_status(500), "docs.example.com/guide/a answered HTTP 500."),
-            (
-                _html("<p>x</p>", head='<meta name="robots" content="noindex">'),
-                "docs.example.com/guide/a has no text to index.",
-            ),
+            (_html(""), "docs.example.com/guide/a has no text to index."),
         ],
     )
     async def test_a_sitemap_listed_page_that_cannot_be_read_fails_as_a_file(
@@ -622,16 +832,48 @@ class TestTheSitemap:
 
         assert exc.value.message == message
 
-    async def test_a_page_robots_now_forbids_fails_as_a_file(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("page", "message"),
+        [
+            (_status(404), "docs.example.com/guide/a is no longer an HTML page on this site."),
+            (
+                (200, {"content-type": "application/pdf"}, b"%PDF"),
+                "docs.example.com/guide/a is no longer an HTML page on this site.",
+            ),
+            (
+                _html("<p>x</p>", head='<meta name="robots" content="noindex">'),
+                "docs.example.com/guide/a asks not to be indexed.",
+            ),
+        ],
+    )
+    async def test_a_sitemap_listed_page_the_site_no_longer_offers_is_withdrawn(
+        self, tmp_path: Path, page: Page, message: str
+    ) -> None:
+        """The sitemap still names it, so only the fetch can say it is gone - and
+        a failure would keep the document it brought in searchable for good."""
+        site = _Site({"docs.example.com/guide/a": page})
+        file = RemoteFile(
+            id="https://docs.example.com/guide/a",
+            name="a.md",
+            source_path="web://docs.example.com/guide/a",
+        )
+
+        with pytest.raises(WithdrawnFile) as exc:
+            await _Fast(transport=site).download_file(file, tmp_path, config=_config())
+
+        assert exc.value.message == message
+
+    async def test_a_page_robots_now_forbids_is_withdrawn(self, tmp_path: Path) -> None:
         site = _Site(
             {"docs.example.com/robots.txt": (200, {}, b"User-agent: *\nDisallow: /guide/a\n")}
         )
         file = RemoteFile(id="https://docs.example.com/guide/a", name="a.md", source_path="web://x")
 
-        with pytest.raises(BadRequestError) as exc:
+        with pytest.raises(WithdrawnFile) as exc:
             await _Fast(transport=site).download_file(file, tmp_path, config=_config())
 
         assert exc.value.message == "robots.txt no longer allows docs.example.com/guide/a."
+        assert site.requested == ["docs.example.com/robots.txt"]
 
 
 class TestWhatIsWritten:
@@ -651,6 +893,22 @@ class TestWhatIsWritten:
             path.read_text()
             == "Source: https://docs.example.com/guide/\n\n# Guide\n\nStart here.\n"
         )
+
+    async def test_a_query_string_is_kept_out_of_the_text(self, tmp_path: Path) -> None:
+        """The text is embedded and searched by every reader of the collection;
+        a signed start URL's token is not theirs to read."""
+        site = _Site(
+            {"docs.example.com/guide/?token=s3cret": _html("<h1>Guide</h1><p>Start here.</p>")}
+        )
+        connector = _Fast(transport=site)
+        config = _config(root_url="https://docs.example.com/guide/?token=s3cret")
+        listing = await connector.list_files(config, None)
+
+        path = await connector.download_file(listing.files[0], tmp_path, config=config)
+
+        assert listing.files[0].source_path == "web://docs.example.com/guide/?token=s3cret"
+        assert "s3cret" not in path.read_text()
+        assert path.read_text().startswith("Source: https://docs.example.com/guide/\n")
 
     async def test_a_charset_python_does_not_know_is_read_as_utf8(self, tmp_path: Path) -> None:
         site = _Site(
@@ -719,6 +977,70 @@ class TestWhatIsWritten:
         assert "Text." in path.read_text()
 
 
+class _OutOfTimeAfter(_Fast):
+    """A sync whose time runs out once `reads` requests have been sent."""
+
+    def __init__(self, transport: httpx2.AsyncBaseTransport, *, reads: int) -> None:
+        super().__init__(transport=transport)
+        self._site = transport
+        self._reads = reads
+
+    def _out_of_time(self) -> bool:
+        assert isinstance(self._site, _Site)
+        return len(self._site.requested) >= self._reads
+
+
+class TestASyncHasATimeLimit:
+    """Every other bound is per page or per request: five thousand pages each
+    answering `429 Retry-After: 30` held one sync for days."""
+
+    _PROBLEM = "The sync of docs.example.com reached its 6-hour limit, so the pages after it were not read."
+
+    async def test_a_crawl_stops_when_its_time_is_up(self) -> None:
+        site = _Site(
+            {
+                "docs.example.com/guide/": _html('<p>root</p><a href="a">a</a>'),
+                "docs.example.com/guide/a": _html("<p>a</p>"),
+            }
+        )
+
+        # robots.txt and the start page, then no more.
+        listing = await _OutOfTimeAfter(site, reads=2).list_files(_config(), None)
+
+        assert [f.id for f in listing.files] == ["https://docs.example.com/guide/"]
+        assert "docs.example.com/guide/a" not in site.requested
+        assert not listing.complete
+        assert listing.problems == [self._PROBLEM]
+
+    async def test_a_sitemap_stops_when_its_time_is_up(self) -> None:
+        site = _Site({"docs.example.com/sitemap.xml": TestTheSitemap._SITEMAP})
+
+        listing = await _OutOfTimeAfter(site, reads=1).list_files(
+            _config(sitemap_url="https://docs.example.com/sitemap.xml"), None
+        )
+
+        assert site.requested == ["docs.example.com/robots.txt"]
+        assert not listing.complete
+        assert listing.problems == [self._PROBLEM]
+
+    async def test_a_page_is_not_fetched_once_the_time_is_up(self, tmp_path: Path) -> None:
+        site = _Site({"docs.example.com/guide/a": _html("<p>a</p>")})
+        file = RemoteFile(id="https://docs.example.com/guide/a", name="a.md", source_path="web://x")
+
+        with pytest.raises(BadRequestError) as exc:
+            await _OutOfTimeAfter(site, reads=0).download_file(file, tmp_path, config=_config())
+
+        assert exc.value.message == self._PROBLEM
+        assert site.requested == []
+
+    def test_the_limit_is_measured_from_when_the_sync_began(self) -> None:
+        class _Instant(WebConnector):
+            MAX_DURATION = 0.0
+
+        assert _Instant()._out_of_time()
+        assert not WebConnector()._out_of_time()
+
+
 class TestTheConfigIsCheckedWhereItWasTyped:
     @pytest.mark.parametrize(
         ("config", "field", "message"),
@@ -744,6 +1066,11 @@ class TestTheConfigIsCheckedWhereItWasTyped:
                 _config(sitemap_url="https://other.example.com/sitemap.xml"),
                 None,
                 "The sitemap must be on the start URL's host.",
+            ),
+            (
+                _config(sitemap_url="http://docs.example.com/sitemap.xml"),
+                None,
+                "The sitemap must be an https:// address, as the start URL is.",
             ),
             (
                 _config(sitemap_url="not a url"),
@@ -788,6 +1115,10 @@ class TestTheConfigIsCheckedWhereItWasTyped:
             # What the wizard posts for a field left empty.
             _config(sitemap_url=None, path_prefix=None),
             _config(sitemap_url="https://docs.example.com/s.xml"),
+            _config(
+                root_url="http://docs.example.com/guide/",
+                sitemap_url="https://docs.example.com/s.xml",
+            ),
         ],
     )
     async def test_a_public_config_is_accepted(self, config: dict[str, object]) -> None:

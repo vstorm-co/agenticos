@@ -12,7 +12,10 @@ the start URL's host and under the configured path.
 
 What bounds a crawl, because "follow every link" ends at the end of the internet:
 a link depth, a page ceiling, one host, a path prefix, robots.txt and its
-`Crawl-delay`, a minimum interval between requests, and a size ceiling per page.
+`Crawl-delay`, a minimum interval between requests, a size ceiling per page, and
+a time limit on the whole sync. An `https://` start URL is never left for
+`http://`: a link or a redirect that would downgrade is not followed, because
+a cleartext page is one anybody on the path can write into the collection.
 
 **The change signal is the page's text.** A page is fetched to find its links,
 so there is no transfer to save in a crawl, and the sync path compares a
@@ -38,8 +41,9 @@ import logging
 import re
 import time
 from collections import deque
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import ClassVar, LiteralString, Self
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -60,6 +64,7 @@ from app.services.rag.connectors import (
     ConnectorConfig,
     RemoteFile,
     RemoteListing,
+    WithdrawnFile,
 )
 from app.services.rag.connectors.web_page import ParsedPage, parse_page
 
@@ -164,11 +169,16 @@ class WebConfig(BaseModel):
             raise PydanticCustomError(
                 "web_scope", "The start URL must be under the path it stays under."
             )
-        if (
-            self.sitemap_url is not None
-            and urlsplit(_normalized(self.sitemap_url)).hostname != scope.host
-        ):
-            raise PydanticCustomError("web_scope", "The sitemap must be on the start URL's host.")
+        if self.sitemap_url is not None:
+            sitemap = urlsplit(_normalized(self.sitemap_url))
+            if sitemap.hostname != scope.host:
+                raise PydanticCustomError(
+                    "web_scope", "The sitemap must be on the start URL's host."
+                )
+            if scope.secure and sitemap.scheme != "https":
+                raise PydanticCustomError(
+                    "web_scope", "The sitemap must be an https:// address, as the start URL is."
+                )
         return self
 
 
@@ -217,6 +227,17 @@ def _shown(url: str) -> str:
     return parts.netloc + parts.path
 
 
+def _cited(url: str) -> str:
+    """The URL as a document's text cites it - the page, never its query string.
+
+    The text is embedded and searched by everyone who can read the collection,
+    and a query can carry a signed link's token. The full URL stays what the
+    crawl requests and what `source_path` is keyed by.
+    """
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
 def _file_name(url: str) -> str:
     """A file name for the page, readable in the Documents tab and safe on disk."""
     parts = urlsplit(url)
@@ -229,25 +250,42 @@ def _file_name(url: str) -> str:
 def _document(url: str, page: ParsedPage) -> str:
     """The Markdown `_fetch` writes: the page's text, headed by where it came from."""
     heading = "" if page.title is None or page.markdown.startswith("# ") else f"# {page.title}\n\n"
-    return f"{heading}Source: {url}\n\n{page.markdown}\n"
+    return f"{heading}Source: {_cited(url)}\n\n{page.markdown}\n"
 
 
 @dataclass(frozen=True)
 class _Scope:
-    """The part of the web a source may read: one host, and paths under one prefix."""
+    """The part of the web a source may read: one host, and paths under one prefix.
+
+    `secure` is an `https://` start URL, which admits only `https://` from then
+    on; an `http://` one admits both, so a site upgrading its links is followed.
+    """
 
     host: str
     prefix: str
+    secure: bool
 
     @classmethod
     def of(cls, config: WebConfig) -> "_Scope":
         root = urlsplit(_normalized(config.root_url))
         folder = root.path[: root.path.rfind("/") + 1] or "/"
-        return cls(host=root.hostname or "", prefix=config.path_prefix or folder)
+        return cls(
+            host=root.hostname or "",
+            prefix=config.path_prefix or folder,
+            secure=root.scheme == "https",
+        )
+
+    def whole_host(self) -> "_Scope":
+        """This scope with no path prefix: where robots.txt and the sitemaps live."""
+        return replace(self, prefix="/")
 
     def admits(self, url: str) -> bool:
         parts = urlsplit(url)
-        return parts.hostname == self.host and (parts.path or "/").startswith(self.prefix)
+        return (
+            (parts.scheme == "https" or not self.secure)
+            and parts.hostname == self.host
+            and (parts.path or "/").startswith(self.prefix)
+        )
 
 
 class _Unreadable(Exception):
@@ -284,10 +322,36 @@ class _Fetched:
 
 
 def _retry_wait(retry_after: str | None, backoff: float) -> float:
-    """How long to wait before the next attempt: the server's `Retry-After`, capped, else `backoff`."""
-    if retry_after is not None and retry_after.strip().isdigit():
-        return min(float(retry_after.strip()), _MAX_RETRY_AFTER)
-    return backoff
+    """How long to wait before the next attempt: the server's `Retry-After`, capped, else `backoff`.
+
+    `Retry-After` is seconds or an HTTP date (RFC 9110). A date already past is
+    no wait; one this module cannot read is the local backoff.
+    """
+    value = (retry_after or "").strip()
+    if value.isdigit():
+        return min(float(value), _MAX_RETRY_AFTER)
+    try:
+        when = parsedate_to_datetime(value)
+    except ValueError:
+        return backoff
+    # An HTTP date is always GMT; `-0000` parses without a zone.
+    remaining = (when.replace(tzinfo=when.tzinfo or UTC) - datetime.now(UTC)).total_seconds()
+    return min(max(remaining, 0.0), _MAX_RETRY_AFTER)
+
+
+def _redirect_target(current: str, location: str | None) -> str | None:
+    """Where a redirect from `current` leads, or `None` for a `Location` that is no URL.
+
+    `urljoin` raises on some of those - `http://a]b/`, which the HTTP client
+    lets through - rather than answering, and a server's header must not be
+    able to stop a whole crawl.
+    """
+    if not location:
+        return None
+    try:
+        return normalized_url(urljoin(current, location))
+    except ValueError:
+        return None
 
 
 def _sitemap_entries(body: bytes, shown: str) -> tuple[bool, list[tuple[str, datetime | None]]]:
@@ -332,6 +396,11 @@ class WebConnector(BaseSyncConnector):
     MIN_REQUEST_INTERVAL: ClassVar[float] = 0.5
     # Seconds before the first retry of a transient failure, doubling after.
     RETRY_BACKOFF: ClassVar[float] = 1.0
+    # Seconds one sync may spend on the site, listing and fetching together.
+    # Every other bound is per request or per page, and a site answering each
+    # of five thousand pages with `429 Retry-After: 30` would otherwise hold a
+    # worker, and the source's run lock with it, for days.
+    MAX_DURATION: ClassVar[float] = 6 * 3600.0
 
     def __init__(self, transport: httpx2.AsyncBaseTransport | None = None) -> None:
         """`transport` replaces the network for a test; `PinnedAsyncClient` still wraps it."""
@@ -341,6 +410,8 @@ class WebConnector(BaseSyncConnector):
         self._next_request_at = 0.0
         self._pages: dict[str, str] = {}
         self._cached_bytes = 0
+        # One instance serves one sync and is made as it starts.
+        self._deadline = time.monotonic() + self.MAX_DURATION
 
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Refuse a config the crawl could not run, including a URL it may not request.
@@ -389,9 +460,12 @@ class WebConnector(BaseSyncConnector):
         """Write the page's Markdown, from what the crawl kept or by reading it now.
 
         Raises:
-            BadRequestError: the page could not be read, is no longer an HTML
-                page on this site, or has nothing to index. The sync counts it as
-                a failed file, and the document it brought in earlier is kept.
+            WithdrawnFile: the page is no longer the site's to give - gone, not
+                HTML, forbidden by robots.txt, or asking not to be indexed. The
+                sync removes the document it brought in earlier.
+            BadRequestError: the page could not be read, or has no text to
+                index. The sync counts it as a failed file, and the document it
+                brought in earlier is kept.
         """
         body = self._pages.get(file.source_path)
         if body is None:
@@ -399,11 +473,20 @@ class WebConnector(BaseSyncConnector):
         await asyncio.to_thread(dest_path.write_text, body, encoding="utf-8")
 
     async def _read_one(self, url: str, settings: WebConfig) -> str:
-        """One page read on its own, as a sitemap-listed page is."""
+        """One page read on its own, as a sitemap-listed page is.
+
+        A sitemap lists a page before anything reads it, so what reading it
+        finds - gone, forbidden, `noindex` - is the first the sync hears of it,
+        and is said as `WithdrawnFile` rather than a failure: a page a site
+        keeps in its sitemap after marking it `noindex` must still leave the
+        collection.
+        """
+        if self._out_of_time():
+            raise BadRequestError(message=self._time_limit_problem(urlsplit(url).hostname or ""))
         async with self._client() as client:
             await self._load_robots(client, settings)
             if not self._allowed(url):
-                raise BadRequestError(message=f"robots.txt no longer allows {_shown(url)}.")
+                raise WithdrawnFile(f"robots.txt no longer allows {_shown(url)}.")
             try:
                 page = await self._get(
                     client, url, limit=_MAX_PAGE_BYTES, scope=_Scope.of(settings), types=_HTML_TYPES
@@ -411,11 +494,23 @@ class WebConnector(BaseSyncConnector):
             except _Unreadable as exc:
                 raise BadRequestError(message=exc.message) from exc
         if page is None:
-            raise BadRequestError(message=f"{_shown(url)} is no longer an HTML page on this site.")
+            raise WithdrawnFile(f"{_shown(url)} is no longer an HTML page on this site.")
         parsed = parse_page(page.text(), page.url)
-        if not parsed.index or not parsed.markdown:
+        if not parsed.index:
+            raise WithdrawnFile(f"{_shown(url)} asks not to be indexed.")
+        if not parsed.markdown:
             raise BadRequestError(message=f"{_shown(url)} has no text to index.")
         return _document(page.url, parsed)
+
+    def _out_of_time(self) -> bool:
+        return time.monotonic() >= self._deadline
+
+    def _time_limit_problem(self, host: str) -> str:
+        hours = self.MAX_DURATION / 3600
+        return (
+            f"The sync of {host} reached its {hours:g}-hour limit, "
+            "so the pages after it were not read."
+        )
 
     def _client(self) -> PinnedAsyncClient:
         return PinnedAsyncClient(timeout=_TIMEOUT, transport=self._transport)
@@ -433,6 +528,10 @@ class WebConnector(BaseSyncConnector):
         read = 0
         while queue:
             if read >= settings.max_pages:
+                complete = False
+                break
+            if self._out_of_time():
+                problems.append(self._time_limit_problem(scope.host))
                 complete = False
                 break
             url, depth = queue.popleft()
@@ -481,13 +580,14 @@ class WebConnector(BaseSyncConnector):
         self, client: PinnedAsyncClient, settings: WebConfig, scope: _Scope
     ) -> RemoteListing:
         """The pages the sitemap lists, through one or more levels of sitemap index."""
-        site = _Scope(host=scope.host, prefix="/")
+        site = scope.whole_host()
         pending: deque[str] = deque([_normalized(settings.sitemap_url or "")])
         pages: dict[str, RemoteFile] = {}
         problems: list[str] = []
         complete = True
+        full = False
         read = 0
-        while pending:
+        while pending and not full:
             sitemap = pending.popleft()
             if read >= _MAX_SITEMAPS:
                 problems.append(
@@ -495,6 +595,14 @@ class WebConnector(BaseSyncConnector):
                 )
                 complete = False
                 break
+            if self._out_of_time():
+                problems.append(self._time_limit_problem(scope.host))
+                complete = False
+                break
+            if not self._allowed(sitemap):
+                problems.append(f"robots.txt does not allow the sitemap {_shown(sitemap)}.")
+                complete = False
+                continue
             read += 1
             try:
                 is_index, entries = await self._read_sitemap(client, sitemap, site)
@@ -513,7 +621,10 @@ class WebConnector(BaseSyncConnector):
                 if not scope.admits(url) or not self._allowed(url):
                     continue
                 if len(pages) >= settings.max_pages:
+                    # One page over proves the limit, and the sitemaps still
+                    # pending could only list more: none of them is read.
                     complete = False
+                    full = True
                     break
                 source_path = f"web://{_address(url)}"
                 pages.setdefault(
@@ -578,7 +689,7 @@ class WebConnector(BaseSyncConnector):
                 client,
                 robots_url,
                 limit=_MAX_ROBOTS_BYTES,
-                scope=_Scope(host=root.hostname or "", prefix="/"),
+                scope=_Scope.of(settings).whole_host(),
                 types=None,
             )
         except _Unreadable as exc:
@@ -621,7 +732,7 @@ class WebConnector(BaseSyncConnector):
                 return None
             status, location, body, charset = response
             if status in _REDIRECTS:
-                target = normalized_url(urljoin(current, location)) if location else None
+                target = _redirect_target(current, location)
                 if target is None or not scope.admits(target) or not self._allowed(target):
                     return None
                 current = target

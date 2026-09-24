@@ -21,14 +21,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import BadRequestError
-from app.services.rag.connectors import RemoteFile, RemoteListing
+from app.services.rag.connectors import RemoteFile, RemoteListing, WithdrawnFile
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 SOURCE_ID = uuid.uuid4()
 KEPT = RemoteFile(id="k", name="kept.md", source_path="web://docs.example.com/kept")
+HIDDEN = RemoteFile(id="h", name="hidden.md", source_path="web://docs.example.com/hidden")
 
 
 def _row(source_path: str, vector_document_id: str | None = "vec-gone") -> MagicMock:
@@ -37,8 +38,12 @@ def _row(source_path: str, vector_document_id: str | None = "vec-gone") -> Magic
     )
 
 
-def _connector(listing: RemoteListing | Exception) -> MagicMock:
+def _connector(
+    listing: RemoteListing | Exception, *, withdrawn: frozenset[str] = frozenset()
+) -> MagicMock:
     async def download(remote_file: RemoteFile, dest_dir: Path, **_: Any) -> Path:
+        if remote_file.source_path in withdrawn:
+            raise WithdrawnFile(f"{remote_file.name} asks not to be indexed.")
         dest = dest_dir / remote_file.name
         dest.write_bytes(b"the page")
         return dest
@@ -53,7 +58,11 @@ def _connector(listing: RemoteListing | Exception) -> MagicMock:
 
 @asynccontextmanager
 async def _syncing(
-    connector: MagicMock, *, unlisted: list[MagicMock], vectors_removed: bool = True
+    connector: MagicMock,
+    *,
+    unlisted: list[MagicMock],
+    vectors_removed: bool = True,
+    log: MagicMock | None = None,
 ) -> Any:
     source = MagicMock(
         id=SOURCE_ID,
@@ -77,7 +86,8 @@ async def _syncing(
         unlisted_by_source=AsyncMock(return_value=unlisted),
         forget_document=AsyncMock(),
     )
-    syncs = MagicMock(complete_sync=AsyncMock(return_value=None))
+    syncs = MagicMock(complete_sync=AsyncMock(return_value=log))
+    notifications = MagicMock(sync_completed=AsyncMock(), sync_failed=AsyncMock())
     remove = AsyncMock(return_value=vectors_removed)
     ingest = AsyncMock(
         return_value=MagicMock(
@@ -104,6 +114,7 @@ async def _syncing(
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
         patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
+        patch.object(rag_tasks, "NotificationService", return_value=notifications),
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),
         patch.object(rag_tasks.IngestionService, "remove_document", new=remove),
         patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"web": lambda: connector}),
@@ -112,8 +123,10 @@ async def _syncing(
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
         config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
-        await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=str(uuid.uuid4()))
+        answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=str(uuid.uuid4()))
         yield {
+            "answer": answer,
+            "notifications": notifications,
             "documents": documents,
             "remove": remove,
             "completed": syncs.complete_sync.call_args.kwargs,
@@ -170,10 +183,48 @@ class TestAgainstACompleteListing:
 
         run["documents"].forget_document.assert_not_awaited()
         assert run["completed"]["removed"] == 0
+        # A failure of the run, not a detail: it must not report success, clear
+        # the source's error and notify completion while the page is searchable.
+        assert (run["completed"]["status"], run["completed"]["failed"]) == ("error", 1)
         assert run["completed"]["error_message"] == (
-            "1 documents the source no longer lists could not be removed and will be tried "
-            "again by the next sync."
+            "1 files failed. 1 documents the source no longer lists could not be removed and "
+            "will be tried again by the next sync."
         )
+        assert run["source_error"] == run["completed"]["error_message"]
+
+    async def test_a_listed_page_the_fetch_finds_withdrawn_is_removed_not_failed(self) -> None:
+        """A sitemap still naming a page that now says `noindex` must not keep
+        it searchable: the fetch is the first the sync hears of it."""
+        was_indexed = _row(HIDDEN.source_path)
+
+        async with _syncing(
+            _connector(
+                RemoteListing(files=[KEPT, HIDDEN]), withdrawn=frozenset({HIDDEN.source_path})
+            ),
+            unlisted=[was_indexed],
+        ) as run:
+            pass
+
+        run["documents"].unlisted_by_source.assert_awaited_once_with(
+            sync_source_id=SOURCE_ID, collection_name="docs", listed={KEPT.source_path}
+        )
+        completed = run["completed"]
+        assert (completed["status"], completed["failed"], completed["removed"]) == ("done", 0, 1)
+        # Not one the source holds, so not one of the total either.
+        assert (completed["total_files"], completed["ingested"]) == (1, 1)
+
+    async def test_the_completion_notice_counts_what_was_removed(self) -> None:
+        log = MagicMock(id=uuid.uuid4(), triggered_by_user_id=None)
+
+        async with _syncing(
+            _connector(RemoteListing(files=[KEPT])),
+            unlisted=[_row("web://docs.example.com/gone")],
+            log=log,
+        ) as run:
+            pass
+
+        assert run["notifications"].sync_completed.await_args.kwargs["removed"] == 1
+        assert run["answer"]["removed"] == 1
 
 
 class TestAgainstAPartialListing:
@@ -204,6 +255,8 @@ class TestAgainstAPartialListing:
 
         completed = run["completed"]
         assert (completed["status"], completed["failed"]) == ("error", 4)
+        # Each problem is a page, so the total counts it: one read, four not.
+        assert completed["total_files"] == 5
         assert completed["error_message"] == (
             "4 files failed. The source could not be listed completely, so documents it may no "
             "longer hold were kept. They are removed by the next complete sync. "
@@ -235,3 +288,49 @@ class TestWhenTheListingItselfFails:
 
         assert "secret" not in run["completed"]["error_message"]
         assert "(RuntimeError)" in run["completed"]["error_message"]
+
+
+class TestOneRunOfASourceAtATime:
+    """An older run's listing does not name what a newer, overlapping run just
+    ingested, and would remove it - so a run that cannot take its source's lock
+    does nothing but say so."""
+
+    @asynccontextmanager
+    async def _held_elsewhere(self, sync_log_id: str | None) -> Any:
+        @asynccontextmanager
+        async def _lock(_source_id: str) -> Any:
+            yield False
+
+        connector = _connector(RemoteListing(files=[KEPT]))
+        syncs = MagicMock(complete_sync=AsyncMock(return_value=None))
+        with (
+            patch.object(rag_tasks, "_exclusive_source_run", new=_lock),
+            patch.object(rag_tasks, "get_worker_db_context", new=_no_db),
+            patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"web": lambda: connector}),
+            patch("app.services.rag_sync.RAGSyncService", return_value=syncs),
+        ):
+            answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=sync_log_id)
+            yield answer, connector, syncs.complete_sync
+
+    async def test_a_run_that_cannot_take_the_lock_reads_nothing_and_says_why(self) -> None:
+        async with self._held_elsewhere("log-1") as (answer, connector, complete):
+            pass
+
+        connector.list_files.assert_not_awaited()
+        assert answer["status"] == "skipped"
+        assert complete.await_args.kwargs == {
+            "status": "error",
+            "error_message": rag_tasks.OVERLAPPING_RUN,
+        }
+
+    async def test_a_scheduler_dispatch_with_no_log_writes_none(self) -> None:
+        async with self._held_elsewhere(None) as (answer, _connector, complete):
+            pass
+
+        assert answer["status"] == "skipped"
+        complete.assert_not_awaited()
+
+
+@asynccontextmanager
+async def _no_db() -> Any:
+    yield MagicMock()

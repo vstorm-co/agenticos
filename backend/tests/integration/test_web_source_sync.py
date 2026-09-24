@@ -30,6 +30,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
+from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.sync_log import SyncLog
@@ -53,7 +54,9 @@ class _Words(EmbeddingService):
     """One dimension per hashed word: a query shares dimensions with the page holding its words."""
 
     def __init__(self, dim: int) -> None:
-        self.expected_dim = dim
+        # The real service with no key: nothing it builds is reached, because
+        # both embedding methods are this class's own.
+        super().__init__(settings.rag, expected_dim=dim)
 
     def _vector(self, content: str) -> list[float]:
         vector = [0.0] * self.expected_dim
@@ -247,6 +250,30 @@ async def test_a_crawl_that_stops_short_removes_nothing(
     assert partial.error_message is not None
     assert "did not lead to an HTML page" in partial.error_message
     assert await _tracked(db) == {"web://docs.example.com/", "web://docs.example.com/a"}
+
+
+async def test_a_sync_overlapping_a_running_one_does_nothing_and_says_so(
+    engine: AsyncEngine, db: AsyncSession, _site: _Site
+) -> None:
+    """The run lock is Postgres's, so only a real one shows the second run of
+    a source refused - before it lists anything it could remove by."""
+    _site.pages.update({"/": _page("Front page.")})
+    source_id = await _source(engine)
+
+    async with engine.connect() as running:
+        assert await try_hold_subject_on_connection(
+            running, LockScope.SYNC_SOURCE_RUN, uuid.UUID(source_id)
+        )
+        refused = await _sync(engine, source_id)
+        # Closed, not handed back to the suite's pool with the lock still on it.
+        await running.invalidate()
+
+    assert (refused.status, refused.error_message) == ("error", rag_tasks.OVERLAPPING_RUN)
+    assert await _tracked(db) == set()
+    # And released with the connection that held it: the next run goes ahead.
+    after = await _sync(engine, source_id)
+    assert (after.status, after.error_message) == ("done", None)
+    assert await _tracked(db) == {"web://docs.example.com/"}
 
 
 def _row(source_id: uuid.UUID | None, path: str, status: DocumentStatus) -> RAGDocument:

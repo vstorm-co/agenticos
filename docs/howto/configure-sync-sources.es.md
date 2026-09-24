@@ -1,5 +1,5 @@
 ---
-source_sha: "86345131ee3a"
+source_sha: "7dfde94e116e"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -129,7 +129,12 @@ No elimina nada salvo que el listado estuviera **completo**. Un crawl que se
 detuvo en su límite de páginas, o que no pudo leer una de ellas, no ha visto lo
 que no lista. Ese run conserva todos los documentos y lo indica en el mensaje del
 registro de sincronización. La siguiente sincronización con un listado completo
-elimina lo que ya no está.
+elimina lo que ya no está. Un documento que no se pudo eliminar cuenta como un
+archivo fallido, y la siguiente sincronización lo vuelve a intentar.
+
+Cada fuente ejecuta una sola sincronización a la vez. Una sincronización iniciada
+mientras otra de la misma fuente sigue en marcha no arranca, y su registro lo
+indica.
 
 Solo se eliminan los documentos de la propia fuente. Una subida, o un documento
 que otra fuente trajo a la misma colección, no se toca nunca. Un documento
@@ -267,27 +272,31 @@ uv run agenticos cmd rag-source-add \
 | `root_url` | string | Sí | -- | La página desde la que empieza el crawl. Su host es el único host que lee la fuente. |
 | `max_depth` | integer | No | `2` | A cuántos enlaces de distancia de la URL de inicio seguir, de `0` a `10`. `0` lee solo la página de inicio. |
 | `path_prefix` | string | No | la carpeta de la URL de inicio | Solo se leen las páginas cuya ruta empieza por esto. `https://docs.example.com/guide/intro` lee `/guide/` por defecto; pon `/` para el host entero. |
-| `sitemap_url` | string | No | -- | Lee las páginas que lista este sitemap en lugar de seguir enlaces. Tiene que estar en el host de la URL de inicio. Un índice de sitemaps se sigue hasta sus sitemaps. |
+| `sitemap_url` | string | No | -- | Lee las páginas que lista este sitemap en lugar de seguir enlaces. Tiene que estar en el host de la URL de inicio y usar `https://` cuando la URL de inicio lo usa. Un índice de sitemaps se sigue hasta sus sitemaps. |
 | `max_pages` | integer | No | `500` | El crawl se detiene tras leer este número de páginas, de `1` a `5000`. |
 
 ### Qué acota un crawl { #what-bounds-a-crawl }
 
 - **Un host y una ruta.** Los enlaces a otros hosts, y a rutas fuera de
   `path_prefix`, no se siguen. Una redirección que salga de ellos tampoco se
-  sigue.
+  sigue. Una URL de inicio en `https://` nunca se abandona por `http://`: no se
+  sigue un enlace ni una redirección a una página sin cifrar.
 - **La red del deployment queda fuera de alcance.** Cada petición - robots.txt,
   el sitemap, cada página y cada redirección - se comprueba contra la misma
   política SSRF que los webhooks y los servidores MCP. Se envía a la dirección que
   pasó la comprobación. Una URL de inicio que resuelve a una dirección privada, de
   loopback, link-local o de metadatos de la nube se rechaza al guardar la fuente.
-- **Se respeta robots.txt**, incluido `Crawl-delay` de hasta diez segundos. El
-  crawler se identifica como `AgenticOS-Crawler`. Espera al menos medio segundo
-  entre peticiones, y se respeta una página que diga `noindex` o `nofollow`.
-- **Tamaño.** Una página de más de 5 MB no se lee. El crawl se detiene en
-  `max_pages`.
+- **Se respeta robots.txt** para sitemaps y páginas, incluido `Crawl-delay` de
+  hasta diez segundos. El crawler se identifica como `AgenticOS-Crawler`. Espera
+  al menos medio segundo entre peticiones, y se respeta una página que diga
+  `noindex` o `nofollow`. Una página que un sitemap sigue listando después de
+  decir `noindex`, o de desaparecer, se elimina de la colección.
+- **Tamaño y tiempo.** Una página de más de 5 MB no se lee. El crawl se detiene en
+  `max_pages`. Una sincronización deja de leer el sitio al cabo de seis horas, y
+  una sincronización que se detuvo no elimina nada.
 
 Cada página se guarda como un documento Markdown que contiene su texto y la URL
-de la que procede. La navegación, las cabeceras, los pies de página y los scripts
+de la que procede, sin su query string. La navegación, las cabeceras, los pies de página y los scripts
 se dejan fuera. Una página solo se vuelve a embeber cuando cambia su texto. Un
 nuevo sello de build o un script de seguimiento en el marcado no cuentan como
 cambio.
@@ -407,7 +416,7 @@ Cada sincronización crea una entrada de `SyncLog` con estos campos:
 | `ingested` | Ingestados correctamente (nuevos) |
 | `updated` | Reingestados correctamente (reemplazados) |
 | `skipped` | Omitidos (ya presentes o sin cambios) |
-| `failed` | No se pudieron ingestar, incluidas las páginas o archivos que el listado no pudo leer |
+| `failed` | No se pudieron ingestar, incluidas las páginas o archivos que el listado no pudo leer y los documentos que no se pudieron eliminar |
 | `removed` | Eliminados porque la fuente ya no los lista (consulta [qué elimina una sincronización](#what-a-sync-removes)) |
 | `error_message` | Qué salió mal, o por qué no se eliminó nada. Un run puede estar en `done` y aun así tener un mensaje, por ejemplo cuando un crawl se detuvo en su límite de páginas |
 | `started_at` | Cuándo empezó la sincronización |

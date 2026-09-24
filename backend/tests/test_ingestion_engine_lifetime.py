@@ -34,7 +34,7 @@ from app.services.rag.connectors import RemoteListing
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 
 class EngineLedger:
