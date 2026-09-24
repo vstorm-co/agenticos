@@ -3,8 +3,10 @@
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { useTranslations } from "next-intl";
 
+import { ownsAScope } from "@/components/workflows/palette";
 import { nodeDisplayName, type Port, shortNodeId } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useCanvasInteraction } from "./canvas-context";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
@@ -32,8 +34,13 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
   const { instance, definition, readOnly } = data;
   const { connectSource, beginConnect, completeConnect } = useCanvasInteraction();
+  const enterScope = useWorkflowEditorStore((state) => state.enterScope);
 
   const kind = definition?.kind ?? "action";
+  // A `control.foreach`-shaped node owns a body; its card offers the way in, and
+  // the breadcrumb is the way back out. Entering is a display switch (`enterScope`
+  // pushes the scope path), never a graph edit.
+  const scopeOwner = definition !== null && ownsAScope(definition);
   const name = nodeDisplayName(definition?.name ?? instance.definition_id, instance.id);
   const inputs: Port[] = definition?.ports.filter((port) => port.kind === "input") ?? [];
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
@@ -95,6 +102,17 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
             {t("connectFinish")}
           </button>
         )}
+
+      {!readOnly && scopeOwner && (
+        <button
+          type="button"
+          aria-label={t("enterScope", { name })}
+          onClick={() => enterScope(instance.id)}
+          className="text-muted-foreground hover:text-foreground mt-1 block text-xs underline"
+        >
+          {t("enterScopeLabel")}
+        </button>
+      )}
 
       {!readOnly &&
         outputs.map((port) => (
