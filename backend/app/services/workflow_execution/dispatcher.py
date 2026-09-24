@@ -47,6 +47,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.workflow_run import (
     DispatchOutbox,
@@ -65,8 +66,15 @@ from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import budget, context, events
+from app.services.workflow_execution.exceptions import (
+    InvalidBindingError,
+    NodeDefinitionMissingError,
+    NodeHandlerMissingError,
+    WorkflowDispatchRefusedError,
+    WorkflowGraphUnresolvableError,
+)
 from app.workflows import _registry
-from app.workflows.contracts.definition import NodeDefinition
+from app.workflows.contracts.definition import NodeDefinition, NodeHandler
 from app.workflows.contracts.io import (
     BindingSource,
     FileRef,
@@ -74,7 +82,14 @@ from app.workflows.contracts.io import (
     NodeOutputRef,
     TableIORef,
 )
-from app.workflows.contracts.results import Completed, Failed, NodeResult, Uncertain, Waiting
+from app.workflows.contracts.results import (
+    Completed,
+    Failed,
+    NodeResult,
+    Uncertain,
+    Waiting,
+    WorkflowError,
+)
 from app.workflows.graph.model import NodeInstance, WorkflowGraph
 
 logger = logging.getLogger(__name__)
@@ -98,6 +113,7 @@ class BegunAttempt:
     handler_config: BaseModel | None
     handler_input: BaseModel | None
     definition: NodeDefinition
+    handler: NodeHandler
     dispatch_context: context.DispatchContext
     dispatch_token: UUID
     """The fencing token this attempt was dispatched under - `claim()`'s own
@@ -138,20 +154,24 @@ async def claim(
 
 
 async def resolve_graph(db: AsyncSession, run: WorkflowRun) -> WorkflowGraph:
-    """The graph this run executes - a published version, or a draft snapshot."""
+    """The graph this run executes - a published version, or a draft snapshot.
+
+    Raises:
+        WorkflowGraphUnresolvableError: The version no longer resolves, or the
+            stored graph no longer validates.
+    """
+    raw: dict[str, Any] | None = run.draft_graph_snapshot
     if run.workflow_version_id is not None:
         version = await workflow_repo.get_version(
             db, run.workflow_version_id, organization_id=run.organization_id
         )
-        if version is None:
-            raise RuntimeError(
-                f"WorkflowRun {run.id} names workflow_version_id {run.workflow_version_id}, "
-                "which no longer resolves"
-            )
-        return WorkflowGraph.model_validate(version.graph)
-    if run.draft_graph_snapshot is None:
-        raise RuntimeError(f"WorkflowRun {run.id} has neither a version nor a draft snapshot")
-    return WorkflowGraph.model_validate(run.draft_graph_snapshot)
+        raw = version.graph if version is not None else None
+    if raw is None:
+        raise WorkflowGraphUnresolvableError(run_id=run.id)
+    try:
+        return WorkflowGraph.model_validate(raw)
+    except PydanticValidationError as exc:
+        raise WorkflowGraphUnresolvableError(run_id=run.id) from exc
 
 
 async def _auth_context_for(db: AsyncSession, run: WorkflowRun) -> AuthContext:
@@ -287,6 +307,59 @@ async def _completed_outputs(
     return outputs
 
 
+@dataclass(frozen=True, slots=True)
+class _ResolvedCall:
+    """Everything a node's call needs that the run's own rows decide."""
+
+    node: NodeInstance
+    definition: NodeDefinition
+    handler: NodeHandler
+    config: BaseModel | None
+    input: BaseModel | None
+
+
+async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun) -> _ResolvedCall:
+    """Resolve the node `node_run` names: its graph, definition, handler and bindings.
+
+    Raises:
+        WorkflowDispatchRefusedError: A subclass naming what can never resolve.
+    """
+    graph = await resolve_graph(db, run)
+    node = graph.node_by_id.get(node_run.node_instance_id)
+    if node is None:
+        raise WorkflowGraphUnresolvableError(run_id=run.id)
+    try:
+        definition = _registry.get(node.definition_id, node.definition_version)
+    except BadRequestError as exc:
+        # Removed or renamed in a deploy since the graph was published.
+        raise NodeDefinitionMissingError(
+            node_id=node.definition_id, version=node.definition_version
+        ) from exc
+    if definition.handler is None:
+        raise NodeHandlerMissingError(node_id=node.definition_id, version=node.definition_version)
+
+    referenced_nodes = {
+        binding.source.node_id
+        for binding in graph.bindings
+        if binding.target_node_id == node.id and isinstance(binding.source, NodeOutputRef)
+    }
+    outputs = await _completed_outputs(db, workflow_run_id=run.id, node_ids=referenced_nodes)
+    try:
+        config_obj, input_obj = _resolve_io(graph, node, definition, outputs=outputs)
+    except PydanticValidationError as exc:
+        # `validate_graph`'s rule 9 only confirms a bound field exists; a
+        # `FileRef`/`TableIORef` source is never checked against the target
+        # field's own type, so this can fail on a published graph too.
+        raise InvalidBindingError(node_instance_id=node.id) from exc
+    return _ResolvedCall(
+        node=node,
+        definition=definition,
+        handler=definition.handler,
+        config=config_obj,
+        input=input_obj,
+    )
+
+
 async def begin_attempt(
     db: AsyncSession, *, workflow_run_id: UUID, node_run_id: UUID, token: UUID
 ) -> BegunAttempt | None:
@@ -394,42 +467,23 @@ async def begin_attempt(
         )
         return None
 
-    graph = await resolve_graph(db, run)
-    node = graph.node_by_id[node_run.node_instance_id]
-    definition = _registry.get(node.definition_id, node.definition_version)
-
-    referenced_nodes = {
-        binding.source.node_id
-        for binding in graph.bindings
-        if binding.target_node_id == node.id and isinstance(binding.source, NodeOutputRef)
-    }
-    outputs = await _completed_outputs(db, workflow_run_id=run.id, node_ids=referenced_nodes)
     try:
-        config_obj, input_obj = _resolve_io(graph, node, definition, outputs=outputs)
-    except PydanticValidationError:
-        # A binding whose source can never satisfy its target field's schema
-        # - `validate_graph`'s rule 9 only confirms the field exists (a
-        # `FileRef`/`TableIORef` source is never checked against the target
-        # field's own type) - fails identically on every future attempt, so
-        # this is not a transient error the crash-recovery path should retry:
-        # left uncaught, it would raise here, *before* any `NodeAttempt`
-        # exists to record it, so `list_stale_claims` would keep finding the
-        # same lease-expired, attempt-less row and resubmitting it forever.
-        # `POST /workflow-runs` is unmetered, so an uncaught failure here is
-        # a standing resource-exhaustion path, not just a stuck run.
+        call = await _resolve_call(db, run=run, node_run=node_run)
+    except WorkflowDispatchRefusedError as exc:
+        # Deterministic: every future attempt would fail the same way, before
+        # any `NodeAttempt` exists to record it. Left to propagate, the claim
+        # would roll back with the transaction and `list_stale_claims` would
+        # resubmit the same row on every reconcile tick, for ever.
         logger.warning(
-            "workflow_dispatch_invalid_binding",
-            extra={"node_run_id": str(node_run.id), "node_definition": node.definition_id},
+            "workflow_dispatch_refused",
+            extra={"node_run_id": str(node_run.id), "code": exc.code},
         )
         await _fail_run(
-            db,
-            run=run,
-            node_run=node_run,
-            outbox=outbox,
-            code="INVALID_BINDING",
-            message="A bound value does not satisfy this node's input schema",
+            db, run=run, node_run=node_run, outbox=outbox, code=exc.code, message=exc.message
         )
         return None
+    node = call.node
+    definition = call.definition
 
     attempt_no = (latest.attempt_no if latest else 0) + 1
     key = idempotency_key(
@@ -503,9 +557,10 @@ async def begin_attempt(
         organization_id=run.organization_id,
         attempt_id=attempt.id,
         attempt_no=attempt_no,
-        handler_config=config_obj,
-        handler_input=input_obj,
+        handler_config=call.config,
+        handler_input=call.input,
         definition=definition,
+        handler=call.handler,
         dispatch_context=dispatch_context,
         dispatch_token=token,
     )
@@ -518,11 +573,29 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
     `app.worker.tasks.workflow_tasks.workflow_dispatch_node_flow` calls this
     between them, so a slow or hung handler never holds a pooled connection.
     """
-    if begun.definition.handler is None:
-        raise RuntimeError(f"Node definition {begun.definition.id!r} has no handler registered")
     scope = context.dispatching_as(begun.dispatch_context)
-    with scope:
-        result = await begun.definition.handler(begun.handler_config, begun.handler_input)
+    result: NodeResult
+    try:
+        with scope:
+            result = await begun.handler(begun.handler_config, begun.handler_input)
+    except Exception:
+        # A handler is meant to return `Failed`, never raise; one that raises
+        # anyway settles as a failure here rather than crashing the flow and
+        # leaving its attempt `in_flight` for the reconciler to redispatch.
+        # The exception's own text goes to the log only: it is not a string
+        # this repository controls, and the result is read by every viewer of
+        # the workflow.
+        logger.exception(
+            "workflow_node_handler_raised",
+            extra={"node_run_id": str(begun.node_run_id), "node_definition": begun.definition.id},
+        )
+        result = Failed(
+            error=WorkflowError(
+                code="HANDLER_ERROR",
+                message="The node's handler stopped with an unexpected error",
+                retryable=True,
+            )
+        )
     return HandlerOutcome(
         result=result,
         waiting_agent_run_id=scope.waiting_agent_run_id,
@@ -656,12 +729,29 @@ async def resolve_orphaned_attempt(
         )
         return
     if attempt.retry_guarantee == RetryGuarantee.IDEMPOTENT.value:
+        # The same ceiling and backoff a `Failed` result gets: a node whose
+        # every attempt dies mid-call (a handler that crashes its worker) must
+        # end, not be redispatched on every reconcile tick for ever.
+        if attempt.attempt_no >= settings.WORKFLOW_RETRY_CEILING:
+            await _fail_node_and_run(
+                db,
+                run=run,
+                node_run=node_run,
+                error={
+                    "code": "ATTEMPTS_INTERRUPTED",
+                    "message": "Every attempt at this node was interrupted before it finished",
+                    "details": {"attempts": attempt.attempt_no},
+                    "retryable": False,
+                },
+                now=now,
+            )
+            return
         await workflow_run_repo.create_outbox(
             db,
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=now,
+            available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
         )
         return
 
@@ -939,7 +1029,7 @@ async def _settle_failed(
     # `WorkflowError.retryable`, since a node is in a better position than
     # this generic dispatcher to say a given failure (a validation error, say)
     # is not worth trying again even when its kind usually is.
-    retryable = attempt.retry_guarantee != "none" and result.error.retryable
+    retryable = attempt.retry_guarantee != RetryGuarantee.NONE.value and result.error.retryable
     if retryable and attempt.attempt_no < settings.WORKFLOW_RETRY_CEILING:
         await workflow_run_repo.update_node_run(
             db,
@@ -976,6 +1066,20 @@ async def _settle_failed(
     # Retries exhausted, or this failure was never retryable in the first
     # place - #1790 owns the real ceiling and any error-routing policy; this
     # is the minimal placeholder the design calls for.
+    await _fail_node_and_run(
+        db, run=run, node_run=node_run, error=result.error.model_dump(mode="json"), now=now
+    )
+
+
+async def _fail_node_and_run(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    error: dict[str, Any],
+    now: datetime,
+) -> None:
+    """A node that ran and will not run again fails, and takes its run with it."""
     await workflow_run_repo.update_node_run(
         db, node_run=node_run, update_data={"status": NodeRunStatus.FAILED.value, "ended_at": now}
     )
@@ -984,7 +1088,7 @@ async def _settle_failed(
         run=run,
         kind=events.EventKind.NODE_FAILED,
         node_run_id=node_run.id,
-        payload={"error": result.error.code},
+        payload={"error": error["code"]},
     )
     await workflow_run_repo.update_run(
         db,
@@ -992,7 +1096,8 @@ async def _settle_failed(
         update_data={
             "status": WorkflowRunStatus.FAILED.value,
             "ended_at": now,
-            "error": result.error.model_dump(mode="json"),
+            "paused_reason": None,
+            "error": error,
         },
     )
     await events.append(db, run=run, kind=events.EventKind.RUN_FAILED, node_run_id=node_run.id)

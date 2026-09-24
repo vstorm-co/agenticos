@@ -30,6 +30,7 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo_module
 from app.services.workflow_execution import context, dispatcher
+from app.services.workflow_execution.exceptions import WorkflowGraphUnresolvableError
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
@@ -350,7 +351,7 @@ class TestResolveGraph:
         run = _run(mode=WorkflowRunMode.REAL.value, workflow_version_id=uuid.uuid4())
         with (
             patch(f"{DISPATCHER_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=None)),
-            pytest.raises(RuntimeError),
+            pytest.raises(WorkflowGraphUnresolvableError),
         ):
             await dispatcher.resolve_graph(object(), run)
 
@@ -369,7 +370,16 @@ class TestResolveGraph:
         run = _run(
             mode=WorkflowRunMode.TEST.value, workflow_version_id=None, draft_graph_snapshot=None
         )
-        with pytest.raises(RuntimeError):
+        with pytest.raises(WorkflowGraphUnresolvableError):
+            await dispatcher.resolve_graph(object(), run)
+
+    async def test_a_stored_graph_that_no_longer_validates_raises(self):
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot={"entry_node_id": "not-a-uuid"},
+        )
+        with pytest.raises(WorkflowGraphUnresolvableError):
             await dispatcher.resolve_graph(object(), run)
 
 
@@ -921,6 +931,7 @@ def _begun(
         handler_config=handler_config,
         handler_input=handler_input,
         definition=definition,
+        handler=definition.handler,
         dispatch_context=context.DispatchContext(
             organization_id=org,
             workflow_run_id=wf_run,
@@ -976,13 +987,28 @@ class TestCallHandler:
         assert outcome.cost == Decimal("0.75")
         assert outcome.cost_is_partial is True
 
-    async def test_a_definition_with_no_handler_raises(self, test_node: str):
+    async def test_a_handler_that_raises_settles_as_a_failure_that_hides_its_text(
+        self, test_node: str
+    ):
+        """A raised exception must not crash the flow (leaving an `in_flight`
+        attempt for the reconciler to redispatch), and its text - a vendor's
+        message, a URL with a key in it - must not reach the stored result."""
         node = _node_instance(test_node)
         definition = REGISTRY[test_node][1]
-        patched = definition.__class__(**{**definition.__dict__, "handler": None})
-        begun = _begun(node, patched)
-        with pytest.raises(RuntimeError):
-            await dispatcher.call_handler(begun)
+
+        async def _raising_handler(_config: object, _input: object) -> NodeResult:
+            context.report_cost(Decimal("0.3"))
+            raise RuntimeError("https://api.example.com/?key=sk-secret failed")
+
+        patched = definition.__class__(**{**definition.__dict__, "handler": _raising_handler})
+
+        outcome = await dispatcher.call_handler(_begun(node, patched))
+
+        assert isinstance(outcome.result, Failed)
+        assert outcome.result.error.code == "HANDLER_ERROR"
+        assert outcome.result.error.retryable is True
+        assert "sk-secret" not in outcome.result.model_dump_json()
+        assert outcome.cost == Decimal("0.3")
 
     async def test_the_dispatch_context_is_cleared_after_the_call(self, test_node: str):
         node = _node_instance(test_node)

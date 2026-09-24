@@ -10,16 +10,18 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Awaitable, Callable, Iterator
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
 
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -28,14 +30,17 @@ from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
     NodeAttempt,
+    NodeAttemptStatus,
     NodeRun,
     NodeRunStatus,
+    RetryGuarantee,
     WorkflowRun,
     WorkflowRunMode,
     WorkflowRunStatus,
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import context, dispatcher
+from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.results import Completed, NodeResult
@@ -324,4 +329,127 @@ class TestCostAndBudget:
         ]
         assert {row.status for row in await _outbox_rows(seeded)} == {
             DispatchOutboxStatus.DONE.value
+        }
+
+
+async def _echo(_config: object, _input: object) -> NodeResult:
+    return Completed[_Output](output=_Output(echoed="hi"))
+
+
+async def _expire_claims(seeded: Seeded) -> None:
+    async with seeded.factory() as db:
+        await db.execute(
+            sql_update(DispatchOutbox)
+            .where(DispatchOutbox.workflow_run_id == seeded.run.id)
+            .values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await db.commit()
+
+
+class TestDeterministicDispatchFailures:
+    async def test_a_node_whose_definition_left_the_registry_fails_the_run_once(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Removed in a deploy after the graph was published: every attempt
+        would fail identically, so the run fails with its own code instead of
+        its claim rolling back and being resubmitted on every reconcile tick."""
+        node_id = node_kind(_echo)
+        seeded = await _seed(engine, _chain(node_id, 1))
+        REGISTRY.pop(node_id)
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "NODE_DEFINITION_MISSING"
+        assert [node.status for node in await _node_runs(seeded)] == [NodeRunStatus.FAILED.value]
+        await _expire_claims(seeded)
+        async with seeded.factory() as db:
+            assert await WorkflowReconcilerService(db).stale_claims() == []
+
+    async def test_a_definition_registered_without_a_handler_fails_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        node_id = node_kind(_echo)
+        REGISTRY[node_id][1] = replace(REGISTRY[node_id][1], handler=None)
+        seeded = await _seed(engine, _chain(node_id, 1))
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "NODE_HANDLER_MISSING"
+
+    async def test_a_node_run_naming_a_node_absent_from_the_graph_fails_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        node_id = node_kind(_echo)
+        seeded = await _seed(engine, _chain(node_id, 1))
+        async with seeded.factory() as db:
+            await db.execute(
+                sql_update(NodeRun)
+                .where(NodeRun.id == seeded.entry.id)
+                .values(node_instance_id=uuid.uuid4())
+            )
+            await db.commit()
+
+        assert await _tick(seeded, seeded.entry.id) is None
+
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "GRAPH_UNRESOLVABLE"
+
+
+class TestHandlerErrorsAndInterruptions:
+    async def test_a_raising_handler_with_no_retry_guarantee_fails_the_run_once(
+        self, engine: AsyncEngine, node_kind
+    ):
+        async def handler(_config: object, _input: object) -> NodeResult:
+            raise RuntimeError("upstream said no")
+
+        seeded = await _seed(engine, _chain(node_kind(handler, retry_guarantee="none"), 1))
+
+        assert await _tick(seeded, seeded.entry.id) is not None
+
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "HANDLER_ERROR"
+        assert "upstream said no" not in str(run.error)
+        async with seeded.factory() as db:
+            attempts = (
+                await db.execute(
+                    select(NodeAttempt).where(NodeAttempt.node_run_id == seeded.entry.id)
+                )
+            ).scalars()
+            assert [attempt.status for attempt in attempts] == [NodeAttemptStatus.FAILED.value]
+
+    async def test_an_idempotent_node_interrupted_at_the_retry_ceiling_ends_the_run(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """A handler that kills its worker on every attempt leaves an orphan
+        each time; past the ceiling the run ends rather than being requeued on
+        every reconcile tick for ever."""
+        seeded = await _seed(engine, _chain(node_kind(_echo), 1))
+        async with seeded.factory() as db:
+            await dispatcher.claim(db, node_run_id=seeded.entry.id, lease_seconds=0)
+            await db.commit()
+        async with seeded.factory() as db:
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=seeded.org.id,
+                node_run_id=seeded.entry.id,
+                attempt_no=settings.WORKFLOW_RETRY_CEILING,
+                idempotency_key="k",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+            await db.commit()
+
+        async with seeded.factory() as db:
+            assert await WorkflowReconcilerService(db).resolve_orphaned_attempts() == 1
+            await db.commit()
+
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "ATTEMPTS_INTERRUPTED"
+        assert DispatchOutboxStatus.PENDING.value not in {
+            row.status for row in await _outbox_rows(seeded)
         }

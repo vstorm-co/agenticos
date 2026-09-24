@@ -16,11 +16,12 @@ together, never one without the other.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.organization import Organization
@@ -468,6 +469,20 @@ async def test_an_orphaned_in_flight_idempotent_attempt_is_auto_retried_not_dupl
             DispatchOutboxStatus.DONE.value,
             DispatchOutboxStatus.PENDING.value,
         }
+        # Requeued behind the same backoff a failed attempt gets, not for
+        # immediate redispatch.
+        retry_row = next(
+            row for row in outbox_rows if row.status == DispatchOutboxStatus.PENDING.value
+        )
+        assert orphan.ended_at is not None and retry_row.available_at > orphan.ended_at
+
+    async with factory() as due_db:
+        await due_db.execute(
+            sql_update(DispatchOutbox)
+            .where(DispatchOutbox.id == retry_row.id)
+            .values(available_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await due_db.commit()
 
     # And the fresh attempt actually runs the node - the retry is real, not
     # just a status flip.
