@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ArtifactDetail } from "./artifact-detail";
+import { ApiError } from "@/lib/api-error";
 import type { ArtifactDetail as ArtifactDetailData } from "@/types/artifact";
 
 /**
@@ -56,6 +57,8 @@ function state(artifact: ArtifactDetailData | null, overrides: Record<string, un
     artifact,
     versions: [],
     isLoading: false,
+    error: null,
+    refetch: vi.fn(),
     enablePublicLink: mutation(),
     disablePublicLink: mutation(),
     remove: mutation(),
@@ -110,9 +113,23 @@ describe("ArtifactDetail", () => {
   });
 
   it("says an artifact that is gone or no longer shared is not available", () => {
-    useArtifactMock.mockReturnValue(state(null));
+    useArtifactMock.mockReturnValue(
+      state(null, { error: new ApiError(404, "Artifact not found") }),
+    );
     render(<ArtifactDetail artifactId="gone" initialVersionId={null} />);
     expect(screen.getByText("This artifact is not available")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("offers a retry for a failed request rather than calling the artifact gone", async () => {
+    const hooks = state(null, { error: new ApiError(503, "Service unavailable") });
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactDetail artifactId="a1" initialVersionId={null} />);
+
+    expect(screen.queryByText("This artifact is not available")).toBeNull();
+    expect(screen.getByText("This artifact could not be loaded")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(hooks.refetch).toHaveBeenCalled();
   });
 
   it("waits for the artifact before drawing anything", () => {

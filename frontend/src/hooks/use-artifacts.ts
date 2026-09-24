@@ -56,8 +56,10 @@ export function useArtifacts({ search = "", skip = 0, limit = PAGE_SIZE }: Artif
  * One artifact, its kept versions, and what a member with `edit` may do to it.
  *
  * A 404 is the answer for a missing artifact, one in another organization and
- * one whose access was revoked alike, so `error` is what the page reads to
- * say "not available" rather than guessing which of the three it was.
+ * one whose access was revoked alike, so a 404 in `error` is what the page reads
+ * to say "not available" rather than guessing which of the three it was. Any
+ * other failure is the request's, not the artifact's, and `refetch` is how the
+ * page offers to try again.
  */
 export function useArtifact(artifactId: string) {
   const t = useTranslations("artifacts");
@@ -112,6 +114,7 @@ export function useArtifact(artifactId: string) {
     versions: versions.data?.items ?? [],
     isLoading: detail.isLoading,
     error: detail.error,
+    refetch: detail.refetch,
     enablePublicLink,
     disablePublicLink,
     remove,

@@ -7,16 +7,18 @@ import { EmptyState, LoadingState } from "@/components/states";
 import { useArtifactView } from "@/hooks/use-artifacts";
 
 /**
- * What the frame lets the page do. Never `allow-same-origin`.
+ * What the frame lets the page do. Never `allow-same-origin`, never popups.
  *
  * The response carries the same list as a `sandbox` policy, which is what
  * actually isolates the page - it holds even when somebody opens the content
  * address on its own. The attribute is the second lock on the same door: an
  * agent-authored document runs script in an opaque origin, so it reads no
  * cookie and no storage of this console, and cannot reach the parent frame.
+ * No popups because a new window is a navigation, which no `connect-src`
+ * governs: a link inside the page stays in the frame, where this console's
+ * `frame-src` refuses every origin but the content one.
  */
-export const ARTIFACT_SANDBOX =
-  "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals";
+export const ARTIFACT_SANDBOX = "allow-scripts allow-modals";
 
 interface ArtifactFrameViewProps {
   /** A signed content address the server minted for this viewer. */

@@ -30,10 +30,18 @@ agent - from the chat, a schedule, the API or a workflow - that publishes
 publish the week's numbers to this link" work without anything remembering an id
 between runs. A new name is a new page.
 
+The name is shared by everybody who runs the agent, so it is not a licence to
+write. A run republishes an existing artifact only for its owner or for a member
+holding `artifacts:edit` on it - the role scope or an `edit` grant, decided by
+`resolve_access` exactly as in the console. Anybody else's run is told the name is
+taken and publishes under another, and the page behind the first member's link
+stays theirs.
+
 Every publication is a new version row; nothing is overwritten, so a conversation
 that published last week's report still opens last week's report. Publishing
 exactly the bytes of the current version adds no version (`unchanged` in the
-result), so a schedule that finds nothing new leaves the history alone. The newest
+result), so a schedule that finds nothing new leaves the history alone - it still
+counts as a publication, so retention's clock restarts either way. The newest
 `ARTIFACT_MAX_VERSIONS` are kept.
 
 ## Why the page has no network
@@ -45,7 +53,10 @@ of the viewer. `connect-src 'none'` and no remote sources go one step further -
 the page cannot load code from anywhere or send what it shows anywhere, so a
 prompt-injected report cannot beacon the numbers it was built from. The tool text
 tells the model to inline everything for that reason; a CDN script simply does
-not load.
+not load. The sandbox grants no `allow-popups` for the same reason: `connect-src`
+does not govern navigation, so a link opening a new window would be a way out to
+an address the page chose. A link inside the page stays in its frame, where the
+console's `frame-src` refuses every origin but the content one.
 
 ## Deliberately not side-effecting
 

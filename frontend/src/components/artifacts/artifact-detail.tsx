@@ -10,9 +10,10 @@ import { PublicLinkCard } from "@/components/artifacts/public-link-card";
 import { VersionPicker } from "@/components/artifacts/version-picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ConfirmDialog } from "@/components/ui";
 import { useArtifact } from "@/hooks/use-artifacts";
+import { ApiError } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 
 interface ArtifactDetailProps {
@@ -34,16 +35,36 @@ export function ArtifactDetail({ artifactId, initialVersionId }: ArtifactDetailP
   const router = useRouter();
   const [versionId, setVersionId] = useState(initialVersionId);
   const [confirming, setConfirming] = useState(false);
-  const { artifact, versions, isLoading, enablePublicLink, disablePublicLink, remove } =
-    useArtifact(artifactId);
+  const {
+    artifact,
+    versions,
+    isLoading,
+    error,
+    refetch,
+    enablePublicLink,
+    disablePublicLink,
+    remove,
+  } = useArtifact(artifactId);
   const breadcrumbs = [{ label: t("title"), href: ROUTES.ARTIFACTS }];
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={6} />;
   if (artifact === null) {
+    // The two do not read the same. A 404 is a fact about the artifact - gone,
+    // in another tenant or no longer shared, which the API answers identically on
+    // purpose. Anything else is a fact about the request, and telling somebody
+    // their page was removed during an outage sends them to ask who deleted it.
+    const unavailable = !error || (error instanceof ApiError && error.status === 404);
     return (
       <div className="space-y-6">
         <PageHeader title={t("title")} breadcrumbs={breadcrumbs} />
-        <EmptyState icon={FileX} title={t("unavailable")} description={t("unavailableWhy")} />
+        {unavailable ? (
+          <EmptyState icon={FileX} title={t("unavailable")} description={t("unavailableWhy")} />
+        ) : (
+          <ErrorState
+            title={t("couldNotLoad")}
+            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+          />
+        )}
       </div>
     );
   }

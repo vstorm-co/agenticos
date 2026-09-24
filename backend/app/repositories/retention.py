@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, Select, case, delete, func, literal, select
+from sqlalchemy import CursorResult, case, delete, func, literal, select
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -280,64 +280,67 @@ async def delete_memory(
     return result.rowcount or 0
 
 
-def _expiring_artifacts(
-    *, organization_id: UUID, cutoff: datetime, limit: int
-) -> Select[tuple[UUID]]:
-    """The oldest artifacts nothing has republished since `cutoff`.
+async def lock_expiring_artifacts(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> list[UUID]:
+    """The oldest artifacts nothing has republished since `cutoff`, locked.
 
     `published_at`, not `created_at`: a report a schedule republishes every week
     is alive however long ago its first version was written.
+
+    Selected once and locked because the sweep removes the bytes before the
+    rows, and those are two statements. A publish that landed between two
+    evaluations of the cutoff would lose its files to the first and keep its
+    rows through the second - a page whose versions all point at nothing. A
+    publish takes the same row lock, so it waits for the sweep and then finds
+    the artifact gone. `SKIP LOCKED` leaves a row a publish already holds to
+    the next pass: it is being republished, so it is not old.
     """
-    return (
+    rows = await db.execute(
         select(Artifact.id)
         .where(Artifact.organization_id == organization_id, Artifact.published_at < cutoff)
         .order_by(Artifact.published_at)
         .limit(limit)
+        .with_for_update(skip_locked=True)
     )
+    return list(rows.scalars().all())
 
 
-async def stored_paths_for_expiring_artifacts(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[str]:
-    """Every stored version of the artifacts about to be purged.
+async def stored_paths_for_artifacts(db: AsyncSession, *, artifact_ids: list[UUID]) -> list[str]:
+    """Every stored version of these artifacts.
 
     Read before the delete for the reason conversations are: the version rows
     cascade with the artifact and the bytes in file storage do not.
     """
-    expiring = _expiring_artifacts(
-        organization_id=organization_id, cutoff=cutoff, limit=limit
-    ).scalar_subquery()
     rows = await db.execute(
-        select(ArtifactVersion.storage_path).where(ArtifactVersion.artifact_id.in_(expiring))
+        select(ArtifactVersion.storage_path).where(ArtifactVersion.artifact_id.in_(artifact_ids))
     )
     return [path for (path,) in rows.all()]
 
 
 async def delete_artifacts(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+    db: AsyncSession, *, organization_id: UUID, artifact_ids: list[UUID]
 ) -> int:
-    """Drop the oldest artifacts not republished since `cutoff`, and their grants.
+    """Drop exactly these artifacts, and their grants.
 
     Versions cascade. Grants do not - the grant table carries no foreign key to
     what it shares - so they go in the same pass, or a later artifact given the
     same id would inherit them. The public link goes with the row.
     """
-    found = await db.execute(
-        _expiring_artifacts(organization_id=organization_id, cutoff=cutoff, limit=limit)
-    )
-    expiring = list(found.scalars().all())
-    if not expiring:
-        return 0
     await db.execute(
         delete(ResourceGrant).where(
             ResourceGrant.organization_id == organization_id,
             ResourceGrant.resource_type == "artifact",
-            ResourceGrant.resource_id.in_(expiring),
+            ResourceGrant.resource_id.in_(artifact_ids),
         )
     )
     result = cast(
         CursorResult[Any],
-        await db.execute(delete(Artifact).where(Artifact.id.in_(expiring))),
+        await db.execute(
+            delete(Artifact).where(
+                Artifact.organization_id == organization_id, Artifact.id.in_(artifact_ids)
+            )
+        ),
     )
     return result.rowcount or 0
 

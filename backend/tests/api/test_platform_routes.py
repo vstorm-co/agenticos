@@ -1480,7 +1480,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # agent-authored script and may be served from another origin entirely -
         # so what authorises it is a short-lived token this deployment signed
         # after a grant or a public link admitted the caller. Every response
-        # carries a `sandbox` policy with no `allow-same-origin`.
+        # carries a `sandbox` policy with no `allow-same-origin`, and a bucket per
+        # address bounds one replayed on a loop.
         ("GET", f"{V1}/artifact-content/{{token}}"),
         # Avatars, rendered by `<img src>` in contexts that have no session -
         # an invitation email, a public share. An id, and a picture the owner

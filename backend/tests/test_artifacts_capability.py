@@ -27,6 +27,7 @@ from app.agents.capabilities.artifacts._toolset import (
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.deps import AgentDeps
+from app.core.exceptions import AuthorizationError
 from app.db.models.artifact import ArtifactMediaType
 from app.services.artifact import PublishedArtifact
 
@@ -100,6 +101,17 @@ class TestPublishing:
         assert parsed is not None
         assert parsed.artifact_id == published.artifact_id
         assert parsed.url.endswith(f"/artifacts/{published.artifact_id}")
+
+    @pytest.mark.security
+    async def test_a_name_somebody_else_s_page_holds_is_a_refusal_not_a_retry(self) -> None:
+        """Returned, not steered: a retry prompt on a refusal invites the model to
+        look for a way round it, and the answer here is simply another name."""
+        refused = AuthorizationError(message="Publish under a different name.")
+        with patch(PUBLISH, new=AsyncMock(side_effect=refused)):
+            result = await _tool()(
+                _ctx(_deps()), name="weekly-report", title="Weekly", content="<p>x</p>"
+            )
+        assert result == "Publish under a different name."
 
     async def test_a_workspace_file_is_published_as_the_file_it_is(self) -> None:
         workspace = _workspace(b"# Report\n")

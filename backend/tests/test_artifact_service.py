@@ -549,6 +549,10 @@ class TestThePolicy:
         assert "allow-same-origin" not in directives["sandbox"]
         assert "allow-top-navigation" not in directives["sandbox"]
         assert "allow-forms" not in directives["sandbox"]
+        # `connect-src` does not govern navigation, so a popup would be a way
+        # out to an address the page chose, and escaping the sandbox a worse one.
+        assert "allow-popups" not in directives["sandbox"]
+        assert "allow-popups-to-escape-sandbox" not in directives["sandbox"]
         assert directives["connect-src"] == ["'none'"]
         assert directives["default-src"] == ["'none'"]
         assert directives["frame-ancestors"] == [artifacts.settings.FRONTEND_URL.rstrip("/")]

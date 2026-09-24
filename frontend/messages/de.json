@@ -5232,6 +5232,7 @@
     "versionUnavailableWhy": "Sie wurde durch neuere Versionen ersetzt und wird nicht mehr aufbewahrt, oder Ihr Zugriff hat sich gerade geändert. Wählen Sie oben die neueste Version.",
     "unavailable": "Dieses Artefakt ist nicht verfügbar",
     "unavailableWhy": "Es wurde gelöscht, oder Sie haben keinen Zugriff mehr darauf.",
+    "couldNotLoad": "Dieses Artefakt konnte nicht geladen werden",
     "publishedAs": "Veröffentlicht als {name}",
     "deleteTitle": "{title} löschen?",
     "deleteWhy": "Alle Versionen und der öffentliche Link werden mitgelöscht, und niemand, mit dem es geteilt wurde, kann es noch öffnen. Der Agent legt ein neues an, wenn er das nächste Mal unter diesem Namen veröffentlicht.",

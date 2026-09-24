@@ -1,5 +1,5 @@
 ---
-source_sha: "abc239ffbca4"
+source_sha: "2106ff45a345"
 ---
 
 # Artefactos { #artifacts }
@@ -43,13 +43,22 @@ desde cualquier superficie: el chat, la API, un [trigger](triggers.md) o un
 workflow. Un nombre nuevo crea una página nueva. El nombre admite letras
 minúsculas, dígitos y guiones, hasta 64 caracteres.
 
+El nombre lo comparten todos los que ejecutan el agent, pero la página no. Un run
+vuelve a publicar un artefacto existente solo cuando la persona por la que actúa
+es su propietaria o tiene `artifacts:edit` sobre él, por el rol o por un grant
+`edit`: la misma regla que para gestionarlo en la consola. Al run de cualquier
+otra persona se le dice que el nombre está ocupado y publica con otro, así que un
+compañero que pida al mismo agent compartido un `weekly-report` no puede
+sustituir la página que hay detrás de tu enlace.
+
 Cada publicación es una **versión** nueva. No se sobrescribe nada, así que la
 lista de versiones en la página del artefacto es su historial. Dos cosas mantienen
 ese historial acotado:
 
 - Publicar exactamente los bytes que ya contiene la versión actual no añade
   ninguna versión. El resultado dice `unchanged`, y una programación que no
-  encontró nada nuevo deja el historial en paz.
+  encontró nada nuevo deja el historial en paz. Aun así cuenta como publicación,
+  así que el reloj de la retención vuelve a empezar.
 - Solo se conservan las versiones más recientes, `ARTIFACT_MAX_VERSIONS` de
   ellas (20 por defecto). Una versión antigua se elimina cuando llega una nueva.
   Una conversación que enlaza a una versión eliminada dice que esa versión ya no
@@ -128,14 +137,23 @@ consola ni a la persona que lo mira:
   versión y caduca en minutos. Solo se emite después de que un grant o un enlace
   público haya admitido a quien llama.
 - Cada respuesta de contenido lleva `Content-Security-Policy: sandbox
-  allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals`,
-  sin `allow-same-origin`. La página se ejecuta en un origen opaco, así que no
-  puede leer las cookies, el almacenamiento ni la página de la consola, y una
-  petición que hiciera no llevaría nada del lector. Eso se mantiene incluso
-  cuando alguien abre la dirección de contenido por sí sola.
+  allow-scripts allow-modals`, sin `allow-same-origin`. La página se ejecuta en
+  un origen opaco, así que no puede leer las cookies, el almacenamiento ni la
+  página de la consola, y una petición que hiciera no llevaría nada del lector.
+  Eso se mantiene incluso cuando alguien abre la dirección de contenido por sí
+  sola.
+- Tampoco hay `allow-popups`. `connect-src` no rige la navegación, así que un
+  enlace que abriera una ventana nueva sería una forma de enviar lo que muestra
+  la página a una dirección elegida por ella. Un enlace dentro de la página se
+  abre en su propio frame, y el `frame-src` de la consola rechaza cualquier
+  origen salvo el del contenido.
 - La misma política fija `default-src 'none'` y `connect-src 'none'` sin ningún
   origen remoto, y `frame-ancestors` nombra solo la consola. El frame de la
   consola lleva la misma lista `sandbox` como segundo cerrojo.
+- Una dirección firmada carga su página unas pocas veces por minuto como mucho,
+  contadas por dirección antes de leer nada. La consola y la página pública
+  emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
+  de un enlace público ya está limitado por enlace.
 
 Además, un despliegue puede servir el contenido desde un **dominio registrable
 aparte** fijando `ARTIFACT_ORIGIN`, por ejemplo
@@ -173,6 +191,9 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   partir de sus datos, no se edita desde la última versión.
 - **Una página abierta sobrevive a una revocación durante la vida de una
   dirección firmada**, cinco minutos por defecto.
+- **Los enlaces dentro de una página no abren una ventana nueva.** Un enlace a
+  otro sitio no carga en el frame, por la misma regla que mantiene la página sin
+  red.
 - **Las versiones eliminadas desaparecen.** Una conversación que enlaza a una
   versión más antigua que la ventana conservada solo puede ofrecer la última.
 

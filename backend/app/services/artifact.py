@@ -34,12 +34,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.security import create_artifact_view_token, read_uuid_claim, verify_special_token
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.session import get_db_context
-from app.repositories import artifact_repo, resource_grant_repo
+from app.repositories import artifact_repo, member_repo, resource_grant_repo
 from app.schemas.artifact import (
     ArtifactDetail,
     ArtifactList,
@@ -97,9 +97,12 @@ img {{ max-width: 100%; }}
 CONTENT_SECURITY_POLICY_BASE = (
     # No `allow-same-origin`: the page gets an opaque origin, so it can read no
     # cookie, no storage and no DOM of the console that frames it, and a request it
-    # makes carries nothing of whoever is looking at it. Popups so a link in a
-    # report opens; everything that would navigate or submit elsewhere is off.
-    "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals; "
+    # makes carries nothing of whoever is looking at it. No `allow-popups` either:
+    # `connect-src` does not govern navigation, so a popup is a channel to an
+    # address the page chooses - one click on a prompt-injected report would carry
+    # its numbers out in a URL. A link inside the frame therefore stays inside it,
+    # where the console's `frame-src` refuses anything but this content origin.
+    "sandbox allow-scripts allow-modals; "
     # Self-contained by construction. `connect-src 'none'` and no remote sources
     # mean a page cannot load code from, or send what it shows to, anywhere - a
     # prompt-injected report cannot beacon the numbers it was built from.
@@ -241,10 +244,21 @@ async def publish_with(
     Creates the artifact on the first publication, private to `owner_user_id`.
     Idempotent on the bytes: publishing exactly what the current version holds
     adds no version, so a schedule that found nothing new leaves the history as
-    it was. A new title is taken either way.
+    it was. A new title is taken either way, and so is the publication time -
+    retention measures age from `published_at`, and a page a schedule still
+    republishes every day is alive whether or not its numbers moved.
+
+    An existing artifact is republished only for the person who owns it or for
+    one holding `artifacts:edit` on it, grants included - the name is shared by
+    everyone who runs the agent, and a second member's run must not replace the
+    page behind somebody else's link.
 
     The caller has already checked :func:`publish_problem`; the size is enforced
     again here because this is the function that writes.
+
+    Raises:
+        AuthorizationError: The name belongs to an artifact this run's person
+            may not edit. The message is written for the model.
     """
     if len(data) > settings.ARTIFACT_MAX_BYTES:
         raise ValueError("artifact content over ARTIFACT_MAX_BYTES reached publish_with()")
@@ -257,12 +271,19 @@ async def publish_with(
         name=name,
         title=title,
     )
+    if not created and not await _may_republish(db, artifact, owner_user_id):
+        raise AuthorizationError(
+            message=(
+                f"An artifact named {name!r} already exists for this agent, and it is not "
+                "one this run may change. Publish under a different name."
+            ),
+            details={"name": name},
+        )
     latest = await artifact_repo.latest_version(db, artifact.id)
     if latest is not None and latest.sha256 == sha256 and latest.media_type == media_type:
-        if artifact.title != title:
-            artifact = await artifact_repo.update(
-                db, artifact=artifact, update_data={"title": title}
-            )
+        artifact = await artifact_repo.update(
+            db, artifact=artifact, update_data={"title": title, "published_at": datetime.now(UTC)}
+        )
         return _published(artifact, latest, created=created, unchanged=True)
 
     path = _storage_path(artifact, sha256, media_type)
@@ -332,6 +353,34 @@ async def _locked_artifact(
             raise
         return winner, False
     return created, True
+
+
+async def _may_republish(
+    db: AsyncSession, artifact: Artifact, publisher_user_id: UUID | None
+) -> bool:
+    """Whether a run acting for `publisher_user_id` may add a version to `artifact`.
+
+    Its owner may, and so may anybody `resolve_access` gives `artifacts:edit` -
+    the rule a person managing it in the console is held to. The role is read
+    from an active membership, so a departed or deactivated member's run keeps
+    no reach, and a run with nobody behind it reaches only an artifact that has
+    nobody behind it either.
+    """
+    if artifact.owner_user_id == publisher_user_id:
+        return True
+    if publisher_user_id is None:
+        return False
+    membership = await member_repo.get_active(
+        db, organization_id=artifact.organization_id, user_id=publisher_user_id
+    )
+    if membership is None:
+        return False
+    ctx = AuthContext(
+        user_id=publisher_user_id,
+        organization_id=artifact.organization_id,
+        role=membership.role,
+    )
+    return await resolve_access(db, ctx, artifact, Perm.ARTIFACTS_EDIT, resource_type=ARTIFACT)
 
 
 async def _prune(db: AsyncSession, artifact_id: UUID) -> None:

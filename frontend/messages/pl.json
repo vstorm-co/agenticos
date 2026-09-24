@@ -3015,6 +3015,7 @@
     "versionUnavailableWhy": "Zastąpiły ją nowsze wersje i nie jest już przechowywana albo przed chwilą zmienił się Twój dostęp. Wybierz najnowszą wersję powyżej.",
     "unavailable": "Ten artefakt jest niedostępny",
     "unavailableWhy": "Został usunięty albo nie masz już do niego dostępu.",
+    "couldNotLoad": "Nie udało się wczytać artefaktu",
     "publishedAs": "Opublikowany jako {name}",
     "deleteTitle": "Usunąć {title}?",
     "deleteWhy": "Znikną wszystkie wersje i link publiczny, a osoby, którym go udostępniono, nie otworzą go więcej. Agent utworzy nowy, gdy następnym razem opublikuje stronę pod tą nazwą.",

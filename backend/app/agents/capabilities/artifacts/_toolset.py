@@ -8,7 +8,8 @@ Either way the tool reads the bytes and hands them to
 
 Nothing the model passes chooses the organization, the agent or the owner: all
 three come off `ctx.deps`, so the name is the only handle it has, and it is a
-handle within this agent's own artifacts.
+handle within this agent's own artifacts - one that reaches an existing page
+only when the run's person may edit it.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from pydantic_ai_backends import ensure_async
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.core.config import settings
+from app.core.exceptions import AuthorizationError
 from app.db.models.artifact import ArtifactMediaType
 from app.services import artifact as artifacts
 
@@ -170,16 +172,21 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
             return steer(ctx, problem)
         clean_title = title.strip()[:200] or name
 
-        published = await artifacts.publish(
-            organization_id=deps.organization_id,
-            agent_id=deps.agent_id,
-            owner_user_id=UUID(deps.user_id) if deps.user_id else None,
-            run_id=deps.run_id,
-            name=name,
-            title=clean_title,
-            media_type=media_type,
-            data=data,
-        )
+        try:
+            published = await artifacts.publish(
+                organization_id=deps.organization_id,
+                agent_id=deps.agent_id,
+                owner_user_id=UUID(deps.user_id) if deps.user_id else None,
+                run_id=deps.run_id,
+                name=name,
+                title=clean_title,
+                media_type=media_type,
+                data=data,
+            )
+        except AuthorizationError as refused:
+            # A refusal, so returned rather than steered: the name is somebody
+            # else's page, and the model picks another one or says so.
+            return refused.message
         return PublishedArtifactResult(
             artifact_id=published.artifact_id,
             version_id=published.version_id,

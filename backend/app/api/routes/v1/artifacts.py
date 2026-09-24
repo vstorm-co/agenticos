@@ -18,7 +18,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import ArtifactSvc, Auth, limit_public_artifact, require
+from app.api.deps import (
+    ArtifactSvc,
+    Auth,
+    limit_artifact_content,
+    limit_public_artifact,
+    require,
+)
 from app.api.routes.v1._artifact_bytes import artifact_response
 from app.core.permissions import Perm
 from app.schemas.artifact import (
@@ -110,7 +116,13 @@ async def get_public_artifact(public_key: str, service: ArtifactSvc) -> Any:
     return await service.public_view(public_key)
 
 
-@content_router.get("/{token}", response_class=Response)
+@content_router.get(
+    "/{token}", response_class=Response, dependencies=[Depends(limit_artifact_content)]
+)
 async def get_artifact_content(token: str, service: ArtifactSvc) -> Response:
-    """The page behind a signed address, served inside a sandbox policy."""
+    """The page behind a signed address, served inside a sandbox policy.
+
+    Counted per address before anything is read: one address is one frame's load
+    and a reload or two, not a way to pull the page out of storage on a loop.
+    """
     return artifact_response(await service.content(token))

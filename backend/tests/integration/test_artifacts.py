@@ -19,9 +19,10 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AuthorizationError
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
 from app.repositories import artifact_repo, retention_repo
@@ -150,6 +151,30 @@ class TestPublication:
         assert again.title == "Renamed"
         assert await _versions(db, first.artifact_id) == [1]
 
+    async def test_an_unchanged_publication_still_counts_as_one_for_retention(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """Retention measures age from `published_at`. A schedule that republishes
+        identical numbers every day is keeping the page alive, and a sweep that
+        read the date of the last *change* would delete it for being accurate."""
+        organization, user, agent = await _tenant(db)
+        first = await _publish(db, organization, user, agent, body="<h1>same</h1>")
+        stale = NOW - timedelta(days=120)
+        await db.execute(
+            text("UPDATE artifacts SET published_at = :at WHERE id = :id"),
+            {"at": stale, "id": first.artifact_id},
+        )
+        artifact = await db.get(Artifact, first.artifact_id)
+        assert artifact is not None
+        await db.refresh(artifact)
+
+        again = await _publish(db, organization, user, agent, body="<h1>same</h1>")
+
+        await db.refresh(artifact)
+        assert again.unchanged is True
+        assert artifact.published_at > stale
+        assert await _versions(db, first.artifact_id) == [1]
+
     async def test_the_same_name_under_another_agent_is_another_artifact(
         self, db: AsyncSession, storage: LocalFileStorage
     ) -> None:
@@ -196,6 +221,128 @@ class TestPublication:
 
         assert await _versions(db, third.artifact_id) == [2, 3]
         after_commit.assert_not_called()
+
+
+async def _member(db: AsyncSession, organization: Organization, role: str) -> User:
+    person = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+    db.add(person)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=organization.id, user_id=person.id, role=role))
+    await db.flush()
+    return person
+
+
+class TestWhoMayRepublish:
+    """The name is shared by everyone who runs the agent; the page behind it is not."""
+
+    @pytest.mark.security
+    async def test_another_member_s_run_cannot_replace_the_owner_s_page(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        first = await _publish(db, organization, owner, agent, body="<p>mine</p>")
+        colleague = await _member(db, organization, "member")
+
+        with pytest.raises(AuthorizationError, match="different name"):
+            await _publish(
+                db, organization, colleague, agent, body="<p>theirs</p>", title="Hijacked"
+            )
+
+        artifact = await db.get(Artifact, first.artifact_id)
+        assert artifact is not None
+        assert artifact.title == "Weekly report"
+        assert await _versions(db, first.artifact_id) == [1]
+
+    @pytest.mark.security
+    async def test_identical_bytes_are_refused_too_rather_than_retitling_it(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        first = await _publish(db, organization, owner, agent, body="<p>same</p>")
+        colleague = await _member(db, organization, "member")
+
+        with pytest.raises(AuthorizationError):
+            await _publish(db, organization, colleague, agent, body="<p>same</p>", title="X")
+
+        artifact = await db.get(Artifact, first.artifact_id)
+        assert artifact is not None
+        assert artifact.title == "Weekly report"
+
+    async def test_an_edit_grant_lets_a_colleague_s_run_republish_it(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        first = await _publish(db, organization, owner, agent, body="<p>v1</p>")
+        colleague = await _member(db, organization, "member")
+        db.add(
+            ResourceGrant(
+                organization_id=organization.id,
+                resource_type="artifact",
+                resource_id=first.artifact_id,
+                subject_user_id=colleague.id,
+                level=GrantLevel.EDIT.value,
+                created_by_user_id=owner.id,
+            )
+        )
+        await db.flush()
+
+        second = await _publish(db, organization, colleague, agent, body="<p>v2</p>")
+
+        assert second.artifact_id == first.artifact_id
+        assert second.version_number == 2
+        artifact = await db.get(Artifact, first.artifact_id)
+        assert artifact is not None
+        assert artifact.owner_user_id == owner.id
+
+    async def test_a_role_that_edits_every_artifact_may_republish_any(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        first = await _publish(db, organization, owner, agent, body="<p>v1</p>")
+        admin = await _member(db, organization, "admin")
+
+        second = await _publish(db, organization, admin, agent, body="<p>v2</p>")
+
+        assert (second.artifact_id, second.version_number) == (first.artifact_id, 2)
+
+    @pytest.mark.security
+    async def test_a_deactivated_admin_s_run_keeps_no_reach(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        await _publish(db, organization, owner, agent, body="<p>v1</p>")
+        admin = await _member(db, organization, "admin")
+        admin.is_active = False
+        await db.flush()
+
+        with pytest.raises(AuthorizationError):
+            await _publish(db, organization, admin, agent, body="<p>v2</p>")
+
+    @pytest.mark.security
+    async def test_a_run_with_nobody_behind_it_reaches_only_an_ownerless_page(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        organization, owner, agent = await _tenant(db)
+        await _publish(db, organization, owner, agent, body="<p>v1</p>")
+
+        async def headless(name: str, body: bytes) -> artifacts.PublishedArtifact:
+            return await artifacts.publish_with(
+                db,
+                organization_id=organization.id,
+                agent_id=agent.id,
+                owner_user_id=None,
+                run_id=None,
+                name=name,
+                title="Headless",
+                media_type=HTML,
+                data=body,
+            )
+
+        with pytest.raises(AuthorizationError):
+            await headless("weekly-report", b"<p>v2</p>")
+        made = await headless("ownerless", b"<p>a</p>")
+        again = await headless("ownerless", b"<p>b</p>")
+        assert (again.artifact_id, again.version_number) == (made.artifact_id, 2)
 
 
 class TestConstraints:
@@ -280,20 +427,6 @@ class TestReads:
         assert [v.number for v in await artifact_repo.list_versions(db, artifact.id)] == [1]
         assert "weekly-report" in repr(artifact)
         assert "number=1" in repr(version)
-
-    async def test_identical_bytes_under_the_same_title_write_nothing(
-        self, db: AsyncSession, storage: LocalFileStorage
-    ) -> None:
-        organization, user, agent = await _tenant(db)
-        first = await _publish(db, organization, user, agent, body="<p>x</p>")
-        artifact = await db.get(Artifact, first.artifact_id)
-        assert artifact is not None
-        stamped = artifact.updated_at
-
-        again = await _publish(db, organization, user, agent, body="<p>x</p>")
-
-        assert again.unchanged is True
-        assert artifact.updated_at == stamped
 
     async def test_deleting_an_artifact_takes_its_versions(
         self, db: AsyncSession, storage: LocalFileStorage
@@ -455,10 +588,42 @@ class TestRetention:
     ) -> None:
         organization, user, agent = await _tenant(db)
         await _publish(db, organization, user, agent, body="<p>fresh</p>")
+        organization.retention_days = {"artifacts": 365}
+        await db.flush()
 
+        results = await RetentionService(db).sweep(now=datetime.now(UTC))
+
+        assert all("artifacts" not in result.removed for result in results)
+        assert await db.scalar(select(func.count()).select_from(Artifact)) == 1
+
+    async def test_the_rows_deleted_are_the_ones_whose_bytes_went(
+        self, db: AsyncSession, storage: LocalFileStorage
+    ) -> None:
+        """One locked set, not the cutoff asked twice. A publish landing between
+        the unlink and the delete used to take the artifact out of the second
+        question and leave it standing on files that were already gone."""
+        organization, user, agent = await _tenant(db)
+        old = await _publish(db, organization, user, agent, body="<p>old</p>")
+        await db.execute(
+            text("UPDATE artifacts SET published_at = :at WHERE id = :id"),
+            {"at": NOW - timedelta(days=120), "id": old.artifact_id},
+        )
+        cutoff = NOW - timedelta(days=30)
+
+        expiring = await retention_repo.lock_expiring_artifacts(
+            db, organization_id=organization.id, cutoff=cutoff, limit=10
+        )
+        paths = await retention_repo.stored_paths_for_artifacts(db, artifact_ids=expiring)
+        # The republish the old code raced: the row now reads as fresh.
+        await db.execute(
+            text("UPDATE artifacts SET published_at = :at WHERE id = :id"),
+            {"at": NOW, "id": old.artifact_id},
+        )
         removed = await retention_repo.delete_artifacts(
-            db, organization_id=organization.id, cutoff=NOW - timedelta(days=365), limit=10
+            db, organization_id=organization.id, artifact_ids=expiring
         )
 
-        assert removed == 0
-        assert await db.scalar(select(func.count()).select_from(Artifact)) == 1
+        assert expiring == [old.artifact_id]
+        assert len(paths) == 1
+        assert removed == 1
+        assert await db.get(Artifact, old.artifact_id) is None

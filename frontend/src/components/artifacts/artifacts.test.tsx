@@ -54,6 +54,8 @@ describe("the frame", () => {
     expect(frame.getAttribute("sandbox")).toBe(ARTIFACT_SANDBOX);
     expect(ARTIFACT_SANDBOX).not.toContain("allow-same-origin");
     expect(ARTIFACT_SANDBOX).not.toContain("allow-top-navigation");
+    // A popup is a navigation, which no `connect-src` governs - a way out.
+    expect(ARTIFACT_SANDBOX).not.toContain("allow-popups");
     expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(frame.getAttribute("src")).toBe("https://api.example/api/v1/artifact-content/t");
   });

@@ -1,5 +1,5 @@
 ---
-source_sha: "abc239ffbca4"
+source_sha: "2106ff45a345"
 ---
 
 # Artefakte { #artifacts }
@@ -48,13 +48,22 @@ einem [Trigger](triggers.md) oder einem Workflow. Ein neuer Name ergibt eine neu
 Seite. Der Name besteht aus Kleinbuchstaben, Ziffern und Bindestrichen, bis zu
 64 Zeichen.
 
+Den Namen teilen sich alle, die den Agent ausführen, die Seite aber nicht. Ein
+Run veröffentlicht ein bestehendes Artefakt nur dann erneut, wenn die Person, für
+die er handelt, es besitzt oder `artifacts:edit` darauf hat — aus der Rolle oder
+aus einem `edit`-Grant, dieselbe Regel wie bei der Verwaltung in der Konsole. Der
+Run jeder anderen Person erfährt, dass der Name vergeben ist, und veröffentlicht
+unter einem anderen. Eine Kollegin, die denselben geteilten Agent um einen
+`weekly-report` bittet, kann die Seite hinter Ihrem Link also nicht ersetzen.
+
 Jede Veröffentlichung ist eine neue **Version**. Nichts wird überschrieben, daher
 ist die Versionsliste auf der Seite des Artefakts die Geschichte der Seite. Zwei
 Dinge halten diese Geschichte begrenzt:
 
 - Wer genau die Bytes veröffentlicht, die die aktuelle Version enthält, fügt
   keine Version hinzu. Das Ergebnis lautet `unchanged`, und ein Zeitplan, der
-  nichts Neues gefunden hat, lässt die Geschichte in Ruhe.
+  nichts Neues gefunden hat, lässt die Geschichte in Ruhe. Es zählt trotzdem als
+  Veröffentlichung, die Uhr der Aufbewahrung beginnt also von vorn.
 - Nur die neuesten Versionen werden behalten, `ARTIFACT_MAX_VERSIONS` davon
   (standardmäßig 20). Eine ältere Version wird entfernt, wenn eine neue
   hinzukommt. Eine Unterhaltung, die auf eine entfernte Version verlinkt, sagt,
@@ -134,14 +143,24 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   erst ausgestellt, nachdem ein Grant oder ein öffentlicher Link den Aufrufer
   zugelassen hat.
 - Jede Inhaltsantwort trägt `Content-Security-Policy: sandbox
-  allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals`,
-  ohne `allow-same-origin`. Die Seite läuft in einem opaken Origin, kann also
-  weder die Cookies, den Speicher noch die Seite der Konsole lesen, und eine
-  Anfrage, die sie stellt, würde nichts vom Betrachter mitführen. Das gilt
-  selbst dann, wenn jemand die Inhaltsadresse für sich allein öffnet.
+  allow-scripts allow-modals`, ohne `allow-same-origin`. Die Seite läuft in
+  einem opaken Origin, kann also weder die Cookies, den Speicher noch die Seite
+  der Konsole lesen, und eine Anfrage, die sie stellt, würde nichts vom
+  Betrachter mitführen. Das gilt selbst dann, wenn jemand die Inhaltsadresse für
+  sich allein öffnet.
+- Auch `allow-popups` fehlt. `connect-src` regelt keine Navigation, ein Link,
+  der ein neues Fenster öffnet, wäre also ein Weg, das, was die Seite zeigt, an
+  eine Adresse ihrer Wahl zu schicken. Ein Link in der Seite öffnet sich in
+  ihrem eigenen Frame, und das `frame-src` der Konsole lehnt jeden Origin außer
+  dem Inhalts-Origin ab.
 - Dieselbe Policy setzt `default-src 'none'` und `connect-src 'none'` ohne
   entfernte Quelle, und `frame-ancestors` nennt nur die Konsole. Der Frame in
   der Konsole trägt dieselbe `sandbox`-Liste als zweites Schloss.
+- Eine signierte Adresse lädt ihre Seite höchstens einige Male pro Minute,
+  gezählt pro Adresse, bevor irgendetwas gelesen wird. Die Konsole und die
+  öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den
+  Frame zeichnen, und das Ausstellen über einen öffentlichen Link ist selbst pro
+  Link begrenzt.
 
 Darüber hinaus kann ein Deployment Inhalte von einer **separaten registrierbaren
 Domain** ausliefern, indem es `ARTIFACT_ORIGIN` setzt — zum Beispiel
@@ -181,6 +200,9 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
   seinen Daten neu gebaut, nicht aus der letzten Version bearbeitet.
 - **Eine offene Seite überdauert einen Entzug um eine Lebensdauer der signierten
   Adresse**, standardmäßig fünf Minuten.
+- **Links in einer Seite öffnen kein neues Fenster.** Ein Link auf eine andere
+  Site lädt nicht im Frame, nach derselben Regel, die die Seite vom Netzwerk
+  fernhält.
 - **Entfernte Versionen sind weg.** Eine Unterhaltung, die auf eine Version
   verlinkt, die älter als das aufbewahrte Fenster ist, kann nur die neueste
   anbieten.

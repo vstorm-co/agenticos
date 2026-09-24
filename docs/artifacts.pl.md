@@ -1,5 +1,5 @@
 ---
-source_sha: "abc239ffbca4"
+source_sha: "2106ff45a345"
 ---
 
 # Artefakty { #artifacts }
@@ -43,13 +43,22 @@ dowolnej powierzchni: z czatu, z API, z [triggera](triggers.md) albo z workflow.
 Nowa nazwa tworzy nową stronę. Nazwa składa się z małych liter, cyfr i łączników,
 maksymalnie 64 znaki.
 
+Nazwę dzielą wszyscy, którzy uruchamiają agenta, ale stronę już nie. Run
+publikuje ponownie istniejący artefakt tylko wtedy, gdy osoba, w której imieniu
+działa, jest jego właścicielem albo ma na nim `artifacts:edit` — z roli albo z
+grantu `edit`, ta sama zasada co przy zarządzaniu nim w konsoli. Run każdego
+innego dostaje informację, że nazwa jest zajęta, i publikuje pod inną, więc
+kolega, który poprosi tego samego współdzielonego agenta o `weekly-report`, nie
+podmieni strony za Twoim linkiem.
+
 Każda publikacja to nowa **wersja**. Nic nie jest nadpisywane, więc lista wersji
 na stronie artefaktu jest historią strony. Dwie rzeczy utrzymują tę historię w
 granicach:
 
 - Publikacja dokładnie tych bajtów, które trzyma bieżąca wersja, nie dodaje
   wersji. Wynik mówi `unchanged`, a harmonogram, który nie znalazł nic nowego,
-  zostawia historię w spokoju.
+  zostawia historię w spokoju. To nadal liczy się jako publikacja, więc zegar
+  retencji startuje od nowa.
 - Zachowywane są tylko najnowsze wersje, `ARTIFACT_MAX_VERSIONS` z nich
   (domyślnie 20). Starsza wersja jest usuwana, gdy pojawia się nowa. Rozmowa,
   która linkuje do usuniętej wersji, mówi, że wersja nie jest już przechowywana,
@@ -124,14 +133,22 @@ ani osoby, która go ogląda:
   i wygasa po kilku minutach. Jest wydawany dopiero wtedy, gdy grant albo
   publiczny link dopuściły wywołującego.
 - Każda odpowiedź z treścią niesie `Content-Security-Policy: sandbox
-  allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals`, bez
-  `allow-same-origin`. Strona działa w nieprzezroczystym originie (opaque
-  origin), więc nie może czytać ciasteczek, pamięci ani strony konsoli, a
-  żądanie, które wyśle, nie niesie niczego od oglądającego. To obowiązuje nawet
-  wtedy, gdy ktoś otworzy adres treści bezpośrednio.
+  allow-scripts allow-modals`, bez `allow-same-origin`. Strona działa w
+  nieprzezroczystym originie (opaque origin), więc nie może czytać ciasteczek,
+  pamięci ani strony konsoli, a żądanie, które wyśle, nie niesie niczego od
+  oglądającego. To obowiązuje nawet wtedy, gdy ktoś otworzy adres treści
+  bezpośrednio.
+- Nie ma też `allow-popups`. `connect-src` nie obejmuje nawigacji, więc link
+  otwierający nowe okno byłby sposobem na wysłanie tego, co strona pokazuje, pod
+  adres wybrany przez stronę. Link wewnątrz strony otwiera się w jej własnej
+  ramce, a `frame-src` konsoli odrzuca każdy origin poza originem treści.
 - Ta sama polityka ustawia `default-src 'none'` i `connect-src 'none'` bez
   żadnego zdalnego źródła, a `frame-ancestors` wymienia tylko konsolę. Ramka w
   konsoli niesie tę samą listę `sandbox` jako drugi zamek.
+- Jeden podpisany adres ładuje swoją stronę najwyżej kilka razy na minutę, licząc
+  per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
+  wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
+  publiczny link samo jest ograniczone per link.
 
 Ponadto wdrożenie może serwować treść z **osobnej domeny rejestrowalnej**,
 ustawiając `ARTIFACT_ORIGIN` — na przykład
@@ -167,6 +184,8 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   na nowo ze swoich danych, a nie edytowany z ostatniej wersji.
 - **Otwarta strona przeżywa odwołanie o jeden czas życia podpisanego adresu**,
   domyślnie pięć minut.
+- **Linki wewnątrz strony nie otwierają nowego okna.** Link do innej witryny nie
+  ładuje się w ramce, z tego samego powodu, który trzyma stronę z dala od sieci.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
 

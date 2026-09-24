@@ -255,6 +255,26 @@ class TestTheContentRoute:
         assert "set-cookie" not in response.headers
 
     @pytest.mark.security
+    async def test_an_address_loaded_on_a_loop_is_refused_before_anything_is_read(
+        self, client: OpenClient
+    ) -> None:
+        app.dependency_overrides.pop(deps.get_auth_context)
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=60)
+        token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(minutes=5))
+        read = AsyncMock()
+        with (
+            patch.object(
+                rate_limit, "artifact_content_allowed", new=AsyncMock(return_value=refused)
+            ) as counted,
+            patch(f"{PATH}.artifact_repo.get_version_with_artifact", new=read),
+        ):
+            async with client() as http:
+                response = await http.get(f"{settings.API_V1_STR}/artifact-content/{token}")
+        assert response.status_code == 429
+        counted.assert_awaited_once_with(token)
+        read.assert_not_awaited()
+
+    @pytest.mark.security
     async def test_an_expired_address_is_not_found(self, client: OpenClient) -> None:
         token = create_artifact_view_token(uuid.uuid4(), expires_in=timedelta(seconds=-1))
         async with client() as http:

@@ -37,13 +37,20 @@ from any surface: the chat, the API, a [trigger](triggers.md) or a workflow. A
 new name makes a new page. The name is lower-case letters, digits and hyphens,
 up to 64 characters.
 
+The name is shared by everybody who runs the agent, but the page is not. A run
+republishes an existing artifact only when the person it acts for owns it or
+holds `artifacts:edit` on it - from the role or from an `edit` grant, the same
+rule as managing it in the console. Anybody else's run is told the name is taken
+and publishes under another one, so a colleague asking the same shared agent for
+a `weekly-report` cannot replace the page behind your link.
+
 Every publication is a new **version**. Nothing is overwritten, so the version
 list on the artifact's page is the page's history. Two things keep that history
 bounded:
 
 - Publishing exactly the bytes the current version holds adds no version. The
   result says `unchanged`, and a schedule that found nothing new leaves the
-  history alone.
+  history alone. It still counts as a publication, so retention's clock restarts.
 - Only the newest versions are kept, `ARTIFACT_MAX_VERSIONS` of them (20 by
   default). An older version is removed when a new one lands. A conversation
   that links to a removed version says the version is no longer kept and offers
@@ -115,14 +122,21 @@ the person looking at it:
   and expires in minutes. It is minted only after a grant or a public link
   admitted the caller.
 - Every content response carries `Content-Security-Policy: sandbox
-  allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals`,
-  with no `allow-same-origin`. The page runs in an opaque origin, so it cannot
-  read the console's cookies, storage or page, and a request it made would carry
-  nothing of the viewer. That holds even when somebody opens the content address
-  on its own.
+  allow-scripts allow-modals`, with no `allow-same-origin`. The page runs in an
+  opaque origin, so it cannot read the console's cookies, storage or page, and a
+  request it made would carry nothing of the viewer. That holds even when
+  somebody opens the content address on its own.
+- There is no `allow-popups` either. `connect-src` does not govern navigation,
+  so a link that opened a new window would be a way to send what the page shows
+  to an address the page chose. A link inside the page opens in its own frame,
+  and the console's `frame-src` refuses every origin but the content one.
 - The same policy sets `default-src 'none'` and `connect-src 'none'` with no
   remote source, and `frame-ancestors` names only the console. The frame in the
   console carries the same `sandbox` list as a second lock.
+- One signed address loads its page a few times a minute at most, counted per
+  address before anything is read. The console and the public page mint a
+  fresh address each time they draw the frame, and minting one through a public
+  link is itself limited per link.
 
 On top of that, a deployment can serve content from a **separate registrable
 domain** by setting `ARTIFACT_ORIGIN` - for example
@@ -158,6 +172,8 @@ under `artifacts/<organization>/<artifact>/`.
   data, not edited from the last version.
 - **An open page outlives a revocation by one signed-address lifetime**, five
   minutes by default.
+- **Links inside a page do not open a new window.** A link to another site does
+  load in the frame, by the same rule that keeps the page off the network.
 - **Removed versions are gone.** A conversation that links to a version older
   than the kept window can only offer the latest one.
 

@@ -5366,6 +5366,7 @@
     "versionUnavailableWhy": "It was replaced by newer versions and is no longer kept, or your access changed a moment ago. Pick the latest version above.",
     "unavailable": "This artifact is not available",
     "unavailableWhy": "It was deleted, or you no longer have access to it.",
+    "couldNotLoad": "This artifact could not be loaded",
     "publishedAs": "Published as {name}",
     "deleteTitle": "Delete {title}?",
     "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
