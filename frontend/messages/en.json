@@ -1850,10 +1850,10 @@
       },
       "tables": {
         "title": "Tables",
-        "description": "Your tables, most recently changed first.",
+        "description": "Your tables, the most recently renamed or restructured first.",
         "empty": {
           "title": "No tables yet",
-          "description": "Create one and its records show here."
+          "description": "Create one and it shows here."
         }
       }
     },

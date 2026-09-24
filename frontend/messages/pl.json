@@ -1200,10 +1200,10 @@
       },
       "tables": {
         "title": "Tabele",
-        "description": "Twoje tabele, od ostatnio zmienionych.",
+        "description": "Twoje tabele, od tych, których nazwę lub kolumny zmieniono ostatnio.",
         "empty": {
           "title": "Brak tabel",
-          "description": "Utwórz tabelę, a jej rekordy pojawią się tutaj."
+          "description": "Utwórz tabelę, a pojawi się tutaj."
         }
       }
     },

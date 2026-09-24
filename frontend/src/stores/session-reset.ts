@@ -47,8 +47,8 @@ export function resetTenantState(): void {
   // it, an offer minted from this org's caches having no meaning in the next.
   useOnboardingStore.getState().close();
   useOnboardingStore.getState().dismissOffer();
-  // A conflict banner names a record id and a table-view draft names column
-  // ids, both of another tenant's table once the switch has happened.
+  // A conflict banner names a record id and holds its values, both of another
+  // tenant's table once the switch has happened.
   useTableViewStore.getState().reset();
 }
 

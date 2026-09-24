@@ -1837,10 +1837,10 @@
       },
       "tables": {
         "title": "Tabellen",
-        "description": "Ihre Tabellen, zuletzt geänderte zuerst.",
+        "description": "Ihre Tabellen, zuletzt umbenannte oder umgebaute zuerst.",
         "empty": {
           "title": "Noch keine Tabellen",
-          "description": "Erstellen Sie eine, und ihre Datensätze erscheinen hier."
+          "description": "Erstellen Sie eine, und sie erscheint hier."
         }
       }
     },

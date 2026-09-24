@@ -32,6 +32,19 @@ Two things are versioned separately from this file and worth knowing about:
   and `tables:create` permissions, and every route answers refusals in one typed
   error envelope. Migration `0092_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
+- **Virtual Tables in the console: a catalog, table/kanban/list views, and saved
+  views.** `/tables` lists, searches and creates tables. A table's page edits its
+  columns and its sharing, and shows its records as a table, a kanban board
+  grouped by a single-select column, or a list. One record sheet edits a record
+  field by field. A write refused for a stale revision keeps the typed value
+  beside a "Reload and reapply" action, and writes to one record are sent one at
+  a time, each against the revision the last one returned. Saved views keep a
+  filter, sort and grouping per kind, private or shared, under
+  `/tables/{id}/views` (paged). Archiving a column is refused only by a view the
+  caller can see. Another member's private view drops the column when read
+  instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
+  Migration `0095_table_views.py`; see
+  [saved views](docs/virtual-tables.md#saved-views). (#1783)
 
 ## [0.0.492] - 2026-09-22
 

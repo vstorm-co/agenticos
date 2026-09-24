@@ -14,17 +14,17 @@ export type ColumnTypeName =
   | "single_select"
   | "multi_select";
 
-export type FilterOp =
+type FilterOp =
   "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "contains" | "starts_with" | "in" | "is_null";
 
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 
 export type TableVisibility = "private" | "team" | "org";
 
 /** What one cell can hold. A select column stores option ids, a multi-select a list of them. */
 export type CellValue = string | number | boolean | string[] | null;
 
-export type FilterValue = CellValue | CellValue[];
+type FilterValue = CellValue | CellValue[];
 
 export interface OptionDef {
   id: string;

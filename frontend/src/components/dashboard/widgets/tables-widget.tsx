@@ -16,7 +16,8 @@ const SHOWN = 6;
 /**
  * The caller's tables, most-recently-updated first, each linking straight to
  * its detail page - the glanceable state the `/tables` catalog otherwise
- * requires a whole navigation to see.
+ * requires a whole navigation to see. A table's `updated_at` moves when it is
+ * renamed or its columns change, not when one of its records is written.
  */
 export function TablesWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.tables");
