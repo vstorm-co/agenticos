@@ -68,26 +68,26 @@ vi.mock("@/components/tables/schema-editor-dialog", () => ({
   SchemaEditorDialog: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" aria-label="schema-dialog" /> : null,
 }));
+interface SheetStubProps {
+  record: RecordRead | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRecordUpdated: (record: RecordRead) => void;
+}
+/** The props the page last rendered the sheet with - reachable after it closes. */
+let sheetProps: SheetStubProps | null = null;
 vi.mock("@/components/tables/record-detail-sheet", () => ({
-  RecordDetailSheet: ({
-    record,
-    open,
-    onRefetchRecord,
-  }: {
-    record: RecordRead | null;
-    open: boolean;
-    onRefetchRecord: () => Promise<RecordRead | undefined>;
-  }) =>
-    open ? (
+  RecordDetailSheet: (props: SheetStubProps) => {
+    sheetProps = props;
+    return props.open ? (
       <div
         role="dialog"
         aria-label="record-sheet"
-        data-record-id={record?.id}
-        data-revision={record?.revision}
-      >
-        <button onClick={() => void onRefetchRecord()}>refetch-record</button>
-      </div>
-    ) : null,
+        data-record-id={props.record?.id}
+        data-revision={props.record?.revision}
+      />
+    ) : null;
+  },
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: ({
@@ -433,7 +433,7 @@ describe("the table detail page", () => {
     await waitFor(() => expect(queryBodies[queryBodies.length - 1]?.skip).toBe(0));
   });
 
-  it("opens the record sheet from a grid row and wires reload-and-reapply to a fresh fetch", async () => {
+  it("opens the record sheet from a grid row and advances it with each update", async () => {
     serve();
     const user = userEvent.setup();
     renderPage();
@@ -444,14 +444,40 @@ describe("the table detail page", () => {
     expect(sheet).toHaveAttribute("data-record-id", "r1");
     expect(sheet).toHaveAttribute("data-revision", "1");
 
-    await user.click(screen.getByRole("button", { name: "refetch-record" }));
+    act(() => sheetProps?.onRecordUpdated({ ...RECORD, revision: 2 }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("dialog", { name: "record-sheet" })).toHaveAttribute(
-        "data-revision",
-        "2",
-      ),
+    expect(screen.getByRole("dialog", { name: "record-sheet" })).toHaveAttribute(
+      "data-revision",
+      "2",
     );
-    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1");
+  });
+
+  it("keeps a closed record sheet closed when a commit lands after the close", async () => {
+    // A field committed on the blur the closing click caused answers one round
+    // trip later; storing that answer as "the open record" reopened the sheet.
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: "open-record-from-grid" }));
+
+    act(() => sheetProps?.onOpenChange(false));
+    act(() => sheetProps?.onRecordUpdated({ ...RECORD, revision: 2 }));
+
+    expect(screen.queryByRole("dialog", { name: "record-sheet" })).not.toBeInTheDocument();
+  });
+
+  it("does not swap the open record for a different one's late update", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: "open-record-from-grid" }));
+
+    act(() => sheetProps?.onRecordUpdated({ ...RECORD, id: "r2", revision: 7 }));
+
+    const sheet = screen.getByRole("dialog", { name: "record-sheet" });
+    expect(sheet).toHaveAttribute("data-record-id", "r1");
+    expect(sheet).toHaveAttribute("data-revision", "1");
   });
 });

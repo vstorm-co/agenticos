@@ -28,7 +28,6 @@ import {
 } from "@/components/ui";
 import { LoadingState, ErrorState } from "@/components/states";
 import { useTable, useTableRecords, useTableViews } from "@/hooks";
-import { getRecord } from "@/lib/tables-api";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { useUrlState } from "@/hooks/use-url-state";
 import { emptyViewConfig } from "@/types/tables";
@@ -233,13 +232,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         open={!!openRecord}
         onOpenChange={(open) => !open && setOpenRecord(null)}
         canEdit={canEdit}
-        onRefetchRecord={async () => {
-          if (!openRecord) return undefined;
-          const fresh = await getRecord(id, openRecord.id);
-          setOpenRecord(fresh);
-          return fresh;
-        }}
-        onRecordUpdated={setOpenRecord}
+        // Advances the open record only. A commit that lands after the sheet
+        // closed must not reopen it, nor swap in a different record.
+        onRecordUpdated={(updated) =>
+          setOpenRecord((current) => (current?.id === updated.id ? updated : current))
+        }
       />
 
       {canEdit && (

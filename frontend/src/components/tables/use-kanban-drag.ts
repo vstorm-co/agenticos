@@ -33,7 +33,14 @@ export function useKanbanDrag<T>(onDrop: (item: T, targetOptionId: string | null
   function cardProps(item: T) {
     return {
       draggable: true,
-      onDragStart: () => setDraggingItem(item),
+      onDragStart: (event: DragEvent) => {
+        // Firefox starts no drag from an element that is not a link or an image
+        // unless the drag carries data. What it carries is never read: the drop
+        // reads `draggingItem`.
+        event.dataTransfer.setData("text/plain", "");
+        event.dataTransfer.effectAllowed = "move";
+        setDraggingItem(item);
+      },
       onDragEnd: () => setDraggingItem(null),
     };
   }

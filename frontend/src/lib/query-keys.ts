@@ -509,6 +509,11 @@ export const qk = {
     // or a kanban lane's own narrowed one. Keyed on the whole query object so a
     // lane's filtered fetch and the grid's unfiltered one never collide.
     records: (tableId: string, query: unknown) => ["tables", tableId, "records", query] as const,
+    // Every `records(tableId, …)` query at once: what a record write invalidates,
+    // without also refetching the table itself, its views and its schema versions.
+    recordsAll: (tableId: string) => ["tables", tableId, "records"] as const,
+    // One record, as "reload and reapply" refetches it after a conflict.
+    record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,
   },
 } as const;

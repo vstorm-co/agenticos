@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TableKanbanView } from "./table-kanban-view";
@@ -86,6 +87,41 @@ function mockLanes(byLane: Record<string, RecordRead[]>) {
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+/** jsdom's `dragstart` carries no `dataTransfer`; a browser's always does. */
+function dragStart(element: HTMLElement) {
+  fireEvent.dragStart(element, { dataTransfer: { setData: vi.fn(), effectAllowed: "none" } });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const conflict409 = () =>
+  new ApiError(409, "stale", {
+    error: { code: "REVISION_CONFLICT", message: "stale", details: null },
+  });
+
+function renderBoard() {
+  return render(
+    <TableKanbanView
+      tableId="t1"
+      columns={COLUMNS}
+      groupByColumnId="status"
+      baseFilters={[]}
+      sort={{ by: "created_at", direction: "asc" }}
+      onOpenRecord={vi.fn()}
+      canEdit
+    />,
+    { wrapper },
+  );
 }
 
 beforeEach(() => {
@@ -364,6 +400,8 @@ describe("TableKanbanView", () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1"));
     expect(screen.getByText(/someone else changed this record/i)).toBeInTheDocument();
+    // ...and says why, rather than doing nothing every time it is pressed.
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
   it("reload-and-reapply refetches the record and retries against its fresh revision", async () => {
@@ -531,7 +569,7 @@ describe("TableKanbanView", () => {
     const closedLabel = screen.getByText("Closed");
     const laneRoot = closedLabel.closest("div.flex.w-64") as HTMLElement;
 
-    fireEvent.dragStart(cardRoot);
+    dragStart(cardRoot);
     fireEvent.dragOver(laneRoot);
     fireEvent.drop(laneRoot);
 
@@ -587,7 +625,7 @@ describe("TableKanbanView", () => {
     const archivedLabel = screen.getByText("Archived");
     const laneRoot = archivedLabel.closest("div.flex.w-64") as HTMLElement;
 
-    fireEvent.dragStart(cardRoot);
+    dragStart(cardRoot);
     fireEvent.dragOver(laneRoot);
     fireEvent.drop(laneRoot);
 
@@ -724,5 +762,116 @@ describe("TableKanbanView", () => {
     );
 
     expect(await screen.findByText(/more records available/i)).toBeInTheDocument();
+  });
+
+  describe("serialized moves and surfaced reloads", () => {
+    async function moveVia(cardTitle: string, lane: string) {
+      const user = userEvent.setup();
+      const card = (await screen.findByText(cardTitle)).closest("div[draggable]") as HTMLElement;
+      await user.click(within(card).getByRole("button", { name: /move to/i }));
+      await user.click(screen.getByRole("menuitem", { name: lane }));
+    }
+
+    it("shows the first card's conflict when a second card's move started before it answered", async () => {
+      // One shared mutation observer used to drop the first call's callbacks
+      // the moment the second started, so the first card's 409 raised no banner.
+      mockLanes({ o1: [record("r1", "o1"), record("r2", "o1")], o2: [], none: [], archived: [] });
+      const first = deferred<RecordRead>();
+      const second = deferred<RecordRead>();
+      vi.mocked(apiClient.patch)
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise);
+      renderBoard();
+
+      await moveVia("Record r1", "Closed");
+      await moveVia("Record r2", "Closed");
+      await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
+      second.resolve(record("r2", "o2", 2));
+      first.reject(conflict409());
+
+      expect(await screen.findByText(/someone else changed this record/i)).toBeInTheDocument();
+    });
+
+    it("chains two quick moves of one card, the second against the first's new revision", async () => {
+      mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+      const first = deferred<RecordRead>();
+      vi.mocked(apiClient.patch)
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValueOnce(record("r1", null, 3));
+      renderBoard();
+
+      await moveVia("Record r1", "Closed");
+      await moveVia("Record r1", "No value");
+      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+      first.resolve(record("r1", "o2", 2));
+
+      await waitFor(() =>
+        expect(apiClient.patch).toHaveBeenLastCalledWith("/tables/t1/records/r1", {
+          expected_revision: 2,
+          values: { status: null },
+        }),
+      );
+      expect(screen.queryByText(/someone else changed this record/i)).not.toBeInTheDocument();
+    });
+
+    it("a card dropped back on its own lane writes nothing", async () => {
+      mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+      renderBoard();
+      const cardRoot = (await screen.findByText("Record r1")).closest(
+        "div[draggable]",
+      ) as HTMLElement;
+      const ownLane = screen.getByText("Open").closest("div.flex.w-64") as HTMLElement;
+
+      vi.mocked(apiClient.patch).mockResolvedValue(record("r1", "o2", 2));
+      dragStart(cardRoot);
+      fireEvent.dragOver(ownLane);
+      fireEvent.drop(ownLane);
+      // A write is asynchronous, so "none yet" proves nothing: drop once more,
+      // on another lane, and the only write sent is that second one.
+      const otherLane = screen.getByText("Closed").closest("div.flex.w-64") as HTMLElement;
+      dragStart(cardRoot);
+      fireEvent.dragOver(otherLane);
+      fireEvent.drop(otherLane);
+
+      await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+        expected_revision: 1,
+        values: { status: "o2" },
+      });
+    });
+
+    it("a reload that finds the record deleted says so and drops the pending move", async () => {
+      mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+      vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409());
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Record not found"));
+      renderBoard();
+      await moveVia("Record r1", "Closed");
+      await screen.findByText(/someone else changed this record/i);
+
+      await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+      await waitFor(() =>
+        expect(screen.queryByText(/someone else changed this record/i)).not.toBeInTheDocument(),
+      );
+      expect(toast.error).toHaveBeenCalledWith("Record not found");
+      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    });
+
+    it("a reload that finds the card already in the pending lane needs no retry", async () => {
+      mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
+      vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409());
+      vi.mocked(apiClient.get).mockResolvedValue(record("r1", "o2", 4));
+      renderBoard();
+      await moveVia("Record r1", "Closed");
+      await screen.findByText(/someone else changed this record/i);
+
+      await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+      await waitFor(() =>
+        expect(screen.queryByText(/someone else changed this record/i)).not.toBeInTheDocument(),
+      );
+      expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    });
   });
 });

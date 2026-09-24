@@ -1,9 +1,9 @@
 "use client";
 
 import type { HTMLAttributes } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import {
   Badge,
   Button,
@@ -14,10 +14,9 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useTableRecords } from "@/hooks";
-import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
+import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
+import { getErrorMessage } from "@/lib/api-error";
 import { formatCellValue } from "@/lib/format-cell-value";
-import { qk } from "@/lib/query-keys";
-import { getRecord } from "@/lib/tables-api";
 import { useTableViewStore } from "@/stores";
 import type { RecordConflict } from "@/stores/table-view-store";
 import { useKanbanDrag } from "./use-kanban-drag";
@@ -63,7 +62,7 @@ function KanbanCard({
   // `columns[0]` exists too.
   titleColumn: ColumnDef;
   boolLabel: (value: boolean) => string;
-  dragProps: { draggable: boolean; onDragStart: () => void; onDragEnd: () => void };
+  dragProps: HTMLAttributes<HTMLDivElement>;
   onOpen: () => void;
   conflict: boolean;
   onReload: () => void;
@@ -151,11 +150,7 @@ function KanbanLane({
   archivedOptionIds: string[];
   titleColumn: ColumnDef;
   boolLabel: (value: boolean) => string;
-  cardProps: (record: RecordRead) => {
-    draggable: boolean;
-    onDragStart: () => void;
-    onDragEnd: () => void;
-  };
+  cardProps: (record: RecordRead) => HTMLAttributes<HTMLDivElement>;
   laneDropProps: HTMLAttributes<HTMLDivElement>;
   onOpenRecord: (record: RecordRead) => void;
   moveTargets: { id: string | null; label: string }[];
@@ -182,7 +177,7 @@ function KanbanLane({
   const conflicts = useTableViewStore((state) => state.conflicts);
   const isGroupingConflict = (recordId: string) => conflicts[recordId]?.[groupBy] !== undefined;
 
-  const noDrag = { draggable: false, onDragStart: () => {}, onDragEnd: () => {} };
+  const noDrag = { draggable: false };
 
   return (
     <div className="flex w-64 shrink-0 flex-col gap-2" {...laneDropProps}>
@@ -247,38 +242,36 @@ export function TableKanbanView({
 }) {
   const t = useTranslations("tables.kanban");
   const tCells = useTranslations("tables.cells");
+  const tErrors = useTranslations("errors");
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
   const groupByColumn = columns.find((column) => column.id === groupByColumnId);
-  const { update } = useRecordMutation(tableId);
+  const { commit, fetchRecord, invalidate } = useRecordMutation(tableId);
   const setConflict = useTableViewStore((state) => state.setConflict);
   const clearConflict = useTableViewStore((state) => state.clearConflict);
   const conflicts = useTableViewStore((state) => state.conflicts);
-  const queryClient = useQueryClient();
 
   const { cardProps, laneProps } = useKanbanDrag<RecordRead>((record, targetOptionId) =>
     moveRecord(record, targetOptionId),
   );
 
+  const laneOf = (record: RecordRead) => record.values[groupByColumnId] ?? null;
+
   function moveRecord(record: RecordRead, targetOptionId: string | null) {
-    update.mutate(
-      {
-        recordId: record.id,
-        data: {
-          expected_revision: record.revision,
-          values: { [groupByColumnId]: targetOptionId },
-        },
-      },
-      {
-        onSuccess: () => clearConflict(record.id, groupByColumnId),
-        onError: (error) => {
-          if (isRevisionConflict(error)) {
-            setConflict({
-              recordId: record.id,
-              pendingValues: { [groupByColumnId]: targetOptionId },
-              fieldId: groupByColumnId,
-            });
-          }
-        },
+    // A card dropped back on its own lane is not a move. Writing it anyway
+    // could only fail - against a revision someone else has since advanced -
+    // with a conflict banner for a move the user never made.
+    if (laneOf(record) === targetOptionId) return;
+    commit(record, { [groupByColumnId]: targetOptionId }).then(
+      () => clearConflict(record.id, groupByColumnId),
+      (error: unknown) => {
+        // Anything but a conflict was already toasted by `useRecordMutation`.
+        if (isRevisionConflict(error)) {
+          setConflict({
+            recordId: record.id,
+            pendingValues: { [groupByColumnId]: targetOptionId },
+            fieldId: groupByColumnId,
+          });
+        }
       },
     );
   }
@@ -288,36 +281,41 @@ export function TableKanbanView({
    * revision. Only ever wired to a card's "reload and reapply" button, which
    * renders only while the conflict on that record is about this grouping
    * column - so `pending.pendingValues[groupByColumnId]` is always present,
-   * set by nothing but `moveRecord`'s own `onError` below.
+   * set by nothing but `moveRecord`'s own conflict handler above.
    *
-   * The conflict is cleared only once the retry move has actually landed -
-   * `moveRecord`'s own `onSuccess` does that, and its `onError` re-raises the
-   * banner if the retry hits another conflict. Clearing here as soon as the
-   * refetch lands would drop the pending move for good the moment either the
-   * refetch or the retry itself fails, with no way back to it.
+   * The conflict is cleared only once the retry move has actually landed, so
+   * a failed refetch or retry keeps the pending move. A failed refetch says
+   * why; a record that is gone drops the move, since there is nothing left to
+   * move. A record someone else already moved to the pending lane needs no
+   * retry at all.
    */
   async function reloadAndReapply(recordId: string) {
     // Only ever invoked while `isGroupingConflict(recordId)` is true, which is
     // exactly `conflicts[recordId]?.[groupByColumnId] !== undefined`.
     const pending = conflicts[recordId]?.[groupByColumnId] as RecordConflict;
+    const target = pending.pendingValues[groupByColumnId] as string | null;
+    let fresh: RecordRead;
     try {
-      const fresh = await getRecord(tableId, recordId);
-      moveRecord(fresh, pending.pendingValues[groupByColumnId] as string | null);
-    } catch {
-      // The refetch failed - the conflict (and the pending move) stays put.
+      fresh = await fetchRecord(recordId);
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+      if (isRecordGone(error)) discardConflict(recordId);
+      return;
     }
+    if (laneOf(fresh) === target) discardConflict(recordId);
+    else moveRecord(fresh, target);
   }
 
   /**
    * Drops the pending move and lets the record land wherever its current
    * server value actually places it. No optimistic move was ever applied
    * client-side, so the record already sits in the lane its last-known state
-   * put it in; invalidating every lane's query is what brings that back in
+   * put it in; refetching every lane's records is what brings that back in
    * line with the row the conflict itself proved had changed server-side.
    */
   function discardConflict(recordId: string) {
     clearConflict(recordId, groupByColumnId);
-    void queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId) });
+    void invalidate();
   }
 
   if (!groupByColumn || groupByColumn.type !== "single_select") {
