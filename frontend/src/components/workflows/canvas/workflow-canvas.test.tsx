@@ -103,6 +103,28 @@ function seedTwoActions(): void {
   });
 }
 
+function seedTwoConnected(): void {
+  store.getState().seedGraph({
+    entry_node_id: "a",
+    nodes: [node("a", "act"), { ...node("b", "act"), layout: { x: 240, y: 0 } }],
+    edges: [
+      { id: "e1", source_node_id: "a", source_port: "out", target_node_id: "b", target_port: "in" },
+    ],
+    bindings: [],
+    scopes: [],
+  });
+}
+
+function seedControlAndAction(): void {
+  store.getState().seedGraph({
+    entry_node_id: "c",
+    nodes: [node("c", "ctrl"), { ...node("b", "act"), layout: { x: 240, y: 0 } }],
+    edges: [],
+    bindings: [],
+    scopes: [],
+  });
+}
+
 describe("WorkflowCanvas", () => {
   beforeEach(() => {
     store.getState().teardown();
@@ -219,13 +241,85 @@ describe("WorkflowCanvas", () => {
     expect(store.getState().graph?.edges).toHaveLength(0);
   });
 
-  it("renders read-only with no handles and no connect controls", () => {
+  it("renders read-only with non-interactive handles and no connect controls", () => {
     seedTwoActions();
     const { container } = render(
       <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
     );
-    expect(container.querySelectorAll(".react-flow__handle")).toHaveLength(0);
+    // Handles still mount so xyflow can position edges (error 008 otherwise), but
+    // are made non-interactive — pointer events off and not connectable.
+    const handles = container.querySelectorAll(".react-flow__handle");
+    expect(handles.length).toBeGreaterThan(0);
+    handles.forEach((handle) => expect(handle.className).toContain("pointer-events-none"));
+    // The keyboard connect controls are gone in read-only.
     expect(container.querySelector('button[aria-label^="Start"]')).toBeNull();
+    expect(container.querySelector('button[aria-label^="Complete"]')).toBeNull();
+  });
+
+  it("keeps a read-only edge's ports handled, so xyflow can anchor it", () => {
+    seedTwoConnected();
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
+    );
+    // The regression: with the source/target handles unmounted in read-only,
+    // xyflow's getEdgePosition returned null and the edge vanished (error 008).
+    // Both referenced port handles must still mount (jsdom lays out no SVG, so the
+    // rendered edge path itself is not assertable here — the handles are).
+    const source = container.querySelector('[data-node-id="a"] [data-port-variant="output"]');
+    const target = container.querySelector('[data-node-id="b"] [data-port-variant="input"]');
+    expect(source).toBeTruthy();
+    expect(target).toBeTruthy();
+    // And they are non-interactive, matching the published view.
+    expect(source?.className).toContain("pointer-events-none");
+    expect(container.querySelector(".react-flow__edges")).toBeTruthy();
+  });
+
+  it("ignores Backspace and Delete when read-only", () => {
+    seedTwoConnected();
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
+    );
+    const region = container.querySelector('[data-workflow-region="canvas"]')!;
+    // Even with a node selected in the store, a published view must not delete:
+    // `deleteKeyCode` is null and elements are not selectable.
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+
+    fireEvent.keyDown(region, { key: "Backspace" });
+    fireEvent.keyDown(region, { key: "Delete" });
+
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().graph?.edges).toHaveLength(1);
+    expect(store.getState().isDirty).toBe(false);
+  });
+
+  it("starts a keyboard connection from a control node's error port, not just the first", async () => {
+    seedControlAndAction();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    // Each output port gets its own Start button — the error and branch outputs a
+    // mouse user could reach are now reachable by keyboard too.
+    expect(
+      container.querySelectorAll('[data-node-id="c"] button[aria-label^="Start"]'),
+    ).toHaveLength(2);
+    const errorStart = container.querySelector(
+      '[data-node-id="c"] button[aria-label$="port Error"]',
+    );
+    expect(errorStart).toBeTruthy();
+
+    fireEvent.click(errorStart!);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-node-id="b"] button[aria-label^="Complete"]'),
+      ).toBeTruthy(),
+    );
+    fireEvent.click(container.querySelector('[data-node-id="b"] button[aria-label^="Complete"]')!);
+
+    await waitFor(() => expect(store.getState().graph?.edges).toHaveLength(1));
+    expect(store.getState().graph?.edges[0]).toMatchObject({
+      source_node_id: "c",
+      source_port: "error",
+      target_node_id: "b",
+      target_port: "in",
+    });
   });
 
   it("shows the empty-canvas hint before the store has a graph", () => {

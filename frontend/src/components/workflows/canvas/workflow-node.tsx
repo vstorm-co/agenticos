@@ -26,9 +26,13 @@ const KIND_ACCENT: Record<"action" | "control" | "waiting", string> = {
  * `Port.kind` places each handle directly — inputs on the left, outputs on the
  * right — rather than inferring direction from a port-id convention; the error
  * output gets a visually distinct handle. Read-only mode (a published version)
- * drops every handle and the connect controls, matching `nodesConnectable`.
+ * still mounts every port handle — an edge references its ports by id, so with no
+ * handle to position against xyflow draws nothing (error 008) — but makes them
+ * non-interactive (`isConnectable={false}`, pointer events off) and drops the
+ * keyboard connect controls, matching `nodesConnectable`.
  * Beside the pointer-only handles, every output starts and every input completes
- * a keyboard connection through a real, labelled button.
+ * a keyboard connection through a real, labelled button — one per port, so a
+ * control node's error and branch outputs are reachable, not just the first.
  */
 export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
@@ -44,8 +48,6 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
   const name = nodeDisplayName(definition?.name ?? instance.definition_id, instance.id);
   const inputs: Port[] = definition?.ports.filter((port) => port.kind === "input") ?? [];
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
-  const outputForConnect = outputs[0];
-  const inputForConnect = inputs[0];
   const connecting = connectSource !== null;
 
   return (
@@ -57,18 +59,18 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
         KIND_ACCENT[kind],
       )}
     >
-      {!readOnly &&
-        inputs.map((port) => (
-          <Handle
-            key={port.id}
-            id={port.id}
-            type="target"
-            position={Position.Left}
-            data-port-id={port.id}
-            data-port-variant="input"
-            className="!bg-muted-foreground"
-          />
-        ))}
+      {inputs.map((port) => (
+        <Handle
+          key={port.id}
+          id={port.id}
+          type="target"
+          position={Position.Left}
+          isConnectable={!readOnly}
+          data-port-id={port.id}
+          data-port-variant="input"
+          className={cn("!bg-muted-foreground", readOnly && "!pointer-events-none")}
+        />
+      ))}
 
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-medium">{name}</span>
@@ -77,31 +79,33 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
         </span>
       </div>
 
-      {!readOnly && outputForConnect !== undefined && !connecting && (
-        <button
-          type="button"
-          aria-label={t("connectFrom", { name })}
-          onClick={() => beginConnect({ nodeId: instance.id, portId: outputForConnect.id })}
-          className="text-muted-foreground hover:text-foreground mt-1 text-xs underline"
-        >
-          {t("connectStart")}
-        </button>
-      )}
       {!readOnly &&
-        inputForConnect !== undefined &&
-        connectSource !== null &&
-        connectSource.nodeId !== instance.id && (
+        !connecting &&
+        outputs.map((port) => (
           <button
+            key={port.id}
             type="button"
-            aria-label={t("connectTo", { name })}
-            onClick={() =>
-              completeConnect(connectSource, { nodeId: instance.id, portId: inputForConnect.id })
-            }
-            className="text-primary mt-1 text-xs underline"
+            aria-label={t("connectFrom", { name, port: port.label })}
+            onClick={() => beginConnect({ nodeId: instance.id, portId: port.id })}
+            className="text-muted-foreground hover:text-foreground mt-1 block text-xs underline"
           >
-            {t("connectFinish")}
+            {t("connectStart", { port: port.label })}
           </button>
-        )}
+        ))}
+      {!readOnly &&
+        connectSource !== null &&
+        connectSource.nodeId !== instance.id &&
+        inputs.map((port) => (
+          <button
+            key={port.id}
+            type="button"
+            aria-label={t("connectTo", { name, port: port.label })}
+            onClick={() => completeConnect(connectSource, { nodeId: instance.id, portId: port.id })}
+            className="text-primary mt-1 block text-xs underline"
+          >
+            {t("connectFinish", { port: port.label })}
+          </button>
+        ))}
 
       {!readOnly && scopeOwner && (
         <button
@@ -114,18 +118,21 @@ export function WorkflowNode({ data }: NodeProps<WorkflowFlowNode>) {
         </button>
       )}
 
-      {!readOnly &&
-        outputs.map((port) => (
-          <Handle
-            key={port.id}
-            id={port.id}
-            type="source"
-            position={Position.Right}
-            data-port-id={port.id}
-            data-port-variant={isErrorPort(port) ? "error" : "output"}
-            className={cn(isErrorPort(port) ? "!bg-destructive" : "!bg-primary")}
-          />
-        ))}
+      {outputs.map((port) => (
+        <Handle
+          key={port.id}
+          id={port.id}
+          type="source"
+          position={Position.Right}
+          isConnectable={!readOnly}
+          data-port-id={port.id}
+          data-port-variant={isErrorPort(port) ? "error" : "output"}
+          className={cn(
+            isErrorPort(port) ? "!bg-destructive" : "!bg-primary",
+            readOnly && "!pointer-events-none",
+          )}
+        />
+      ))}
     </div>
   );
 }
