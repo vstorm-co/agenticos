@@ -1,5 +1,5 @@
 ---
-source_sha: "e5efeab8ec54"
+source_sha: "0239a6e6515f"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -297,7 +297,9 @@ token w tym samym sekrecie w vault.
 
 Dodaj token do vault jako **Git access token**, razem z **hostem**, do którego
 należy: `github.com`, `gitlab.com` albo własny serwer, na przykład
-`git.example.com:8443`. Potem wybierz go w kroku poświadczenia źródła. Jest
+`git.example.com:8443`. Host z literami spoza ASCII wpisuje się w postaci
+zakodowanej, na przykład `xn--bcher-kva.example` dla `bücher.example`. Potem
+wybierz token w kroku poświadczenia źródła. Jest
 wysyłany jako nagłówek HTTP `Authorization`, nigdy w adresie URL i nigdy
 w wierszu poleceń, który mógłby odczytać inny proces.
 
@@ -322,9 +324,9 @@ chciał przeszukiwać. Dodaj wzorzec taki jak `**/*.pdf` dla innego formatu, kt�
 czyta parser kolekcji. Wzorzec nie może zaczynać się od `!`.
 
 Każdy plik jest dokumentem o adresie
-`git://<host>/<owner>/<repo>@<branch>/<path>`. Gałąź jest częścią adresu, więc
-dwa źródła czytające dwie gałęzie jednego repozytorium do jednej kolekcji mają
-osobne dokumenty.
+`git://<host>/<owner>/<repo>@<branch>/<path>`, z `:<port>` po hoście, gdy port
+nie jest 443. Gałąź jest częścią adresu, więc dwa źródła czytające dwie gałęzie
+jednego repozytorium do jednej kolekcji mają osobne dokumenty.
 
 ### 4. Co przesyła synchronizacja { #4-what-a-sync-transfers }
 
@@ -334,6 +336,11 @@ czystego przebiegu, synchronizacja na tym się kończy. Gdy się przesunął,
 connector wykonuje płytki, częściowy i rzadki (sparse) klon: jeden commit
 i wyłącznie pliki pasujące do wzorców `include`. Dokumentacja monorepo kosztuje
 więc tyle, co dokumentacja, a nie całe drzewo źródeł.
+
+Zanim klon zapisze cokolwiek na dysk workera, connector mierzy każdy plik, który
+by zapisał. Plik większy niż limit dokumentu bazy wiedzy (`MAX_UPLOAD_SIZE_MB`,
+domyślnie 50 MB) albo łącznie ponad 512 MB plików zostaje odrzucony i nic nie
+jest zapisywane.
 
 Dowiązania symboliczne i submoduły nie są śledzone, a dowiązanie nie jest
 przetwarzane jako dokument.
@@ -548,6 +555,18 @@ token wystawiony dla innego repozytorium wygląda właśnie tak.
 
 Pole `branch` wskazuje gałąź, której repozytorium nie ma. Domyślnie jest to
 `main`; w starszym repozytorium gałęzią domyślną może być `master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB" { #git-is-mb-and-a-synced-file-may-be-at-most-mb }
+
+Plik pasujący do wzorców `include` jest większy niż limit dokumentu bazy wiedzy.
+Zawęź `include` albo `path_prefix` tak, by ten plik został pominięty. W tej
+synchronizacji nic nie zostało zapisane.
+
+### Git: "… over the … MB one sync may check out" { #git-over-the-mb-one-sync-may-check-out }
+
+Wszystkie pliki pasujące do wzorców `include` mają łącznie ponad 512 MB. Zawęź
+`include` albo `path_prefix` albo podziel repozytorium na kilka źródeł, każde
+z własnym prefiksem.
 
 ### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
 

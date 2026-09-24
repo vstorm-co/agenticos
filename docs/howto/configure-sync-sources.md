@@ -284,7 +284,9 @@ vault secret.
 
 Add the token to the Vault as a **Git access token**, with the **host** it
 belongs to: `github.com`, `gitlab.com`, or your own server such as
-`git.example.com:8443`. Then choose it on the source's credential step. It is sent
+`git.example.com:8443`. A host with non-ASCII letters is entered in its encoded
+form, such as `xn--bcher-kva.example` for `bücher.example`. Then choose the token
+on the source's credential step. It is sent
 as an HTTP `Authorization` header, never in the URL, and never in a command line
 another process can read.
 
@@ -309,9 +311,9 @@ search. Add a pattern such as `**/*.pdf` for another format the collection's
 parser reads. A pattern cannot start with `!`.
 
 Each file is a document whose address is
-`git://<host>/<owner>/<repo>@<branch>/<path>`. The branch is part of the address,
-so two sources reading two branches of one repository into one collection keep
-separate documents.
+`git://<host>/<owner>/<repo>@<branch>/<path>`, with `:<port>` after the host when
+the port is not 443. The branch is part of the address, so two sources reading two
+branches of one repository into one collection keep separate documents.
 
 ### 4. What a sync transfers
 
@@ -320,6 +322,11 @@ kilobyte. When the head commit has not moved since the last clean run, the sync
 stops there. When it has moved, the connector makes a shallow, partial, sparse
 clone: one commit, and only the files the include patterns match. A monorepo's
 documentation therefore costs its documentation, not its source tree.
+
+Before the clone writes anything to the worker's disk, the connector measures
+every file it would write. A file over the knowledge base's document cap
+(`MAX_UPLOAD_SIZE_MB`, 50 MB by default), or more than 512 MB of files in all, is
+refused, and nothing is written.
 
 Symbolic links and submodules are not followed, and a link is not ingested as a
 document.
@@ -532,6 +539,18 @@ different repository reads as this.
 
 The `branch` field names a branch the repository does not have. Its default is
 `main`; an older repository's default branch may be `master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB"
+
+A file the include patterns match is larger than the knowledge base's document
+cap. Narrow `include` or `path_prefix` so that the file is left out. Nothing was
+written for this sync.
+
+### Git: "… over the … MB one sync may check out"
+
+All the files the include patterns match are more than 512 MB together. Narrow
+`include` or `path_prefix`, or split the repository into more than one source,
+each with its own prefix.
 
 ### Git: "This token was added for …, and the repository is on …"
 

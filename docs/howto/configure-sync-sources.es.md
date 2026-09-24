@@ -1,5 +1,5 @@
 ---
-source_sha: "e5efeab8ec54"
+source_sha: "0239a6e6515f"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -298,7 +298,9 @@ token nuevo en el mismo secreto del vault.
 
 Añade el token al vault como **Git access token**, con el **host** al que
 pertenece: `github.com`, `gitlab.com` o tu propio servidor, como
-`git.example.com:8443`. Después elígelo en el paso de credencial de la fuente. Se
+`git.example.com:8443`. Un host con letras que no son ASCII se escribe en su forma
+codificada, por ejemplo `xn--bcher-kva.example` para `bücher.example`. Después
+elige el token en el paso de credencial de la fuente. Se
 envía en una cabecera HTTP `Authorization`, nunca en la URL ni en una línea de
 comandos que otro proceso pueda leer.
 
@@ -323,8 +325,8 @@ código que nadie ha pedido buscar. Añade un patrón como `**/*.pdf` para otro
 formato que lea el parser de la colección. Un patrón no puede empezar por `!`.
 
 Cada archivo es un documento cuya dirección es
-`git://<host>/<owner>/<repo>@<branch>/<path>`. La rama forma parte de la
-dirección, así que dos fuentes que leen dos ramas de un mismo repositorio en una
+`git://<host>/<owner>/<repo>@<branch>/<path>`, con `:<port>` tras el host cuando
+el puerto no es 443. La rama forma parte de la dirección, así que dos fuentes que leen dos ramas de un mismo repositorio en una
 misma colección mantienen documentos separados.
 
 ### 4. Qué transfiere una sincronización { #4-what-a-sync-transfers }
@@ -336,6 +338,11 @@ hace un clonado superficial, parcial y disperso (shallow, partial, sparse): un
 solo commit, y solo los archivos que casan con los patrones de inclusión. Por eso
 la documentación de un monorepo cuesta lo que su documentación, no lo que su
 árbol de código.
+
+Antes de que el clonado escriba nada en el disco del worker, el connector mide
+cada archivo que escribiría. Un archivo que supera el límite de documento de la
+base de conocimiento (`MAX_UPLOAD_SIZE_MB`, 50 MB por defecto), o más de 512 MB
+de archivos en total, se rechaza, y no se escribe nada.
 
 Los enlaces simbólicos y los submódulos no se siguen, y un enlace no se ingiere
 como documento.
@@ -555,6 +562,18 @@ fine-grained emitido para otro repositorio se ve así.
 El campo `branch` nombra una rama que el repositorio no tiene. Su valor por
 defecto es `main`; la rama por defecto de un repositorio más antiguo puede ser
 `master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB" { #git-is-mb-and-a-synced-file-may-be-at-most-mb }
+
+Un archivo que casa con los patrones de inclusión supera el límite de documento
+de la base de conocimiento. Acota `include` o `path_prefix` para que ese archivo
+quede fuera. En esta sincronización no se escribió nada.
+
+### Git: "… over the … MB one sync may check out" { #git-over-the-mb-one-sync-may-check-out }
+
+Todos los archivos que casan con los patrones de inclusión suman más de 512 MB.
+Acota `include` o `path_prefix`, o divide el repositorio en varias fuentes, cada
+una con su propio prefijo.
 
 ### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
 

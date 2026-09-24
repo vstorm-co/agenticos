@@ -1,5 +1,5 @@
 ---
-source_sha: "e5efeab8ec54"
+source_sha: "0239a6e6515f"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -301,8 +301,9 @@ neues Token im selben Vault-Secret.
 
 Legen Sie das Token als **Git-Zugriffstoken** im Vault ab, zusammen mit dem
 **Host**, zu dem es gehört: `github.com`, `gitlab.com` oder Ihr eigener Server
-wie `git.example.com:8443`. Wählen Sie es dann im Credential-Schritt der Quelle
-aus. Es wird als HTTP-Header `Authorization` gesendet, nie in der URL und nie in
+wie `git.example.com:8443`. Einen Host mit Nicht-ASCII-Buchstaben geben Sie in
+seiner kodierten Form ein, etwa `xn--bcher-kva.example` für `bücher.example`.
+Wählen Sie das Token dann im Credential-Schritt der Quelle aus. Es wird als HTTP-Header `Authorization` gesendet, nie in der URL und nie in
 einer Befehlszeile, die ein anderer Prozess lesen kann.
 
 **Der Host gehört zum Token, nicht zur Quelle.** Wer eine Quelle bearbeitet,
@@ -328,8 +329,8 @@ ein weiteres Format, das der Parser der Collection liest. Ein Muster darf nicht
 mit `!` beginnen.
 
 Jede Datei ist ein Dokument mit der Adresse
-`git://<host>/<owner>/<repo>@<branch>/<path>`. Der Branch ist Teil der Adresse,
-sodass zwei Quellen, die zwei Branches eines Repositorys in eine Collection
+`git://<host>/<owner>/<repo>@<branch>/<path>`, mit `:<port>` nach dem Host, wenn
+der Port nicht 443 ist. Der Branch ist Teil der Adresse, sodass zwei Quellen, die zwei Branches eines Repositorys in eine Collection
 lesen, getrennte Dokumente behalten.
 
 ### 4. Was ein Sync überträgt { #4-what-a-sync-transfers }
@@ -340,6 +341,11 @@ hält der Sync dort an. Hat er sich bewegt, erstellt der Connector einen flachen
 partiellen, sparse Klon: ein Commit und nur die Dateien, auf die die
 Include-Muster passen. Die Dokumentation eines Monorepos kostet daher ihre
 Dokumentation, nicht seinen Quellbaum.
+
+Bevor der Klon etwas auf die Festplatte des Workers schreibt, misst der Connector
+jede Datei, die er schreiben würde. Eine Datei über der Dokumentgrenze der
+Wissensbasis (`MAX_UPLOAD_SIZE_MB`, standardmäßig 50 MB) oder insgesamt mehr als
+512 MB an Dateien werden abgelehnt, und nichts wird geschrieben.
 
 Symbolischen Links und Submodulen wird nicht gefolgt, und ein Link wird nicht als
 Dokument aufgenommen.
@@ -562,6 +568,18 @@ auf diese Weise.
 Das Feld `branch` nennt einen Branch, den das Repository nicht hat. Die Vorgabe
 ist `main`; der Standard-Branch eines älteren Repositorys heißt womöglich
 `master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB" { #git-is-mb-and-a-synced-file-may-be-at-most-mb }
+
+Eine Datei, auf die die Include-Muster passen, ist größer als die Dokumentgrenze
+der Wissensbasis. Schränken Sie `include` oder `path_prefix` so ein, dass die
+Datei wegfällt. Für diesen Sync wurde nichts geschrieben.
+
+### Git: "… over the … MB one sync may check out" { #git-over-the-mb-one-sync-may-check-out }
+
+Alle Dateien, auf die die Include-Muster passen, sind zusammen größer als 512 MB.
+Schränken Sie `include` oder `path_prefix` ein, oder teilen Sie das Repository auf
+mehrere Quellen mit je eigenem Präfix auf.
 
 ### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
 

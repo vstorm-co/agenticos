@@ -295,6 +295,9 @@ class GitTokenSecret(_SecretBase):
 
         `hostname` as `urlsplit` answers it: lower-cased, and an IPv6 literal
         without its brackets - which the stored host keeps, as a URL writes it.
+        An internationalized name arrives IDNA-encoded (`xn--...`), the only
+        spelling `host` can store: `GitConfig` encodes the URL's host before
+        anything reads it.
         """
         host = f"[{hostname}]" if ":" in hostname else hostname
         expected = host if port in (None, 443) else f"{host}:{port}"

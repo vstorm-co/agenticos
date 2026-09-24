@@ -200,6 +200,54 @@ class TestWhatASyncReads:
         finally:
             await connector.aclose()
 
+    async def test_a_file_over_the_document_cap_is_refused_before_anything_is_written(
+        self, repo: Path
+    ) -> None:
+        """Codex Security on #1867: 2 MiB of zeros is a few kilobytes on the wire,
+        and a checkout used to write it whole before any size was looked at."""
+        (repo / "docs" / "bomb.md").write_bytes(b"\0" * (2 * 1024 * 1024))
+        _commit(repo, "bomb")
+        connector = GitConnector()
+        try:
+            with (
+                patch.object(git_module.settings, "MAX_UPLOAD_SIZE_MB", 1),
+                pytest.raises(BadRequestError, match=r"docs/bomb\.md is 2 MB") as caught,
+            ):
+                await connector.list_files(_config(), _token())
+            assert connector._workdir is not None
+            written = [p.name for p in (connector._workdir / "repo").iterdir() if p.name != ".git"]
+        finally:
+            await connector.aclose()
+
+        assert written == []
+        assert caught.value.details["limit_bytes"] == 1024 * 1024
+
+    @pytest.mark.parametrize(("limit", "refused"), [(54, True), (55, False)])
+    async def test_the_whole_checkout_is_bounded_links_included(
+        self, limit: int, refused: bool
+    ) -> None:
+        """The four documents are 44 bytes; the link beside them is written as an
+        11-byte file holding its target, and a target can be any size."""
+        connector = GitConnector()
+        try:
+            with patch.object(git_module, "MAX_CHECKOUT_BYTES", limit):
+                if refused:
+                    with pytest.raises(BadRequestError, match="one sync may check out"):
+                        await connector.list_files(_config(), _token())
+                else:
+                    assert len(await connector.list_files(_config(), _token())) == 4
+        finally:
+            await connector.aclose()
+
+    async def test_patterns_matching_nothing_list_nothing(self) -> None:
+        connector = GitConnector()
+        try:
+            files = await connector.list_files(_config(include=["handbook/*.md"]), _token())
+        finally:
+            await connector.aclose()
+
+        assert files == []
+
     async def test_the_clone_is_removed_when_the_sync_is_over(self) -> None:
         connector = GitConnector()
         await connector.list_files(_config(), _token())
@@ -241,6 +289,24 @@ class TestTheChangeSignal:
 
         assert root() == "git://git.test/acme/handbook@main/"
         assert root(branch="v2", path_prefix="docs") == "git://git.test/acme/handbook@v2/docs/"
+
+    def test_two_servers_on_one_host_are_two_repositories(self) -> None:
+        """Codex on #1867: the port used to be dropped, so two servers' documents
+        in one collection shared addresses."""
+
+        def root(url: str) -> str:
+            return GitConnector.source_root(GitConfig.model_validate(_config(repository_url=url)))
+
+        assert (
+            root("https://git.test:8443/acme/handbook.git")
+            == "git://git.test:8443/acme/handbook@main/"
+        )
+        assert (
+            root("https://git.test:9443/acme/handbook.git")
+            == "git://git.test:9443/acme/handbook@main/"
+        )
+        assert root("https://git.test:443/acme/handbook.git") == root(URL)
+        assert root("https://[2606:4700::1]:8443/a/b.git") == "git://[2606:4700::1]:8443/a/b@main/"
 
     def test_a_git_source_deletes_what_it_no_longer_lists(self) -> None:
         assert GitConnector.REMOVES_UNLISTED is True
@@ -337,6 +403,31 @@ class TestWhatGitIsTold:
         parts = git_module.urlsplit(url)
 
         assert _token(host=host).allows(parts.hostname or "", parts.port) is allowed
+
+    async def test_an_internationalized_host_is_matched_and_pinned_in_its_encoded_form(
+        self,
+    ) -> None:
+        """Codex on #1867: the vault stores `xn--bcher-kva.example`, the URL said
+        `bücher.example`, and every sync refused the token. The pin must name the
+        encoded host too, since that is the name curl looks up."""
+        pinned = PinnedAddress(hostname="xn--bcher-kva.example", port=443, ips=("93.184.216.34",))
+        parsed = GitConfig.model_validate(
+            _config(repository_url="https://Bücher.example/acme/docs.git")
+        )
+        with patch.object(git_module, "resolve_pinned_url", return_value=pinned) as resolve:
+            env = await GitConnector()._environment(parsed, _token(host="xn--bcher-kva.example"))
+
+        assert parsed.repository_url == "https://xn--bcher-kva.example/acme/docs.git"
+        assert resolve.call_args.args[0] == parsed.repository_url
+        assert "xn--bcher-kva.example:443:93.184.216.34" in env.values()
+        assert GitConnector.source_root(parsed) == "git://xn--bcher-kva.example/acme/docs@main/"
+
+    def test_an_encoded_host_keeps_its_port(self) -> None:
+        parsed = GitConfig.model_validate(
+            _config(repository_url="https://bücher.example:8443/a/b.git")
+        )
+
+        assert parsed.repository_url == "https://xn--bcher-kva.example:8443/a/b.git"
 
     def test_the_vault_hint_is_the_tokens_last_four_and_not_the_host(self) -> None:
         assert _token().hint == TOKEN[-4:]

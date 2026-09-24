@@ -29,7 +29,10 @@ egress proxy from `HTTPS_PROXY` resolves the destination itself.
 HTTPS is allowed as a transport - `protocol.allow=never` also closes `ext::` and
 `file://` - symlinks are checked out as plain files and then left out of the
 listing by their index mode, submodules are not followed, and no user or system
-git configuration is read.
+git configuration is read. Nor are its bytes written unmeasured: every blob the
+checkout would write is fetched and sized first, and a checkout over
+`MAX_CHECKOUT_BYTES`, or holding one file over the document cap, is refused
+before it touches the disk.
 """
 
 import asyncio
@@ -44,10 +47,11 @@ import tempfile
 from contextlib import suppress
 from pathlib import Path, PurePosixPath
 from typing import ClassVar
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.core.sanitize import PinnedAddress, UrlRefusedError, resolve_pinned_url
 from app.core.secret_kinds import GitTokenSecret, SecretKind, StorableSecret
@@ -80,6 +84,14 @@ _PATH = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9._/ -]{0,1023}")
 
 # Regular files only. `120000` is a symlink, `160000` a submodule's commit.
 _FILE_MODES = frozenset({"100644", "100755"})
+_GITLINK = "160000"
+
+# What one sync may write to the worker's disk, checked against the blobs' own
+# sizes before any of them is written. The transfer bounds nothing here: a pack
+# is compressed, and a delta can expand a few hundred bytes into gigabytes. One
+# file is held to the knowledge base's document cap (`MAX_UPLOAD_SIZE_MB`), and
+# the whole checkout to this.
+MAX_CHECKOUT_BYTES = 512 * 1024 * 1024
 
 # Which stderr lines mean the credential, as opposed to the repository or the
 # network. Matched to choose *our* sentence; git's own is logged and never stored,
@@ -149,14 +161,21 @@ class GitConfig(BaseModel):
         # raises `UnicodeError` from `getaddrinfo`, which is no refusal of ours;
         # asked here it is one, on the field that caused it.
         try:
-            parts.hostname.encode("idna")
+            ascii_host = parts.hostname.encode("idna").decode("ascii")
         except UnicodeError:
             raise ValueError("The repository URL's host is not a valid host name.") from None
         try:
-            _ = parts.port
+            port = parts.port
         except ValueError:
             raise ValueError("The repository URL's port is not a valid port.") from None
-        return value.strip()
+        if ascii_host == parts.hostname:
+            return value.strip()
+        # An internationalized host, spelled once in the form DNS and the vault
+        # use. The token's host can only be stored that way, the address pin must
+        # name what curl looks up, and curl looks up the encoded name - left in
+        # Unicode, the pin would match nothing and curl would resolve it again.
+        netloc = ascii_host if port is None else f"{ascii_host}:{port}"
+        return urlunsplit(parts._replace(netloc=netloc))
 
     @field_validator("branch")
     @classmethod
@@ -201,10 +220,19 @@ class GitConfig(BaseModel):
         return [f"{root}{pattern}" for pattern in self.include]
 
     def repository(self) -> str:
-        """`host/owner/repo` - what a `source_path` names the repository by."""
+        """`host[:port]/owner/repo` - what a `source_path` names the repository by.
+
+        The port is part of it unless it is 443, because two servers on one host
+        are two repositories: without it, their documents in one collection would
+        share addresses, and one source would replace or remove the other's.
+        """
         parts = urlsplit(self.repository_url)
         path = parts.path.strip("/").removesuffix(".git")
-        return f"{parts.hostname}/{path}"
+        host = parts.hostname or ""
+        host = f"[{host}]" if ":" in host else host
+        if parts.port not in (None, 443):
+            host = f"{host}:{parts.port}"
+        return f"{host}/{path}"
 
 
 class GitConnector(BaseSyncConnector):
@@ -315,7 +343,19 @@ class GitConnector(BaseSyncConnector):
             cwd=checkout,
             stdin="\n".join(parsed.sparse_patterns()) + "\n",
         )
-        await self._git("checkout", "--quiet", env=env, timeout=CLONE_TIMEOUT_SECONDS, cwd=checkout)
+        # The index first and the files after: `reset` lays the commit into the
+        # index with the patterns' skip-worktree bits and writes nothing, so what
+        # the checkout would write can be fetched and measured before it is.
+        await self._git("reset", "--quiet", "--no-refresh", env=env, timeout=60.0, cwd=checkout)
+        await self._bounded_blobs(env, checkout)
+        await self._git(
+            "checkout-index",
+            "--all",
+            "--quiet",
+            env=env,
+            timeout=CLONE_TIMEOUT_SECONDS,
+            cwd=checkout,
+        )
         self._checkout = checkout
         staged = await self._git("ls-files", "-z", "--stage", env=env, timeout=60.0, cwd=checkout)
         return await asyncio.to_thread(self._listing, checkout, staged, parsed)
@@ -359,6 +399,83 @@ class GitConnector(BaseSyncConnector):
         if named.is_symlink() or not source.is_relative_to(checkout.resolve()):
             raise BadRequestError(message="A repository file resolved outside its checkout.")
         await asyncio.to_thread(shutil.copyfile, source, dest_path)
+
+    async def _bounded_blobs(self, env: dict[str, str], checkout: Path) -> None:
+        """Download every blob the checkout will write, and refuse a checkout too big to write.
+
+        The sizes are the object store's own, read from the fetched objects, so
+        they are what a checkout would write and not what a server claimed. Each
+        entry is counted, links included - a link is written as a plain file
+        holding its target, and a target can be any size.
+
+        Raises:
+            BadRequestError: one file is over the knowledge base's document cap,
+                or all of them together are over `MAX_CHECKOUT_BYTES`.
+            ExternalServiceError: the repository did not send a blob it has.
+        """
+        staged = await self._git(
+            "ls-files", "-z", "-t", "--stage", env=env, timeout=60.0, cwd=checkout
+        )
+        written: list[tuple[str, str]] = []
+        for entry in staged.split("\0"):
+            if not entry:
+                continue
+            meta, path = entry.split("\t", 1)
+            tag, mode, oid, _ = meta.split(" ")
+            if tag != "S" and mode != _GITLINK:
+                written.append((oid, path))
+        if not written:
+            return
+        wanted = "\n".join(dict.fromkeys(oid for oid, _ in written)) + "\n"
+        await self._git(
+            "fetch",
+            "--quiet",
+            "--no-tags",
+            "--no-write-fetch-head",
+            "--recurse-submodules=no",
+            "--filter=blob:none",
+            "--stdin",
+            "origin",
+            env=env,
+            timeout=CLONE_TIMEOUT_SECONDS,
+            cwd=checkout,
+            stdin=wanted,
+        )
+        answer = await self._git(
+            "cat-file",
+            "--batch-check=%(objectname) %(objectsize)",
+            env=env,
+            timeout=60.0,
+            cwd=checkout,
+            stdin=wanted,
+        )
+        sizes: dict[str, int] = {}
+        for line in answer.splitlines():
+            oid, _, size = line.partition(" ")
+            if not size.isdigit():
+                raise ExternalServiceError(message="The repository did not send a file it lists.")
+            sizes[oid] = int(size)
+
+        file_cap = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        for oid, path in written:
+            if sizes[oid] > file_cap:
+                raise BadRequestError(
+                    message=(
+                        f"{path} is {_mebibytes(sizes[oid])} MB, and a synced file may be at most "
+                        f"{settings.MAX_UPLOAD_SIZE_MB} MB. Narrow the include patterns to leave it out."
+                    ),
+                    details={"path": path, "size_bytes": sizes[oid], "limit_bytes": file_cap},
+                )
+        total = sum(sizes[oid] for oid, _ in written)
+        if total > MAX_CHECKOUT_BYTES:
+            raise BadRequestError(
+                message=(
+                    f"The files the include patterns match come to {_mebibytes(total)} MB, over the "
+                    f"{_mebibytes(MAX_CHECKOUT_BYTES)} MB one sync may check out. Narrow the "
+                    "include patterns or the path prefix."
+                ),
+                details={"size_bytes": total, "limit_bytes": MAX_CHECKOUT_BYTES},
+            )
 
     def _listing(self, checkout: Path, staged: str, parsed: GitConfig) -> list[RemoteFile]:
         """Regular files present in the sparse checkout, named by their index entry.
@@ -429,7 +546,7 @@ class GitConnector(BaseSyncConnector):
                 )
             )
 
-        settings: list[tuple[str, str]] = [
+        options: list[tuple[str, str]] = [
             ("protocol.allow", "never"),
             ("protocol.https.allow", "always"),
             ("http.followRedirects", "false"),
@@ -442,6 +559,14 @@ class GitConnector(BaseSyncConnector):
             ("transfer.bundleURI", "false"),
             ("submodule.recurse", "false"),
             ("advice.detachedHead", "false"),
+            # A fetch of few objects is otherwise exploded into loose ones, each
+            # compressed on its own - a blob that arrived as a small delta would be
+            # written at its full size before `_bounded_blobs` could measure it.
+            ("fetch.unpackLimit", "1"),
+            # What git's own on-demand fetch of a missing blob uses. The wants are
+            # blob ids the clone does not have, and the default negotiator fails
+            # on them with "bad revision" instead of asking the server.
+            ("fetch.negotiationAlgorithm", "noop"),
         ]
         try:
             pinned = await asyncio.to_thread(
@@ -455,10 +580,10 @@ class GitConnector(BaseSyncConnector):
         if not _is_address(pinned.hostname):
             # A literal address is pinned by the URL itself, and `CURLOPT_RESOLVE`
             # cannot express an IPv6 one as a host: the entry would not parse.
-            settings.append(("http.curloptResolve", _curl_resolve(pinned)))
+            options.append(("http.curloptResolve", _curl_resolve(pinned)))
         token = credential.token.get_secret_value()
         basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
-        settings.append(("http.extraHeader", f"Authorization: Basic {basic}"))
+        options.append(("http.extraHeader", f"Authorization: Basic {basic}"))
 
         env = {
             name: os.environ[name]
@@ -480,10 +605,10 @@ class GitConnector(BaseSyncConnector):
                 "GIT_TERMINAL_PROMPT": "0",
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": os.devnull,
-                "GIT_CONFIG_COUNT": str(len(settings)),
+                "GIT_CONFIG_COUNT": str(len(options)),
             }
         )
-        for index, (key, value) in enumerate(settings):
+        for index, (key, value) in enumerate(options):
             env[f"GIT_CONFIG_KEY_{index}"] = key
             env[f"GIT_CONFIG_VALUE_{index}"] = value
         return env
@@ -558,6 +683,10 @@ class GitConnector(BaseSyncConnector):
                 message="The repository was not found, or the source's token cannot see it."
             )
         raise ExternalServiceError(message=f"git {args[0]} could not read the repository.")
+
+
+def _mebibytes(size: int) -> str:
+    return f"{size / (1024 * 1024):.1f}".removesuffix(".0")
 
 
 def _make_workdir() -> Path:

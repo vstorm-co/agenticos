@@ -27,7 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
   since the last clean run, it stops there. When the commit has moved, it makes
   a shallow, sparse clone of the documentation only. The repository's host is
   checked and pinned like any other tenant-chosen address, and an internal host
-  is refused (#987).
+  is refused. What a clone would write is measured before it is written: a file
+  over the knowledge base's document cap, or more than 512 MB in all, fails the
+  sync with nothing written (#987).
 - **A Git access token is a vault secret kind of its own, bound to its host.**
   A Git source takes only a `git_token`, and sends it only to the host it was
   added with, so editing a source cannot aim the organization's token, or any
