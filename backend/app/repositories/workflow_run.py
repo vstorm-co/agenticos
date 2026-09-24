@@ -644,6 +644,11 @@ async def append_event(
     locked via `get_run_for_update`) - the seq bump and the insert share this
     one flush, which is what keeps the counter and the row it numbers from
     disagreeing.
+
+    `run` is refreshed as well as the event: the flush fires
+    `TimestampMixin.updated_at`'s `onupdate`, which expires that attribute, and
+    a caller reading it afterwards (the facade's own response) would otherwise
+    lazy-load on an async session and raise `MissingGreenlet`.
     """
     seq = run.next_event_seq
     run.next_event_seq = seq + 1
@@ -659,6 +664,7 @@ async def append_event(
     db.add(run)
     await db.flush()
     await db.refresh(event)
+    await db.refresh(run)
     return event
 
 
