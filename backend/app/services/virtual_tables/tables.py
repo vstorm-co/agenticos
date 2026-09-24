@@ -276,7 +276,7 @@ class TableOperations(Operations):
             organization_id=ctx.organization_id,
             table_id=table.id,
             column_ids=column_ids,
-            subject_id=ctx.subject_id,
+            caller=ctx,
         )
         if dependents:
             raise SchemaDependencyError(

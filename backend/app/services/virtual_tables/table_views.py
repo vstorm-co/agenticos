@@ -10,11 +10,12 @@ the table", so a shared editor cannot silently repoint another member's saved
 filter. Refused the same way every other per-resource write in this package is: a
 404, never a 403 that would disclose a row exists to a caller it refuses.
 
-Registers a `DependencyChecker` at import time: archiving a column a saved view the
-caller can see still filters, sorts or groups by is refused, naming the view,
-rather than leaving the view silently broken (`dependencies.py`). Another member's
-private view never blocks the caller, since they could neither see nor fix it; what
-it names of a column that is no longer live is dropped whenever the view is read.
+Registers a `DependencyChecker` at import time: archiving a column that a saved
+view the caller can both see and change still filters, sorts or groups by is
+refused, naming the view, rather than leaving the view silently broken
+(`dependencies.py`). Any other view never blocks the caller, since they could not
+clear it out of the way; what it names of a column that is no longer live is
+dropped whenever the view is read.
 """
 
 from contextlib import suppress
@@ -40,6 +41,7 @@ from app.schemas.table_view import (
     ViewVisibility,
 )
 from app.schemas.virtual_table import RecordSort
+from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 
@@ -75,32 +77,38 @@ async def table_view_dependents(
     organization_id: UUID,
     table_id: UUID,
     column_ids: frozenset[UUID] | None,
-    subject_id: UUID,
+    caller: AuthContext,
 ) -> list[Dependent]:
-    """Every saved view `subject_id` can see under this table that depends on one of `column_ids`.
+    """Every saved view `caller` can both see and change that depends on one of `column_ids`.
 
     `column_ids=None` (the whole table is being archived) does not depend on any
     view - archiving a table does not touch its views, only removing a column a
     view still uses does.
 
-    Only the caller's own views and the shared ones count. Another member's private
-    view would name a row the caller may not know exists (`_visible_view` answers
-    404 for it), and would block them with nothing they could do about it; it is
-    left to drop the archived column when read (`_live_config`).
+    That is the caller's own views, plus the shared ones for a caller whose
+    `tables:edit` scope is `ALL`. Any other view would block them with nothing they
+    could do about it - and another member's private view would name a row they may
+    not know exists (`_visible_view` answers 404 for it) - so it is left to drop the
+    archived column when read (`_live_config`).
     """
     if column_ids is None:
         return []
     views = await table_view_repo.list_visible(
-        db, organization_id=organization_id, table_id=table_id, user_id=subject_id
+        db, organization_id=organization_id, table_id=table_id, user_id=caller.subject_id
     )
     return [
         Dependent(kind="table_view", id=view.id)
         for view in views
-        if _referenced_column_ids(view.config) & column_ids
+        if _may_manage(caller, view) and _referenced_column_ids(view.config) & column_ids
     ]
 
 
 register_dependency_checker(table_view_dependents)
+
+
+def _may_manage(ctx: AuthContext, view: TableView) -> bool:
+    """Whether `ctx` is the one who may change or delete `view`: its owner, or a `tables:edit` `ALL` scope."""
+    return view.owner_user_id == ctx.subject_id or ctx.scope_for(Perm.TABLES_EDIT) is Scope.ALL
 
 
 def _is_name_clash(exc: IntegrityError) -> bool:
@@ -119,25 +127,26 @@ def _names_a_dead_column(sort_by: str, live: set[UUID]) -> bool:
 def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
     """The view's config with every reference to a column outside `live` dropped.
 
-    A column is archived out from under a view it does not block (someone else's
-    private view, or one that only showed it), and a stored config is never
+    A column is archived out from under a view it does not block (one the archiving
+    caller could not change, or one that only showed it), and a stored config is never
     rewritten for that. A filter on it goes, a sort by it falls back to the default,
-    a grouping by it is cleared and it leaves the visible columns.
+    a grouping by it is cleared and it leaves the visible columns. A view left showing
+    none of the columns it chose shows every live one, rather than a grid with no
+    columns to open a record from.
     """
     config = TableViewConfig.model_validate(view.config)
+    visible = config.visible_columns
+    if visible is not None:
+        visible = [item for item in visible if item in live] or None
     return TableViewConfig(
         filters=[item for item in config.filters if item.column_id in live],
         sort=RecordSort() if _names_a_dead_column(config.sort.by, live) else config.sort,
-        visible_columns=(
-            None
-            if config.visible_columns is None
-            else [item for item in config.visible_columns if item in live]
-        ),
+        visible_columns=visible,
         group_by=config.group_by if config.group_by in live else None,
     )
 
 
-def _read(view: TableView, *, live: set[UUID], can_manage: bool) -> TableViewRead:
+def _read(view: TableView, *, live: set[UUID], can_manage: bool, can_delete: bool) -> TableViewRead:
     return TableViewRead(
         id=view.id,
         table_id=view.table_id,
@@ -147,6 +156,7 @@ def _read(view: TableView, *, live: set[UUID], can_manage: bool) -> TableViewRea
         visibility=cast(ViewVisibility, view.visibility),
         config=_live_config(view, live),
         can_manage=can_manage,
+        can_delete=can_delete,
         created_at=view.created_at,
         updated_at=view.updated_at,
     )
@@ -167,6 +177,7 @@ class TableViewOperations(Operations):
         """The caller's own views plus the shared ones, under this table: one page, own first."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         live = await self._live_column_ids(table)
+        edits = await self._edits_table(ctx, table)
         views = await table_view_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -183,7 +194,9 @@ class TableViewOperations(Operations):
             user_id=ctx.subject_id,
             kind=kind,
         )
-        return TableViewList(items=[self._to_read(ctx, view, live) for view in views], total=total)
+        return TableViewList(
+            items=[self._to_read(ctx, view, live, edits_table=edits) for view in views], total=total
+        )
 
     async def create_view(
         self, ctx: AuthContext, table_id: UUID, data: TableViewCreate
@@ -224,13 +237,18 @@ class TableViewOperations(Operations):
             raise AlreadyExistsError(
                 message=f"A view named '{data.name}' already exists.", details={"name": data.name}
             ) from exc
-        return self._to_read(ctx, view, await self._live_column_ids(table))
+        return self._to_read(ctx, view, await self._live_column_ids(table), edits_table=True)
 
     async def get_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableViewRead:
         """One view, if the caller may see the table and either owns it or it is shared."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         view = await self._visible_view(ctx, table_id, view_id)
-        return self._to_read(ctx, view, await self._live_column_ids(table))
+        return self._to_read(
+            ctx,
+            view,
+            await self._live_column_ids(table),
+            edits_table=await self._edits_table(ctx, table),
+        )
 
     async def update_view(
         self, ctx: AuthContext, table_id: UUID, view_id: UUID, data: TableViewUpdate
@@ -285,7 +303,7 @@ class TableViewOperations(Operations):
                     message=f"A view named '{new_name}' already exists.",
                     details={"name": new_name},
                 ) from exc
-        return self._to_read(ctx, view, await self._live_column_ids(table))
+        return self._to_read(ctx, view, await self._live_column_ids(table), edits_table=True)
 
     async def delete_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> None:
         """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`.
@@ -315,17 +333,17 @@ class TableViewOperations(Operations):
         the row rather than by naming why, and a view is no exception.
 
         Deliberately does not route through `_visible_view`: whether a caller may manage a
-        view is exactly `_can_manage`, and gating on visibility first would hide a private
-        view from an `ALL`-scope caller `_can_manage` already says may manage it - "visible
+        view is exactly `_may_manage`, and gating on visibility first would hide a private
+        view from an `ALL`-scope caller `_may_manage` already says may manage it - "visible
         but not manageable" (a shared view, wrong owner, no `ALL` scope) still 404s, since
-        `_can_manage` alone decides that case too. Without this, a member's private view
+        `_may_manage` alone decides that case too. Without this, a member's private view
         survives them leaving the organization, with no one left able to reach - and so
         delete - it.
         """
         view = await table_view_repo.get(
             self.db, organization_id=ctx.organization_id, view_id=view_id
         )
-        if view is None or view.table_id != table_id or not self._can_manage(ctx, view):
+        if view is None or view.table_id != table_id or not _may_manage(ctx, view):
             raise NotFoundError(message="View not found", details={"view_id": view_id})
         return view
 
@@ -333,12 +351,16 @@ class TableViewOperations(Operations):
     def _visible_to(ctx: AuthContext, view: TableView) -> bool:
         return view.visibility == "shared" or view.owner_user_id == ctx.subject_id
 
-    @staticmethod
-    def _can_manage(ctx: AuthContext, view: TableView) -> bool:
-        return view.owner_user_id == ctx.subject_id or ctx.scope_for(Perm.TABLES_EDIT) is Scope.ALL
-
     async def _live_column_ids(self, table: VirtualTable) -> set[UUID]:
         return {column.id for column in await self._columns(table) if not column.archived}
 
-    def _to_read(self, ctx: AuthContext, view: TableView, live: set[UUID]) -> TableViewRead:
-        return _read(view, live=live, can_manage=self._can_manage(ctx, view))
+    async def _edits_table(self, ctx: AuthContext, table: VirtualTable) -> bool:
+        """Whether the caller holds `tables:edit` on the table - what changing a view needs."""
+        return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
+
+    @staticmethod
+    def _to_read(
+        ctx: AuthContext, view: TableView, live: set[UUID], *, edits_table: bool
+    ) -> TableViewRead:
+        may_manage = _may_manage(ctx, view)
+        return _read(view, live=live, can_manage=may_manage and edits_table, can_delete=may_manage)

@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo, table_view_repo
 from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUpdate
@@ -211,7 +212,7 @@ async def test_a_private_view_is_invisible_to_a_colleague_and_a_shared_one_is_no
     with pytest.raises(NotFoundError):
         await views.get_view(colleague_ctx, table.id, private_view.id)
     seen_shared = await views.get_view(colleague_ctx, table.id, shared_view.id)
-    assert seen_shared.can_manage is False
+    assert (seen_shared.can_manage, seen_shared.can_delete) == (False, False)
 
 
 async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view(db):
@@ -254,7 +255,7 @@ async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view
 async def test_an_all_scope_caller_can_delete_a_colleagues_private_view(db):
     # `_manageable_view` must not route through `_visible_view`: that hides a
     # private view from anyone but its owner, which would also hide it from an
-    # admin `_can_manage` already says may manage it - leaving no one able to
+    # admin `_may_manage` already says may manage it - leaving no one able to
     # delete an orphaned private view (say, its owner left the organization)
     # that still blocks archiving a column it references.
     views, _tables, ctx, _owner, org, table = await _setup(db)
@@ -473,7 +474,10 @@ async def test_another_members_private_view_neither_blocks_a_column_archive_nor_
     assert after.config.group_by is None
 
 
-async def test_a_view_the_caller_can_see_still_blocks_a_column_archive_and_is_named(db):
+async def test_only_a_view_the_caller_can_change_blocks_a_column_archive_and_is_named(db):
+    """A member's shared view used to block a builder who could see it but neither
+    change nor delete it - their archive refused with no way to clear what refused it.
+    It now blocks only someone who could clear it: its owner, or an `ALL`-scope caller."""
     views, tables, builder_ctx, member_ctx, table = await _builders_table_and_an_editing_member(db)
     status_id = next(c.id for c in table.columns if c.label == "Status")
     shared = await views.create_view(
@@ -495,12 +499,22 @@ async def test_a_view_the_caller_can_see_still_blocks_a_column_archive_and_is_na
             config=TableViewConfig(sort=RecordSort(by=str(status_id))),
         ),
     )
+    admin_ctx = AuthContext(
+        user_id=(await make_user(db)).id, organization_id=builder_ctx.organization_id, role="admin"
+    )
 
-    with pytest.raises(SchemaDependencyError) as raised:
+    with pytest.raises(SchemaDependencyError) as by_builder:
         await tables.update_schema(builder_ctx, table.id, _without(table, "Status"))
+    with pytest.raises(SchemaDependencyError) as by_admin:
+        await tables.update_schema(admin_ctx, table.id, _without(table, "Status"))
 
-    dependents = raised.value.details["dependents"]
-    assert sorted(item["id"] for item in dependents) == sorted([shared.id, own.id])
+    assert [item["id"] for item in by_builder.value.details["dependents"]] == [own.id]
+    assert [item["id"] for item in by_admin.value.details["dependents"]] == [shared.id]
+
+    await views.delete_view(builder_ctx, table.id, own.id)
+    await tables.update_schema(builder_ctx, table.id, _without(table, "Status"))
+    # The shared view it did not block reads on, with the archived grouping dropped.
+    assert (await views.get_view(member_ctx, table.id, shared.id)).config.group_by is None
 
 
 async def test_a_view_that_only_shows_a_column_does_not_block_archiving_it(db):
@@ -523,6 +537,23 @@ async def test_a_view_that_only_shows_a_column_does_not_block_archiving_it(db):
     assert [item.config.visible_columns for item in listed.items if item.id == view.id] == [
         [customer_id]
     ]
+
+
+async def test_a_view_left_showing_no_live_column_shows_them_all(db):
+    """Pruned to `[]`, the view rendered a grid with no columns and no row to open."""
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    view = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Only status", kind="table", config=TableViewConfig(visible_columns=[status_id])
+        ),
+    )
+
+    await tables.update_schema(ctx, table.id, _without(table, "Status"))
+
+    assert (await views.get_view(ctx, table.id, view.id)).config.visible_columns is None
 
 
 @pytest.mark.security
@@ -552,7 +583,10 @@ async def test_a_view_owner_who_lost_edit_access_cannot_reshape_or_reshare_it_bu
             view.id,
             TableViewUpdate(name="Published", visibility="shared"),
         )
-    assert (await views.get_view(member_ctx, table.id, view.id)).visibility == "private"
+    after = await views.get_view(member_ctx, table.id, view.id)
+    assert after.visibility == "private"
+    # What the console offers agrees: no rename or reshare, but still a delete.
+    assert (after.can_manage, after.can_delete) == (False, True)
     await views.delete_view(member_ctx, table.id, view.id)
     with pytest.raises(NotFoundError):
         await views.get_view(member_ctx, table.id, view.id)

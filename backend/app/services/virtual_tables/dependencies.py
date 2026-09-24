@@ -5,7 +5,7 @@ triggers later - registers a checker at import time, so archiving a column it
 reads is refused instead of silently breaking it:
 
 ```python
-async def workflow_dependents(db, *, organization_id, table_id, column_ids, subject_id):
+async def workflow_dependents(db, *, organization_id, table_id, column_ids, caller):
     ...
     return [Dependent(kind="workflow", id=workflow.id)]
 
@@ -13,8 +13,8 @@ register_dependency_checker(workflow_dependents)
 ```
 
 `column_ids` is the set of columns a schema change archives, or `None` when the
-whole table is being archived. `subject_id` is the caller making the change: a
-checker reports only dependents that caller can see. One it cannot see is not
+whole table is being archived. `caller` is who is making the change: a checker
+reports only dependents that caller can both see and change. Anything else is not
 the caller's to fix, so it neither blocks the change nor is disclosed by id, and
 the feature owning it must tolerate the change instead (a saved view drops what
 it names of a column that is no longer live when it is read).
@@ -25,6 +25,8 @@ from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.permissions import AuthContext
 
 
 @dataclass(frozen=True)
@@ -45,7 +47,7 @@ class DependencyChecker(Protocol):
         organization_id: UUID,
         table_id: UUID,
         column_ids: frozenset[UUID] | None,
-        subject_id: UUID,
+        caller: AuthContext,
     ) -> list[Dependent]: ...
 
 
@@ -63,9 +65,9 @@ async def find_dependents(
     organization_id: UUID,
     table_id: UUID,
     column_ids: frozenset[UUID] | None,
-    subject_id: UUID,
+    caller: AuthContext,
 ) -> list[Dependent]:
-    """Everything registered checkers say depends on what `subject_id` is about to remove."""
+    """Everything registered checkers say depends on what `caller` is about to remove."""
     found: list[Dependent] = []
     for checker in _checkers:
         found.extend(
@@ -74,7 +76,7 @@ async def find_dependents(
                 organization_id=organization_id,
                 table_id=table_id,
                 column_ids=column_ids,
-                subject_id=subject_id,
+                caller=caller,
             )
         )
     return found

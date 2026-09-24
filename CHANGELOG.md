@@ -40,9 +40,9 @@ Two things are versioned separately from this file and worth knowing about:
   beside a "Reload and reapply" action, and writes to one record are sent one at
   a time, each against the revision the last one returned. Saved views keep a
   filter, sort and grouping per kind, private or shared, under
-  `/tables/{id}/views` (paged). Archiving a column is refused only by a view the
-  caller can see. Another member's private view drops the column when read
-  instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
+  `/tables/{id}/views` (paged, per kind). Archiving a column is refused only by a
+  view the caller can both see and change; any other view drops the column when
+  read instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
   Migration `0095_table_views.py`; see
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
 

@@ -83,11 +83,11 @@ waits for one in flight and is then judged against what it committed, so a recor
 lands in a table archived a moment earlier.
 
 Archiving a column, or the whole table, first asks every registered dependency
-checker whether something the caller can see still uses it. Saved views are the one
-registered today (see [saved views](#saved-views)); workflows and triggers will
-register theirs in `app/services/virtual_tables/dependencies.py`. A refusal names the
-dependents in `SCHEMA_DEPENDENCY`. A dependent the caller cannot see is never named
-and never blocks them: its feature copes with the change instead.
+checker whether something the caller can both see and change still uses it. Saved
+views are the one registered today (see [saved views](#saved-views)); workflows and
+triggers will register theirs in `app/services/virtual_tables/dependencies.py`. A
+refusal names the dependents in `SCHEMA_DEPENDENCY`. Any other dependent is never
+named and never blocks the caller: its feature copes with the change instead.
 
 ## Records and revisions { #records-and-revisions }
 
@@ -174,7 +174,8 @@ and `group_by` (a live `single_select` column, for a kanban board's lanes).
 |---|---|
 | `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
-| `can_manage` | Whether this caller may rename, reconfigure or delete it |
+| `can_manage` | Whether this caller may rename, reconfigure or reshare it |
+| `can_delete` | Whether this caller may delete it |
 
 Listing, reading and deleting resolve against the table (`tables:view`); creating
 or changing one needs `tables:edit` on the table, so an owner whose edit access was
@@ -184,16 +185,20 @@ Changing or deleting a view is narrower still: only its owner, or a caller whose
 `tables:edit` [scope](permissions.md) is `ALL` - not "anyone who can edit the
 table" - so a shared editor cannot silently repoint another member's saved filter. Refused
 the same way every other per-resource write here is: `NOT_FOUND` (404), never a 403
-that would disclose a view's existence to a caller it refuses.
+that would disclose a view's existence to a caller it refuses. `can_manage` and
+`can_delete` say which of the two this caller may do.
 
-Archiving a column that a view the caller can see - their own, or a shared one -
-filters, sorts or groups by is refused with `SCHEMA_DEPENDENCY`, naming the view.
-Another member's private view does not block the archive and is not named: the
-caller could neither see nor change it. Showing a column in `visible_columns` does
-not block either. Whatever a view still names of a column that is no longer live is
-dropped when the view is read: a filter on it goes, a sort by it falls back to
-`created_at`, a grouping by it is cleared, and it leaves `visible_columns`. The
-stored config is not rewritten.
+Archiving a column is refused with `SCHEMA_DEPENDENCY`, naming the view, when a
+view the caller can both see and change filters, sorts or groups by it: one of their
+own, or - for a caller whose `tables:edit` scope is `ALL` - a shared one. Any other
+view does not block the archive and is not named, because the caller could not clear
+it; that includes every other member's private view, which is not disclosed even to
+an `ALL`-scope caller. Showing a column in `visible_columns` does not block either.
+
+Whatever a view still names of a column that is no longer live is dropped when the
+view is read: a filter on it goes, a sort by it falls back to `created_at`, a
+grouping by it is cleared, and it leaves `visible_columns` - a view left showing none
+of its chosen columns shows every live one. The stored config is not rewritten.
 
 ## What commits together { #what-commits-together }
 
@@ -237,8 +242,8 @@ Whether a specific caller may edit a specific table is also on the wire directly
 `TableSummary.can_edit` and `TableRead.can_edit` are resolved server-side (role
 scope or an explicit grant) and shipped on every read, the same way `Agent.can_run`
 is - so a catalog row or a detail page never has to guess whether its edit controls
-would be refused. A saved view's own `can_manage` is the same idea, one level down
-(see [Saved views](#saved-views)).
+would be refused. A saved view's own `can_manage` and `can_delete` are the same
+idea, one level down (see [Saved views](#saved-views)).
 
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.
@@ -295,10 +300,11 @@ commits: the request's session does, and a worker owns its own session scope.
 - **A principal for API keys.** Access, receipts and history all name a signed-in
   user. How an API key acts on a table for the external API is still to be agreed.
 - Agent tools and typed workflow nodes over tables, and triggers on record
-  creation. The console screens (table creation, schema editing, record CRUD and
-  the saved table/kanban/list views this page's [Saved views](#saved-views)
-  section describes) exist; agent- and workflow-side access to the same service
-  does not yet.
+  creation. The console screens (table creation, schema editing, editing a
+  record's cells and the saved table/kanban/list views this page's
+  [Saved views](#saved-views) section describes) exist; agent- and workflow-side
+  access to the same service does not yet, and nor does creating or deleting a
+  record from the console.
 - Consumers of the outbox, and dependency checkers for workflows and triggers -
   saved views already register one (see [Saved views](#saved-views)).
 - Per-tenant quotas or rate limits on history and receipt growth, and delta storage for them.

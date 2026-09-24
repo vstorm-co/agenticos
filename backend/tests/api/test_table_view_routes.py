@@ -43,6 +43,7 @@ def _view() -> TableViewRead:
         visibility="private",
         config={},
         can_manage=True,
+        can_delete=True,
         created_at=datetime(2026, 9, 23, tzinfo=UTC),
     )
 

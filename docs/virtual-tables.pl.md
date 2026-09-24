@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf30b6719c"
+source_sha: "efe600e397d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -89,12 +89,12 @@ zapis czeka na trwającą zmianę i jest potem oceniany według tego, co ona zat
 więc rekord nigdy nie trafia do tabeli zarchiwizowanej chwilę wcześniej.
 
 Archiwizacja kolumny lub całej tabeli najpierw pyta każdy zarejestrowany checker
-zależności, czy coś, co wywołujący widzi, jeszcze z niej korzysta. Dziś
+zależności, czy coś, co wywołujący może zarówno zobaczyć, jak i zmienić, jeszcze z
+niej korzysta. Dziś
 zarejestrowane są zapisane widoki (zobacz [Zapisane widoki](#saved-views));
 workflow i triggery zarejestrują swoje w `app/services/virtual_tables/dependencies.py`.
-Odmowa wymienia zależności w `SCHEMA_DEPENDENCY`. Zależność, której wywołujący nie
-widzi, nigdy nie jest wymieniana i nigdy go nie blokuje: jej funkcja sama radzi
-sobie ze zmianą.
+Odmowa wymienia zależności w `SCHEMA_DEPENDENCY`. Każda inna zależność nigdy nie jest
+wymieniana i nigdy nie blokuje wywołującego: jej funkcja sama radzi sobie ze zmianą.
 
 ## Rekordy i revisions { #records-and-revisions }
 
@@ -186,7 +186,8 @@ renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę)
 |---|---|
 | `kind` | `table`, `kanban` lub `list` - widok jest zapisany *dla* jednego rodzaju |
 | `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
-| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub usunąć widok |
+| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub udostępnić widok |
+| `can_delete` | Czy ten wywołujący może usunąć widok |
 
 Listowanie, odczyt i usunięcie rozwiązują się względem tabeli (`tables:view`);
 utworzenie lub zmiana widoku wymaga `tables:edit` na tabeli, więc właściciel,
@@ -199,17 +200,23 @@ tylko jego właściciel albo wywołujący, którego [scope](permissions.md) dla
 współdzielony edytor nie może po cichu przestawić zapisanego filtra innego
 członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasobie
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
-któremu go odmówiono.
+któremu go odmówiono. `can_manage` i `can_delete` mówią, co z tych dwóch ten
+wywołujący może zrobić.
 
-Zarchiwizowanie kolumny, której widok widoczny dla wywołującego - jego własny albo
-współdzielony - nadal używa do filtrowania, sortowania lub grupowania, jest
-odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok. Prywatny widok innego członka nie
-blokuje archiwizacji i nie jest wymieniany: wywołujący nie mógłby go ani zobaczyć,
-ani zmienić. Samo pokazywanie kolumny w `visible_columns` też nie blokuje. To, co
-widok nadal wskazuje z kolumny, która nie jest już żywa, jest pomijane przy jego
-odczycie: filtr na niej znika, sortowanie po niej wraca do `created_at`,
-grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns`.
-Zapisana konfiguracja nie jest przepisywana.
+Zarchiwizowanie kolumny jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok, gdy
+widok, który wywołujący może zarówno zobaczyć, jak i zmienić, nadal używa jej do
+filtrowania, sortowania lub grupowania: jeden z jego własnych albo - dla
+wywołującego, którego scope dla `tables:edit` to `ALL` - współdzielony. Żaden inny
+widok nie blokuje archiwizacji i nie jest wymieniany, bo wywołujący nie mógłby go
+usunąć z drogi; dotyczy to każdego prywatnego widoku innego członka, którego nie
+ujawnia się nawet wywołującemu ze scope `ALL`. Samo pokazywanie kolumny w
+`visible_columns` też nie blokuje.
+
+To, co widok nadal wskazuje z kolumny, która nie jest już żywa, jest pomijane przy
+jego odczycie: filtr na niej znika, sortowanie po niej wraca do `created_at`,
+grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns` - widok,
+który nie pokazuje już żadnej z wybranych kolumn, pokazuje wszystkie żywe. Zapisana
+konfiguracja nie jest przepisywana.
 
 ## Co zatwierdza się razem { #what-commits-together }
 
@@ -257,8 +264,8 @@ Czy konkretny wywołujący może edytować konkretną tabelę, jest też bezpoś
 przewodzie: `TableSummary.can_edit` i `TableRead.can_edit` są rozwiązywane po
 stronie serwera (scope roli lub jawny grant) i wysyłane przy każdym odczycie, tak
 samo jak `Agent.can_run` - więc wiersz katalogu albo strona szczegółów nigdy nie
-musi zgadywać, czy jej kontrolki edycji zostałyby odrzucone. Własne `can_manage`
-zapisanego widoku to ta sama idea, o jeden poziom niżej (zobacz
+musi zgadywać, czy jej kontrolki edycji zostałyby odrzucone. Własne `can_manage` i
+`can_delete` zapisanego widoku to ta sama idea, o jeden poziom niżej (zobacz
 [Zapisane widoki](#saved-views)).
 
 ## Błędy { #errors }
@@ -314,10 +321,11 @@ robi go sesja żądania, a worker ma własny zakres sesji.
   użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
   uzgodnione.
 - Narzędzia agenta i typowane węzły workflow nad tabelami oraz triggery przy
-  tworzeniu rekordu. Ekrany konsoli (tworzenie tabeli, edycja schematu, CRUD
-  rekordów i zapisane widoki table/kanban/list opisane w sekcji
+  tworzeniu rekordu. Ekrany konsoli (tworzenie tabeli, edycja schematu, edycja
+  komórek rekordu i zapisane widoki table/kanban/list opisane w sekcji
   [Zapisane widoki](#saved-views)) już istnieją; dostęp do tego samego serwisu po
-  stronie agentów i workflow jeszcze nie.
+  stronie agentów i workflow jeszcze nie, podobnie jak tworzenie i usuwanie
+  rekordów z konsoli.
 - Konsumenci outbox oraz checkery zależności dla workflow i triggerów - zapisane
   widoki już rejestrują swój (zobacz [Zapisane widoki](#saved-views)).
 - Limity lub rate limity per tenant na przyrost historii i receipts oraz przechowywanie

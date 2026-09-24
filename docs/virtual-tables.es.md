@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf30b6719c"
+source_sha: "efe600e397d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -90,11 +90,12 @@ turnan: la escritura espera a la que está en curso y se juzga luego según lo q
 confirmó, así que un registro nunca cae en una tabla archivada un momento antes.
 
 Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
-dependencias registrado si algo que el llamante puede ver aún la usa. Hoy están
+dependencias registrado si algo que el llamante puede ver y también cambiar aún la usa.
+Hoy están
 registradas las vistas guardadas (ver [Vistas guardadas](#saved-views)); los workflows
 y los triggers registrarán los suyos en `app/services/virtual_tables/dependencies.py`.
-Un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`. Un dependiente que el
-llamante no puede ver nunca se nombra y nunca lo bloquea: su función se adapta al
+Un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`. Cualquier otro
+dependiente nunca se nombra y nunca bloquea al llamante: su función se adapta al
 cambio por sí misma.
 
 ## Registros y revisions { #records-and-revisions }
@@ -188,7 +189,8 @@ un tablero kanban).
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o borrarla |
+| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
 una vista necesita `tables:edit` sobre la tabla, así que un propietario al que se le
@@ -201,16 +203,22 @@ sea `ALL` - no "cualquiera que pueda editar la tabla" - de modo que un editor
 compartido no pueda redirigir en silencio el filtro guardado de otro miembro. Se
 rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
-llamante al que se le niega.
+llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
+puede hacer este llamante.
 
-Archivar una columna que una vista visible para el llamante - la suya propia o una
-compartida - aún usa para filtrar, ordenar o agrupar se rechaza con
-`SCHEMA_DEPENDENCY`, nombrando la vista. La vista privada de otro miembro no bloquea
-el archivado y no se nombra: el llamante no podría verla ni cambiarla. Mostrar una
-columna en `visible_columns` tampoco bloquea. Lo que una vista aún nombra de una
-columna que ya no está viva se omite al leer la vista: un filtro sobre ella
-desaparece, un orden por ella vuelve a `created_at`, una agrupación por ella se
-vacía, y sale de `visible_columns`. La configuración guardada no se reescribe.
+Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
+una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
+ordenar o agrupar: una de las suyas o - para un llamante cuyo scope de `tables:edit`
+sea `ALL` - una compartida. Ninguna otra vista bloquea el archivado ni se nombra,
+porque el llamante no podría quitarla de en medio; eso incluye toda vista privada de
+otro miembro, que no se revela ni siquiera a un llamante con scope `ALL`. Mostrar
+una columna en `visible_columns` tampoco bloquea.
+
+Lo que una vista aún nombra de una columna que ya no está viva se omite al leer la
+vista: un filtro sobre ella desaparece, un orden por ella vuelve a `created_at`, una
+agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya no
+muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
+guardada no se reescribe.
 
 ## Qué se confirma junto { #what-commits-together }
 
@@ -260,7 +268,7 @@ en la respuesta: `TableSummary.can_edit` y `TableRead.can_edit` se resuelven en 
 servidor (scope del rol o un grant explícito) y se envían en cada lectura, igual
 que `Agent.can_run` - así una fila del catálogo o una página de detalle nunca
 tienen que adivinar si sus controles de edición serían rechazados. El propio
-`can_manage` de una vista guardada es la misma idea, un nivel más abajo (ver
+`can_manage` y `can_delete` de una vista guardada son la misma idea, un nivel más abajo (ver
 [Vistas guardadas](#saved-views)).
 
 ## Errores { #errors }
@@ -318,9 +326,10 @@ sesión.
   está aún por acordar.
 - Las herramientas del agent y los nodos tipados de workflow sobre tablas, y los
   triggers al crear un registro. Las pantallas de la consola (crear tabla, editar
-  esquema, CRUD de registros y las vistas guardadas de tabla/kanban/lista que
-  describe la sección [Vistas guardadas](#saved-views)) ya existen; el acceso al
-  mismo servicio desde agents y workflows, todavía no.
+  esquema, editar las celdas de un registro y las vistas guardadas de
+  tabla/kanban/lista que describe la sección [Vistas guardadas](#saved-views)) ya
+  existen; el acceso al mismo servicio desde agents y workflows, todavía no, y
+  tampoco crear ni borrar registros desde la consola.
 - Consumidores del outbox y comprobadores de dependencias para workflows y
   triggers - las vistas guardadas ya registran el suyo (ver
   [Vistas guardadas](#saved-views)).

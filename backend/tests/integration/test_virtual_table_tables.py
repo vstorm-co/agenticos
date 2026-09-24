@@ -510,9 +510,9 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
     workflow = uuid.uuid4()
     seen: list[frozenset[uuid.UUID] | None] = []
 
-    async def checker(db, *, organization_id, table_id, column_ids, subject_id):
+    async def checker(db, *, organization_id, table_id, column_ids, caller):
         # Asked on behalf of the caller, who is who a dependent must be visible to.
-        assert subject_id == ctx.subject_id
+        assert caller is ctx
         seen.append(column_ids)
         return [Dependent(kind="workflow", id=workflow)]
 
