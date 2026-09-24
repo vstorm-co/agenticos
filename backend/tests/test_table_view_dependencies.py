@@ -10,10 +10,11 @@ import uuid
 from app.services.virtual_tables.table_views import _referenced_column_ids
 
 
-def test_visible_columns_are_named():
+def test_a_column_a_view_only_shows_is_not_a_dependency():
+    """Archiving it costs the view nothing: reading the view drops the id."""
     column_id = uuid.uuid4()
 
-    assert _referenced_column_ids({"visible_columns": [str(column_id)]}) == {column_id}
+    assert _referenced_column_ids({"visible_columns": [str(column_id)]}) == set()
 
 
 def test_group_by_is_named():

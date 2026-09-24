@@ -1,5 +1,5 @@
 ---
-source_sha: "b4daf8d85123"
+source_sha: "efcf30b6719c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -97,10 +97,13 @@ dann an dem gemessen, was sie committet hat, sodass ein Datensatz nie in einer T
 landet, die einen Moment zuvor archiviert wurde.
 
 Beim Archivieren einer Spalte oder der ganzen Tabelle wird zuerst jeder registrierte
-Dependency-Checker gefragt, ob etwas sie noch verwendet. Workflows, Views und Trigger
-gibt es noch nicht, daher ist keiner registriert und nichts blockiert;
-`app/services/virtual_tables/dependencies.py` ist der Ort, an dem ein Feature einen
-registriert, und eine Ablehnung nennt die Abhängigen in `SCHEMA_DEPENDENCY`.
+Dependency-Checker gefragt, ob etwas, das der Aufrufer sehen kann, sie noch verwendet.
+Heute sind gespeicherte Ansichten registriert (siehe
+[Gespeicherte Ansichten](#saved-views)); Workflows und Trigger werden ihre in
+`app/services/virtual_tables/dependencies.py` registrieren. Eine Ablehnung nennt die
+Abhängigen in `SCHEMA_DEPENDENCY`. Ein Abhängiger, den der Aufrufer nicht sehen kann,
+wird nie genannt und blockiert ihn nie: sein Feature kommt stattdessen selbst mit der
+Änderung zurecht.
 
 ## Datensätze und Revisions { #records-and-revisions }
 
@@ -185,7 +188,9 @@ Tabelle hält" - sie erweitert den Zugriff nie über das hinaus, was die Tabelle
 selbst erlaubt.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
-listen, erstellen, lesen, aktualisieren und löschen sie. `config` ist `{filters,
+listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
+und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
+dann die geteilten, jeweils nach Name; `total` zählt alle. `config` ist `{filters,
 sort, visible_columns, group_by}` - eine `RecordQuery` plus die zwei Felder, die
 nur die Darstellung der Konsole braucht: `visible_columns` (`null` bedeutet jede
 lebende Spalte) und `group_by` (eine lebende `single_select`-Spalte, für die
@@ -197,9 +202,13 @@ Spalten eines Kanban-Boards).
 | `visibility` | `private` (nur ihr Besitzer) oder `shared` (jeder, der die Tabelle sehen kann) |
 | `can_manage` | Ob dieser Aufrufer sie umbenennen, umkonfigurieren oder löschen darf |
 
-Auflisten und Lesen lösen sich gegen die Tabelle auf (`tables:view`); eine Ansicht
-zu erstellen braucht `tables:edit` auf der Tabelle. Eine Ansicht zu ändern oder zu
-löschen ist enger: nur ihr Besitzer, oder ein Aufrufer, dessen
+Auflisten, Lesen und Löschen lösen sich gegen die Tabelle auf (`tables:view`); eine
+Ansicht zu erstellen oder zu ändern braucht `tables:edit` auf der Tabelle, sodass ein
+Besitzer, dem das Bearbeitungsrecht entzogen wurde, seine Ansichten noch löschen,
+aber nicht mehr umbauen oder teilen kann.
+
+Eine Ansicht zu ändern oder zu löschen ist
+enger: nur ihr Besitzer, oder ein Aufrufer, dessen
 [Scope](permissions.md) für `tables:edit` `ALL` ist - nicht "jeder, der die Tabelle
 bearbeiten darf" - sodass ein geteilter Bearbeiter nicht stillschweigend den
 gespeicherten Filter eines anderen Mitglieds umbiegen kann. Die Ablehnung
@@ -207,9 +216,16 @@ funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
 hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
 würde, dass die Ansicht existiert.
 
-Das Archivieren einer Spalte, die eine gespeicherte Ansicht noch zum Filtern,
-Sortieren oder Gruppieren nutzt, wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt
-die Ansicht, genau wie jeder andere registrierte Abhängige.
+Das Archivieren einer Spalte, die eine für den Aufrufer sichtbare Ansicht - seine
+eigene oder eine geteilte - noch zum Filtern, Sortieren oder Gruppieren nutzt, wird
+mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die Ansicht. Die private Ansicht eines
+anderen Mitglieds blockiert das Archivieren nicht und wird nicht genannt: der
+Aufrufer könnte sie weder sehen noch ändern. Eine Spalte nur in `visible_columns`
+anzuzeigen blockiert ebenfalls nicht. Was eine Ansicht noch von einer Spalte nennt,
+die nicht mehr lebt, wird beim Lesen der Ansicht weggelassen: ein Filter darauf
+entfällt, eine Sortierung danach fällt auf `created_at` zurück, eine Gruppierung
+danach wird geleert, und sie verlässt `visible_columns`. Die gespeicherte
+Konfiguration wird nicht umgeschrieben.
 
 ## Was gemeinsam committet { #what-commits-together }
 

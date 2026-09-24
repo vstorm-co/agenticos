@@ -108,15 +108,19 @@ async def test_registered_checkers_are_all_asked_and_their_answers_joined(monkey
     monkeypatch.setattr(dependencies, "_checkers", [])
     first, second = uuid.uuid4(), uuid.uuid4()
 
-    async def views(db, *, organization_id, table_id, column_ids):
+    async def views(db, *, organization_id, table_id, column_ids, subject_id):
         return [Dependent(kind="view", id=first)]
 
-    async def flows(db, *, organization_id, table_id, column_ids):
+    async def flows(db, *, organization_id, table_id, column_ids, subject_id):
         return [Dependent(kind="workflow", id=second)]
 
     assert (
         await find_dependents(
-            None, organization_id=uuid.uuid4(), table_id=uuid.uuid4(), column_ids=None
+            None,
+            organization_id=uuid.uuid4(),
+            table_id=uuid.uuid4(),
+            column_ids=None,
+            subject_id=uuid.uuid4(),
         )
         == []
     )
@@ -124,7 +128,11 @@ async def test_registered_checkers_are_all_asked_and_their_answers_joined(monkey
     dependencies.register_dependency_checker(flows)
 
     found = await find_dependents(
-        None, organization_id=uuid.uuid4(), table_id=uuid.uuid4(), column_ids=frozenset()
+        None,
+        organization_id=uuid.uuid4(),
+        table_id=uuid.uuid4(),
+        column_ids=frozenset(),
+        subject_id=uuid.uuid4(),
     )
 
     assert found == [Dependent("view", first), Dependent("workflow", second)]

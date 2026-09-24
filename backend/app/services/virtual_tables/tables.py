@@ -168,8 +168,9 @@ class TableOperations(Operations):
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         columns = await self._columns(table)
+        # An archived table refuses every write, so neither answer below offers one.
         if table.archived_at is not None:
-            return self._read(table, columns, can_edit=True)
+            return self._read(table, columns, can_edit=False)
         await self._refuse_dependents(ctx, table, column_ids=None)
         table = await virtual_table_repo.update_table(
             self.db, table=table, update_data={"archived_at": datetime.now(UTC)}
@@ -182,7 +183,7 @@ class TableOperations(Operations):
             target_type="table",
             target_id=str(table.id),
         )
-        return self._read(table, columns, can_edit=True)
+        return self._read(table, columns, can_edit=False)
 
     async def update_schema(
         self, ctx: AuthContext, table_id: UUID, data: SchemaUpdate
@@ -275,6 +276,7 @@ class TableOperations(Operations):
             organization_id=ctx.organization_id,
             table_id=table.id,
             column_ids=column_ids,
+            subject_id=ctx.subject_id,
         )
         if dependents:
             raise SchemaDependencyError(

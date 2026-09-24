@@ -83,10 +83,11 @@ waits for one in flight and is then judged against what it committed, so a recor
 lands in a table archived a moment earlier.
 
 Archiving a column, or the whole table, first asks every registered dependency
-checker whether something still uses it. Workflows, views and triggers do not exist
-yet, so none is registered and nothing blocks; `app/services/virtual_tables/dependencies.py`
-is where a feature registers one, and a refusal names the dependents in
-`SCHEMA_DEPENDENCY`.
+checker whether something the caller can see still uses it. Saved views are the one
+registered today (see [saved views](#saved-views)); workflows and triggers will
+register theirs in `app/services/virtual_tables/dependencies.py`. A refusal names the
+dependents in `SCHEMA_DEPENDENCY`. A dependent the caller cannot see is never named
+and never blocks them: its feature copes with the change instead.
 
 ## Records and revisions { #records-and-revisions }
 
@@ -162,7 +163,9 @@ its own: a view has no owner-and-grants of its own kind, and `shared` means only
 widens access beyond what the table itself allows.
 
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
-list, create, read, update and delete them. `config` is `{filters, sort,
+list, create, read, update and delete them. The list is paged with `skip` and
+`limit` (at most 100), the caller's own views first, then the shared ones, each by
+name; `total` counts them all. `config` is `{filters, sort,
 visible_columns, group_by}` - a `RecordQuery` plus the two fields only the
 console's own rendering needs: `visible_columns` (`null` means every live column)
 and `group_by` (a live `single_select` column, for a kanban board's lanes).
@@ -173,16 +176,24 @@ and `group_by` (a live `single_select` column, for a kanban board's lanes).
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
 | `can_manage` | Whether this caller may rename, reconfigure or delete it |
 
-Listing and reading resolve against the table (`tables:view`); creating one needs
-`tables:edit` on the table. Changing or deleting a view is narrower still: only its
-owner, or a caller whose `tables:edit` [scope](permissions.md) is `ALL` - not
-"anyone who can edit the table" - so a shared editor cannot silently repoint
-another member's saved filter. Refused the same way every other per-resource write
-here is: `NOT_FOUND` (404), never a 403 that would disclose a view's existence to a
-caller it refuses.
+Listing, reading and deleting resolve against the table (`tables:view`); creating
+or changing one needs `tables:edit` on the table, so an owner whose edit access was
+taken away can still delete their views but no longer reshape or share them.
 
-Archiving a column a saved view still filters, sorts or groups by is refused with
-`SCHEMA_DEPENDENCY`, naming the view, the same as any other registered dependent.
+Changing or deleting a view is narrower still: only its owner, or a caller whose
+`tables:edit` [scope](permissions.md) is `ALL` - not "anyone who can edit the
+table" - so a shared editor cannot silently repoint another member's saved filter. Refused
+the same way every other per-resource write here is: `NOT_FOUND` (404), never a 403
+that would disclose a view's existence to a caller it refuses.
+
+Archiving a column that a view the caller can see - their own, or a shared one -
+filters, sorts or groups by is refused with `SCHEMA_DEPENDENCY`, naming the view.
+Another member's private view does not block the archive and is not named: the
+caller could neither see nor change it. Showing a column in `visible_columns` does
+not block either. Whatever a view still names of a column that is no longer live is
+dropped when the view is read: a filter on it goes, a sort by it falls back to
+`created_at`, a grouping by it is cleared, and it leaves `visible_columns`. The
+stored config is not rewritten.
 
 ## What commits together { #what-commits-together }
 

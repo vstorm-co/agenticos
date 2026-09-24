@@ -84,7 +84,17 @@ async def test_listing_answers_with_the_callers_views(client, service):
 
     assert response.status_code == 200
     assert response.json()["total"] == 1
-    assert service.list_views.await_args.kwargs == {"kind": "kanban"}
+    assert service.list_views.await_args.kwargs == {"kind": "kanban", "skip": 0, "limit": 50}
+
+
+async def test_listing_is_paged(client, service):
+    async with client() as http:
+        paged = await http.get(_url(), params={"skip": 50, "limit": 100})
+        too_many = await http.get(_url(), params={"limit": 101})
+
+    assert paged.status_code == 200
+    assert service.list_views.await_args.kwargs == {"kind": None, "skip": 50, "limit": 100}
+    assert too_many.status_code == 422
 
 
 async def test_creating_a_view_is_a_201(client):

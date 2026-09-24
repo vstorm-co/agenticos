@@ -490,8 +490,11 @@ async def test_an_archived_table_reports_can_edit_false_even_with_an_edit_grant(
     table = await service.create_table(ctx, TableCreate(name="People"))
     assert (await service.describe_table(ctx, table.id)).can_edit is True
 
-    await service.archive_table(ctx, table.id)
+    archived = await service.archive_table(ctx, table.id)
 
+    # The archive's own answer, and the idempotent second archive's, agree too.
+    assert archived.can_edit is False
+    assert (await service.archive_table(ctx, table.id)).can_edit is False
     assert (await service.describe_table(ctx, table.id)).can_edit is False
     listed = await service.list_tables(ctx, include_archived=True)
     archived_summary = next(item for item in listed.items if item.id == table.id)
@@ -507,7 +510,9 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
     workflow = uuid.uuid4()
     seen: list[frozenset[uuid.UUID] | None] = []
 
-    async def checker(db, *, organization_id, table_id, column_ids):
+    async def checker(db, *, organization_id, table_id, column_ids, subject_id):
+        # Asked on behalf of the caller, who is who a dependent must be visible to.
+        assert subject_id == ctx.subject_id
         seen.append(column_ids)
         return [Dependent(kind="workflow", id=workflow)]
 

@@ -2,13 +2,13 @@
 
 No route here carries a `require(...)` gate, the same choice `virtual_tables.py`
 makes for its own per-table routes: a view is scoped to one table, and access is
-resolved against that table (`tables:view` to list or read, `tables:edit` to
-create) rather than at the role level, so a Viewer holding an explicit grant on
-one table is not refused before the service ever runs. Changing or deleting a view
-additionally requires being its owner or holding a `tables:edit` scope of `ALL`;
-see `TableViewRead.can_manage`. That refusal is a 404, not a 403: whether a view
-exists and who may touch it are not disclosed to a caller who may not, matching
-every other per-resource write in this package.
+resolved against that table (`tables:view` to list, read or delete, `tables:edit`
+to create or change one) rather than at the role level, so a Viewer holding an
+explicit grant on one table is not refused before the service ever runs. Changing or
+deleting a view additionally requires being its owner or holding a `tables:edit`
+scope of `ALL`; see `TableViewRead.can_manage`. That refusal is a 404, not a 403:
+whether a view exists and who may touch it are not disclosed to a caller who may
+not, matching every other per-resource write in this package.
 """
 
 from typing import Any
@@ -44,9 +44,15 @@ async def list_views(
     service: TableViewSvc,
     ctx: Auth,
     kind: ViewKind | None = Query(None, description="Only views saved for this kind"),
+    skip: int = Query(0, ge=0, description="Views to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max views to return"),
 ) -> Any:
-    """The caller's own views plus the shared ones, under this table."""
-    return await service.list_views(ctx, table_id, kind=kind)
+    """The caller's own views plus the shared ones, under this table.
+
+    Their own views come first, then the shared ones, each by name. `total` counts
+    every view across all pages.
+    """
+    return await service.list_views(ctx, table_id, kind=kind, skip=skip, limit=limit)
 
 
 @router.post(

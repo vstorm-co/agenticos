@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.table_view import TableView
@@ -32,15 +32,9 @@ async def get_by_name(
     return result.scalar_one_or_none()
 
 
-async def list_visible(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    table_id: UUID,
-    user_id: UUID,
-    kind: str | None = None,
-) -> list[TableView]:
-    """The caller's own views plus every view shared under this table, mine first."""
+def _visible(
+    *, organization_id: UUID, table_id: UUID, user_id: UUID, kind: str | None
+) -> list[ColumnElement[bool]]:
     where = [
         TableView.organization_id == organization_id,
         TableView.table_id == table_id,
@@ -48,24 +42,47 @@ async def list_visible(
     ]
     if kind is not None:
         where.append(TableView.kind == kind)
+    return where
+
+
+async def list_visible(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    user_id: UUID,
+    kind: str | None = None,
+    skip: int = 0,
+    limit: int | None = None,
+) -> list[TableView]:
+    """The user's own views plus every view shared under this table, theirs first.
+
+    `limit=None` reads them all, for a caller that must see every one - the
+    dependency checker.
+    """
+    where = _visible(organization_id=organization_id, table_id=table_id, user_id=user_id, kind=kind)
     result = await db.execute(
         select(TableView)
         .where(*where)
         .order_by((TableView.owner_user_id != user_id), TableView.name.asc(), TableView.id.asc())
+        .offset(skip)
+        .limit(limit)
     )
     return list(result.scalars().all())
 
 
-async def list_views_for_table(
-    db: AsyncSession, *, organization_id: UUID, table_id: UUID
-) -> list[TableView]:
-    """Every view under this table, regardless of owner or visibility - for the dependency checker."""
-    result = await db.execute(
-        select(TableView).where(
-            TableView.organization_id == organization_id, TableView.table_id == table_id
-        )
-    )
-    return list(result.scalars().all())
+async def count_visible(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    user_id: UUID,
+    kind: str | None = None,
+) -> int:
+    """How many views `list_visible` would return across every page."""
+    where = _visible(organization_id=organization_id, table_id=table_id, user_id=user_id, kind=kind)
+    result = await db.execute(select(func.count()).select_from(TableView).where(*where))
+    return result.scalar_one()
 
 
 async def create(

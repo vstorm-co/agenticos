@@ -3,16 +3,18 @@
 A view is a sub-resource of one table, not a shareable resource of its own - it has
 no `ResourceType`, no grant subject, and "shared" means only "visible to anyone who
 already has `tables:view` on the parent table" (`docs/virtual-tables.md`). Listing
-and reading resolve against the table (`_load_table`); changing or deleting a view
-additionally requires being its owner, or holding a `tables:edit` scope of `ALL` -
-not merely "can edit the table", so a shared editor cannot silently repoint another
-member's saved filter. Refused the same way every other per-resource write in this
-package is: a 404, never a 403 that would disclose a row exists to a caller it
-refuses.
+and reading resolve against the table (`_load_table`); creating or reconfiguring a
+view needs `tables:edit` on it, and changing or deleting one additionally requires
+being its owner, or holding a `tables:edit` scope of `ALL` - not merely "can edit
+the table", so a shared editor cannot silently repoint another member's saved
+filter. Refused the same way every other per-resource write in this package is: a
+404, never a 403 that would disclose a row exists to a caller it refuses.
 
-Registers a `DependencyChecker` at import time: archiving a column a saved view
-still filters, sorts or groups by is refused, naming the view, rather than leaving
-the view silently broken (`app/services/virtual_tables/dependencies.py`).
+Registers a `DependencyChecker` at import time: archiving a column a saved view the
+caller can see still filters, sorts or groups by is refused, naming the view,
+rather than leaving the view silently broken (`dependencies.py`). Another member's
+private view never blocks the caller, since they could neither see nor fix it; what
+it names of a column that is no longer live is dropped whenever the view is read.
 """
 
 from contextlib import suppress
@@ -25,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
+from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
 from app.repositories import table_view_repo
 from app.schemas.table_view import (
@@ -36,16 +39,18 @@ from app.schemas.table_view import (
     ViewKind,
     ViewVisibility,
 )
+from app.schemas.virtual_table import RecordSort
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 
 
 def _referenced_column_ids(config: dict[str, object]) -> set[UUID]:
-    """Every column id a view's config names: its filters, its sort and its grouping."""
+    """Every column id a view's config depends on: its filters, its sort and its grouping.
+
+    Not `visible_columns`: a view that merely shows a column loses nothing when the
+    column is archived - reading the view drops the id, and it shows the rest.
+    """
     ids: set[UUID] = set()
-    visible = config.get("visible_columns")
-    if isinstance(visible, list):
-        ids.update(UUID(str(item)) for item in visible)
     group_by = config.get("group_by")
     if group_by:
         ids.add(UUID(str(group_by)))
@@ -65,18 +70,28 @@ def _referenced_column_ids(config: dict[str, object]) -> set[UUID]:
 
 
 async def table_view_dependents(
-    db: AsyncSession, *, organization_id: UUID, table_id: UUID, column_ids: frozenset[UUID] | None
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    column_ids: frozenset[UUID] | None,
+    subject_id: UUID,
 ) -> list[Dependent]:
-    """Every saved view under this table whose config names one of `column_ids`.
+    """Every saved view `subject_id` can see under this table that depends on one of `column_ids`.
 
     `column_ids=None` (the whole table is being archived) does not depend on any
     view - archiving a table does not touch its views, only removing a column a
     view still uses does.
+
+    Only the caller's own views and the shared ones count. Another member's private
+    view would name a row the caller may not know exists (`_visible_view` answers
+    404 for it), and would block them with nothing they could do about it; it is
+    left to drop the archived column when read (`_live_config`).
     """
     if column_ids is None:
         return []
-    views = await table_view_repo.list_views_for_table(
-        db, organization_id=organization_id, table_id=table_id
+    views = await table_view_repo.list_visible(
+        db, organization_id=organization_id, table_id=table_id, user_id=subject_id
     )
     return [
         Dependent(kind="table_view", id=view.id)
@@ -93,11 +108,36 @@ def _is_name_clash(exc: IntegrityError) -> bool:
     return getattr(exc.orig, "constraint_name", None) == "uq_table_view_owner_name"
 
 
-def _config_read(view: TableView) -> TableViewConfig:
-    return TableViewConfig.model_validate(view.config)
+def _names_a_dead_column(sort_by: str, live: set[UUID]) -> bool:
+    """Whether a sort key is a column id that is not live. `created_at`/`updated_at` never are."""
+    try:
+        return UUID(sort_by) not in live
+    except ValueError:
+        return False
 
 
-def _read(view: TableView, *, can_manage: bool) -> TableViewRead:
+def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
+    """The view's config with every reference to a column outside `live` dropped.
+
+    A column is archived out from under a view it does not block (someone else's
+    private view, or one that only showed it), and a stored config is never
+    rewritten for that. A filter on it goes, a sort by it falls back to the default,
+    a grouping by it is cleared and it leaves the visible columns.
+    """
+    config = TableViewConfig.model_validate(view.config)
+    return TableViewConfig(
+        filters=[item for item in config.filters if item.column_id in live],
+        sort=RecordSort() if _names_a_dead_column(config.sort.by, live) else config.sort,
+        visible_columns=(
+            None
+            if config.visible_columns is None
+            else [item for item in config.visible_columns if item in live]
+        ),
+        group_by=config.group_by if config.group_by in live else None,
+    )
+
+
+def _read(view: TableView, *, live: set[UUID], can_manage: bool) -> TableViewRead:
     return TableViewRead(
         id=view.id,
         table_id=view.table_id,
@@ -105,7 +145,7 @@ def _read(view: TableView, *, can_manage: bool) -> TableViewRead:
         name=view.name,
         kind=cast(ViewKind, view.kind),
         visibility=cast(ViewVisibility, view.visibility),
-        config=_config_read(view),
+        config=_live_config(view, live),
         can_manage=can_manage,
         created_at=view.created_at,
         updated_at=view.updated_at,
@@ -116,25 +156,40 @@ class TableViewOperations(Operations):
     """List, create, read, update and delete the saved views of one table."""
 
     async def list_views(
-        self, ctx: AuthContext, table_id: UUID, *, kind: str | None = None
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        *,
+        kind: ViewKind | None = None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> TableViewList:
-        """The caller's own views plus the shared ones, under this table."""
-        await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        """The caller's own views plus the shared ones, under this table: one page, own first."""
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        live = await self._live_column_ids(table)
         views = await table_view_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             table_id=table_id,
             user_id=ctx.subject_id,
             kind=kind,
+            skip=skip,
+            limit=limit,
         )
-        items = [self._to_read(ctx, view) for view in views]
-        return TableViewList(items=items, total=len(items))
+        total = await table_view_repo.count_visible(
+            self.db,
+            organization_id=ctx.organization_id,
+            table_id=table_id,
+            user_id=ctx.subject_id,
+            kind=kind,
+        )
+        return TableViewList(items=[self._to_read(ctx, view, live) for view in views], total=total)
 
     async def create_view(
         self, ctx: AuthContext, table_id: UUID, data: TableViewCreate
     ) -> TableViewRead:
         """Save a view. Creating one is a table-edit action, not a per-view one."""
-        await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
         if await table_view_repo.get_by_name(
             self.db,
             organization_id=ctx.organization_id,
@@ -169,24 +224,26 @@ class TableViewOperations(Operations):
             raise AlreadyExistsError(
                 message=f"A view named '{data.name}' already exists.", details={"name": data.name}
             ) from exc
-        return self._to_read(ctx, view)
+        return self._to_read(ctx, view, await self._live_column_ids(table))
 
     async def get_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableViewRead:
         """One view, if the caller may see the table and either owns it or it is shared."""
-        await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         view = await self._visible_view(ctx, table_id, view_id)
-        return self._to_read(ctx, view)
+        return self._to_read(ctx, view, await self._live_column_ids(table))
 
     async def update_view(
         self, ctx: AuthContext, table_id: UUID, view_id: UUID, data: TableViewUpdate
     ) -> TableViewRead:
         """Rename, reconfigure or reshare a view.
 
-        Refused to anyone but its owner or a caller whose `tables:edit` scope is
-        `ALL` - a 404, the same as every other per-resource write in this package:
-        whether a row may be changed is not disclosed to a caller it refuses.
+        Needs `tables:edit` on the table, the same as creating one: an owner whose
+        edit access was taken away may no longer publish or repoint a view. Refused
+        to anyone but its owner or a caller whose `tables:edit` scope is `ALL`. Every
+        refusal is a 404, the same as every other per-resource write in this
+        package: whether a row may be changed is not disclosed to a caller it refuses.
         """
-        await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
         view = await self._manageable_view(ctx, table_id, view_id)
         # `config` excluded from `writable`: its column is JSONB, not a scalar, so it needs
         # `model_dump(mode="json")` on the nested model to keep a `UUID` from reaching asyncpg
@@ -228,10 +285,14 @@ class TableViewOperations(Operations):
                     message=f"A view named '{new_name}' already exists.",
                     details={"name": new_name},
                 ) from exc
-        return self._to_read(ctx, view)
+        return self._to_read(ctx, view, await self._live_column_ids(table))
 
     async def delete_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> None:
-        """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`."""
+        """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`.
+
+        Needs only `tables:view` on the table, unlike changing one: an owner who lost
+        edit access can still clear away their own views.
+        """
         await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         view = await self._manageable_view(ctx, table_id, view_id)
         await table_view_repo.delete(self.db, view=view)
@@ -258,10 +319,8 @@ class TableViewOperations(Operations):
         view from an `ALL`-scope caller `_can_manage` already says may manage it - "visible
         but not manageable" (a shared view, wrong owner, no `ALL` scope) still 404s, since
         `_can_manage` alone decides that case too. Without this, a member's private view
-        survives them leaving the organization or losing edit access, with no one left able
-        to reach - and so delete - it; `table_view_dependents` does not care whose view it
-        is, so an orphaned private view permanently blocks archiving any column it still
-        references.
+        survives them leaving the organization, with no one left able to reach - and so
+        delete - it.
         """
         view = await table_view_repo.get(
             self.db, organization_id=ctx.organization_id, view_id=view_id
@@ -278,5 +337,8 @@ class TableViewOperations(Operations):
     def _can_manage(ctx: AuthContext, view: TableView) -> bool:
         return view.owner_user_id == ctx.subject_id or ctx.scope_for(Perm.TABLES_EDIT) is Scope.ALL
 
-    def _to_read(self, ctx: AuthContext, view: TableView) -> TableViewRead:
-        return _read(view, can_manage=self._can_manage(ctx, view))
+    async def _live_column_ids(self, table: VirtualTable) -> set[UUID]:
+        return {column.id for column in await self._columns(table) if not column.archived}
+
+    def _to_read(self, ctx: AuthContext, view: TableView, live: set[UUID]) -> TableViewRead:
+        return _read(view, live=live, can_manage=self._can_manage(ctx, view))

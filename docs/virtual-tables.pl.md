@@ -1,5 +1,5 @@
 ---
-source_sha: "b4daf8d85123"
+source_sha: "efcf30b6719c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -89,10 +89,12 @@ zapis czeka na trwającą zmianę i jest potem oceniany według tego, co ona zat
 więc rekord nigdy nie trafia do tabeli zarchiwizowanej chwilę wcześniej.
 
 Archiwizacja kolumny lub całej tabeli najpierw pyta każdy zarejestrowany checker
-zależności, czy coś jeszcze z niej korzysta. Workflow, widoki i triggery jeszcze nie
-istnieją, więc żaden checker nie jest zarejestrowany i nic nie blokuje;
-`app/services/virtual_tables/dependencies.py` to miejsce, w którym funkcja
-rejestruje własny, a odmowa wymienia zależności w `SCHEMA_DEPENDENCY`.
+zależności, czy coś, co wywołujący widzi, jeszcze z niej korzysta. Dziś
+zarejestrowane są zapisane widoki (zobacz [Zapisane widoki](#saved-views));
+workflow i triggery zarejestrują swoje w `app/services/virtual_tables/dependencies.py`.
+Odmowa wymienia zależności w `SCHEMA_DEPENDENCY`. Zależność, której wywołujący nie
+widzi, nigdy nie jest wymieniana i nigdy go nie blokuje: jej funkcja sama radzi
+sobie ze zmianą.
 
 ## Rekordy i revisions { #records-and-revisions }
 
@@ -173,7 +175,9 @@ tabeli nadrzędnej" - nigdy nie poszerza dostępu ponad to, na co pozwala sama
 tabela.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
-listują, tworzą, czytają, aktualizują i usuwają je. `config` to `{filters, sort,
+listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
+`skip` i `limit` (najwyżej 100): najpierw własne widoki wywołującego, potem
+współdzielone, w każdej grupie według nazwy; `total` liczy wszystkie. `config` to `{filters, sort,
 visible_columns, group_by}` - `RecordQuery` plus dwa pola potrzebne tylko
 renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę) i
 `group_by` (żywa kolumna `single_select`, dla kolumn tablicy kanban).
@@ -184,8 +188,12 @@ renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę)
 | `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
 | `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub usunąć widok |
 
-Listowanie i odczyt rozwiązują się względem tabeli (`tables:view`); utworzenie
-widoku wymaga `tables:edit` na tabeli. Zmiana lub usunięcie widoku jest węższe:
+Listowanie, odczyt i usunięcie rozwiązują się względem tabeli (`tables:view`);
+utworzenie lub zmiana widoku wymaga `tables:edit` na tabeli, więc właściciel,
+któremu odebrano prawo edycji, nadal może usunąć swoje widoki, ale nie może już
+ich przekształcić ani udostępnić.
+
+Zmiana lub usunięcie widoku jest węższe:
 tylko jego właściciel albo wywołujący, którego [scope](permissions.md) dla
 `tables:edit` to `ALL` - nie "każdy, kto może edytować tabelę" - więc
 współdzielony edytor nie może po cichu przestawić zapisanego filtra innego
@@ -193,9 +201,15 @@ członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasob
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
 któremu go odmówiono.
 
-Zarchiwizowanie kolumny, której nadal używa zapisany widok do filtrowania,
-sortowania lub grupowania, jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok,
-tak samo jak każdy inny zarejestrowany zależny.
+Zarchiwizowanie kolumny, której widok widoczny dla wywołującego - jego własny albo
+współdzielony - nadal używa do filtrowania, sortowania lub grupowania, jest
+odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok. Prywatny widok innego członka nie
+blokuje archiwizacji i nie jest wymieniany: wywołujący nie mógłby go ani zobaczyć,
+ani zmienić. Samo pokazywanie kolumny w `visible_columns` też nie blokuje. To, co
+widok nadal wskazuje z kolumny, która nie jest już żywa, jest pomijane przy jego
+odczycie: filtr na niej znika, sortowanie po niej wraca do `created_at`,
+grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns`.
+Zapisana konfiguracja nie jest przepisywana.
 
 ## Co zatwierdza się razem { #what-commits-together }
 

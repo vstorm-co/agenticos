@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createView, deleteView, getView, listViews, updateView } from "./table-views-api";
+import { createView, deleteView, listViews, updateView } from "./table-views-api";
 import { apiClient } from "@/lib/api-client";
 import type { TableViewUpdate } from "@/types/tables";
 
@@ -18,16 +18,10 @@ beforeEach(() => {
 });
 
 describe("listViews", () => {
-  it("lists every view when no kind is given", async () => {
+  it("asks for the largest page the server answers", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     await listViews("t1");
-    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", { params: undefined });
-  });
-
-  it("narrows to one kind when given", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
-    await listViews("t1", "kanban");
-    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", { params: { kind: "kanban" } });
+    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", { params: { limit: "100" } });
   });
 });
 
@@ -38,12 +32,6 @@ it("createView posts to the views collection", async () => {
     name: "Board",
     kind: "kanban",
   });
-});
-
-it("getView reads one view", async () => {
-  vi.mocked(apiClient.get).mockResolvedValue({ id: "v1" });
-  await getView("t1", "v1");
-  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views/v1");
 });
 
 it("updateView patches one view", async () => {

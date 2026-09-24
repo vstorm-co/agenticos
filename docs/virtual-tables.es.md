@@ -1,5 +1,5 @@
 ---
-source_sha: "b4daf8d85123"
+source_sha: "efcf30b6719c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -90,10 +90,12 @@ turnan: la escritura espera a la que está en curso y se juzga luego según lo q
 confirmó, así que un registro nunca cae en una tabla archivada un momento antes.
 
 Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
-dependencias registrado si algo aún la usa. Los workflows, las vistas y los triggers
-todavía no existen, así que no hay ninguno registrado y nada bloquea;
-`app/services/virtual_tables/dependencies.py` es donde una función registra el suyo, y
-un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`.
+dependencias registrado si algo que el llamante puede ver aún la usa. Hoy están
+registradas las vistas guardadas (ver [Vistas guardadas](#saved-views)); los workflows
+y los triggers registrarán los suyos en `app/services/virtual_tables/dependencies.py`.
+Un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`. Un dependiente que el
+llamante no puede ver nunca se nombra y nunca lo bloquea: su función se adapta al
+cambio por sí misma.
 
 ## Registros y revisions { #records-and-revisions }
 
@@ -174,7 +176,9 @@ de su propio tipo, y `shared` significa solo "visible para cualquiera que ya ten
 permite la propia tabla.
 
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
-listan, crean, leen, actualizan y borran. `config` es `{filters, sort,
+listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
+(como máximo 100): primero las vistas propias del llamante, luego las compartidas,
+cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, sort,
 visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
 necesita la presentación de la consola: `visible_columns` (`null` significa cada
 columna viva) y `group_by` (una columna `single_select` viva, para los carriles de
@@ -186,8 +190,12 @@ un tablero kanban).
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
 | `can_manage` | Si este llamante puede renombrarla, reconfigurarla o borrarla |
 
-Listar y leer se resuelven contra la tabla (`tables:view`); crear una vista
-necesita `tables:edit` sobre la tabla. Cambiar o borrar una vista es más estrecho:
+Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
+una vista necesita `tables:edit` sobre la tabla, así que un propietario al que se le
+retiró el permiso de edición aún puede borrar sus vistas, pero ya no reformarlas ni
+compartirlas.
+
+Cambiar o borrar una vista es más estrecho:
 solo su propietario, o un llamante cuyo [scope](permissions.md) de `tables:edit`
 sea `ALL` - no "cualquiera que pueda editar la tabla" - de modo que un editor
 compartido no pueda redirigir en silencio el filtro guardado de otro miembro. Se
@@ -195,9 +203,14 @@ rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
 llamante al que se le niega.
 
-Archivar una columna que una vista guardada aún usa para filtrar, ordenar o
-agrupar se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, igual que
-cualquier otro dependiente registrado.
+Archivar una columna que una vista visible para el llamante - la suya propia o una
+compartida - aún usa para filtrar, ordenar o agrupar se rechaza con
+`SCHEMA_DEPENDENCY`, nombrando la vista. La vista privada de otro miembro no bloquea
+el archivado y no se nombra: el llamante no podría verla ni cambiarla. Mostrar una
+columna en `visible_columns` tampoco bloquea. Lo que una vista aún nombra de una
+columna que ya no está viva se omite al leer la vista: un filtro sobre ella
+desaparece, un orden por ella vuelve a `created_at`, una agrupación por ella se
+vacía, y sale de `visible_columns`. La configuración guardada no se reescribe.
 
 ## Qué se confirma junto { #what-commits-together }
 

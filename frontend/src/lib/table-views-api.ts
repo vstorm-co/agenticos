@@ -6,21 +6,23 @@ import type {
   TableViewList,
   TableViewRead,
   TableViewUpdate,
-  ViewKind,
 } from "@/types/tables";
 
-export function listViews(tableId: string, kind?: ViewKind): Promise<TableViewList> {
+/**
+ * The views the console's picker offers: the largest page the server answers,
+ * the caller's own first. A table with more than that many views the caller can
+ * see offers the first 100.
+ */
+const VIEW_PAGE_LIMIT = 100;
+
+export function listViews(tableId: string): Promise<TableViewList> {
   return apiClient.get<TableViewList>(`/tables/${tableId}/views`, {
-    params: kind ? { kind } : undefined,
+    params: { limit: String(VIEW_PAGE_LIMIT) },
   });
 }
 
 export function createView(tableId: string, data: TableViewCreate): Promise<TableViewRead> {
   return apiClient.post<TableViewRead>(`/tables/${tableId}/views`, data);
-}
-
-export function getView(tableId: string, viewId: string): Promise<TableViewRead> {
-  return apiClient.get<TableViewRead>(`/tables/${tableId}/views/${viewId}`);
 }
 
 export function updateView(

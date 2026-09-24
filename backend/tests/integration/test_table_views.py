@@ -407,3 +407,165 @@ async def test_archiving_the_whole_table_does_not_ask_the_view_checker(db):
     archived = await tables.archive_table(ctx, table.id)
 
     assert archived.archived_at is not None
+
+
+async def _builders_table_and_an_editing_member(db):
+    """A table a builder owns, and a member holding an edit grant on it.
+
+    The builder's `tables:edit` scope is `SHARED`, so the member's private views
+    are none of theirs - the shape that let a lower principal block a higher one.
+    """
+    org_owner = await make_user(db)
+    org = await make_org(db, owner=org_owner)
+    tables = VirtualTableService(db)
+    views = TableViewService(db)
+    builder = await make_user(db)
+    builder_ctx = ctx_for(builder, org, "builder")
+    table = await orders_table(tables, builder_ctx)
+    member = await make_user(db)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=member.id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.EDIT,
+    )
+    return views, tables, builder_ctx, ctx_for(member, org, "member"), table
+
+
+def _without(table, label: str) -> SchemaUpdate:
+    """The schema update that archives the column `label`, leaving the rest as they are."""
+    return SchemaUpdate(
+        expected_version=table.schema_version,
+        columns=[column(c.label, c.type, id=c.id) for c in table.columns if c.label != label],
+    )
+
+
+@pytest.mark.security
+async def test_another_members_private_view_neither_blocks_a_column_archive_nor_is_named(db):
+    """The archive used to be refused with the private view's id in the details -
+    an id `get_view` answers 404 for, naming a row the caller may not know exists,
+    and blocking them with no way to see or clear it."""
+    views, tables, builder_ctx, member_ctx, table = await _builders_table_and_an_editing_member(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    private = await views.create_view(
+        member_ctx,
+        table.id,
+        TableViewCreate(
+            name="My board",
+            kind="kanban",
+            config=TableViewConfig(
+                filters=[RecordFilter(column_id=status_id, op="is_null", value=False)],
+                sort=RecordSort(by=str(status_id), direction="desc"),
+                group_by=status_id,
+            ),
+        ),
+    )
+
+    changed = await tables.update_schema(builder_ctx, table.id, _without(table, "Status"))
+
+    assert next(c for c in changed.columns if c.id == status_id).archived is True
+    # Its owner reads it with everything that named the archived column dropped.
+    after = await views.get_view(member_ctx, table.id, private.id)
+    assert after.config.filters == []
+    assert after.config.sort == RecordSort()
+    assert after.config.group_by is None
+
+
+async def test_a_view_the_caller_can_see_still_blocks_a_column_archive_and_is_named(db):
+    views, tables, builder_ctx, member_ctx, table = await _builders_table_and_an_editing_member(db)
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    shared = await views.create_view(
+        member_ctx,
+        table.id,
+        TableViewCreate(
+            name="Team board",
+            kind="kanban",
+            visibility="shared",
+            config=TableViewConfig(group_by=status_id),
+        ),
+    )
+    own = await views.create_view(
+        builder_ctx,
+        table.id,
+        TableViewCreate(
+            name="Mine",
+            kind="table",
+            config=TableViewConfig(sort=RecordSort(by=str(status_id))),
+        ),
+    )
+
+    with pytest.raises(SchemaDependencyError) as raised:
+        await tables.update_schema(builder_ctx, table.id, _without(table, "Status"))
+
+    dependents = raised.value.details["dependents"]
+    assert sorted(item["id"] for item in dependents) == sorted([shared.id, own.id])
+
+
+async def test_a_view_that_only_shows_a_column_does_not_block_archiving_it(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    customer_id = next(c.id for c in table.columns if c.label == "Customer")
+    status_id = next(c.id for c in table.columns if c.label == "Status")
+    view = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Narrow",
+            kind="table",
+            config=TableViewConfig(visible_columns=[customer_id, status_id]),
+        ),
+    )
+
+    await tables.update_schema(ctx, table.id, _without(table, "Status"))
+
+    listed = await views.list_views(ctx, table.id)
+    assert [item.config.visible_columns for item in listed.items if item.id == view.id] == [
+        [customer_id]
+    ]
+
+
+@pytest.mark.security
+async def test_a_view_owner_who_lost_edit_access_cannot_reshape_or_reshare_it_but_can_delete_it(
+    db,
+):
+    """Creating a view needs `tables:edit`; changing one used to need only
+    `tables:view`, so an owner downgraded to read could still publish it to every
+    reader of the table."""
+    views, _tables, _builder_ctx, member_ctx, table = await _builders_table_and_an_editing_member(
+        db
+    )
+    view = await views.create_view(member_ctx, table.id, TableViewCreate(name="Mine", kind="table"))
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=member_ctx.organization_id,
+        subject_user_id=member_ctx.subject_id,
+        resource_type=TABLE.key,
+        resource_id=table.id,
+        level=GrantLevel.READ,
+    )
+
+    with pytest.raises(NotFoundError):
+        await views.update_view(
+            member_ctx,
+            table.id,
+            view.id,
+            TableViewUpdate(name="Published", visibility="shared"),
+        )
+    assert (await views.get_view(member_ctx, table.id, view.id)).visibility == "private"
+    await views.delete_view(member_ctx, table.id, view.id)
+    with pytest.raises(NotFoundError):
+        await views.get_view(member_ctx, table.id, view.id)
+
+
+async def test_listing_views_pages_them_and_counts_them_all(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    for name in ("C", "A", "B"):
+        await views.create_view(ctx, table.id, TableViewCreate(name=name, kind="table"))
+
+    first = await views.list_views(ctx, table.id, limit=2)
+    rest = await views.list_views(ctx, table.id, skip=2, limit=2)
+
+    assert [item.name for item in first.items] == ["A", "B"]
+    assert [item.name for item in rest.items] == ["C"]
+    assert first.total == rest.total == 3
