@@ -23,7 +23,10 @@ from sqlalchemy import select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.background import drain, start_deferred
 from app.core.config import settings
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -41,12 +44,13 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
 )
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.approvals import ApprovalService
 from app.services.workflow_execution import context, dispatcher
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.worker.tasks.workflow_tasks import workflow_dispatch_node_flow
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
-from app.workflows.contracts.results import Completed, NodeResult
+from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -676,3 +680,160 @@ async def test_the_settling_flow_submits_the_next_node_itself_after_its_commit(
         if row.status == DispatchOutboxStatus.PENDING.value
     ]
     assert len(pending) == 1 and pending[0].submitted_at is not None
+
+
+async def _agent_run_awaiting_approval(seeded: Seeded, *, raised_at: datetime) -> AgentRun:
+    async with seeded.factory() as db:
+        agent = Agent(
+            id=uuid.uuid4(),
+            organization_id=seeded.org.id,
+            slug="clerk",
+            name="Clerk",
+            draft_spec={},
+        )
+        db.add(agent)
+        await db.flush()
+        agent_run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=seeded.org.id,
+            agent_id=agent.id,
+            surface="api",
+            status=RunStatus.AWAITING_APPROVAL.value,
+            started_at=raised_at,
+        )
+        db.add(agent_run)
+        await db.flush()
+        db.add(
+            ToolApproval(
+                id=uuid.uuid4(),
+                organization_id=seeded.org.id,
+                run_id=agent_run.id,
+                agent_id=agent.id,
+                tool_id="send_email",
+                status=ApprovalStatus.PENDING.value,
+                created_at=raised_at,
+            )
+        )
+        await db.commit()
+    return agent_run
+
+
+class TestWaits:
+    async def test_an_expired_approval_wakes_its_node_and_the_node_fails(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Expiry cancels the agent run without anyone deciding. The node
+        parked on it must wake - through the same wake a decision queues - so
+        its handler sees the run ended and fails the node, rather than the
+        workflow waiting for ever with cancel as the only way out."""
+        parked_on: list[uuid.UUID] = []
+        seen: list[str] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            resumed = context.current().resumed_agent_run_id
+            if resumed is None:
+                context.report_waiting_agent_run(parked_on[0])
+                return Waiting(reason="approval", resume_token="t")
+            async with seeded_holder[0].factory() as db:
+                status = (
+                    await db.execute(select(AgentRun.status).where(AgentRun.id == resumed))
+                ).scalar_one()
+            seen.append(status)
+            return Failed(error=WorkflowError(code="APPROVAL_EXPIRED", message="Nobody decided"))
+
+        seeded_holder: list[Seeded] = []
+        seeded = await _seed(engine, _chain(node_kind(handler, retry_guarantee="none"), 1))
+        seeded_holder.append(seeded)
+        long_ago = datetime.now(UTC) - timedelta(hours=settings.APPROVAL_EXPIRY_HOURS + 1)
+        parked_on.append((await _agent_run_awaiting_approval(seeded, raised_at=long_ago)).id)
+
+        await _tick(seeded, seeded.entry.id)
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.WAITING_APPROVAL.value
+
+        async with seeded.factory() as db:
+            assert await ApprovalService(db).expire_stale() == 1
+            await db.commit()
+            start_deferred(db)
+        await drain()
+
+        await _tick(seeded, seeded.entry.id)
+
+        assert seen == [RunStatus.CANCELLED.value]
+        assert [node.status for node in await _node_runs(seeded)] == [NodeRunStatus.FAILED.value]
+        run = await _run_row(seeded)
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "APPROVAL_EXPIRED"
+
+    async def test_a_retry_backoff_wait_is_dispatched_again_once_the_backoff_passes(
+        self, engine: AsyncEngine, node_kind
+    ):
+        attempts: list[int] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            attempts.append(context.current().attempt_no)
+            if len(attempts) == 1:
+                return Waiting(reason="retry_backoff", resume_token="t")
+            return Completed[_Output](output=_Output(echoed="later"))
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+
+        await _tick(seeded, seeded.entry.id)
+
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.WAITING_RETRY.value
+        [row] = [
+            row
+            for row in await _outbox_rows(seeded)
+            if row.status == DispatchOutboxStatus.PENDING.value
+        ]
+        assert row.available_at > datetime.now(UTC)
+        async with seeded.factory() as db:
+            await db.execute(
+                sql_update(DispatchOutbox)
+                .where(DispatchOutbox.id == row.id)
+                .values(available_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await db.commit()
+
+        await _tick(seeded, seeded.entry.id)
+
+        assert attempts == [1, 2]
+        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+    async def test_a_node_that_leaves_its_wait_forgets_the_agent_run_it_waited_on(
+        self, engine: AsyncEngine, node_kind
+    ):
+        """Kept after the wait, the link handed a later retry a stale agent run
+        to resume, and let two node runs match one agent run in the wake."""
+        parked_on: list[uuid.UUID] = []
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            if context.current().resumed_agent_run_id is None:
+                context.report_waiting_agent_run(parked_on[0])
+                return Waiting(reason="approval", resume_token="t")
+            return Completed[_Output](output=_Output(echoed="resumed"))
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+        parked_on.append(
+            (await _agent_run_awaiting_approval(seeded, raised_at=datetime.now(UTC))).id
+        )
+        await _tick(seeded, seeded.entry.id)
+        async with seeded.factory() as db:
+            await workflow_run_repo.create_outbox(
+                db,
+                organization_id=seeded.org.id,
+                workflow_run_id=seeded.run.id,
+                node_run_id=seeded.entry.id,
+            )
+            await db.commit()
+
+        await _tick(seeded, seeded.entry.id)
+
+        [node] = await _node_runs(seeded)
+        assert node.status == NodeRunStatus.SUCCEEDED.value
+        assert node.waiting_agent_run_id is None
+        async with seeded.factory() as db:
+            assert (
+                await workflow_run_repo.find_node_run_waiting_on_agent_run(
+                    db, parked_on[0], organization_id=seeded.org.id
+                )
+            ) is None

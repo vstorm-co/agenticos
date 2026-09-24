@@ -321,6 +321,14 @@ class ApprovalService:
             # un-resumable: state left on an ended run is state somebody replays.
             paused_state=None,
         )
+        # A workflow node parked on this run wakes the same way a decision
+        # wakes it (#1788): its handler sees the run ended and fails the node,
+        # instead of the node waiting for ever on a run nothing will resume.
+        spawn_after_commit(
+            self.db,
+            wake_after_approval_decision(run_id, organization_id=organization_id),
+            name="workflow-approval-wake",
+        )
         return 1
 
     async def _record_decision(

@@ -140,8 +140,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_execution_budget.py::TestAccumulate::test_a_partial_cost_flags_the_run": "cost summation, accounting, no refusal",
     "tests/test_workflow_execution_budget.py::TestAccumulate::test_an_exact_cost_never_unflags_an_already_partial_run": "cost summation, accounting, no refusal",
     "tests/test_workflow_execution_facade.py::TestStart::test_a_real_run_reads_the_published_versions_graph_and_budget": "the happy path - a version's pinned budget cap is copied onto the new run - not a refusal",
+    "tests/integration/test_workflow_run_dispatch.py::TestWaits::test_an_expired_approval_wakes_its_node_and_the_node_fails": "an expired approval ends the parked workflow node instead of stranding it, recovery, not a refusal",
     "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_finds_a_node_run_whose_blocking_approval_was_decided": "the happy path - the backstop finds a decided approval to redispatch - not a refusal",
-    "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_an_agent_run_no_longer_awaiting_approval_is_not_found": "an agent run moved on by another path is left alone, idempotence, no refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_another_pending_approval_on_the_same_run_defers_the_outbox_insert": "'approval' names a parked agent run's decisions; waiting for the last one is sequencing, not a refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_the_decision_that_clears_the_last_pending_approval_enqueues_it": "'approval' names a parked agent run's decisions; the last decision enqueues the wake, the accepted path",
 }

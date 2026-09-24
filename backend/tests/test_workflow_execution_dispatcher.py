@@ -1543,7 +1543,7 @@ class TestSettleWaiting:
         )
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
-        result = Waiting(reason="external_event", resume_token="x")
+        result = Waiting(reason="retry_backoff", resume_token="x")
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -1551,6 +1551,50 @@ class TestSettleWaiting:
         )
 
         assert run.status == WorkflowRunStatus.WAITING_RETRY.value
+        assert node_run.status == NodeRunStatus.WAITING.value
+        # The wake is scheduled: a row due once the backoff has passed, not a
+        # parked node nothing ever looks at again.
+        repo.create_outbox.assert_awaited_once()
+        assert repo.create_outbox.await_args.kwargs["available_at"] > datetime.now(UTC)
+
+    async def test_an_external_event_wait_escalates_because_nothing_can_deliver_one(
+        self, repo, event_log, test_node
+    ):
+        node = _node_instance(test_node)
+        definition = REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+        )
+        node_run = _node_run(workflow_run_id=run.id, node_instance_id=node.id)
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = _begun(
+            node, definition, attempt_id=attempt.id, node_run_id=node_run.id, workflow_run_id=run.id
+        )
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, claimed_by=begun.dispatch_token
+        )
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Waiting(reason="external_event", resume_token="x")
+            ),
+        )
+
+        assert node_run.status == NodeRunStatus.NEEDS_ATTENTION.value
+        assert run.status == WorkflowRunStatus.NEEDS_ATTENTION.value
+        repo.create_outbox.assert_not_called()
 
     @pytest.mark.security
     async def test_an_approval_wait_with_no_reported_agent_run_escalates_instead_of_parking(

@@ -794,23 +794,11 @@ async def resolve_orphaned_attempt(
         )
         return
 
-    await workflow_run_repo.update_node_run(
-        db, node_run=node_run, update_data={"status": NodeRunStatus.NEEDS_ATTENTION.value}
-    )
-    await events.append(
+    await _escalate(
         db,
         run=run,
-        kind=events.EventKind.NODE_UNCERTAIN,
-        node_run_id=node_run.id,
-        payload={
-            "detail": "Reclaimed after an interrupted attempt with no safe automatic resolution"
-        },
-    )
-    await workflow_run_repo.update_run(
-        db, run=run, update_data={"status": WorkflowRunStatus.NEEDS_ATTENTION.value}
-    )
-    await events.append(
-        db, run=run, kind=events.EventKind.RUN_NEEDS_ATTENTION, node_run_id=node_run.id
+        node_run=node_run,
+        detail="Reclaimed after an interrupted attempt with no safe automatic resolution",
     )
 
 
@@ -936,8 +924,10 @@ async def settle(
             db,
             run=run,
             node_run=node_run,
+            attempt=attempt,
             result=result,
             waiting_agent_run_id=outcome.waiting_agent_run_id,
+            now=now,
         )
     elif isinstance(result, Failed):
         await _settle_failed(
@@ -989,6 +979,7 @@ async def _settle_completed(
             "ended_at": now,
             "waiting_reason": None,
             "resume_token": None,
+            "waiting_agent_run_id": None,
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
@@ -1000,9 +991,22 @@ async def _settle_waiting(
     *,
     run: WorkflowRun,
     node_run: NodeRun,
+    attempt: NodeAttempt,
     result: Waiting,
     waiting_agent_run_id: UUID | None,
+    now: datetime,
 ) -> None:
+    if result.reason == WaitingReason.EXTERNAL_EVENT.value:
+        # Nothing delivers an external event to a parked workflow node yet, so
+        # parking it would strand the run for ever; a person looks at
+        # `needs_attention`.
+        await _escalate(
+            db,
+            run=run,
+            node_run=node_run,
+            detail="Node waited for an external event, which workflow runs cannot deliver yet",
+        )
+        return
     if result.reason == WaitingReason.APPROVAL.value and waiting_agent_run_id is None:
         # The one invariant that makes an approval wait durable: a handler
         # declaring `Waiting(reason="approval")` must also report the
@@ -1013,21 +1017,11 @@ async def _settle_waiting(
         # anything to key off to ever find this node again. Parking it as an
         # ordinary `waiting_approval` node would be silently unrecoverable;
         # `needs_attention` at least puts it somewhere a person looks.
-        await workflow_run_repo.update_node_run(
-            db, node_run=node_run, update_data={"status": NodeRunStatus.NEEDS_ATTENTION.value}
-        )
-        await events.append(
+        await _escalate(
             db,
             run=run,
-            kind=events.EventKind.NODE_UNCERTAIN,
-            node_run_id=node_run.id,
-            payload={"detail": "Node declared an approval wait with no agent run to resume it"},
-        )
-        await workflow_run_repo.update_run(
-            db, run=run, update_data={"status": WorkflowRunStatus.NEEDS_ATTENTION.value}
-        )
-        await events.append(
-            db, run=run, kind=events.EventKind.RUN_NEEDS_ATTENTION, node_run_id=node_run.id
+            node_run=node_run,
+            detail="Node declared an approval wait with no agent run to resume it",
         )
         return
 
@@ -1058,6 +1052,44 @@ async def _settle_waiting(
     await workflow_run_repo.update_run(
         db, run=run, update_data={"status": run_status.value, "paused_reason": result.reason}
     )
+    if result.reason == WaitingReason.RETRY_BACKOFF.value:
+        # The wake is the outbox row itself, due once the backoff has passed -
+        # the same capped schedule a retryable failure gets.
+        await workflow_run_repo.create_outbox(
+            db,
+            organization_id=run.organization_id,
+            workflow_run_id=run.id,
+            node_run_id=node_run.id,
+            available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
+        )
+
+
+async def _escalate(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, detail: str) -> None:
+    """Park the node and its run in `needs_attention`, for a person to resolve."""
+    await workflow_run_repo.update_node_run(
+        db,
+        node_run=node_run,
+        update_data={
+            "status": NodeRunStatus.NEEDS_ATTENTION.value,
+            "waiting_reason": None,
+            "waiting_agent_run_id": None,
+        },
+    )
+    await events.append(
+        db,
+        run=run,
+        kind=events.EventKind.NODE_UNCERTAIN,
+        node_run_id=node_run.id,
+        payload={"detail": detail},
+    )
+    await workflow_run_repo.update_run(
+        db,
+        run=run,
+        update_data={"status": WorkflowRunStatus.NEEDS_ATTENTION.value, "paused_reason": None},
+    )
+    await events.append(
+        db, run=run, kind=events.EventKind.RUN_NEEDS_ATTENTION, node_run_id=node_run.id
+    )
 
 
 async def _settle_failed(
@@ -1083,6 +1115,9 @@ async def _settle_failed(
             update_data={
                 "status": NodeRunStatus.WAITING.value,
                 "waiting_reason": WaitingReason.RETRY_BACKOFF.value,
+                # The agent run a resumed attempt consumed is not the next
+                # attempt's to resume again.
+                "waiting_agent_run_id": None,
             },
         )
         await events.append(
@@ -1127,7 +1162,14 @@ async def _fail_node_and_run(
 ) -> None:
     """A node that ran and will not run again fails, and takes its run with it."""
     await workflow_run_repo.update_node_run(
-        db, node_run=node_run, update_data={"status": NodeRunStatus.FAILED.value, "ended_at": now}
+        db,
+        node_run=node_run,
+        update_data={
+            "status": NodeRunStatus.FAILED.value,
+            "ended_at": now,
+            "waiting_reason": None,
+            "waiting_agent_run_id": None,
+        },
     )
     await events.append(
         db,
@@ -1153,22 +1195,7 @@ async def _fail_node_and_run(
 async def _settle_uncertain(
     db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, result: Uncertain
 ) -> None:
-    await workflow_run_repo.update_node_run(
-        db, node_run=node_run, update_data={"status": NodeRunStatus.NEEDS_ATTENTION.value}
-    )
-    await events.append(
-        db,
-        run=run,
-        kind=events.EventKind.NODE_UNCERTAIN,
-        node_run_id=node_run.id,
-        payload={"detail": result.detail},
-    )
-    await workflow_run_repo.update_run(
-        db, run=run, update_data={"status": WorkflowRunStatus.NEEDS_ATTENTION.value}
-    )
-    await events.append(
-        db, run=run, kind=events.EventKind.RUN_NEEDS_ATTENTION, node_run_id=node_run.id
-    )
+    await _escalate(db, run=run, node_run=node_run, detail=result.detail)
 
 
 async def _advance(

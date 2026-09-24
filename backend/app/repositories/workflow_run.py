@@ -260,12 +260,21 @@ async def list_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> list[Nod
 async def find_node_run_waiting_on_agent_run(
     db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
 ) -> NodeRun | None:
-    """The `NodeRun` parked on this agent run, if any - the approval wake-up needs it."""
+    """The `NodeRun` still parked on this agent run, if any - the approval wake-up needs it.
+
+    Only a `waiting` node counts: the link can outlive the wait on a row
+    written before it was cleared on the way out, and a node that already
+    moved on must not be woken, nor collide with the one that is parked.
+    """
     result = await db.execute(
-        select(NodeRun).where(
+        select(NodeRun)
+        .where(
             NodeRun.waiting_agent_run_id == agent_run_id,
             NodeRun.organization_id == organization_id,
+            NodeRun.status == NodeRunStatus.WAITING.value,
         )
+        .order_by(NodeRun.created_at)
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -288,16 +297,20 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
     when it is lost. `AgentRunnerService._decisions` requires the identical
     "nothing still pending" condition before it will replay a park, so this
     mirrors the one check that already decides whether a resume can proceed.
-    `agent_runs.status == awaiting_approval` is kept as a second guard so an
-    agent run cancelled or otherwise moved on by another path is not
-    redispatched. A *workflow* run cancelled out from under this wait is a
-    third, separate case - `cancel()` leaves a waiting `NodeRun` and its
-    linked `agent_runs` row exactly as they were (documented gap:
-    `WorkflowExecutionService.cancel`), so the two checks above stay true
-    forever and this would otherwise re-insert an outbox row on every sweep,
-    for `begin_attempt` to immediately close again as soon as it sees the
-    terminal run - forever, not once. Excluding a terminal owning
-    `WorkflowRun` here is what stops that.
+
+    An agent run that is `running` is skipped: somebody is resuming it, and
+    the node is found once it ends. Any other status counts, including one
+    that ended without ever being resumed (an expired approval cancels it) -
+    the node must wake so its handler can see that outcome and fail, rather
+    than stay parked on an agent run nothing will ever resume.
+
+    A *workflow* run cancelled out from under this wait is a separate case -
+    `cancel()` leaves a waiting `NodeRun` and its linked `agent_runs` row
+    exactly as they were (documented gap: `WorkflowExecutionService.cancel`),
+    so the checks above stay true for ever and this would otherwise re-insert
+    an outbox row on every sweep, for `begin_attempt` to close again as soon
+    as it sees the terminal run. Excluding a terminal owning `WorkflowRun`
+    here is what stops that.
     """
     live_outbox = (
         select(DispatchOutbox.node_run_id)
@@ -319,13 +332,17 @@ async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> li
     terminal_statuses = [status.value for status in WorkflowRunStatus if status.is_terminal]
     result = await db.execute(
         select(NodeRun)
-        .join(AgentRun, AgentRun.id == NodeRun.waiting_agent_run_id)
+        .join(
+            AgentRun,
+            (AgentRun.id == NodeRun.waiting_agent_run_id)
+            & (AgentRun.organization_id == NodeRun.organization_id),
+        )
         .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
         .where(
             NodeRun.status == NodeRunStatus.WAITING.value,
             NodeRun.waiting_reason == WaitingReason.APPROVAL.value,
             NodeRun.waiting_agent_run_id.is_not(None),
-            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.status != RunStatus.RUNNING.value,
             WorkflowRun.status.not_in(terminal_statuses),
             ~still_pending,
             NodeRun.id.not_in(live_outbox),

@@ -659,17 +659,27 @@ class TestStaleApprovalWaits:
         found = await workflow_run_repo.list_stale_approval_waits(db)
         assert node_run.id not in {row.id for row in found}
 
-    async def test_an_agent_run_no_longer_awaiting_approval_is_not_found(self, db: AsyncSession):
-        """A run moved on by another path (cancelled, expired) is not
-
-        redispatched even if a stray decided approval row exists for it -
-        `resume` itself would refuse a run that is not `awaiting_approval`.
-        """
+    @pytest.mark.parametrize(
+        "agent_status,woken",
+        [
+            # Ended without ever being resumed - an expired approval cancels it.
+            (RunStatus.CANCELLED.value, True),
+            (RunStatus.FAILED.value, True),
+            # Somebody is resuming it right now; the node is found once it ends.
+            (RunStatus.RUNNING.value, False),
+        ],
+    )
+    async def test_an_agent_run_that_moved_on_wakes_its_node_once_it_is_not_running(
+        self, db: AsyncSession, agent_status: str, woken: bool
+    ):
+        """A node parked on an agent run that ended unresumed must wake, so its
+        handler sees that outcome and fails the node - left alone it would wait
+        for ever on a run nothing will resume."""
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
         agent, agent_run = await _parked_agent_run(
-            db, org, slug="clerk-cancelled", status=RunStatus.CANCELLED.value
+            db, org, slug=f"clerk-{agent_status}", status=agent_status
         )
         db.add(
             ToolApproval(
@@ -678,7 +688,7 @@ class TestStaleApprovalWaits:
                 run_id=agent_run.id,
                 agent_id=agent.id,
                 tool_id="send_email",
-                status=ApprovalStatus.APPROVED.value,
+                status=ApprovalStatus.EXPIRED.value,
             )
         )
         await db.flush()
@@ -690,7 +700,7 @@ class TestStaleApprovalWaits:
             waiting_agent_run_id=agent_run.id,
         )
         found = await workflow_run_repo.list_stale_approval_waits(db)
-        assert node_run.id not in {row.id for row in found}
+        assert (node_run.id in {row.id for row in found}) is woken
 
     async def test_a_node_run_already_covered_by_a_live_outbox_row_is_excluded(
         self, db: AsyncSession
