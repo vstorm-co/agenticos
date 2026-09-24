@@ -26,6 +26,7 @@ import {
   toFlowNodes,
   type WorkflowFlowEdge,
 } from "./graph-adapter";
+import { scopedGraph } from "./scope-view";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 import { edgeTypes } from "./workflow-edge";
 import { nodeTypes } from "./workflow-node";
@@ -60,6 +61,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const colorMode = useResolvedTheme();
 
   const graph = useWorkflowEditorStore((state) => state.graph);
+  const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
   const connectNodes = useWorkflowEditorStore((state) => state.connectNodes);
@@ -71,7 +73,13 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
 
   const catalogMap = useMemo(() => buildCatalogMap(catalog), [catalog]);
-  const activeGraph = graph ?? EMPTY_GRAPH;
+  // The store holds the whole flat graph; the canvas draws only the current
+  // `foreach` scope's slice of it. Filtering here (not in the store) keeps the
+  // scope switch display-only — the graph, autosave, undo and publish never see it.
+  const activeGraph = useMemo(
+    () => scopedGraph(graph ?? EMPTY_GRAPH, scopePath),
+    [graph, scopePath],
+  );
   const definitions = useMemo(
     () => definitionsByNode(activeGraph, catalogMap),
     [activeGraph, catalogMap],
