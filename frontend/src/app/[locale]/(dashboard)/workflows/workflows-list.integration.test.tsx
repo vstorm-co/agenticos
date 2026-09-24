@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -102,12 +102,24 @@ describe("the workflows list", () => {
   });
 
   it("hides both creation controls from a caller who may only view", async () => {
-    perms.can = () => false;
+    // Grants view (so the list still loads) but not create.
+    perms.can = (permission: string) => permission === "workflows:view";
     render(<WorkflowsPage />, { wrapper });
     await screen.findByText("Live");
 
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Duplicate / })).toBeNull();
+  });
+
+  it("does not fetch the list for a caller without workflows:view", async () => {
+    perms.can = () => false;
+    render(<WorkflowsPage />, { wrapper });
+
+    // The status filter always renders; the list query, gated on view, never runs.
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Filter by status" })).toBeInTheDocument(),
+    );
+    expect(apiClient.get).not.toHaveBeenCalledWith("/workflows");
   });
 
   it("opens the blank/template dialog from New workflow", async () => {

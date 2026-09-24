@@ -92,26 +92,53 @@ describe("createHistoryRecorder", () => {
     expect(r.redo()).toBeNull();
   });
 
-  it("coalesces a burst of changes into one undo step at the default delay", () => {
+  it("reports undoable on the first record but still coalesces a burst into one step", () => {
     const flags: HistoryFlags[] = [];
     const r = createHistoryRecorder(graph("base"), {
       onFlagsChange: (f) => flags.push(f),
     });
 
     r.record(graph("drag-1"));
+    // The undo control enables the instant an edit begins, not 250ms later.
+    expect(r.canUndo()).toBe(true);
+    expect(flags.at(-1)).toEqual({ canUndo: true, canRedo: false });
+
     r.record(graph("drag-2"));
     r.record(graph("drag-3"));
+    vi.advanceTimersByTime(DEFAULT_DEBOUNCE_MS);
 
-    vi.advanceTimersByTime(DEFAULT_DEBOUNCE_MS - 1);
-    expect(r.canUndo()).toBe(false);
-    expect(flags).toHaveLength(0);
-
-    vi.advanceTimersByTime(1);
-    expect(r.canUndo()).toBe(true);
-    expect(flags).toEqual([{ canUndo: true, canRedo: false }]);
-
-    // One step back lands on the pre-drag baseline, not on an intermediate frame.
+    // One step back lands on the pre-drag baseline, not on an intermediate frame,
+    // and there is nothing behind it — the whole burst became a single snapshot.
     expect(r.undo()?.entry_node_id).toBe("base");
+    expect(r.canUndo()).toBe(false);
+  });
+
+  it("does not report an edit that nets back to the last committed state", () => {
+    const flags: HistoryFlags[] = [];
+    const r = createHistoryRecorder(graph("base"), {
+      delayMs: 10,
+      onFlagsChange: (f) => flags.push(f),
+    });
+    // A pending no-op edit is not undoable, so the first record reports nothing new.
+    r.record(graph("base"));
+    expect(r.canUndo()).toBe(false);
+    expect(flags).toEqual([{ canUndo: false, canRedo: false }]);
+  });
+
+  it("stops a pending flush from reporting after dispose", () => {
+    const flags: HistoryFlags[] = [];
+    const r = createHistoryRecorder(graph("base"), {
+      delayMs: 50,
+      onFlagsChange: (f) => flags.push(f),
+    });
+    r.record(graph("edit")); // reports immediately and arms the flush timer
+    flags.length = 0;
+
+    r.dispose();
+    vi.advanceTimersByTime(1000);
+
+    // The armed flush neither fires nor reports on a disposed recorder.
+    expect(flags).toEqual([]);
   });
 
   it("drops an edit that nets back to the last committed state", () => {

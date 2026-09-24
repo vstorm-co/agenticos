@@ -273,6 +273,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     ...CLEARED,
 
     load: ({ workflowId, expectedRevision }) => {
+      recorder?.dispose();
       recorder = null;
       set((state) => ({
         ...CLEARED,
@@ -283,6 +284,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     teardown: () => {
+      recorder?.dispose();
       recorder = null;
       set((state) => ({
         ...CLEARED,
@@ -293,6 +295,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     seedGraph: (graph) => {
+      recorder?.dispose();
       recorder = createHistoryRecorder(graph, {
         onFlagsChange: (flags) => get().setHistoryFlags(flags),
       });

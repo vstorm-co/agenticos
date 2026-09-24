@@ -5490,6 +5490,7 @@
     "pickerVersionNumber": "Version {version}",
     "pickerVersionEmpty": "This agent has no published versions yet.",
     "pickerVersionRequired": "Pick a version to pin.",
+    "pickerVersionOrphaned": "The pinned version is no longer available.",
     "pickerTableLabel": "Table",
     "pickerTablePlaceholder": "Choose a table",
     "pickerTablesEmpty": "No tables to choose from.",

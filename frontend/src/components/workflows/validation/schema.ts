@@ -60,26 +60,73 @@ function resolveRef(schema: JsonSchema, defs: Defs): JsonSchema {
 }
 
 /**
- * A single comparable token for a property's type.
+ * A single comparable token for a property's type, distinguishing exactly the
+ * types the backend's `_type_name` (`annotation.__name__`) distinguishes.
  *
  * A `$ref` or an object's `title` gives the model name (what a nested Pydantic
  * model's `__name__` is); a scalar gives its JSON `type`, suffixed with `format`
- * so a `date-time` string is not the same token as a plain string; anything with
- * no type information is `"unknown"`.
+ * so a `date-time` string is not the same token as a plain string. The two coarse
+ * cases the naive token collapsed are folded in:
+ *
+ * - **collections** — `list`, `set` and `tuple` are three names on the server, so
+ *   an `array` schema is discriminated by its facets (`uniqueItems` → set,
+ *   `prefixItems` → tuple, neither → list), see {@link arrayToken}; the item type
+ *   is left out because `list[str]` and `list[int]` are both "list";
+ * - **unions** — `anyOf`/`oneOf` is a composite of its members' tokens, see
+ *   {@link unionToken}, because `str | None` and `int | None` are different names
+ *   a single `"unknown"` false-matched.
+ *
+ * Anything with no type information is `"unknown"`.
  */
 export function schemaTypeToken(schema: ResolvedType): string {
   if (schema === UNKNOWN) return "unknown";
   if (schema === null) return "null";
+  const union = unionToken(schema);
+  if (union !== null) return union;
   const ref = schema["$ref"];
   if (typeof ref === "string") return refName(ref);
   const type = schema["type"];
   if (typeof type === "string") {
     if (type === "object" && typeof schema["title"] === "string") return schema["title"] as string;
+    if (type === "array") return arrayToken(schema);
     const format = schema["format"];
     return typeof format === "string" ? `${type}:${format}` : type;
   }
   if (typeof schema["title"] === "string") return schema["title"] as string;
   return "unknown";
+}
+
+/**
+ * The token for an `array` schema — the collection type the backend names by
+ * `__name__`. `prefixItems` (a fixed-length heterogeneous tuple) → tuple;
+ * `uniqueItems` (a set) → set; neither → a plain list. The element type is
+ * deliberately omitted: `_type_name(list[str])` and `_type_name(list[int])` are
+ * both "list", so a list of strings and a list of ints share a token, exactly as
+ * they do on the server — folding the item type in would reject an edge the server
+ * accepts.
+ */
+function arrayToken(schema: JsonSchema): string {
+  if (Array.isArray(schema["prefixItems"])) return "array:tuple";
+  if (schema["uniqueItems"] === true) return "array:set";
+  return "array";
+}
+
+/**
+ * A composite token for a JSON-Schema union (`anyOf`/`oneOf`), or `null` when the
+ * schema is not one. Built from the members' tokens in order, recursively, so a
+ * union of models or arrays is discriminated too. The backend names a union by
+ * `str(annotation)` (e.g. `"str | None"`), which distinguishes both the members
+ * and their order (`str | int` ≠ `int | str`); a single `"unknown"` collapsed
+ * every union into one token and false-accepted edges and bindings the server
+ * rejects, so member order is preserved rather than sorted.
+ */
+function unionToken(schema: JsonSchema): string | null {
+  const members = schema["anyOf"] ?? schema["oneOf"];
+  if (!Array.isArray(members)) return null;
+  const tokens = members.map((member) =>
+    isObject(member) ? schemaTypeToken(member as JsonSchema) : "unknown",
+  );
+  return `union(${tokens.join("|")})`;
 }
 
 /** The `{(property, token)}` shape of an object schema — the analog of `_model_shape`. */

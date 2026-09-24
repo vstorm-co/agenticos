@@ -67,6 +67,11 @@ export function copySelection(
     (edge) => selected.has(edge.source_node_id) && selected.has(edge.target_node_id),
   );
   const bindings = graph.bindings.filter((binding) => selected.has(binding.target_node_id));
+  // `graph.scopes` is server-derived (`derive_scopes` recomputes it at every draft
+  // save and publish) and never client-authored on an edit, so copying and pasting
+  // a contained scope is effectively inert: whatever travels here is overwritten the
+  // next time the server re-derives it. It is kept for shape completeness and is
+  // harmless — the paste re-ids it, and a stale or absent scope simply gets replaced.
   const scopes = graph.scopes.filter((scope) => scopeContained(scope, selected));
 
   return clone({ nodes, edges, bindings, scopes });
