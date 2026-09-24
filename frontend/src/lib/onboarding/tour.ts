@@ -424,9 +424,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.tablesCreate,
     inTour: true,
   },
-  // The table detail, entered from the catalog. "?"-only: the walk reaches it
-  // only once the reader has a table of their own, the same reasoning
-  // `workspaces-detail` gives for skipping a launch-pass example. `table-columns`
+  // The table detail, `/tables/<id>`. "?"-only and shown in place: it is in no
+  // section flow, so the walk never opens a table from the catalog - there is no
+  // seeded example to open, the same as `workspaces-detail` - and a "?" pressed on
+  // a table spotlights that table's own controls. `table-columns`
   // is `optional`, not permission-gated: the button it anchors on renders from
   // `table.can_edit`, a per-row boolean no static `Permission` can express (see
   // `docs/virtual-tables.md#who-can-do-what`), so a role-level gate here would

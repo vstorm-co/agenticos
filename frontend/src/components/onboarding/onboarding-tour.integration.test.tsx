@@ -272,6 +272,29 @@ describe("OnboardingTour", () => {
   });
 });
 
+describe("the tables walk", () => {
+  it("'?' on a table shows that table's controls where the reader is, with their copy", async () => {
+    // With no detail target for the table pseudo-page, the engine read it as a
+    // route and pushed to `table-detail`, which loaded a table of that id.
+    servePermissions(OWNER);
+    nav.pathname = "/tables/t-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Its columns"));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("'?' on the catalog captions its stops with their copy, not their keys", async () => {
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.TABLES;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Your tables"));
+  });
+});
+
 describe("RestartTourButton", () => {
   it("opens the current page's tips in page mode", async () => {
     render(<RestartTourButton />);

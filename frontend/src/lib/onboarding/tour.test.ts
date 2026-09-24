@@ -15,6 +15,8 @@ import {
   WORKSPACE_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
+import { FLOWS } from "@/lib/onboarding/flows";
+import en from "../../../messages/en.json";
 import { Perm, type Permission } from "@/types/permissions";
 
 // The curated launch pass a caller with no permissions sees: the interstitials
@@ -349,5 +351,20 @@ describe("the Routines page", () => {
 
     expect(refused).toEqual(["routines-list"]);
     expect(allowed).toEqual(["routines-list", "routines-create"]);
+  });
+});
+
+describe("every step's copy", () => {
+  // The engine builds `steps.<id>.title` from a template, so the i18n guard cannot
+  // see these keys, and a missing one renders as the key itself in the caption.
+  const steps: Record<string, { title?: string; body?: string }> = en.onboarding.steps;
+  const ids = [
+    ...TOUR_STEPS.map((step) => step.id),
+    ...Object.values(FLOWS).flatMap((flow) => flow.steps.map((step) => step.id)),
+  ];
+
+  it.each(ids)("%s has a title and a body in en.json", (id) => {
+    expect(steps[id]?.title).toEqual(expect.any(String));
+    expect(steps[id]?.body).toEqual(expect.any(String));
   });
 });

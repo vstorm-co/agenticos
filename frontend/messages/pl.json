@@ -1908,6 +1908,42 @@
       "workspaces-detail": {
         "title": "Wnętrze przestrzeni",
         "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+      },
+      "tables-catalog": {
+        "title": "Twoje tabele",
+        "body": "Każda tabela, którą możesz otworzyć: Twoje własne i te udostępnione Tobie. Każda przechowuje typowane rekordy, które czytają i zapisują ludzie, agenty i integracje."
+      },
+      "tables-new": {
+        "title": "Uporządkowane rekordy",
+        "body": "Tabela to zbiór rekordów z nazwanymi, typowanymi kolumnami. Utwórz ją tutaj, a potem edytuj jej rekordy w konsoli albo pozwól agentom i API je czytać i zapisywać."
+      },
+      "table-columns": {
+        "title": "Jej kolumny",
+        "body": "Dodaj kolumnę, zmień jej nazwę, wybierz typ i to, czy jest opcjonalna, albo zarchiwizuj tę, której już nie używasz. Każdy zapis to nowa wersja schematu, a rekordy zachowują swoje wartości."
+      },
+      "table-view-tabs": {
+        "title": "Trzy sposoby patrzenia",
+        "body": "Te same rekordy jako tabela, jako tablica kanban pogrupowana według kolumny jednokrotnego wyboru albo jako lista. Zapisz widok, żeby zachować jego filtry, sortowanie i grupowanie."
+      },
+      "flow-table-create": {
+        "title": "Utwórz tabelę",
+        "body": "Wybierz Nowa tabela — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+      },
+      "flow-table-field-name": {
+        "title": "Nazwij ją",
+        "body": "Nazwij ją od tego, czym jest jeden rekord — Zamówienia, Leady, Zgłoszenia — żeby każdy, kto ją czyta lub zapisuje, wiedział, co do niej należy. Potem wybierz Dalej."
+      },
+      "flow-table-field-columns": {
+        "title": "Dodaj kolumny",
+        "body": "Wybierz Dodaj kolumnę dla każdego pola, które ma rekord, i wybierz jego typ — tekst, liczbę, datę, listę wyboru. Możesz je później zmienić. Potem wybierz Dalej."
+      },
+      "flow-table-field-visibility": {
+        "title": "Kto ją widzi",
+        "body": "Prywatna zostaje tylko dla Ciebie; Zespół i Organizacja otwierają ją szerzej. Możesz ją też później udostępnić konkretnym osobom. Potem wybierz Dalej."
+      },
+      "flow-table-field-create": {
+        "title": "Utwórz ją",
+        "body": "Wybierz Utwórz tabelę. Przejdziemy dalej w chwili, gdy powstanie."
       }
     }
   },

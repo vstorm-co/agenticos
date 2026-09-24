@@ -3250,6 +3250,46 @@
       "knowledge-local-services": {
         "title": "Local services",
         "body": "Servers on your own network: register an Ollama to embed with no key, or an OCR server for LiteParse, and pick one per collection - so a knowledge base can stay entirely on your hardware."
+      },
+      "tables-catalog": {
+        "title": "Your tables",
+        "body": "Every table you can open: your own and the ones shared with you. Each holds typed records that people, agents and integrations read and write."
+      },
+      "tables-new": {
+        "title": "Structured records",
+        "body": "A table is a set of records with named, typed columns. Create one here, then edit its records in the console, or let agents and the API read and write them."
+      },
+      "table-columns": {
+        "title": "Its columns",
+        "body": "Add a column, rename one, choose its type and whether it is optional, or archive one you no longer use. Each save is a new schema version, and records keep their values."
+      },
+      "table-view-tabs": {
+        "title": "Three ways to look",
+        "body": "The same records as a table, as a kanban board grouped by a single-select column, or as a list. Save a view to keep its filters, sort and grouping."
+      },
+      "flow-table-create": {
+        "title": "Create the table",
+        "body": "Choose New table — the form opens and we'll walk it together, field by field."
+      },
+      "flow-table-field-name": {
+        "title": "Name it",
+        "body": "Name it after what one record is — Orders, Leads, Support tickets — so anyone reading or writing it knows what belongs in it. Then choose Next."
+      },
+      "flow-table-field-columns": {
+        "title": "Add its columns",
+        "body": "Choose Add column for each field a record holds, and pick its type — text, a number, a date, a select. You can change them later. Then choose Next."
+      },
+      "flow-table-field-visibility": {
+        "title": "Who can see it",
+        "body": "Private keeps it to you; Team and Organization open it to more people. You can also share it with individual people later. Then choose Next."
+      },
+      "flow-table-field-create": {
+        "title": "Create it",
+        "body": "Choose Create table. We'll move on the moment it exists."
+      },
+      "flow-routine-create": {
+        "title": "Create a routine",
+        "body": "Choose New schedule to run an agent on the clock, or New event trigger to run it when something happens. We'll move on the moment it exists."
       }
     }
   },

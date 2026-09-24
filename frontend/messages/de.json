@@ -3119,6 +3119,46 @@
       "knowledge-local-services": {
         "title": "Lokale Dienste",
         "body": "Server in Ihrem eigenen Netz: Registrieren Sie ein Ollama, das ohne Schlüssel einbettet, oder einen OCR-Server für LiteParse, und wählen Sie pro Collection einen – so kann eine Wissensdatenbank vollständig auf Ihrer eigenen Hardware bleiben."
+      },
+      "tables-catalog": {
+        "title": "Ihre Tabellen",
+        "body": "Jede Tabelle, die Sie öffnen können: Ihre eigenen und die mit Ihnen geteilten. Jede enthält typisierte Datensätze, die Menschen, Agents und Integrationen lesen und schreiben."
+      },
+      "tables-new": {
+        "title": "Strukturierte Datensätze",
+        "body": "Eine Tabelle ist eine Menge von Datensätzen mit benannten, typisierten Spalten. Erstellen Sie hier eine, bearbeiten Sie dann ihre Datensätze in der Konsole, oder lassen Sie Agents und die API sie lesen und schreiben."
+      },
+      "table-columns": {
+        "title": "Ihre Spalten",
+        "body": "Fügen Sie eine Spalte hinzu, benennen Sie eine um, wählen Sie ihren Typ und ob sie optional ist, oder archivieren Sie eine, die Sie nicht mehr nutzen. Jedes Speichern ist eine neue Schemaversion, und Datensätze behalten ihre Werte."
+      },
+      "table-view-tabs": {
+        "title": "Drei Ansichten",
+        "body": "Dieselben Datensätze als Tabelle, als Kanban-Board, gruppiert nach einer Einfachauswahl-Spalte, oder als Liste. Speichern Sie eine Ansicht, um ihre Filter, Sortierung und Gruppierung zu behalten."
+      },
+      "flow-table-create": {
+        "title": "Die Tabelle erstellen",
+        "body": "Wählen Sie Neue Tabelle — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
+      },
+      "flow-table-field-name": {
+        "title": "Benennen Sie sie",
+        "body": "Benennen Sie sie nach dem, was ein Datensatz ist — Bestellungen, Leads, Support-Tickets — damit jeder, der sie liest oder schreibt, weiß, was hineingehört. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-columns": {
+        "title": "Spalten hinzufügen",
+        "body": "Wählen Sie Spalte hinzufügen für jedes Feld eines Datensatzes und wählen Sie seinen Typ — Text, eine Zahl, ein Datum, eine Auswahl. Sie können sie später ändern. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-visibility": {
+        "title": "Wer sie sieht",
+        "body": "Privat behält sie für Sie; Team und Organisation öffnen sie für mehr Personen. Sie können sie später auch mit einzelnen Personen teilen. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-create": {
+        "title": "Erstellen Sie sie",
+        "body": "Wählen Sie Tabelle erstellen. Wir machen weiter, sobald sie besteht."
+      },
+      "flow-routine-create": {
+        "title": "Eine Routine erstellen",
+        "body": "Wählen Sie Neuer Zeitplan, um einen Agent nach der Uhr laufen zu lassen, oder Neuer Ereignis-Trigger, um ihn laufen zu lassen, wenn etwas passiert. Wir machen weiter, sobald sie besteht."
       }
     }
   },
