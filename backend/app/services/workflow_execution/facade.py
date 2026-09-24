@@ -196,13 +196,10 @@ class WorkflowExecutionService:
             AuthorizationError: The caller may see the run but not cancel it.
             WorkflowRunAlreadyTerminalError: The run already ended.
         """
-        # Scoped, not `get_run_by_id_for_update` - that lookup is for the
-        # dispatcher and reconciler, which act on ids they already trust, not
-        # on a caller-supplied one that still needs the organization boundary
-        # checked before any row is locked.
-        run = await workflow_run_repo.get_run_for_update(
-            self.db, run_id, organization_id=ctx.organization_id
-        )
+        # Authorized on an unlocked, scoped read before any row is locked: a
+        # caller who may not see the run must not wait on - or hold - its
+        # lock, which would tell a busy run from a missing one by timing.
+        run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
         workflow = (
             await self._reachable(ctx, run.workflow_id, Perm.WORKFLOWS_VIEW)
             if run is not None
@@ -216,6 +213,13 @@ class WorkflowExecutionService:
                 "workflow, may cancel it",
                 details={"run_id": run.id},
             )
+        # Scoped, not `get_run_by_id_for_update` - that lookup is for the
+        # dispatcher and reconciler, which act on ids they already trust.
+        run = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if run is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
         if WorkflowRunStatus(run.status).is_terminal:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 

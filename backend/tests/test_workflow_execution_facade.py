@@ -379,27 +379,28 @@ class TestCancel:
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
-                new=AsyncMock(return_value=None),
-            ) as get_for_update,
+                f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=None)
+            ) as get_run,
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run_for_update", new=AsyncMock()) as lock,
             pytest.raises(WorkflowRunNotFoundError),
         ):
             await service.cancel(_ctx(), uuid.uuid4())
-        assert get_for_update.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+        assert get_run.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+        lock.assert_not_called()
 
     @pytest.mark.security
     async def test_cancelling_a_run_the_caller_cannot_reach_is_not_found(self):
         run = _run_row()
         service = WorkflowExecutionService(MagicMock())
         with (
-            patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
-                new=AsyncMock(return_value=run),
-            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run_for_update", new=AsyncMock()) as lock,
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=None)),
             pytest.raises(WorkflowRunNotFoundError),
         ):
             await service.cancel(_ctx(), run.id)
+        # Refused before any lock: an outsider cannot wait on a hidden run's lock.
+        lock.assert_not_called()
 
     @pytest.mark.security
     async def test_cancelling_another_organizations_run_id_is_not_found_and_locks_nothing(self):
@@ -413,15 +414,16 @@ class TestCancel:
         service = WorkflowExecutionService(MagicMock())
         with (
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
-                new=AsyncMock(return_value=None),
-            ) as get_for_update,
+                f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=None)
+            ) as get_run,
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run_for_update", new=AsyncMock()) as lock,
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock()) as workflow_get,
             pytest.raises(WorkflowRunNotFoundError),
         ):
             await service.cancel(_ctx(), uuid.uuid4())
-        get_for_update.assert_awaited_once()
-        assert get_for_update.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+        get_run.assert_awaited_once()
+        assert get_run.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
+        lock.assert_not_called()
         workflow_get.assert_not_called()
 
     async def test_cancelling_an_already_terminal_run_is_refused(self):
@@ -429,6 +431,7 @@ class TestCancel:
         workflow = _workflow(id=run.workflow_id)
         service = WorkflowExecutionService(MagicMock())
         with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
@@ -445,6 +448,7 @@ class TestCancel:
         cancelled = _run_row(id=run.id, status=WorkflowRunStatus.CANCELLED.value)
         service = WorkflowExecutionService(MagicMock())
         with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
                 new=AsyncMock(return_value=run),
@@ -460,6 +464,22 @@ class TestCancel:
             result = await service.cancel(_ctx(), run.id)
 
         assert result.status == WorkflowRunStatus.CANCELLED.value
+
+    async def test_a_run_gone_between_the_read_and_the_lock_is_not_found(self):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(WorkflowRunNotFoundError),
+        ):
+            await service.cancel(_ctx(), run.id)
 
 
 class TestGet:

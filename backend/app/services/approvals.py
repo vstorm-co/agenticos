@@ -27,6 +27,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.repositories import agent_run_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
@@ -324,11 +325,17 @@ class ApprovalService:
         # A workflow node parked on this run wakes the same way a decision
         # wakes it (#1788): its handler sees the run ended and fails the node,
         # instead of the node waiting for ever on a run nothing will resume.
-        spawn_after_commit(
-            self.db,
-            wake_after_approval_decision(run_id, organization_id=organization_id),
-            name="workflow-approval-wake",
-        )
+        # Looked up here, in the sweep's own transaction, so a backlog of
+        # expiries spawns a wake - and opens a connection - only for the runs
+        # a workflow actually waits on.
+        if await workflow_run_repo.find_node_run_waiting_on_agent_run(
+            self.db, run_id, organization_id=organization_id
+        ):
+            spawn_after_commit(
+                self.db,
+                wake_after_approval_decision(run_id, organization_id=organization_id),
+                name="workflow-approval-wake",
+            )
         return 1
 
     async def _record_decision(
