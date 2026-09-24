@@ -13,8 +13,8 @@ is an append-only log with a per-run monotonic `seq`, what #1787's run-history
 view and any live "watch this run" panel read. `ResourceRef` holds the
 `FileRef`/`TableIORef` bindings a run resolved at start.
 
-See `docs/plans/1788-durable-execution.md` (the design this implements) for
-the state machine these tables drive and why each shape is what it is.
+`app.services.workflow_execution` is the state machine these tables drive;
+its dispatcher's module docstring explains the transaction split they serve.
 """
 
 import enum
@@ -329,10 +329,10 @@ class NodeRun(Base, TimestampMixin):
         String(20), nullable=False, default=NodeRunStatus.PENDING.value, index=True
     )
     waiting_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Concretely this row's own id, stringified - see
-    # `docs/plans/1788-durable-execution.md#approvals`. Stored rather than
-    # only derived so a waiting `NodeRun` names the token it was issued with
-    # even before anything reads it back.
+    # Concretely this row's own id, stringified (the dispatcher's
+    # `_settle_waiting` writes it). Stored rather than only derived so a
+    # waiting `NodeRun` names the token it was issued with even before
+    # anything reads it back.
     resume_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     waiting_agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -562,7 +562,7 @@ class ResourceRef(Base, TimestampMixin):
     )
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     # `FileRef`/`TableIORef.model_dump(mode="json")` - thin and unopinionated,
-    # matching the contract itself (56-shared-contracts.md, decision 1/2).
+    # like the reference types themselves (`app.workflows.contracts.io`).
     ref: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
     __table_args__ = (CheckConstraint("kind IN ('file', 'table')", name="ck_resource_ref_kind"),)

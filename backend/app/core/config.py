@@ -510,10 +510,10 @@ class Settings(BaseSettings):
     # itself; short enough that a worker that dies mid-call is noticed within
     # one reconcile tick rather than stalling the run indefinitely.
     WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
-    # #1790 owns the real retry ceiling and backoff schedule
-    # (docs/plans/1788-durable-execution.md's "retry_guarantee/#1790 gap");
-    # this is the minimum fixed policy #1788 needs so #1789/#1792 have
-    # somewhere to run in the meantime.
+    # #1790 owns the real retry ceiling and backoff schedule; this is the
+    # minimum fixed policy #1788 needs so #1789/#1792 have somewhere to run in
+    # the meantime. The ceiling bounds both failed and interrupted attempts;
+    # the backoff doubles from the base per attempt, capped at the max.
     WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
     WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
     WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)

@@ -1,8 +1,7 @@
 """Where the dispatch tick's transactions actually end, against Postgres.
 
 Structurally `test_run_commit_boundary.py`'s own shape, applied to the
-dispatcher's three-phase split (`docs/plans/1788-durable-execution.md`,
-"Prefect: a flow per dispatch tick"): only a *second* connection can tell a
+dispatcher's transaction split (its module docstring): only a *second* connection can tell a
 flush from a commit, so each phase boundary here is asserted by reading the
 row back on a connection that is not the one the phase wrote through.
 

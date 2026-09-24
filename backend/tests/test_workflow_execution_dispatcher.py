@@ -1222,7 +1222,6 @@ class TestSettleShortCircuits:
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
         repo.settle_attempt.assert_not_called()
         repo.update_node_run.assert_not_called()
-        repo.get_outbox_for_node_run.assert_not_called()
         repo.get_outbox_for_node_run_for_update.assert_not_called()
 
     async def test_a_run_cancelled_while_its_handler_was_running_stays_cancelled(
@@ -2232,6 +2231,8 @@ class TestFieldOwnerMore:
 class TestResolveSourceUnknown:
     def test_an_unrecognised_source_type_raises(self):
         with pytest.raises(TypeError):
+            # Deliberately not a `BindingSource`: the defensive branch for a
+            # variant added to the union without a case here.
             dispatcher._resolve_source(object(), {})  # type: ignore[arg-type]
 
 

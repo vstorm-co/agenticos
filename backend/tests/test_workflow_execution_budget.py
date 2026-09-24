@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.services.workflow_execution import budget
 
 
@@ -18,6 +20,7 @@ def _run(**overrides: object) -> MagicMock:
     return run
 
 
+@pytest.mark.security
 class TestOverBudget:
     def test_no_limit_is_never_over_budget(self):
         run = _run(budget_limit=None, spent_cost=Decimal("1000000"))
@@ -36,6 +39,7 @@ class TestOverBudget:
         assert budget.over_budget(run) is True
 
 
+@pytest.mark.security
 class TestPastDeadline:
     def test_no_deadline_is_never_past(self):
         run = _run(deadline_at=None)

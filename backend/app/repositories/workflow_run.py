@@ -37,8 +37,6 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow as workflow_repo
 
-# WorkflowRun
-
 
 async def create_run(
     db: AsyncSession,
@@ -180,9 +178,6 @@ async def update_run(
     return run
 
 
-# NodeRun
-
-
 async def create_node_run(
     db: AsyncSession,
     *,
@@ -203,28 +198,8 @@ async def create_node_run(
     return node_run
 
 
-async def get_node_run(
-    db: AsyncSession, node_run_id: UUID, *, organization_id: UUID
-) -> NodeRun | None:
-    result = await db.execute(
-        select(NodeRun).where(NodeRun.id == node_run_id, NodeRun.organization_id == organization_id)
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_node_run_for_update(
-    db: AsyncSession, node_run_id: UUID, *, organization_id: UUID
-) -> NodeRun | None:
-    result = await db.execute(
-        select(NodeRun)
-        .where(NodeRun.id == node_run_id, NodeRun.organization_id == organization_id)
-        .with_for_update()
-    )
-    return result.scalar_one_or_none()
-
-
 async def get_node_run_by_id(db: AsyncSession, node_run_id: UUID) -> NodeRun | None:
-    """Unscoped - see `get_run_by_id_for_update` for why the dispatcher needs this."""
+    """Unscoped - see `get_run_by_id_for_update` for why the reconciler needs this."""
     result = await db.execute(select(NodeRun).where(NodeRun.id == node_run_id))
     return result.scalar_one_or_none()
 
@@ -254,15 +229,6 @@ async def get_node_run_by_identity(
         )
     )
     return result.scalar_one_or_none()
-
-
-async def list_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
-    result = await db.execute(
-        select(NodeRun)
-        .where(NodeRun.workflow_run_id == workflow_run_id)
-        .order_by(NodeRun.created_at)
-    )
-    return list(result.scalars().all())
 
 
 async def find_node_run_waiting_on_agent_run(
@@ -373,9 +339,6 @@ async def update_node_run(
     return node_run
 
 
-# NodeAttempt
-
-
 async def create_attempt(
     db: AsyncSession,
     *,
@@ -420,15 +383,6 @@ async def get_latest_attempt(db: AsyncSession, *, node_run_id: UUID) -> NodeAtte
         .limit(1)
     )
     return result.scalar_one_or_none()
-
-
-async def list_attempts(db: AsyncSession, *, node_run_id: UUID) -> list[NodeAttempt]:
-    result = await db.execute(
-        select(NodeAttempt)
-        .where(NodeAttempt.node_run_id == node_run_id)
-        .order_by(NodeAttempt.attempt_no)
-    )
-    return list(result.scalars().all())
 
 
 async def settle_attempt(
@@ -481,9 +435,6 @@ async def list_orphaned_in_flight(
         .limit(limit)
     )
     return list(result.scalars().all())
-
-
-# DispatchOutbox
 
 
 async def create_outbox(
@@ -673,20 +624,10 @@ async def mark_outbox_done(db: AsyncSession, *, outbox: DispatchOutbox) -> Dispa
     return outbox
 
 
-async def get_outbox_for_node_run(db: AsyncSession, *, node_run_id: UUID) -> DispatchOutbox | None:
-    result = await db.execute(
-        select(DispatchOutbox)
-        .where(DispatchOutbox.node_run_id == node_run_id)
-        .order_by(DispatchOutbox.created_at.desc())
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
-
-
 async def get_outbox_for_node_run_for_update(
     db: AsyncSession, *, node_run_id: UUID
 ) -> DispatchOutbox | None:
-    """The same row `get_outbox_for_node_run` reads, held for the caller's transaction.
+    """This node run's latest outbox row, held for the caller's transaction.
 
     `begin_attempt`'s own fencing-token check is a plain read otherwise - true
     at the instant it runs, but not for the rest of that transaction, so a
@@ -742,9 +683,6 @@ async def cancel_live_outbox_for_run(db: AsyncSession, *, workflow_run_id: UUID)
         .returning(DispatchOutbox.id)
     )
     return result.scalars().all()
-
-
-# WorkflowEvent
 
 
 async def append_event(
@@ -805,9 +743,6 @@ async def list_events_since(
     return list(result.scalars().all())
 
 
-# ResourceRef
-
-
 async def create_resource_ref(
     db: AsyncSession,
     *,
@@ -823,10 +758,3 @@ async def create_resource_ref(
     await db.flush()
     await db.refresh(resource_ref)
     return resource_ref
-
-
-async def list_resource_refs(db: AsyncSession, *, workflow_run_id: UUID) -> list[ResourceRef]:
-    result = await db.execute(
-        select(ResourceRef).where(ResourceRef.workflow_run_id == workflow_run_id)
-    )
-    return list(result.scalars().all())

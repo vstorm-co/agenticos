@@ -112,6 +112,7 @@ def _no_dispatch_trigger():
 
 @pytest.mark.usefixtures("_no_dispatch_trigger")
 class TestStart:
+    @pytest.mark.security
     async def test_starting_an_unreachable_workflow_is_not_found(self):
         service = WorkflowExecutionService(MagicMock())
         with (
@@ -120,6 +121,7 @@ class TestStart:
         ):
             await service.start(_ctx(), uuid.uuid4())
 
+    @pytest.mark.security
     async def test_a_workflow_this_caller_cannot_reach_is_not_found(self):
         workflow = _workflow()
         service = WorkflowExecutionService(MagicMock())
@@ -321,6 +323,7 @@ class TestStart:
         create_ref.assert_awaited_once()
         assert create_ref.await_args.kwargs["kind"] == expected_kind
 
+    @pytest.mark.security
     async def test_a_test_run_by_a_caller_without_edit_access_is_refused(self):
         """`workflows:run` (even as widened by a mere `USE` grant) is not
 
@@ -384,6 +387,7 @@ class TestCancel:
             await service.cancel(_ctx(), uuid.uuid4())
         assert get_for_update.await_args.kwargs["organization_id"] == _ORGANIZATION_ID
 
+    @pytest.mark.security
     async def test_cancelling_a_run_the_caller_cannot_reach_is_not_found(self):
         run = _run_row()
         service = WorkflowExecutionService(MagicMock())
@@ -397,6 +401,7 @@ class TestCancel:
         ):
             await service.cancel(_ctx(), run.id)
 
+    @pytest.mark.security
     async def test_cancelling_another_organizations_run_id_is_not_found_and_locks_nothing(self):
         """A caller-controlled run id naming another tenant's row must come
 
@@ -458,6 +463,7 @@ class TestCancel:
 
 
 class TestGet:
+    @pytest.mark.security
     async def test_a_run_in_another_organizations_workflow_is_not_found(self):
         service = WorkflowExecutionService(MagicMock())
         with (
@@ -480,6 +486,7 @@ class TestGet:
 
 
 class TestList:
+    @pytest.mark.security
     async def test_listing_narrowed_to_an_unreachable_workflow_is_not_found(self):
         service = WorkflowExecutionService(MagicMock())
         with (

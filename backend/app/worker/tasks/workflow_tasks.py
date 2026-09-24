@@ -1,9 +1,8 @@
 """Workflow durable execution - one flow per dispatch tick, plus its sweeps.
 
-`workflow-dispatch-node` is deliberately not a flow per `WorkflowRun`: see
-`docs/plans/1788-durable-execution.md`'s "Prefect: a flow per dispatch tick"
-section for why holding a run's position in one flow's call stack for its
-whole life - through `waiting_approval`, hours or days - is the wrong shape.
+`workflow-dispatch-node` is deliberately not a flow per `WorkflowRun`: holding
+a run's position in one flow's call stack for its whole life - through
+`waiting_approval`, hours or days - is the wrong shape.
 Postgres stays the only source of truth for run position; Prefect is reduced
 to scheduling, backoff and worker fan-out per unit of work, the same as
 `ingest_document_flow`.

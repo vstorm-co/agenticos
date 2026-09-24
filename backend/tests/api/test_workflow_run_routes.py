@@ -3,7 +3,7 @@
 `tests/test_workflow_execution_facade.py` proves what the service does
 against a mocked repository; what is left is the handler itself - status
 codes, the error envelope, and which routes carry a `require(...)` gate
-versus delegate to the service (`.claude/rules/permissions-rbac.md`).
+versus delegate to the service (the `permissions-rbac` skill).
 """
 
 from __future__ import annotations

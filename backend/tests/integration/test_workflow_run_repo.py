@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,9 +27,11 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import (
+    DispatchOutbox,
     DispatchOutboxStatus,
     NodeAttemptStatus,
     NodeRunStatus,
+    ResourceRef,
     RetryGuarantee,
     WorkflowRunMode,
     WorkflowRunStatus,
@@ -1029,64 +1032,6 @@ class TestListRuns:
         assert total == 2
 
 
-class TestGetNodeRun:
-    async def test_is_scoped_to_the_organization(self, db: AsyncSession):
-        org_a = await _org(db)
-        org_b = await _org(db)
-        workflow = await _workflow(db, org_a)
-        run = await _run(db, org_a, workflow)
-        node_run = await _node_run(db, run)
-        assert (
-            await workflow_run_repo.get_node_run(db, node_run.id, organization_id=org_a.id)
-            is not None
-        )
-        assert (
-            await workflow_run_repo.get_node_run(db, node_run.id, organization_id=org_b.id) is None
-        )
-
-    async def test_get_node_run_for_update_locks_and_returns_the_row(self, db: AsyncSession):
-        org = await _org(db)
-        workflow = await _workflow(db, org)
-        run = await _run(db, org, workflow)
-        node_run = await _node_run(db, run)
-        found = await workflow_run_repo.get_node_run_for_update(
-            db, node_run.id, organization_id=org.id
-        )
-        assert found is not None
-        assert found.id == node_run.id
-
-
-class TestListNodeRuns:
-    async def test_lists_every_node_run_for_the_workflow_run(self, db: AsyncSession):
-        org = await _org(db)
-        workflow = await _workflow(db, org)
-        run = await _run(db, org, workflow)
-        first = await _node_run(db, run)
-        second = await _node_run(db, run)
-        rows = await workflow_run_repo.list_node_runs(db, workflow_run_id=run.id)
-        assert {row.id for row in rows} == {first.id, second.id}
-
-
-class TestListAttempts:
-    async def test_lists_every_attempt_in_order(self, db: AsyncSession):
-        org = await _org(db)
-        workflow = await _workflow(db, org)
-        run = await _run(db, org, workflow)
-        node_run = await _node_run(db, run)
-        for n in (1, 2):
-            await workflow_run_repo.create_attempt(
-                db,
-                organization_id=org.id,
-                node_run_id=node_run.id,
-                attempt_no=n,
-                idempotency_key=f"k{n}",
-                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
-                started_at=datetime.now(UTC),
-            )
-        rows = await workflow_run_repo.list_attempts(db, node_run_id=node_run.id)
-        assert [row.attempt_no for row in rows] == [1, 2]
-
-
 class TestFindNodeRunWaitingOnAgentRun:
     async def test_finds_the_node_run_parked_on_this_agent_run(self, db: AsyncSession):
         org = await _org(db)
@@ -1176,20 +1121,23 @@ class TestCancelLiveOutboxForRun:
 
         assert pending.id in cancelled_ids
         assert done.id not in cancelled_ids
-        refreshed_pending = await workflow_run_repo.get_outbox_for_node_run(
-            db, node_run_id=pending_node_run.id
+        statuses = dict(
+            (
+                await db.execute(
+                    select(DispatchOutbox.id, DispatchOutbox.status).where(
+                        DispatchOutbox.workflow_run_id == run.id
+                    )
+                )
+            ).all()
         )
-        assert refreshed_pending is not None
-        assert refreshed_pending.status == DispatchOutboxStatus.CANCELLED.value
-        refreshed_done = await workflow_run_repo.get_outbox_for_node_run(
-            db, node_run_id=done_node_run.id
-        )
-        assert refreshed_done is not None
-        assert refreshed_done.status == DispatchOutboxStatus.DONE.value
+        assert statuses == {
+            pending.id: DispatchOutboxStatus.CANCELLED.value,
+            done.id: DispatchOutboxStatus.DONE.value,
+        }
 
 
-class TestListResourceRefs:
-    async def test_lists_every_resource_ref_for_the_run(self, db: AsyncSession):
+class TestResourceRefs:
+    async def test_each_resolved_reference_is_recorded_against_its_run(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)
         run = await _run(db, org, workflow)
@@ -1199,5 +1147,9 @@ class TestListResourceRefs:
         second = await workflow_run_repo.create_resource_ref(
             db, organization_id=org.id, workflow_run_id=run.id, kind="table", ref={"kind": "table"}
         )
-        rows = await workflow_run_repo.list_resource_refs(db, workflow_run_id=run.id)
-        assert {row.id for row in rows} == {first.id, second.id}
+        rows = (
+            (await db.execute(select(ResourceRef).where(ResourceRef.workflow_run_id == run.id)))
+            .scalars()
+            .all()
+        )
+        assert {(row.id, row.kind) for row in rows} == {(first.id, "file"), (second.id, "table")}

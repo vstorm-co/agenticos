@@ -1,8 +1,7 @@
 """The dispatch tick: claim one outbox row, run one node attempt, advance the graph.
 
-Three phases, deliberately split across three separate, short transactions -
-see `docs/plans/1788-durable-execution.md`'s "Prefect: a flow per dispatch
-tick" section for why:
+Three transactional phases around one that holds no transaction, each short,
+so no database connection is ever held across a handler's own external call:
 
 1. `claim` - the compare-and-swap that decides which worker, if any, owns
    this `NodeRun` right now. Its own transaction.
@@ -13,11 +12,13 @@ tick" section for why:
 3. The handler runs **outside any transaction** (`app.worker.tasks.
    workflow_tasks` is what actually calls it, between two `get_worker_db_context`
    blocks) - a long-running or hung external call must never hold a pooled
-   connection idle.
+   connection idle. The worker renews the claim's lease meanwhile, each
+   renewal a short transaction of its own (`renew_lease`).
 4. `settle` - a third transaction: persists the attempt's terminal result,
-   transitions the `NodeRun`, accumulates cost, appends a `WorkflowEvent`, and
-   - on `Completed` - advances the graph by creating the next `NodeRun`(s)
-   and `DispatchOutbox` row(s), all in one commit. `DispatchOutbox` is a
+   transitions the `NodeRun`, books the cost the handler reported, appends a
+   `WorkflowEvent`, and - on `Completed` - advances the graph by creating the
+   next `NodeRun`(s) and `DispatchOutbox` row(s), all in one commit; the flow
+   submits those rows once it has. `DispatchOutbox` is a
    transactional outbox for exactly this reason: "the result is durable" and
    "the next step is scheduled" can never disagree.
 

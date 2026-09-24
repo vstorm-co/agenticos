@@ -28,6 +28,8 @@ def _context(**overrides: object) -> context.DispatchContext:
         "resumed_agent_run_id": None,
     }
     defaults.update(overrides)
+    # `defaults` is a `dict[str, object]` so overrides can replace any field;
+    # every value in it is the type its field declares.
     return context.DispatchContext(**defaults)  # type: ignore[arg-type]
 
 
