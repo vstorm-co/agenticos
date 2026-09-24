@@ -27,9 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
   chat, a schedule or the API, publishes a new version behind the same link
   instead of making a second one - provided the run's person owns the page or
   holds `artifacts:edit` on it, so a colleague's run cannot replace it. Identical
-  bytes add no version, and the newest `ARTIFACT_MAX_VERSIONS` are kept. The chat links to the version its own run
-  wrote. A new artifact is private to the person the run was for, and a person
-  shares it the way agents and skills are shared - grants, the whole
+  bytes add no version, and the newest `ARTIFACT_MAX_VERSIONS` are kept.
+  The chat links to the version its own run wrote. A new artifact is private
+  to the person the run was for, and a person shares it the way agents and skills are shared - grants, the whole
   organization - or turns on an "anyone with the link" address that can be
   replaced or turned off. `artifacts:view` and `artifacts:edit` join the
   catalog, and an **Artifacts** page, a dashboard card and a retention class
@@ -39,6 +39,21 @@ Two things are versioned separately from this file and worth knowing about:
   popups, each address loadable a few times a minute - and `ARTIFACT_ORIGIN`
   can move it to a domain of its own.
   ([#70](https://github.com/vstorm-co/agenticos/issues/70))
+
+## [0.0.493] - 2026-09-25
+
+### Fixed
+
+- **A notification opened its destination by reloading the whole console.**
+  `notifications.context_url` held `FRONTEND_URL` plus a path, and the bell and
+  the dashboard card rendered it as a plain anchor - so clicking a row fetched a
+  whole new document to reach a page the reader was usually already standing
+  inside, throwing away everything the query cache held and racing the
+  mark-read write against the unload. The column holds the path alone now and
+  both surfaces navigate it as a sub-route, with the origin put back on for the
+  one reader that has none: the email. Rows written before this keep their
+  absolute destination, keep working, and age out with the retention sweep -
+  no migration rewrites them.
 
 ## [0.0.492] - 2026-09-22
 
