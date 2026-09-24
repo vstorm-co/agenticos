@@ -28,8 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   decided or expires. Nodes report cost into the run, and a run whose version
   carries a budget cap ends once it is spent - though publishing does not set a
   version's cap yet, so no run has one today. A run can carry a deadline, is
-  rate-limited on start, and re-checks the person it acts as at every node. Runs, their events and cancel have routes of their
-  own; see [the HTTP API](docs/api.md#running-a-workflow) and
+  rate-limited on start, and re-checks the person it acts as at every node.
+  Runs, their events and cancel have routes of their own; see
+  [the HTTP API](docs/api.md#running-a-workflow) and
   [Permissions](docs/permissions.md#workflow-runs). Migration
   `0095_workflow_runs.py`. (#1788)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ac26df2df437"
+source_sha: "9e0e413f2bb1"
 ---
 
 # Arquitectura { #architecture }
@@ -370,9 +370,11 @@ siguiente nodo, así que un resultado nunca es duradero sin su siguiente paso.
 Mientras el handler se ejecuta, el worker renueva su lease en transacciones
 propias, y una renovación que ya no encuentra el claim se lo comunica al handler.
 
-Cada escritura tras el claim queda protegida por el token del claim y por que la
-fila siga reclamada, bajo un bloqueo que el dispatcher y el reconciler toman en
-el mismo orden - run, run de nodo, outbox. Un intento interrumpido nunca se da
+Cada cambio de estado tras el claim queda protegido por el token del claim y por
+que la fila siga reclamada, bajo un bloqueo que el dispatcher y el reconciler
+toman en el mismo orden - run, run de nodo, outbox. El coste es la única
+escritura que no lo está: lo que gastó una llamada se contabiliza aunque su
+resultado llegue demasiado tarde para aceptarse. Un intento interrumpido nunca se da
 por logrado ni por fallido: pasa a `uncertain`, y solo un nodo declarado
 idempotente se reintenta automáticamente.
 

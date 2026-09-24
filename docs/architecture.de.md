@@ -1,5 +1,5 @@
 ---
-source_sha: "ac26df2df437"
+source_sha: "9e0e413f2bb1"
 ---
 
 # Architektur { #architecture }
@@ -375,9 +375,11 @@ ist. Solange der Handler läuft, erneuert der Worker seinen Lease in eigenen
 Transaktionen, und eine Erneuerung, die den Claim nicht mehr vorfindet, teilt
 das dem Handler mit.
 
-Jeder Schreibvorgang nach dem Claim ist an das Token des Claims gebunden und
+Jeder Statuswechsel nach dem Claim ist an das Token des Claims gebunden und
 daran, dass die Zeile noch beansprucht ist, unter einer Sperre, die Dispatcher
-und Reconciler in derselben Reihenfolge nehmen - Run, Knoten-Run, Outbox. Ein
+und Reconciler in derselben Reihenfolge nehmen - Run, Knoten-Run, Outbox. Die
+eine Ausnahme sind die Kosten: Was ein Aufruf ausgegeben hat, wird auch dann
+verbucht, wenn sein Ergebnis zu spät kommt, um angenommen zu werden. Ein
 unterbrochener Versuch gilt nie als gelungen oder gescheitert: Er wird
 `uncertain`, und nur ein als idempotent deklarierter Knoten wird automatisch
 erneut versucht.

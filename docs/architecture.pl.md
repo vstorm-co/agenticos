@@ -1,5 +1,5 @@
 ---
-source_sha: "ac26df2df437"
+source_sha: "9e0e413f2bb1"
 ---
 
 # Architektura { #architecture }
@@ -362,9 +362,11 @@ wiersz outboxa następnego węzła razem, więc wynik nigdy nie jest trwały bez
 kolejnego kroku. Dopóki handler działa, worker odnawia lease we własnych
 transakcjach, a odnowienie, które nie znajduje już claimu, informuje o tym handler.
 
-Każdy zapis po claimie jest chroniony tokenem claimu i tym, że wiersz nadal jest
-przejęty, pod blokadą braną w jednej kolejności - run, run węzła, outbox - przez
-dispatcher i reconciler tak samo. Przerwana próba nigdy nie jest uznawana za
+Każda zmiana statusu po claimie jest chroniona tokenem claimu i tym, że wiersz
+nadal jest przejęty, pod blokadą braną w jednej kolejności - run, run węzła,
+outbox - przez dispatcher i reconciler tak samo. Jedynym zapisem, który nie jest
+chroniony, jest koszt: to, co wywołanie wydało, jest księgowane nawet wtedy, gdy
+jego wynik przychodzi za późno, by zostać przyjęty. Przerwana próba nigdy nie jest uznawana za
 udaną ani nieudaną: staje się `uncertain`, a automatycznie ponawiany jest tylko
 węzeł zadeklarowany jako idempotentny.
 

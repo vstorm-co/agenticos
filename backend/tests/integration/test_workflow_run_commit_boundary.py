@@ -151,7 +151,8 @@ async def _fresh(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 async def test_claim_commits_before_any_attempt_exists(engine: AsyncEngine, db: AsyncSession):
     """Phase 1 alone: the outbox row reads `claimed` on a second connection,
     and no `NodeAttempt` exists yet - the exact shape a crash between phase 1
-    and phase 2 leaves for `workflow-reconcile`'s `list_stale_claims`."""
+    and phase 2 leaves for `workflow-reconcile`'s
+    `take_stale_claims_for_resubmission`."""
     run, node_run = await _seeded_run(db)
 
     factory = await _fresh(engine)

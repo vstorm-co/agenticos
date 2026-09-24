@@ -422,11 +422,20 @@ async def begin_attempt(
     false, and no attempt is created on the strength of a claim that is no
     longer this worker's.
 
-    Returns `None` when dispatch is refused *before* any attempt is created -
-    the claim was lost to a reclaim, the run is already terminal or
-    cancelled (a race with `cancel`), past its deadline, or over budget. Each
-    of those short-circuits does its own bookkeeping (closing the outbox
-    row, transitioning the run) and leaves nothing for `settle` to do.
+    Returns `None` when no attempt is created:
+
+    - the claim was lost to a reclaim, or its row was closed under this
+      worker - nothing is touched, the row is not this worker's;
+    - the run is terminal, or the node already settled or was cancelled -
+      this claim is closed, and the run is marked succeeded if that leaves it
+      finished;
+    - the run is past its deadline or over budget, or the call can never be
+      made (`WorkflowDispatchRefusedError`, a revoked principal) - the run
+      ends with that error;
+    - an earlier attempt is still `in_flight` - it is resolved as an orphan
+      (`resolve_orphaned_attempt`).
+
+    None of these leaves anything for `settle` to do.
     """
     run = await workflow_run_repo.get_run_by_id_for_update(db, workflow_run_id)
     node_run = await workflow_run_repo.get_node_run_by_id_for_update(db, node_run_id)
@@ -528,8 +537,9 @@ async def begin_attempt(
     except WorkflowDispatchRefusedError as exc:
         # Deterministic: every future attempt would fail the same way, before
         # any `NodeAttempt` exists to record it. Left to propagate, the claim
-        # would roll back with the transaction and `list_stale_claims` would
-        # resubmit the same row on every reconcile tick, for ever.
+        # would roll back with the transaction and
+        # `take_stale_claims_for_resubmission` would resubmit the same row on
+        # every reconcile tick, for ever.
         logger.warning(
             "workflow_dispatch_refused",
             extra={"node_run_id": str(node_run.id), "code": exc.code},

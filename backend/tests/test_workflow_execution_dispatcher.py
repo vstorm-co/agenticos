@@ -686,7 +686,7 @@ class TestBeginAttemptShortCircuits:
         attempt - `validate_graph`'s rule 9 only confirms the target field
         exists, never that a `FileRef`/`TableIORef` source can satisfy its
         type. Left uncaught, this would raise here, *before* any
-        `NodeAttempt` exists to record it, so `list_stale_claims` would keep
+        `NodeAttempt` exists to record it, so `take_stale_claims_for_resubmission` would keep
         finding the same lease-expired, attempt-less row and resubmitting it
         forever - and `POST /workflow-runs` is unmetered. It must fail the
         run outright instead of propagating.

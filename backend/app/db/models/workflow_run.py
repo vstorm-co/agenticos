@@ -411,7 +411,8 @@ class NodeAttempt(Base, TimestampMixin):
             name="ck_node_attempt_status",
         ),
         CheckConstraint("cost >= 0", name="ck_node_attempt_cost"),
-        # The reconciler's orphan scan and `list_stale_claims` both ask "is
+        # The reconciler's orphan scan and `take_stale_claims_for_resubmission`
+        # both ask "is
         # anything in flight for this node run" on every tick.
         Index(
             "ix_node_attempt_in_flight",
@@ -456,7 +457,8 @@ class DispatchOutbox(Base, TimestampMixin):
     available_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
     # A fencing token minted fresh per claim - not a Prefect flow-run identity
     # - so a hung flow and a reclaiming poller's flow can never both believe
-    # they own the row: every write after a claim re-checks `claimed_by`.
+    # they own the row: every status transition after a claim re-checks
+    # `claimed_by` (booking a reported cost deliberately does not).
     claimed_by: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(
         SADateTime(timezone=True), nullable=True

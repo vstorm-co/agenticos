@@ -344,9 +344,11 @@ node's outbox row together, so a result is never durable without its next
 step. While the handler runs, the worker renews its lease in transactions of
 its own, and a renewal that finds the claim gone tells the handler.
 
-Every write after the claim is fenced on the claim's token and the row still
-being claimed, under a lock taken in one order - run, node run, outbox - by the
-dispatcher and the reconciler alike. An interrupted attempt is never assumed to
+Every status transition after the claim is fenced on the claim's token and the
+row still being claimed, under a lock taken in one order - run, node run,
+outbox - by the dispatcher and the reconciler alike. Cost is the one write that
+is not: what a call spent is booked even when its result arrives too late to
+be accepted. An interrupted attempt is never assumed to
 have succeeded or failed: it becomes `uncertain`, and only a node declared
 idempotent is tried again automatically.
 

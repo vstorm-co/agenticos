@@ -368,15 +368,11 @@ class WorkflowExecutionService:
             raise WorkflowNotRunnableError(workflow_id=workflow.id) from exc
         # Unlike a published version, a draft is never required to have
         # passed `validate_graph` - autosave writes it after every edit, not
-        # only valid ones. Dispatching a structurally invalid graph (an
-        # unregistered node, a cycle, an unbound required input) would not
-        # fail cleanly: `begin_attempt` would raise from inside a Prefect
-        # flow with nothing catching it, and `workflow-reconcile` would keep
-        # re-triggering the same crash forever. Run the same publish-time
-        # check here instead, so an invalid draft is refused - with the same
-        # field-scoped `GraphValidationError` `publish` itself raises, left
-        # to propagate rather than collapsed into a vaguer refusal - before a
-        # run row, and an unkillable dispatch loop, ever exists.
+        # only valid ones. Run the same publish-time check here, so an invalid
+        # draft is refused at the start with the same field-scoped
+        # `GraphValidationError` `publish` itself raises - naming what the
+        # author has to fix - instead of a run being admitted only to fail at
+        # its first dispatch.
         graph = await validate_graph(self.db, ctx, graph)
         return graph, None, graph.model_dump(mode="json"), None
 
