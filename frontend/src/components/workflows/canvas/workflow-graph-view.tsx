@@ -6,10 +6,12 @@ import {
   Controls,
   type OnSelectionChangeParams,
   ReactFlow,
+  useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type DragEvent } from "react";
 import { useTranslations } from "next-intl";
 
+import { readNodeDragData } from "@/components/workflows/palette";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -61,7 +63,10 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
   const connectNodes = useWorkflowEditorStore((state) => state.connectNodes);
+  const addNode = useWorkflowEditorStore((state) => state.addNode);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
+
+  const { screenToFlowPosition } = useReactFlow();
 
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
 
@@ -104,6 +109,30 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     [setSelection],
   );
 
+  // Drag-from-palette: the palette writes the whole definition onto the drag; the
+  // canvas owns the viewport, so it alone resolves the drop point to graph
+  // coordinates and calls the store's `addNode`. A drop from anywhere else carries
+  // no palette payload and is ignored.
+  const onDragOver = useCallback(
+    (event: DragEvent) => {
+      if (readOnly) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    },
+    [readOnly],
+  );
+  const onDrop = useCallback(
+    (event: DragEvent) => {
+      if (readOnly) return;
+      event.preventDefault();
+      const definition = readNodeDragData(event.dataTransfer);
+      if (!definition) return;
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      addNode(definition, position);
+    },
+    [readOnly, screenToFlowPosition, addNode],
+  );
+
   const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
 
   const interaction = useMemo(
@@ -123,6 +152,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       data-workflow-region="canvas"
       data-connecting={connectSource !== null}
       onKeyDown={onKeyDown}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className="border-border relative h-[32rem] overflow-hidden rounded-xl border"
     >
       {activeGraph.nodes.length === 0 && (

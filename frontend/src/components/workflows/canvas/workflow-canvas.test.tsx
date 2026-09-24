@@ -4,10 +4,20 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { NodeDefinition, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import { NODE_DRAG_MIME } from "@/components/workflows/palette";
+
 import { ERROR_PORT_ID } from "./graph-adapter";
 import { WorkflowCanvas } from "./workflow-canvas";
 
 const store = useWorkflowEditorStore;
+
+/** A minimal `DataTransfer` carrying (or not) a palette node payload. */
+function dragData(payload?: NodeDefinition): DataTransfer {
+  return {
+    dropEffect: "",
+    getData: (type: string) => (payload && type === NODE_DRAG_MIME ? JSON.stringify(payload) : ""),
+  } as unknown as DataTransfer;
+}
 
 function def(overrides: Partial<NodeDefinition>): NodeDefinition {
   return {
@@ -225,5 +235,39 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-workflow-region="canvas"]')).toBeTruthy();
     expect(queryByText("Act")).toBeNull();
     expect(getByText("Your workflow's steps and connections appear here.")).toBeTruthy();
+  });
+
+  it("adds a node dropped from the palette at the drop point", () => {
+    seedTwoActions();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const region = container.querySelector('[data-workflow-region="canvas"]')!;
+
+    expect(fireEvent.dragOver(region, { dataTransfer: dragData(ACTION) })).toBe(false);
+    fireEvent.drop(region, { dataTransfer: dragData(ACTION) });
+
+    expect(store.getState().graph?.nodes).toHaveLength(3);
+    expect(store.getState().graph?.nodes.at(-1)?.definition_id).toBe("act");
+  });
+
+  it("ignores a drop that carries no palette payload", () => {
+    seedTwoActions();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const region = container.querySelector('[data-workflow-region="canvas"]')!;
+
+    fireEvent.drop(region, { dataTransfer: dragData() });
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+  });
+
+  it("does not accept a drop when read-only", () => {
+    seedTwoActions();
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
+    );
+    const region = container.querySelector('[data-workflow-region="canvas"]')!;
+
+    // Read-only leaves the drag uncancelled and adds nothing.
+    expect(fireEvent.dragOver(region, { dataTransfer: dragData(ACTION) })).toBe(true);
+    fireEvent.drop(region, { dataTransfer: dragData(ACTION) });
+    expect(store.getState().graph?.nodes).toHaveLength(2);
   });
 });
