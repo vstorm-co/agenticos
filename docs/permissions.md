@@ -354,8 +354,10 @@ either right is refused with `403`.
 
 **A run acts as the person who started it, checked again at every node.** A
 node can be dispatched days after the run began, so each dispatch requires the
-account to still be active, still a member (or an active app admin) and still
-allowed `workflows:run` on the workflow. When any of that has changed, the run
+account to still be active, still a member of the organization - an app admin
+included, as on every request - and still allowed `workflows:run` on the
+workflow, and `workflows:edit` as well for a `test` run. When any of that has
+changed, the run
 fails with `PRINCIPAL_REVOKED` before the node's handler runs. A run needs a
 person to act as, so a context with no subject cannot start one.
 

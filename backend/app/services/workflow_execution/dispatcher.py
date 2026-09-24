@@ -200,10 +200,12 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
     from the organization, deactivated, or no longer allowed to run this
     workflow since it started the run must not keep acting through it.
 
-    Mirrors `app.api.deps.get_auth_context`, the request path's constructor:
-    an active membership's role, or no role for an active app admin with no
-    membership, so a handler acts with exactly the authority the same person
-    would have if they started the run again now. The permission check is the
+    Mirrors what a request by the same person would get now: every request is
+    refused an organization the caller is not an active member of
+    (`app.api.deps.get_active_organization`), app admins included, so a
+    principal removed from the organization is refused here too, and an
+    active member acts with their current role (and `is_app_admin` if they
+    hold it), as `app.api.deps.get_auth_context` builds it. The permission check is the
     admission check repeated - `workflows:run`, and `workflows:edit` as well
     for a `test` run of an unpublished draft.
 
@@ -222,12 +224,12 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
     if user is None or not user.is_active:
         raise PrincipalRevokedError()
     member = await member_repo.get_active(db, organization_id=run.organization_id, user_id=user_id)
-    if member is None and not user.is_app_admin:
+    if member is None:
         raise PrincipalRevokedError()
     auth = AuthContext(
         user_id=user_id,
         organization_id=run.organization_id,
-        role=member.role if member is not None else "",
+        role=member.role,
         is_app_admin=user.is_app_admin,
     )
     workflow = await workflow_repo.get(db, run.workflow_id, organization_id=run.organization_id)

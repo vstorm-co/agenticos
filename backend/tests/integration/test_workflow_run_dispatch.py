@@ -587,17 +587,21 @@ class TestPrincipalRecheckedAtEveryDispatch:
         run = await _run_row(seeded)
         assert run.error is not None and run.error["code"] == "PRINCIPAL_REVOKED"
 
-    async def test_an_active_app_admin_without_membership_still_dispatches(
+    async def test_an_app_admin_removed_from_the_organization_stops_the_next_node(
         self, engine: AsyncEngine, recording: str, calls: list[str]
     ):
-        seeded = await _seed(engine, _chain(recording, 1))
-        await _set_member_role(seeded, None)
-        await _set_principal(seeded, is_app_admin=True)
+        """Every request refuses an organization the caller is not a member of,
+        app admins included; the dispatcher used to let a removed app admin's
+        runs carry on with full authority."""
 
-        assert await _tick(seeded, seeded.entry.id) is not None
+        async def revoke(seeded: Seeded) -> None:
+            await _set_principal(seeded, is_app_admin=True)
+            await _set_member_role(seeded, None)
 
-        assert calls == ["|True"]
-        assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+        seeded = await self._second_dispatch_after(engine, recording, revoke)
+
+        run = await _run_row(seeded)
+        assert run.error is not None and run.error["code"] == "PRINCIPAL_REVOKED"
 
 
 class TestLeaseKeptAliveThroughTheFlow:

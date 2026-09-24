@@ -1,5 +1,5 @@
 ---
-source_sha: "dcb301ac972f"
+source_sha: "96f9c0b209a5"
 ---
 
 # Permisos { #permissions }
@@ -382,8 +382,10 @@ compañero; ver el run sin ninguno de los dos derechos se rechaza con `403`.
 
 **Un run actúa en nombre de quien lo inició, y eso se comprueba de nuevo en cada
 nodo.** Un nodo puede despacharse días después de que empezara el run, así que
-cada despacho exige que la cuenta siga activa, siga siendo miembro (o un app
-admin activo) y siga teniendo `workflows:run` sobre el workflow. Si algo de eso
+cada despacho exige que la cuenta siga activa, siga siendo miembro de la
+organización - también un app admin, como en cada solicitud - y siga teniendo
+`workflows:run` sobre el workflow, y además `workflows:edit` en un run `test`.
+Si algo de eso
 ha cambiado, el run falla con `PRINCIPAL_REVOKED` antes de que se ejecute el
 handler del nodo. Un run necesita a una persona en cuyo nombre actuar, así que
 un contexto sin sujeto no puede iniciarlo.

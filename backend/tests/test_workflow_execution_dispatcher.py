@@ -407,11 +407,18 @@ class TestPrincipalContext:
             Perm.WORKFLOWS_EDIT,
         ]
 
-    async def test_an_active_app_admin_without_membership_keeps_that_authority(self, lookups):
+    async def test_an_app_admin_who_is_a_member_keeps_that_authority(self, lookups):
+        lookups["user"].return_value = _principal(is_app_admin=True)
+        auth = await _REAL_PRINCIPAL_CONTEXT(object(), _run())
+        assert (auth.role, auth.is_app_admin) == ("member", True)
+
+    async def test_an_app_admin_removed_from_the_organization_is_refused(self, lookups):
+        """A request by the same person would be refused the organization, so
+        their queued and parked runs stop too."""
         lookups["user"].return_value = _principal(is_app_admin=True)
         lookups["member"].return_value = None
-        auth = await _REAL_PRINCIPAL_CONTEXT(object(), _run())
-        assert auth.is_app_admin is True
+        with pytest.raises(PrincipalRevokedError):
+            await _REAL_PRINCIPAL_CONTEXT(object(), _run())
 
     @pytest.mark.parametrize(
         "revoke",

@@ -1,5 +1,5 @@
 ---
-source_sha: "2dfeea340c71"
+source_sha: "ed1daca5c676"
 ---
 
 # La API HTTP { #the-http-api }
@@ -93,6 +93,7 @@ faceta** y **AND entre facetas**, con coincidencia sin distinguir
 mayúsculas/minúsculas (un valor de consulta se pliega como uno almacenado, y un
 valor en blanco se ignora). El filtro solo estrecha lo que ya podías ver — nunca
 cruza una frontera de tenant ni de grant.
+
 ## Ejecutar un workflow { #running-a-workflow }
 
 ```bash
@@ -106,8 +107,10 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 Esto inicia un run de la versión publicada del workflow y responde `201` de
 inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
 su lugar el borrador actual y exige `workflows:edit`. `deadline_seconds` (hasta
-treinta días) hace fallar el run con `DEADLINE_EXCEEDED` si al cumplirse algún
-nodo sigue esperando a ser despachado. La ruta tiene un límite por llamante como
+treinta días) fija un plazo que se comprueba cada vez que un nodo va a
+despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con
+`DEADLINE_EXCEEDED`, mientras que un nodo ya en ejecución, o un run que espera
+una aprobación, no se interrumpe por ello. La ruta tiene un límite por llamante como
 la de runs de agents, y responde `429` con `Retry-After` al superarlo.
 
 `GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost` y

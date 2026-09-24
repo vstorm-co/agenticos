@@ -84,6 +84,7 @@ query parameters: values **OR within a facet** and **AND across facets**, matche
 case-insensitively (a query value folds the way a stored one does, and a blank
 value is ignored). The filter only narrows what you could already see — it never
 crosses a tenant or a grant boundary.
+
 ## Running a workflow
 
 ```bash
@@ -96,9 +97,10 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 
 This starts a run of the workflow's published version and answers `201` at
 once; the nodes run in the background. `"mode": "test"` runs the current draft
-instead and needs `workflows:edit`. `deadline_seconds` (up to thirty days) fails
-the run with `DEADLINE_EXCEEDED` if a node is still waiting to be dispatched
-when it passes. The route is rate-limited per caller like the agent run route,
+instead and needs `workflows:edit`. `deadline_seconds` (up to thirty days) sets
+a deadline that is checked each time a node is about to be dispatched: the
+first node due after it passes fails the run with `DEADLINE_EXCEEDED`, while a
+node already running, or a run parked on an approval, is not interrupted by it. The route is rate-limited per caller like the agent run route,
 answering `429` with `Retry-After` past the allowance.
 
 `GET /api/v1/workflow-runs/{id}` returns the run's status, `spent_cost` and

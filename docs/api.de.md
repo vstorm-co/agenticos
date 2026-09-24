@@ -1,5 +1,5 @@
 ---
-source_sha: "2dfeea340c71"
+source_sha: "ed1daca5c676"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -97,6 +97,7 @@ Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschr
 (ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
 ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
 überschreitet nie eine Tenant- oder Grant-Grenze.
+
 ## Einen Workflow ausführen { #running-a-workflow }
 
 ```bash
@@ -110,8 +111,11 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 Das startet einen Run der veröffentlichten Version des Workflows und antwortet
 sofort mit `201`; die Knoten laufen im Hintergrund. `"mode": "test"` führt
 stattdessen den aktuellen Entwurf aus und verlangt `workflows:edit`.
-`deadline_seconds` (bis zu dreißig Tage) lässt den Run mit `DEADLINE_EXCEEDED`
-fehlschlagen, wenn nach Ablauf noch ein Knoten auf seine Ausführung wartet. Die
+`deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
+geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
+Knoten lässt den Run mit `DEADLINE_EXCEEDED` fehlschlagen, während ein bereits
+laufender Knoten oder ein Run, der auf eine Freigabe wartet, davon nicht
+unterbrochen wird. Die
 Route ist wie die Agent-Run-Route je Aufrufer begrenzt und antwortet jenseits des
 Kontingents mit `429` und `Retry-After`.
 

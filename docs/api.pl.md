@@ -1,5 +1,5 @@
 ---
-source_sha: "2dfeea340c71"
+source_sha: "ed1daca5c676"
 ---
 
 # API HTTP { #the-http-api }
@@ -91,6 +91,7 @@ grantem edycji na jednym agencie może go otagować.
 między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
 zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
 to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
+
 ## Uruchamianie workflowu { #running-a-workflow }
 
 ```bash
@@ -103,9 +104,10 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 
 To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
 węzły działają w tle. `"mode": "test"` uruchamia zamiast tego bieżący draft i
-wymaga `workflows:edit`. `deadline_seconds` (do trzydziestu dni) kończy run
-błędem `DEADLINE_EXCEEDED`, jeśli po jego upływie jakiś węzeł nadal czeka na
-wysłanie. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
+wymaga `workflows:edit`. `deadline_seconds` (do trzydziestu dni) ustawia termin
+sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
+po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
+albo run czekający na zatwierdzenie nie są przez niego przerywane. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
 po przekroczeniu limitu odpowiada `429` z `Retry-After`.
 
 `GET /api/v1/workflow-runs/{id}` zwraca status runa, `spent_cost` i `error`, a

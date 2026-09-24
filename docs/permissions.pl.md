@@ -1,5 +1,5 @@
 ---
-source_sha: "dcb301ac972f"
+source_sha: "96f9c0b209a5"
 ---
 
 # Uprawnienia { #permissions }
@@ -371,8 +371,9 @@ widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
 
 **Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
 każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde
-wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem (albo
-aktywnym app adminem) i nadal miało `workflows:run` na workflowie. Gdy
+wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem organizacji -
+także app admin, tak jak przy każdym żądaniu - i nadal miało `workflows:run` na
+workflowie, a przy runie `test` także `workflows:edit`. Gdy
 cokolwiek z tego się zmieniło, run kończy się błędem `PRINCIPAL_REVOKED`, zanim
 handler węzła się uruchomi. Run potrzebuje osoby, w której imieniu działa, więc
 kontekst bez podmiotu nie może go uruchomić.
