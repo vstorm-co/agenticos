@@ -247,9 +247,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         onOpenChange={(open) => !open && setOpenRecord(null)}
         canEdit={canEdit}
         // Advances the open record only. A commit that lands after the sheet
-        // closed must not reopen it, nor swap in a different record.
+        // closed must not reopen it, nor swap in a different record - nor
+        // step it back: a reload read before a write landed answers after it.
         onRecordUpdated={(updated) =>
-          setOpenRecord((current) => (current?.id === updated.id ? updated : current))
+          setOpenRecord((current) =>
+            current?.id === updated.id && updated.revision >= current.revision ? updated : current,
+          )
         }
       />
 

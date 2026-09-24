@@ -64,16 +64,16 @@ describe("useTableViews", () => {
     expect(result.current.views).toHaveLength(2);
   });
 
-  it("narrows to one kind client-side", async () => {
+  it("asks the server for one kind's views, so a page of other kinds cannot crowd them out", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
-      items: [
-        { id: "v1", kind: "table", name: "Grid" },
-        { id: "v2", kind: "kanban", name: "Board" },
-      ],
-      total: 2,
+      items: [{ id: "v2", kind: "kanban", name: "Board" }],
+      total: 1,
     });
     const { result } = renderHook(() => useTableViews("t1", "kanban"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", {
+      params: { limit: "100", kind: "kanban" },
+    });
     expect(result.current.views).toEqual([{ id: "v2", kind: "kanban", name: "Board" }]);
   });
 

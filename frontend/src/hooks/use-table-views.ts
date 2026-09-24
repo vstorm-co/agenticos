@@ -16,8 +16,8 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.tables.views(tableId ?? ""),
-    queryFn: () => listViews(tableId as string),
+    queryKey: qk.tables.viewsOfKind(tableId ?? "", kind ?? null),
+    queryFn: () => listViews(tableId as string, kind),
     enabled: !!tableId,
   });
 
@@ -55,9 +55,8 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  const items = data?.items ?? [];
   return {
-    views: kind ? items.filter((view) => view.kind === kind) : items,
+    views: data?.items ?? [],
     isLoading,
     error,
     refetch,

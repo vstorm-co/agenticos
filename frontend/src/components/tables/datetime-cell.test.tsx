@@ -54,6 +54,18 @@ describe("DatetimeCell", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
+  it("writes nothing when blurred without a change", () => {
+    // Closing the record sheet blurs whatever field has focus; an untouched
+    // datetime used to write its stored value back on that blur.
+    const onChange = vi.fn();
+    render(<DatetimeCell id="placed" value="2026-09-23T10:30:00.000Z" onChange={onChange} />);
+    const input = document.getElementById("placed") as HTMLInputElement;
+
+    fireEvent.blur(input);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("is disabled when asked", () => {
     render(<DatetimeCell id="placed" value={null} onChange={vi.fn()} disabled />);
     expect(document.getElementById("placed")).toBeDisabled();

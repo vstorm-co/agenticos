@@ -5509,7 +5509,8 @@
       "title": "Record",
       "conflict": "Someone else changed this field.",
       "reloadAndReapply": "Reload and reapply",
-      "discard": "Discard"
+      "discard": "Discard",
+      "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it."
     },
     "kanban": {
       "moveTo": "Move to",

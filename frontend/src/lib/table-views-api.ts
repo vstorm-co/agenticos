@@ -6,19 +6,21 @@ import type {
   TableViewList,
   TableViewRead,
   TableViewUpdate,
+  ViewKind,
 } from "@/types/tables";
 
 /**
- * The views the console's picker offers: the largest page the server answers,
- * the caller's own first. A table with more than that many views the caller can
- * see offers the first 100.
+ * The views the console's picker offers for one kind: the largest page the
+ * server answers, the caller's own first, narrowed by the server rather than
+ * after the fact - a page shared by every kind could leave a tab's own views
+ * off it. More than that many of one kind offers the first 100.
  */
 const VIEW_PAGE_LIMIT = 100;
 
-export function listViews(tableId: string): Promise<TableViewList> {
-  return apiClient.get<TableViewList>(`/tables/${tableId}/views`, {
-    params: { limit: String(VIEW_PAGE_LIMIT) },
-  });
+export function listViews(tableId: string, kind?: ViewKind): Promise<TableViewList> {
+  const params: Record<string, string> = { limit: String(VIEW_PAGE_LIMIT) };
+  if (kind) params.kind = kind;
+  return apiClient.get<TableViewList>(`/tables/${tableId}/views`, { params });
 }
 
 export function createView(tableId: string, data: TableViewCreate): Promise<TableViewRead> {

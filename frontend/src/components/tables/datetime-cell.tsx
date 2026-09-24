@@ -63,7 +63,12 @@ export function DatetimeCell({
       value={local}
       disabled={disabled}
       onChange={(event) => setLocal(event.target.value)}
-      onBlur={() => onChange(toUtcIso(local))}
+      // A blur with nothing changed is not an edit: the close that blurs every
+      // focused field would otherwise write the stored value back, and can be
+      // refused for a revision it had no reason to send.
+      onBlur={() => {
+        if (local !== toLocalInputValue(value)) onChange(toUtcIso(local));
+      }}
       {...invalid}
     />
   );

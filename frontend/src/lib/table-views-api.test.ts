@@ -23,6 +23,14 @@ describe("listViews", () => {
     await listViews("t1");
     expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", { params: { limit: "100" } });
   });
+
+  it("narrows to one kind on the server when given", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    await listViews("t1", "list");
+    expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/views", {
+      params: { limit: "100", kind: "list" },
+    });
+  });
 });
 
 it("createView posts to the views collection", async () => {

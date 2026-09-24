@@ -24,6 +24,7 @@ function view(overrides: Partial<TableViewRead> = {}): TableViewRead {
     visibility: "private",
     config,
     can_manage: true,
+    can_delete: true,
     created_at: "2026-09-23T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -172,6 +173,28 @@ describe("ViewSelect", () => {
       expect(within(dialog).getByLabelText("View name")).not.toHaveAttribute("aria-invalid");
     });
 
+    it("leaves a reopened dialog alone when a save from before it closed settles", async () => {
+      // Cancelled mid-save and opened again, the dialog used to close itself
+      // - or show the old save's error - when that earlier write answered.
+      const write = deferred();
+      const user = userEvent.setup();
+      renderSelect({ onCreate: vi.fn().mockReturnValueOnce(write.promise) });
+
+      let dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Old" } });
+      await user.click(within(dialog).getByRole("button", { name: /^save$/i }));
+      await user.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+      dialog = await openCreate(user);
+      fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "New" } });
+
+      write.reject(taken());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(within(dialog).queryByText(/already exists/i)).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: /^save$/i })).toBeEnabled();
+    });
+
     it("disables save while the name is blank", async () => {
       const user = userEvent.setup();
       renderSelect();
@@ -194,9 +217,17 @@ describe("ViewSelect", () => {
   });
 
   it("shows no manage controls for a view the caller cannot manage", () => {
-    renderSelect({ views: [view({ can_manage: false })], activeViewId: "v1" });
+    renderSelect({ views: [view({ can_manage: false, can_delete: false })], activeViewId: "v1" });
     expect(screen.queryByRole("button", { name: /^rename$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
+  });
+
+  it("offers an owner who lost edit access a delete but no rename", () => {
+    // Renaming needs edit access to the table and deleting does not; the one
+    // flag both used to read said yes to a rename the server then refused.
+    renderSelect({ views: [view({ can_manage: false, can_delete: true })], activeViewId: "v1" });
+    expect(screen.queryByRole("button", { name: /^rename$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^delete$/i })).toBeInTheDocument();
   });
 
   it("shows no manage controls when no view is active", () => {

@@ -118,10 +118,11 @@ export function useTable(tableId: string | null) {
   const changeSchema = useMutation({
     mutationFn: (data: SchemaUpdate) => updateSchema(tableId as string, data),
     onSuccess: async () => {
-      await invalidate();
-      // Everything under the table: its records and saved views are read
-      // through the new columns, and it has a new schema version.
+      // Everything under the table, not only the table itself: its records and
+      // saved views are read through the new columns, and it has a new schema
+      // version. Plus the catalog pages listing it.
       await queryClient.invalidateQueries({ queryKey: qk.tables.detail(tableId ?? "") });
+      await queryClient.invalidateQueries({ queryKey: qk.tables.lists() });
       toast.success(t("schemaSaved"));
     },
   });

@@ -208,6 +208,7 @@ function views(overrides: Partial<TableViewList> = {}): TableViewList {
         visibility: "private",
         config: { ...emptyConfig, group_by: "c2" },
         can_manage: true,
+        can_delete: true,
         created_at: "2026-08-01T00:00:00Z",
         updated_at: null,
       },
@@ -220,6 +221,7 @@ function views(overrides: Partial<TableViewList> = {}): TableViewList {
         visibility: "private",
         config: { ...emptyConfig, sort: { by: "c1", direction: "desc" } },
         can_manage: true,
+        can_delete: true,
         created_at: "2026-08-01T00:00:00Z",
         updated_at: null,
       },
@@ -482,6 +484,24 @@ describe("the table detail page", () => {
     act(() => sheetProps?.onRecordUpdated({ ...RECORD, revision: 2 }));
 
     expect(screen.queryByRole("dialog", { name: "record-sheet" })).not.toBeInTheDocument();
+  });
+
+  it("does not step the open record back to an older revision answered late", async () => {
+    // A reload read before a write landed can answer after it; taking its
+    // older record put the value just written back to the one before.
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: "open-record-from-grid" }));
+
+    act(() => sheetProps?.onRecordUpdated({ ...RECORD, revision: 3 }));
+    act(() => sheetProps?.onRecordUpdated({ ...RECORD, revision: 2 }));
+
+    expect(screen.getByRole("dialog", { name: "record-sheet" })).toHaveAttribute(
+      "data-revision",
+      "3",
+    );
   });
 
   it("does not swap the open record for a different one's late update", async () => {

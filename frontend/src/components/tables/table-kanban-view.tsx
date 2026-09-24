@@ -169,11 +169,9 @@ function KanbanLane({
     limit: LANE_PAGE_SIZE,
   });
   const t = useTranslations("tables.kanban");
-  // The store holds one conflict per record, shared with the record detail
-  // sheet - a stale write on some other field of this same record sets a
-  // conflict here too. Only a conflict about *this* grouping column is ours
-  // to show or reload; anything else belongs to the sheet, which reads
-  // `conflict.fieldId` itself for the same reason.
+  // The store keys conflicts by record and field, shared with the record
+  // detail sheet. Only a conflict on *this* grouping column is the board's to
+  // show or reload; one on any other field belongs to the sheet.
   const conflicts = useTableViewStore((state) => state.conflicts);
   const isGroupingConflict = (recordId: string) => conflicts[recordId]?.[groupBy] !== undefined;
 

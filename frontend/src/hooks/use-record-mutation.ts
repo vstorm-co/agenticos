@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api-client";
@@ -20,9 +20,30 @@ export function isRecordGone(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+/** Per record: the tail of its write chain, and the newest revision a write has been answered with. */
+interface WriteChains {
+  tails: Map<string, Promise<void>>;
+  revisions: Map<string, number>;
+}
+
+// Keyed by the query client rather than held by each hook, so the record sheet
+// and the kanban board - two `useRecordMutation` callers on one page - queue on
+// the same chain for the same record. Record ids are unique across tenants, so a
+// chain never answers for another organization's record.
+const chainsByClient = new WeakMap<QueryClient, WriteChains>();
+
+function chainsFor(client: QueryClient): WriteChains {
+  let chains = chainsByClient.get(client);
+  if (!chains) {
+    chains = { tails: new Map(), revisions: new Map() };
+    chainsByClient.set(client, chains);
+  }
+  return chains;
+}
+
 /**
- * The one create/update/delete mutation every cell editor, the record-detail
- * sheet and the kanban drag use, so conflict handling lives in one place.
+ * The record writes the record-detail sheet and the kanban board make, so
+ * conflict handling lives in one place.
  *
  * A stale revision (409) is never toasted here: the caller - a cell, a sheet
  * field, a dragged card - shows it inline with the local edit still visible and
@@ -30,8 +51,9 @@ export function isRecordGone(error: unknown): boolean {
  * must not lose what the user typed or dragged. Every other failure toasts,
  * the same as any other mutation in this codebase.
  *
- * `commit` is how a surface writes a record's values; `update` stays for its
- * pending state. `fetchRecord` reads one record fresh, for "reload and reapply".
+ * `commit` is how a surface writes a record's values. `create` and `remove` are
+ * the create and delete mutations no console control calls yet. `fetchRecord`
+ * reads one record fresh, for "reload and reapply".
  */
 export function useRecordMutation(tableId: string) {
   const tErrors = useTranslations("errors");
@@ -69,10 +91,6 @@ export function useRecordMutation(tableId: string) {
     },
   });
 
-  // Per record: the tail of its write chain, and the newest revision a write
-  // of ours has been answered with.
-  const tails = useRef(new Map<string, Promise<void>>());
-  const revisions = useRef(new Map<string, number>());
   const { mutateAsync } = update;
 
   /**
@@ -90,16 +108,17 @@ export function useRecordMutation(tableId: string) {
    */
   const commit = useCallback(
     (record: Pick<RecordRead, "id" | "revision">, values: RecordUpdate["values"]) => {
-      const previous = tails.current.get(record.id) ?? Promise.resolve();
+      const { tails, revisions } = chainsFor(queryClient);
+      const previous = tails.get(record.id) ?? Promise.resolve();
       const result = previous.then(async () => {
         // Revisions only grow, so the larger of the caller's and our own last
         // answer is the newest either has seen.
-        const known = revisions.current.get(record.id) ?? record.revision;
+        const known = revisions.get(record.id) ?? record.revision;
         const updated = await mutateAsync({
           recordId: record.id,
           data: { expected_revision: Math.max(known, record.revision), values },
         });
-        revisions.current.set(record.id, updated.revision);
+        revisions.set(record.id, updated.revision);
         return updated;
       });
       // A refused write must not wedge every later write to the same record.
@@ -107,13 +126,13 @@ export function useRecordMutation(tableId: string) {
         () => undefined,
         () => undefined,
       );
-      tails.current.set(record.id, tail);
+      tails.set(record.id, tail);
       void tail.then(() => {
-        if (tails.current.get(record.id) === tail) tails.current.delete(record.id);
+        if (tails.get(record.id) === tail) tails.delete(record.id);
       });
       return result;
     },
-    [mutateAsync],
+    [mutateAsync, queryClient],
   );
 
   /** One record as the server holds it now, through the query cache rather than around it. */

@@ -1911,7 +1911,7 @@
       },
       "tables-catalog": {
         "title": "Twoje tabele",
-        "body": "Każda tabela, którą możesz otworzyć: Twoje własne i te udostępnione Tobie. Każda przechowuje typowane rekordy, które czytają i zapisują ludzie, agenty i integracje."
+        "body": "Każda tabela, którą możesz otworzyć: Twoje własne i te udostępnione Tobie. Każda przechowuje typowane rekordy, które czytają i zapisują ludzie, agenci i integracje."
       },
       "tables-new": {
         "title": "Uporządkowane rekordy",
@@ -1923,7 +1923,7 @@
       },
       "table-view-tabs": {
         "title": "Trzy sposoby patrzenia",
-        "body": "Te same rekordy jako tabela, jako tablica kanban pogrupowana według kolumny jednokrotnego wyboru albo jako lista. Zapisz widok, żeby zachować jego filtry, sortowanie i grupowanie."
+        "body": "Te same rekordy jako tabela, jako tablica kanban pogrupowana według kolumny typu Wybór pojedynczy albo jako lista. Zapisz widok, żeby zachować jego filtry, sortowanie i grupowanie."
       },
       "flow-table-create": {
         "title": "Utwórz tabelę",
@@ -3154,7 +3154,8 @@
       "title": "Rekord",
       "conflict": "Ktoś inny zmienił to pole.",
       "reloadAndReapply": "Odśwież i zastosuj ponownie",
-      "discard": "Odrzuć"
+      "discard": "Odrzuć",
+      "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić."
     },
     "kanban": {
       "moveTo": "Przenieś do",

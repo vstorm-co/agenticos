@@ -212,6 +212,34 @@ describe("useRecordMutation().commit", () => {
     });
   });
 
+  it("queues writes to one record from two callers - the sheet and the board - on one chain", async () => {
+    // Each caller used to hold its own queue, so a move on the board and an
+    // edit in the sheet both sent the revision they had seen, and one was
+    // refused against the user's own other write.
+    const first = deferred<RecordRead>();
+    vi.mocked(apiClient.patch)
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(recordAt(3));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const withClient = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const sheet = renderHook(() => useRecordMutation("t1"), { wrapper: withClient });
+    const board = renderHook(() => useRecordMutation("t1"), { wrapper: withClient });
+
+    const fromSheet = sheet.result.current.commit(recordAt(1), { c1: "a" });
+    const fromBoard = board.result.current.commit(recordAt(1), { status: "o2" });
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+    first.resolve(recordAt(2));
+
+    await expect(fromSheet).resolves.toEqual(recordAt(2));
+    await expect(fromBoard).resolves.toEqual(recordAt(3));
+    expect(vi.mocked(apiClient.patch).mock.calls[1]?.[1]).toEqual({
+      expected_revision: 2,
+      values: { status: "o2" },
+    });
+  });
+
   it("takes a caller's newer revision over the one its own last write returned", async () => {
     vi.mocked(apiClient.patch)
       .mockResolvedValueOnce(recordAt(2))

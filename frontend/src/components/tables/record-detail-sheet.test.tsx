@@ -474,6 +474,124 @@ describe("RecordDetailSheet", () => {
       expect(onOpenChange).not.toHaveBeenCalled();
     });
 
+    it("says so when a field committed by closing is refused after the sheet is gone", async () => {
+      // The edit is kept for the record's next opening, but with the sheet
+      // closed there was no banner to show it - the refusal said nothing.
+      const pending = deferred<RecordRead>();
+      vi.mocked(apiClient.patch).mockReturnValueOnce(pending.promise);
+      const onOpenChange = vi.fn();
+      const { rerender } = renderSheet({ onOpenChange });
+      const input = screen.getByRole("textbox");
+      input.focus();
+      fireEvent.change(input, { target: { value: "typed" } });
+      fireEvent.keyDown(document, { key: "Escape" });
+      rerender(sheet({ onOpenChange, open: false }));
+
+      pending.reject(conflict409());
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it.",
+        ),
+      );
+      expect(useTableViewStore.getState().conflicts.r1?.c1?.pendingValues).toEqual({ c1: "typed" });
+    });
+
+    it("does not toast a refusal the open sheet shows as a banner", async () => {
+      renderSheet();
+      await raiseConflict();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("gives focus back to what opened it once it closes", () => {
+      const opener = document.createElement("button");
+      document.body.appendChild(opener);
+      opener.focus();
+      const { rerender } = renderSheet();
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+
+      rerender(sheet({ open: false }));
+
+      expect(opener).toHaveFocus();
+      opener.remove();
+    });
+
+    describe("keeps Tab inside the sheet", () => {
+      function tab(shiftKey = false) {
+        const event = new KeyboardEvent("keydown", {
+          key: "Tab",
+          shiftKey,
+          bubbles: true,
+          cancelable: true,
+        });
+        document.dispatchEvent(event);
+        return event;
+      }
+
+      it("wraps from the last control to the first, and back", () => {
+        renderSheet();
+        const close = screen.getByRole("button", { name: "Close" });
+        const input = screen.getByRole("textbox");
+
+        input.focus();
+        expect(tab().defaultPrevented).toBe(true);
+        expect(close).toHaveFocus();
+
+        expect(tab(true).defaultPrevented).toBe(true);
+        expect(input).toHaveFocus();
+      });
+
+      it("skips a disabled field, so a read-only sheet cycles on its close button", () => {
+        renderSheet({ canEdit: false });
+        const close = screen.getByRole("button", { name: "Close" });
+        close.focus();
+        expect(tab().defaultPrevented).toBe(true);
+        expect(close).toHaveFocus();
+      });
+
+      it("leaves Tab between two controls inside it to the browser", () => {
+        renderSheet();
+        screen.getByRole("button", { name: "Close" }).focus();
+        expect(tab().defaultPrevented).toBe(false);
+        screen.getByRole("textbox").focus();
+        expect(tab(true).defaultPrevented).toBe(false);
+      });
+
+      it("brings focus left behind the overlay into the sheet", () => {
+        const behind = document.createElement("button");
+        document.body.appendChild(behind);
+        renderSheet();
+        behind.focus();
+
+        expect(tab().defaultPrevented).toBe(true);
+        expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+        behind.remove();
+      });
+
+      it("leaves focus in a popover the sheet opened where it is", () => {
+        const wrapper = document.createElement("div");
+        wrapper.setAttribute("data-radix-popper-content-wrapper", "");
+        const option = document.createElement("button");
+        wrapper.appendChild(option);
+        document.body.appendChild(wrapper);
+        renderSheet();
+        option.focus();
+
+        expect(tab().defaultPrevented).toBe(false);
+        expect(option).toHaveFocus();
+        wrapper.remove();
+      });
+
+      it("leaves a Tab a control already handled alone", () => {
+        renderSheet();
+        screen.getByRole("textbox").focus();
+        const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+        event.preventDefault();
+        document.dispatchEvent(event);
+        expect(screen.getByRole("textbox")).toHaveFocus();
+      });
+    });
+
     it("ignores other keys, and Escape once closed", () => {
       const onOpenChange = vi.fn();
       renderSheet({ onOpenChange, open: false });

@@ -3134,7 +3134,7 @@
       },
       "table-view-tabs": {
         "title": "Drei Ansichten",
-        "body": "Dieselben Datensätze als Tabelle, als Kanban-Board, gruppiert nach einer Einfachauswahl-Spalte, oder als Liste. Speichern Sie eine Ansicht, um ihre Filter, Sortierung und Gruppierung zu behalten."
+        "body": "Dieselben Datensätze als Tabelle, als Kanban-Board, gruppiert nach einer Einzelauswahl-Spalte, oder als Liste. Speichern Sie eine Ansicht, um ihre Filter, Sortierung und Gruppierung zu behalten."
       },
       "flow-table-create": {
         "title": "Die Tabelle erstellen",
@@ -5375,7 +5375,8 @@
       "title": "Datensatz",
       "conflict": "Jemand anderes hat dieses Feld geändert.",
       "reloadAndReapply": "Neu laden und erneut anwenden",
-      "discard": "Verwerfen"
+      "discard": "Verwerfen",
+      "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen."
     },
     "kanban": {
       "moveTo": "Verschieben nach",

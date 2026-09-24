@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
 import {
@@ -60,8 +60,15 @@ function ViewNameDialog({
     if (open) {
       setName(initialName);
       setError(null);
+      setSaving(false);
     }
   }
+  // Bumped on every open and close, so a save still in flight from an earlier
+  // opening - one cancelled while it ran - settles without touching this one.
+  const opening = useRef(0);
+  useEffect(() => {
+    opening.current += 1;
+  }, [open]);
 
   // `NO_FAILURE` when there is no error: `submitFailure` reads anything that
   // is not an `ApiError`, `null` included, as an unexpected failure.
@@ -69,16 +76,21 @@ function ViewNameDialog({
   const nameProblem = failure.fields.name;
 
   async function save() {
+    const mine = opening.current;
     setSaving(true);
     setError(null);
+    let failed: unknown = null;
+    let ok = false;
     try {
       await onSave(name.trim());
-      onOpenChange(false);
+      ok = true;
     } catch (caught) {
-      setError(caught);
-    } finally {
-      setSaving(false);
+      failed = caught;
     }
+    if (opening.current !== mine) return;
+    setSaving(false);
+    if (ok) onOpenChange(false);
+    else setError(failed);
   }
 
   return (
@@ -115,10 +127,12 @@ function ViewNameDialog({
 }
 
 /**
- * The saved-view picker for the active kind, and its owner-only rename/delete
- * controls. Gated on `view.can_manage`, never on `table.can_edit`: a table
- * editor another member shared a view with may not silently repoint their
- * saved filter (see `docs/virtual-tables.md#saved-views`).
+ * The saved-view picker for the active kind, and the active view's rename and
+ * delete controls. Gated on the view's own `can_manage` and `can_delete`, never
+ * on `table.can_edit`: a table editor another member shared a view with may not
+ * silently repoint their saved filter, and an owner who lost edit access may
+ * still delete their view but not reshape it (see
+ * `docs/virtual-tables.md#saved-views`).
  *
  * `onCreate` and `onRename` settle with their write's outcome, which is what
  * decides whether their dialog closes.
@@ -184,20 +198,20 @@ export function ViewSelect({
         </Button>
       )}
       {active?.can_manage && (
-        <>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(active)}>
-            {t("rename")}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={t("delete")}
-            onClick={() => setDeleting(active)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(active)}>
+          {t("rename")}
+        </Button>
+      )}
+      {active?.can_delete && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={t("delete")}
+          onClick={() => setDeleting(active)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       )}
 
       <ViewNameDialog
