@@ -73,6 +73,66 @@ describe("useWorkflows", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.workflows).toEqual([{ id: "wf-1", name: "Nightly" }]);
     expect(result.current.total).toBe(1);
+    expect(api.listWorkflows).toHaveBeenCalledTimes(1);
+    expect(api.listWorkflows).toHaveBeenCalledWith({ skip: 0, limit: 100 });
+  });
+
+  it("walks every page so a registry past one page is whole, not its first page", async () => {
+    // The route caps `limit` at 100; a registry larger than that is several
+    // requests, and reading only the first is the #1787 bug the walk fixes.
+    vi.mocked(api.listWorkflows)
+      .mockResolvedValueOnce({
+        items: [{ id: "wf-1", name: "One" }] as never,
+        total: 3,
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: "wf-2", name: "Two" }] as never,
+        total: 3,
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: "wf-3", name: "Three" }] as never,
+        total: 3,
+      });
+
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.workflows.map((w) => w.id)).toEqual(["wf-1", "wf-2", "wf-3"]);
+    expect(result.current.total).toBe(3);
+    expect(api.listWorkflows).toHaveBeenNthCalledWith(1, { skip: 0, limit: 100 });
+    expect(api.listWorkflows).toHaveBeenNthCalledWith(2, { skip: 1, limit: 100 });
+    expect(api.listWorkflows).toHaveBeenNthCalledWith(3, { skip: 2, limit: 100 });
+  });
+
+  it("ends the walk when a page answers nothing, rather than spinning on a stale count", async () => {
+    // A workflow deleted mid-walk leaves `total` larger than what is left to read;
+    // an empty page ends the walk instead of looping forever.
+    vi.mocked(api.listWorkflows)
+      .mockResolvedValueOnce({
+        items: [{ id: "wf-1", name: "One" }] as never,
+        total: 5,
+      })
+      .mockResolvedValueOnce({ items: [], total: 5 });
+
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.workflows.map((w) => w.id)).toEqual(["wf-1"]);
+    expect(api.listWorkflows).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not re-fetch when the first page is empty despite a nonzero count", async () => {
+    // A count without a first page (a race, or a miscounting backend) must not
+    // start the walk: `skip=0` already answered nothing, so asking again would
+    // loop on the same empty page.
+    vi.mocked(api.listWorkflows).mockResolvedValueOnce({ items: [], total: 5 });
+
+    const { result } = renderHook(() => useWorkflows(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.workflows).toEqual([]);
+    expect(result.current.total).toBe(5);
+    expect(api.listWorkflows).toHaveBeenCalledTimes(1);
   });
 
   it("stays out of the network and reports empty when disabled", async () => {
@@ -111,7 +171,8 @@ describe("useWorkflows", () => {
 
     const keys = invalidatedKeys(invalidateQueries);
     expect(keys).toContainEqual(["workflows", "wf-2"]);
-    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    // The bare list prefix, so every walked page is refreshed, not just one.
+    expect(keys).toContainEqual(["workflows", "list"]);
     // Never the `all()` root — it would drop the immutable node catalog and every
     // other workflow's frozen versions.
     expect(keys).not.toContainEqual(["workflows"]);
@@ -256,7 +317,7 @@ describe("useWorkflow", () => {
 
     const keys = invalidatedKeys(invalidateQueries);
     expect(keys).toContainEqual(["workflows", "wf-1"]);
-    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    expect(keys).toContainEqual(["workflows", "list"]);
     expect(keys).not.toContainEqual(["workflows"]);
   });
 
@@ -274,7 +335,7 @@ describe("useWorkflow", () => {
 
     const keys = invalidatedKeys(invalidateQueries);
     expect(keys).toContainEqual(["workflows", "wf-1"]);
-    expect(keys).toContainEqual(["workflows", "list", 0, 50]);
+    expect(keys).toContainEqual(["workflows", "list"]);
     expect(keys).not.toContainEqual(["workflows"]);
   });
 
