@@ -1178,7 +1178,11 @@
       "writingPlan": "Schreibt den Plan",
       "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}",
       "workingThroughPage": "Arbeite eine Seite durch",
-      "browsePage": "Eine Seite durcharbeiten"
+      "browsePage": "Eine Seite durcharbeiten",
+      "publishingArtifact": "Seite wird veröffentlicht",
+      "publishArtifact": "Veröffentlichte Seite",
+      "artifactVersion": "Version {version} · Seite öffnen",
+      "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1833,6 +1837,14 @@
         "empty": {
           "title": "Noch nichts hier",
           "description": "Benachrichtigungen erscheinen hier."
+        }
+      },
+      "artifacts": {
+        "title": "Artefakte",
+        "description": "Die Seiten, die Ihre Agents zuletzt veröffentlicht haben.",
+        "empty": {
+          "title": "Noch nichts veröffentlicht",
+          "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
       },
       "tables": {
@@ -2623,6 +2635,7 @@
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
+    "artifacts": "Artefakte",
     "tables": "Tabellen"
   },
   "navigation": {
@@ -3120,6 +3133,10 @@
         "title": "Lokale Dienste",
         "body": "Server in Ihrem eigenen Netz: Registrieren Sie ein Ollama, das ohne Schlüssel einbettet, oder einen OCR-Server für LiteParse, und wählen Sie pro Collection einen – so kann eine Wissensdatenbank vollständig auf Ihrer eigenen Hardware bleiben."
       },
+      "artifacts-list": {
+        "title": "Veröffentlichte Seiten",
+        "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
       "tables-catalog": {
         "title": "Ihre Tabellen",
         "body": "Jede Tabelle, die Sie öffnen können: Ihre eigenen und die mit Ihnen geteilten. Jede enthält typisierte Datensätze, die Menschen, Agents und Integrationen lesen und schreiben."
@@ -3213,7 +3230,8 @@
         "workspaces": "Agent-Workspaces",
         "memory": "Agent-Gedächtnis",
         "knowledge_documents": "Hochgeladene Dokumente",
-        "audit": "Audit-Trail"
+        "audit": "Audit-Trail",
+        "artifacts": "Veröffentlichte Artefakte und ihre Versionen"
       }
     },
     "memory": {
@@ -4373,6 +4391,7 @@
     "orgIntegrations": "Organisations-Integrationen",
     "orgIntegrationsLoadFailed": "Bestehende Workspace-Integrationen konnten nicht geladen werden; Sie können trotzdem eine neue Quelle anlegen.",
     "pickExistingOrgIntegration": "Wählen Sie eine bestehende Organisations-Integration für diese Wissensdatenbank. Ihre Zugangsdaten werden unabhängig kopiert — den Zeitplan können Sie getrennt anpassen.",
+    "removedCount": "{count} entfernt",
     "schedule": "Zeitplan",
     "search": {
       "allBases": "Alle Wissensdatenbanken",
@@ -5304,6 +5323,42 @@
     },
     "clearAll": "Alle löschen",
     "dismissRow": "Ausblenden"
+  },
+  "artifacts": {
+    "title": "Artefakte",
+    "description": "Seiten, die Ihre Agents veröffentlicht haben - Berichte, kleine Dashboards, Zusammenfassungen. Jede behält ihren Link, wenn der Agent sie erneut veröffentlicht, und frühere Versionen bleiben lesbar.",
+    "cannotSee": "Sie können die Artefakte dieser Organisation nicht sehen",
+    "askForAccess": "Bitten Sie einen Administrator um Zugriff auf Artefakte.",
+    "count": "{count, plural, =1 {1 Artefakt} other {# Artefakte}}",
+    "search": "Artefakte suchen…",
+    "noMatches": "Kein Artefakt passt",
+    "noMatchesWhy": "Durchsucht werden Titel und Namen.",
+    "noneYet": "Noch nichts veröffentlicht",
+    "noneYetWhy": "Ein Agent mit der Capability Artifacts veröffentlicht hier eine Seite, wenn Sie ihn um einen Bericht oder ein Dashboard bitten. Sie ist privat, bis Sie sie teilen.",
+    "sharedOrg": "Ganze Organisation",
+    "publicBadge": "Öffentlicher Link",
+    "publishedVersion": "Version {version} · {when}",
+    "versionUnavailable": "Diese Version ist nicht verfügbar",
+    "versionUnavailableWhy": "Sie wurde durch neuere Versionen ersetzt und wird nicht mehr aufbewahrt, oder Ihr Zugriff hat sich gerade geändert. Wählen Sie oben die neueste Version.",
+    "unavailable": "Dieses Artefakt ist nicht verfügbar",
+    "unavailableWhy": "Es wurde gelöscht, oder Sie haben keinen Zugriff mehr darauf.",
+    "couldNotLoad": "Dieses Artefakt konnte nicht geladen werden",
+    "publishedAs": "Veröffentlicht als {name}",
+    "deleteTitle": "{title} löschen?",
+    "deleteWhy": "Alle Versionen und der öffentliche Link werden mitgelöscht, und niemand, mit dem es geteilt wurde, kann es noch öffnen. Der Agent legt ein neues an, wenn er das nächste Mal unter diesem Namen veröffentlicht.",
+    "deleted": "Artefakt gelöscht",
+    "publicLink": "Öffentlicher Link",
+    "publicLinkOn": "Jeder mit diesem Link kann die neueste Version ohne Konto öffnen.",
+    "publicLinkNone": "Nur Personen, mit denen dieses Artefakt geteilt wurde, können es öffnen.",
+    "createPublicLink": "Öffentlichen Link erstellen",
+    "rotatePublicLink": "Link ersetzen",
+    "disablePublicLink": "Ausschalten",
+    "publicLinkReady": "Öffentlicher Link bereit",
+    "publicLinkOff": "Öffentlicher Link ausgeschaltet",
+    "version": "Version",
+    "latestVersion": "Neueste Version",
+    "versionOption": "Version {version} · {when}",
+    "publicUpdated": "Aktualisiert {when}"
   },
   "tables": {
     "cells": {

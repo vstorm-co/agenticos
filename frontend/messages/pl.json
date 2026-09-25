@@ -97,6 +97,7 @@
     "deploymentSettings": "Instalacja",
     "collapseSidebar": "Zwiń panel boczny",
     "expandSidebar": "Rozwiń panel boczny",
+    "artifacts": "Artefakty",
     "tables": "Tabele"
   },
   "auth": {
@@ -248,7 +249,11 @@
     "tools": {
       "patternInFile": "{pattern} w {file}",
       "workingThroughPage": "Przechodzę przez stronę",
-      "browsePage": "Przejdź przez stronę"
+      "browsePage": "Przejdź przez stronę",
+      "publishingArtifact": "Publikowanie strony",
+      "publishArtifact": "Opublikowana strona",
+      "artifactVersion": "Wersja {version} · otwórz stronę",
+      "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -482,7 +487,8 @@
         "workspaces": "Workspace'y agentów",
         "memory": "Pamięć agentów",
         "knowledge_documents": "Wgrane dokumenty",
-        "audit": "Ślad audytowy"
+        "audit": "Ślad audytowy",
+        "artifacts": "Opublikowane artefakty i ich wersje"
       }
     },
     "memory": {
@@ -1198,6 +1204,14 @@
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
         }
       },
+      "artifacts": {
+        "title": "Artefakty",
+        "description": "Strony, które Twoje agenty opublikowały ostatnio.",
+        "empty": {
+          "title": "Nic jeszcze nie opublikowano",
+          "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
+        }
+      },
       "tables": {
         "title": "Tabele",
         "description": "Twoje tabele, od tych, których nazwę lub kolumny zmieniono ostatnio.",
@@ -1908,6 +1922,10 @@
       "workspaces-detail": {
         "title": "Wnętrze przestrzeni",
         "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+      },
+      "artifacts-list": {
+        "title": "Opublikowane strony",
+        "body": "Raporty i dashboardy opublikowane przez Twoje agenty. Otwórz jeden, żeby go zobaczyć, wybierz wcześniejszą wersję, udostępnij go współpracownikom albo nadaj mu link publiczny."
       },
       "tables-catalog": {
         "title": "Twoje tabele",
@@ -3083,6 +3101,42 @@
     },
     "clearAll": "Wyczyść",
     "dismissRow": "Odrzuć"
+  },
+  "artifacts": {
+    "title": "Artefakty",
+    "description": "Strony opublikowane przez Twoje agenty - raporty, małe dashboardy, podsumowania. Każda zachowuje swój link, gdy agent opublikuje ją ponownie, a wcześniejsze wersje pozostają dostępne.",
+    "cannotSee": "Nie widzisz artefaktów tej organizacji",
+    "askForAccess": "Poproś administratora o dostęp do artefaktów.",
+    "count": "{count, plural, one {1 artefakt} few {# artefakty} many {# artefaktów} other {# artefaktu}}",
+    "search": "Szukaj artefaktów…",
+    "noMatches": "Żaden artefakt nie pasuje",
+    "noMatchesWhy": "Przeszukiwane są tytuły i nazwy.",
+    "noneYet": "Nic jeszcze nie opublikowano",
+    "noneYetWhy": "Agent z capability Artifacts publikuje tu stronę, gdy poprosisz go o raport albo dashboard. Jest prywatna, dopóki jej nie udostępnisz.",
+    "sharedOrg": "Cała organizacja",
+    "publicBadge": "Link publiczny",
+    "publishedVersion": "Wersja {version} · {when}",
+    "versionUnavailable": "Ta wersja jest niedostępna",
+    "versionUnavailableWhy": "Zastąpiły ją nowsze wersje i nie jest już przechowywana albo przed chwilą zmienił się Twój dostęp. Wybierz najnowszą wersję powyżej.",
+    "unavailable": "Ten artefakt jest niedostępny",
+    "unavailableWhy": "Został usunięty albo nie masz już do niego dostępu.",
+    "couldNotLoad": "Nie udało się wczytać artefaktu",
+    "publishedAs": "Opublikowany jako {name}",
+    "deleteTitle": "Usunąć {title}?",
+    "deleteWhy": "Znikną wszystkie wersje i link publiczny, a osoby, którym go udostępniono, nie otworzą go więcej. Agent utworzy nowy, gdy następnym razem opublikuje stronę pod tą nazwą.",
+    "deleted": "Artefakt usunięty",
+    "publicLink": "Link publiczny",
+    "publicLinkOn": "Każdy, kto ma ten link, otworzy najnowszą wersję bez konta.",
+    "publicLinkNone": "Otworzyć go mogą tylko osoby, którym go udostępniono.",
+    "createPublicLink": "Utwórz link publiczny",
+    "rotatePublicLink": "Wymień link",
+    "disablePublicLink": "Wyłącz",
+    "publicLinkReady": "Link publiczny gotowy",
+    "publicLinkOff": "Link publiczny wyłączony",
+    "version": "Wersja",
+    "latestVersion": "Najnowsza wersja",
+    "versionOption": "Wersja {version} · {when}",
+    "publicUpdated": "Zaktualizowano {when}"
   },
   "tables": {
     "cells": {

@@ -167,6 +167,55 @@ describe("NotificationBell", () => {
     expect(markRead).toHaveBeenCalledWith("n1");
   });
 
+  it("opens a row's destination as a sub-route of the console", async () => {
+    // The href is what decides whether the click swaps the page under the
+    // layout or fetches a whole new document - `next/link` and a plain anchor
+    // both render an `<a>`, so the shape of the destination is the assertion.
+    renderBell("row", {
+      notifications: [notification({ context_url: "/agents/a1?org=o1" })],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+
+    expect(await screen.findByRole("link", { name: /run finished/ })).toHaveAttribute(
+      "href",
+      "/agents/a1?org=o1",
+    );
+  });
+
+  it("still opens a row written before the column held a path", async () => {
+    // Nothing migrates those rows; they carry an origin, reload the document
+    // as they always did, and age out with the retention sweep.
+    renderBell("row", {
+      notifications: [notification({ context_url: "https://app.example.com/agents/a1" })],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+
+    expect(await screen.findByRole("link", { name: /run finished/ })).toHaveAttribute(
+      "href",
+      "https://app.example.com/agents/a1",
+    );
+  });
+
+  it("closes the popover when a row is opened", async () => {
+    // The bell is in the persistent dashboard layout, so a sub-route
+    // navigation does not unmount it: the panel would otherwise sit open over
+    // the page it just opened, and a row pointing at the page already on
+    // screen would read as a click that did nothing.
+    const markRead = vi.fn().mockResolvedValue(undefined);
+    renderBell("row", {
+      notifications: [notification({ context_url: "/agents/a1?org=o1" })],
+      markRead,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+    await userEvent.click(await screen.findByRole("link", { name: /run finished/ }));
+
+    expect(markRead).toHaveBeenCalledWith("n1");
+    expect(screen.queryByRole("heading", { name: "Notifications" })).toBeNull();
+  });
+
   it("offers to load more once there is a next page", async () => {
     const loadMore = vi.fn();
     renderBell("row", { notifications: [notification()], hasMore: true, loadMore });

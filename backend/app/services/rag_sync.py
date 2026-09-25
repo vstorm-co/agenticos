@@ -30,6 +30,7 @@ def _as_item(log: SyncLog) -> RAGSyncLogItem:
         updated=log.updated,
         skipped=log.skipped,
         failed=log.failed,
+        removed=log.removed,
         error_message=log.error_message,
         started_at=log.started_at.isoformat(),
         completed_at=log.completed_at.isoformat() if log.completed_at else None,
@@ -140,6 +141,7 @@ class RAGSyncService:
         updated: int = 0,
         skipped: int = 0,
         failed: int = 0,
+        removed: int = 0,
         error_message: str | None = None,
     ) -> SyncLog | None:
         """Mark a sync operation as completed (done or error).
@@ -163,6 +165,7 @@ class RAGSyncService:
             updated=updated,
             skipped=skipped,
             failed=failed,
+            removed=removed,
             error_message=error_message,
             completed_at=datetime.now(UTC),
         )

@@ -31,6 +31,7 @@ const SHARING_ROOT = {
   collection: "/kb",
   secret: "/secrets",
   table: "/tables",
+  artifact: "/artifacts",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**

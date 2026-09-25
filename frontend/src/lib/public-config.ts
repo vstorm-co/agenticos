@@ -26,6 +26,13 @@ export interface PublicConfig {
   apiUrl: string;
   /** The WebSocket origin the browser opens for chat and the hosted embed. */
   wsUrl: string;
+  /**
+   * Where a published artifact's page is framed from: `ARTIFACT_ORIGIN` when the
+   * deployment moved it to a domain of its own, the API's origin otherwise.
+   * The same variable the backend reads, so the address it signs and the origin
+   * `frame-src` allows cannot name two places.
+   */
+  artifactUrl: string;
   /** This app's own canonical origin, for metadata, robots and the sitemap. */
   siteUrl: string;
   /**
@@ -62,6 +69,7 @@ export interface PublicConfig {
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   apiUrl: "http://localhost:8000",
   wsUrl: "ws://localhost:8000",
+  artifactUrl: "http://localhost:8000",
   siteUrl: "http://localhost:3000",
   chatMaxUploadSizeMb: 10,
   oauthProviders: ["google"],
@@ -118,6 +126,10 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
   return {
     apiUrl: origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.apiUrl),
     wsUrl: origin(env.PUBLIC_WS_URL, DEFAULT_PUBLIC_CONFIG.wsUrl),
+    artifactUrl: origin(
+      env.ARTIFACT_ORIGIN,
+      origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.artifactUrl),
+    ),
     siteUrl: origin(env.PUBLIC_SITE_URL, DEFAULT_PUBLIC_CONFIG.siteUrl),
     chatMaxUploadSizeMb: megabytes(
       env.CHAT_MAX_UPLOAD_SIZE_MB,

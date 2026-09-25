@@ -1,5 +1,5 @@
 ---
-source_sha: "d5adfb153f46"
+source_sha: "3a0f2eee0058"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y siete tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -179,7 +179,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y siete widgets** que ordenas tú, guardados por
+- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

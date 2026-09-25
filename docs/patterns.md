@@ -302,6 +302,7 @@ from app.services.rag.connectors import (
     BaseSyncConnector,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 class SharePointConfig(BaseModel):
@@ -319,8 +320,9 @@ class SharePointConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        # Return metadata for available files
+    ) -> RemoteListing:
+        # Metadata for the available files, and complete=False if the listing
+        # stopped short - the sync removes nothing against a partial one
         ...
 
     async def _fetch(
@@ -340,7 +342,8 @@ CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector
 
 The `RagSyncService` uses `CONNECTOR_REGISTRY` to look up the right connector
 by type, validate its config, list remote files, download them, and hand them
-off to the ingestion pipeline.
+off to the ingestion pipeline. After a complete listing it removes the documents
+the source brought in earlier and no longer lists.
 
 ## Frontend patterns
 

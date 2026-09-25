@@ -22,6 +22,7 @@ describe("usePublicConfig", () => {
     const config: PublicConfig = {
       apiUrl: "https://api.acme.example",
       wsUrl: "wss://api.acme.example",
+      artifactUrl: "https://api.acme.example",
       siteUrl: "https://console.acme.example",
       chatMaxUploadSizeMb: 25,
       oauthProviders: ["github", "microsoft"],

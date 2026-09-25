@@ -37,6 +37,20 @@ describe("readPublicConfig", () => {
     expect(config.siteUrl).toBe("https://console.acme.example");
   });
 
+  it("frames artifacts from the API unless the deployment moved them", () => {
+    // The backend signs content addresses on `ARTIFACT_ORIGIN` when it is set and
+    // on its own public address otherwise, so the two have to fall back the same way.
+    expect(readPublicConfig({ PUBLIC_API_URL: "https://api.acme.example" }).artifactUrl).toBe(
+      "https://api.acme.example",
+    );
+    expect(
+      readPublicConfig({
+        PUBLIC_API_URL: "https://api.acme.example",
+        ARTIFACT_ORIGIN: "https://content.acme-pages.example/",
+      }).artifactUrl,
+    ).toBe("https://content.acme-pages.example");
+  });
+
   it("treats a blank URL as unset", () => {
     expect(readPublicConfig({ PUBLIC_API_URL: "  " }).apiUrl).toBe(DEFAULT_PUBLIC_CONFIG.apiUrl);
   });

@@ -36,6 +36,7 @@ import { SandboxCapacityWidget } from "./sandbox-capacity";
 import { SandboxPolicyWidget } from "./sandbox-policy";
 import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { SharedWithYouWidget } from "./shared-with-you";
+import { ArtifactsWidget } from "./artifacts";
 import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
@@ -82,6 +83,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "my-top-agents": MyTopAgentsWidget,
   "my-quality": MyQualityWidget,
   "shared-with-you": SharedWithYouWidget,
+  artifacts: ArtifactsWidget,
   "sandbox-capacity": SandboxCapacityWidget,
   "sandbox-sessions": SandboxSessionsWidget,
   "sandbox-policy": SandboxPolicyWidget,

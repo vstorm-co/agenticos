@@ -44,6 +44,8 @@ export const ROUTES = {
   CONTEXT: "/context",
   TABLES: "/tables",
   TABLE_DETAIL: (id: string) => `/tables/${id}`,
+  ARTIFACTS: "/artifacts",
+  ARTIFACT_DETAIL: (id: string) => `/artifacts/${id}`,
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   BILLING: "/billing",
   BILLING_USAGE: "/billing/usage",

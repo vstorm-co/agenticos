@@ -28,6 +28,7 @@ import {
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelsTopLeft,
   Activity,
   Boxes,
   FileText,
@@ -94,6 +95,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
       { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
+      {
+        labelKey: "artifacts",
+        href: ROUTES.ARTIFACTS,
+        icon: PanelsTopLeft,
+        permission: Perm.artifactsView,
+      },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
       // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
       // the floor for seeing an agent's schedule; the create controls inside gate

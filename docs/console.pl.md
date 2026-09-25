@@ -1,5 +1,5 @@
 ---
-source_sha: "d5adfb153f46"
+source_sha: "3a0f2eee0058"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści siedem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -181,7 +181,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści siedem widgetów**, które układasz sam, zapisywanych
+- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

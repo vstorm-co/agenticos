@@ -616,6 +616,25 @@ an `aws_credentials` secret in its organization's vault, the same way a `gdrive`
 names a service account. The endpoint and region still fall back to these settings
 because neither names a principal — they say where the store is, not who is asking.
 
+## Published artifacts
+
+Pages agents publish with the `artifacts` capability. Their bytes live in the
+file storage above; these bound them and say where they are served from. See
+[Artifacts](artifacts.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
+| `ARTIFACT_ORIGIN` | (empty) | Where content is served from. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+
+**`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
+content addresses on it, and the frontend adds it to the console's `frame-src`.
+Set it in the backend's environment and in the frontend's; the compose files
+pass it to both. A value in only one of them shows an empty frame, because the
+browser refuses to load the page from an origin the console did not allow.
+
 ## Agent workspaces
 
 The `state` workspace needs nothing here. It is stored in this database, works on
