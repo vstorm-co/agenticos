@@ -40,6 +40,17 @@ Two things are versioned separately from this file and worth knowing about:
   cost each resolved the conversation, and on a channel thread each resolution
   can ask Slack or Telegram whether the reader is still in the room.
 
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
+
 ## [0.0.497] - 2026-09-25
 
 ### Added
