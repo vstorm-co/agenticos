@@ -16,8 +16,8 @@ Backfilled from `sync_source_id`, which is then dropped. The downgrade puts one
 claim per document back in the column - the lowest source id, an arbitrary but
 stable pick - and a document the other claims kept loses them.
 
-Revision ID: 0098_rag_document_claims
-Revises: 0097_sync_source_state
+Revision ID: 0099_rag_document_claims
+Revises: 0098_chat_files_message_idx
 Create Date: 2026-09-25
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0098_rag_document_claims"
-down_revision: str | Sequence[str] | None = "0097_sync_source_state"
+revision: str = "0099_rag_document_claims"
+down_revision: str | Sequence[str] | None = "0098_chat_files_message_idx"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
