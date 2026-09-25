@@ -1,5 +1,5 @@
 ---
-source_sha: "ed41ce8850a9"
+source_sha: "7e8688fd9cd6"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -110,6 +110,7 @@ not.
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | kilka | Atrybucja albo nic | Jak wyżej |
 | MPL-2.0 (`certifi`, `pathspec`, `tqdm`, część `orjson`) | 4 | Copyleft na poziomie plików: objęte pliki zostają na MPL, a ich źródła są dostępne | Używane bez modyfikacji; tekst licencji jedzie w obrazie; noty linkują źródła |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Tekst licencji, dostępność źródeł i możliwość podmiany biblioteki | Oba to osobno instalowane binaria ładowane dynamicznie, bez modyfikacji, wymienialne przez reinstalację; źródła zalinkowane w notach. Pakiety libvips nie publikują pliku licencji, więc obraz kładzie tekst LGPL obok nich |
+| LGPL-3.0-only (`ldap3`) | 1 | Tekst licencji, dostępność źródeł i możliwość podmiany biblioteki | Klient LDAP logowania katalogowego, czysto pythonowy wheel importowany bez modyfikacji i wymienialny przez reinstalację; jego pliki licencji są w jego dist-info, a źródła zalinkowane w notach |
 | Artistic-1.0-Perl albo GPL-2.0-or-later (`text-unidecode`) | 1 | Podwójna; wzięta na Artistic License: nota i tekst | Plik licencji z wheela jedzie w obrazie |
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Atrybucja i link do źródła | Wymieniony wraz ze źródłem w notach |
 | AGPL-3.0-only (`pymupdf`) | 1 | Copyleft sieciowy: obraz jest przekazywany na warunkach AGPL-3.0, a zmodyfikowane wdrożenie jest winne swoim użytkownikom zmodyfikowane źródła (art. 13) | Utrzymany świadomie, warunki nazwane: [sekcja poniżej](#the-agpl-component) i plik `COPYING` wheela w obrazie |

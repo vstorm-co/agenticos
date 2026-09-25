@@ -29,8 +29,8 @@ Decisions worth knowing when reading the constraints:
 
 New tables only, so `downgrade()` drops them and loses nothing that existed before.
 
-Revision ID: 0100_virtual_tables
-Revises: 0099_rag_document_claims
+Revision ID: 0101_virtual_tables
+Revises: 0100_directory_groups
 Create Date: 2026-09-21
 """
 
@@ -41,8 +41,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0100_virtual_tables"
-down_revision: str | Sequence[str] | None = "0099_rag_document_claims"
+revision: str = "0101_virtual_tables"
+down_revision: str | Sequence[str] | None = "0100_directory_groups"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -376,6 +376,25 @@ def _who_may_sign_in(row: DeploymentSettings | None) -> ControlResult:
             "§164.312(d)",
             "OIDC_ISSUER is set; multi-factor authentication is the provider's",
         )
+    # Kerberos is single sign-on against the operator's own domain: the person
+    # proved who they are to the domain controller, and this deployment only
+    # accepts the ticket it issued (#1773).
+    if settings.KERBEROS_ENABLED:
+        return _met(
+            "sso",
+            "§164.312(d)",
+            "KERBEROS_ENABLED: people sign in with their domain's Kerberos ticket",
+        )
+    # A directory password is the directory's, not a stored one - but it is still
+    # typed here, with no single sign-on and no multi-factor step in front of it,
+    # so the control stays unmet and says why rather than claiming stored passwords.
+    if settings.LDAP_URL:
+        return _unmet(
+            "sso",
+            "§164.312(d)",
+            "LDAP_URL only: passwords are checked by the directory but typed here, "
+            "with no single sign-on or multi-factor step",
+        )
     return _unmet(
         "sso",
         "§164.312(d)",

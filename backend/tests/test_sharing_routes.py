@@ -1,10 +1,10 @@
 """Tests for the generated sharing routes.
 
-The four sharing endpoints exist four times over - agents, collections, skills,
-vault secrets - generated from one definition. What is worth testing is the generation itself:
-that each type really gets all four, that they are wired to the right resource
-type, and that a row from another organization is refused before the sharing
-service is ever reached.
+The five sharing endpoints exist once per resource type - agents, collections,
+skills, context files, vault secrets, artifacts - generated from one definition.
+What is worth testing is the generation itself: that each type really gets all
+five, that they are wired to the right resource type, and that a row from
+another organization is refused before the sharing service is ever reached.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from app.api.routes.v1.sharing import (
 )
 from app.core.exceptions import NotFoundError
 from app.services.access import AGENT, COLLECTION, SECRET, SKILL
+from app.services.sharing import SharingState
 
 ROUTERS = (
     ("agents", agent_sharing_router),
@@ -59,7 +60,7 @@ LOADERS = (
 class TestGeneratedRoutes:
     @pytest.mark.parametrize(("name", "router"), ROUTERS)
     def test_every_resource_type_gets_the_whole_sharing_api(self, name, router):
-        """A type with three of four endpoints is a type you cannot un-share from."""
+        """A type missing one endpoint is a type you cannot un-share from."""
         methods = {
             (route.path, method)
             for route in router.routes
@@ -70,6 +71,7 @@ class TestGeneratedRoutes:
             ("/{resource_id}/sharing", "GET"),
             ("/{resource_id}/sharing/grants", "PUT"),
             ("/{resource_id}/sharing/grants/{subject_user_id}", "DELETE"),
+            ("/{resource_id}/sharing/group-grants/{group_id}", "DELETE"),
             ("/{resource_id}/sharing/visibility", "PATCH"),
         }, name
 
@@ -142,7 +144,7 @@ class TestHandlerBehaviour:
     async def test_reading_sharing_uses_the_routers_own_resource_type(self):
         ctx = MagicMock(organization_id=uuid.uuid4())
         resource = MagicMock(id=uuid.uuid4(), owner_user_id=uuid.uuid4(), visibility="private")
-        service = MagicMock(get_sharing=AsyncMock(return_value=([], {})))
+        service = MagicMock(get_sharing=AsyncMock(return_value=SharingState([], {}, {})))
         db = MagicMock(get=AsyncMock(return_value=resource))
         resource.organization_id = ctx.organization_id
 
@@ -167,7 +169,7 @@ class TestHandlerBehaviour:
                 owner_user_id=uuid.uuid4(),
                 visibility="private",
             )
-            service = MagicMock(get_sharing=AsyncMock(return_value=([], {})))
+            service = MagicMock(get_sharing=AsyncMock(return_value=SharingState([], {}, {})))
             db = MagicMock(get=AsyncMock(return_value=resource))
 
             handler = self._handler(router, "/{resource_id}/sharing", "GET")
@@ -183,6 +185,7 @@ class TestHandlerBehaviour:
         grant = MagicMock(
             id=uuid.uuid4(),
             subject_user_id=subject,
+            subject_group_id=None,
             resource_type=AGENT.key,
             resource_id=resource.id,
             level="edit",
@@ -193,7 +196,7 @@ class TestHandlerBehaviour:
         handler = self._handler(agent_sharing_router, "/{resource_id}/sharing/grants", "PUT")
         result = await handler(
             resource.id,
-            MagicMock(subject_user_id=subject, level="edit"),
+            MagicMock(subject_user_id=subject, subject_group_id=None, level="edit"),
             db,
             service,
             ctx,
@@ -219,6 +222,54 @@ class TestHandlerBehaviour:
         assert service.revoke.call_args.kwargs["resource_type"] is AGENT
 
     @pytest.mark.anyio
+    async def test_sharing_with_a_group_goes_to_the_group_path(self):
+        """A body naming a group must never be written as a grant to a person."""
+        ctx = MagicMock(organization_id=uuid.uuid4())
+        group_id = uuid.uuid4()
+        resource = MagicMock(id=uuid.uuid4(), organization_id=ctx.organization_id)
+        grant = MagicMock(
+            id=uuid.uuid4(),
+            subject_user_id=None,
+            subject_group_id=group_id,
+            resource_type=AGENT.key,
+            resource_id=resource.id,
+            level="use",
+        )
+        service = MagicMock(share_with_group=AsyncMock(return_value=grant), share=AsyncMock())
+        db = MagicMock(get=AsyncMock(return_value=resource))
+
+        handler = self._handler(agent_sharing_router, "/{resource_id}/sharing/grants", "PUT")
+        result = await handler(
+            resource.id,
+            MagicMock(subject_user_id=None, subject_group_id=group_id, level="use"),
+            db,
+            service,
+            ctx,
+        )
+
+        assert service.share_with_group.call_args.kwargs["group_id"] == group_id
+        assert service.share_with_group.call_args.kwargs["resource_type"] is AGENT
+        service.share.assert_not_called()
+        assert result.subject_group_id == group_id
+        assert result.subject_user_id is None
+
+    @pytest.mark.anyio
+    async def test_unsharing_a_group_names_the_group_being_removed(self):
+        ctx = MagicMock(organization_id=uuid.uuid4())
+        group_id = uuid.uuid4()
+        resource = MagicMock(id=uuid.uuid4(), organization_id=ctx.organization_id)
+        service = MagicMock(revoke_group=AsyncMock())
+        db = MagicMock(get=AsyncMock(return_value=resource))
+
+        handler = self._handler(
+            skill_sharing_router, "/{resource_id}/sharing/group-grants/{group_id}", "DELETE"
+        )
+        await handler(resource.id, group_id, db, service, ctx)
+
+        assert service.revoke_group.call_args.kwargs["group_id"] == group_id
+        assert service.revoke_group.call_args.kwargs["resource_type"] is SKILL
+
+    @pytest.mark.anyio
     async def test_changing_visibility_returns_the_new_state(self):
         """The caller should not have to re-fetch to see what they just set."""
         ctx = MagicMock(organization_id=uuid.uuid4())
@@ -235,7 +286,7 @@ class TestHandlerBehaviour:
 
         service = MagicMock(
             set_visibility=AsyncMock(side_effect=_apply),
-            get_sharing=AsyncMock(return_value=([], {})),
+            get_sharing=AsyncMock(return_value=SharingState([], {}, {})),
         )
         db = MagicMock(get=AsyncMock(return_value=resource))
 
@@ -259,12 +310,15 @@ class TestRendering:
         grant = MagicMock(
             id=uuid.uuid4(),
             subject_user_id=subject,
+            subject_group_id=None,
             resource_type=AGENT.key,
             resource_id=resource.id,
             level="read",
         )
         service = MagicMock(
-            get_sharing=AsyncMock(return_value=([grant], {subject: "a@example.com"}))
+            get_sharing=AsyncMock(
+                return_value=SharingState([grant], {subject: "a@example.com"}, {})
+            )
         )
         db = MagicMock(get=AsyncMock(return_value=resource))
 
@@ -289,11 +343,12 @@ class TestRendering:
         grant = MagicMock(
             id=uuid.uuid4(),
             subject_user_id=uuid.uuid4(),
+            subject_group_id=None,
             resource_type=AGENT.key,
             resource_id=resource.id,
             level="read",
         )
-        service = MagicMock(get_sharing=AsyncMock(return_value=([grant], {})))
+        service = MagicMock(get_sharing=AsyncMock(return_value=SharingState([grant], {}, {})))
         db = MagicMock(get=AsyncMock(return_value=resource))
 
         handler = TestHandlerBehaviour._handler(
@@ -303,6 +358,42 @@ class TestRendering:
 
         assert result.grants[0].subject_email is None
         assert result.owner_user_id is None
+
+
+class TestGroupRendering:
+    @pytest.mark.anyio
+    async def test_a_group_grant_carries_the_group_name_and_no_person(self):
+        ctx = MagicMock(organization_id=uuid.uuid4())
+        group_id = uuid.uuid4()
+        resource = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            owner_user_id=uuid.uuid4(),
+            visibility="private",
+        )
+        grant = MagicMock(
+            id=uuid.uuid4(),
+            subject_user_id=None,
+            subject_group_id=group_id,
+            resource_type=AGENT.key,
+            resource_id=resource.id,
+            level="edit",
+        )
+        service = MagicMock(
+            get_sharing=AsyncMock(return_value=SharingState([grant], {}, {group_id: "Finance"}))
+        )
+        db = MagicMock(get=AsyncMock(return_value=resource))
+
+        handler = TestHandlerBehaviour._handler(
+            agent_sharing_router, "/{resource_id}/sharing", "GET"
+        )
+        result = await handler(resource.id, db, service, ctx)
+
+        rendered = result.grants[0]
+        assert rendered.subject_group_id == group_id
+        assert rendered.subject_group_name == "Finance"
+        assert rendered.subject_user_id is None
+        assert rendered.subject_email is None
 
 
 def test_the_factory_is_not_accidentally_shared_state():

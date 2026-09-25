@@ -28,6 +28,8 @@ describe("usePublicConfig", () => {
       oauthProviders: ["github", "microsoft"],
       oidcDisplayName: "SSO",
       oidcIcon: null,
+      ldapDisplayName: "LDAP",
+      kerberosDisplayName: "Kerberos",
     };
 
     render(

@@ -69,7 +69,7 @@ def _affected(count: int | None):
 class TestGetLevel:
     async def test_a_stored_level_comes_back_as_the_enum(self):
         """Callers rank it through `GRANT_ORDER`, which a bare string misses entirely."""
-        session = _RecordingSession(_scalar(GrantLevel.EDIT.value))
+        session = _RecordingSession(_rows([GrantLevel.EDIT.value]))
 
         level = await resource_grant_repo.get_level(
             session,
@@ -83,7 +83,7 @@ class TestGetLevel:
 
     async def test_a_member_who_was_never_granted_anything_has_no_level(self):
         """`None` is what makes the access check fall through to the role scope."""
-        session = _RecordingSession(_scalar(None))
+        session = _RecordingSession(_rows([]))
 
         level = await resource_grant_repo.get_level(
             session,
@@ -97,7 +97,7 @@ class TestGetLevel:
 
     async def test_the_lookup_names_the_organization_member_and_resource(self):
         """Any one of these four missing widens the query into somebody else's grant."""
-        session = _RecordingSession(_scalar(None))
+        session = _RecordingSession(_rows([]))
         organization_id, subject_user_id, resource_id = (uuid.uuid4() for _ in range(3))
 
         await resource_grant_repo.get_level(
@@ -114,6 +114,44 @@ class TestGetLevel:
             "collection",
             resource_id,
         }
+
+    async def test_the_best_of_a_persons_own_and_their_groups_grants_wins(self):
+        """Shared with them to read and with their group to edit is edit, not read."""
+        session = _RecordingSession(_rows(["read", "edit", "use"]))
+
+        level = await resource_grant_repo.get_level(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+        )
+
+        assert level is GrantLevel.EDIT
+
+    async def test_a_grant_to_a_group_counts_only_through_groups_of_this_organization(self):
+        """The group half is scoped to the grant's organization as well as to the person.
+
+        A grant row names a group; a group from another tenant that somehow
+        appeared on one must reach nobody here, so the subquery asks for the
+        caller's groups *in this organization*, not the caller's groups.
+        """
+        session = _RecordingSession(_rows([]))
+        organization_id, subject_user_id = uuid.uuid4(), uuid.uuid4()
+
+        await resource_grant_repo.get_level(
+            session,
+            organization_id=organization_id,
+            subject_user_id=subject_user_id,
+            resource_type="agent",
+            resource_id=uuid.uuid4(),
+        )
+
+        sql = _sql(session)
+        assert "resource_grants.subject_group_id IN (SELECT group_members.group_id" in sql
+        assert "groups.organization_id = %(organization_id_2)s" in sql
+        assert _filters(session)["organization_id_2"] == organization_id
+        assert _filters(session)["user_id_1"] == subject_user_id
 
 
 class TestListSharedIds:
@@ -171,6 +209,20 @@ class TestListSharedIds:
         filters = _filters(session)
         assert filters["resource_type_1"] == "skill"
         assert filters["subject_user_id_1"] == subject_user_id
+
+    async def test_a_row_shared_with_a_person_and_their_group_is_listed_once(self):
+        session = _RecordingSession(_rows([]))
+
+        await resource_grant_repo.list_shared_ids(
+            session,
+            organization_id=uuid.uuid4(),
+            subject_user_id=uuid.uuid4(),
+            resource_type="agent",
+        )
+
+        sql = _sql(session)
+        assert sql.startswith("SELECT DISTINCT resource_grants.resource_id")
+        assert "subject_group_id IN (SELECT group_members.group_id" in sql
 
     async def test_the_shared_ids_come_back_as_a_list(self):
         shared = [uuid.uuid4(), uuid.uuid4()]
