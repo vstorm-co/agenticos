@@ -39,6 +39,7 @@ from datetime import UTC, date, datetime
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.models import AbstractModel, Model
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities._metered import MeteredModel
@@ -158,6 +159,7 @@ async def infer_filters_from_query(
     query: str,
     *,
     organizational_units: Sequence[str],
+    instrument: InstrumentationSettings | bool | None,
     today: date | None = None,
 ) -> RetrievalFilters | None:
     """Infer narrowing-only business filters from a natural-language query.
@@ -173,6 +175,10 @@ async def infer_filters_from_query(
         organizational_units: The organizational units the searched collections
             carry, read under the same scope the search uses. The only values an
             inferred `organizational_unit` may keep.
+        instrument: The host run's trace policy (`inherited_instrumentation`), so
+            the inference - whose prompt is the user's question - goes to the
+            host's Logfire project under its content setting rather than the
+            global, content-on default. Required so no caller forgets it.
         today: The date relative dates resolve against; today in UTC by default.
 
     Returns:
@@ -206,6 +212,7 @@ async def infer_filters_from_query(
         output_type=RetrievalFilters,
         retries=_OUTPUT_RETRIES,
     )
+    agent.instrument = instrument
     try:
         result = await agent.run(query, usage_limits=_INFERENCE_LIMITS)
     except _INFERENCE_FAILURES:

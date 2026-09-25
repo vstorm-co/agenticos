@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability
@@ -11,6 +11,8 @@ from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
+from app.services.rag.models import ParentContextMode
+from app.services.rag.query_analysis import QueryAnalysisMode
 
 
 class KnowledgeConfig(BaseModel):
@@ -31,6 +33,52 @@ class KnowledgeConfig(BaseModel):
             "such search makes one extra model request, billed to the run. It can "
             "only narrow within the agent's tenant and collections, never widen."
         ),
+    )
+    query_analysis_mode: QueryAnalysisMode = Field(
+        default="off",
+        description=(
+            "Optionally analyse and expand the query before retrieval to improve "
+            "recall on short or fuzzy questions. Off by default. `multi_query` and "
+            "`hyde` each make one extra model call"
+        ),
+        # Flat scalar/enum fields, and labels the Builder renders in the picker:
+        # the values are spec format and cannot say what they do, and the guess
+        # that costs money is the one that turns on an LLM mode unknowingly. Same
+        # `x-enum-labels` mechanism as CompactionConfig.strategy.
+        json_schema_extra={
+            "x-enum-labels": {
+                "off": "Off - search the query as written",
+                "multi_query": "Multi-query - search rephrasings too (one model call)",
+                "hyde": "HyDE - search a hypothetical answer's embedding (one model call)",
+            }
+        },
+    )
+    query_analysis_max_variants: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        description=(
+            "How many rephrasings `multi_query` may add, bounding its fan-out and "
+            "cost. Ignored by the other modes"
+        ),
+    )
+    # A `Literal`, not the `ParentContextMode` enum: the Builder's schema form
+    # renders a select only from an inline `enum`, and an enum class reaches the
+    # JSON schema as a `$ref` it shows as a free-text box.
+    parent_context: Literal["off", "window", "parent"] = Field(
+        default="off",
+        description=(
+            "Small-to-big retrieval: return each matched chunk with the text "
+            "around it. Matching and ranking always run on the small chunks, the "
+            "matched chunk is never shortened, and the added context is bounded."
+        ),
+        json_schema_extra={
+            "x-enum-labels": {
+                "off": "The matched passage alone",
+                "window": "The matched passage with its neighbours in the document",
+                "parent": "The matched passage with as much of its document as fits",
+            }
+        },
     )
 
 
@@ -56,6 +104,9 @@ class Knowledge(AbstractCapability[AgentDepsT]):
 
     default_top_k: int = 5
     self_query_enabled: bool = False
+    query_analysis_mode: QueryAnalysisMode = "off"
+    query_analysis_max_variants: int = 3
+    parent_context: ParentContextMode = ParentContextMode.OFF
 
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
@@ -67,5 +118,8 @@ class Knowledge(AbstractCapability[AgentDepsT]):
             self._toolset = build_knowledge_toolset(
                 default_top_k=self.default_top_k,
                 self_query_enabled=self.self_query_enabled,
+                query_analysis_mode=self.query_analysis_mode,
+                query_analysis_max_variants=self.query_analysis_max_variants,
+                parent_context=self.parent_context,
             )
         return self._toolset

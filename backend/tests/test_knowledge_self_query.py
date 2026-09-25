@@ -12,6 +12,7 @@ sees, so it has to refuse on an exhausted budget and book itself exactly once.
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -20,11 +21,15 @@ from uuid import uuid4
 
 import anyio
 import pytest
-from pydantic_ai import RunContext
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolCallPart
 from pydantic_ai.models import AbstractModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
@@ -62,13 +67,16 @@ _SEARCH = "app.agents.capabilities.knowledge._search"
 _TOOLSET = "app.agents.capabilities.knowledge._toolset"
 
 
-def _sq_ctx(model: Any, *, retry: int = 0) -> RunContext[AgentDeps]:
+def _sq_ctx(
+    model: Any, *, retry: int = 0, host: Agent[Any, Any] | None = None
+) -> RunContext[AgentDeps]:
     """A tool context carrying the model self-query will run its inference on."""
     return RunContext(
         deps=AgentDeps(kb_collection_names=["kb"], organization_id=ORG),
         model=model,
         usage=RunUsage(),
         usage_limits=UsageLimits(request_limit=5),
+        agent=host,
         retry=retry,
         max_retries=1,
     )
@@ -122,7 +130,7 @@ class _RealtimeModel(AbstractModel):
 
 async def _infer(model: Any, query: str = "x", units: list[str] | None = None) -> Any:
     return await infer_filters_from_query(
-        model, query, organizational_units=units or [], today=TODAY
+        model, query, organizational_units=units or [], instrument=None, today=TODAY
     )
 
 
@@ -316,6 +324,34 @@ class TestSelfQueryWiring:
         )
         assert "infer_filters=false" in first_line
         assert result.endswith("RESULTS")
+
+    @pytest.mark.parametrize("include_content", [False, True])
+    async def test_the_inference_is_traced_as_its_host_run_is(self, include_content):
+        """The inference prompt is the user's question: it reaches the host's own
+        exporter and carries the question only when the host records content, so
+        an agent set to `content: none` does not leak it through the global,
+        content-on default."""
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        host = Agent(TestModel())
+        host.instrument = InstrumentationSettings(
+            tracer_provider=provider, include_content=include_content
+        )
+        with (
+            patch(f"{_TOOLSET}.search_knowledge_base", new=AsyncMock(return_value="")),
+            patch(f"{_TOOLSET}.organizational_units_in_scope", new=AsyncMock(return_value=[])),
+            metered_by(SpendLedger()),
+        ):
+            await self._search()(
+                _sq_ctx(_answering({"document_type": ["pdf"]}), host=host),
+                query="my salary review",
+            )
+
+        spans = exporter.get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("my salary review" in recorded) is include_content
 
     async def test_infer_filters_false_searches_the_query_as_written(self):
         calls: list[int] = []

@@ -28,8 +28,26 @@ Two things are versioned separately from this file and worth knowing about:
   inferred organizational unit is kept only when the bound collections carry it,
   and a document id is never inferred. The inference can only narrow the search
   within the agent's own organization and collections. Each such search makes
-  one extra model request, billed to the run and refused when the budget is spent.
-  Off by default (#1650).
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget and traced under the agent's own
+  observability settings. An exhausted budget or a failed model call falls back
+  to the plain query. Every produced query is searched under the same tenant
+  scope and filters as the original, so expansion widens recall and never access
+  (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
 
 ## [0.0.502] - 2026-09-25
 
