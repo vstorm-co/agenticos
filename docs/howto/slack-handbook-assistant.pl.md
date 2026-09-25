@@ -1,5 +1,5 @@
 ---
-source_sha: "fcf4f76f3d2d"
+source_sha: "d1599ab21791"
 title: "Odpowiedz na pytanie z handbooka w Slacku"
 description: "Umieść agenta z dokumentem na testowym kanale Slacka, zadaj te same pytania i sprawdź, do kogo należał każdy run."
 ---
@@ -43,12 +43,12 @@ Zadaj każde pytanie w Slacku i porównaj odpowiedź ze źródłem.
 | Gdzie i co | Kryterium |
 | --- | --- |
 | Na kanale: `@your-bot Who handles an equipment request?` | Wskazuje office managera i mówi, że skorzystał z handbooka |
-| Odpowiedź w tym wątku: `Which details should I include?` | Item, reason i delivery location, w tym samym wątku |
+| Odpowiedź w tym wątku: `@your-bot Which details should I include?` | Item, reason i delivery location, w tym samym wątku |
 | Nowa wiadomość na kanale: `@your-bot How much can I spend?` | Mówi, że handbook nie określa limitu |
 | Wiadomość na kanale bez wzmianki o bocie | Brak odpowiedzi |
 | Wiadomość bezpośrednia do bota, zanim połączysz konto | Prosi o połączenie konta i wysyła link |
 
-Wątek to jedna rozmowa. Odpowiedź w wątku ma pierwszą odpowiedź w kontekście. Nowa wiadomość na kanale zaczyna nową rozmowę bez pamięci poprzedniej. Zobacz [jedna rozmowa na wątek](../channels.md#one-conversation-per-thread).
+Wątek to jedna rozmowa. Odpowiedź w wątku ma pierwszą odpowiedź w kontekście. Na kanale wspominaj bota w każdej odpowiedzi: wiadomość w wątku, która go nie wymienia, nie jest skierowana do niego, nawet w wątku, który sam otworzył. Nowa wiadomość na kanale zaczyna nową rozmowę bez pamięci poprzedniej. Zobacz [jedna rozmowa na wątek](../channels.md#one-conversation-per-thread).
 
 Wzmianka musi być taką, którą Slack rozpoznał, czyli wybraną z autouzupełniania. Uchwyt wpisany jako zwykły tekst nie jest wzmianką i bot milczy.
 
@@ -62,9 +62,9 @@ Nadawca, który nie połączył konta Slacka z członkiem organizacji, i tak dos
 
     Agent przeszukuje kolekcje powiązane w jego specu, niezależnie od tego, kto pyta. Własne uprawnienia użytkownika Slacka w AgenticOS tego nie zawężają. Dobieraj kanał i kolekcję razem i nigdy nie testuj reguł dostępu na prywatnym dokumencie.
 
-Żeby połączyć własne konto, wyślij botowi wiadomość bezpośrednią. Odpowie linkiem. Otwórz go w przeglądarce, w której jesteś zalogowany do konsoli, i potwierdź **Connect this account**. Od tej chwili Twoje wiadomości wykonują się jako Ty, z Twoimi uprawnieniami i Twoim budżetem. Link jest ważny piętnaście minut i działa raz. Połączone konta są wymienione w **Settings → Profile → Chat accounts**.
+Żeby połączyć własne konto, wyślij botowi wiadomość bezpośrednią. Odpowie linkiem. Otwórz go w przeglądarce, w której jesteś zalogowany do konsoli, i potwierdź **Connect this account**. Od tej chwili Twoje wiadomości wykonują się jako Ty, z Twoimi uprawnieniami i Twoim nazwiskiem w dzienniku audytu. Budżety pozostają budżetami agenta i organizacji: połączenie konta nie daje Ci osobnego limitu wydatków. Link jest ważny piętnaście minut i działa raz. Połączone konta są wymienione w **Settings → Profile → Chat accounts**.
 
-Żeby odrzucać niepołączonych nadawców także na kanałach, ustaw `require_link` w polityce dostępu bota. Reguły i limit liczby żądań na konto opisuje sekcja [łączenie kont i gdzie jest wymagane](../channels.md#what-every-channel-shares).
+Żeby odrzucać niepołączonych nadawców także na kanałach, ustaw `require_link` w polityce dostępu bota. Konsola nie ma do tego kontrolki: wyślij całą politykę na `PATCH /api/v1/channels/bots/{bot_id}` jako `{"access_policy": {"require_link": true}}`, z uprawnieniem `channels:manage`. Żądanie zastępuje zapisaną politykę, więc powtórz każde pole zmienione wcześniej, na przykład `mode` albo `rate_limit_rpm`. Reguły i limit liczby żądań na konto opisuje sekcja [łączenie kont i gdzie jest wymagane](../channels.md#what-every-channel-shares).
 
 ## Gdy nie odpowiada { #when-it-does-not-answer }
 

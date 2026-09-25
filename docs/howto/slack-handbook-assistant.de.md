@@ -1,5 +1,5 @@
 ---
-source_sha: "fcf4f76f3d2d"
+source_sha: "d1599ab21791"
 title: "Eine Handbuchfrage in Slack beantworten"
 description: "Setzen Sie den Dokumenten-Agent in einen Slack-Testkanal, stellen Sie dieselben Fragen und prüfen Sie, wem jeder Run gehörte."
 ---
@@ -43,12 +43,12 @@ Stellen Sie jede Frage in Slack und vergleichen Sie die Antwort mit der Quelle.
 | Wo und was | Referenzprüfung |
 | --- | --- |
 | Im Kanal: `@your-bot Who handles an equipment request?` | Nennt den office manager und sagt, dass das Handbuch verwendet wurde |
-| Antwort in diesem Thread: `Which details should I include?` | Item, reason und delivery location, beantwortet im selben Thread |
+| Antwort in diesem Thread: `@your-bot Which details should I include?` | Item, reason und delivery location, beantwortet im selben Thread |
 | Eine neue Nachricht im Kanal: `@your-bot How much can I spend?` | Sagt, dass das Handbuch kein Ausgabenlimit nennt |
 | Eine Kanalnachricht, die den Bot nicht erwähnt | Keine Antwort |
 | Eine Direktnachricht an den Bot, bevor Sie Ihr Konto verknüpfen | Bittet Sie, Ihr Konto zu verbinden, und sendet einen Link |
 
-Ein Thread ist eine Konversation. Die Antwort im Thread behält die erste Antwort im Kontext. Eine neue Nachricht im Kanal beginnt eine neue Konversation ohne Erinnerung an die letzte. Siehe [eine Konversation pro Thread](../channels.md#one-conversation-per-thread).
+Ein Thread ist eine Konversation. Die Antwort im Thread behält die erste Antwort im Kontext. Erwähnen Sie den Bot in einem Kanal in jeder Antwort: Eine Thread-Nachricht, die ihn nicht nennt, ist nicht an ihn gerichtet, auch nicht in einem Thread, den der Bot selbst eröffnet hat. Eine neue Nachricht im Kanal beginnt eine neue Konversation ohne Erinnerung an die letzte. Siehe [eine Konversation pro Thread](../channels.md#one-conversation-per-thread).
 
 Die Erwähnung muss eine sein, die Slack aufgelöst hat, ausgewählt aus der Autovervollständigung. Ein als reiner Text getippter Handle ist keine Erwähnung, und der Bot bleibt still.
 
@@ -62,9 +62,9 @@ Ein Absender, der kein Slack-Konto mit einem Mitglied verknüpft hat, bekommt in
 
     Der Agent durchsucht die Sammlungen, die sein Spec bindet, egal wer fragt. Die eigenen Berechtigungen eines Slack-Nutzers in AgenticOS schränken das nicht ein. Wählen Sie Kanal und Sammlung gemeinsam, und testen Sie Zugriffsregeln nie mit einem privaten Dokument.
 
-Um Ihr eigenes Konto zu verknüpfen, senden Sie dem Bot eine Direktnachricht. Er antwortet mit einem Link. Öffnen Sie ihn in dem Browser, in dem Sie in der Konsole angemeldet sind, und bestätigen Sie **Connect this account**. Ab dann laufen Ihre Nachrichten als Sie, mit Ihren Berechtigungen und Ihrem Budget. Der Link gilt fünfzehn Minuten und funktioniert einmal. Verknüpfte Konten stehen unter **Settings → Profile → Chat accounts**.
+Um Ihr eigenes Konto zu verknüpfen, senden Sie dem Bot eine Direktnachricht. Er antwortet mit einem Link. Öffnen Sie ihn in dem Browser, in dem Sie in der Konsole angemeldet sind, und bestätigen Sie **Connect this account**. Ab dann laufen Ihre Nachrichten als Sie, mit Ihren Berechtigungen und Ihrem Namen im Audit-Trail. Budgets bleiben die des Agents und der Organisation: Die Verknüpfung gibt Ihnen kein eigenes Ausgabenlimit. Der Link gilt fünfzehn Minuten und funktioniert einmal. Verknüpfte Konten stehen unter **Settings → Profile → Chat accounts**.
 
-Um unverknüpfte Absender auch in Kanälen abzuweisen, setzen Sie `require_link` in der Zugriffsrichtlinie des Bots. Die Regeln und das Rate-Limit pro Konto stehen unter [Verknüpfung, und wo sie verlangt wird](../channels.md#what-every-channel-shares).
+Um unverknüpfte Absender auch in Kanälen abzuweisen, setzen Sie `require_link` in der Zugriffsrichtlinie des Bots. Die Konsole hat dafür kein Bedienelement: Senden Sie die ganze Richtlinie an `PATCH /api/v1/channels/bots/{bot_id}` als `{"access_policy": {"require_link": true}}`, mit `channels:manage`. Die Anfrage ersetzt die gespeicherte Richtlinie, also wiederholen Sie jedes Feld, das Sie vorher geändert haben, etwa `mode` oder `rate_limit_rpm`. Die Regeln und das Rate-Limit pro Konto stehen unter [Verknüpfung, und wo sie verlangt wird](../channels.md#what-every-channel-shares).
 
 ## Wenn er nicht antwortet { #when-it-does-not-answer }
 

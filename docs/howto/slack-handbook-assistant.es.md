@@ -1,5 +1,5 @@
 ---
-source_sha: "fcf4f76f3d2d"
+source_sha: "d1599ab21791"
 title: "Responde una pregunta sobre el manual en Slack"
 description: "Pon el agent con documentos en un canal de prueba de Slack, haz las mismas preguntas y comprueba a quién pertenecía cada run."
 ---
@@ -43,12 +43,12 @@ Haz cada pregunta en Slack y compara la respuesta con la fuente.
 | Dónde y qué | Comprobación de referencia |
 | --- | --- |
 | En el canal: `@your-bot Who handles an equipment request?` | Nombra al office manager y dice que usó el manual |
-| Respuesta en ese hilo: `Which details should I include?` | Artículo, motivo y lugar de entrega, respondido en el mismo hilo |
+| Respuesta en ese hilo: `@your-bot Which details should I include?` | Artículo, motivo y lugar de entrega, respondido en el mismo hilo |
 | Un mensaje nuevo en el canal: `@your-bot How much can I spend?` | Dice que el manual no indica ninguna asignación |
 | Un mensaje en el canal que no menciona al bot | Ninguna respuesta |
 | Un mensaje directo al bot, antes de vincular tu cuenta | Te pide que conectes tu cuenta y envía un enlace |
 
-Un hilo es una conversación. La respuesta en el hilo mantiene en contexto la primera respuesta. Un mensaje nuevo en el canal empieza una conversación nueva sin memoria de la anterior. Consulta [una conversación por hilo](../channels.md#one-conversation-per-thread).
+Un hilo es una conversación. La respuesta en el hilo mantiene en contexto la primera respuesta. En un canal, menciona al bot en cada respuesta: un mensaje del hilo que no lo nombra no va dirigido a él, ni siquiera en un hilo que abrió el propio bot. Un mensaje nuevo en el canal empieza una conversación nueva sin memoria de la anterior. Consulta [una conversación por hilo](../channels.md#one-conversation-per-thread).
 
 La mención debe ser una que Slack haya resuelto, elegida en el autocompletado. Un identificador escrito como texto plano no es una mención, y el bot se queda en silencio.
 
@@ -62,9 +62,9 @@ Un remitente que no ha vinculado una cuenta de Slack a un miembro sigue recibien
 
     El agent busca en las colecciones que vincula su spec, pregunte quien pregunte. Los permisos propios de un usuario de Slack en AgenticOS no lo restringen. Elige el canal y la colección a la vez, y nunca pruebes reglas de acceso con un documento privado.
 
-Para vincular tu propia cuenta, envía un mensaje directo al bot. Te responde con un enlace. Ábrelo en el navegador en el que tienes la sesión iniciada en la consola y confirma **Connect this account**. A partir de entonces tus mensajes se ejecutan como tú, con tus permisos y tu budget. El enlace dura quince minutos y funciona una sola vez. Las cuentas vinculadas aparecen en **Settings → Profile → Chat accounts**.
+Para vincular tu propia cuenta, envía un mensaje directo al bot. Te responde con un enlace. Ábrelo en el navegador en el que tienes la sesión iniciada en la consola y confirma **Connect this account**. A partir de entonces tus mensajes se ejecutan como tú, con tus permisos y tu nombre en el registro de auditoría. Los budgets siguen siendo los del agent y de la organización: vincular la cuenta no te da un límite de gasto propio. El enlace dura quince minutos y funciona una sola vez. Las cuentas vinculadas aparecen en **Settings → Profile → Chat accounts**.
 
-Para rechazar también en los canales a los remitentes no vinculados, activa `require_link` en la política de acceso del bot. Las reglas y el límite de frecuencia por cuenta están en [la vinculación, y dónde es obligatoria](../channels.md#what-every-channel-shares).
+Para rechazar también en los canales a los remitentes no vinculados, activa `require_link` en la política de acceso del bot. La consola no tiene un control para ello: envía la política completa a `PATCH /api/v1/channels/bots/{bot_id}` como `{"access_policy": {"require_link": true}}`, con `channels:manage`. La petición sustituye la política guardada, así que repite cualquier campo que hayas cambiado antes, como `mode` o `rate_limit_rpm`. Las reglas y el límite de frecuencia por cuenta están en [la vinculación, y dónde es obligatoria](../channels.md#what-every-channel-shares).
 
 ## Cuando no responde { #when-it-does-not-answer }
 

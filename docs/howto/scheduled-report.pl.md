@@ -1,5 +1,5 @@
 ---
-source_sha: "4137cd31f700"
+source_sha: "c64d022dd8b0"
 title: "Zaplanuj cotygodniowy raport"
 description: "Daj agentowi samowystarczalne zadanie raportowe, uruchom je na żądanie, opublikuj wynik jako artefakt i ustaw cotygodniowy harmonogram."
 ---
@@ -26,7 +26,7 @@ Label the report as synthetic when the task says the data is synthetic.
 Publish the finished report with publish_artifact under the name weekly-report.
 ```
 
-Nazwa artefaktu jest jego tożsamością. Każdy run tego agenta, który publikuje `weekly-report`, dodaje wersję do tego samego artefaktu, więc udostępniany link się nie zmienia.
+Nazwa artefaktu jest jego tożsamością. Każdy run tego agenta, który publikuje `weekly-report`, aktualizuje ten sam artefakt, więc udostępniany link się nie zmienia. Run dodaje wersję tylko wtedy, gdy strona się zmieniła. Identyczna treść zwraca `unchanged` i zostawia ostatnią wersję.
 
 ## Utwórz harmonogram { #create-the-schedule }
 
@@ -59,7 +59,7 @@ Naciśnij **Run now** na harmonogramie. Powoduje jedno dodatkowe odpalenie i nie
 | Oznaczenie | Raport mówi, że dane są syntetyczne |
 | Artefakt | **Artifacts** wymienia `weekly-report`, prywatny dla Ciebie |
 | Run w Activity | Powierzchnia `schedule`, status completed |
-| Drugie Run now | Nowa wersja tego samego artefaktu, pod tym samym linkiem |
+| Drugie Run now | Ten sam artefakt i link: nowa wersja, jeśli strona się zmieniła, albo `unchanged` przy identycznej treści |
 
 Otwórz stronę artefaktu i przeczytaj raport tam, nie tylko w odpowiedzi w czacie. To tę stronę będą otwierać ludzie. Pozostaje prywatna, dopóki jej nie udostępnisz albo nie utworzysz publicznego linku.
 

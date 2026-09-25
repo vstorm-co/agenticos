@@ -1,5 +1,5 @@
 ---
-source_sha: "4137cd31f700"
+source_sha: "c64d022dd8b0"
 title: "Einen Wochenbericht planen"
 description: "Geben Sie einem Agent eine in sich geschlossene Berichtsaufgabe, führen Sie sie bei Bedarf aus, veröffentlichen Sie das Ergebnis als Artefakt und legen Sie einen wöchentlichen Zeitplan fest."
 ---
@@ -26,7 +26,7 @@ Label the report as synthetic when the task says the data is synthetic.
 Publish the finished report with publish_artifact under the name weekly-report.
 ```
 
-Der Name des Artefakts ist seine Identität. Jeder Run dieses Agents, der `weekly-report` veröffentlicht, fügt demselben Artefakt eine Version hinzu, sodass der Link, den Sie teilen, gleich bleibt.
+Der Name des Artefakts ist seine Identität. Jeder Run dieses Agents, der `weekly-report` veröffentlicht, aktualisiert dasselbe Artefakt, sodass der Link, den Sie teilen, gleich bleibt. Ein Run fügt nur dann eine Version hinzu, wenn sich die Seite geändert hat. Identischer Inhalt antwortet mit `unchanged` und behält die letzte Version.
 
 ## Den Zeitplan erstellen { #create-the-schedule }
 
@@ -59,7 +59,7 @@ Drücken Sie **Run now** auf dem Zeitplan. Das löst ihn einmal zusätzlich aus 
 | Kennzeichnung | Der Bericht sagt, dass die Daten synthetisch sind |
 | Artefakt | **Artifacts** listet `weekly-report`, privat für Sie |
 | Der Run in Activity | Oberfläche `schedule`, Status completed |
-| Run now ein zweites Mal | Eine neue Version desselben Artefakts, unter demselben Link |
+| Run now ein zweites Mal | Dasselbe Artefakt und derselbe Link: eine neue Version, wenn sich die Seite geändert hat, oder `unchanged` bei identischem Inhalt |
 
 Öffnen Sie die Seite des Artefakts und lesen Sie den Bericht dort, nicht nur die Chat-Antwort. Diese Seite ist das, was andere öffnen werden. Sie bleibt privat, bis Sie sie teilen oder einen öffentlichen Link erstellen.
 

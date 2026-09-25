@@ -1,5 +1,5 @@
 ---
-source_sha: "4137cd31f700"
+source_sha: "c64d022dd8b0"
 title: "Programa un informe semanal"
 description: "Dale a un agent una tarea de informe autocontenida, ejecútala bajo demanda, publica el resultado como artefacto y ponla en una programación semanal."
 ---
@@ -26,7 +26,7 @@ Label the report as synthetic when the task says the data is synthetic.
 Publish the finished report with publish_artifact under the name weekly-report.
 ```
 
-El nombre del artefacto es su identidad. Cada run de este agent que publica `weekly-report` añade una versión al mismo artefacto, así que el enlace que compartes no cambia.
+El nombre del artefacto es su identidad. Cada run de este agent que publica `weekly-report` actualiza el mismo artefacto, así que el enlace que compartes no cambia. Un run añade una versión solo cuando la página cambió. Un contenido idéntico responde `unchanged` y conserva la última versión.
 
 ## Crea la programación { #create-the-schedule }
 
@@ -59,7 +59,7 @@ Pulsa **Run now** en la programación. Hace un disparo adicional y deja sin camb
 | Etiqueta | El informe dice que los datos son sintéticos |
 | Artefacto | **Artifacts** muestra `weekly-report`, privado para ti |
 | El run en Activity | Superficie `schedule`, estado completado |
-| Run now por segunda vez | Una nueva versión del mismo artefacto, bajo el mismo enlace |
+| Run now por segunda vez | El mismo artefacto y enlace: una versión nueva si la página cambió, o `unchanged` si el contenido es idéntico |
 
 Abre la página del artefacto y lee allí el informe, no solo la respuesta del chat. La página es lo que abrirá la gente. Sigue siendo privada hasta que la compartas o crees un enlace público.
 

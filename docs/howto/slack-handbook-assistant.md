@@ -42,12 +42,12 @@ Ask each question in Slack and compare the reply with the source.
 | Where and what | Reference check |
 | --- | --- |
 | In the channel: `@your-bot Who handles an equipment request?` | Names the office manager and says it used the handbook |
-| Reply in that thread: `Which details should I include?` | Item, reason and delivery location, answered in the same thread |
+| Reply in that thread: `@your-bot Which details should I include?` | Item, reason and delivery location, answered in the same thread |
 | A new message in the channel: `@your-bot How much can I spend?` | Says the handbook does not state an allowance |
 | A channel message that does not mention the bot | No reply |
 | A direct message to the bot, before you link your account | Asks you to connect your account and sends a link |
 
-A thread is one conversation. The reply in the thread keeps the first answer in context. A new message in the channel starts a new conversation with no memory of the last one. See [one conversation per thread](../channels.md#one-conversation-per-thread).
+A thread is one conversation. The reply in the thread keeps the first answer in context. In a channel, mention the bot in every reply: a thread message that does not name it is not addressed to it, even in a thread the bot opened. A new message in the channel starts a new conversation with no memory of the last one. See [one conversation per thread](../channels.md#one-conversation-per-thread).
 
 The mention must be one Slack resolved, picked from the autocomplete. A handle typed as plain text is not a mention, and the bot stays silent.
 
@@ -61,9 +61,9 @@ A sender who has not linked a Slack account to a member still gets an answer in 
 
     The agent searches the collections its spec binds, whoever asks. A Slack user's own permissions in AgenticOS do not narrow that. Choose the channel and the collection together, and never test access rules with a private document.
 
-To link your own account, send the bot a direct message. It answers with a link. Open it in the browser where you are signed in to the console and confirm **Connect this account**. From then on your messages run as you, with your permissions and your budget. The link lasts fifteen minutes and works once. Linked accounts are listed under **Settings → Profile → Chat accounts**.
+To link your own account, send the bot a direct message. It answers with a link. Open it in the browser where you are signed in to the console and confirm **Connect this account**. From then on your messages run as you, with your permissions and your name on the audit trail. Budgets stay the agent's and the organization's: linking does not give you a spending limit of your own. The link lasts fifteen minutes and works once. Linked accounts are listed under **Settings → Profile → Chat accounts**.
 
-To refuse unlinked senders in channels as well, set `require_link` on the bot's access policy. The rules and the per-account rate limit are in [linking, and where it is required](../channels.md#what-every-channel-shares).
+To refuse unlinked senders in channels as well, set `require_link` on the bot's access policy. The console has no control for it: send the whole policy to `PATCH /api/v1/channels/bots/{bot_id}` as `{"access_policy": {"require_link": true}}`, with `channels:manage`. The request replaces the stored policy, so repeat any field you changed before, such as `mode` or `rate_limit_rpm`. The rules and the per-account rate limit are in [linking, and where it is required](../channels.md#what-every-channel-shares).
 
 ## When it does not answer
 

@@ -25,7 +25,7 @@ Label the report as synthetic when the task says the data is synthetic.
 Publish the finished report with publish_artifact under the name weekly-report.
 ```
 
-The artifact's name is its identity. Every run of this agent that publishes `weekly-report` adds a version to the same artifact, so the link you share stays the same.
+The artifact's name is its identity. Every run of this agent that publishes `weekly-report` updates the same artifact, so the link you share stays the same. A run adds a version only when the page changed. Identical content answers `unchanged` and keeps the latest version.
 
 ## Create the schedule
 
@@ -58,7 +58,7 @@ Press **Run now** on the schedule. It fires one extra time and leaves the weekly
 | Label | The report says the data is synthetic |
 | Artifact | **Artifacts** lists `weekly-report`, private to you |
 | The run in Activity | Surface `schedule`, status completed |
-| Run now a second time | A new version of the same artifact, under the same link |
+| Run now a second time | The same artifact and link: a new version if the page changed, or `unchanged` if the content is identical |
 
 Open the artifact page and read the report there, not only the chat reply. The page is what people will open. It stays private until you share it or create a public link.
 
