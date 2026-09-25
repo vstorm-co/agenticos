@@ -19,18 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **A knowledge base can be fed from a website.** The new `web` sync source
-  takes a start URL and follows links to a depth, or reads a sitemap, and
-  imports each page as a Markdown document of its text. It needs no credential.
-  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
-  client, and the crawl stays on the start URL's host and under one path. It
-  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
-  an `https://` site for `http://`, and it stops at a page limit and after six
-  hours. A page is re-embedded only when its text changes, not when its markup
-  does, so a nightly sync of an unchanged site costs no embeddings. Its text
-  cites the page's URL without the query string. Transient failures are retried
-  three times, honouring `Retry-After` in seconds or as a date. A page that still
-  cannot be read counts as a failed file and is named on the sync log (#984).
 - **A Git repository can feed a knowledge base.** A `git` sync source reads a
   repository's documentation over HTTPS from GitHub, GitLab or any host that
   serves git, with an access token from the Vault. By default it reads
@@ -54,6 +42,33 @@ Two things are versioned separately from this file and worth knowing about:
   `0097_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
   the answer and `aclose` for what a sync made, such as a clone.
 
+### Fixed
+
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
+
+## [0.0.496] - 2026-09-25
+
+### Added
+
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
+
 ### Changed
 
 - **A sync now removes what its source no longer holds.** A page taken off a
@@ -75,16 +90,6 @@ Two things are versioned separately from this file and worth knowing about:
   the files, whether that is all of them, and what could not be read. A
   connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
   out not to hold, which the sync removes rather than counts as failed.
-
-### Fixed
-
-- **A file a worker died halfway through syncing is put right by the next
-  sync.** A worker stopped after a file's vectors were stored and before its
-  row recorded them left vectors no row named: the next sync skipped the file
-  as unchanged, and removing it later had nothing to delete by. The next sync
-  of that source now clears what nothing tracks and ingests the file again. A
-  clean-up that fails counts as a failed file, so the run records no state and
-  the one after tries again.
 
 ## [0.0.495] - 2026-09-25
 
