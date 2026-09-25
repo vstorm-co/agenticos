@@ -91,7 +91,13 @@ async def _syncing(
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=unlisted),
-        release_if_shared=AsyncMock(return_value=shared),
+        # The locked row when this source is its last claimant; `None` when
+        # another source still claims it and only this claim was dropped.
+        release_claim=AsyncMock(
+            side_effect=lambda row_id, **_: (
+                None if shared else next(row for row in unlisted if str(row.id) == row_id)
+            )
+        ),
         stale_for_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(),
     )
@@ -166,7 +172,7 @@ class TestAgainstACompleteListing:
         ) as run:
             pass
 
-        run["documents"].release_if_shared.assert_awaited_once_with(
+        run["documents"].release_claim.assert_awaited_once_with(
             str(gone.id), sync_source_id=SOURCE_ID
         )
         run["remove"].assert_not_awaited()

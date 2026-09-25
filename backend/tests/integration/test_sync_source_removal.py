@@ -16,12 +16,13 @@ nothing a mock can show.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.models.organization import Organization
@@ -283,12 +284,15 @@ class TestTwoSourcesClaimingOneDocument:
         await db.flush()
         documents = RAGDocumentService(db)
 
-        assert await documents.release_if_shared(str(shared.id), sync_source_id=mine.id)
+        assert await documents.release_claim(str(shared.id), sync_source_id=mine.id) is None
         # The last claimant keeps its claim, so a vector delete that fails
         # leaves the document this source's to retry.
-        assert not await documents.release_if_shared(str(only_mine.id), sync_source_id=mine.id)
+        locked = await documents.release_claim(str(only_mine.id), sync_source_id=mine.id)
+        assert locked is not None
+        assert locked.id == only_mine.id
         assert await _claimants(db, shared) == {other.id}
         assert await _claimants(db, only_mine) == {mine.id}
+        assert await documents.release_claim(str(uuid.uuid4()), sync_source_id=mine.id) is None
 
     async def test_an_unchanged_document_is_claimed_by_its_address_and_vector_id(
         self, db: AsyncSession
@@ -329,14 +333,14 @@ class TestTwoSourcesClaimingOneDocument:
         pairs = {(f"{ROOT}a.md", "vec-a"), (f"{ROOT}c.md", "vec-c")}
         documents = RAGDocumentService(db)
 
-        await documents.claim_unchanged(
+        await documents.claim_listed(
             sync_source_id=mine.id, collection_name=COLLECTION, documents=pairs
         )
         # Claiming again is a no-op, not a conflict.
-        await documents.claim_unchanged(
+        await documents.claim_listed(
             sync_source_id=mine.id, collection_name=COLLECTION, documents=pairs
         )
-        await documents.claim_unchanged(
+        await documents.claim_listed(
             sync_source_id=mine.id, collection_name=COLLECTION, documents=set()
         )
 
@@ -344,6 +348,48 @@ class TestTwoSourcesClaimingOneDocument:
         assert await _claimants(db, stale) == {other.id}
         assert await _claimants(db, elsewhere) == set()
         assert await _claimants(db, running) == set()
+
+    async def test_a_listing_of_any_size_is_claimed_in_batches(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two bind parameters a pair, so one statement for a whole Git or bucket
+        listing would pass asyncpg's limit and fail the sync."""
+        monkeypatch.setattr(rag_document_repo, "CLAIM_BATCH", 2)
+        org = await _org(db)
+        mine = await _source(db, org)
+        rows = [
+            await _row(
+                db,
+                organization_id=org.id,
+                source_path=f"{ROOT}{n}.md",
+                sync_source_id=None,
+                vector_document_id=f"vec-{n}",
+            )
+            for n in range(5)
+        ]
+
+        await RAGDocumentService(db).claim_listed(
+            sync_source_id=mine.id,
+            collection_name=COLLECTION,
+            documents={(f"{ROOT}{n}.md", f"vec-{n}") for n in range(5)},
+        )
+
+        assert [await _claimants(db, row) for row in rows] == [{mine.id}] * 5
+        assert await RAGDocumentService(db).claimants([str(row.id) for row in rows]) == {mine.id}
+        assert await RAGDocumentService(db).claimants([]) == set()
+
+    async def test_claims_carried_onto_a_row_keep_the_ones_it_has(self, db: AsyncSession) -> None:
+        org = await _org(db)
+        mine, other = await _source(db, org), await _source(db, org)
+        doc = await _row(
+            db, organization_id=org.id, source_path=f"{ROOT}a.md", sync_source_id=mine.id
+        )
+        documents = RAGDocumentService(db)
+
+        await documents.add_claims(str(doc.id), sync_source_ids={mine.id, other.id})
+        await documents.add_claims(str(doc.id), sync_source_ids=set())
+
+        assert await _claimants(db, doc) == {mine.id, other.id}
 
     async def test_a_replacement_at_the_same_address_takes_over_the_claims(
         self, db: AsyncSession
@@ -388,6 +434,104 @@ class TestTwoSourcesClaimingOneDocument:
         assert await rag_document_repo.get_by_id(db, same_address.id) is None
         assert await rag_document_repo.get_by_id(db, other_address.id) is None
         assert await _claimants(db, replacement) == {first.id, second.id}
+
+
+async def _committed_shared_document(
+    engine: AsyncEngine, *, claimed_by_both: bool
+) -> tuple[RAGDocument, SyncSource, SyncSource]:
+    """A document on the collection, committed so another connection sees it."""
+    async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+        org = await _org(session)
+        first, second = await _source(session, org), await _source(session, org)
+        doc = await _row(
+            session, organization_id=org.id, source_path=f"{ROOT}a.md", sync_source_id=first.id
+        )
+        if claimed_by_both:
+            session.add(RAGDocumentClaim(rag_document_id=doc.id, sync_source_id=second.id))
+        await session.commit()
+        return doc, first, second
+
+
+async def _still_waiting(task: asyncio.Task[object]) -> bool:
+    """Whether a statement is blocked on a lock, given time to have finished."""
+    await asyncio.sleep(0.3)
+    return not task.done()
+
+
+class TestTwoSourcesAtOnce:
+    """The last claim, decided and removed under the document's row lock, is a
+    decision no concurrent source can overturn - which only Postgres can show."""
+
+    async def test_two_sources_dropping_it_at_once_leave_it_to_exactly_one(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Each used to see the other's claim, withdraw its own, and leave a
+        document nobody claims and no sync would remove."""
+        doc, first, second = await _committed_shared_document(engine, claimed_by_both=True)
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        async with sessions() as one, sessions() as two:
+            released = await RAGDocumentService(one).release_claim(
+                str(doc.id), sync_source_id=first.id
+            )
+            waiting = asyncio.create_task(
+                RAGDocumentService(two).release_claim(str(doc.id), sync_source_id=second.id)
+            )
+            assert await _still_waiting(waiting)
+            await one.commit()
+            last = await waiting
+            left_to = None if last is None else last.id
+            await two.rollback()
+
+        assert released is None
+        assert left_to == doc.id
+
+    async def test_a_claim_waits_for_a_removal_and_skips_what_it_removed(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Not a foreign key violation that would fail the claiming sync."""
+        doc, first, second = await _committed_shared_document(engine, claimed_by_both=False)
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        async with sessions() as remover, sessions() as claimer:
+            locked = await RAGDocumentService(remover).release_claim(
+                str(doc.id), sync_source_id=first.id
+            )
+            assert locked is not None
+            claiming = asyncio.create_task(
+                RAGDocumentService(claimer).claim_listed(
+                    sync_source_id=second.id,
+                    collection_name=COLLECTION,
+                    documents={(f"{ROOT}a.md", "vec")},
+                )
+            )
+            assert await _still_waiting(claiming)
+            await RAGDocumentService(remover).forget_document(str(doc.id))
+            await remover.commit()
+            await claiming
+            await claimer.commit()
+            left = await claimer.execute(select(RAGDocumentClaim))
+
+        assert left.scalars().all() == []
+
+    async def test_a_claim_that_lands_first_keeps_the_document(self, engine: AsyncEngine) -> None:
+        doc, first, second = await _committed_shared_document(engine, claimed_by_both=False)
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        async with sessions() as claimer, sessions() as remover:
+            await RAGDocumentService(claimer).claim_listed(
+                sync_source_id=second.id,
+                collection_name=COLLECTION,
+                documents={(f"{ROOT}a.md", "vec")},
+            )
+            releasing = asyncio.create_task(
+                RAGDocumentService(remover).release_claim(str(doc.id), sync_source_id=first.id)
+            )
+            assert await _still_waiting(releasing)
+            await claimer.commit()
+            released = await releasing
+            await remover.commit()
+            left = await remover.execute(select(RAGDocumentClaim.sync_source_id))
+
+        assert released is None
+        assert set(left.scalars().all()) == {second.id}
 
 
 class TestOneRunOfASourceAtATime:

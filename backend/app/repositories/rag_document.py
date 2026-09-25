@@ -322,8 +322,9 @@ async def get_stale_for_sync_source(
     vectors may or may not have been written. A row with no `source_path` is not
     one a sync opened - `_open_document_row` always gives it one - and is left
     for whoever did. A `PROCESSING` row has one claim, the source that opened
-    it: claims move to a row only once it settles (`claim_unchanged`,
-    `transfer_claims`).
+    it: other sources claim a row only once it settles (`claim_listed`,
+    `add_claims`, `transfer_claims`), so this never reaches a row another
+    source's run may still be writing.
     """
     result = await db.execute(
         select(RAGDocument)
@@ -336,6 +337,26 @@ async def get_stale_for_sync_source(
         )
     )
     return list(result.scalars().all())
+
+
+async def lock_for_removal(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
+    """The row, locked until this transaction ends, or `None` when it is already gone.
+
+    What makes "is this source the document's last claimant" a decision that
+    still holds when the row is deleted. Two sources dropping one document at
+    once each saw the other's claim, each withdrew its own, and left a
+    document nobody claims and no sync would ever remove; a source claiming it
+    meanwhile lost its claim with the row. Each now waits for the other's
+    transaction: a claim, whose foreign key takes a share lock on this row, as
+    much as a removal.
+    """
+    result = await db.execute(
+        select(RAGDocument)
+        .where(RAGDocument.id == doc_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
 
 
 async def is_claimed_by_another_source(
@@ -372,7 +393,40 @@ async def delete_claim(db: AsyncSession, doc_id: UUID, *, sync_source_id: UUID) 
     await db.flush()
 
 
-async def claim_unchanged(
+async def add_claims(db: AsyncSession, doc_id: UUID, *, sync_source_ids: set[UUID]) -> None:
+    """Claim one document for each of these sources, keeping claims it already has."""
+    if not sync_source_ids:
+        return
+    await db.execute(
+        pg_insert(RAGDocumentClaim)
+        .values(
+            [
+                {"rag_document_id": doc_id, "sync_source_id": source}
+                for source in sorted(sync_source_ids)
+            ]
+        )
+        .on_conflict_do_nothing()
+    )
+    await db.flush()
+
+
+async def get_claimants(db: AsyncSession, doc_ids: list[UUID]) -> set[UUID]:
+    """Every source claiming any of these documents."""
+    if not doc_ids:
+        return set()
+    result = await db.execute(
+        select(RAGDocumentClaim.sync_source_id)
+        .where(RAGDocumentClaim.rag_document_id.in_(doc_ids))
+        .distinct()
+    )
+    return set(result.scalars().all())
+
+
+# Two bind parameters a pair: well under asyncpg's 32767 whatever a listing holds.
+CLAIM_BATCH = 1000
+
+
+async def claim_listed(
     db: AsyncSession,
     *,
     sync_source_id: UUID,
@@ -381,30 +435,36 @@ async def claim_unchanged(
 ) -> None:
     """Claim the settled rows tracking these `(source_path, vector_document_id)` pairs.
 
-    A sync skips a listed file whose stored document is unchanged, so it never
-    opens a row for it - and when another source ingested that document, this
-    one held no claim on it, and the other dropping it removed a document this
-    source still lists. The pair, not the address alone: the stored document
-    came from the ingester's tenant-scoped lookup, so matching its id keeps this
-    to the document the sync actually compared, never another tenant's row
-    under a shared collection name.
+    A sync that finds a listed file already stored - ingested by another
+    source, or skipped as unchanged - opens no row for it, so it held no claim
+    on it, and the other source dropping it removed a document this one still
+    lists. The pair, not the address alone: the stored document came from the
+    ingester's tenant-scoped lookup, so matching its id keeps this to the
+    document the sync actually compared, never another tenant's row under a
+    shared collection name.
+
+    `FOR KEY SHARE`, so a row another source holds for removal is waited for
+    and then skipped once it is gone, rather than failing the claim's foreign
+    key and the whole sync with it (`lock_for_removal`).
     """
-    if not documents:
-        return
-    await db.execute(
-        pg_insert(RAGDocumentClaim)
-        .from_select(
-            ["rag_document_id", "sync_source_id"],
-            select(RAGDocument.id, literal(sync_source_id, PG_UUID(as_uuid=True))).where(
-                RAGDocument.collection_name == collection_name,
-                RAGDocument.status == DocumentStatus.DONE,
-                tuple_(RAGDocument.source_path, RAGDocument.vector_document_id).in_(
-                    sorted(documents)
-                ),
-            ),
+    pairs = sorted(documents)
+    for start in range(0, len(pairs), CLAIM_BATCH):
+        await db.execute(
+            pg_insert(RAGDocumentClaim)
+            .from_select(
+                ["rag_document_id", "sync_source_id"],
+                select(RAGDocument.id, literal(sync_source_id, PG_UUID(as_uuid=True)))
+                .where(
+                    RAGDocument.collection_name == collection_name,
+                    RAGDocument.status == DocumentStatus.DONE,
+                    tuple_(RAGDocument.source_path, RAGDocument.vector_document_id).in_(
+                        pairs[start : start + CLAIM_BATCH]
+                    ),
+                )
+                .with_for_update(key_share=True),
+            )
+            .on_conflict_do_nothing()
         )
-        .on_conflict_do_nothing()
-    )
     await db.flush()
 
 

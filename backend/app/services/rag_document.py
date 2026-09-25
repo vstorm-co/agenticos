@@ -675,37 +675,51 @@ class RAGDocumentService:
         )
         return [row for row in rows if row.source_path not in listed]
 
-    async def release_if_shared(self, doc_id: str, *, sync_source_id: UUID) -> bool:
-        """Drop this source's claim if another source still claims the document.
+    async def release_claim(self, doc_id: str, *, sync_source_id: UUID) -> RAGDocument | None:
+        """Withdraw this source's claim, or answer the document for it to remove.
 
-        Answers whether it did, and so whether the document stays. `False` means
-        this source is the last to list it, and its claim is left in place for
-        the caller to remove the document whole - vectors first, then
-        `forget_document` - so a vector delete that fails leaves it claimed, and
+        The document is locked first, until this session's transaction ends
+        (`lock_for_removal`). When another source feeding the collection still
+        claims it, this source's claim is dropped and the answer is `None`, as
+        it is for a row already gone. Otherwise this source is the last to list
+        it: its claim stays, and the locked row is answered for the caller to
+        remove whole in the same transaction - vectors first, then
+        `forget_document` - so a vector delete that fails leaves it claimed and
         the next run of this source tries again (#1879).
         """
         row_id = UUID(doc_id)
+        doc = await rag_document_repo.lock_for_removal(self.db, row_id)
+        if doc is None:
+            return None
         if not await rag_document_repo.is_claimed_by_another_source(
             self.db, row_id, sync_source_id=sync_source_id
         ):
-            return False
+            return doc
         await rag_document_repo.delete_claim(self.db, row_id, sync_source_id=sync_source_id)
-        return True
+        return None
 
-    async def claim_unchanged(
+    async def claim_listed(
         self, *, sync_source_id: UUID, collection_name: str, documents: set[tuple[str, str]]
     ) -> None:
-        """Claim the documents a sync listed and skipped as unchanged (`claim_unchanged`).
+        """Claim the stored documents at addresses a sync listed (`claim_listed`).
 
         `documents` are `(source_path, vector_document_id)` pairs, each the
-        stored document the run compared a listed file against.
+        stored document the run found at a listed file's address.
         """
-        await rag_document_repo.claim_unchanged(
+        await rag_document_repo.claim_listed(
             self.db,
             sync_source_id=sync_source_id,
             collection_name=collection_name,
             documents=documents,
         )
+
+    async def add_claims(self, doc_id: str, *, sync_source_ids: set[UUID]) -> None:
+        """Claim a settled document for other sources that list its address (`add_claims`)."""
+        await rag_document_repo.add_claims(self.db, UUID(doc_id), sync_source_ids=sync_source_ids)
+
+    async def claimants(self, doc_ids: list[str]) -> set[UUID]:
+        """Every source claiming any of these documents."""
+        return await rag_document_repo.get_claimants(self.db, [UUID(doc_id) for doc_id in doc_ids])
 
     async def stale_for_source(
         self, *, sync_source_id: UUID, collection_name: str
