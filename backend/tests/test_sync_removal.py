@@ -68,6 +68,7 @@ async def _syncing(
     *,
     unlisted: list[MagicMock],
     vectors_removed: bool = True,
+    shared: bool = False,
     log: MagicMock | None = None,
 ) -> Any:
     source = MagicMock(
@@ -90,6 +91,13 @@ async def _syncing(
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=unlisted),
+        # The locked row when this source is its last claimant; `None` when
+        # another source still claims it and only this claim was dropped.
+        release_claim=AsyncMock(
+            side_effect=lambda row_id, **_: (
+                None if shared else next(row for row in unlisted if str(row.id) == row_id)
+            )
+        ),
         stale_for_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(),
     )
@@ -153,6 +161,24 @@ class TestAgainstACompleteListing:
         assert run["completed"]["removed"] == 1
         assert run["completed"]["status"] == "done"
         assert run["completed"]["error_message"] is None
+
+    async def test_a_document_another_source_still_lists_is_kept(self) -> None:
+        """This source drops its claim and nothing else: neither the vectors nor
+        the row go, and it is not counted as removed (#1879)."""
+        gone = _row("web://docs.example.com/gone")
+
+        async with _syncing(
+            _connector(RemoteListing(files=[KEPT])), unlisted=[gone], shared=True
+        ) as run:
+            pass
+
+        run["documents"].release_claim.assert_awaited_once_with(
+            str(gone.id), sync_source_id=SOURCE_ID
+        )
+        run["remove"].assert_not_awaited()
+        run["documents"].forget_document.assert_not_awaited()
+        assert (run["completed"]["status"], run["completed"]["removed"]) == ("done", 0)
+        assert run["completed"]["failed"] == 0
 
     async def test_the_question_names_this_source_and_everything_it_listed(self) -> None:
         async with _syncing(_connector(RemoteListing(files=[KEPT])), unlisted=[]) as run:

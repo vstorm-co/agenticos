@@ -1,7 +1,8 @@
 # Configure sync sources
 
 Sync sources pull documents from external services (Google Drive, S3/MinIO, a
-public website, a Git repository) into knowledge collections on their own. Each source stores a
+public website, a Git repository, a SharePoint site or a OneDrive) into knowledge
+collections on their own. Each source stores a
 connector type, a target collection, connector-specific settings, a sync mode, an
 optional schedule, and the id of the [vault secret](../secrets.md) that
 authenticates it - a website needs none.
@@ -30,7 +31,7 @@ outcome of every sync operation.
 ### List available connector types
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3, git)
+# Shows all registered connectors (e.g. gdrive, s3, git, sharepoint)
 uv run agenticos cmd rag-sources
 ```
 
@@ -76,6 +77,23 @@ uv run agenticos cmd rag-source-add \
 Then choose its access token as the source's credential in the UI, or send
 `secret_id` with a `PATCH` — see [Git repository setup](#git-repository-setup).
 
+### Add a SharePoint source -- one library folder, every 6 hours
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "HR policies" \
+  --type sharepoint \
+  --org 0c8f2b1e-... \
+  --collection hr \
+  --secret-id <vault-secret-id> \
+  --config '{"site_url": "https://contoso.sharepoint.com/sites/HR", "folder_path": "Policies"}' \
+  --sync-mode new_only \
+  --schedule 360
+```
+
+`--secret-id` is the Microsoft Entra app in the organization's Vault — see
+[SharePoint and OneDrive setup](#sharepoint-and-onedrive-setup).
+
 ### Trigger sync manually
 
 ```bash
@@ -100,7 +118,7 @@ in the `rag-sources` listing.
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
 2. Click **"+ Add Source"**.
 3. Select a connector type (Google Drive, S3, Website, Git
-   repository). The form fields are
+   repository, SharePoint & OneDrive). The form fields are
    generated from the JSON Schema of the connector's `CONFIG_MODEL`. A website
    has no credential step.
 4. Fill in the connector-specific config fields (e.g. folder ID, bucket
@@ -143,9 +161,10 @@ One sync of a source runs at a time. A sync started while another sync of the sa
 source is still running does not start, and its log says so.
 
 Only the source's own documents are removed. An upload, or a document another
-source brought into the same collection, is never touched. A document ingested
-before its source recorded this (September 2026) is kept until the source
-ingests it again.
+source brought into the same collection, is never touched. When two sources on
+one collection list the same document, it stays until both stop listing it. A
+document ingested before its source recorded this (September 2026) is kept until
+a sync of the source lists it again.
 
 ### What a second sync does
 
@@ -155,8 +174,8 @@ A sync after the first one does as little as the source lets it:
   the stored document's, so it is counted as `skipped` and never parsed or
   embedded again.
 - **An unchanged source costs one request.** A connector that can say what its
-  whole content is at — a Git branch's head commit — records that after every run
-  that finished with nothing failed. The next `new_only` or `update_only` run that
+  whole content is at — a Git branch's head commit, a SharePoint library's change
+  feed — records that after every run that finished with nothing failed. The next `new_only` or `update_only` run that
   finds the same value, under the same configuration, stops before it lists
   anything: its log shows no files processed, and it removes nothing. Changing the
   configuration, the collection or the mode makes the next run read everything
@@ -421,6 +440,127 @@ proxy then resolves the host itself.
 The worker image ships `git`. A worker built from another image needs `git`
 2.37 or newer on its `PATH`.
 
+## SharePoint and OneDrive setup
+
+A `sharepoint` source reads one document library through Microsoft Graph: a
+SharePoint site's library, or a person's OneDrive, which Microsoft 365 keeps as a
+site of its own. It can read the whole library or one folder in it. It signs in
+as a Microsoft Entra app registration that an administrator of your tenant creates
+once.
+
+### 1. Register an app in Microsoft Entra
+
+In the [Microsoft Entra admin center](https://entra.microsoft.com), open
+**App registrations → New registration**. Give it a name such as *AgenticOS
+sync*, keep **Accounts in this organizational directory only**, and leave the
+redirect URI empty. The source signs in as the app itself, not as a person.
+
+From the app's **Overview**, note the **Application (client) ID** and the
+**Directory (tenant) ID**. Under **Certificates & secrets**, add a client secret
+and copy its **Value**. The value is shown once. The secret's *ID* is not what
+the source needs.
+
+### 2. Grant it one site, not the tenant
+
+**The app's reach is the source's reach.** Everything the source ingests becomes
+searchable by everyone who can read the collection it feeds. See [who ends up able
+to read what a source
+ingested](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Under **API permissions**, add the Microsoft Graph **application** permission
+**`Sites.Selected`** and grant admin consent for it. On its own, `Sites.Selected`
+reads nothing. An administrator then grants the app read access to the one site
+the source reads:
+
+```http
+POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+Content-Type: application/json
+
+{
+  "roles": ["read"],
+  "grantedToIdentities": [
+    {"application": {"id": "<client-id>", "displayName": "AgenticOS sync"}}
+  ]
+}
+```
+
+That call needs `Sites.FullControl.All`, so an administrator makes it from Graph
+Explorer or with PnP PowerShell's `Grant-PnPAzureADAppSitePermission`, and not
+with the app itself. `GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/HR?$select=id`
+answers the site id. A OneDrive is granted the same way, through its site:
+`contoso-my.sharepoint.com:/personal/jane_contoso_com`.
+
+!!! danger "`Files.Read.All` or `Sites.Read.All` makes every library in the tenant readable"
+
+    Those permissions are consented tenant-wide. A source with them still reads
+    only the library it names. But whoever can edit the source can point its site
+    URL at any site or OneDrive in the organization, and the next sync makes that
+    library searchable by everyone who can read the collection. Nothing in this
+    product can tell which permission the app was given, because a token does not
+    say. Use `Sites.Selected`, and grant one app per audience.
+
+### 3. Add it to the Vault
+
+Add the app to the Vault as a **Microsoft Entra app**: the tenant id (or the
+tenant's domain, such as `contoso.onmicrosoft.com`), the client id and the client
+secret's value. Then choose it on the source's credential step. The secret is sent
+only to `login.microsoftonline.com`, to sign in.
+
+A client secret expires, after two years at most. When it has expired, the next
+sync fails with *Microsoft Entra refused the app registration's credentials
+(invalid_client)*. Add a new secret to the app and replace the value in the same
+vault secret. Every source that uses it picks up the new value on its next sync.
+
+### 4. SharePoint connector config fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `site_url` | string | Yes | -- | The site, e.g. `https://contoso.sharepoint.com/sites/HR`, or a OneDrive, e.g. `https://contoso-my.sharepoint.com/personal/jane_contoso_com`. Only the site: a library or page URL copied from the browser is refused. |
+| `library` | string | No | the site's default library | The library's name as SharePoint shows it, e.g. `Documents`. A OneDrive has only its default library. |
+| `folder_path` | string | No | -- | A folder inside the library, e.g. `Policies/HR`. Leave empty for the whole library. |
+| `include_subfolders` | boolean | No | `true` | Whether to read the folders below `folder_path`. |
+| `extensions` | list of strings | No | `.pdf`, `.docx`, `.md`, `.txt` | Which file types to ingest. Add `.pptx`, `.xlsx` or another type only if the collection's parser reads it: a file the parser cannot read counts as a failed file on every sync. |
+
+Each file is a document whose address is `sharepoint://<drive-id>/<item-id>`.
+The address follows the file, not its path, so a file that is renamed or moved
+inside the library keeps its document. The document keeps the file name it was
+ingested with until the file's content changes.
+
+OneNote notebooks and files of other types are not ingested.
+
+### 5. What a sync transfers
+
+Every sync starts with Microsoft Graph's change feed for the library. When
+nothing in the library has changed since the last clean run, the sync stops
+there: one request and no listing. The feed covers the whole library, because
+Graph offers it only for a library's root. A change in another folder of the same
+library therefore makes the next sync list the source's folder again.
+
+When something has changed, the sync lists the folder and downloads every file of
+the configured types. A file whose content has not changed is then skipped before
+it is embedded, so only new and changed files cost an embedding. A file is
+downloaded from the address Graph gives for it, without the app's token. A file
+over the knowledge base's document cap (`MAX_UPLOAD_SIZE_MB`, 50 MB by default)
+is not downloaded and counts as a failed file.
+
+Graph slows down a client that reads quickly. A request that Graph throttles
+(HTTP 429) or that fails with a 5xx or a network error is tried four times in all,
+and the sync waits as long as Graph's `Retry-After` asks, up to a minute. A folder
+that still cannot be listed is named in the sync log, and that sync removes
+nothing, because the files in that folder were not seen. The files in the other
+folders are still ingested.
+
+A file deleted after the listing and before its download is removed like a file
+the listing did not name.
+
+### Network
+
+The worker needs outbound HTTPS to `login.microsoftonline.com`,
+`graph.microsoft.com` and your tenant's `*.sharepoint.com` hosts. Nothing a
+source's editor types becomes an address the worker connects to: the site URL is
+only a name Graph looks up. Microsoft's national clouds, such as US Government and
+China, use other hosts and are not supported.
+
 ## API reference
 
 All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
@@ -634,9 +774,11 @@ seen.
 
 ### "The source could not be listed completely, so documents it may no longer hold were kept"
 
-The listing stopped short: a crawl reached `max_pages`, or some pages could not
-be read. What was found was ingested, and nothing was removed. Raise `max_pages`,
-or narrow the crawl with `path_prefix`, until a run finishes without this message.
+The listing stopped short: a crawl reached `max_pages`, some pages could not be
+read, or a SharePoint folder could not be listed. What was found was ingested,
+and nothing was removed. For a website, raise `max_pages`, or narrow the crawl
+with `path_prefix`, until a run finishes without this message. For SharePoint,
+see the entry for that folder below.
 
 ### Git: "The repository refused the source's token"
 
@@ -699,6 +841,66 @@ installs it; a custom image needs it added.
 ### Git: a sync finished with no files processed
 
 The branch's head commit is the one the last clean run read, under the same
+configuration, so there was nothing to do. Switch the source to `full` for one run
+to read everything again regardless.
+
+### SharePoint: "Microsoft Entra refused the app registration's credentials (…)"
+
+Microsoft Entra did not sign the app in. `invalid_client` usually means the client
+secret has expired or the vault holds the secret's ID instead of its value.
+`unauthorized_client` or `invalid_request` usually means the tenant id or the
+client id is wrong. Check the three values against the app's **Overview** and
+**Certificates & secrets**, and replace them in the vault secret.
+
+### SharePoint: "Microsoft Graph did not accept the app's token for …"
+
+The app signed in, but its token carries no Microsoft Graph permission. Add the
+**application** permission `Sites.Selected`, not a delegated one, and grant admin
+consent, as described in [step 2](#2-grant-it-one-site-not-the-tenant).
+
+### SharePoint: "Microsoft Graph denied the app access to … (accessDenied)"
+
+The app has `Sites.Selected` but no grant on this site. Grant it `read` on the
+site, as described in [step 2](#2-grant-it-one-site-not-the-tenant). If it names a
+folder below the source's folder, that folder has permissions of its own that
+exclude the app. The rest of the library was ingested and nothing was removed.
+
+### SharePoint: "There is no SharePoint site at …, or the app cannot see it"
+
+Check the site URL first: it is the site's own address, such as
+`https://contoso.sharepoint.com/sites/HR`, not a library or page inside it. With
+`Sites.Selected`, a site the app has no grant on can also answer this way.
+
+### SharePoint: "The site has no document library named …"
+
+The message lists the libraries the app can see. Copy one of those names into
+`library`, or leave `library` empty for the site's default library. The default
+library is named in the site's language, such as *Documents* or *Dokumente*.
+
+### SharePoint: "The library has no folder …" or "… is a file, not a folder"
+
+`folder_path` does not name a folder in the library. It is relative to the
+library's top level, e.g. `Policies/HR`, and does not repeat the library's name.
+
+### SharePoint: "The folder … could not be listed: …"
+
+A folder below the source's folder could not be read. The reason follows the
+colon. The other folders were ingested, and nothing was removed on that run.
+
+### SharePoint: "Microsoft 365 stayed unavailable or kept throttling … after 4 attempts"
+
+Graph was still throttling or failing after four tries. The next sync starts
+again. If this happens on every sync, schedule the source less often, or split a
+very large library into more than one source, each with its own `folder_path`.
+
+### SharePoint: "A SharePoint source needs a Microsoft Entra app credential"
+
+The source names a secret of another kind, such as an API key. Add the app to the
+Vault as a **Microsoft Entra app** and choose that one.
+
+### SharePoint: a sync finished with no files processed
+
+Nothing in the library changed since the last clean run under the same
 configuration, so there was nothing to do. Switch the source to `full` for one run
 to read everything again regardless.
 
