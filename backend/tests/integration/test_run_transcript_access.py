@@ -271,6 +271,6 @@ class TestTheConversationEndpointStaysOwnerScoped:
 
         colleague = await _user(db)
         with pytest.raises(NotFoundError):
-            await ConversationService(db).list_messages(
+            await ConversationService(db).transcript(
                 conversation.id, organization_id=organization.id, user_id=colleague.id
             )
