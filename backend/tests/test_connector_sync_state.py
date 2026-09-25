@@ -98,6 +98,9 @@ class _Connector(BaseSyncConnector):
         dest_path.write_text(f"contents of {file.id}")
 
 
+OPENED_ID = uuid.uuid4()
+
+
 def _row(
     name: str, *, vector_id: str | None = None, status: str = DocumentStatus.PROCESSING
 ) -> MagicMock:
@@ -152,6 +155,7 @@ async def _sync(
     tracked: set[str] | None = None,
     store: _Store | None = None,
     ingest_status: IngestionStatus = IngestionStatus.DONE,
+    claimants: set[uuid.UUID] | None = None,
 ) -> _Run:
     source = MagicMock(
         id=SOURCE_ID,
@@ -195,7 +199,7 @@ async def _sync(
         return [row for row in settled or [] if row.source_path == kwargs["source_path"]]
 
     run.documents = MagicMock(
-        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        create_document=AsyncMock(return_value=MagicMock(id=OPENED_ID)),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         stale_for_source=AsyncMock(return_value=stale or []),
@@ -203,6 +207,9 @@ async def _sync(
         tracked_vector_ids=AsyncMock(return_value=tracked or set()),
         unlisted_by_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(side_effect=forget),
+        claimants=AsyncMock(return_value=claimants or set()),
+        claim_listed=AsyncMock(),
+        add_claims=AsyncMock(),
     )
 
     async def document_ids_at(_self: Any, _collection: str, source_path: str) -> list[str]:
@@ -365,6 +372,26 @@ class TestWhatADeadRunLeftIsSettledFirst:
 
         assert store.removed == ["new"]
         assert run.forgotten == [str(stale.id), str(replaced.id)]
+        run.documents.add_claims.assert_not_awaited()
+
+    async def test_another_sources_claim_on_a_dropped_row_moves_to_the_new_one(self) -> None:
+        """The other source lists the address too. Dropped with the dead row, its
+        claim would leave the document this run ingests again to this source
+        alone, and this source dropping it later would remove it (#1879)."""
+        other = uuid.uuid4()
+        stale = _row("a.md")
+        replaced = _row("a.md", vector_id="old", status=DocumentStatus.DONE)
+
+        run = await _sync(
+            _Connector(files=["a.md"]),
+            stale=[stale],
+            settled=[replaced],
+            store=_Store(at={f"{ROOT}a.md": ["new"]}),
+            claimants={other, SOURCE_ID},
+        )
+
+        run.documents.claimants.assert_awaited_once_with([str(replaced.id)])
+        run.documents.add_claims.assert_awaited_once_with(str(OPENED_ID), sync_source_ids={other})
 
     @pytest.mark.parametrize(
         "store",

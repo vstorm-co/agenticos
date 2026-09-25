@@ -51,7 +51,7 @@ from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.filters import Source
-from app.services.rag.ingestion import IngestionService, StoredDocument
+from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag.provenance import iso_doc_date
 from app.services.rag.vectorstore import EmbeddingResolver
@@ -823,13 +823,20 @@ async def _open_document_row(
         return str(row.id)
 
 
-async def _settle_document_row(row_id: str, result: IngestionResult) -> None:
+async def _settle_document_row(
+    row_id: str, result: IngestionResult, *, inherited: frozenset[UUID] = frozenset()
+) -> None:
     """Move an open row to what the ingest actually did.
 
     The failure branch is not an afterthought: a document that failed to parse
     is the one a reader most needs to see, and its reason is a `failure_summary`
     already, built by `ingest_file` rather than by a caller stringifying a
     vendor's exception (#423).
+
+    `inherited` are the other sources that claimed a dead row this run dropped
+    at the same address (`_reconcile_stale_rows`). They claim the row once it
+    settles, never while it is `PROCESSING`: a stale row is found by its
+    claim, and another source's run must not take this one's for its own.
     """
     from app.services.rag_document import RAGDocumentService
 
@@ -851,6 +858,8 @@ async def _settle_document_row(row_id: str, result: IngestionResult) -> None:
             await documents.fail_ingestion(
                 row_id, result.error_message or "Ingestion failed", attempt=1
             )
+        if inherited:
+            await documents.add_claims(row_id, sync_source_ids=set(inherited))
 
 
 async def _notify_sync_start_failure(
@@ -937,6 +946,12 @@ async def _remove_unlisted(
     removing on its word would empty a collection because of one bad night; it
     says so in `notes` instead, and the next complete run catches up.
 
+    A document another source feeding the collection still claims stays: this
+    source drops its own claim, and the document goes with the last one (#1879).
+    Each document is decided and removed in one transaction holding its row
+    locked (`release_claim`), so two sources dropping it at once cannot both
+    leave it to the other, and one claiming it meanwhile waits for the outcome.
+
     Vectors first, then the row, one document at a time: a vector delete that
     fails keeps its row, so the document is still visible, deletable, and tried
     again by the next run - the other order leaves searchable chunks nothing
@@ -960,17 +975,21 @@ async def _remove_unlisted(
             collection_name=collection_name,
             listed={file.source_path for file in listing.files} - withdrawn,
         )
-        targets = [(str(row.id), row.vector_document_id) for row in unlisted]
-    removed = 0
-    for row_id, vector_document_id in targets:
-        if vector_document_id and not await ingester.remove_document(
-            collection_name, vector_document_id
-        ):
-            continue
+        row_ids = [str(row.id) for row in unlisted]
+    removed = unremoved = 0
+    for row_id in row_ids:
         async with get_worker_db_context() as db:
-            await RAGDocumentService(db).forget_document(row_id)
-        removed += 1
-    unremoved = len(targets) - removed
+            documents = RAGDocumentService(db)
+            doc = await documents.release_claim(row_id, sync_source_id=source_id)
+            if doc is None:
+                continue
+            if doc.vector_document_id and not await ingester.remove_document(
+                collection_name, doc.vector_document_id
+            ):
+                unremoved += 1
+                continue
+            await documents.forget_document(row_id)
+            removed += 1
     if unremoved:
         notes.append(
             f"{unremoved} documents the source no longer lists could not be "
@@ -1001,8 +1020,13 @@ async def _reconcile_stale_rows(
     source_id: UUID,
     collection_name: str,
     notes: list[str],
-) -> int:
-    """Settle what a worker that died mid-file left, and answer how many rows could not be.
+) -> tuple[int, dict[str, frozenset[UUID]]]:
+    """Settle what a worker that died mid-file left.
+
+    Answers how many rows could not be settled, and, by address, the other
+    sources that claimed a dead row it dropped: they list that address too, so
+    the row this run ingests there takes their claims when it settles, or this
+    source dropping it later would remove it from under them (#1879).
 
     A worker killed after `ingest_file` stored the vectors and before
     `_settle_document_row` recorded their id leaves a `PROCESSING` row and
@@ -1022,6 +1046,7 @@ async def _reconcile_stale_rows(
     from app.services.rag_document import RAGDocumentService
 
     unsettled = 0
+    inherited: dict[str, frozenset[UUID]] = {}
     for source_path, row_ids in stale.items():
         try:
             stored = set(await ingester.document_ids_at(collection_name, source_path))
@@ -1049,8 +1074,11 @@ async def _reconcile_stale_rows(
                 continue
             async with get_worker_db_context() as db:
                 documents = RAGDocumentService(db)
+                others = await documents.claimants(gone) - {source_id}
                 for row_id in [*row_ids, *gone]:
                     await documents.forget_document(row_id)
+            if others:
+                inherited[source_path] = frozenset(others)
         except Exception:
             logger.exception("Could not settle the rows a stopped sync left at %s", source_path)
             unsettled += len(row_ids)
@@ -1059,7 +1087,7 @@ async def _reconcile_stale_rows(
             f"{unsettled} documents a stopped sync left half-ingested could not be "
             "cleaned up and will be tried again by the next sync."
         )
-    return unsettled
+    return unsettled, inherited
 
 
 def _sync_summary(failed: int, notes: list[str]) -> str | None:
@@ -1253,6 +1281,11 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
     # Listed files a fetch found the source no longer holds - a sitemap page now
     # marked `noindex`, or gone. Not failures: removed like any unlisted file.
     withdrawn: set[str] = set()
+    # The stored documents found at listed addresses, as `(source_path,
+    # vector_document_id)`: this source lists them, so it claims them, whichever
+    # source ingested them and whether or not this run gets as far as the
+    # download (#1879).
+    kept: set[tuple[str, str]] = set()
     ledger = SpendLedger(organization_id=organization_id)
     version: str | None = None
 
@@ -1280,7 +1313,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             )
             # After the listing and before the files, so what it clears is
             # ingested again by this same run rather than missing until the next.
-            unsettled = await _reconcile_stale_rows(
+            unsettled, inherited = await _reconcile_stale_rows(
                 ingester,
                 stale=stale,
                 source_id=UUID(source_id),
@@ -1309,18 +1342,20 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         # against each other in every search (#990). The modes are
                         # `sync_local_flow`'s, deliberately: one column feeds both
                         # flows and they must mean the same thing.
-                        existing = StoredDocument()
-                        if sync_mode in ("new_only", "update_only"):
-                            existing = await ingester.existing_document(
-                                collection_name, remote_file.source_path
-                            )
-                            # Before the transfer, where the answer allows it:
-                            # `update_only` has nothing to do with a file it has
-                            # never seen, and downloading one to find that out is a
-                            # transfer per new file, every run.
-                            if sync_mode == "update_only" and not existing.document_id:
-                                skipped += 1
-                                continue
+                        # Asked in `full` too, which re-ingests regardless: what is
+                        # stored at a listed address is what this source claims.
+                        existing = await ingester.existing_document(
+                            collection_name, remote_file.source_path
+                        )
+                        if existing.document_id:
+                            kept.add((remote_file.source_path, existing.document_id))
+                        # Before the transfer, where the answer allows it:
+                        # `update_only` has nothing to do with a file it has
+                        # never seen, and downloading one to find that out is a
+                        # transfer per new file, every run.
+                        if sync_mode == "update_only" and not existing.document_id:
+                            skipped += 1
+                            continue
 
                         local_path = await connector.download_file(
                             remote_file, Path(tmp_dir), config=config, credential=credential
@@ -1332,8 +1367,13 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         # embedding is the cost worth avoiding, and skipping a file
                         # that may have changed is the answer that cannot be
                         # corrected later.
-                        if existing.content_hash and (
-                            await asyncio.to_thread(_hash_file, local_path) == existing.content_hash
+                        if (
+                            sync_mode != "full"
+                            and existing.content_hash
+                            and (
+                                await asyncio.to_thread(_hash_file, local_path)
+                                == existing.content_hash
+                            )
                         ):
                             skipped += 1
                             continue
@@ -1393,7 +1433,11 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 organizational_unit=source.organizational_unit,
                             )
 
-                        await _settle_document_row(row_id, result)
+                        await _settle_document_row(
+                            row_id,
+                            result,
+                            inherited=inherited.get(remote_file.source_path, frozenset()),
+                        )
 
                         if result.status is IngestionStatus.DONE:
                             if result.replaced_document_id:
@@ -1428,8 +1472,18 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                     status=IngestionStatus.ERROR,
                                     error_message=failure_summary(e, stage=IngestionStage.INGEST),
                                 ),
+                                inherited=inherited.get(remote_file.source_path, frozenset()),
                             )
 
+            if kept:
+                from app.services.rag_document import RAGDocumentService
+
+                async with get_worker_db_context() as db:
+                    await RAGDocumentService(db).claim_listed(
+                        sync_source_id=UUID(source_id),
+                        collection_name=collection_name,
+                        documents=kept,
+                    )
             # An early stop listed nothing, which is no evidence anything went.
             if not unchanged:
                 removed, unremoved = await _remove_unlisted(
