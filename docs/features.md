@@ -209,6 +209,20 @@ tests in this repository are the ones that check a *refusal*: a cross-tenant
 read, an ungranted scope, a budget breach, a second decision on a decided
 approval.
 
+## Workflows, when a job is more than one step
+
+Some work is a sequence, not a single answer: read a record, call an agent,
+branch on what it says, loop over a list. You build that on a canvas — drag the
+steps in, wire one step's output into the next, and publish it as an immutable
+version, the same draft-then-publish shape an agent has.
+
+Each step's inputs are a value you type or a value read from an earlier step, and
+the editor only offers a source that is actually reachable and carries the right
+type. The draft saves itself as you edit, and publishing re-checks the whole
+graph before it freezes a version.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
+
 ## Triggers, so an agent runs without you
 
 Schedule a run, or fire one on an event. The same spec, the same budget, the same

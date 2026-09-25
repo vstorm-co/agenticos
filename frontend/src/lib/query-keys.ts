@@ -63,6 +63,29 @@ export const qk = {
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
   },
+  workflows: {
+    all: () => ["workflows"] as const,
+    // Called with nothing it is the prefix over every page, which is what a
+    // mutation invalidates and what the registry query reads: the list is walked
+    // to completion and held under one key, filtered and paged in the browser.
+    // A `(skip, limit)` variant stays a sub-key of that prefix, so a caller that
+    // ever reads one server page is invalidated by the same bare `list()`.
+    list: (skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["workflows", "list"] as const)
+        : (["workflows", "list", skip, limit] as const),
+    detail: (id: string) => ["workflows", id] as const,
+    versions: (id: string) => ["workflows", id, "versions"] as const,
+    version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,
+    // Every registered node type, for the editor's palette. Changes on redeploy,
+    // not while someone edits - so its own key, cached like the capability catalog.
+    nodeCatalog: () => ["workflows", "node-catalog"] as const,
+    // The virtual tables a node's `TableIORef` pins, read by the table + column
+    // picker. Under "workflows" so an editor-wide invalidation refreshes them; the
+    // list the picker filters in the browser, and one table for its live schema.
+    tables: () => ["workflows", "tables"] as const,
+    table: (id: string) => ["workflows", "tables", id] as const,
+  },
   channelBots: {
     list: () => ["channel-bots"] as const,
   },

@@ -531,3 +531,58 @@ class TestListAndVersions:
         ):
             result = await WorkflowRegistryService(_db()).list_versions(ctx, workflow.id)
         assert [item.version for item in result.items] == [1]
+
+    async def test_get_version_returns_the_frozen_graph(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        version = MagicMock()
+        version.id = uuid.uuid4()
+        version.workflow_id = workflow.id
+        version.version = 2
+        version.note = "cut"
+        version.published_by_user_id = ctx.user_id
+        version.budget_limit = None
+        version.created_at = None
+        frozen = _empty_graph()
+        version.graph = frozen.model_dump(mode="json")
+
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+        ):
+            result = await WorkflowRegistryService(_db()).get_version(ctx, workflow.id, version.id)
+        assert result.version == 2
+        assert result.graph.entry_node_id == frozen.entry_node_id
+        assert len(result.graph.nodes) == 1
+
+    async def test_get_version_missing_is_not_found(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError),
+        ):
+            await WorkflowRegistryService(_db()).get_version(ctx, workflow.id, uuid.uuid4())
+
+    async def test_get_version_from_another_workflow_is_not_found(self):
+        """A version id that belongs to a different workflow is unreachable here."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        foreign = MagicMock()
+        foreign.id = uuid.uuid4()
+        foreign.workflow_id = uuid.uuid4()
+
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version",
+                new=AsyncMock(return_value=foreign),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await WorkflowRegistryService(_db()).get_version(ctx, workflow.id, foreign.id)

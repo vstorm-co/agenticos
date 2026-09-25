@@ -286,6 +286,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.contextView,
   },
 
+  // Workflows — the visual editor's list. Same shape as Agents: a create button
+  // the launch pass points at (create-gated), and the status list the "?" adds
+  // (view-gated). The create control opens the blank/template dialog.
+  {
+    id: "workflows-new",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-new",
+    permission: Perm.workflowsCreate,
+    inTour: true,
+  },
+  {
+    id: "workflows-list",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-list",
+    permission: Perm.workflowsView,
+  },
+
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
   {
