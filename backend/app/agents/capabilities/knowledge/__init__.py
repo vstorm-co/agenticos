@@ -7,6 +7,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.knowledge._capability import Knowledge, KnowledgeConfig
 from app.agents.capabilities.knowledge._search import reset_retrieval_service
+from app.services.rag.models import ParentContextMode
 
 __all__ = ["Knowledge", "KnowledgeConfig", "reset_retrieval_service"]
 
@@ -44,4 +45,5 @@ def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
         default_top_k=config.default_top_k,
         query_analysis_mode=config.query_analysis_mode,
         query_analysis_max_variants=config.query_analysis_max_variants,
+        parent_context=ParentContextMode(config.parent_context),
     )

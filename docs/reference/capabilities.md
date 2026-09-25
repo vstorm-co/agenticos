@@ -86,8 +86,31 @@ nobody connected to it.
 | `default_top_k` | 5 | 1–50 |
 | `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` applies only when the model does not ask for a number itself.
+
+`parent_context` turns on small-to-big retrieval. Matching and ranking always run
+on the precise small chunks; this only decides how much surrounding context each
+match is *returned* with, assembled on the return path:
+
+| Mode | What the model receives |
+|---|---|
+| `off` | The matched chunk alone — the default, unchanged behaviour |
+| `window` | The matched chunk with the chunk before and after it in the same document |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest text first |
+
+The matched chunk is never shortened. Only the text added around it counts against
+two fixed limits - 8,000 characters per result and 24,000 per search - so turning
+the mode on never shows the model less than `off` does. A passage stays contiguous:
+it grows outward from the match and stops at the first chunk that does not fit or
+was already returned with an earlier result, so text that was not adjacent in the
+document is never joined.
+
+Chunks are read by position around the match, never the whole document, and the
+expansion stays inside the caller's own tenant and collection scope. It never
+changes which chunks matched, their scores or their citations; a citation says
+`with surrounding text` when the passage reaches past the chunk it names.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search
@@ -120,7 +143,9 @@ Expansion widens *recall*, never *access*. Every query it produces is searched
 under the same tenant scope and the same business filters as the original, so an
 expanded query can never reach another organization's or an out-of-scope document.
 It composes with reranking: expansion widens the candidate set and the results are
-fused, and a reranker would reorder what fusion returned.
+fused, and a reranker would reorder what fusion returned. With `parent_context` on,
+surrounding text is added once, to the fused results, so its limits cover the
+whole search rather than each query.
 
 ## Skills
 

@@ -14,6 +14,31 @@ Configuration covers defaults and the optional query-analysis step:
 | `default_top_k` | How many passages when the model does not say |
 | `query_analysis_mode` | Optional pre-retrieval query expansion, off by default |
 | `query_analysis_max_variants` | How many rephrasings `multi_query` may add |
+| `parent_context` | Small-to-big retrieval: return each match with its surrounding context |
+
+## Small-to-big retrieval (`parent_context`)
+
+Small chunks retrieve precisely but read too narrowly; large chunks read well
+but retrieve imprecisely. `parent_context` decouples the two: matching and
+ranking always run on the precise small chunks, and only the text returned to
+the model grows.
+
+| Mode | What the model receives |
+|---|---|
+| `off` (default) | The matched chunk alone - identical to the pre-#1651 behaviour |
+| `window` | The matched chunk with the chunk before and after it |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest first |
+
+Expansion happens on the return path only (`app/services/rag/parent_context.py`) -
+it never changes which chunks matched, their scores or their citations. The
+matched chunk is never shortened: only added text is charged against the fixed
+limits in that module (8,000 characters per result, 24,000 per search). A
+passage stays contiguous - it closes a direction at the first chunk that does not
+fit or was already returned - and the chunks are read by position around the
+match (`get_chunks_around`), never the whole document. Siblings are read under
+the tenant the match was found under; an unscoped maintenance search is not
+expanded. With query expansion on (below), each variant is retrieved bare and
+the fused list is expanded once, so the limits cover the whole search.
 
 The capability builds to `None` when no collection is bound: advertising a
 search tool that always returns empty is worse than not having one, because the

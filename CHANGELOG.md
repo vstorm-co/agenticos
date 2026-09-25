@@ -28,6 +28,13 @@ Two things are versioned separately from this file and worth knowing about:
   call falls back to the plain query. Every produced query is searched under the
   same tenant scope and filters as the original, so expansion widens recall and
   never access (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
 
 ## [0.0.502] - 2026-09-25
 

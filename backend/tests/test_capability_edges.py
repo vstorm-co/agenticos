@@ -36,7 +36,7 @@ from app.core.secret_kinds import ApiKeySecret
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
 from app.services.rag.filters import RetrievalFilters, RetrievalQuery, TenantScope
-from app.services.rag.models import SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -175,6 +175,44 @@ class TestKnowledgeSearchGuards:
         service.retrieve_multi.assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_parent_context_reaches_the_single_collection_retrieve(self):
+        """The agent's small-to-big mode is threaded through to the service (#1651)."""
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.PARENT,
+            )
+        assert service.retrieve.await_args.kwargs["parent_context"] is ParentContextMode.PARENT
+        service.expand.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_parent_context_reaches_the_multi_collection_retrieve(self):
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve_multi = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a", "kb_b"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.WINDOW,
+            )
+        assert (
+            service.retrieve_multi.await_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+        )
+
+    @pytest.mark.anyio
     async def test_a_retrieval_failure_surfaces_as_an_external_service_error(self):
         """Not a silent empty result: an agent must not answer as if it searched."""
         service = MagicMock()
@@ -227,7 +265,9 @@ class TestKnowledgeSearchGuards:
         scope = MagicMock()
         service = MagicMock()
         service.resolve_scope = AsyncMock(return_value=scope)
-        service.retrieve = AsyncMock(return_value=[])
+        hit = SearchResult(content="c", score=0.5, parent_doc_id="d", metadata={"chunk_num": 1})
+        service.retrieve = AsyncMock(return_value=[hit])
+        service.expand = AsyncMock()
         filters = RetrievalFilters(source=["upload"])
 
         async def generate(_: str) -> str:
@@ -245,6 +285,7 @@ class TestKnowledgeSearchGuards:
                 analysis_mode="multi_query",
                 analysis_max_variants=2,
                 generate=generate,
+                parent_context=ParentContextMode.WINDOW,
             )
         # The original plus two variants, each a separate retrieval, all bound to
         # the one scope the tool resolved and the very filters object it was given.
@@ -257,6 +298,17 @@ class TestKnowledgeSearchGuards:
         }
         assert all(call.kwargs["scope"] is scope for call in calls)
         assert all(call.kwargs["filters"] is filters for call in calls)
+        # Each variant is retrieved bare and the fused list is expanded once, so
+        # the passage budget is spent on the final results rather than per query
+        # (#1651) - and under the same scope the variants were searched with.
+        assert all(call.kwargs["parent_context"] is ParentContextMode.OFF for call in calls)
+        service.expand.assert_awaited_once()
+        (fused,) = service.expand.await_args.args
+        assert [r.parent_doc_id for r in fused] == ["d"]
+        assert service.expand.await_args.kwargs == {
+            "parent_context": ParentContextMode.WINDOW,
+            "scopes": {"kb_a": scope},
+        }
 
     @pytest.mark.anyio
     async def test_expansion_fans_out_across_the_multi_collection_path_too(self):
@@ -264,6 +316,7 @@ class TestKnowledgeSearchGuards:
         service = MagicMock()
         service.resolve_scope = AsyncMock(side_effect=[scope_a, scope_b])
         service.retrieve_multi = AsyncMock(return_value=[])
+        service.expand = AsyncMock()
         filters = RetrievalFilters(document_type=["pdf"])
 
         async def generate(_: str) -> str:
@@ -281,6 +334,7 @@ class TestKnowledgeSearchGuards:
                 analysis_mode="multi_query",
                 analysis_max_variants=3,
                 generate=generate,
+                parent_context=ParentContextMode.PARENT,
             )
         # Original + one variant, each spanning both collections - and every call
         # handed the one scope mapping resolved up front, not a rebuilt one, with
@@ -292,6 +346,11 @@ class TestKnowledgeSearchGuards:
         assert all(call.kwargs["scopes"] is first_scopes for call in calls)
         assert all(call.kwargs["filters"] is filters for call in calls)
         assert service.resolve_scope.await_count == 2
+        assert all(call.kwargs["parent_context"] is ParentContextMode.OFF for call in calls)
+        assert service.expand.await_args.kwargs == {
+            "parent_context": ParentContextMode.PARENT,
+            "scopes": first_scopes,
+        }
 
 
 class TestEmbeddingCredential:

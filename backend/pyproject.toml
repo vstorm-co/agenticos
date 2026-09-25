@@ -778,6 +778,7 @@ include = [
     # composition. Trust-boundary validation, gated where the rest of the RAG
     # pipeline is only reported.
     "app/services/rag/filters.py",
+    "app/services/rag/parent_context.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",
@@ -1168,6 +1169,7 @@ include = [
     # composition. Trust-boundary validation, gated where the rest of the RAG
     # pipeline is only reported.
     "app/services/rag/filters.py",
+    "app/services/rag/parent_context.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/exporting.py",

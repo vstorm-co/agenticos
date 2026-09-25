@@ -23,6 +23,7 @@ from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
+from app.services.rag.models import ParentContextMode
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, QueryExpansionFailed
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,7 @@ def build_knowledge_toolset(
     default_top_k: int,
     query_analysis_mode: QueryAnalysisMode = "off",
     query_analysis_max_variants: int = 3,
+    parent_context: ParentContextMode = ParentContextMode.OFF,
 ) -> FunctionToolset[AgentDeps]:
     """A toolset with one search tool, under the name it is declared with.
 
@@ -183,6 +185,9 @@ def build_knowledge_toolset(
                 analysis_mode=query_analysis_mode,
                 analysis_max_variants=query_analysis_max_variants,
                 generate=generate,
+                # The agent's configured small-to-big mode. Return-path only:
+                # matching still runs on the small chunks (#1651).
+                parent_context=parent_context,
             )
         except Exception:
             # A retry rather than a returned message: an error in the shape of a

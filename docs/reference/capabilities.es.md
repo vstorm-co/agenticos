@@ -1,5 +1,5 @@
 ---
-source_sha: "c90851d91266"
+source_sha: "f1a0848d1217"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -92,8 +92,33 @@ colección que nadie le conectó.
 | `default_top_k` | 5 | 1–50 |
 | `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` se aplica solo cuando el modelo no pide un número por su cuenta.
+
+`parent_context` activa la recuperación small-to-big. La coincidencia y el ranking
+siempre operan sobre los fragmentos pequeños y precisos; esta opción solo decide
+cuánto contexto circundante se *devuelve* con cada coincidencia, ensamblado en la
+ruta de retorno:
+
+| Modo | Lo que recibe el modelo |
+|---|---|
+| `off` | Solo el fragmento coincidente — el valor por defecto, sin cambios |
+| `window` | El fragmento coincidente con el fragmento anterior y el siguiente del mismo documento |
+| `parent` | El fragmento coincidente con tanto de su documento alrededor como quepa, el texto más cercano primero |
+
+El fragmento coincidente nunca se acorta. Solo el texto añadido a su alrededor
+cuenta contra dos límites fijos - 8.000 caracteres por resultado y 24.000 por
+búsqueda -, así que activar el modo nunca le muestra al modelo menos que `off`.
+Un pasaje sigue siendo continuo: crece hacia fuera desde la coincidencia y se
+detiene en el primer fragmento que no cabe o que ya se devolvió con un resultado
+anterior, de modo que nunca se une texto que no era contiguo en el documento.
+
+Los fragmentos se leen por su posición alrededor de la coincidencia, nunca el
+documento entero, y la expansión permanece dentro del propio ámbito de inquilino y
+colección de quien llama. Nunca cambia qué fragmentos coincidieron, sus
+puntuaciones ni sus citas; una cita dice `with surrounding text` cuando el pasaje
+va más allá del fragmento que nombra.
 
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no
@@ -130,7 +155,9 @@ produce se busca bajo el mismo ámbito de inquilino y los mismos filtros de nego
 que el original, así que una consulta expandida nunca puede alcanzar un documento
 de otra organización o fuera de ámbito. Se combina con el reordenamiento: la
 expansión amplía el conjunto de candidatos y los resultados se fusionan, y un
-reranker reordenaría lo que devolvió la fusión.
+reranker reordenaría lo que devolvió la fusión. Con `parent_context` activado, el
+texto circundante se añade una sola vez, a los resultados fusionados, así que sus
+límites cubren toda la búsqueda y no cada consulta por separado.
 
 ## Skills { #skills }
 

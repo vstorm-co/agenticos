@@ -10,7 +10,7 @@ from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
-from app.services.rag.models import SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
@@ -92,9 +92,17 @@ def _format_results(results: list[Any]) -> str:
         page_info = f", page {page}" if page else ""
         chunk_info = f", chunk {chunk}" if chunk else ""
         col_info = f" [{col}]" if col else ""
+        # The expanded passage when small-to-big retrieval added surrounding
+        # context, else the matched chunk itself (#1651). The score and citation
+        # stay the matched chunk's; only the text the model reads grows.
+        body = result.expanded_content or result.content
+        # The page and chunk name the match; said so when the passage below
+        # reaches past it, so a citation is not read as covering the whole text.
+        context_info = ", with surrounding text" if result.expanded_content else ""
         formatted.append(
-            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info} (score: {result.score:.3f})\n"
-            f"{result.content}"
+            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info}{context_info} "
+            f"(score: {result.score:.3f})\n"
+            f"{body}"
         )
     return (
         "Search results (cite inline using [1], [2], etc. - do NOT list sources at the end):\n\n"
@@ -121,6 +129,7 @@ async def search_knowledge_base(
     analysis_mode: QueryAnalysisMode = "off",
     analysis_max_variants: int = 3,
     generate: GenerateText | None = None,
+    parent_context: ParentContextMode = ParentContextMode.OFF,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -145,6 +154,11 @@ async def search_knowledge_base(
         generate: Runs one prompt through the run's model, for the analysis
             modes. `None` when the run's model cannot make a request-response call,
             which degrades them to the plain query.
+        parent_context: The agent's small-to-big return mode (#1651). Return-path
+            only - matching and ranking still run on the small chunks - so `OFF`
+            (the default) returns the matched chunks unchanged. With several
+            queries it runs once, after fusion, so the passage budget is spent
+            on the fused list rather than on each variant's.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -181,6 +195,11 @@ async def search_knowledge_base(
                 name: await service.resolve_scope(name, organization_id) for name in resolved
             }
 
+        # Several variants are retrieved bare and expanded once after fusion; a
+        # single query expands inside its own retrieval, exactly as before #1649.
+        fused = len(queries) > 1
+        per_query_context = ParentContextMode.OFF if fused else parent_context
+
         async def retrieve_one(one_query: str) -> list[SearchResult]:
             if one_collection:
                 return await service.retrieve(
@@ -189,6 +208,7 @@ async def search_knowledge_base(
                     scope=single_scope,
                     filters=filters,
                     limit=top_k,
+                    parent_context=per_query_context,
                 )
             return await service.retrieve_multi(
                 query=one_query,
@@ -196,9 +216,16 @@ async def search_knowledge_base(
                 scopes=scopes_by_name,
                 filters=filters,
                 limit=top_k,
+                parent_context=per_query_context,
             )
 
         results = await fuse_over_queries(queries, retrieve_one, limit=top_k)
+        if fused:
+            await service.expand(
+                results,
+                parent_context=parent_context,
+                scopes={resolved[0]: single_scope} if one_collection else scopes_by_name,
+            )
     except AppException:
         # Already an account of what is wrong and what to do about it - an
         # unconfigured embedding credential names the setting to set. Rewrapping
