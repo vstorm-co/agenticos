@@ -664,6 +664,16 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
+from app.services.workflow_registry import WorkflowRegistryService
+
+
+def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
+    """Create WorkflowRegistryService instance with database session."""
+    return WorkflowRegistryService(db)
+
+
+WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
+
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
 

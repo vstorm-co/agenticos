@@ -255,10 +255,9 @@ row named one.
 
 The table is deliberately generic - `resource_type` + `resource_id`, with no
 foreign key to the target - because agents, collections, skills, context files,
-[tables](virtual-tables.md) and stored keys all share the same rules. The trade-off is that the database
-cannot cascade-delete
-a grant when its target goes away, so services delete grants alongside the
-resource.
+[tables](virtual-tables.md), workflows and stored keys all share the same
+rules. The trade-off is that the database cannot cascade-delete a grant when
+its target goes away, so services delete grants alongside the resource.
 
 ## How the layers combine
 
