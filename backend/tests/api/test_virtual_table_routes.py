@@ -616,6 +616,33 @@ async def test_a_quota_refused_write_still_spends_the_allowance(client, limiter,
     assert len(limiter.keys) == 4
 
 
+@pytest.mark.security
+async def test_table_writes_stay_bounded_on_this_worker_when_the_shared_limiter_is_down(
+    client, monkeypatch
+):
+    """`limit_table_write` is a storage boundary, not just a load control, so it must
+    not inherit the shared limiter's fail-open default: a Redis that cannot be reached
+    would otherwise leave every table write unmetered for the length of the outage, and
+    a member could grow the shared database faster than the retention sweep removes it.
+    A per-process floor holds the same allowance on this worker instead (#1823)."""
+    from app.services import rate_limit
+
+    down = MagicMock()
+    down.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+    monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 3)
+    monkeypatch.setattr(rate_limit, "_fallback_windows", rate_limit.LocalWindows())
+    rate_limit.configure(down)
+
+    try:
+        async with client() as http:
+            answers = [await http.post(_records(), json={"values": {}}) for _ in range(4)]
+    finally:
+        rate_limit.configure(None)
+
+    assert [a.status_code for a in answers] == [201, 201, 201, 429]
+    assert answers[-1].json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+
+
 async def test_a_quota_refusal_is_a_402_in_the_one_envelope_with_no_content(client, service):
     from app.services.virtual_tables.exceptions import QuotaExceededError
 

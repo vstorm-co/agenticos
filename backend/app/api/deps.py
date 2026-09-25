@@ -779,11 +779,18 @@ async def limit_table_write(ctx: Auth) -> None:
     stores exactly what the same write from a script does, so metering only the script
     would leave the cheap way in open.
 
+    Unlike the run and ML limits this one is a storage boundary, not just a load
+    control: every write stores a history row and, when keyed, a receipt, faster
+    than the retention sweep can remove them if left unbounded. So it keeps a
+    per-process floor when the shared limiter cannot count (Redis down or
+    unconfigured), rather than inheriting the fail-open default that would leave
+    every table write unmetered for the length of a cache outage (#1823).
+
     Usage::
 
         @router.post("/{table_id}/records", dependencies=[Depends(limit_table_write)])
     """
-    decision = await rate_limit.consume(
+    decision = await rate_limit.consume_with_local_floor(
         surface="table_write",
         caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
         limit=rate_limit.table_write_limit(),
