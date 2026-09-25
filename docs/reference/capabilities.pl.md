@@ -1,5 +1,5 @@
 ---
-source_sha: "b34e50487536"
+source_sha: "4748c414939a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -92,8 +92,34 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
+
+`parent_context` włącza wyszukiwanie small-to-big. Dopasowanie i ranking zawsze
+działają na precyzyjnych małych fragmentach; ta opcja decyduje jedynie o tym, ile
+otaczającego kontekstu jest *zwracane* wraz z każdym trafieniem, składanego na
+ścieżce zwrotnej:
+
+| Tryb | Co otrzymuje model |
+|---|---|
+| `off` | Sam dopasowany fragment — wartość domyślna, zachowanie bez zmian |
+| `window` | Dopasowany fragment z fragmentem przed nim i po nim w tym samym dokumencie |
+| `parent` | Dopasowany fragment z taką częścią dokumentu wokół niego, jaka się zmieści, najbliższy tekst najpierw |
+
+Dopasowany fragment nigdy nie jest skracany. Do dwóch stałych limitów - 8 000
+znaków na wynik i 24 000 na wyszukiwanie - liczy się tylko tekst dodany wokół
+niego, więc włączenie trybu nigdy nie pokaże modelowi mniej niż `off`. Fragment
+pozostaje ciągły: rośnie na zewnątrz od dopasowania i zatrzymuje się na pierwszym
+fragmencie, który się nie mieści albo został już zwrócony z wcześniejszym
+wynikiem, więc tekst, który nie sąsiadował w dokumencie, nigdy nie zostaje
+sklejony.
+
+Fragmenty są czytane według pozycji wokół dopasowania, nigdy cały dokument, a
+rozszerzenie pozostaje w obrębie własnego zakresu najemcy i kolekcji
+wywołującego. Nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
+wyników ani cytowań; cytowanie mówi `with surrounding text`, gdy fragment sięga
+poza wskazany chunk.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze

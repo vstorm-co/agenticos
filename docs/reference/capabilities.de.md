@@ -1,5 +1,5 @@
 ---
-source_sha: "b34e50487536"
+source_sha: "4748c414939a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -92,8 +92,33 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
+
+`parent_context` schaltet Small-to-Big-Retrieval ein. Treffer und Ranking laufen
+immer über die präzisen kleinen Chunks; diese Option entscheidet nur, wie viel
+umgebenden Kontext jeder Treffer *zurückgegeben* bekommt, zusammengesetzt auf dem
+Rückweg:
+
+| Modus | Was das Modell erhält |
+|---|---|
+| `off` | Nur der getroffene Chunk — der Standard, unverändertes Verhalten |
+| `window` | Der getroffene Chunk mit dem Chunk davor und danach im selben Dokument |
+| `parent` | Der getroffene Chunk mit so viel seines Dokuments darum herum, wie passt, den nächsten Text zuerst |
+
+Der getroffene Chunk wird nie gekürzt. Nur der um ihn herum hinzugefügte Text
+zählt gegen zwei feste Grenzen - 8.000 Zeichen pro Ergebnis und 24.000 pro Suche -,
+sodass der Modus dem Modell nie weniger zeigt als `off`. Eine Passage bleibt
+zusammenhängend: Sie wächst vom Treffer nach außen und endet am ersten Chunk, der
+nicht passt oder schon mit einem früheren Ergebnis zurückgegeben wurde, sodass
+Text, der im Dokument nicht benachbart war, nie zusammengefügt wird.
+
+Chunks werden nach ihrer Position um den Treffer gelesen, nie das ganze Dokument,
+und die Erweiterung bleibt im eigenen Mandanten- und Collection-Scope des
+Aufrufers. Sie ändert nie, welche Chunks getroffen wurden, deren Scores oder
+Zitate; ein Zitat sagt `with surrounding text`, wenn die Passage über den
+genannten Chunk hinausreicht.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als

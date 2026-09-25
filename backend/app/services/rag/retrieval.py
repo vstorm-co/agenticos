@@ -17,7 +17,8 @@ from app.services.rag.filters import (
     compose,
     scope_for_tenant,
 )
-from app.services.rag.models import SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.parent_context import expand_context, expansion_tenant
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ class BaseRetrievalService(ABC):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         pass
 
@@ -157,6 +159,7 @@ class RetrievalService(BaseRetrievalService):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         # Overfetch so min-score filtering and dedup still leave `limit` results.
         fetch_multiplier = 2
@@ -238,6 +241,16 @@ class RetrievalService(BaseRetrievalService):
         for r in final_results:
             r.metadata["collection"] = collection_name
 
+        # Return-path expansion only (#1651). Matching, ranking, min-score and
+        # dedup above are untouched and operate on the small chunks; this only
+        # attaches surrounding context to what was already selected, so `OFF`
+        # returns exactly what the pre-#1651 path did.
+        expandable, tenant = expansion_tenant(scope)
+        if expandable:
+            await expand_context(
+                self.store, final_results, parent_context, lambda _: (collection_name, tenant)
+            )
+
         total_time = time.time() - start_time
         logger.info(
             "[RETRIEVAL] Total retrieval time: %.3fs, returning %d results",
@@ -256,6 +269,7 @@ class RetrievalService(BaseRetrievalService):
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
+        parent_context: ParentContextMode = ParentContextMode.OFF,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -300,6 +314,10 @@ class RetrievalService(BaseRetrievalService):
                     filters=filters,
                     limit=limit,
                     min_score=min_score,
+                    # Expansion is deferred to a single post-merge pass below so
+                    # the per-turn character budget is shared across collections
+                    # rather than granted afresh to each one.
+                    parent_context=ParentContextMode.OFF,
                 )
             )
 
@@ -313,4 +331,18 @@ class RetrievalService(BaseRetrievalService):
                 seen_keys.add(key)
                 deduped.append(r)
 
-        return deduped[:limit]
+        final = deduped[:limit]
+
+        # One expansion pass over the merged, cut-to-limit results under a single
+        # budget. Each result's siblings are read under the scope this search
+        # resolved for that result's own collection - `retrieve` stamps
+        # `metadata["collection"]` and every collection searched is in `scopes` -
+        # so scope is preserved exactly as in the single-collection path.
+        def resolve_fetch(result: SearchResult) -> tuple[str, UUID | None] | None:
+            collection = str(result.metadata["collection"])
+            expandable, tenant = expansion_tenant(scopes[collection])
+            return (collection, tenant) if expandable else None
+
+        await expand_context(self.store, final, parent_context, resolve_fetch)
+
+        return final

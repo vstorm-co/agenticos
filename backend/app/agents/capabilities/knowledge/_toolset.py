@@ -13,6 +13,7 @@ from app.agents.capabilities._failures import steer
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
+from app.services.rag.models import ParentContextMode
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,9 @@ def _normalize(value: list[str] | None) -> list[str] | None:
     return value or None
 
 
-def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]:
+def build_knowledge_toolset(
+    *, default_top_k: int, parent_context: ParentContextMode = ParentContextMode.OFF
+) -> FunctionToolset[AgentDeps]:
     """A toolset with one search tool, under the name it is declared with.
 
     The same search is "Search orders" for one agent and "Look up policies" for
@@ -105,6 +108,9 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # name returns and embeds only this organization's chunks (#913).
                 organization_id=ctx.deps.organization_id,
                 filters=filters,
+                # The agent's configured small-to-big mode. Return-path only:
+                # matching still runs on the small chunks (#1651).
+                parent_context=parent_context,
             )
         except Exception:
             # A retry rather than a returned message: an error in the shape of a

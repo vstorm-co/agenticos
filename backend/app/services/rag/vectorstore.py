@@ -187,6 +187,27 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
+    async def get_chunks_around(
+        self,
+        collection_name: str,
+        document_id: str,
+        tenant: UUID | None,
+        *,
+        page_num: int,
+        chunk_num: int,
+        before: int,
+        after: int,
+    ) -> list[DocumentChunk]:
+        """The chunk at one position in a document and its neighbours, in document order.
+
+        At most `before` chunks preceding `(page_num, chunk_num)` and `after`
+        following it, plus the chunk at that position when it still exists - a
+        read bounded by position, so surrounding a match in a large document
+        does not load the document (#1651). Tenant-scoped like
+        `get_document_chunks`.
+        """
+
+    @abstractmethod
     async def distinct_metadata_values(
         self, collection_name: str, keys: list[str], scope: RetrievalScope
     ) -> dict[str, list[str]]:
@@ -1224,6 +1245,58 @@ class PgVectorStore(BaseVectorStore):
         # Sorted here rather than in SQL: page_num and chunk_num live inside the
         # metadata JSONB, and a `(metadata->>'page_num')::int` ORDER BY fails on
         # any row where the key is absent instead of sorting it first.
+        return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
+
+    async def get_chunks_around(
+        self,
+        collection_name: str,
+        document_id: str,
+        tenant: UUID | None,
+        *,
+        page_num: int,
+        chunk_num: int,
+        before: int,
+        after: int,
+    ) -> list[DocumentChunk]:
+        if not await self._collection_exists(collection_name):
+            return []
+        table = self._table(collection_name)
+        org_clause, org_params = self._org_filter(tenant)
+        # The position as `get_document_chunks` sorts it: an absent key is 0.
+        # Built from literals only; every value is bound.
+        position = (
+            "(COALESCE((metadata->>'page_num')::int, 0), "
+            "COALESCE((metadata->>'chunk_num')::int, 0))"
+        )
+        where = f"parent_doc_id = :doc_id AND {org_clause}"
+        params = {
+            "doc_id": self._sanitize_id(document_id),
+            "page": page_num,
+            "chunk": chunk_num,
+            "before": before,
+            "after": after,
+            **org_params,
+        }
+        statement = text(
+            f"(SELECT content, metadata FROM {table} WHERE {where} "
+            f"AND {position} < (:page, :chunk) ORDER BY {position} DESC LIMIT :before) "
+            f"UNION ALL (SELECT content, metadata FROM {table} WHERE {where} "
+            f"AND {position} = (:page, :chunk) LIMIT 1) "
+            f"UNION ALL (SELECT content, metadata FROM {table} WHERE {where} "
+            f"AND {position} > (:page, :chunk) ORDER BY {position} LIMIT :after)"
+        )
+        async with self.async_session() as session:
+            rows = (await session.execute(statement, params)).fetchall()
+        chunks = []
+        for row in rows:
+            meta = row[1] if isinstance(row[1], dict) else json.loads(row[1])
+            chunks.append(
+                DocumentChunk(
+                    content=row[0] or "",
+                    page_num=int(meta.get("page_num", 0)),
+                    chunk_num=int(meta.get("chunk_num", 0)),
+                )
+            )
         return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
 
     async def list_collections(self) -> list[str]:
