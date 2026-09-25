@@ -37,6 +37,16 @@ function LogRow({ log }: { log: RAGSyncLog }) {
   const t = useTranslations("rag");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  // Only the counts that happened, joined: a run that only removed documents
+  // must read as that, not as a separator glued to "no files processed".
+  const counts = [
+    log.ingested > 0 && t("ingestedCount", { count: log.ingested }),
+    log.updated > 0 && t("updatedCount", { count: log.updated }),
+    log.skipped > 0 && t("skippedCount", { count: log.skipped }),
+    log.removed > 0 && t("removedCount", { count: log.removed }),
+    log.failed > 0 && t("failedCount", { count: log.failed }),
+  ].filter((count) => count !== false);
+  const outcome = counts.length > 0 ? counts : [t("noFilesProcessed")];
   return (
     <div className="border-foreground/8 flex items-start gap-3 border-b py-2.5 last:border-0">
       <div className="mt-0.5 shrink-0">{statusIcon(log.status)}</div>
@@ -54,13 +64,7 @@ function LogRow({ log }: { log: RAGSyncLog }) {
           <span className="text-foreground/45 text-[10px]">{duration(log)}</span>
         </div>
         {log.status !== "running" && log.status !== "pending" && (
-          <p className="text-foreground/55 mt-0.5 text-[10px]">
-            {log.ingested > 0 && t("ingestedCount", { count: log.ingested })}
-            {log.updated > 0 && ` · ${t("updatedCount", { count: log.updated })}`}
-            {log.skipped > 0 && ` · ${t("skippedCount", { count: log.skipped })}`}
-            {log.failed > 0 && ` · ${t("failedCount", { count: log.failed })}`}
-            {log.total_files === 0 && log.ingested === 0 && t("noFilesProcessed")}
-          </p>
+          <p className="text-foreground/55 mt-0.5 text-[10px]">{outcome.join(" · ")}</p>
         )}
         {log.error_message && (
           <p className="text-destructive mt-0.5 text-[10px] leading-snug">{log.error_message}</p>

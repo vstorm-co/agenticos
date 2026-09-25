@@ -149,21 +149,36 @@ test.describe("Notifications", () => {
       .toBe(countBefore.count - 1);
   });
 
-  test("a row with a destination is a real link to where it happened", async ({ page }) => {
+  test("a row opens where it happened without reloading the console", async ({ page }) => {
     await page.goto("/vault");
 
     await openBell(page);
 
     // The `href` before the navigation, because this test starts on `/vault`:
     // asserting the URL alone would pass against a row that regressed to a
-    // button, or whose click does nothing at all.
+    // button, or whose click does nothing at all. A path and not this
+    // deployment's origin plus one - that is what decides whether the click is
+    // a sub-route or a whole new document.
     const row = page.getByRole("link", { name: new RegExp(SECURITY_EVENT_SUMMARY) }).first();
-    await expect(row).toHaveAttribute("href", /\/vault/);
+    await expect(row).toHaveAttribute("href", /^\/vault(\?org=[0-9a-f-]{36})?$/);
+
+    await page.evaluate(() => {
+      (window as Window & { __survivedTheClick?: true }).__survivedTheClick = true;
+    });
 
     await row.click();
 
-    // A plain `<a href>` to the deployment's own origin, not a client-side
-    // route change - `notification-bell.tsx`'s own reason for using one.
     await expect(page).toHaveURL(/\/vault/);
+    // A reloaded document loses this; a sub-route navigation keeps it. The
+    // whole point of the change: the query cache, the sidebar and the
+    // mark-read write in flight all survive the same way.
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __survivedTheClick?: true }).__survivedTheClick,
+      ),
+    ).toBe(true);
+    // And the popover it was clicked in is gone, rather than sitting open over
+    // the page it just opened.
+    await expect(page.getByRole("heading", { name: "Notifications" })).toBeHidden();
   });
 });

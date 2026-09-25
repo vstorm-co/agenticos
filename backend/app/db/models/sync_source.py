@@ -73,3 +73,10 @@ class SyncSource(TimestampMixin, Base):
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What the source's content was at when its last clean run finished, as
+    # `SyncState` - a repository branch's head commit and a fingerprint of the
+    # configuration it was read under. Written only by a run that finished with
+    # nothing failed, so a partial one is retried in full next time rather than
+    # skipped as current (#987). `None` for a connector that cannot answer
+    # `remote_version`, and for a source that has not finished a run yet.
+    sync_state: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)

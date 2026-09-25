@@ -56,6 +56,9 @@ class RAGDocument(TimestampMixin, Base):
     # refuses a key over about 2700 bytes at insert time, which would turn a long
     # path into the error the `Text` was chosen to avoid.
     source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which sync sources list this document is `RAGDocumentClaim`'s, a row per
+    # source: two sources feeding one collection can both list an address, and
+    # one of them no longer listing it is not reason enough to remove it (#1879).
 
     __table_args__ = (
         Index("rag_documents_source_path_idx", "source_path", postgresql_using="hash"),

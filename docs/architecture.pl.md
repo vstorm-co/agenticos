@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "a76ef1e767d9"
 ---
 
 # Architektura { #architecture }
@@ -83,7 +83,7 @@ importowany jako typ, a nie jako dostęp do danych.
 | `core/security.py` | Narzędzia do JWT / kluczy API |
 | `agents/` | Agenci AI i narzędzia |
 | `rag/` | Moduł RAG (embeddingi, magazyn wektorów, retrieval) |
-| `rag/connectors/` | Konektory synchronizacji (Google Drive, S3) |
+| `rag/connectors/` | Konektory synchronizacji (Google Drive, S3, strony internetowe) |
 | `commands/` | Komendy CLI w stylu Django |
 
 ## Odpowiedzialności warstw { #layer-responsibilities }
@@ -734,7 +734,7 @@ zawęża go dalej.**
   `role: "assistant"`, którą wszyscy czytają w `/chat`, a model dostaje z powrotem
   jako własne słowa. Poziom jest komunikowany temu, kto go nadaje, więc
   egzekwowany jest właśnie ten poziom (#931).
-- W `list_messages` ten jeden argument robi dwie rzeczy — autoryzuje *i* wzbogaca
+- W `transcript` ten jeden argument robi dwie rzeczy — autoryzuje *i* wzbogaca
   każdą wiadomość o własną ocenę wywołującego. To przeciążenie jest powodem, dla
   którego jego autoryzująca połowa tak długo była nieobecna: route go
   przekazywał, argument był w przeglądzie kodu wyraźnie widoczny, a robił tę
@@ -778,8 +778,8 @@ Cztery konsekwencje, które warto znać:
   nie pyta o niczyje gwiazdki i nie płaci za to zapytaniem, a odczyt, który
   wyłącznie *autoryzuje*, wyłącza to jawnie przez `include_favourite=False`. To są
   te odczyty, których wynik zostaje odrzucony albo nie jest rozmową:
-  `GET /conversations/{id}/messages`, który rozwiązuje wątek dwa razy, przez
-  `list_messages` i `conversation_cost`; trzy route'y workspace'u; każda tura
+  `GET /conversations/{id}/messages`, który rozwiązuje wątek raz, przez
+  `transcript`, dla strony i jej kosztu; trzy route'y workspace'u; każda tura
   istniejącego czatu, przez `agent._resolve_in_org`; oraz zapisy — `add_message`,
   `delete_conversation` i `set_favourite`, który sam nadpisuje tę flagę. Domyślne
   włączenie jest tym, co powstrzymuje route, który *faktycznie* serializuje
@@ -913,8 +913,9 @@ Dokumenty można wciągnąć przez:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (tylko admin, wgranie pliku)
-3. **Źródła synchronizacji** -- Skonfigurowane konektory (Google Drive, S3), które
-   pobierają dokumenty według harmonogramu albo na żądanie.
+3. **Źródła synchronizacji** -- Skonfigurowane konektory (Google Drive, S3, strony
+   internetowe), które pobierają dokumenty według harmonogramu albo na żądanie i
+   usuwają to, czego ich źródło już nie zawiera.
 
 Każdy wciągnięty dokument:
 - Jest parsowany do tekstu (parser wybierany per kolekcja, do nadpisania per wgranie)
