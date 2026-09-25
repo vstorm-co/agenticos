@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget. An exhausted budget or a failed model
+  call falls back to the plain query. Every produced query is searched under the
+  same tenant scope and filters as the original, so expansion widens recall and
+  never access (#1649).
+
 ## [0.0.502] - 2026-09-25
 
 ### Added
