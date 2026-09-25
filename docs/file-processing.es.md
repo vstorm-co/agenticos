@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "705af451616b"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1399,7 +1399,9 @@ Qué conectores se están construyendo, y en qué orden, se decide en
 conector `web` - véase la
 [configuración de un sitio web](howto/configure-sync-sources.md#website-setup)),
 SharePoint y OneDrive
-([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#985](https://github.com/vstorm-co/agenticos/issues/985), publicado como el
+conector `sharepoint` - véase la [configuración de SharePoint y
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), la documentación de un
 repositorio de git
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), y luego Azure Blob y

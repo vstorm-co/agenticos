@@ -288,6 +288,7 @@ class TestWhatTheConnectorsDeclare:
             "s3": "aws_credentials",
             "web": "none",
             "git": "git_token",
+            "sharepoint": "entra_app",
         }
 
     def test_no_connector_config_schema_carries_a_credential_field(self):

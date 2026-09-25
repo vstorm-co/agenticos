@@ -1292,14 +1292,17 @@ Which connectors are being built, and in what order, is decided in
 [#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
 ([#984](https://github.com/vstorm-co/agenticos/issues/984), shipped as the `web`
 connector - see [website setup](howto/configure-sync-sources.md#website-setup)), SharePoint and
-OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985), shipped as the
+`sharepoint` connector - see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
 then Azure Blob and GCS, whose condition is met: `S3Connector` is an
 `ObjectStoreConnector` subclass, so each of those is a client and a
 `CONNECTOR_TYPE` rather than a second copy of the listing loop
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-and email archives are decided **against** for now, each for a reason recorded
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.
 

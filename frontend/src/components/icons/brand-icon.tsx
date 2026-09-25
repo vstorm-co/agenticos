@@ -55,6 +55,7 @@ const CONNECTOR_BRANDS: Record<string, BrandName> = {
   github: "github",
   // A repository on any host - GitHub is the mark most of them will be.
   git: "github",
+  sharepoint: "microsoft",
   notion: "notion",
   slack: "slack",
   dropbox: "dropbox",

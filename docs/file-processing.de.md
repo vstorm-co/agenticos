@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "705af451616b"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1456,15 +1456,18 @@ Web-Crawler ([#984](https://github.com/vstorm-co/agenticos/issues/984),
 ausgeliefert als der `web`-Connector - siehe
 [eine Website einrichten](howto/configure-sync-sources.md#website-setup)),
 SharePoint und OneDrive
-([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#985](https://github.com/vstorm-co/agenticos/issues/985), ausgeliefert als der
+`sharepoint`-Connector - siehe [SharePoint und OneDrive
+einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), die Dokumentation
 eines Git-Repositories
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), und dann Azure Blob
 und GCS, deren Bedingung erfüllt ist: `S3Connector` ist eine Unterklasse von
 `ObjectStoreConnector`, jeder davon ist also ein Client und ein `CONNECTOR_TYPE`
 statt einer zweiten Kopie der Auflistungsschleife
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Gegen Notion, Slack
-und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Gegen Notion, Slack und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
 festgehaltenen Grund — die letzten beiden, weil eine Unterhaltung sich schlecht
 abrufen lässt und die Kanal-Integrationen einen Agent bereits *in* Slack setzen.
 

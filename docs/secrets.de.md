@@ -1,5 +1,5 @@
 ---
-source_sha: "4372ff3656a5"
+source_sha: "dfb14d9e1139"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -103,6 +103,7 @@ existieren.
 | `gcp_service_account` | Das JSON des Service-Accounts, beim Hineingeben validiert |
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
+| `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
@@ -118,6 +119,15 @@ sortiert.
 sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es
 abgelegt wurde, lässt sich das Token durch Bearbeiten der Quelle nicht auf einen
 anderen Server richten, und kein anderer Schlüssel kann an seine Stelle treten.
+
+`entra_app` ist das, als was sich eine SharePoint- oder OneDrive-Sync-Quelle
+anmeldet. Ihre Reichweite wird in Microsoft Entra festgelegt, nicht hier: Die
+Graph-Berechtigungen, denen ein Administrator zugestimmt hat, entscheiden, welche
+Sites sie lesen kann, und ein Token sagt nicht, welche das sind. Gewähren Sie ihr
+`Sites.Selected` auf der einen Site, die die Quelle liest — siehe [SharePoint und
+OneDrive einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup).
+Ihr Hinweis sind die letzten vier Zeichen der Client-ID, die öffentlich ist, statt
+die des Secrets.
 
 `aws_credentials` ist der klarste Fall dafür, dass es Arten überhaupt gibt: die
 Access Key ID ist nicht geheim und der Secret Access Key ist es, und ein einzelnes

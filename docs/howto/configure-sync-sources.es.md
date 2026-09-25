@@ -1,12 +1,12 @@
 ---
-source_sha: "86769ff55566"
+source_sha: "17bcc29aa385"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
 
 Las fuentes de sincronización traen documentos de servicios externos (Google
-Drive, S3/MinIO, un sitio web público, un repositorio Git) a las colecciones de conocimiento por su
-cuenta. Cada fuente guarda un tipo de connector, una colección de destino,
+Drive, S3/MinIO, un sitio web público, un repositorio Git, un sitio de SharePoint o
+un OneDrive) a las colecciones de conocimiento por su cuenta. Cada fuente guarda un tipo de connector, una colección de destino,
 opciones propias del connector, un modo de sincronización, un horario opcional y
 el id del [secreto del vault](../secrets.md) que la autentica - un sitio web no
 necesita ninguno.
@@ -35,7 +35,7 @@ de `SyncLog` deja constancia del resultado de cada operación de sincronización
 ### Listar los tipos de connector disponibles { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3, git)
+# Shows all registered connectors (e.g. gdrive, s3, git, sharepoint)
 uv run agenticos cmd rag-sources
 ```
 
@@ -82,6 +82,23 @@ Después elige su token de acceso como credencial de la fuente en la interfaz, o
 envía `secret_id` con un `PATCH` — consulta
 [Configurar un repositorio Git](#git-repository-setup).
 
+### Añadir una fuente de SharePoint -- una carpeta de una biblioteca, cada 6 horas { #add-a-sharepoint-source-one-library-folder-every-6-hours }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "HR policies" \
+  --type sharepoint \
+  --org 0c8f2b1e-... \
+  --collection hr \
+  --secret-id <vault-secret-id> \
+  --config '{"site_url": "https://contoso.sharepoint.com/sites/HR", "folder_path": "Policies"}' \
+  --sync-mode new_only \
+  --schedule 360
+```
+
+`--secret-id` es la app de Microsoft Entra en el vault de la organización —
+consulta [Configurar SharePoint y OneDrive](#sharepoint-and-onedrive-setup).
+
 ### Lanzar una sincronización a mano { #trigger-sync-manually }
 
 ```bash
@@ -106,7 +123,7 @@ el listado de `rag-sources`.
 1. Ve a **Knowledge Base** y abre la pestaña **Sync**.
 2. Pulsa **"+ Add Source"**.
 3. Elige un tipo de connector (Google Drive, S3, Website, Git
-   repository). Los campos del
+   repository, SharePoint & OneDrive). Los campos del
    formulario se generan a partir del JSON Schema del `CONFIG_MODEL` del
    connector. Un sitio web no tiene paso de credencial.
 4. Rellena los campos de configuración propios del connector (por ejemplo, el
@@ -168,8 +185,8 @@ permite:
   coincide con el del documento almacenado, así que se cuenta como `skipped` y
   no se vuelve a parsear ni a embeber.
 - **Una fuente sin cambios cuesta una petición.** Un connector capaz de decir en
-  qué punto está todo su contenido —el commit de cabeza de una rama de Git— lo
-  registra después de cada ejecución que termina sin ningún fallo. La siguiente
+  qué punto está todo su contenido —el commit de cabeza de una rama de Git, el
+  feed de cambios de una biblioteca de SharePoint— lo registra después de cada ejecución que termina sin ningún fallo. La siguiente
   ejecución `new_only` o `update_only` que encuentra el mismo valor, con la misma
   configuración, se detiene antes de listar nada: su registro no muestra ningún
   archivo procesado, y no elimina nada. Cambiar la configuración, la colección o el modo hace que la
@@ -445,6 +462,132 @@ host por su cuenta.
 La imagen del worker incluye `git`. Un worker construido a partir de otra imagen
 necesita `git` 2.37 o posterior en su `PATH`.
 
+## Configurar SharePoint y OneDrive { #sharepoint-and-onedrive-setup }
+
+Una fuente `sharepoint` lee una biblioteca de documentos a través de Microsoft
+Graph: la biblioteca de un sitio de SharePoint, o el OneDrive de una persona, que
+Microsoft 365 guarda como un sitio propio. Puede leer la biblioteca entera o una
+carpeta dentro de ella. Inicia sesión como un registro de aplicación de Microsoft
+Entra que un administrador de tu tenant crea una sola vez.
+
+### 1. Registra una app en Microsoft Entra { #1-register-an-app-in-microsoft-entra }
+
+En el [Microsoft Entra admin center](https://entra.microsoft.com), abre
+**App registrations → New registration**. Dale un nombre como *AgenticOS
+sync*, deja **Accounts in this organizational directory only** y deja vacío el
+redirect URI. La fuente inicia sesión como la propia app, no como una persona.
+
+En la **Overview** de la app, anota el **Application (client) ID** y el
+**Directory (tenant) ID**. En **Certificates & secrets**, añade un client secret
+y copia su **Value**. El valor se muestra una sola vez. El *ID* del secreto no es
+lo que necesita la fuente.
+
+### 2. Concédele un sitio, no el tenant { #2-grant-it-one-site-not-the-tenant }
+
+**El alcance de la app es el alcance de la fuente.** Todo lo que la fuente
+ingiere pasa a poder buscarlo cualquiera que pueda leer la colección que
+alimenta. Consulta [quién acaba pudiendo leer lo que ingirió una
+fuente](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+En **API permissions**, añade el permiso de **aplicación** de Microsoft Graph
+**`Sites.Selected`** y concede el consentimiento de administrador para él. Por sí
+solo, `Sites.Selected` no lee nada. Después, un administrador concede a la app
+acceso de lectura al único sitio que lee la fuente:
+
+```http
+POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+Content-Type: application/json
+
+{
+  "roles": ["read"],
+  "grantedToIdentities": [
+    {"application": {"id": "<client-id>", "displayName": "AgenticOS sync"}}
+  ]
+}
+```
+
+Esa llamada necesita `Sites.FullControl.All`, así que un administrador la hace
+desde Graph Explorer o con `Grant-PnPAzureADAppSitePermission` de PnP PowerShell,
+y no con la propia app.
+`GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/HR?$select=id`
+devuelve el id del sitio. Un OneDrive se concede de la misma forma, a través de su
+sitio: `contoso-my.sharepoint.com:/personal/jane_contoso_com`.
+
+!!! danger "`Files.Read.All` o `Sites.Read.All` hacen legibles todas las bibliotecas del tenant"
+
+    Esos permisos se consienten para todo el tenant. Una fuente que los tiene
+    sigue leyendo solo la biblioteca que nombra. Pero quien puede editar la
+    fuente puede apuntar su URL de sitio a cualquier sitio u OneDrive de la
+    organización, y la siguiente sincronización hace que esa biblioteca pueda
+    buscarla cualquiera que pueda leer la colección. Nada en este producto puede
+    saber qué permiso se dio a la app, porque un token no lo dice. Usa
+    `Sites.Selected` y concede una app por cada público.
+
+### 3. Añádela al vault { #3-add-it-to-the-vault }
+
+Añade la app al vault como **Microsoft Entra app**: el id del tenant (o el
+dominio del tenant, como `contoso.onmicrosoft.com`), el client id y el valor del
+client secret. Después elígela en el paso de credencial de la fuente. El secreto
+solo se envía a `login.microsoftonline.com`, para iniciar sesión.
+
+Un client secret caduca, como mucho a los dos años. Cuando ha caducado, la
+siguiente sincronización falla con *Microsoft Entra refused the app
+registration's credentials (invalid_client)*. Añade un secreto nuevo a la app y
+sustituye el valor en el mismo secreto del vault. Todas las fuentes que lo usan
+recogen el valor nuevo en su siguiente sincronización.
+
+### 4. Campos de configuración del connector de SharePoint { #4-sharepoint-connector-config-fields }
+
+| Campo | Tipo | Obligatorio | Valor por defecto | Descripción |
+|-------|------|----------|---------|-------------|
+| `site_url` | string | Sí | -- | El sitio, por ejemplo `https://contoso.sharepoint.com/sites/HR`, o un OneDrive, por ejemplo `https://contoso-my.sharepoint.com/personal/jane_contoso_com`. Solo el sitio: una URL de biblioteca o de página copiada del navegador se rechaza. |
+| `library` | string | No | la biblioteca por defecto del sitio | El nombre de la biblioteca tal como lo muestra SharePoint, por ejemplo `Documents`. Un OneDrive solo tiene su biblioteca por defecto. |
+| `folder_path` | string | No | -- | Una carpeta dentro de la biblioteca, por ejemplo `Policies/HR`. Déjalo vacío para la biblioteca entera. |
+| `include_subfolders` | boolean | No | `true` | Si se leen las carpetas que hay bajo `folder_path`. |
+| `extensions` | lista de strings | No | `.pdf`, `.docx`, `.md`, `.txt` | Qué tipos de archivo se ingieren. Añade `.pptx`, `.xlsx` u otro tipo solo si el parser de la colección lo lee: un archivo que el parser no puede leer cuenta como archivo fallido en cada sincronización. |
+
+Cada archivo es un documento cuya dirección es `sharepoint://<drive-id>/<item-id>`.
+La dirección sigue al archivo, no a su ruta, así que un archivo que se renombra o
+se mueve dentro de la biblioteca conserva su documento.
+
+Los blocs de notas de OneNote y los archivos de otros tipos no se ingieren.
+
+### 5. Qué transfiere una sincronización { #5-what-a-sync-transfers }
+
+Cada sincronización empieza por el feed de cambios de Microsoft Graph para la
+biblioteca. Cuando nada en la biblioteca ha cambiado desde la última ejecución
+limpia, la sincronización se detiene ahí: una petición y ningún listado. El feed
+cubre la biblioteca entera, porque Graph solo lo ofrece para la raíz de una
+biblioteca. Por eso un cambio en otra carpeta de la misma biblioteca hace que la
+siguiente sincronización vuelva a listar la carpeta de la fuente.
+
+Cuando algo ha cambiado, la sincronización lista la carpeta y descarga todos los
+archivos de los tipos configurados. Un archivo cuyo contenido no ha cambiado se
+omite entonces antes de embeberlo, así que solo los archivos nuevos y modificados
+cuestan un embedding. Un archivo se descarga desde la dirección que Graph da para
+él, sin el token de la app. Un archivo que supera el límite de documento de la
+base de conocimiento (`MAX_UPLOAD_SIZE_MB`, 50 MB por defecto) no se descarga y
+cuenta como archivo fallido.
+
+Graph frena a un cliente que lee deprisa. Una petición que Graph limita (HTTP
+429) o que falla con un 5xx o un error de red se intenta cuatro veces en total, y
+la sincronización espera lo que pida el `Retry-After` de Graph, hasta un minuto.
+Una carpeta que aun así no se puede listar se nombra en el registro de
+sincronización, y esa sincronización no elimina nada, porque no se vieron los
+archivos de esa carpeta. Los archivos de las demás carpetas se ingieren igualmente.
+
+Un archivo borrado después del listado y antes de su descarga se elimina como un
+archivo que el listado no nombró.
+
+### Red { #network }
+
+El worker necesita HTTPS de salida hacia `login.microsoftonline.com`,
+`graph.microsoft.com` y los hosts `*.sharepoint.com` de tu tenant. Nada de lo que
+escribe quien edita una fuente se convierte en una dirección a la que se conecte
+el worker: la URL del sitio es solo un nombre que Graph busca. Las nubes
+nacionales de Microsoft, como US Government y China, usan otros hosts y no están
+soportadas.
+
 ## Referencia de la API { #api-reference }
 
 Todos los endpoints de las fuentes de sincronización viven bajo
@@ -666,10 +809,11 @@ páginas que había detrás.
 
 ### "The source could not be listed completely, so documents it may no longer hold were kept" { #the-source-could-not-be-listed-completely-so-documents-it-may-no-longer-hold-were-kept }
 
-El listado se quedó corto: un crawl alcanzó `max_pages`, o algunas páginas no se
-pudieron leer. Lo que se encontró se ingestó, y no se eliminó nada. Sube
-`max_pages`, o acota el crawl con `path_prefix`, hasta que un run termine sin este
-mensaje.
+El listado se quedó corto: un crawl alcanzó `max_pages`, algunas páginas no se
+pudieron leer, o una carpeta de SharePoint no se pudo listar. Lo que se encontró
+se ingestó, y no se eliminó nada. Para un sitio web, sube `max_pages`, o acota el
+crawl con `path_prefix`, hasta que un run termine sin este mensaje. Para
+SharePoint, consulta más abajo la entrada de esa carpeta.
 
 ### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
 
@@ -735,6 +879,73 @@ distribuye lo instala; a una imagen propia hay que añadírselo.
 El commit de cabeza de la rama es el mismo que leyó la última ejecución limpia,
 con la misma configuración, así que no había nada que hacer. Cambia la fuente a
 `full` durante una ejecución para volver a leerlo todo de todos modos.
+
+### SharePoint: "Microsoft Entra refused the app registration's credentials (…)" { #sharepoint-microsoft-entra-refused-the-app-registrations-credentials }
+
+Microsoft Entra no inició la sesión de la app. `invalid_client` suele significar
+que el client secret ha caducado o que el vault guarda el ID del secreto en lugar
+de su valor. `unauthorized_client` o `invalid_request` suele significar que el id
+del tenant o el client id son incorrectos. Comprueba los tres valores con la
+**Overview** y **Certificates & secrets** de la app, y sustitúyelos en el secreto
+del vault.
+
+### SharePoint: "Microsoft Graph did not accept the app's token for …" { #sharepoint-microsoft-graph-did-not-accept-the-apps-token-for }
+
+La app inició sesión, pero su token no lleva ningún permiso de Microsoft Graph.
+Añade el permiso de **aplicación** `Sites.Selected`, no uno delegado, y concede el
+consentimiento de administrador, como se describe en el
+[paso 2](#2-grant-it-one-site-not-the-tenant).
+
+### SharePoint: "Microsoft Graph denied the app access to … (accessDenied)" { #sharepoint-microsoft-graph-denied-the-app-access-to-accessdenied }
+
+La app tiene `Sites.Selected` pero ninguna concesión sobre este sitio. Concédele
+`read` sobre el sitio, como se describe en el
+[paso 2](#2-grant-it-one-site-not-the-tenant). Si el mensaje nombra una carpeta
+bajo la carpeta de la fuente, esa carpeta tiene permisos propios que excluyen a la
+app. El resto de la biblioteca se ingirió y no se eliminó nada.
+
+### SharePoint: "There is no SharePoint site at …, or the app cannot see it" { #sharepoint-there-is-no-sharepoint-site-at-or-the-app-cannot-see-it }
+
+Comprueba primero la URL del sitio: es la dirección del propio sitio, como
+`https://contoso.sharepoint.com/sites/HR`, no una biblioteca ni una página dentro
+de él. Con `Sites.Selected`, un sitio sobre el que la app no tiene concesión
+también puede responder así.
+
+### SharePoint: "The site has no document library named …" { #sharepoint-the-site-has-no-document-library-named }
+
+El mensaje lista las bibliotecas que la app puede ver. Copia uno de esos nombres
+en `library`, o deja `library` vacío para la biblioteca por defecto del sitio. La
+biblioteca por defecto lleva el nombre en el idioma del sitio, como *Documents* o
+*Dokumente*.
+
+### SharePoint: "The library has no folder …" o "… is a file, not a folder" { #sharepoint-the-library-has-no-folder-or-is-a-file-not-a-folder }
+
+`folder_path` no nombra una carpeta de la biblioteca. Es relativo al nivel
+superior de la biblioteca, por ejemplo `Policies/HR`, y no repite el nombre de la
+biblioteca.
+
+### SharePoint: "The folder … could not be listed: …" { #sharepoint-the-folder-could-not-be-listed }
+
+No se pudo leer una carpeta bajo la carpeta de la fuente. El motivo va detrás de
+los dos puntos. Las demás carpetas se ingirieron, y en ese run no se eliminó nada.
+
+### SharePoint: "Microsoft 365 stayed unavailable or kept throttling … after 4 attempts" { #sharepoint-microsoft-365-stayed-unavailable-or-kept-throttling-after-4-attempts }
+
+Graph seguía limitando o fallando tras cuatro intentos. La siguiente
+sincronización vuelve a empezar. Si ocurre en cada sincronización, programa la
+fuente con menos frecuencia, o divide una biblioteca muy grande en varias fuentes,
+cada una con su propio `folder_path`.
+
+### SharePoint: "A SharePoint source needs a Microsoft Entra app credential" { #sharepoint-a-sharepoint-source-needs-a-microsoft-entra-app-credential }
+
+La fuente nombra un secreto de otro kind, como una API key. Añade la app al vault
+como **Microsoft Entra app** y elige esa.
+
+### SharePoint: una sincronización terminó sin ningún archivo procesado { #sharepoint-a-sync-finished-with-no-files-processed }
+
+Nada en la biblioteca ha cambiado desde la última ejecución limpia con la misma
+configuración, así que no había nada que hacer. Cambia la fuente a `full` durante
+una ejecución para volver a leerlo todo de todos modos.
 
 ### Las sincronizaciones programadas no se ejecutan { #scheduled-syncs-are-not-running }
 

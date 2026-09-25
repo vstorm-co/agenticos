@@ -1265,7 +1265,15 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             # and for a repository that is one `ls-remote` in place of a clone.
             # `full` promises a re-import every time, so it never stops here,
             # and neither does a source a dead run left half-ingested.
-            version = await connector.remote_version(config, credential)
+            # The last clean run's version, only when it ran under this same
+            # configuration: a change feed read from another folder's position
+            # would vouch for the wrong files.
+            previous = (
+                stored_state.get("version")
+                if stored_state and stored_state.get("fingerprint") == fingerprint
+                else None
+            )
+            version = await connector.remote_version(config, credential, previous)
             stale = await _stale_rows(source_id=UUID(source_id), collection_name=collection_name)
             unchanged = (
                 version is not None
