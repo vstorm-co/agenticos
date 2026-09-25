@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.503] - 2026-09-25
+
 ### Added
 
 - **Knowledge search can infer its filters from the question.** With
