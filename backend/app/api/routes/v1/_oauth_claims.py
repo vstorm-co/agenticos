@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.exceptions import AuthenticationError
+
 logger = logging.getLogger(__name__)
 
 #: What has to be present before the UserInfo endpoint can be skipped.
@@ -46,10 +48,18 @@ async def claims_for(client: Any, token: dict[str, Any]) -> dict[str, Any] | Non
 
     try:
         fetched = await client.userinfo(token=token)
-    except Exception:
-        # Not fatal on its own: the ID token may still carry enough, and the
-        # caller refuses on the claims rather than on the fetch.
+    except Exception as exc:
         logger.warning("oauth_userinfo_fetch_failed", exc_info=True)
+        # Where the deployment reads groups and only UserInfo could have said
+        # which, the claims in hand do not say "no groups" - they say nothing.
+        # Signing in on them would strip every membership the directory gave
+        # the person, so the sign-in is refused for them to try again.
+        if not _has_groups_if_read(parsed):
+            raise AuthenticationError(
+                message="Your groups could not be read from the identity provider. Try again."
+            ) from exc
+        # Otherwise not fatal on its own: the ID token may still carry enough,
+        # and the caller refuses on the claims rather than on the fetch.
         return parsed or None
     return {**parsed, **dict(fetched or {})} or None
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c51c3dd508c7"
+source_sha: "bc91324ffeae"
 ---
 
 # Konfiguration { #configuration }
@@ -181,7 +181,7 @@ werden seine MFA und sein Offboarding zweimal gelöst.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Der beim Anbieter registrierte Callback |
 | `OIDC_SCOPES` | `openid email profile` | Durch Leerzeichen getrennt. Den eigenen Scope des Anbieters ergänzen, wo er einen für die Claims braucht |
 | `OIDC_VERIFIED_CLAIM` | (leer) | Ein dritter Claim, der als „diese Adresse ist bestätigt“ gilt, für einen Anbieter mit eigenem Namen dafür |
-| `OIDC_GROUPS_CLAIM` | (leer) | Der Claim, der die Gruppen einer Person auflistet, meist `groups`. Gesetzt, wendet jede Anmeldung die [Zuordnungen von Verzeichnisgruppen](directory.md#directory-group-mappings) an; leer lässt Mitgliedschaften unberührt |
+| `OIDC_GROUPS_CLAIM` | (leer) | Der Claim, der die Gruppen einer Person auflistet, meist `groups`. Gesetzt, wendet jede Anmeldung die [Zuordnungen von Verzeichnisgruppen](directory.md#directory-group-mappings) an; leer lässt Mitgliedschaften unberührt. Zusammen mit `LDAP_URL` abgewiesen |
 
 Der Issuer ist die einzige URL. Authorization, Token, Userinfo und JWKS kommen
 aus `<issuer>/.well-known/openid-configuration`, das der Anbieter über eine

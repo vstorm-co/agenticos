@@ -171,7 +171,7 @@ for its staff - without this, its MFA and its offboarding are solved twice.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
 | `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
 | `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
-| `OIDC_GROUPS_CLAIM` | (empty) | The claim listing a person's groups, usually `groups`. Set, each sign-in applies the [directory group mappings](directory.md#directory-group-mappings); empty leaves memberships alone |
+| `OIDC_GROUPS_CLAIM` | (empty) | The claim listing a person's groups, usually `groups`. Set, each sign-in applies the [directory group mappings](directory.md#directory-group-mappings); empty leaves memberships alone. Refused together with `LDAP_URL` |
 
 The issuer is the only URL. Authorization, token, userinfo and JWKS come from
 `<issuer>/.well-known/openid-configuration`, which the provider keeps correct

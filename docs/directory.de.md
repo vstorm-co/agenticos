@@ -1,5 +1,5 @@
 ---
-source_sha: "786dab540111"
+source_sha: "ebe8092adb19"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -62,7 +62,9 @@ Bearbeiten.
 Gruppen liegen unter **Organizations → Members → Groups**. Nur Mitglieder der
 Organisation können hinzugefügt werden, und wer aus der Organisation entfernt
 wird, wird aus all ihren Gruppen entfernt. Eine Gruppe zu löschen löscht jeden an
-sie vergebenen Grant und jede Verzeichniszuordnung, die sie benennt.
+sie vergebenen Grant und jede Verzeichniszuordnung, die sie benennt, und verlangt
+deshalb dieselbe Berechtigung wie das Löschen dieser Zuordnungen: Ein Admin kann
+keine Gruppe löschen, auf die eine Zuordnung auf Admin-Ebene zeigt.
 
 ## Zuordnungen von Verzeichnisgruppen { #directory-group-mappings }
 
@@ -318,7 +320,13 @@ Der Claim wird aus dem ID-Token gelesen, oder aus dem UserInfo-Endpunkt, wenn da
 Token ihn nicht trägt. Ein konfigurierter Claim, der fehlt, zählt als **keine
 Gruppen**. Keycloak und Okta lassen eine leere Liste weg, statt eine zu senden,
 und wer aus seiner letzten Gruppe entfernt wurde, muss verlieren, was sie ihm
-gegeben hat.
+gegeben hat. Fehlt der Claim im Token und ist UserInfo nicht erreichbar, wird die
+Anmeldung stattdessen abgewiesen: Das sagt nichts über die Gruppen der Person, und
+es als keine zu lesen, würde sie ihr entziehen.
+
+`OIDC_GROUPS_CLAIM` und `LDAP_URL` können nicht zusammen gesetzt werden. Jedes
+meldet Gruppen in eigenen Kennungen, und jede Anmeldung würde die Mitgliedschaften
+entfernen, die das andere angelegt hat, daher startet der Prozess mit beiden nicht.
 
 !!! warning "Ein Gruppen-Overage von Entra ID wird abgewiesen"
 

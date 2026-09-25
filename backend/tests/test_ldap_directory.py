@@ -213,7 +213,9 @@ class _Scripted:
         search_code: int = 0,
         response: object = None,
         open_error: Exception | None = None,
+        tls_ok: bool = True,
     ) -> None:
+        self._tls_ok = tls_ok
         self._bind = bind
         self._bind_code = bind_code
         self._search_code = search_code
@@ -227,8 +229,9 @@ class _Scripted:
         if self._open_error is not None:
             raise self._open_error
 
-    def start_tls(self) -> None:
+    def start_tls(self) -> bool:
         self.tls_started = True
+        return self._tls_ok
 
     def bind(self) -> bool:
         self.result = {"result": self._bind_code}
@@ -329,6 +332,50 @@ class TestTheDirectoryMisbehaving:
         ).authenticate("jane", "pw")
 
         assert service.tls_started and person.tls_started
+
+
+class TestIncompleteOrDowngradedAnswers:
+    """Found in review: each of these would have fed the sign-in half an answer."""
+
+    @pytest.mark.security
+    def test_a_refused_start_tls_binds_nothing_over_plaintext(self):
+        """`raise_exceptions=False` makes a refused StartTLS a False, not an error."""
+        service = _Scripted(response=_JANE_ENTRY, tls_ok=False)
+
+        with pytest.raises(DirectoryUnavailable):
+            LdapDirectory(
+                _config(url="ldap://dc.corp.example", start_tls=True), _factory(service)
+            ).authenticate("jane", "pw")
+
+        assert service.result == {}, "no bind may follow a refused StartTLS"
+        assert service.unbound
+
+    @pytest.mark.security
+    def test_a_truncated_account_search_is_ambiguous_even_with_one_entry(self):
+        """A server limit below the two asked for returns one row and code 4."""
+        with pytest.raises(DirectoryAccountUnusable):
+            LdapDirectory(
+                _config(), _factory(_Scripted(response=_JANE_ENTRY, search_code=4))
+            ).authenticate("jane", "pw")
+
+    def test_a_truncated_group_search_is_not_taken_as_every_group(self):
+        """The sync would remove memberships on a partial list."""
+
+        class _GroupSearchTruncated(_Scripted):
+            def __init__(self) -> None:
+                super().__init__(response=_JANE_ENTRY)
+                self.calls = 0
+
+            def search(self, *args: object, **kwargs: object) -> bool:
+                self.calls += 1
+                self.result = {"result": 0 if self.calls == 1 else 4}
+                return True
+
+        with pytest.raises(DirectoryUnavailable):
+            LdapDirectory(
+                _config(group_base_dn="ou=groups,dc=corp"),
+                _factory(_GroupSearchTruncated(), _Scripted()),
+            ).authenticate("jane", "pw")
 
 
 class TestResponseParsing:

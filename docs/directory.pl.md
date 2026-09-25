@@ -1,5 +1,5 @@
 ---
-source_sha: "786dab540111"
+source_sha: "ebe8092adb19"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -58,7 +58,8 @@ przez własny grant i edycja przez grant grupy daje edycję.
 Grupy znajdują się w **Organizations → Members → Groups**. Dodać można tylko
 członków organizacji, a usunięcie kogoś z organizacji usuwa go ze wszystkich jej
 grup. Usunięcie grupy usuwa każdy nadany jej grant i każde mapowanie katalogowe,
-które ją wskazuje.
+które ją wskazuje, więc wymaga tych samych uprawnień co usunięcie tych mapowań:
+Admin nie usunie grupy, na którą wskazuje mapowanie na poziomie Admina.
 
 ## Mapowania grup katalogowych { #directory-group-mappings }
 
@@ -295,7 +296,13 @@ grupach ktoś jest.
 Claim jest czytany z ID tokena albo z endpointu UserInfo, gdy token go nie niesie.
 Skonfigurowany claim, którego brakuje, liczy się jako **brak grup**. Keycloak i
 Okta pomijają pustą listę zamiast ją wysłać, a ktoś usunięty ze swojej ostatniej
-grupy musi stracić to, co ona mu dawała.
+grupy musi stracić to, co ona mu dawała. Jeśli tokenowi brakuje claimu, a UserInfo
+jest nieosiągalne, logowanie zostaje odrzucone: taki stan nic nie mówi o grupach
+osoby, a odczytanie go jako braku grup odebrałoby jej członkostwa.
+
+`OIDC_GROUPS_CLAIM` i `LDAP_URL` nie mogą być ustawione jednocześnie. Każde z nich
+zgłasza grupy we własnych identyfikatorach, a każde logowanie odbierałoby
+członkostwa nadane przez drugie, więc proces z oboma odmawia startu.
 
 !!! warning "Przekroczenie limitu grup w Entra ID jest odrzucane"
 

@@ -222,6 +222,13 @@ async def provider_callback(
             invitation_token=request.session.pop(_INVITATION_KEY, None),
             admitted_by_directory=groups is not None and await directory_sync.admits(groups),
         )
+        # A deactivated account is refused before anything is written for it:
+        # it can still authenticate at its provider, and must not keep
+        # reshaping memberships from there.
+        if not user.is_active:
+            logger.warning("oauth_callback_account_disabled", extra={"provider": provider})
+            params = urlencode({"error": "User account is disabled"})
+            return RedirectResponse(url=f"{frontend}/login?{params}")
         if groups is not None:
             await directory_sync.apply(user.id, groups, provider=provider)
 

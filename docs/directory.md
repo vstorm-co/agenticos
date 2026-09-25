@@ -53,7 +53,8 @@ through their own grant and edit through their group's is edit.
 Groups live on **Organizations → Members → Groups**. Only members of the
 organization can be added, and removing somebody from the organization removes
 them from all of its groups. Deleting a group deletes every grant made to it and
-every directory mapping that names it.
+every directory mapping that names it, so it takes the authority deleting those
+mappings takes: an Admin cannot delete a group an Admin-level mapping points at.
 
 ## Directory group mappings
 
@@ -281,7 +282,13 @@ trusted to say which of its groups somebody is in.
 The claim is read from the ID token, or from the UserInfo endpoint when the token
 does not carry it. A configured claim that is absent counts as **no groups**.
 Keycloak and Okta leave an empty list out rather than send one, and somebody
-removed from their last group has to lose what it gave them.
+removed from their last group has to lose what it gave them. If the token lacks
+the claim and UserInfo cannot be reached, the sign-in is refused instead: that
+says nothing about the person's groups, and reading it as none would strip them.
+
+`OIDC_GROUPS_CLAIM` and `LDAP_URL` cannot be set together. Each reports groups in
+its own identifiers, and each sign-in would take away the memberships the other
+made, so the process refuses to start with both.
 
 !!! warning "Entra ID group overage is refused"
 

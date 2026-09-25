@@ -26,10 +26,10 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import Perm, role_has
+from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import MembershipSource, OrganizationMember
-from app.repositories import group_repo, member_repo
+from app.repositories import directory_mapping_repo, group_repo, member_repo
 from app.schemas.group import GroupCreate, GroupUpdate
 
 
@@ -141,9 +141,29 @@ class GroupService:
         return updated, await group_repo.count_members(self.db, updated.id)
 
     async def delete(self, organization_id: UUID, group_id: UUID, requester_id: UUID) -> None:
-        """Delete a group, and with it every grant made to it and every mapping naming it."""
-        await self._require_manage(organization_id, requester_id)
+        """Delete a group, and with it every grant made to it and every mapping naming it.
+
+        Raises:
+            AuthorizationError: A directory mapping naming the group maps to a
+                role the requester's does not outrank. The mapping cascades with
+                the group, and deleting it demotes everybody it placed - which
+                `DirectoryMappingService.delete` refuses this requester, so
+                deleting the group must not do it by the back door.
+        """
+        membership = await self._membership(organization_id, requester_id)
+        if not role_has(membership.role, Perm.MEMBERS_MANAGE):
+            raise AuthorizationError(message="You cannot manage groups in this organization")
         group = await self._group(organization_id, group_id)
+        ceiling = assignable_roles(membership.role)
+        for mapping in await directory_mapping_repo.list_for_group(self.db, group_id=group.id):
+            if mapping.role not in ceiling:
+                raise AuthorizationError(
+                    message=(
+                        "A directory mapping to a role your own does not outrank places people "
+                        "in this group; it has to be removed by someone who outranks it first"
+                    ),
+                    details={"role": mapping.role},
+                )
         name = group.name
         await group_repo.delete_group(self.db, group)
         await record_audit(
@@ -188,8 +208,20 @@ class GroupService:
         existing = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
         if existing is not None:
             if existing.source != MembershipSource.MANUAL:
+                previous = existing.source
                 await group_repo.set_member_source(
                     self.db, existing, source=MembershipSource.MANUAL
+                )
+                # A takeover is a decision - the access now outlives the
+                # directory taking the person out - so it is recorded as one.
+                await record_audit(
+                    self.db,
+                    actor_user_id=requester_id,
+                    organization_id=organization_id,
+                    action="group.member_taken_over",
+                    target_type="group",
+                    target_id=str(group.id),
+                    details={"user_id": str(user_id), "source_was": previous},
                 )
             return await self._member_row(group.id, user_id)
         try:

@@ -102,6 +102,27 @@ class TestWhereTheClaimComesFrom:
         client.userinfo.assert_not_awaited()
 
 
+class TestAFailedFetchIsNotNoGroups:
+    @pytest.mark.security
+    async def test_a_failed_userinfo_fetch_refuses_rather_than_reading_no_groups(
+        self, reads_groups
+    ) -> None:
+        """Found in review: the ID token without groups plus a failed fetch said nothing."""
+        client = SimpleNamespace(userinfo=AsyncMock(side_effect=RuntimeError("timeout")))
+
+        with pytest.raises(AuthenticationError):
+            await claims_for(client, {"userinfo": dict(_CLAIMS)})
+
+    async def test_a_failed_fetch_is_harmless_when_the_token_already_has_the_groups(
+        self, reads_groups
+    ) -> None:
+        client = SimpleNamespace(userinfo=AsyncMock(side_effect=RuntimeError("timeout")))
+        claims = {**_CLAIMS, "groups": ["Finance"]}
+        del claims["email_verified"]
+
+        assert await claims_for(client, {"userinfo": claims}) == claims
+
+
 class TestTheCallback:
     async def test_a_mapped_group_admits_and_the_sync_applies_the_groups(
         self, client: AsyncClient, configured: None, monkeypatch: pytest.MonkeyPatch
@@ -112,7 +133,7 @@ class TestTheCallback:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "groups": ["Finance"]}}),
         )
-        user = SimpleNamespace(id=uuid4())
+        user = SimpleNamespace(id=uuid4(), is_active=True)
         created = AsyncMock(return_value=user)
         monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
         admits = AsyncMock(return_value=True)
@@ -147,6 +168,30 @@ class TestTheCallback:
         assert "error=" in resp.headers["location"]
         created.assert_not_awaited()
 
+    @pytest.mark.security
+    async def test_a_deactivated_account_touches_no_membership(
+        self, client: AsyncClient, configured: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        app.dependency_overrides[get_redis] = _FakeRedis
+        monkeypatch.setattr(
+            sign_in_client("oidc"),
+            "authorize_access_token",
+            AsyncMock(return_value={"userinfo": {**_CLAIMS, "groups": ["Finance"]}}),
+        )
+        monkeypatch.setattr(
+            UserService,
+            "get_or_create_oauth_user",
+            AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=False)),
+        )
+        monkeypatch.setattr(DirectorySyncService, "admits", AsyncMock(return_value=False))
+        apply = AsyncMock()
+        monkeypatch.setattr(DirectorySyncService, "apply", apply)
+
+        resp = await client.get(_CALLBACK)
+
+        assert "error=" in resp.headers["location"]
+        apply.assert_not_awaited()
+
     async def test_google_never_touches_memberships(
         self, client: AsyncClient, reads_groups: None, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -156,7 +201,7 @@ class TestTheCallback:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "groups": ["Finance"]}}),
         )
-        created = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+        created = AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True))
         monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
         apply = AsyncMock()
         monkeypatch.setattr(DirectorySyncService, "apply", apply)

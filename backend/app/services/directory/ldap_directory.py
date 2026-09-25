@@ -53,10 +53,12 @@ _INVALID_CREDENTIALS = 49
 #: password policy and some appliances refuse a bind for an account state
 #: rather than a transport problem. Still the person's refusal, not an outage.
 _ACCOUNT_REFUSALS = frozenset({48, 53})
-#: `success` and `sizeLimitExceeded` - the second is what asking for at most two
-#: accounts answers when a name matches more, and the two it did return are the
-#: whole point of asking.
-_SEARCH_ANSWERED = frozenset({0, 4})
+_SUCCESS = 0
+#: `sizeLimitExceeded`: the server returned some of the matches and not all.
+#: For an account search that is ambiguity - more than one account, or a server
+#: limit below the two asked for - and for a group search it is an incomplete
+#: answer the sync must not treat as the whole truth.
+_SIZE_LIMIT_EXCEEDED = 4
 
 
 @dataclass(frozen=True)
@@ -268,8 +270,13 @@ class LdapDirectory:
 
     def _open(self, connection: Connection) -> None:
         connection.open()
-        if self._config.start_tls:
-            connection.start_tls()
+        # `raise_exceptions=False` makes a refused StartTLS a `False`, not an
+        # exception - and binding after it would send the service account's
+        # password and the person's over the plaintext connection StartTLS was
+        # configured to protect.
+        if self._config.start_tls and not connection.start_tls():
+            logger.error("ldap_start_tls_refused", extra={"code": _result_code(connection)})
+            raise DirectoryUnavailable()
 
     def _bind_as(self, dn: str, password: str) -> None:
         """Prove `password` is the account's by binding as it."""
@@ -305,21 +312,26 @@ class LdapDirectory:
             # Two is enough to know a name is ambiguous, and no more are read.
             size_limit=2,
         )
+        if _result_code(connection) == _SIZE_LIMIT_EXCEEDED:
+            # More matches than were returned: never bind as whichever arrived.
+            logger.warning("ldap_account_search_truncated")
+            raise DirectoryAccountUnusable()
         self._require_answer(connection)
         return _entries(connection.response)
 
     @staticmethod
     def _require_answer(connection: Connection) -> None:
-        """Refuse a search the directory did not answer.
+        """Refuse a search the directory did not answer completely.
 
         A base DN that does not exist, a filter the server cannot parse, a
         service account not allowed to read the tree: each comes back as a
         failed search with no entries, and reading that as "no such account"
         would tell every person in the company their password is wrong. It is
-        a configuration fault, and it is reported as one.
+        a configuration fault, and it is reported as one. So is a truncated
+        answer, which a group search would otherwise hand the sync as complete.
         """
         code = _result_code(connection)
-        if code not in _SEARCH_ANSWERED:
+        if code != _SUCCESS:
             logger.error("ldap_search_failed", extra={"code": code})
             raise DirectoryUnavailable()
 

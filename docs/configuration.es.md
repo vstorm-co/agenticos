@@ -1,5 +1,5 @@
 ---
-source_sha: "c51c3dd508c7"
+source_sha: "bc91324ffeae"
 ---
 
 # Configuración { #configuration }
@@ -179,7 +179,7 @@ se resuelven dos veces.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | El callback, registrado en el proveedor |
 | `OIDC_SCOPES` | `openid email profile` | Separados por espacios. Añade el scope propio del proveedor donde lo necesite para los claims |
 | `OIDC_VERIFIED_CLAIM` | (vacío) | Un tercer claim que se acepta como «esta dirección está confirmada», para un proveedor que lo llama de otro modo |
-| `OIDC_GROUPS_CLAIM` | (vacío) | El claim que lista los grupos de una persona, normalmente `groups`. Si está definido, cada inicio de sesión aplica los [mapeos de grupos del directorio](directory.md#directory-group-mappings); vacío deja las membresías como están |
+| `OIDC_GROUPS_CLAIM` | (vacío) | El claim que lista los grupos de una persona, normalmente `groups`. Si está definido, cada inicio de sesión aplica los [mapeos de grupos del directorio](directory.md#directory-group-mappings); vacío deja las membresías como están. Se rechaza junto con `LDAP_URL` |
 
 El issuer es la única URL. Authorization, token, userinfo y JWKS salen de
 `<issuer>/.well-known/openid-configuration`, que el proveedor mantiene correcto

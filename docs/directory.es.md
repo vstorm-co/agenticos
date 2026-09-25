@@ -1,5 +1,5 @@
 ---
-source_sha: "786dab540111"
+source_sha: "ebe8092adb19"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -60,7 +60,9 @@ más alto. Lectura por su propia concesión y edición por la de su grupo es edi
 Los grupos están en **Organizations → Members → Groups**. Solo se pueden añadir
 miembros de la organización, y quitar a alguien de la organización lo quita de
 todos sus grupos. Borrar un grupo borra todas las concesiones hechas a él y todos
-los mapeos del directorio que lo nombran.
+los mapeos del directorio que lo nombran, así que requiere la misma autoridad que
+borrar esos mapeos: un Admin no puede borrar un grupo al que apunta un mapeo de
+nivel Admin.
 
 ## Mapeos de grupos del directorio { #directory-group-mappings }
 
@@ -302,7 +304,13 @@ de confianza para decir en cuáles de sus grupos está alguien.
 El claim se lee del ID token, o del endpoint UserInfo cuando el token no lo lleva.
 Un claim configurado que falta cuenta como **ningún grupo**. Keycloak y Okta omiten
 una lista vacía en lugar de enviarla, y alguien a quien se quitó de su último grupo
-tiene que perder lo que ese grupo le daba.
+tiene que perder lo que ese grupo le daba. Si al token le falta el claim y UserInfo
+no responde, el inicio de sesión se rechaza: eso no dice nada de los grupos de la
+persona, y leerlo como ninguno se los quitaría.
+
+`OIDC_GROUPS_CLAIM` y `LDAP_URL` no pueden definirse a la vez. Cada uno informa de
+los grupos con sus propios identificadores, y cada inicio de sesión quitaría las
+membresías que creó el otro, así que el proceso se niega a arrancar con ambos.
 
 !!! warning "El exceso de grupos de Entra ID se rechaza"
 

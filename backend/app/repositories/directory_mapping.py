@@ -66,6 +66,14 @@ async def list_for_org(db: AsyncSession, organization_id: UUID) -> list[Director
     return list(result.scalars().all())
 
 
+async def list_for_group(db: AsyncSession, *, group_id: UUID) -> list[DirectoryGroupMapping]:
+    """Every mapping that places people in one group."""
+    result = await db.execute(
+        select(DirectoryGroupMapping).where(DirectoryGroupMapping.group_id == group_id)
+    )
+    return list(result.scalars().all())
+
+
 async def list_matching(
     db: AsyncSession, *, external_groups: Collection[str]
 ) -> list[DirectoryGroupMapping]:

@@ -74,3 +74,11 @@ def test_kerberos_needs_a_directory_to_resolve_principals_in() -> None:
         Settings(LDAP_URL="", KERBEROS_ENABLED=True)
 
     assert Settings(**_VALID, KERBEROS_ENABLED=True).KERBEROS_ENABLED
+
+
+def test_ldap_and_an_oidc_groups_claim_together_are_refused() -> None:
+    """Found in review: each reports groups in its own ids, and each sign-in would
+    reconcile the person's directory memberships against only its own - so
+    alternating sign-in methods removed and recreated their access."""
+    with pytest.raises(ValidationError, match="not both"):
+        Settings(**_VALID, OIDC_GROUPS_CLAIM="groups")

@@ -80,6 +80,20 @@ class TestGroupServiceRefusals:
 
         groups.create.assert_not_called()
 
+    @pytest.mark.security
+    async def test_a_role_without_members_manage_deletes_no_group(self):
+        with (
+            patch(
+                "app.services.group.member_repo.get",
+                new=AsyncMock(return_value=_membership("builder")),
+            ),
+            patch("app.services.group.group_repo") as groups,
+            pytest.raises(AuthorizationError),
+        ):
+            await GroupService(_db()).delete(ORG, uuid.uuid4(), CALLER)
+
+        groups.delete_group.assert_not_called()
+
     async def test_a_group_of_another_organization_is_not_found(self):
         with (
             patch(
@@ -280,6 +294,15 @@ class TestSmallContracts:
                 subject_group_id=group_id, resource_type="agent", resource_id=user_id, level="read"
             )
         )
+
+    def test_a_mapped_group_is_stored_trimmed_and_a_blank_one_refused(self):
+        """Stored the way sign-in normalizes what the provider reports, or it never matches."""
+        assert (
+            DirectoryMappingCreate(external_group="  CN=A  ", role="member").external_group
+            == "cn=a"
+        )
+        with pytest.raises(ValidationError):
+            DirectoryMappingCreate(external_group="   ", role="member")
 
     def test_a_username_of_only_spaces_is_refused(self):
         with pytest.raises(ValidationError):

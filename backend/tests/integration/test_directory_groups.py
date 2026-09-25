@@ -367,6 +367,28 @@ class TestGroupService:
 
         assert row.source == MembershipSource.MANUAL
         assert email == member.email
+        (entry,) = [
+            entry
+            for entry in (await db.execute(select(AppAdminAuditLog))).scalars()
+            if entry.action == "group.member_taken_over"
+        ]
+        assert entry.actor_user_id == owner.id
+        assert entry.details == {"user_id": str(member.id), "source_was": "directory"}
+
+    @pytest.mark.security
+    async def test_deleting_a_group_cannot_remove_a_mapping_the_requester_could_not(self, db):
+        """Found in review: the mapping cascades with the group, so the ceiling
+        `DirectoryMappingService.delete` applies has to hold here too."""
+        org, owner = await _org(db)
+        admin = await _member(db, org, role=OrgRoleName.ADMIN.value)
+        group = await _group(db, org, "Platform admins")
+        await _mapping(db, org, ADMINS, "admin", group)
+
+        with pytest.raises(AuthorizationError):
+            await GroupService(db).delete(org.id, group.id, admin.id)
+
+        await GroupService(db).delete(org.id, group.id, owner.id)
+        assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
 
     async def test_renaming_to_a_taken_name_is_a_conflict(self, db):
         from app.schemas.group import GroupUpdate

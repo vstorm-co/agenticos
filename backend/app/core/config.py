@@ -392,6 +392,15 @@ class Settings(BaseSettings):
                 "KERBEROS_ENABLED needs LDAP_URL - a ticket names a principal, and the "
                 "directory is what turns it into an address and a set of groups"
             )
+        if self.LDAP_URL and self.OIDC_GROUPS_CLAIM:
+            # Each reports groups in its own identifiers - a DN from LDAP, an
+            # object id or a path from OIDC - and the sync reconciles a person's
+            # directory memberships against whichever signed them in, so
+            # alternating sign-in methods would remove and recreate their access.
+            raise ValueError(
+                "Set LDAP_URL or OIDC_GROUPS_CLAIM, not both - two sources of directory "
+                "groups would undo each other's memberships at every sign-in"
+            )
         if not self.LDAP_URL:
             return self
         if not self.LDAP_URL.startswith(("ldap://", "ldaps://")):
