@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.504] - 2026-09-25
+
+### Added
+
+- **A first document task and clearer platform comparisons.** The documentation
+  includes a synthetic handbook tutorial with answer checks, use-case entry
+  points, a help route and sourced comparisons with Viktor, Dify and Wonderful.
+  Comparisons distinguish documented options from untested behavior (#1893).
+
+### Changed
+
+- **README and docs start with the work an agent can do.** Navigation connects
+  the first task, platform selection and deployment responsibilities in English,
+  Polish, German and Spanish. The operating guide explains costs, ownership and
+  separately scoped Vstorm implementation help. Statements about approvals,
+  budgets, secrets, MCP compatibility and outbound data now describe their
+  configuration-dependent limits (#1893).
+
 ## [0.0.503] - 2026-09-25
 
 ### Added
