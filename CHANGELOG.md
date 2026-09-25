@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run and refused when the budget is spent.
+  Off by default (#1650).
+
 ## [0.0.502] - 2026-09-25
 
 ### Added

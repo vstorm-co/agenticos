@@ -1,5 +1,5 @@
 ---
-source_sha: "176365a90eb6"
+source_sha: "13c2114724a4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -97,18 +97,28 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
 
 `self_query_enabled` schaltet Self-Query ein, standardmäßig aus. Läuft eine Suche
-ohne einen vom Modell selbst genannten Filter, liest ein LLM die Frage —
-„Dokumente vom letzten Monat über Onboarding“ — und leitet die geschäftlichen
-Filter ab, die sie impliziert (einen Datumsbereich, einen Dokumenttyp). Die
-eigenen, ausdrücklichen Filter des Modells gewinnen immer; Self-Query füllt nur
-die Lücke.
+ohne einen vom Modell selbst genannten Filter, liest ein LLM die Frage — „PDFs
+vom letzten Monat über Onboarding“ — und leitet die geschäftlichen Filter ab, die
+sie impliziert: eine Quelle, einen Dokumenttyp, eine Organisationseinheit, einen
+Datumsbereich. Die eigenen, ausdrücklichen Filter des Modells gewinnen immer;
+Self-Query füllt nur die Lücke. Werden abgeleitete Filter angewendet, beginnt das
+Ergebnis mit einer Zeile, die sie nennt, und das Modell kann die Suche mit
+`infer_filters=false` ohne sie wiederholen.
 
-Das abgeleitete Objekt ist derselbe validierte Filter, den ein Aufrufer
-liefert, trägt also kein Tenant- oder Autorisierungsfeld und kann den Zugriff
-nicht erweitern — es kann nur innerhalb des eigenen Tenants und der Collections des
-Agenten einschränken. Eine leere oder nicht verwertbare Ableitung sucht
-ungefiltert innerhalb dieses weiterhin erzwungenen Bereichs. Sie nutzt das Modell
-des Laufs selbst, und ihre Kosten werden dem Lauf angerechnet.
+Das abgeleitete Objekt ist derselbe validierte Filter, den ein Aufrufer liefert,
+trägt also kein Tenant- oder Autorisierungsfeld und kann den Zugriff nicht
+erweitern — es kann nur innerhalb des eigenen Tenants und der Collections des
+Agenten einschränken. Eine Organisationseinheit bleibt nur erhalten, wenn die
+gebundenen Collections sie tatsächlich tragen, gelesen im selben Bereich wie die
+Suche; Collections mit zusammen mehr als 200 Einheiten bieten keine zur Ableitung
+an. Eine Dokument-ID wird nie abgeleitet. Eine leere oder fehlgeschlagene
+Ableitung sucht ungefiltert innerhalb dieses weiterhin erzwungenen Bereichs.
+
+**Kosten:** Jede Suche, die das Modell ohne eigene Filter ausführt, stellt eine
+zusätzliche Modellanfrage für die Ableitung (zwei, wenn deren Ausgabe korrigiert
+werden muss). Sie läuft auf dem eigenen Modell des Agenten, wird dem Lauf wie
+jede andere Anfrage angerechnet und vor dem Senden abgelehnt, wenn das Budget
+bereits ausgeschöpft ist.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als

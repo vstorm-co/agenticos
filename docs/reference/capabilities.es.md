@@ -1,5 +1,5 @@
 ---
-source_sha: "176365a90eb6"
+source_sha: "13c2114724a4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -96,17 +96,27 @@ colección que nadie le conectó.
 
 `self_query_enabled` activa la self-query, desactivada por defecto. Cuando una
 búsqueda se ejecuta sin ningún filtro que el propio modelo haya indicado, un LLM
-lee la pregunta — «documentos del mes pasado sobre onboarding» — y deriva los
-filtros de negocio que implica (un rango de fechas, un tipo de documento). Los
-filtros explícitos del propio modelo siempre ganan; la self-query solo rellena el
-hueco.
+lee la pregunta — «PDF del mes pasado sobre onboarding» — y deriva los filtros de
+negocio que implica: un origen, un tipo de documento, una unidad organizativa, un
+rango de fechas. Los filtros explícitos del propio modelo siempre ganan; la
+self-query solo rellena el hueco. Cuando se aplican filtros inferidos, el
+resultado empieza con una línea que los nombra, y el modelo puede repetir la
+búsqueda sin ellos pasando `infer_filters=false`.
 
-El objeto inferido es el mismo filtro validado que aporta quien llama, así
-que no lleva ningún campo de tenant ni de autorización y no puede ampliar el
-acceso: solo puede acotar dentro del propio tenant y las colecciones del agente.
-Una inferencia vacía o no interpretable busca sin filtro dentro de ese ámbito aún
-aplicado. Reutiliza el modelo de la propia ejecución y su gasto se imputa a la
-ejecución.
+El objeto inferido es el mismo filtro validado que aporta quien llama, así que no
+lleva ningún campo de tenant ni de autorización y no puede ampliar el acceso:
+solo puede acotar dentro del propio tenant y las colecciones del agente. Una
+unidad organizativa se conserva solo si las colecciones vinculadas la contienen
+de verdad, leídas en el mismo ámbito que la búsqueda; unas colecciones que suman
+más de 200 unidades no ofrecen ninguna para la inferencia. Nunca se infiere un id
+de documento. Una inferencia vacía o fallida busca sin filtro dentro de ese
+ámbito aún aplicado.
+
+**Coste:** cada búsqueda que el modelo ejecuta sin filtros propios hace una
+petición adicional al modelo para la inferencia (dos si su salida necesita
+corrección). Se ejecuta en el propio modelo del agente, se imputa a la ejecución
+como cualquier otra petición y se rechaza antes de enviarse cuando el
+presupuesto ya está agotado.
 
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no

@@ -2,7 +2,7 @@
 
 import contextvars
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from app.core.config import settings
@@ -15,14 +15,11 @@ from app.services.rag.vectorstore import process_vector_store, unpooled_vector_s
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from app.services.rag.retrieval import BaseRetrievalService
-
-_pooled_service: "BaseRetrievalService | None" = None
-_unpooled_service: "BaseRetrievalService | None" = None
+_pooled_service: RetrievalService | None = None
+_unpooled_service: RetrievalService | None = None
 
 
-def get_retrieval_service() -> "BaseRetrievalService":
+def get_retrieval_service() -> RetrievalService:
     """The retrieval service for the loop this search is running on.
 
     An agent is the one vector caller that does not know which loop it is on: it
@@ -110,6 +107,31 @@ _active_kb_collections: contextvars.ContextVar[list[str] | None] = contextvars.C
 )
 
 
+async def organizational_units_in_scope(
+    kb_collection_names: list[str], organization_id: UUID | None
+) -> list[str]:
+    """The organizational units the collections carry, read as a search reads them.
+
+    Each collection's scope is resolved exactly as :func:`search_knowledge_base`
+    resolves it, so the facet read is confined to the rows the search itself could
+    return and never names another organization's units. Self-query states these
+    in its prompt and keeps no inferred unit outside them.
+
+    Returns:
+        The distinct units across the collections, sorted; empty with no
+        organization, since there is then no scope to read under.
+    """
+    if organization_id is None:
+        return []
+    service = get_retrieval_service()
+    units: set[str] = set()
+    for name in kb_collection_names:
+        scope = await service.resolve_scope(name, organization_id)
+        values = await service.store.distinct_metadata_values(name, ["organizational_unit"], scope)
+        units.update(values.get("organizational_unit", []))
+    return sorted(units)
+
+
 async def search_knowledge_base(
     query: str,
     kb_collection_names: list[str] | None = None,
@@ -194,4 +216,4 @@ async def search_knowledge_base(
     return _format_results(results)
 
 
-__all__ = ["search_knowledge_base"]
+__all__ = ["organizational_units_in_scope", "search_knowledge_base"]

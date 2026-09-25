@@ -27,7 +27,8 @@ class KnowledgeConfig(BaseModel):
         description=(
             "Infer FA-039 business filters (source, document type, organizational "
             "unit, date range) from the natural-language query with an LLM when the "
-            "model searches without naming any filter itself. Off by default. It can "
+            "model searches without naming any filter itself. Off by default. Each "
+            "such search makes one extra model request, billed to the run. It can "
             "only narrow within the agent's tenant and collections, never widen."
         ),
     )

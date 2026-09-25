@@ -1,5 +1,5 @@
 ---
-source_sha: "176365a90eb6"
+source_sha: "13c2114724a4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -97,15 +97,27 @@ do niego nie podłączył.
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
 
 `self_query_enabled` włącza self-query, domyślnie wyłączone. Gdy wyszukiwanie
-uruchamia się bez filtra wskazanego przez sam model, LLM czyta pytanie —
-„dokumenty z zeszłego miesiąca o onboardingu” — i wyprowadza filtry biznesowe,
-które ono implikuje (zakres dat, typ dokumentu). Własne, jawne filtry modelu
-zawsze wygrywają; self-query jedynie uzupełnia lukę. Wywnioskowany obiekt to ten
-sam zwalidowany filtr, który podaje wywołujący, więc nie niesie żadnego pola
-tenanta ani autoryzacji i nie może rozszerzyć dostępu — może jedynie zawęzić w
-obrębie własnego tenanta i kolekcji agenta. Puste lub nieprzetwarzalne
-wnioskowanie wyszukuje bez filtra w obrębie tego wciąż egzekwowanego zakresu.
-Korzysta z modelu samego przebiegu, a jego koszt jest księgowany na tym przebiegu.
+uruchamia się bez filtra wskazanego przez sam model, LLM czyta pytanie — „PDF-y
+z zeszłego miesiąca o onboardingu” — i wyprowadza filtry biznesowe, które ono
+implikuje: źródło, typ dokumentu, jednostkę organizacyjną, zakres dat. Własne,
+jawne filtry modelu zawsze wygrywają; self-query jedynie uzupełnia lukę. Gdy
+wywnioskowane filtry zostaną zastosowane, wynik zaczyna się od linii, która je
+wymienia, a model może powtórzyć wyszukiwanie bez nich, podając
+`infer_filters=false`.
+
+Wywnioskowany obiekt to ten sam zwalidowany filtr, który podaje wywołujący, więc
+nie niesie żadnego pola tenanta ani autoryzacji i nie może rozszerzyć dostępu —
+może jedynie zawęzić w obrębie własnego tenanta i kolekcji agenta. Jednostka
+organizacyjna zostaje tylko wtedy, gdy podpięte kolekcje faktycznie ją niosą,
+odczytane w tym samym zakresie co wyszukiwanie; kolekcje niosące łącznie ponad
+200 jednostek nie oferują żadnej do wnioskowania. Identyfikator dokumentu nigdy
+nie jest wnioskowany. Puste lub nieudane wnioskowanie wyszukuje bez filtra w
+obrębie tego wciąż egzekwowanego zakresu.
+
+**Koszt:** każde wyszukiwanie, które model uruchamia bez własnych filtrów, wykonuje
+jedno dodatkowe żądanie do modelu na wnioskowanie (dwa, jeśli jego wynik wymaga
+poprawki). Działa na własnym modelu agenta, jest rozliczane na przebiegu jak każde
+inne żądanie i zostaje odrzucone przed wysłaniem, gdy budżet jest już wyczerpany.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze
