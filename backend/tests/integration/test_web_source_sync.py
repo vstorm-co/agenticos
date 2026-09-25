@@ -33,6 +33,7 @@ from app.core.config import settings
 from app.db.locks import LockScope, try_hold_subject_on_connection
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
 from app.db.models.user import User
 from app.repositories import sync_log as sync_log_repo
@@ -143,26 +144,46 @@ def _site() -> Iterator[_Site]:
         yield site
 
 
-async def _source(engine: AsyncEngine) -> str:
+async def _source(
+    engine: AsyncEngine, *, beside: str | None = None, sync_mode: str = "new_only"
+) -> str:
+    """A web source on the collection, in a new organization or in `beside`'s."""
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-        user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", full_name="Ada")
-        db.add(user)
-        await db.flush()
-        organization = Organization(
-            name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=user.id
-        )
-        db.add(organization)
-        await db.flush()
+        if beside is None:
+            user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", full_name="Ada")
+            db.add(user)
+            await db.flush()
+            organization = Organization(
+                name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=user.id
+            )
+            db.add(organization)
+            await db.flush()
+            organization_id = organization.id
+        else:
+            neighbour = await sync_source_repo.get_by_id(db, uuid.UUID(beside))
+            assert neighbour is not None
+            organization_id = neighbour.organization_id
         source = await sync_source_repo.create(
             db,
             name="Docs site",
             connector_type="web",
             config={"root_url": "https://docs.example.com/"},
-            organization_id=organization.id,
+            organization_id=organization_id,
             collection_name=COLLECTION,
+            sync_mode=sync_mode,
         )
         await db.commit()
         return str(source.id)
+
+
+async def _narrow_to_start_page(engine: AsyncEngine, source_id: str) -> None:
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        await sync_source_repo.update(
+            db,
+            uuid.UUID(source_id),
+            config={"root_url": "https://docs.example.com/", "max_depth": 0},
+        )
+        await db.commit()
 
 
 async def _sync(engine: AsyncEngine, source_id: str) -> SyncLog:
@@ -276,15 +297,28 @@ async def test_a_sync_overlapping_a_running_one_does_nothing_and_says_so(
     assert await _tracked(db) == {"web://docs.example.com/"}
 
 
-def _row(source_id: uuid.UUID | None, path: str, status: DocumentStatus) -> RAGDocument:
+def _row(path: str, status: DocumentStatus) -> RAGDocument:
     return RAGDocument(
+        id=uuid.uuid4(),
         collection_name=COLLECTION,
         filename="page.md",
         filetype="md",
         source_path=path,
-        sync_source_id=source_id,
         status=status,
     )
+
+
+async def _add_claimed(
+    session: AsyncSession, source_id: uuid.UUID | None, path: str, status: DocumentStatus
+) -> None:
+    """A row, and the claim `source_id` holds on it when there is one."""
+    row = _row(path, status)
+    session.add(row)
+    # The claim's foreign key needs its row written first.
+    await session.flush()
+    if source_id is not None:
+        session.add(RAGDocumentClaim(rag_document_id=row.id, sync_source_id=source_id))
+        await session.flush()
 
 
 async def test_only_this_sources_settled_documents_are_candidates_for_removal(
@@ -295,16 +329,15 @@ async def test_only_this_sources_settled_documents_are_candidates_for_removal(
     mine = uuid.UUID(await _source(engine))
     theirs = uuid.UUID(await _source(engine))
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-        session.add_all(
-            [
-                _row(mine, "web://docs.example.com/gone", DocumentStatus.DONE),
-                _row(mine, "web://docs.example.com/failed", DocumentStatus.ERROR),
-                _row(mine, "web://docs.example.com/running", DocumentStatus.PROCESSING),
-                _row(mine, "web://docs.example.com/kept", DocumentStatus.DONE),
-                _row(theirs, "web://docs.example.com/theirs", DocumentStatus.DONE),
-                _row(None, "upload.pdf", DocumentStatus.DONE),
-            ]
-        )
+        for claimant, path, status in [
+            (mine, "web://docs.example.com/gone", DocumentStatus.DONE),
+            (mine, "web://docs.example.com/failed", DocumentStatus.ERROR),
+            (mine, "web://docs.example.com/running", DocumentStatus.PROCESSING),
+            (mine, "web://docs.example.com/kept", DocumentStatus.DONE),
+            (theirs, "web://docs.example.com/theirs", DocumentStatus.DONE),
+            (None, "upload.pdf", DocumentStatus.DONE),
+        ]:
+            await _add_claimed(session, claimant, path, status)
         await session.commit()
 
     unlisted = await RAGDocumentService(db).unlisted_by_source(
@@ -322,11 +355,44 @@ async def test_deleting_a_source_leaves_its_documents_nobodys(
 ) -> None:
     source_id = uuid.UUID(await _source(engine))
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-        session.add(_row(source_id, "web://docs.example.com/", DocumentStatus.DONE))
+        await _add_claimed(session, source_id, "web://docs.example.com/", DocumentStatus.DONE)
         await session.commit()
         await session.execute(text("DELETE FROM sync_sources WHERE id = :id"), {"id": source_id})
         await session.commit()
 
-    orphan = (await db.execute(select(RAGDocument.sync_source_id))).scalar_one()
+    assert await _tracked(db) == {"web://docs.example.com/"}
+    assert (await db.execute(select(RAGDocumentClaim))).scalars().all() == []
 
-    assert orphan is None
+
+# The second source either skips the page the first ingested and claims it as
+# unchanged (`new_only`), or re-ingests it and takes the first source's claim
+# over with the row (`full`). Either may then be the first to stop listing it.
+@pytest.mark.parametrize("second_mode", ["new_only", "full"])
+@pytest.mark.parametrize("drops_first", ["first", "second"])
+async def test_a_page_two_sources_list_stays_until_both_stop_listing_it(
+    engine: AsyncEngine, db: AsyncSession, _site: _Site, second_mode: str, drops_first: str
+) -> None:
+    """The page belonged to whichever source ingested it last, and that one
+    dropping it removed it, although the other still listed it (#1879)."""
+    _site.pages.update(
+        {"/": _page("Welcome to the documentation.", "billing"), "/billing": _page("Invoices.")}
+    )
+    first = await _source(engine)
+    second = await _source(engine, beside=first, sync_mode=second_mode)
+    await _sync(engine, first)
+    await _sync(engine, second)
+    dropping, remaining = (first, second) if drops_first == "first" else (second, first)
+
+    await _narrow_to_start_page(engine, dropping)
+    narrowed = await _sync(engine, dropping)
+
+    assert (narrowed.status, narrowed.removed) == ("done", 0)
+    assert await _tracked(db) == {"web://docs.example.com/", "web://docs.example.com/billing"}
+    assert await _found(engine, "invoices") == ["web://docs.example.com/billing"]
+
+    await _narrow_to_start_page(engine, remaining)
+    last = await _sync(engine, remaining)
+
+    assert (last.status, last.removed) == ("done", 1)
+    assert await _tracked(db) == {"web://docs.example.com/"}
+    assert "web://docs.example.com/billing" not in await _found(engine, "invoices", limit=10)

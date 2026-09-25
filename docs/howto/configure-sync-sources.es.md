@@ -1,5 +1,5 @@
 ---
-source_sha: "86769ff55566"
+source_sha: "3a2e7c635873"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -155,9 +155,11 @@ mientras otra de la misma fuente sigue en marcha no arranca, y su registro lo
 indica.
 
 Solo se eliminan los documentos de la propia fuente. Una subida, o un documento
-que otra fuente trajo a la misma colección, no se toca nunca. Un documento
-ingestado antes de que su fuente registrara esto (septiembre de 2026) se
-conserva hasta que la fuente vuelva a ingestarlo.
+que otra fuente trajo a la misma colección, no se toca nunca. Cuando dos
+fuentes de una colección listan el mismo documento, este se conserva hasta que
+ambas dejan de listarlo. Un documento ingestado antes de que su fuente
+registrara esto (septiembre de 2026) se conserva hasta que una sincronización de
+la fuente vuelva a listarlo.
 
 ### Qué hace una segunda sincronización { #what-a-second-sync-does }
 
