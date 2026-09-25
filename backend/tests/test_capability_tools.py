@@ -15,10 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from pydantic_ai import ModelRetry, RunContext
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_backends import StateBackend
@@ -268,6 +272,38 @@ class TestQueryAnalysisWiring:
         # nothing from the host run's request allowance.
         assert ledger.input_tokens > 0
         assert ctx.usage.requests == 0
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("include_content", [False, True])
+    async def test_the_expansion_call_is_traced_as_its_host_run_is(self, include_content):
+        """The nested agent takes the host agent's instrumentation, so its spans
+        reach the host's exporter and honour its content setting - a host whose
+        spec says `content: none` does not leak the question through the
+        expansion prompt to the global, content-on default."""
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        host = Agent(TestModel())
+        host.instrument = InstrumentationSettings(
+            tracer_provider=provider, include_content=include_content
+        )
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="a variant"),
+            usage=RunUsage(),
+            agent=host,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with metered_by(SpendLedger()):
+            await generate("rephrase: my salary review")
+
+        spans = exporter.get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("my salary review" in recorded) is include_content
 
     @pytest.mark.anyio
     async def test_parallel_expansions_book_exactly_what_each_spent(self):

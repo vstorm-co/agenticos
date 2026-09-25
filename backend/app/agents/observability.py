@@ -24,6 +24,7 @@ from typing import Any
 import logfire
 from opentelemetry import trace
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models.instrumented import InstrumentationSettings
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +123,25 @@ def suppress_content(agent: PydanticAgent[Any, Any]) -> None:
         logfire.instrument_pydantic_ai(agent, include_content=False)
     except Exception:
         logger.exception("agent_content_suppress_failed")
+
+
+def inherited_instrumentation(
+    host: PydanticAgent[Any, Any] | None,
+) -> InstrumentationSettings | bool | None:
+    """The trace policy for an auxiliary agent a tool runs inside `host`'s run.
+
+    A tool that makes its own model call through a fresh `Agent` - query
+    expansion, for one - would otherwise take the deployment's global
+    instrumentation, content on, whatever the host was set to: the prompt it
+    builds from the caller's question would reach the operator's project past an
+    agent whose spec says `content: none`, or miss the client project its traces
+    are routed to. Passing the host's own setting keeps both the destination and
+    the content decision `_instrument` made for it; `None` there means the global
+    default, the same as the host gets.
+
+    With no host to read (`RunContext.agent` unset) the policy is unknown, so the
+    answer is the one that cannot leak: the default tracer, without content.
+    """
+    if host is None:
+        return InstrumentationSettings(include_content=False)
+    return host.instrument

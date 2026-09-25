@@ -22,6 +22,7 @@ from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
+from app.agents.observability import inherited_instrumentation
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
 from app.services.rag.models import ParentContextMode
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, QueryExpansionFailed
@@ -68,7 +69,11 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
     model = ctx.model
     if not isinstance(model, Model):
         return None
+    # Traced as the host run is traced - its Logfire project and its content
+    # setting - or the prompt built from the user's question leaves through the
+    # global, content-on default.
     agent: Agent[None, str] = Agent(MeteredModel(model), output_type=str)
+    agent.instrument = inherited_instrumentation(ctx.agent)
 
     async def generate(prompt: str) -> str:
         try:
