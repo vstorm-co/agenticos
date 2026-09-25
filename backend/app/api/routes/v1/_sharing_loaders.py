@@ -1,7 +1,7 @@
 """Per-resource row loaders for the sharing routers.
 
 Loading a row is the only thing that differs between sharing an agent, a
-collection, a skill and a vault secret, so each loader is injected into
+collection, a skill, a vault secret and an artifact, so each loader is injected into
 `build_sharing_router`. They live here - beside the factory, not in an endpoint
 module and not in `SharingService`, which stays agnostic about what it is
 sharing.
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.db.models.agent import Agent
+from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
@@ -72,3 +73,10 @@ async def load_workflow(db: AsyncSession, workflow_id: UUID, organization_id: UU
     if workflow is None or workflow.organization_id != organization_id:
         raise NotFoundError(message="Workflow not found", details={"workflow_id": str(workflow_id)})
     return workflow
+
+
+async def load_artifact(db: AsyncSession, artifact_id: UUID, organization_id: UUID) -> Artifact:
+    artifact = await db.get(Artifact, artifact_id)
+    if artifact is None or artifact.organization_id != organization_id:
+        raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
+    return artifact

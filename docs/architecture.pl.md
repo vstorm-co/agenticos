@@ -1,5 +1,5 @@
 ---
-source_sha: "9e0e413f2bb1"
+source_sha: "7ab70805566c"
 ---
 
 # Architektura { #architecture }
@@ -83,7 +83,7 @@ importowany jako typ, a nie jako dostęp do danych.
 | `core/security.py` | Narzędzia do JWT / kluczy API |
 | `agents/` | Agenci AI i narzędzia |
 | `rag/` | Moduł RAG (embeddingi, magazyn wektorów, retrieval) |
-| `rag/connectors/` | Konektory synchronizacji (Google Drive, S3) |
+| `rag/connectors/` | Konektory synchronizacji (Google Drive, S3, strony internetowe) |
 | `commands/` | Komendy CLI w stylu Django |
 
 ## Odpowiedzialności warstw { #layer-responsibilities }
@@ -936,8 +936,9 @@ Dokumenty można wciągnąć przez:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (tylko admin, wgranie pliku)
-3. **Źródła synchronizacji** -- Skonfigurowane konektory (Google Drive, S3), które
-   pobierają dokumenty według harmonogramu albo na żądanie.
+3. **Źródła synchronizacji** -- Skonfigurowane konektory (Google Drive, S3, strony
+   internetowe), które pobierają dokumenty według harmonogramu albo na żądanie i
+   usuwają to, czego ich źródło już nie zawiera.
 
 Każdy wciągnięty dokument:
 - Jest parsowany do tekstu (parser wybierany per kolekcja, do nadpisania per wgranie)

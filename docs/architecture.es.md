@@ -1,5 +1,5 @@
 ---
-source_sha: "9e0e413f2bb1"
+source_sha: "7ab70805566c"
 ---
 
 # Arquitectura { #architecture }
@@ -83,7 +83,7 @@ importado como tipo y no como acceso a datos.
 | `core/security.py` | Utilidades de JWT / claves de API |
 | `agents/` | Agents de IA y sus herramientas |
 | `rag/` | Módulo RAG (embeddings, vector store, recuperación) |
-| `rag/connectors/` | Conectores de sincronización (Google Drive, S3) |
+| `rag/connectors/` | Conectores de sincronización (Google Drive, S3, sitios web) |
 | `commands/` | Comandos de CLI al estilo de Django |
 
 ## Responsabilidades de cada capa { #layer-responsibilities }
@@ -945,8 +945,9 @@ Los documentos se pueden ingerir mediante:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (solo admin, subida de archivo)
-3. **Fuentes de sincronización** -- Conectores configurados (Google Drive, S3) que
-   traen documentos de forma programada o bajo demanda.
+3. **Fuentes de sincronización** -- Conectores configurados (Google Drive, S3,
+   sitios web) que traen documentos de forma programada o bajo demanda, y eliminan
+   lo que su fuente ya no contiene.
 
 Cada documento ingerido se:
 - Parsea a texto (parser elegido por colección, anulable por subida)

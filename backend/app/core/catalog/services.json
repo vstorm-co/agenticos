@@ -118,5 +118,14 @@
     "help_url": "https://console.aws.amazon.com/iam/home#/security_credentials",
     "description": "A key pair an S3 or MinIO sync source reads objects with.",
     "icon": "s3"
+  },
+  {
+    "id": "git",
+    "label": "Git repository",
+    "category": "connector",
+    "kind": "git_token",
+    "help_url": "https://github.com/settings/personal-access-tokens/new",
+    "description": "A token a Git sync source reads one repository's documentation with, bound to its host.",
+    "icon": "github"
   }
 ]

@@ -78,8 +78,12 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
+    "Artifact",
+    "ArtifactMediaType",
+    "ArtifactVersion",
     "User",
     "Session",
     "Conversation",

@@ -595,6 +595,16 @@ def get_virtual_table_service(db: DBSession) -> VirtualTableService:
 
 VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
 
+from app.services.artifact import ArtifactService
+
+
+def get_artifact_service(db: DBSession) -> ArtifactService:
+    """Create ArtifactService instance with database session."""
+    return ArtifactService(db)
+
+
+ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
 from app.services.memory import MemoryService
 
 
@@ -859,6 +869,22 @@ async def limit_hosted_config(public_key: str) -> None:
     """
     _refuse_if_over(
         await rate_limit.hosted_admission_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_public_artifact(public_key: str) -> None:
+    """Refuse a public artifact link opened too often. Per link, not per address."""
+    _refuse_if_over(
+        await rate_limit.public_artifact_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_artifact_content(token: str) -> None:
+    """Refuse a signed artifact address loaded too often. Per address, before any read."""
+    _refuse_if_over(
+        await rate_limit.artifact_content_allowed(token),
         "Too many requests. Try again shortly.",
     )
 

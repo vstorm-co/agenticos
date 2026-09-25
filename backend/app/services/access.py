@@ -71,6 +71,7 @@ WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORK
 # organization key is everybody's - decided per row rather than by one
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
+ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -97,6 +98,8 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.WORKFLOWS_RUN: GrantLevel.USE,
     Perm.SECRETS_VIEW: GrantLevel.READ,
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
+    Perm.ARTIFACTS_VIEW: GrantLevel.READ,
+    Perm.ARTIFACTS_EDIT: GrantLevel.EDIT,
 }
 
 

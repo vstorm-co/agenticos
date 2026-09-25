@@ -1,5 +1,5 @@
 ---
-source_sha: "a0b4b2ac3ab0"
+source_sha: "487f70ff9f1f"
 ---
 
 # Datenschutz { #data-protection }
@@ -84,6 +84,7 @@ des Elternteils.
 | `chat_files` | Anhänge an einer Nachricht | Dateiname, Typ, Größe, der extrahierte Text (`parsed_content`) und der Pfad der Bytes auf der Platte | Antworten über eine Datei |
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Die Zeilen einer [Virtual Table](virtual-tables.md) und die Spur jeder Änderung daran | Was die Organisation in ihre Zellen geschrieben hat, darunter möglicherweise personenbezogene Daten. Die aktuellen Werte (Records); die Werte vor und nach jeder Änderung (History); der ganze Datensatz, wie ihn ein Schreibzugriff mit Schlüssel zurückgab (Receipts); die ids und die external id jedes erstellten Datensatzes (Outbox, keine Werte). Ein Löschen des Datensatzes entfernt nur die aktuelle Zeile: History und Receipts behalten die Werte, und keine der drei Spurtabellen hat eine Aufbewahrungsklasse oder eine Bereinigung. Das Löschen eines Kontos entfernt seine Receipts und löscht es als Akteur in der History; das Löschen der Organisation entfernt alle vier | Typisierte Datensätze für Agents und Workflows, sichere Wiederholungen eines Schreibzugriffs und die Übergabe eines erstellten Datensatzes |
+| `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte; der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
 | `agent_memory_files` | Notizen, die ein Agent über eine Person oder einen Gruppenchat geschrieben hat | Was der Agent für merkenswert hielt, geschlüsselt auf `person:<user_id>` oder einen Chatraum | Kontinuität zwischen Conversations |
 | `rag_documents`, `knowledge_bases` und eine Vektortabelle je Collection | Hochgeladene und synchronisierte Dokumente, ihre Chunks und Embeddings | Der Dokumenttext und seine Vektoren, der ursprüngliche Pfad der Datei in der Quelle | Retrieval |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Was jeder Run gekostet und getan hat | Der System-Prompt und die letzte an das Model übergebene Anfrage, Tool-Argumente, die auf Freigabe warten, die entscheidende Person und ihre Notiz | Budgets, Freigaben, Run-Historie |

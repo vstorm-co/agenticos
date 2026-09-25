@@ -1,5 +1,5 @@
 ---
-source_sha: "9e0e413f2bb1"
+source_sha: "7ab70805566c"
 ---
 
 # Architektur { #architecture }
@@ -82,7 +82,7 @@ von Sortierreihenfolgen, als Typ importiert und nicht als Datenzugriff.
 | `core/security.py` | Hilfsfunktionen für JWT / API-Key |
 | `agents/` | KI-Agents und Tools |
 | `rag/` | RAG-Modul (Embeddings, Vector Store, Retrieval) |
-| `rag/connectors/` | Sync-Connectors (Google Drive, S3) |
+| `rag/connectors/` | Sync-Connectors (Google Drive, S3, Websites) |
 | `commands/` | CLI-Kommandos im Django-Stil |
 
 ## Verantwortlichkeiten der Schichten { #layer-responsibilities }
@@ -963,8 +963,9 @@ Dokumente können auf diesen Wegen aufgenommen werden:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (nur Admins, Datei-Upload)
-3. **Sync-Quellen** -- Konfigurierte Connectors (Google Drive, S3), die Dokumente
-   nach Zeitplan oder auf Abruf holen.
+3. **Sync-Quellen** -- Konfigurierte Connectors (Google Drive, S3, Websites), die
+   Dokumente nach Zeitplan oder auf Abruf holen und entfernen, was ihre Quelle
+   nicht mehr enthält.
 
 Jedes aufgenommene Dokument wird:
 - Zu Text geparst (Parser je Collection gewählt, je Upload übersteuerbar)
