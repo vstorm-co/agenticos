@@ -245,6 +245,48 @@ async def test_an_expanded_query_cannot_reach_another_tenants_chunk(
     assert "competitor secret roadmap" not in answer
 
 
+async def test_a_hypothetical_answer_cannot_reach_another_tenants_chunk(
+    engine: AsyncEngine,
+) -> None:
+    """#1649 acceptance for `hyde`: the searched string is the model's passage, not
+    the user's words, and it still cannot reach past the tool's own scope.
+
+    The passage is org B's content verbatim, and the store really embeds it - the
+    embedder is asked for exactly that string - yet only org A's chunk comes back,
+    because the passage replaces the query text and nothing else.
+    """
+    collection = f"hyde_{uuid.uuid4().hex[:8]}"
+    store = _store(engine)
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    await _insert(store, collection, org=org_a, content="internal onboarding policy")
+    await _insert(store, collection, org=org_b, content="competitor secret roadmap")
+
+    service = RetrievalService(store, RAGSettings())
+    service.resolve_scope = AsyncMock(  # ty: ignore[invalid-assignment]
+        return_value=TenantScope(organization_id=org_a)
+    )
+
+    async def generate(_: str) -> str:
+        return "competitor secret roadmap"
+
+    with patch(
+        "app.agents.capabilities.knowledge._search.get_retrieval_service",
+        return_value=service,
+    ):
+        answer = await search_knowledge_base(
+            query="onboarding",
+            kb_collection_names=[collection],
+            organization_id=org_a,
+            analysis_mode="hyde",
+            generate=generate,
+        )
+
+    embedder, _ = await store._for_collection(collection, org_a)
+    embedder.embed_query.assert_called_once_with("competitor secret roadmap")
+    assert "internal onboarding policy" in answer
+    assert "competitor secret roadmap" not in answer
+
+
 def _vec(rng: random.Random) -> list[float]:
     return [round(rng.uniform(-1, 1), 4) for _ in range(_DIM)]
 

@@ -86,6 +86,9 @@ class RetrievalService(BaseRetrievalService):
         `1 / (k + rank)` over every list it appears in, and the earliest list it
         appears in provides its representative - which for the hybrid case is the
         vector leg, exactly as before this generalised past two lists.
+
+        The representative is copied with only its score replaced, so every other
+        field a store or a later stage put on the result survives fusion.
         """
         scores: dict[str, float] = {}
         result_map: dict[str, SearchResult] = {}
@@ -98,15 +101,7 @@ class RetrievalService(BaseRetrievalService):
                     result_map[key] = r
 
         sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
-        return [
-            SearchResult(
-                content=result_map[key].content,
-                score=scores[key],
-                metadata=result_map[key].metadata,
-                parent_doc_id=result_map[key].parent_doc_id,
-            )
-            for key in sorted_keys
-        ]
+        return [result_map[key].model_copy(update={"score": scores[key]}) for key in sorted_keys]
 
     async def _bm25_search(
         self, query: str, collection_name: str, limit: int, query_filter: RetrievalQuery
@@ -341,6 +336,11 @@ async def fuse_over_queries(
     to `limit`. This is the seam a reranker (#142) slots into: expansion widens
     the candidate set, fusion orders it, and a reranker would reorder what fusion
     returned.
+
+    The queries are retrieved one after another, and each embeds its own string:
+    the store embeds inside `search`, per collection and with that collection's
+    own embedder, so embedding every variant in one batched call would need a
+    search that takes a vector, which the store does not offer.
     """
     if len(queries) == 1:
         return await retrieve_one(queries[0])

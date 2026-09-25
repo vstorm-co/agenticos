@@ -10,6 +10,7 @@ from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
+from app.services.rag.models import SearchResult
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
@@ -141,9 +142,9 @@ async def search_knowledge_base(
             filters and their results are fused, so expansion can widen recall but
             never access.
         analysis_max_variants: How many rephrasings `multi_query` may add.
-        generate: Runs one prompt through the run's model, for the LLM-backed
-            analysis modes. `None` on a surface with no model to run (a channel
-            searching directly), which degrades those modes to the plain query.
+        generate: Runs one prompt through the run's model, for the analysis
+            modes. `None` when the run's model cannot make a request-response call,
+            which degrades them to the plain query.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -180,7 +181,7 @@ async def search_knowledge_base(
                 name: await service.resolve_scope(name, organization_id) for name in resolved
             }
 
-        async def retrieve_one(one_query: str) -> Any:
+        async def retrieve_one(one_query: str) -> list[SearchResult]:
             if one_collection:
                 return await service.retrieve(
                     query=one_query,

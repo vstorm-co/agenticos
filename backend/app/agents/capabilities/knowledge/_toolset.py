@@ -7,25 +7,44 @@ from datetime import date
 
 from pydantic import ValidationError
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import (
+    FallbackExceptionGroup,
+    ModelAPIError,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+)
 from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities.budget import (
-    record_ambient_usage,
-    reserved_limits,
-    usage_counts,
-    usage_delta,
-)
+from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
-from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode
+from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, QueryExpansionFailed
 
 logger = logging.getLogger(__name__)
 
-# The modes that need a model to run their expansion; the rest are algorithmic.
-_LLM_ANALYSIS_MODES: frozenset[QueryAnalysisMode] = frozenset({"multi_query", "hyde"})
+# The expansion agent has no tools and a plain-text output, so it makes one
+# request - and a second only when Pydantic AI asks again for an empty answer,
+# which is its default single output retry. Anything past that is a misbehaving
+# model, and the expansion gives up rather than spending more on it.
+_EXPANSION_LIMITS = UsageLimits(request_limit=2)
+
+# What an expansion call is expected to fail with: the provider refused or was
+# unreachable (a `FallbackModel` gathers its members' refusals into a group), the
+# model answered with nothing usable, the call hit its own limit, or the run's
+# budget is spent. Each makes the search fall back to the plain query; anything
+# else is a bug and propagates.
+_EXPECTED_EXPANSION_FAILURES = (
+    ModelAPIError,
+    FallbackExceptionGroup,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+    BudgetExceeded,
+)
 
 
 def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
@@ -34,29 +53,28 @@ def _model_generate(ctx: RunContext[AgentDeps]) -> GenerateText | None:
     Expansion inherits `ctx.model` - the model whose credential was resolved from
     the vault - rather than a model named in config, which on this platform would
     be looked up against process environment variables (compaction and the LLM
-    system reminder make the same choice, for the same reason). The nested call
-    spends against `ctx.usage` where the run's request wrapper cannot see it, so
-    the difference is booked against the run's ledger, and one request slot is held
-    back so the expansion cannot push the run past its own request limit.
+    system reminder make the same choice, for the same reason).
+
+    The nested call runs on its own usage, not the host run's: the host's request
+    wrapper never sees it, so `MeteredModel` books each response to the run's
+    ledger itself, once, whatever else is in flight - two parallel searches each
+    book exactly what they spent. The budget is checked before every call, since
+    the host guard only refuses the host's *next* request.
 
     Returns `None` for a realtime model, which cannot serve a request-response
-    call; `plan_queries` then degrades the LLM modes to the plain query.
+    call; `plan_queries` then degrades to the plain query.
     """
     model = ctx.model
     if not isinstance(model, Model):
         return None
-    agent: Agent[None, str] = Agent(model, output_type=str)
+    agent: Agent[None, str] = Agent(MeteredModel(model), output_type=str)
 
     async def generate(prompt: str) -> str:
-        before = usage_counts(ctx.usage)
         try:
-            result = await agent.run(
-                prompt, usage=ctx.usage, usage_limits=reserved_limits(ctx.usage_limits)
-            )
-        finally:
-            spent = usage_delta(before, ctx.usage)
-            if spent is not None:
-                record_ambient_usage(model.model_name or "unknown", spent)
+            await assert_ambient_budget()
+            result = await agent.run(prompt, usage_limits=_EXPANSION_LIMITS)
+        except _EXPECTED_EXPANSION_FAILURES as exc:
+            raise QueryExpansionFailed(type(exc).__name__) from exc
         return result.output
 
     return generate
@@ -88,8 +106,8 @@ def build_knowledge_toolset(
     would be invisible to the approval gate.
 
     `query_analysis_mode` optionally expands the query before retrieval (#1649):
-    the LLM-backed modes are run through the host run's model and every produced
-    query is retrieved under the same scope and filters as the original.
+    the expansion runs through the host run's model and every produced query is
+    retrieved under the same scope and filters as the original.
     """
 
     async def search_documents(
@@ -148,10 +166,9 @@ def build_knowledge_toolset(
             )
             return steer(ctx, f"Those search filters are not valid: {problems}. Adjust and retry.")
 
-        # Built only for a mode that makes a model call, so `off` and `keywords`
-        # never construct one. `plan_queries` degrades to the plain query if this
-        # is None (a realtime model, or a surface with no model to run).
-        generate = _model_generate(ctx) if query_analysis_mode in _LLM_ANALYSIS_MODES else None
+        # Built only when a mode will call the model, so `off` never constructs
+        # one. `plan_queries` degrades to the plain query if this is None.
+        generate = _model_generate(ctx) if query_analysis_mode != "off" else None
         try:
             return await search_knowledge_base(
                 query=query,

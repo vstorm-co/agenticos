@@ -27,8 +27,8 @@ class KnowledgeConfig(BaseModel):
         default="off",
         description=(
             "Optionally analyse and expand the query before retrieval to improve "
-            "recall on short or fuzzy questions. Off by default. `keywords` costs "
-            "nothing; `multi_query` and `hyde` each make one extra model call"
+            "recall on short or fuzzy questions. Off by default. `multi_query` and "
+            "`hyde` each make one extra model call"
         ),
         # Flat scalar/enum fields, and labels the Builder renders in the picker:
         # the values are spec format and cannot say what they do, and the guess
@@ -37,7 +37,6 @@ class KnowledgeConfig(BaseModel):
         json_schema_extra={
             "x-enum-labels": {
                 "off": "Off - search the query as written",
-                "keywords": "Keywords - boost the query's own terms (no model call)",
                 "multi_query": "Multi-query - search rephrasings too (one model call)",
                 "hyde": "HyDE - search a hypothetical answer's embedding (one model call)",
             }

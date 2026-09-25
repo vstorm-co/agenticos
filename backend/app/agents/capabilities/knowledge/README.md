@@ -24,8 +24,6 @@ model keeps trying it.
 Short, underspecified or vocabulary-mismatched queries under-retrieve. An opt-in
 step, off by default, expands the query before retrieval:
 
-- `keywords` - the query's own content terms are extracted and appended, boosting
-  them in the lexical/BM25 leg. **No model call**, so no added latency or cost.
 - `multi_query` - the run's model writes up to `query_analysis_max_variants`
   rephrasings; the original and the variants are each retrieved and their results
   fused with RRF. **One model call.**
@@ -42,13 +40,30 @@ so it can widen recall but **never access** - an expanded query cannot reach
 another tenant's or an out-of-scope chunk. This is why the step lives above
 retrieval rather than inside the store.
 
-The LLM-backed modes inherit the run's own model (`ctx.model`), whose credential
-was resolved from the vault - there is deliberately no configurable model name,
-which on this multi-tenant platform would resolve against process environment
-variables (the `compaction` capability documents the same choice). The nested
-call's spend is booked against the run's ledger, and it degrades to the plain
-query on a surface with no model to run or when a generation fails: expansion
-improves recall when it works and is never the reason a search fails.
+Both modes inherit the run's own model (`ctx.model`), whose credential was
+resolved from the vault - there is deliberately no configurable model name, which
+on this multi-tenant platform would resolve against process environment variables
+(the `compaction` capability documents the same choice). The nested call runs on
+its own usage with a two-request limit, checks the run's budget before it goes
+out, and is wrapped in `MeteredModel`, so each response is booked to the run's
+ledger exactly once even when the model searches in parallel. It degrades to the
+plain query when the run's model cannot make a request-response call (a realtime
+model) or when the call fails in an expected way - a provider error, a
+misbehaving model, its own limit, a spent budget. Expansion improves recall when
+it works and is never the reason a search fails. Any other exception is a bug, so
+it is not turned into a fallback: it leaves the search and reaches the tool's own
+failure handler, which logs it with its traceback.
+
+There is no keyword mode. The search tool's retrieval service is built from the
+deployment's `RAGSettings`, whose `enable_hybrid_search` is off and set by
+nothing, so a keyword-boosted string would only be embedded differently - it
+would never reach a BM25 leg. A mode is permanent spec format, so it waits until
+the lexical leg is real.
+
+The variants are retrieved one after another, each embedding its own string: the
+store embeds inside `search`, per collection and with that collection's own
+embedder, so batching them into one embedding call needs a vector-taking search
+the store does not have yet.
 
 It composes with a future reranker (#142): expansion widens the candidate set,
 fusion orders it, and a reranker would reorder what fusion returned.

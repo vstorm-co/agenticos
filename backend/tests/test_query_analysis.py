@@ -8,14 +8,14 @@ bounded fan-out and the fusion, none of which need a database.
 
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Callable
 
 import pytest
 
 from app.services.rag.models import SearchResult
 from app.services.rag.query_analysis import (
-    extract_keywords,
+    QueryAnalysisMode,
+    QueryExpansionFailed,
     hypothetical_document,
     multi_query_variants,
     plan_queries,
@@ -32,64 +32,9 @@ def _fixed(text: str) -> Callable[[str], object]:
     return generate
 
 
-class TestKeywordExtraction:
-    def test_drops_stopwords_and_keeps_content_terms_in_order(self):
-        assert extract_keywords("How do I reset my password quickly?") == [
-            "reset",
-            "password",
-            "quickly",
-        ]
-
-    def test_collapses_duplicates_and_one_character_tokens(self):
-        assert extract_keywords("budget budget a x plan") == ["budget", "plan"]
-
-    def test_an_all_stopword_query_yields_nothing(self):
-        assert extract_keywords("what is the of a") == []
-
-    def test_keeps_accented_words_whole(self):
-        # An ASCII-only tokenizer truncates "contraseña" to "contrase"; the
-        # Unicode-aware one keeps the whole term so BM25 sees the real word.
-        assert extract_keywords("olvidé mi contraseña") == ["olvidé", "mi", "contraseña"]
-
-    def test_extracts_terms_from_non_latin_scripts(self):
-        # A non-Latin query must not silently reduce `keywords` mode to `off`.
-        assert extract_keywords("パスワード リセット") == ["パスワード", "リセット"]
-
-    def test_keeps_a_decomposed_accented_word_whole(self):
-        # `\w` matches no combining mark, so a tokenizer built on it drops the
-        # tilde of a decomposed "contraseña" (n + U+0303) and its trailing "a";
-        # marks are kept and the NFC pass folds it back to the composed form.
-        decomposed = unicodedata.normalize("NFD", "olvidé mi contraseña")
-        assert extract_keywords(decomposed) == ["olvidé", "mi", "contraseña"]
-
-    def test_keeps_words_with_combining_marks_whole(self):
-        # Devanagari vowel signs (Mc) and Arabic vowels (Mn) are combining marks
-        # that `\w` excludes, fragmenting the word into unusable pieces.
-        assert extract_keywords("पासवर्ड रीसेट") == ["पासवर्ड", "रीसेट"]
-        assert extract_keywords("كَلِمَة المُرور") == ["كَلِمَة", "المُرور"]
-
-    def test_keeps_internal_apostrophes_and_hyphens(self):
-        assert extract_keywords("don't sign-in") == ["don't", "sign-in"]
-
-    def test_ignores_leading_and_standalone_punctuation(self):
-        assert extract_keywords("  — reset —  ") == ["reset"]
-
-
 class TestPlanQueries:
     async def test_off_returns_the_query_alone(self):
         assert await plan_queries("hello", mode="off", max_variants=3, generate=None) == ["hello"]
-
-    async def test_keywords_appends_the_content_terms(self):
-        planned = await plan_queries(
-            "reset my password", mode="keywords", max_variants=3, generate=None
-        )
-        assert planned == ["reset my password reset password"]
-
-    async def test_keywords_leaves_an_all_stopword_query_unchanged(self):
-        """Appending nothing must not produce a trailing-space variant of the query."""
-        assert await plan_queries("of the a", mode="keywords", max_variants=3, generate=None) == [
-            "of the a"
-        ]
 
     async def test_multi_query_keeps_the_original_and_adds_bounded_variants(self):
         generate = _fixed("reset password\nchange my password\nrecover my account\nunlock login")
@@ -118,16 +63,35 @@ class TestPlanQueries:
         )
         assert planned == ["refund window"]
 
-    async def test_an_llm_mode_without_a_generator_degrades_to_the_plain_query(self):
-        """A surface with no model to run (a channel searching directly) still
-        searches - it just does not expand."""
+    async def test_off_never_calls_the_generator(self):
+        async def never(_: str) -> str:
+            raise AssertionError("off must not run the model")
+
+        assert await plan_queries("q", mode="off", max_variants=3, generate=never) == ["q"]
+
+    async def test_a_mode_without_a_generator_degrades_to_the_plain_query(self):
+        """A run model that cannot make a request-response call still searches -
+        it just does not expand."""
         assert await plan_queries("q", mode="multi_query", max_variants=3, generate=None) == ["q"]
 
-    async def test_a_generation_that_raises_degrades_rather_than_failing(self):
-        async def boom(_: str) -> str:
-            raise RuntimeError("provider down")
+    @pytest.mark.parametrize("mode", ["multi_query", "hyde"])
+    async def test_an_expected_generation_failure_degrades_rather_than_failing(
+        self, mode: QueryAnalysisMode
+    ):
+        async def refused(_: str) -> str:
+            raise QueryExpansionFailed("ModelHTTPError")
 
-        assert await plan_queries("q", mode="hyde", max_variants=3, generate=boom) == ["q"]
+        assert await plan_queries("q", mode=mode, max_variants=3, generate=refused) == ["q"]
+
+    async def test_a_programming_error_in_the_generator_propagates(self):
+        """Only the failures the callback declares expected fall back; a bug is
+        not laundered into a plain search that hides it."""
+
+        async def broken(_: str) -> str:
+            raise TypeError("a bug, not an outage")
+
+        with pytest.raises(TypeError):
+            await plan_queries("q", mode="hyde", max_variants=3, generate=broken)
 
 
 class TestMultiQueryBounds:
@@ -192,3 +156,22 @@ class TestRrfFusesAnyNumberOfLists:
         lists = [[_hit("shared", "d1")], [_hit("shared", "d1")], [_hit("other", "d2")]]
         fused = RetrievalService._rrf_fuse(lists)
         assert [r.content for r in fused] == ["shared", "other"]
+
+    def test_fusion_keeps_every_field_of_the_representative(self):
+        """Only the score is replaced. A field a store or a later stage adds to a
+        result - an expanded parent passage, say - must come out of fusion intact
+        rather than being dropped by a rebuild that names only the fields it knew."""
+        first = [_Expanded(content="a", score=0.9, parent_doc_id="d1", expanded_content="ctx")]
+        second = [_hit("b", "d2")]
+
+        fused = RetrievalService._rrf_fuse([first, second])
+
+        assert isinstance(fused[0], _Expanded)
+        assert fused[0].expanded_content == "ctx"
+        assert fused[0].score == pytest.approx(1.0 / 61)
+        # A copy, so the store's own result keeps the score it was ranked by.
+        assert first[0].score == 0.9
+
+
+class _Expanded(SearchResult):
+    expanded_content: str | None = None

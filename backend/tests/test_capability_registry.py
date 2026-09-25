@@ -639,6 +639,10 @@ class TestConfigValidation:
         )
         with pytest.raises(BadRequestError):
             get("knowledge").validate_config({"query_analysis_mode": "translate"})
+        # Not spec format: with no lexical leg running it could only embed a
+        # different string, and a published mode can never be taken back.
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "keywords"})
         with pytest.raises(BadRequestError):
             get("knowledge").validate_config({"query_analysis_max_variants": 99})
 

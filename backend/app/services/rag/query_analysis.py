@@ -8,40 +8,48 @@ same server-trusted tenant scope and business filters as the original (FA-039).
 Widening access through expansion is therefore structurally impossible - the
 only thing expansion can change is what text is searched for, never where.
 
-Three modes, off by default:
+Two modes, off by default:
 
-- `keywords` - algorithmic term extraction appended to the query, with no
-  model call, strengthening the lexical/BM25 leg.
 - `multi_query` - a model rewrites the query into a bounded set of variants;
-  the originals and the variants are all retrieved and their results fused.
+  the original and the variants are all retrieved and their results fused.
 - `hyde` - a model writes a short hypothetical answer passage, and retrieval
   runs against *its* embedding instead of the bare query's.
 
-The model-backed modes take a `generate` callback rather than a model name.
-The callback is built from the run's own model (`ctx.model`), whose credential
-was already resolved from the vault - a model named as a string here would be
-looked up against process environment variables, which on this platform is
-either nothing or somebody else's key. A caller with no model to run (a channel
-searching directly) passes `None` and the step degrades to the plain query.
+Both take a `generate` callback rather than a model name. The callback is built
+from the run's own model (`ctx.model`), whose credential was already resolved
+from the vault - a model named as a string here would be looked up against
+process environment variables, which on this platform is either nothing or
+somebody else's key. `generate` is `None` when the run's model cannot make a
+request-response call, and the step then degrades to the plain query.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-import unicodedata
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
 logger = logging.getLogger(__name__)
 
-QueryAnalysisMode = Literal["off", "keywords", "multi_query", "hyde"]
+QueryAnalysisMode = Literal["off", "multi_query", "hyde"]
 """Which analysis a binding chose.
 
 Stored in published specs and exported into a client's git repository, so these
-four strings are as permanent as the capability id. A mode that stops making
-sense is deprecated in the documentation; the value keeps resolving.
+strings are as permanent as the capability id. A mode that stops making sense is
+deprecated in the documentation; the value keeps resolving.
 """
+
+
+class QueryExpansionFailed(Exception):
+    """A `generate` call failed in a way the search should shrug off.
+
+    Raised by a :data:`GenerateText` implementation for the failures it expects -
+    a provider that refused or was unreachable, a model that misbehaved, a usage
+    limit or a spent budget - so :func:`plan_queries` can fall back to the plain
+    query. Anything else a callback raises is a bug and propagates.
+    """
+
 
 GenerateText = Callable[[str], Awaitable[str]]
 """Run one prompt through the run's model and return its text.
@@ -49,106 +57,8 @@ GenerateText = Callable[[str], Awaitable[str]]
 The single seam between this module and the agent's model plumbing: the whole
 prompt is built here and passed in, so the callback is a plain metered model
 call with nothing model-specific leaking into retrieval, and a test supplies a
-fake one without a provider."""
-
-# A small, self-contained stop list. Query analysis is not linguistics: the aim
-# is only to drop the function words that carry no retrieval signal so the terms
-# that remain strengthen the lexical leg. A heavier NLP dependency would be a new
-# install for a list this size.
-_STOPWORDS: frozenset[str] = frozenset(
-    {
-        "a",
-        "about",
-        "an",
-        "and",
-        "are",
-        "as",
-        "at",
-        "be",
-        "but",
-        "by",
-        "can",
-        "did",
-        "do",
-        "does",
-        "for",
-        "from",
-        "had",
-        "has",
-        "have",
-        "how",
-        "i",
-        "in",
-        "is",
-        "it",
-        "its",
-        "me",
-        "my",
-        "no",
-        "not",
-        "of",
-        "on",
-        "or",
-        "our",
-        "so",
-        "than",
-        "that",
-        "the",
-        "their",
-        "them",
-        "then",
-        "there",
-        "these",
-        "they",
-        "this",
-        "to",
-        "us",
-        "was",
-        "we",
-        "were",
-        "what",
-        "when",
-        "where",
-        "which",
-        "who",
-        "why",
-        "will",
-        "with",
-        "would",
-        "you",
-        "your",
-    }
-)
-
-# The Unicode categories of a combining mark: a non-spacing mark (Mn, an accent
-# or an Arabic vowel), a spacing combining mark (Mc, most Indic vowel signs) and
-# an enclosing mark (Me). A word carries these on its base letters.
-_MARK_CATEGORIES: frozenset[str] = frozenset({"Mn", "Mc", "Me"})
-
-
-def _tokenize(text: str) -> list[str]:
-    """Word tokens of `text`, Unicode-aware down to combining marks.
-
-    A token starts on an alphanumeric character and runs over further
-    alphanumerics, combining marks and internal apostrophes or hyphens. Python's
-    `\\w` matches no combining mark, so a regex built on it splits a Devanagari or
-    a vocalized-Arabic word at every mark and truncates a decomposed accented word
-    ("पासवर्ड" fragments, decomposed "contraseña" loses its "ñ"); reading the
-    Unicode category of each character keeps such words whole. An ASCII-only class
-    would fail one step earlier, extracting nothing from a script that has no a-z.
-    """
-    tokens: list[str] = []
-    current: list[str] = []
-    for ch in text:
-        if ch.isalnum() or unicodedata.category(ch) in _MARK_CATEGORIES or (current and ch in "'-"):
-            current.append(ch)
-        elif current:
-            tokens.append("".join(current))
-            current = []
-    if current:
-        tokens.append("".join(current))
-    return tokens
-
+fake one without a provider. An expected failure is raised as
+:class:`QueryExpansionFailed`."""
 
 # A model asked for one variant per line still tends to number or bullet them;
 # strip the marker rather than let it pollute the search terms.
@@ -160,41 +70,6 @@ _LIST_MARKER_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 # because a model told to write "one query per line" can answer with a paragraph.
 _MAX_VARIANT_CHARS = 400
 _MAX_HYDE_CHARS = 2000
-
-
-def extract_keywords(query: str) -> list[str]:
-    """The content terms of a query, lower-cased, in first-seen order.
-
-    Stop words and one-character tokens are dropped, duplicates collapsed. The
-    order is preserved rather than sorted so the reconstructed query reads in the
-    caller's own emphasis. An all-stopword query yields an empty list, and the
-    caller then searches the query unchanged rather than an empty one.
-    """
-    seen: set[str] = set()
-    keywords: list[str] = []
-    # NFC first, so a decomposed accented word ("n" + a combining tilde) and its
-    # composed form ("ñ") tokenize and dedupe as the one term a reader sees.
-    for token in _tokenize(unicodedata.normalize("NFC", query.lower())):
-        if len(token) < 2 or token in _STOPWORDS or token in seen:
-            continue
-        seen.add(token)
-        keywords.append(token)
-    return keywords
-
-
-def _keyword_boosted(query: str) -> str:
-    """The query with its own content terms appended, boosting them in BM25.
-
-    BM25 tokenises by whitespace, so repeating the content terms raises their
-    term frequency in the query and pulls documents that use that exact
-    vocabulary up the lexical ranking - which is the whole of what `keywords`
-    mode is for. A query that is all stop words is returned unchanged.
-    """
-    keywords = extract_keywords(query)
-    if not keywords:
-        return query
-    return f"{query} {' '.join(keywords)}"
-
 
 _MULTI_QUERY_PROMPT = (
     "You rewrite a search query into alternative phrasings that improve document "
@@ -270,16 +145,13 @@ async def plan_queries(
     retrieval over a one-element list is byte-for-byte the plain retrieval and
     enabling analysis is the only thing that changes behaviour.
 
-    A model-backed mode with no `generate` (a surface with no model to run, or
-    a model that cannot make a request-response call) degrades to the plain
-    query, as does a generation that raises: expansion improves recall when it
-    works and is never the reason a search fails.
+    A model-backed mode with no `generate` (a run model that cannot make a
+    request-response call) degrades to the plain query, as does a generation that
+    raises :class:`QueryExpansionFailed`: expansion improves recall when it works
+    and is never the reason a search fails. Any other exception is a bug and
+    propagates.
     """
-    if mode == "off":
-        return [query]
-    if mode == "keywords":
-        return [_keyword_boosted(query)]
-    if generate is None:
+    if mode == "off" or generate is None:
         return [query]
     try:
         if mode == "multi_query":
@@ -288,7 +160,7 @@ async def plan_queries(
             )
             return [query, *variants]
         return [await hypothetical_document(query, generate=generate)]
-    except Exception:
+    except QueryExpansionFailed:
         logger.warning(
             "Query analysis (%s) failed; falling back to the plain query", mode, exc_info=True
         )
@@ -298,7 +170,7 @@ async def plan_queries(
 __all__ = [
     "GenerateText",
     "QueryAnalysisMode",
-    "extract_keywords",
+    "QueryExpansionFailed",
     "hypothetical_document",
     "multi_query_variants",
     "plan_queries",

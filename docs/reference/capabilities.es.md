@@ -1,5 +1,5 @@
 ---
-source_sha: "09378a249384"
+source_sha: "c90851d91266"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -90,7 +90,7 @@ colección que nadie le conectó.
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
-| `query_analysis_mode` | `off` | `off`, `keywords`, `multi_query`, `hyde` |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
 
 `default_top_k` se aplica solo cuando el modelo no pide un número por su cuenta.
@@ -108,19 +108,22 @@ opcionalmente la consulta *antes* de la recuperación:
 | Modo | Qué hace | Coste |
 |---|---|---|
 | `off` | Busca la consulta tal como está escrita | ninguno |
-| `keywords` | Extrae los propios términos de contenido de la consulta y los añade, reforzándolos en la parte léxica | ninguno — sin llamada al modelo |
 | `multi_query` | El modelo del run escribe hasta `query_analysis_max_variants` reformulaciones; el original y las variantes se buscan por separado y sus resultados se fusionan | una llamada al modelo, más una recuperación por consulta |
 | `hyde` | El modelo del run escribe una breve respuesta hipotética, y la recuperación se ejecuta contra *su* embedding | una llamada al modelo |
 
-`keywords` no añade latencia ni coste y ayuda sobre todo cuando la consulta es
-escueta. `multi_query` y `hyde` añaden cada uno una llamada al modelo antes de la
+`multi_query` y `hyde` añaden cada uno una llamada al modelo antes de la
 búsqueda, así que cambian latencia y un poco de gasto por recuperación en
-preguntas difusas; mantén `query_analysis_max_variants` bajo para acotar la
-ramificación. Los modos con modelo usan el propio modelo del agente —no hay un
-modelo aparte que configurar— y su coste se mide contra el presupuesto del run
-como cualquier otra llamada al modelo. Si no se puede alcanzar el modelo, o la
-superficie no tiene ninguno que ejecutar, la búsqueda recurre a la consulta
-simple en lugar de fallar.
+preguntas difusas. `multi_query` además recupera una vez por consulta, una tras
+otra, y cada recuperación genera el embedding de su propia consulta —las
+variantes no se agrupan en una sola llamada de embedding—, así que mantén
+`query_analysis_max_variants` bajo para acotar la ramificación.
+
+Ambos modos usan el propio modelo del agente —no hay un modelo aparte que
+configurar— y su coste se mide contra el presupuesto del run como cualquier otra
+llamada al modelo. Un presupuesto agotado omite la expansión sin llamar al
+modelo, y lo mismo ocurre con un modelo que falla o no puede responder a una
+petición simple: la búsqueda se ejecuta entonces con la consulta tal como está
+escrita en lugar de fallar.
 
 La expansión amplía la *recuperación*, nunca el *acceso*. Cada consulta que
 produce se busca bajo el mismo ámbito de inquilino y los mismos filtros de negocio

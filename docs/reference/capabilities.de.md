@@ -1,5 +1,5 @@
 ---
-source_sha: "09378a249384"
+source_sha: "c90851d91266"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -92,7 +92,7 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
-| `query_analysis_mode` | `off` | `off`, `keywords`, `multi_query`, `hyde` |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
@@ -111,19 +111,22 @@ Abruf:
 | Modus | Was er tut | Kosten |
 |---|---|---|
 | `off` | Sucht die Abfrage so, wie sie geschrieben wurde | keine |
-| `keywords` | Extrahiert die eigenen inhaltstragenden Begriffe der Abfrage und hängt sie an, was sie im Stichwort-Zweig verstärkt | keine — kein Modellaufruf |
 | `multi_query` | Das Modell des Runs schreibt bis zu `query_analysis_max_variants` Umformulierungen; das Original und die Varianten werden je einzeln gesucht und ihre Ergebnisse zusammengeführt | ein Modellaufruf, plus ein Abruf je Abfrage |
 | `hyde` | Das Modell des Runs schreibt eine kurze hypothetische Antwort, und der Abruf läuft gegen *deren* Embedding | ein Modellaufruf |
 
-`keywords` verursacht keine Latenz und keine Kosten und hilft am meisten bei
-knappen Abfragen. `multi_query` und `hyde` fügen je einen Modellaufruf vor der
-Suche hinzu und tauschen so Latenz und ein wenig Ausgabe gegen bessere
-Trefferquote bei unscharfen Fragen; halte `query_analysis_max_variants` niedrig,
-um die Auffächerung zu begrenzen. Die modellgestützten Modi nutzen das eigene
-Modell des Agents — es gibt kein separates Modell zu konfigurieren — und ihre
-Kosten werden gegen das Budget des Runs gemessen wie jeder andere Modellaufruf.
-Ist das Modell nicht erreichbar oder hat die Oberfläche keines, um es
-auszuführen, fällt die Suche auf die reine Abfrage zurück, statt zu scheitern.
+`multi_query` und `hyde` fügen je einen Modellaufruf vor der Suche hinzu und
+tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
+unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
+der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
+werden nicht in einem Embedding-Aufruf gebündelt —, also halte
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+
+Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
+konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie
+jeder andere Modellaufruf. Ein erschöpftes Budget überspringt die Erweiterung,
+ohne das Modell aufzurufen, und ebenso ein Modell, das scheitert oder keine
+einfache Anfrage beantworten kann: Die Suche läuft dann mit der Abfrage, wie sie
+geschrieben wurde, statt zu scheitern.
 
 Erweiterung erhöht die *Trefferquote*, niemals den *Zugriff*. Jede von ihr
 erzeugte Abfrage wird unter demselben Mandanten-Scope und denselben
