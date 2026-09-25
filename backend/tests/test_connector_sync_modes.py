@@ -50,6 +50,7 @@ def _stored(*, content_hash: str, source_path: str = SOURCE_PATH) -> MagicMock:
     """One row of a collection's document listing, as the store answers it."""
     return MagicMock(
         id="vector-doc-1",
+        document_id="vector-doc-1",
         filename="handbook.md",
         additional_info={"source_path": source_path, "content_hash": content_hash},
     )
@@ -133,6 +134,7 @@ async def _syncing(
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=[]),
         stale_for_source=AsyncMock(return_value=[]),
+        claim_unchanged=AsyncMock(),
     )
 
     @asynccontextmanager
@@ -263,15 +265,29 @@ class TestAnUnchangedFile:
     async def test_it_is_skipped_rather_than_embedded_again(self):
         """The cost this exists to avoid. Before the fix a nightly sync
         re-embedded every unchanged file and inserted a second copy of it."""
-        answer, ingest, _ = await _sync(
+        answer, ingest, documents = await _sync(
             mode="new_only",
             listing=[_stored(content_hash=BODY_HASH)],
             connector=_connector(),
         )
 
         ingest.assert_not_awaited()
-        assert answer["skipped"] == 1
-        assert answer["ingested"] == 0
+        assert (answer["skipped"], answer["ingested"], answer["failed"]) == (1, 0, 0)
+        # The source still lists it, so it claims the stored document whichever
+        # source ingested it, and another source dropping it cannot remove it
+        # from under this one (#1879).
+        assert documents.claim_unchanged.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+    async def test_a_run_that_skips_nothing_claims_nothing(self):
+        _answer, _ingest, documents = await _sync(
+            mode="new_only",
+            listing=[_stored(content_hash="a-different-file-entirely")],
+            connector=_connector(),
+        )
+
+        documents.claim_unchanged.assert_not_awaited()
 
     async def test_update_only_skips_it_too(self):
         answer, ingest, _ = await _sync(

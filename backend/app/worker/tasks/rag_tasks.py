@@ -937,6 +937,9 @@ async def _remove_unlisted(
     removing on its word would empty a collection because of one bad night; it
     says so in `notes` instead, and the next complete run catches up.
 
+    A document another source feeding the collection still claims stays: this
+    source drops its own claim, and the document goes with the last one (#1879).
+
     Vectors first, then the row, one document at a time: a vector delete that
     fails keeps its row, so the document is still visible, deletable, and tried
     again by the next run - the other order leaves searchable chunks nothing
@@ -954,13 +957,17 @@ async def _remove_unlisted(
         return 0, 0
     from app.services.rag_document import RAGDocumentService
 
+    targets: list[tuple[str, str | None]] = []
     async with get_worker_db_context() as db:
-        unlisted = await RAGDocumentService(db).unlisted_by_source(
+        documents = RAGDocumentService(db)
+        unlisted = await documents.unlisted_by_source(
             sync_source_id=source_id,
             collection_name=collection_name,
             listed={file.source_path for file in listing.files} - withdrawn,
         )
-        targets = [(str(row.id), row.vector_document_id) for row in unlisted]
+        for row in unlisted:
+            if not await documents.release_if_shared(str(row.id), sync_source_id=source_id):
+                targets.append((str(row.id), row.vector_document_id))
     removed = 0
     for row_id, vector_document_id in targets:
         if vector_document_id and not await ingester.remove_document(
@@ -1253,6 +1260,10 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
     # Listed files a fetch found the source no longer holds - a sitemap page now
     # marked `noindex`, or gone. Not failures: removed like any unlisted file.
     withdrawn: set[str] = set()
+    # The stored documents listed files were skipped against as unchanged, as
+    # `(source_path, vector_document_id)`: this source lists them, so it claims
+    # them, whichever source ingested them (#1879).
+    kept: set[tuple[str, str]] = set()
     ledger = SpendLedger(organization_id=organization_id)
     version: str | None = None
 
@@ -1335,6 +1346,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         if existing.content_hash and (
                             await asyncio.to_thread(_hash_file, local_path) == existing.content_hash
                         ):
+                            if existing.document_id:
+                                kept.add((remote_file.source_path, existing.document_id))
                             skipped += 1
                             continue
 
@@ -1430,6 +1443,15 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 ),
                             )
 
+            if kept:
+                from app.services.rag_document import RAGDocumentService
+
+                async with get_worker_db_context() as db:
+                    await RAGDocumentService(db).claim_unchanged(
+                        sync_source_id=UUID(source_id),
+                        collection_name=collection_name,
+                        documents=kept,
+                    )
             # An early stop listed nothing, which is no evidence anything went.
             if not unchanged:
                 removed, unremoved = await _remove_unlisted(

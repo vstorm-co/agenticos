@@ -1,5 +1,5 @@
 ---
-source_sha: "86769ff55566"
+source_sha: "3a2e7c635873"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -157,8 +157,10 @@ das.
 
 Entfernt werden nur die eigenen Dokumente der Quelle. Ein Upload oder ein
 Dokument, das eine andere Quelle in dieselbe Collection gebracht hat, wird nie
-angerührt. Ein Dokument, das aufgenommen wurde, bevor seine Quelle dies
-festhielt (September 2026), bleibt erhalten, bis die Quelle es erneut aufnimmt.
+angerührt. Listen zwei Quellen einer Collection dasselbe Dokument auf, bleibt
+es erhalten, bis beide es nicht mehr auflisten. Ein Dokument, das aufgenommen
+wurde, bevor seine Quelle dies festhielt (September 2026), bleibt erhalten, bis
+ein Sync der Quelle es wieder auflistet.
 
 ### Was ein zweiter Sync tut { #what-a-second-sync-does }
 

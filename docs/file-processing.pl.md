@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "94e78112cffe"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1360,9 +1360,12 @@ niespodzianką, a nie funkcją:
   na limicie stron albo za stroną, która przekroczyła limit czasu - zgłasza
   `complete=False`, a ten run niczego nie usuwa
   ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Usuwanie jest
-  zawężone przez `rag_documents.sync_source_id`, a nie przez `source_path`: dwa
-  source'y mogą zasilać jedną kolekcję i żaden nie może usunąć tego, co
-  wprowadził drugi.
+  zawężone przez `rag_document_claims`, a nie przez `source_path`: dwa source'y
+  mogą zasilać jedną kolekcję i wymieniać ten sam dokument, więc każdy source,
+  który go wymienia, zgłasza do niego roszczenie. Source, który przestaje go
+  wymieniać, wycofuje swoje roszczenie, a dokument jest usuwany dopiero wtedy,
+  gdy żaden source zasilający kolekcję nie zgłasza już do niego roszczenia
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Konektor synchronizacji to nie serwer MCP.** MCP to sposób, w jaki agent sięga
 po produkt *na żywo*, w trakcie runu; source synchronizacji to zaplanowane

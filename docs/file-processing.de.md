@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "94e78112cffe"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1439,9 +1439,12 @@ eine Überraschung statt einer Funktion:
   kann - der Web-Crawler an seiner Seitenobergrenze oder nach einer Seite mit
   Zeitüberschreitung -, sagt `complete=False`, und dieser Lauf entfernt nichts
   ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Das Entfernen ist
-  über `rag_documents.sync_source_id` eingegrenzt, nicht über `source_path`: Zwei
-  Sources können eine Collection speisen, und keine darf entfernen, was die andere
-  eingebracht hat.
+  über `rag_document_claims` eingegrenzt, nicht über `source_path`: Zwei Sources
+  können eine Collection speisen und dasselbe Dokument auflisten, deshalb
+  beansprucht jede Source, die ein Dokument auflistet, es für sich. Eine Source,
+  die es nicht mehr auflistet, gibt ihren Anspruch auf, und das Dokument wird erst
+  entfernt, wenn keine Source, die die Collection speist, es noch beansprucht
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Ein Sync-Connector ist kein MCP-Server.** MCP ist, wie ein Agent ein Produkt
 *live* erreicht, mitten im Run; eine Sync-Source ist ein geplanter Massenabzug mit

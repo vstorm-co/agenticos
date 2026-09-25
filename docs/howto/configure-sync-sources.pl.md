@@ -1,5 +1,5 @@
 ---
-source_sha: "86769ff55566"
+source_sha: "3a2e7c635873"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -154,9 +154,11 @@ inna synchronizacja tego samego źródła wciąż trwa, nie startuje, a jej log 
 tym.
 
 Usuwane są wyłącznie dokumenty samego źródła. Przesłany plik ani dokument, który
-do tej samej kolekcji wprowadziło inne źródło, nigdy nie są ruszane. Dokument
-przetworzony, zanim źródło zaczęło to odnotowywać (wrzesień 2026), zostaje
-zachowany, dopóki źródło nie przetworzy go ponownie.
+do tej samej kolekcji wprowadziło inne źródło, nigdy nie są ruszane. Gdy dwa
+źródła jednej kolekcji wymieniają ten sam dokument, zostaje on, dopóki oba nie
+przestaną go wymieniać. Dokument przetworzony, zanim źródło zaczęło to
+odnotowywać (wrzesień 2026), zostaje zachowany, dopóki synchronizacja źródła
+znowu go nie wymieni.
 
 ### Co robi druga synchronizacja { #what-a-second-sync-does }
 
