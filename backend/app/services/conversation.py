@@ -240,8 +240,8 @@ class ConversationService:
         that is the whole of #1254, and the flag reached two responses out of
         eight while each route had to remember. It is turned **off** by the
         callers that use this only to authorize and then discard the row:
-        `GET /conversations/{id}/messages` resolves it twice, through
-        `list_messages` and `conversation_cost`, and neither serializes a star.
+        `GET /conversations/{id}/messages` resolves it through `transcript`, which
+        serializes no star.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -735,7 +735,7 @@ class ConversationService:
             )
         return message
 
-    async def list_messages(
+    async def transcript(
         self,
         conversation_id: UUID,
         *,
@@ -745,8 +745,8 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
-    ) -> tuple[list[Message | MessageRead], int]:
-        """One conversation's messages, for a reader who is allowed to see them.
+    ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
+        """One conversation's messages and its cost, for a reader allowed to see them.
 
         `organization_id` keeps this out of another tenant's transcript;
         `user_id` keeps it out of a colleague's. Both are needed: the tenant
@@ -757,6 +757,21 @@ class ConversationService:
         When `user_id` is given the messages are also enriched with that
         reader's rating - a second job for one argument, and the reason its
         authorizing half was missed for so long.
+
+        The page and the cost answer one request, so they authorize once. They
+        used to be two methods with one caller each, and that caller awaited
+        both: every transcript read paid for `get_conversation` twice, and with
+        it the share lookup and the channel-membership check - which unseals a
+        bot token and asks Slack or Telegram whether the reader is still in the
+        room, on a 60-second cache that fails open to the network call. Two of
+        those on the critical path of opening a conversation.
+
+        The cost is summed over every turn, not over the page asked for: a
+        client adding up what it was handed would answer "the first hundred
+        turns" while the label says "this conversation". It is `None` where
+        nothing in the thread was ever measured - a conversation older than the
+        columns, or one whose every turn failed before a cost was read. Zeroes
+        would be a claim this has none to make.
         """
         await self.get_conversation(
             conversation_id,
@@ -795,34 +810,16 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 msg_schema.run_status = statuses.get(msg.run_id) if msg.run_id else None
                 enriched.append(msg_schema)
-            return enriched, total
-        return list(items), total
+            return enriched, total, await self._cost(conversation_id)
+        return list(items), total, await self._cost(conversation_id)
 
-    async def conversation_cost(
-        self,
-        conversation_id: UUID,
-        *,
-        organization_id: UUID,
-        user_id: UUID | None = None,
-        ctx: AuthContext | None = None,
-    ) -> ConversationCost | None:
-        """What this whole thread has cost, or `None` where nothing was measured.
+    async def _cost(self, conversation_id: UUID) -> ConversationCost | None:
+        """The thread's totals, for a caller that has already authorized the read.
 
-        Scoped exactly as :meth:`list_messages` is, and for the same reason: it
-        is a fact about a transcript, and a total is enough to tell how heavily
-        somebody else's conversation was used.
-
-        The sum is over every turn, not over the page the caller asked for. A
-        client adding up what it was handed would answer "the first hundred
-        turns" while the label says "this conversation".
+        Private because the authorization is the caller's: this takes an id and
+        answers, and the only thing standing between it and another tenant's
+        spend is :meth:`transcript` having asked first.
         """
-        await self.get_conversation(
-            conversation_id,
-            organization_id=organization_id,
-            user_id=user_id,
-            include_favourite=False,
-            ctx=ctx,
-        )
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
             return None
@@ -1030,8 +1027,10 @@ class ConversationService:
         The run's own load path, distinct from `list_attached_files`: that one
         validates a *fresh* submission and refuses an already-linked id, which is
         exactly what the turn's files are once `persist_user_turn` has linked them.
-        Loaded by id (the primary key) and scoped to the caller (#706), so it does
-        not full-scan `chat_files` on the unindexed `message_id`. A file a
+        Loaded by id (the primary key) and scoped to the caller (#706). That was
+        also what kept it off an unindexed `message_id`, which
+        `0097_chat_files_message_idx` has since indexed; the load path is still the
+        narrower of the two and stays as it is. A file a
         best-effort `link_files_to_message` left unlinked is still read, so a
         transient link failure does not silently drop the turn's attachments; a
         file already on a *different* message is skipped - `persist_user_turn`

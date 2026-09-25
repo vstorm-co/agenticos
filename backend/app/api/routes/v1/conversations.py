@@ -278,18 +278,18 @@ async def list_messages(
     organization is what makes the sentence above true - without it this
     returned any conversation in the deployment, transcript and tool
     arguments included.
+
+    The page and the total cost come back from one call because they are one
+    read: asking for them separately authorized the conversation twice, and on a
+    thread reached through a channel that is two membership checks - each of
+    which can unseal a bot token and ask the platform whether the reader is
+    still in the room.
     """
-    items, total = await conversation_service.list_messages(
+    items, total, cost = await conversation_service.transcript(
         conversation_id,
         skip=skip,
         limit=limit,
         include_tool_calls=True,
-        organization_id=active_org.id,
-        user_id=current_user.id,
-        ctx=ctx,
-    )
-    cost = await conversation_service.conversation_cost(
-        conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
