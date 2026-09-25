@@ -7,6 +7,7 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
@@ -66,6 +67,7 @@ __all__ = [
     "ChatFile",
     "MessageRating",
     "RAGDocument",
+    "RAGDocumentClaim",
     "SyncLog",
     "SyncSource",
     "ConversationFavourite",

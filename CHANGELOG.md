@@ -37,6 +37,23 @@ Two things are versioned separately from this file and worth knowing about:
   clean run stored under the same configuration, so a source that can only say
   what changed since a point can answer that nothing did.
 
+## [0.0.500] - 2026-09-25
+
+### Fixed
+
+- **A document two sync sources list stays until both stop listing it.** A
+  synced document belonged only to the source that ingested it last. When two
+  sources on one collection listed the same page, the page was removed as soon
+  as that one source stopped listing it, although the other still listed it. A
+  source in `update_only` mode never ingested it again. Each source that lists a
+  document now claims it, in the new `rag_document_claims` table, which replaces
+  `rag_documents.sync_source_id` and is backfilled from it (migration
+  `0099_rag_document_claims.py`). A sync that stops listing a document drops its
+  own claim. It removes the document only when no other source feeding the
+  collection still claims it (#1879).
+
+## [0.0.499] - 2026-09-25
+
 ### Changed
 
 - **Opening a conversation no longer ships an uncompressed transcript.** The API

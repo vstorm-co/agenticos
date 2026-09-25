@@ -161,9 +161,10 @@ One sync of a source runs at a time. A sync started while another sync of the sa
 source is still running does not start, and its log says so.
 
 Only the source's own documents are removed. An upload, or a document another
-source brought into the same collection, is never touched. A document ingested
-before its source recorded this (September 2026) is kept until the source
-ingests it again.
+source brought into the same collection, is never touched. When two sources on
+one collection list the same document, it stays until both stop listing it. A
+document ingested before its source recorded this (September 2026) is kept until
+a sync of the source lists it again.
 
 ### What a second sync does
 
