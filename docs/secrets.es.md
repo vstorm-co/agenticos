@@ -1,5 +1,5 @@
 ---
-source_sha: "da79e004aa8d"
+source_sha: "4372ff3656a5"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `aws_credentials` | Access key id, secret access key, región, session token opcional |
 | `gcp_service_account` | El JSON de la cuenta de servicio, validado al entrar |
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
+| `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
@@ -107,6 +108,11 @@ exactamente uno**: la credencial privada de un miembro nunca se usa en silencio
 para la conexión de toda la organización, y con dos apps visibles para la
 organización guardadas la conexión se rechaza (nombrando ambas) en lugar de
 quedar atada al nombre que ordene primero.
+
+`git_token` lleva su host porque una fuente de sincronización Git envía el token a
+una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
+token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
+puede ocupar su lugar.
 
 `aws_credentials` es el caso más claro de por qué existen los kinds: el access key
 id no es secreto y el secret access key sí lo es, y un único campo no puede

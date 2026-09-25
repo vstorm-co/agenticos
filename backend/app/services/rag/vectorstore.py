@@ -271,6 +271,24 @@ class BaseVectorStore(ABC):
                 by_hash = doc
         return by_filename or by_hash
 
+    async def document_ids_at(
+        self, collection_name: str, *, source_path: str, tenant: UUID | None = None
+    ) -> list[str]:
+        """Every stored document addressed exactly at `source_path`, in id order.
+
+        Not `find_existing_document`, which answers one document and falls back
+        to a name or a hash: what is asked here is everything the address holds,
+        so that a document nothing tracks can be told apart from one a row does.
+        This reference implementation reads the whole collection; `PgVectorStore`
+        asks the index.
+        """
+        docs = await self.get_documents(collection_name, tenant)
+        return sorted(
+            doc.document_id
+            for doc in docs
+            if (doc.additional_info or {}).get("source_path") == source_path
+        )
+
     async def create_collection(self, name: str) -> None:
         """Make the collection's backing objects, refusing a name that cannot have any.
 
@@ -1124,6 +1142,24 @@ class PgVectorStore(BaseVectorStore):
                 if hit is not None:
                     return hit
         return None
+
+    async def document_ids_at(
+        self, collection_name: str, *, source_path: str, tenant: UUID | None = None
+    ) -> list[str]:
+        """The reference answer by the indexed `source_path` key, tenant-scoped (#1684)."""
+        if not await self._collection_exists(collection_name):
+            return []
+        table = self._table(collection_name)
+        org_clause, org_params = self._org_filter(tenant)
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(
+                    f"SELECT DISTINCT parent_doc_id FROM {table} "
+                    f"WHERE metadata->>'source_path' = :v AND {org_clause} ORDER BY parent_doc_id"
+                ),
+                {"v": source_path, **org_params},
+            )
+            return [str(row[0]) for row in result.fetchall()]
 
     async def _first_document(
         self, session: AsyncSession, table: str, where: str, params: dict[str, Any]

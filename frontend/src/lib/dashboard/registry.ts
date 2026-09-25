@@ -56,7 +56,8 @@ export type WidgetId =
   | "knowledge"
   | "activity-rhythm"
   | "routines"
-  | "notifications";
+  | "notifications"
+  | "artifacts";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -514,6 +515,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     options: { period: true },
+  },
+  // The pages agents published that the caller may open, newest first. What
+  // `GET /artifacts` itself asks, and nothing more.
+  artifacts: {
+    id: "artifacts",
+    gate: holds(Perm.artifactsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.ARTIFACTS,
   },
   "shared-with-you": {
     id: "shared-with-you",

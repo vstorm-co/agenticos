@@ -68,7 +68,11 @@ export function cspDirectives(
     // somebody else's choosing running as this origin, which is the attack
     // `frame-src` exists to refuse. A blob URL can only be minted by this
     // origin's own script.
-    "frame-src": ["'self'", "blob:"],
+    //
+    // And the origin a published artifact is served from. That document is
+    // agent-authored script, which is why it is framed from another origin under
+    // a `sandbox` policy of its own rather than minted into a blob here.
+    "frame-src": [...new Set(["'self'", "blob:", originOf(config.artifactUrl)])],
     "font-src": ["'self'", "data:"],
     // This origin's own BFF routes, the API the browser calls directly - OAuth,
     // the hosted chat's uploads - and the chat's WebSocket. Named from the

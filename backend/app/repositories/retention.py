@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -35,6 +36,7 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.models.resource_grant import ResourceGrant
 
 #: The statuses a retention sweep may retire.
 #:
@@ -274,6 +276,71 @@ async def delete_memory(
     result = cast(
         CursorResult[Any],
         await db.execute(delete(AgentMemoryFile).where(AgentMemoryFile.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def lock_expiring_artifacts(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> list[UUID]:
+    """The oldest artifacts nothing has republished since `cutoff`, locked.
+
+    `published_at`, not `created_at`: a report a schedule republishes every week
+    is alive however long ago its first version was written.
+
+    Selected once and locked because the sweep removes the bytes before the
+    rows, and those are two statements. A publish that landed between two
+    evaluations of the cutoff would lose its files to the first and keep its
+    rows through the second - a page whose versions all point at nothing. A
+    publish takes the same row lock, so it waits for the sweep and then finds
+    the artifact gone. `SKIP LOCKED` leaves a row a publish already holds to
+    the next pass: it is being republished, so it is not old.
+    """
+    rows = await db.execute(
+        select(Artifact.id)
+        .where(Artifact.organization_id == organization_id, Artifact.published_at < cutoff)
+        .order_by(Artifact.published_at)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return list(rows.scalars().all())
+
+
+async def stored_paths_for_artifacts(db: AsyncSession, *, artifact_ids: list[UUID]) -> list[str]:
+    """Every stored version of these artifacts.
+
+    Read before the delete for the reason conversations are: the version rows
+    cascade with the artifact and the bytes in file storage do not.
+    """
+    rows = await db.execute(
+        select(ArtifactVersion.storage_path).where(ArtifactVersion.artifact_id.in_(artifact_ids))
+    )
+    return [path for (path,) in rows.all()]
+
+
+async def delete_artifacts(
+    db: AsyncSession, *, organization_id: UUID, artifact_ids: list[UUID]
+) -> int:
+    """Drop exactly these artifacts, and their grants.
+
+    Versions cascade. Grants do not - the grant table carries no foreign key to
+    what it shares - so they go in the same pass, or a later artifact given the
+    same id would inherit them. The public link goes with the row.
+    """
+    await db.execute(
+        delete(ResourceGrant).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == "artifact",
+            ResourceGrant.resource_id.in_(artifact_ids),
+        )
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            delete(Artifact).where(
+                Artifact.organization_id == organization_id, Artifact.id.in_(artifact_ids)
+            )
+        ),
     )
     return result.rowcount or 0
 

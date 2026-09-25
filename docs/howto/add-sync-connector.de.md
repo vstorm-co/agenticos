@@ -1,5 +1,5 @@
 ---
-source_sha: "c77ba9c268b8"
+source_sha: "f203f752d3d1"
 ---
 
 # Einen Sync-Connector hinzufügen { #add-a-sync-connector }
@@ -17,6 +17,7 @@ holen.
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstrakte Basisklasse für alle Connectors |
 | `remote_names` | `app/services/rag/remote_names.py` | Wohin ein entfernter Name geschrieben werden darf und was eine Abfrage erreichen darf |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic-Modell, das eine entfernte Datei beschreibt |
+| `RemoteListing` | `app/services/rag/connectors/__init__.py` | Was `list_files()` antwortet: die Dateien, und ob das alle sind |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Warum eine Konfiguration nicht annehmbar ist, und welches ihrer Felder |
 | `CONFIG_MODEL` | das eigene Modul des Connectors | Ein Pydantic-Modell seiner Konfigurationsfelder; die Auflistung veröffentlicht dessen JSON Schema, und der Assistent zeichnet es |
 | `EmptyConfig` | `app/services/rag/connectors/__init__.py` | Das Standard-`CONFIG_MODEL` der Basisklasse, für einen Connector ohne zu konfigurierende Felder |
@@ -31,11 +32,12 @@ holen.
 flowchart TD
     A[a SyncSource: connector type, config, collection, secret id] --> B[a sync is triggered - API, CLI or schedule]
     B --> C["the caller unseals the vault secret and hands it in"]
-    C --> D["list_files() -> list[RemoteFile]"]
+    C --> D["list_files() -> RemoteListing"]
     D --> E["download_file() resolves the name and confirms containment"]
     E --> F["_fetch(dest_path) writes the bytes"]
     F --> G[the ingestion pipeline parses, chunks, embeds, stores]
-    G --> H[a SyncLog row records the result]
+    G --> R["a complete listing: remove what it no longer names"]
+    R --> H[a SyncLog row records the result]
 ```
 
 1. Ein Nutzer legt eine **SyncSource** an (Connector-Typ + Konfiguration +
@@ -43,11 +45,14 @@ flowchart TD
 2. Ein Nutzer löst einen **Sync** aus (über die API, die CLI oder eine geplante
    Aufgabe)
 3. Wer den Sync ausführt, entsiegelt dieses Secret und reicht es hinein; das
-   `list_files()` des Connectors gibt `list[RemoteFile]` zurück
+   `list_files()` des Connectors gibt ein `RemoteListing` zurück
 4. Für jede Datei entscheidet `BaseSyncConnector.download_file()`, wo sie landen
    darf, und ruft das `_fetch()` des Connectors auf, um sie dort zu schreiben
 5. Die Ingestion-Pipeline parst, zerteilt, bettet ein und speichert jede Datei
-6. Ein Eintrag im **SyncLog** verzeichnet das Ergebnis
+6. War die Auflistung vollständig, werden die Dokumente, die diese Source früher
+   eingebracht hat und die die Auflistung nicht mehr nennt, aus der Collection
+   entfernt
+7. Ein Eintrag im **SyncLog** verzeichnet das Ergebnis
 
 ### Ein Connector wählt das Ziel nicht { #a-connector-does-not-choose-the-destination }
 
@@ -86,6 +91,36 @@ liest zum Authentifizieren nichts aus `config`.
     ein Rückfall bedeutet, dass die `folder_id` eines Mandanten auswählt, was unter
     der Identität des *Betreibers* gelesen wird.
 
+### Eine Auflistung sagt, ob sie die ganze Quelle ist { #a-listing-says-whether-it-is-the-whole-source }
+
+Ein Sync entfernt, was die Source früher eingebracht hat und nicht mehr auflistet,
+also ist eine Auflistung auch die Behauptung, dass alles, was darin fehlt,
+verschwunden ist. `RemoteListing.complete` ist diese Behauptung. Ein Connector,
+dessen Auflistung entweder zu Ende läuft oder eine Exception wirft - Drive, S3 -,
+lässt sie auf ihrem Default, `True`. Ein Connector, der mittendrin anhalten kann
+und trotzdem etwas Aufnehmenswertes hat - ein Crawl, der sein Seitenlimit
+erreicht hat oder eine Seite nicht lesen konnte -, gibt zurück, was er gefunden
+hat, mit `complete=False`. Dieser Lauf entfernt dann nichts, statt alles zu
+entfernen, was er nicht erreicht hat.
+
+`RemoteListing.problems` trägt einen Satz für jede Sache, die die Auflistung
+nicht lesen konnte. Der Sync zählt jeden als fehlgeschlagene Datei und zeigt ihn
+im Sync-Protokoll, also formulieren Sie ihn in Ihren eigenen Worten: ein Host und
+ein Statuscode, nie der Text der Gegenseite.
+
+### Zwei optionale Hooks: Änderung und Aufräumen { #two-optional-hooks-change-and-cleanup }
+
+`list_files()` und `_fetch()` sind alles, was ein Connector schreiben muss. Zwei
+weitere Methoden haben Vorgaben, mit denen ein Connector so arbeitet wie Drive
+und S3, und ein Connector überschreibt eine davon, wenn seine Quelle die Frage
+beantworten kann, die sie stellt. `GitConnector` in
+`app/services/rag/connectors/git.py` überschreibt beide.
+
+| Hook | Vorgabe | Überschreiben, wenn |
+|------|---------|---------------------|
+| `remote_version(config, credential)` | `None`: jeder Lauf listet auf | Die Quelle kann günstig sagen, auf welchem Stand ihr gesamter Inhalt ist, etwa ein Commit oder ein Change-Token. Nach einem Lauf ohne fehlgeschlagene Datei speichert der Sync den Wert zusammen mit einem Fingerabdruck der Konfiguration. Der nächste Lauf, der dasselbe Paar vorfindet, hält vor `list_files()` an. Der Wert muss sich ändern, sobald sich eine aufgelistete Datei oder die Auflistung selbst geändert haben könnte. |
+| `aclose()` | nichts | Der Connector hält zwischen `list_files()` und den Downloads etwas vor, etwa einen Klon oder eine Session. Es wird aufgerufen, sobald der Sync vorbei ist, ob er erfolgreich war oder nicht. |
+
 ## Schritt für Schritt: ein Notion-Connector { #step-by-step-a-notion-connector }
 
 Dieses Beispiel implementiert einen Notion-Connector, der Seiten aus einem
@@ -109,6 +144,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,7 +203,7 @@ class NotionConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List Notion pages available for sync."""
         database_id = config.get("database_id", "")
 
@@ -206,7 +242,8 @@ class NotionConnector(BaseSyncConnector):
 
             return files
 
-        return await asyncio.to_thread(_list)
+        # Complete by default: the listing either returned every page or raised.
+        return RemoteListing(files=await asyncio.to_thread(_list))
 
     async def _fetch(
         self,
@@ -396,12 +433,13 @@ class WorkspaceConnector(BaseSyncConnector):
 ```
 
 `workspace` hat keinen Default und ist damit das eine erforderliche Feld; die
-beiden mitgelieferten Connectors (`GoogleDriveConfig`, `S3Config`) sind die
+mitgelieferten Connectors (`GoogleDriveConfig`, `S3Config`, `WebConfig`) sind die
 Modelle zum Abschauen.
 
 ## Hinweise { #tips }
 
-- Setzen Sie `RemoteFile.source_path` auf einen eindeutigen URI (zum Beispiel `notion://page_id`) — er dient der Deduplizierung über Syncs hinweg
+- Setzen Sie `RemoteFile.source_path` auf einen eindeutigen URI (zum Beispiel `notion://page_id`) — er dient der Deduplizierung über Syncs hinweg, und er ist das, was das Entfernen vergleicht: Ein Dokument, dessen `source_path` eine vollständige Auflistung nicht mehr nennt, wird entfernt
+- Geben Sie `complete=False` aus einer Auflistung zurück, die vorzeitig angehalten hat, und werfen Sie nie eine Exception für eine, die Sie noch teilweise nutzen können
 - Umschließen Sie blockierende SDK-Aufrufe mit `asyncio.to_thread()`, damit sie den Event Loop nicht blockieren
 - Implementieren Sie `validate_config()`, um eine Konfiguration abzulehnen, die der Assistent noch beheben kann — eine `ConfigRefusal`, die ein `field` benennt, ist das, was ihn dieses Eingabefeld markieren lässt, statt einen Satz über vier davon zu zeigen. Sie sieht die Konfiguration und nicht die Zugangsdaten, also ist "kann dieser Key den Dienst erreichen" eine Frage für den ersten Sync und nicht für diese Methode
 - Deklarieren Sie `SECRET_KIND` und lesen Sie die Zugangsdaten aus dem Argument `credential`. Zugangsdaten gehören nie in `CONFIG_MODEL`, und es gibt keinen deploymentweiten Rückfallweg, auf den zurückgefallen werden könnte
