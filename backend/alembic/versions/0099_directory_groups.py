@@ -20,8 +20,8 @@ The downgrade deletes grants made to groups before restoring `NOT NULL` on
 constrained while they exist. The access they gave goes with them, which is what
 removing groups means.
 
-Revision ID: 0098_directory_groups
-Revises: 0097_sync_source_state
+Revision ID: 0099_directory_groups
+Revises: 0098_chat_files_message_idx
 Create Date: 2026-09-25
 """
 
@@ -31,8 +31,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0098_directory_groups"
-down_revision: str | Sequence[str] | None = "0097_sync_source_state"
+revision: str = "0099_directory_groups"
+down_revision: str | Sequence[str] | None = "0098_chat_files_message_idx"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

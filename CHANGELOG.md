@@ -47,6 +47,40 @@ Two things are versioned separately from this file and worth knowing about:
   account a password sign-in reaches. It needs an image built with the new
   `kerberos` extra (#1773).
 
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
+
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
+
 ## [0.0.497] - 2026-09-25
 
 ### Added
