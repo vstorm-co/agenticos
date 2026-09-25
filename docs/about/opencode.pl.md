@@ -1,7 +1,8 @@
 ---
-source_sha: "d0e31f6b27f0"
+source_sha: "6b7c5763a7d2"
 title: "AgenticOS vs OpenCode"
-description: "OpenCode to open-source'owy agent programistyczny dla jednego dewelopera. AgenticOS to open-source'owa platforma dla agentów firmy."
+seo_title: "AgenticOS vs OpenCode: dwa narzędzia agentowe open source"
+description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. AgenticOS to platforma Apache-2.0 dla agentów AI firmy, z rolami, budżetami i logami audytu."
 ---
 
 # AgenticOS vs OpenCode { #agenticos-vs-opencode }
@@ -56,6 +57,28 @@ Deweloper może użyć OpenCode z dowolnym modelem, żeby napisać nową [capabi
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
 Odpowiedz w obu na pytanie o [wspólny podręcznik](../howto/first-document-agent.md). Następnie przekaż wynik pięciu kolegom i sprawdź, kto może zadać pytanie uzupełniające, ile to kosztuje i jaki zapis zostaje. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS to alternatywa dla OpenCode? { #is-agenticos-an-alternative-to-opencode }
+
+Nie do kodowania w repozytorium. OpenCode to agent programistyczny dla jednego dewelopera. AgenticOS to platforma dla wielu agentów i wielu użytkowników, z rolami, budżetami i logami audytowymi.
+
+### Czy OpenCode i AgenticOS są open source? { #are-opencode-and-agenticos-both-open-source }
+
+Tak. OpenCode jest na licencji MIT, a AgenticOS na Apache-2.0, i oba mogą korzystać z modeli lokalnych.
+
+### Czy agentów AgenticOS można udostępnić osobom, które nie programują? { #can-agenticos-agents-be-shared-with-people-who-do-not-code }
+
+Tak. Odpowiadają przez widget, hostowaną stronę, Slack, Telegram, Mattermost lub HTTP API, bez niczego do instalowania.
+
+### Czy OpenCode pomoże budować capabilities AgenticOS? { #can-opencode-help-build-agenticos-capabilities }
+
+Tak. Capability to typowany Python w repozytorium, a OpenCode może pomóc ją napisać i przetestować z dowolnym modelem.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs n8n](n8n.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 

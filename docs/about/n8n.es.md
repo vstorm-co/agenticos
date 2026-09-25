@@ -1,7 +1,8 @@
 ---
-source_sha: "b7d447c613d8"
+source_sha: "7eecc52a021f"
 title: "AgenticOS vs n8n"
-description: "Compara la automatización de workflows con nodos de agents de IA y una plataforma construida en torno a agents gobernados."
+seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
+description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
 ---
 
 # AgenticOS vs n8n { #agenticos-vs-n8n }
@@ -69,6 +70,28 @@ Un workflow de n8n puede llamar a un agent de AgenticOS a través de la [API HTT
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
 Construye el [agent documental compartido](../howto/first-document-agent.md) en ambos. Dale a cada uno un límite de gasto de unos céntimos y hazlo funcionar hasta superar el límite. Después dale a un segundo equipo su propia copia y comprueba qué puede ver el primer equipo. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa de código abierto a n8n? { #is-agenticos-an-open-source-alternative-to-n8n }
+
+Para agents de IA, sí. AgenticOS es Apache-2.0, mientras que n8n usa la Sustainable Use License. Para mover datos entre muchos sistemas en un lienzo visual, n8n encaja mejor, y los dos funcionan bien juntos.
+
+### ¿n8n es de código abierto? { #is-n8n-open-source }
+
+No en el sentido de la OSI. Su Sustainable Use License permite el uso empresarial interno, no comercial y personal, y las funciones de los archivos `.ee` necesitan una licencia n8n Enterprise.
+
+### ¿n8n puede llamar a un agent de AgenticOS? { #can-n8n-call-an-agenticos-agent }
+
+Sí. Un workflow de n8n puede llamar a la API HTTP de AgenticOS y recibir la respuesta, con el budget, las aprobaciones y la auditoría del agent aplicados.
+
+### ¿Cómo se comparan los precios de n8n y AgenticOS? { #how-does-n8n-pricing-compare-with-agenticos }
+
+n8n Cloud empieza en 20 € al mes por 2500 ejecuciones, con facturación anual, y cuenta cada turno de un agent como una ejecución. AgenticOS no tiene cuota de licencia y mide el coste del modelo contra el budget de cada agent.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Dify](dify.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

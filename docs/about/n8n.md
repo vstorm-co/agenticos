@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs n8n"
-description: "Compare workflow automation with AI agent nodes and a platform built around governed agents."
+seo_title: "AgenticOS vs n8n: an Apache-2.0 alternative for AI agents"
+description: "Compare n8n with AgenticOS for AI agents: licence, SSO and roles without paid tiers, per-agent budgets instead of execution quotas, and approvals."
 ---
 
 # AgenticOS vs n8n
@@ -68,6 +69,28 @@ An n8n workflow can call an AgenticOS agent over the [HTTP API](../channels.md#t
 ## Try it on one task
 
 Build the [shared document agent](../howto/first-document-agent.md) in both. Give each a spending limit of a few cents and run it past the limit. Then give a second team its own copy, and check what the first team can see. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an open-source alternative to n8n?
+
+For AI agents, yes. AgenticOS is Apache-2.0, while n8n uses the Sustainable Use License. For moving data between many systems on a visual canvas, n8n fits better, and the two work well together.
+
+### Is n8n open source?
+
+Not in the OSI sense. Its Sustainable Use License allows internal business, non-commercial and personal use, and features in `.ee` files need an n8n Enterprise licence.
+
+### Can n8n call an AgenticOS agent?
+
+Yes. An n8n workflow can call the AgenticOS HTTP API and get the answer back, with the agent's budget, approvals and audit applied.
+
+### How does n8n pricing compare with AgenticOS?
+
+n8n Cloud starts at €20 a month for 2,500 executions, billed annually, and counts each agent turn as one execution. AgenticOS has no licence fee and meters model cost against each agent's budget.
+
+## Related comparisons
+
+[AgenticOS vs Dify](dify.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [All comparisons](comparison.md)
 
 ## Sources
 

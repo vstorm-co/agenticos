@@ -1,7 +1,8 @@
 ---
-source_sha: "b0bf2e34ec50"
+source_sha: "0e10e8407613"
 title: "Compara AgenticOS"
-description: "Cómo se compara AgenticOS con apps de asistente, builders de agents, servicios de compañero de equipo, plataformas entregadas y agents de programación."
+seo_title: "Comparativas de AgenticOS: plataforma de agents autoalojada"
+description: "Compara AgenticOS, plataforma de agents de IA open source y autoalojada, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
 ---
 
 # Compara AgenticOS { #compare-agenticos }
@@ -76,6 +77,24 @@ Registra la versión del producto o el plan de servicio, el modelo, el procesami
 La descripción de un proveedor acredita una opción documentada, no su calidad en tu carga de trabajo. Para estas guías no se ha utilizado ninguna cuenta de un competidor. El comportamiento no probado queda como desconocido en lugar de convertirse en una marca de función ausente. Los precios y el contenido de los planes cambian a menudo, así que confírmalos en la página enlazada antes de citarlos.
 
 Para una prueba publicada, informa de las entradas exactas, los resultados reales, los intentos fallidos y la configuración. Separa el consumo de modelos de la infraestructura, la implementación y la operación continua. Revisa las [licencias](../licenses.md), las condiciones de los providers y la edición que desplegarías.
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es de código abierto? { #is-agenticos-open-source }
+
+Sí. AgenticOS tiene licencia Apache-2.0 y se ejecuta en tu propia infraestructura con Docker Compose. Algunos componentes incluidos tienen sus propias licencias, que se enumeran en la página de [licencias](../licenses.md).
+
+### ¿AgenticOS es una alternativa autoalojada a ChatGPT Enterprise o Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise-or-claude-enterprise }
+
+Para los agents que son propiedad de tu organización, sí. Ejecuta agents con cualquiera de los 27 providers de modelos, OpenAI y Anthropic incluidos, con budgets, aprobaciones y registros de auditoría en todos los despliegues. No es un asistente personal para cada empleado; consulta las guías de [ChatGPT](chatgpt.md) y [Claude](claude-apps.md).
+
+### ¿Cuánto cuesta AgenticOS? { #how-much-does-agenticos-cost }
+
+No hay cuota de licencia ni por puesto. Pagas a tus providers de modelos según sus propias tarifas y operas la infraestructura: bastan [4 vCPU y 8 GB de RAM](../deploy.md) para ejecutarlo. La ayuda de implementación de Vstorm se acuerda por separado.
+
+### ¿Qué comparativa debería leer primero? { #which-comparison-should-i-read-first }
+
+Empieza por el tipo de producto que estás valorando: una app de asistente, un builder dentro de una suite en la nube, un builder autoalojado, un servicio de compañero de equipo, una plataforma entregada o un agent de programación. La [tabla del principio](#pick-the-guide-for-your-decision) enlaza cada guía.
 
 ## Otros puntos de partida { #other-starting-points }
 

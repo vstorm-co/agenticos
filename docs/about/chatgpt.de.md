@@ -1,7 +1,8 @@
 ---
-source_sha: "41849273e1f5"
+source_sha: "c2db9c1b3168"
 title: "AgenticOS vs ChatGPT"
-description: "Vergleichen Sie ChatGPT Business und Enterprise, einschließlich Workspace-Agents, mit einer selbst betriebenen Plattform für Unternehmens-Agents."
+seo_title: "AgenticOS vs ChatGPT Enterprise: selbstgehostete Alternative"
+description: "ChatGPT Business, Enterprise und Workspace-Agents im Vergleich mit AgenticOS: selbst gehostet, jedes Modell, acht Oberflächen, Budgets pro Agent und Audit-Logs."
 ---
 
 # AgenticOS vs ChatGPT { #agenticos-vs-chatgpt }
@@ -24,7 +25,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | API | Der Trigger gibt `202 Accepted` zurück, ohne Run-ID und ohne Antwort | `POST /agents/{id}/run` gibt den Run und seine Antwort zurück |
 | Ausgabenkontrolle | Credit-Pools und Überschreitungslimits pro Workspace oder Gruppe | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Identität | SSO bei Business; SCIM und benutzerdefinierte Rollen bei Enterprise | OIDC-SSO, LDAP und Kerberos mit Gruppenzuordnungen sowie Grants pro Ressource, in jedem Deployment |
-| Audit | Compliance API bei Enterprise und Edu, 30-Tage-Protokollfenster | Manipulationssicheres Audit-Log, exportiert als CSV oder JSONL, Aufbewahrung nach Ihrer Vorgabe |
+| Audit | Compliance API bei Enterprise und Edu, 30-Tage-Protokollfenster | Audit-Log mit Manipulationsnachweis, exportiert als CSV oder JSONL, Aufbewahrung nach Ihrer Vorgabe |
 | Preise | Business 20 $ pro Platz und Monat bei jährlicher Zahlung, 25 $ bei monatlicher; Enterprise individuell; Agent-Arbeit in Credits bezahlt | Keine Lizenzgebühr; Modellnutzung zu den Tarifen Ihres Providers |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -66,10 +67,32 @@ Behalten Sie ChatGPT für die eigene Arbeit der Mitarbeiter. Nutzen Sie AgenticO
 
 Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) als Workspace-Agent und als AgenticOS-Agent auf demselben OpenAI-Modell. Rufen Sie jeden aus einem Skript auf und prüfen Sie, was der Aufruf zurückgibt. Stellen Sie ihn dann einem Besucher ohne ChatGPT-Konto zur Verfügung. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
 
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine selbst gehostete Alternative zu ChatGPT Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise }
+
+Für Agents, die Ihrer Organisation gehören, ja. Es läuft auf Ihrer Infrastruktur, nutzt OpenAI oder jeden anderen Provider und veröffentlicht jeden Agent auf acht Oberflächen, mit eigenem Budget und eigenem Audit-Trail. Es ersetzt ChatGPT nicht als Assistenten für jeden Mitarbeiter.
+
+### Kann AgenticOS OpenAI-Modelle nutzen? { #can-agenticos-use-openai-models }
+
+Ja. Fügen Sie ein Modellprofil für OpenAI oder Azure OpenAI hinzu. Sie können einen Agent später auf einen anderen Provider umstellen, ohne ihn neu zu veröffentlichen.
+
+### Wie unterscheiden sich ChatGPT-Workspace-Agents von AgenticOS-Agents? { #how-are-chatgpt-workspace-agents-different-from-agenticos-agents }
+
+Workspace-Agents laufen in der Cloud von OpenAI auf OpenAI-Modellen, in ChatGPT, in Slack, nach Zeitplan und über einen API-Trigger, der keine Antwort zurückgibt. AgenticOS-Agents laufen auf Ihrer Infrastruktur, auf jedem Modell, und antworten über eine API, die das Ergebnis zurückgibt, über ein Widget, eine gehostete Seite und Chat-Bots.
+
+### Was ersetzt den Agent Builder von OpenAI nach seiner Einstellung? { #what-replaces-openais-agent-builder-after-it-shuts-down }
+
+OpenAI verweist Nutzer auf das Agents SDK oder die Workspace-Agents von ChatGPT. AgenticOS ist eine Alternative, wenn Sie einen Builder selbst hosten möchten, mit einem Spec-Format, das auch nach Upgrades weiter lädt.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [Alle Vergleiche](comparison.md)
+
 ## Quellen { #sources }
 
 - [Preise für ChatGPT Business](https://openai.com/business/chatgpt-pricing/): Preise pro Platz und die Funktionstabelle Business gegenüber Enterprise.
-- [Workspace-Agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): Builder, Oberflächen, Genehmigungen und die Einschränkung des API-Triggers.
+- [Workspace-Agents](https://help.openai.com/en/articles/20001143-chatgpt-workspace-agents-for-enterprise-and-business): Builder, Oberflächen, Freigaben und die Einschränkung des API-Triggers.
 - [Einführung der Workspace-Agents](https://openai.com/index/introducing-workspace-agents-in-chatgpt/): Research Preview und Credit-Preise.
 - [Flexible Preise](https://help.openai.com/en/articles/11487671-flexible-pricing-for-the-enterprise-edu-and-business-plans): Credit-Pools und Überschreitungslimits.
 - [Datenresidenz](https://help.openai.com/en/articles/9903489-data-residency-and-inference-residency-for-chatgpt): Regionen und Ausnahmen.

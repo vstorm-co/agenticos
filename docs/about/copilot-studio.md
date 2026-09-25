@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Copilot Studio"
-description: "Compare Microsoft's low-code agent builder in Power Platform with a self-hosted, open-source platform for company agents."
+seo_title: "AgenticOS vs Copilot Studio: a self-hosted alternative"
+description: "Compare Microsoft Copilot Studio with AgenticOS: no Copilot Credits, any model provider, your own infrastructure, per-agent budgets and open audit."
 ---
 
 # AgenticOS vs Copilot Studio
@@ -56,6 +57,28 @@ AgenticOS signs people in with Entra ID over [OIDC](../configuration.md#single-s
 ## Try it on one task
 
 Build the [shared document agent](../howto/first-document-agent.md) in both, on comparable models. Run a hundred questions and compare the bill: credits on one side, model cost on the other. Then check what happens when the limit is reached. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to Microsoft Copilot Studio?
+
+Yes, if you want to own the platform. AgenticOS runs on your infrastructure with any model provider and no credit meter. Copilot Studio fits better when agents live in Teams and Microsoft 365.
+
+### Does AgenticOS work with Microsoft Entra ID and SharePoint?
+
+Yes. People sign in with Entra ID over OIDC, directory groups map to roles, and collections sync files from SharePoint and OneDrive.
+
+### How much does Copilot Studio cost compared with AgenticOS?
+
+Copilot Studio sells 25,000 Copilot Credits for $200 a month, or $0.01 per credit pay-as-you-go. AgenticOS has no fee of its own; you pay your model provider for the tokens an agent uses.
+
+### Can AgenticOS publish agents to Microsoft Teams?
+
+Not yet. It publishes to web chat, a widget, a hosted page, the HTTP API, a WebSocket, Slack, Telegram and Mattermost.
+
+## Related comparisons
+
+[AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs n8n](n8n.md) · [All comparisons](comparison.md)
 
 ## Sources
 

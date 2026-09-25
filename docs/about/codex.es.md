@@ -1,7 +1,8 @@
 ---
-source_sha: "b7ac54815ce6"
+source_sha: "74107fac73b3"
 title: "AgenticOS vs OpenAI Codex"
-description: "Codex es el agent de programación de OpenAI. AgenticOS ejecuta agents gobernados para toda la empresa, y Codex puede ayudar a ampliarlo."
+seo_title: "AgenticOS vs OpenAI Codex: agents de empresa o de código"
+description: "OpenAI Codex: agent de código para desarrolladores. AgenticOS: plataforma open source y autoalojada de agents de empresa gobernados. Compáralos y combínalos."
 ---
 
 # AgenticOS vs OpenAI Codex { #agenticos-vs-openai-codex }
@@ -57,6 +58,28 @@ Un ingeniero puede usar Codex para escribir, probar y revisar una nueva [capabil
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
 Plantea a ambos la pregunta del [manual compartido](../howto/first-document-agent.md). Después pasa la respuesta a un compañero que no programa y comprueba qué necesita en cada uno antes de poder hacer su propia pregunta. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa a OpenAI Codex? { #is-agenticos-an-alternative-to-openai-codex }
+
+No, resuelven problemas distintos. Codex es un agent de programación para desarrolladores. AgenticOS es una plataforma de agents gobernados que construyen los equipos de negocio y que usa todo el mundo.
+
+### ¿OpenAI Codex es de código abierto? { #is-openai-codex-open-source }
+
+La CLI de Codex es Apache-2.0. Codex cloud, la revisión de código y la app de ChatGPT son servicios propietarios. AgenticOS es Apache-2.0 en su totalidad.
+
+### ¿Codex puede ayudar a ampliar AgenticOS? { #can-codex-help-extend-agenticos }
+
+Sí. Un ingeniero puede usar Codex para escribir y revisar una nueva capability en Python tipado. Una vez fusionada, es un interruptor en el Builder de todos.
+
+### ¿Los agents de AgenticOS pueden ejecutar código? { #can-agenticos-agents-run-code }
+
+Sí. Run Python ejecuta código sin red ni sistema de archivos, y Files & shell da a un agent un workspace en contenedores aislados. Ambas se activan por agent.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenCode](opencode.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

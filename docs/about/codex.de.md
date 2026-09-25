@@ -1,14 +1,15 @@
 ---
-source_sha: "b7ac54815ce6"
+source_sha: "74107fac73b3"
 title: "AgenticOS vs OpenAI Codex"
-description: "Codex ist der Coding-Agent von OpenAI. AgenticOS betreibt kontrollierte Agents für das ganze Unternehmen, und Codex kann helfen, es zu erweitern."
+seo_title: "AgenticOS vs OpenAI Codex: Firmen-Agents oder Coding-Agent"
+description: "OpenAI Codex ist ein Coding-Agent für Entwickler, AgenticOS eine selbst gehostete Open-Source-Plattform für kontrollierte Firmen-Agents. Beide im Vergleich."
 ---
 
 # AgenticOS vs OpenAI Codex { #agenticos-vs-openai-codex }
 
 OpenAI Codex ist ein Agent für Softwareentwicklung. Er umfasst eine Open-Source-CLI, eine IDE-Erweiterung, die ChatGPT-Desktop-App, Cloud-Aufgaben und Reviews von GitHub-Pull-Requests. Er ist für Entwickler gedacht, die Code ändern. AgenticOS ist für die Agents gedacht, die eine ganze Organisation nutzt: von Fachabteilungen im Browser konfiguriert, auf dem Server kontrolliert und auf Chat-, Web- und API-Oberflächen veröffentlicht.
 
-Beide haben einiges gemeinsam: eine Apache-2.0-Lizenz für die offenen Teile, MCP, Ausführung in einer Sandbox und eine Genehmigung vor riskanten Aktionen. Sie wenden das auf unterschiedliche Benutzer an.
+Beide haben einiges gemeinsam: eine Apache-2.0-Lizenz für die offenen Teile, MCP, Ausführung in einer Sandbox und eine Freigabe vor riskanten Aktionen. Sie wenden das auf unterschiedliche Benutzer an.
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. AgenticOS-Stand: v0.0.504. Codex-Umfang: die Codex-Dokumentation von OpenAI auf learn.chatgpt.com, die Preisseite und das Repository `openai/codex`, kein getesteter Enterprise-Rollout.
 
@@ -22,7 +23,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Quellcode | CLI Apache-2.0; Cloud, Review und ChatGPT-App proprietär | Apache-2.0 |
 | Modelle | OpenAI mit ChatGPT-Anmeldung; die CLI akzeptiert auch Ollama, LM Studio, Bedrock und eigene Provider | 27 Provider, festgelegt pro Modellprofil |
 | Endbenutzer | Der Entwickler | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
-| Genehmigungen | Sandbox-Modi und Genehmigungsrichtlinien am Arbeitsplatz des Entwicklers | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
+| Freigaben | Sandbox-Modi und Freigaberichtlinien am Arbeitsplatz des Entwicklers | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Tariflimits pro Fünf-Stunden-Fenster und Credits, die mit ChatGPT Work geteilt werden | Ein monatliches Budget pro Agent und pro Organisation |
 | Preise | In ChatGPT-Tarifen enthalten; OpenAI schätzt 100–200 $ pro Entwickler und Monat bei Credits | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
@@ -34,7 +35,7 @@ Die Cloud-Funktionen von Codex erfordern einen ChatGPT-Tarif, und seine Benutzer
 
 ### Regeln, die für alle zugleich gelten { #rules-that-hold-for-everyone-at-once }
 
-Codex setzt Sandbox- und Genehmigungsrichtlinien auf dem Rechner jedes einzelnen Entwicklers durch, mit einer verwalteten `requirements.toml` für ganze Geräteflotten. AgenticOS setzt sie einmal durch, auf dem Server. [Berechtigungen](../permissions.md), [Budgets](../governance.md#enforcement-is-before-the-request), [Genehmigungen](../governance.md#approvals) und das [Audit-Log](../governance.md#audit) gelten für jeden Run, gleich welche Oberfläche ihn gestartet hat.
+Codex setzt Sandbox- und Freigaberichtlinien auf dem Rechner jedes einzelnen Entwicklers durch, mit einer verwalteten `requirements.toml` für ganze Geräteflotten. AgenticOS setzt sie einmal durch, auf dem Server. [Berechtigungen](../permissions.md), [Budgets](../governance.md#enforcement-is-before-the-request), [Freigaben](../governance.md#approvals) und das [Audit-Log](../governance.md#audit) gelten für jeden Run, gleich welche Oberfläche ihn gestartet hat.
 
 ### Jedes Modell mit jeder Funktion { #any-model-with-every-feature }
 
@@ -42,7 +43,7 @@ Die Codex-CLI kann andere Provider nutzen, aber ihre Cloud-Aufgaben, das Code-Re
 
 ### Codeausführung als kontrollierte Capability { #code-execution-as-a-governed-capability }
 
-Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Run Python](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Files & shell](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Genehmigungseinstellung.
+Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Run Python](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Files & shell](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Freigabeeinstellung.
 
 ## Wann Codex das richtige Werkzeug ist { #when-codex-is-the-right-tool }
 
@@ -58,11 +59,33 @@ Ein Entwickler kann mit Codex eine neue [Capability](../howto/add-capability.md)
 
 Stellen Sie beiden die Frage aus dem [gemeinsamen Handbuch](../howto/first-document-agent.md). Geben Sie die Antwort dann an einen Kollegen, der nicht programmiert, und prüfen Sie, was jeder braucht, bevor er seine eigene Frage stellen kann. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
 
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Alternative zu OpenAI Codex? { #is-agenticos-an-alternative-to-openai-codex }
+
+Nein, die beiden lösen unterschiedliche Probleme. Codex ist ein Coding-Agent für Entwickler. AgenticOS ist eine Plattform für kontrollierte Agents, die Fachabteilungen bauen und alle nutzen.
+
+### Ist OpenAI Codex Open Source? { #is-openai-codex-open-source }
+
+Die Codex-CLI steht unter Apache-2.0. Codex Cloud, das Code-Review und die ChatGPT-App sind proprietäre Dienste. AgenticOS steht als Ganzes unter Apache-2.0.
+
+### Kann Codex helfen, AgenticOS zu erweitern? { #can-codex-help-extend-agenticos }
+
+Ja. Ein Entwickler kann mit Codex eine neue Capability in typisiertem Python schreiben und reviewen. Nach dem Merge ist sie ein Schalter in jedem Agent-Builder.
+
+### Können AgenticOS-Agents Code ausführen? { #can-agenticos-agents-run-code }
+
+Ja. Run Python führt Code ohne Netzwerk oder Dateisystem aus, und Files & shell gibt einem Agent einen Workspace in isolierten Containern. Beide werden pro Agent eingeschaltet.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenCode](opencode.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Alle Vergleiche](comparison.md)
+
 ## Quellen { #sources }
 
 - [Codex-Repository](https://github.com/openai/codex): die Apache-2.0-CLI.
 - [Codex-Preise](https://learn.chatgpt.com/docs/pricing): Tarife, Nutzungsfenster, Credits und Funktionen nach Tarif.
-- [Genehmigungen und Sicherheit](https://learn.chatgpt.com/docs/agent-approvals-security): Sandbox-Modi und Genehmigungsrichtlinien.
+- [Freigaben und Sicherheit](https://learn.chatgpt.com/docs/agent-approvals-security): Sandbox-Modi und Freigaberichtlinien.
 - [Erweiterte Konfiguration](https://learn.chatgpt.com/docs/config-file/config-advanced): eigene und lokale Modell-Provider.
 - [Verwaltete Enterprise-Konfiguration](https://learn.chatgpt.com/codex/enterprise/managed-configuration): `requirements.toml`.
 - [ChatGPT-Preisliste](https://help.openai.com/en/articles/11481834-chatgpt-rate-card-business-enterpriseedu-credit-based-pricing): die Schätzung pro Entwickler.

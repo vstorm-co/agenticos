@@ -1,7 +1,8 @@
 ---
-source_sha: "a7342e50843d"
+source_sha: "6daf4c941912"
 title: "AgenticOS vs Copilot Studio"
-description: "Compara el constructor low-code de agents de Microsoft en Power Platform con una plataforma autoalojada y de código abierto para los agents de la empresa."
+seo_title: "AgenticOS vs Copilot Studio: alternativa autoalojada"
+description: "Compara Microsoft Copilot Studio con AgenticOS: sin Copilot Credits, cualquier provider de modelos, tu infraestructura, budgets por agent y auditoría abierta."
 ---
 
 # AgenticOS vs Copilot Studio { #agenticos-vs-copilot-studio }
@@ -57,6 +58,28 @@ AgenticOS inicia la sesión de las personas con Entra ID a través de [OIDC](../
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
 Construye el [agent documental compartido](../howto/first-document-agent.md) en ambos, con modelos comparables. Lanza cien preguntas y compara la factura: créditos en un lado, coste del modelo en el otro. Después comprueba qué ocurre cuando se alcanza el límite. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa a Microsoft Copilot Studio? { #is-agenticos-an-alternative-to-microsoft-copilot-studio }
+
+Sí, si quieres ser dueño de la plataforma. AgenticOS se ejecuta en tu infraestructura con cualquier provider de modelos y sin contador de créditos. Copilot Studio encaja mejor cuando los agents viven en Teams y Microsoft 365.
+
+### ¿AgenticOS funciona con Microsoft Entra ID y SharePoint? { #does-agenticos-work-with-microsoft-entra-id-and-sharepoint }
+
+Sí. Las personas inician sesión con Entra ID mediante OIDC, los grupos del directorio se asignan a roles y las colecciones sincronizan archivos desde SharePoint y OneDrive.
+
+### ¿Cuánto cuesta Copilot Studio en comparación con AgenticOS? { #how-much-does-copilot-studio-cost-compared-with-agenticos }
+
+Copilot Studio vende 25 000 Copilot Credits por $200 al mes, o $0,01 por crédito en pago por uso. AgenticOS no tiene cuota propia; pagas a tu provider de modelos por los tokens que usa un agent.
+
+### ¿AgenticOS puede publicar agents en Microsoft Teams? { #can-agenticos-publish-agents-to-microsoft-teams }
+
+Todavía no. Publica en el chat web, un widget, una página alojada, la API HTTP, un WebSocket, Slack, Telegram y Mattermost.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs n8n](n8n.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

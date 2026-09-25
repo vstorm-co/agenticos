@@ -1,7 +1,8 @@
 ---
-source_sha: "2ca7dda133d2"
+source_sha: "174f12cba031"
 title: "AgenticOS vs Viktor"
-description: "Porównanie jednego zarządzanego współpracownika AI na workspace z platformą wersjonowanych agentów, którą utrzymuje Twój zespół."
+seo_title: "AgenticOS vs Viktor: self-hosted alternatywa dla Viktora"
+description: "Viktor to jeden współpracownik AI na workspace Slacka lub Teams. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
 ---
 
 # AgenticOS vs Viktor { #agenticos-vs-viktor }
@@ -19,13 +20,13 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Co dostajesz | Jednego wspólnego „pracownika AI” na workspace | Dowolną liczbę agentów, każdy jako wersjonowany spec |
 | Gdzie działa | Chmura Viktor, hostowana w AWS us-east-1 | Twoja infrastruktura, z Docker Compose |
 | Źródła | Własnościowe | Apache-2.0 |
-| Modele | Presety OpenAI, Anthropic, Google i Kimi; własny klucz OpenRouter | 27 providerów, w tym Ollama i LiteLLM na Twoim sprzęcie |
-| Wiedza | Pamięć workspace'u i podłączone narzędzia | Kolekcje dokumentów w Twoim Postgresie, z pięcioma konektorami synchronizacji |
+| Modele | Presety OpenAI, Anthropic, Google i Kimi; własny klucz OpenRouter | 27 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
+| Wiedza | Pamięć workspace'u i podłączone narzędzia | Kolekcje dokumentów w twoim Postgresie, z pięcioma konektorami synchronizacji |
 | Powierzchnie | Slack, Teams, Discord, własna skrzynka e-mail, aplikacje web, desktop i mobilne, API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Dostęp | Na poziomie workspace'u; jego strony różnią się w opisie dostępu opartego na rolach | Sześć ról, 27 uprawnień i granty per zasób, w każdej organizacji |
 | Kontrola wydatków | Pula kredytów; limity dopasowywane w planie Enterprise | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
 | Ceny | Od $50 miesięcznie za 20 000 kredytów, stałe $2,50 za 1000 kredytów | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
-| Dowody zgodności | SOC 2 Type 1; Type II i ISO 27001 w toku | Twoje kontrole na Twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
+| Dowody zgodności | SOC 2 Type 1; Type II i ISO 27001 w toku | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -33,11 +34,11 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 
 Viktor to jeden współpracownik, którego dzieli cały workspace. W AgenticOS każdy agent jest budowany do własnego zadania, na przykład agent polityk HR, asystent sprzedaży albo agent do triażu zgłoszeń supportu. Każdy ma własne instrukcje, [capabilities](../reference/capabilities.md), kolekcje wiedzy i budżet.
 
-Spec agenta jest [wersjonowany przy publikacji](../concepts.md#version) i [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do Twojego repozytorium git. Nazwane [środowiska](../environments.md#what-an-environment-is) pozwalają przetestować wersję na stagingu, zanim zacznie nią odpowiadać produkcja.
+Spec agenta jest [wersjonowany przy publikacji](../concepts.md#version) i [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do twojego repozytorium git. Nazwane [środowiska](../environments.md#what-an-environment-is) pozwalają przetestować wersję na stagingu, zanim zacznie nią odpowiadać produkcja.
 
 ### Dostęp decydowany per agent i per osoba { #access-decided-per-agent-and-per-person }
 
-FAQ na stronie głównej Viktora, sprawdzone 25 września 2026, mówi, że plan dzieli jedną instancję Viktora i jeden kontekst, a podłączona integracja jest dostępna dla każdego członka zespołu. Jego strona enterprise wymienia dostęp oparty na rolach. Zapytaj, co dotyczy Twojej umowy.
+FAQ na stronie głównej Viktora, sprawdzone 25 września 2026, mówi, że plan dzieli jedną instancję Viktora i jeden kontekst, a podłączona integracja jest dostępna dla każdego członka zespołu. Jego strona enterprise wymienia dostęp oparty na rolach. Zapytaj, co dotyczy twojej umowy.
 
 W AgenticOS dostęp wynika z [katalogu uprawnień](../permissions.md#the-built-in-roles), a [granty](../permissions.md#layer-3-visibility-and-grants) udostępniają jednego agenta, skill albo kolekcję osobie lub grupie. Powiązanie MCP może korzystać z [własnego konta każdej osoby](../mcp.md#whose-account-a-binding-speaks-through) zamiast jednego wspólnego loginu. Połączony użytkownik Slacka działa [jako on sam](../channels.md#slack).
 
@@ -47,7 +48,7 @@ Viktor rozlicza pulę kredytów workspace'u i podaje, że kredyty odpowiadają t
 
 ### Twoje dane zostają tam, gdzie je umieścisz { #your-data-stays-where-you-put-it }
 
-Viktor jest hostowany w USA. Jego strony różnią się w kwestii rezydencji danych w UE i konfigurowalnej retencji, więc potwierdź oba punkty na piśmie. AgenticOS przechowuje rozmowy, dokumenty i wektory w [Twoim własnym Postgresie](../data-protection.md#where-personal-data-lives). Ustawiasz [retencję per klasa danych](../governance.md#retention). Z lokalnym modelem nic nie musi opuszczać Twojej sieci.
+Viktor jest hostowany w USA. Jego strony różnią się w kwestii rezydencji danych w UE i konfigurowalnej retencji, więc potwierdź oba punkty na piśmie. AgenticOS przechowuje rozmowy, dokumenty i wektory w [twoim własnym Postgresie](../data-protection.md#where-personal-data-lives). Ustawiasz [retencję per klasa danych](../governance.md#retention). Z lokalnym modelem nic nie musi opuszczać twojej sieci.
 
 ### Wiedza, którą możesz sprawdzić { #knowledge-you-can-inspect }
 
@@ -56,8 +57,8 @@ Viktor uczy się z rozmów i podłączonych narzędzi. AgenticOS dodaje zarządz
 ## Kiedy Viktor wystarczy { #when-viktor-is-enough }
 
 - Chcesz jednego asystenta w Slacku lub Teams bez żadnej infrastruktury do utrzymania.
-- Jego katalog ponad 3200 integracji OAuth i jego sandbox do kodu pokrywają Twoje zadania.
-- Rozliczanie w kredytach i hosting w USA spełniają Twoje wymagania.
+- Jego katalog ponad 3200 integracji OAuth i jego sandbox do kodu pokrywają twoje zadania.
+- Rozliczanie w kredytach i hosting w USA spełniają twoje wymagania.
 - Potrzebujesz dziś Microsoft Teams, głosu albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, głos ani e-mail.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
@@ -65,6 +66,28 @@ Viktor uczy się z rozmów i podłączonych narzędzi. AgenticOS dodaje zarządz
 Użyj [wspólnego przykładu dokumentu](../howto/first-document-agent.md). Porównaj dostęp do źródła, faktyczną odpowiedź, pytanie o brakującą zasadę i aktualizację źródła. Sprawdź, która tożsamość może pobrać źródło i jak odbiera się dostęp, gdy ktoś odchodzi.
 
 Następnie w każdym produkcie uruchom drugiego agenta dla innego zespołu. Sprawdź, czy widzi integracje i pamięć pierwszego zespołu. To na tym drugim agencie współpracownik workspace'u i platforma agentów różnią się najbardziej. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS to alternatywa dla Viktora? { #is-agenticos-an-alternative-to-viktor }
+
+Tak, jeśli chcesz czegoś więcej niż jednego wspólnego asystenta. AgenticOS uruchamia wielu agentów, każdego z własnymi instrukcjami, dostępem, wiedzą i budżetem, na twojej własnej infrastrukturze. Viktor szybciej wystartuje w Slacku lub Teams i działa we własnej chmurze.
+
+### Czy AgenticOS odpowiada w Slacku jak Viktor? { #can-agenticos-answer-in-slack-like-viktor }
+
+Tak. Opublikowany agent odpowiada w Slacku, a powiązany użytkownik działa pod własną tożsamością. AgenticOS odpowiada też w Telegramie, Mattermost, widgecie na stronie internetowej, na hostowanej stronie i przez HTTP API. Nie ma jeszcze kanału Microsoft Teams.
+
+### Jak wypadają ceny? { #how-does-pricing-compare }
+
+Viktor sprzedaje kredyty na workspace, od $50 miesięcznie za 20 000. AgenticOS nie ma opłaty licencyjnej: płacisz bezpośrednio providerom modeli, a każdy agent ma własny miesięczny budżet.
+
+### Gdzie są przechowywane dane? { #where-is-the-data-stored }
+
+Viktor podaje, że jest hostowany w AWS us-east-1. AgenticOS przechowuje rozmowy, dokumenty i wektory w twoim własnym Postgresie, gdziekolwiek go wdrożysz.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Wonderful](wonderful.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 

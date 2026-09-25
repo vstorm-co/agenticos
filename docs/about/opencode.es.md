@@ -1,7 +1,8 @@
 ---
-source_sha: "d0e31f6b27f0"
+source_sha: "6b7c5763a7d2"
 title: "AgenticOS vs OpenCode"
-description: "OpenCode es un agent de programación de código abierto para un desarrollador. AgenticOS es una plataforma de código abierto para los agents de una empresa."
+seo_title: "AgenticOS vs OpenCode: herramientas de agents open source"
+description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: plataforma Apache-2.0 para los agents de IA de una empresa, con roles, budgets y auditoría."
 ---
 
 # AgenticOS vs OpenCode { #agenticos-vs-opencode }
@@ -56,6 +57,28 @@ Un desarrollador puede usar OpenCode con cualquier modelo para escribir una nuev
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
 Responde en ambos a la pregunta del [manual compartido](../howto/first-document-agent.md). Después pasa el resultado a cinco compañeros y comprueba quién puede hacer una pregunta de seguimiento, cuánto cuesta y qué registro queda. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa a OpenCode? { #is-agenticos-an-alternative-to-opencode }
+
+No para programar en un repositorio. OpenCode es un agent de programación para un desarrollador. AgenticOS es una plataforma para muchos agents y muchos usuarios, con roles, budgets y registros de auditoría.
+
+### ¿OpenCode y AgenticOS son ambos de código abierto? { #are-opencode-and-agenticos-both-open-source }
+
+Sí. OpenCode es MIT y AgenticOS es Apache-2.0, y ambos pueden usar modelos locales.
+
+### ¿Se pueden compartir los agents de AgenticOS con personas que no programan? { #can-agenticos-agents-be-shared-with-people-who-do-not-code }
+
+Sí. Responden a través de un widget, una página alojada, Slack, Telegram, Mattermost o la API HTTP, sin nada que instalar.
+
+### ¿OpenCode puede ayudar a construir capabilities de AgenticOS? { #can-opencode-help-build-agenticos-capabilities }
+
+Sí. Una capability es Python tipado en el repositorio, y OpenCode puede ayudar a escribirla y probarla con cualquier modelo.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs n8n](n8n.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

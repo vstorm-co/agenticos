@@ -1,7 +1,8 @@
 ---
-source_sha: "b0bf2e34ec50"
+source_sha: "0e10e8407613"
 title: "Porównaj AgenticOS"
-description: "Jak AgenticOS wypada na tle aplikacji asystentów, builderów agentów, usług wirtualnego współpracownika, dostarczanych platform i agentów do kodowania."
+seo_title: "Porównania AgenticOS: platforma agentów AI self-hosted"
+description: "Porównaj AgenticOS, platformę agentów AI open source i self-hosted, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
 ---
 
 # Porównaj AgenticOS { #compare-agenticos }
@@ -14,7 +15,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 
 | Rozważasz | Produkty | Poradnik |
 | --- | --- | --- |
-| Firmowego asystenta czatu albo agentów, których właścicielem jest Twoja organizacja | Claude Team i Enterprise, ChatGPT Business i Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
+| Firmowego asystenta czatu albo agentów, których właścicielem jest twoja organizacja | Claude Team i Enterprise, ChatGPT Business i Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Builder w pakiecie chmurowym producenta | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Samodzielnie hostowany builder albo narzędzie do automatyzacji | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
 | Usługę wirtualnego współpracownika w Slacku lub Teams | Viktor | [Viktor](viktor.md) |
@@ -33,7 +34,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Dify | Wizualny builder aplikacji LLM i workflow | Hostowany samodzielnie albo Dify Cloud | Zmodyfikowana Apache 2.0 z warunkami | Wiele, w tym Ollama |
 | n8n | Automatyzacja workflow z węzłami agentów AI | Hostowany samodzielnie albo n8n Cloud | Sustainable Use License | Wiele, w tym Ollama |
 | Viktor | Jeden wirtualny współpracownik AI na workspace Slacka lub Teams | Chmura Viktor | Własnościowa | OpenAI, Anthropic, Google, Kimi |
-| Wonderful | Platforma AI enterprise z zespołami wdrożeniowymi | SaaS, single-tenant, Twoja chmura albo on-premises | Własnościowa | Niezależna od modelu, routing per zadanie |
+| Wonderful | Platforma AI enterprise z zespołami wdrożeniowymi | SaaS, single-tenant, twoja chmura albo on-premises | Własnościowa | Niezależna od modelu, routing per zadanie |
 | Claude Code | Agent do kodowania dla programistów | Maszyny programistów, chmura Anthropic | Własnościowa | Tylko Claude |
 | OpenAI Codex | Agent do kodowania dla programistów | Maszyny programistów, chmura OpenAI | CLI Apache-2.0, chmura własnościowa | OpenAI; CLI przyjmuje też innych |
 | OpenCode | Otwartoźródłowy agent do kodowania | Maszyny programistów | MIT | Ponad 75 providerów |
@@ -44,9 +45,9 @@ Każda komórka pochodzi z własnych stron producenta; poradniki podają do nich
 
 Te punkty powtarzają się w każdym poradniku, więc podajemy je raz, tutaj.
 
-- **Wdrożenie należy do Ciebie.** Działa na Twoim sprzęcie z Twoim Postgresem, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
+- **Wdrożenie należy do Ciebie.** Działa na twoim sprzęcie z twoim Postgresem, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
 - **Dowolny model, przełączany w jednym miejscu.** [27 providerów](../models.md#providers) stoi za [profilem modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks). Zmień profil, a każdy agent, który go używa, przejdzie na nowy model bez ponownej publikacji.
-- **Agent to wersjonowany dokument.** Publikacja zamraża [wersję](../concepts.md#version), [środowiska](../environments.md#what-an-environment-is) wskazują na wersje, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do Twojego własnego repozytorium git.
+- **Agent to wersjonowany dokument.** Publikacja zamraża [wersję](../concepts.md#version), [środowiska](../environments.md#what-an-environment-is) wskazują na wersje, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do twojego własnego repozytorium git.
 - **Nadzór jest w produkcie open source.** [Budżety](../governance.md#enforcement-is-before-the-request) są sprawdzane przed każdym żądaniem do modelu. [Zatwierdzenia](../governance.md#approvals) wstrzymują run, dopóki ktoś nie zdecyduje. [Log audytowy](../governance.md#audit) wykrywa manipulacje. Nic z tego nie czeka na plan enterprise.
 - **Wiele zespołów, jedno wdrożenie.** Organizacje są tenantami, odizolowanymi w schemacie. [Model uprawnień](../permissions.md#the-built-in-roles) ma sześć ról i granty per zasób. [Logowanie jednokrotne OIDC, LDAP i Kerberos](../directory.md#signing-in-with-a-directory-account) mapują grupy z katalogu na role.
 - **Jeden agent, każda powierzchnia.** Ten sam opublikowany agent odpowiada w czacie webowym, w widgecie, na hostowanej stronie, przez HTTP API, WebSocket, w Slacku, Telegramie i Mattermost. Zobacz [powierzchnie](../channels.md).
@@ -73,9 +74,27 @@ Zapisz wersję produktu lub plan usługi, model, przetwarzanie źródła, tożsa
 
 ## Co znaczą dowody { #what-the-evidence-means }
 
-Opis producenta dowodzi, że dana opcja jest udokumentowana, a nie jaka jest jej jakość przy Twoim obciążeniu. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji. Nieprzetestowane zachowanie pozostaje nieznane, a nie staje się oznaczeniem brakującej funkcji. Ceny i zawartość planów często się zmieniają, więc potwierdź je na podlinkowanej stronie, zanim je zacytujesz.
+Opis producenta dowodzi, że dana opcja jest udokumentowana, a nie jaka jest jej jakość przy twoim obciążeniu. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji. Nieprzetestowane zachowanie pozostaje nieznane, a nie staje się oznaczeniem brakującej funkcji. Ceny i zawartość planów często się zmieniają, więc potwierdź je na podlinkowanej stronie, zanim je zacytujesz.
 
 W opublikowanej próbie podaj dokładne dane wejściowe, faktyczne wyniki, nieudane próby i konfigurację. Oddziel użycie modelu od infrastruktury, wdrożenia i bieżącego utrzymania. Sprawdź [licencje](../licenses.md), warunki providerów i edycję, którą byś wdrożył.
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS jest open source? { #is-agenticos-open-source }
+
+Tak. AgenticOS jest na licencji Apache-2.0 i działa na twojej własnej infrastrukturze z Docker Compose. Część dołączonych komponentów ma własne licencje, wymienione na stronie [licencji](../licenses.md).
+
+### Czy AgenticOS to samodzielnie hostowana alternatywa dla ChatGPT Enterprise lub Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise-or-claude-enterprise }
+
+Dla agentów, których właścicielem jest twoja organizacja, tak. Uruchamia agentów na dowolnym z 27 providerów modeli, w tym OpenAI i Anthropic, z budżetami, zatwierdzeniami i logami audytowymi w każdym wdrożeniu. Nie jest osobistym asystentem dla każdego pracownika; zobacz poradniki [ChatGPT](chatgpt.md) i [Claude](claude-apps.md).
+
+### Ile kosztuje AgenticOS? { #how-much-does-agenticos-cost }
+
+Nie ma opłaty licencyjnej ani opłaty za stanowisko. Płacisz providerom modeli według ich własnych stawek i utrzymujesz infrastrukturę: do uruchomienia wystarczą [4 vCPU i 8 GB RAM](../deploy.md). Pomoc we wdrożeniu od Vstorm ustala się osobno.
+
+### Od którego porównania zacząć? { #which-comparison-should-i-read-first }
+
+Zacznij od rodzaju produktu, który rozważasz: aplikacji asystenta, buildera w pakiecie chmurowym, samodzielnie hostowanego buildera, usługi wirtualnego współpracownika, dostarczanej platformy albo agenta do kodowania. [Tabela na górze](#pick-the-guide-for-your-decision) wskazuje każdy poradnik.
 
 ## Inne punkty wyjścia { #other-starting-points }
 

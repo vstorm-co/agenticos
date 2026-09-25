@@ -1,7 +1,8 @@
 ---
-source_sha: "eb00b1812132"
+source_sha: "cd3c14eb72c2"
 title: "AgenticOS vs Gemini Enterprise"
-description: "Vergleichen Sie die Agent-Plattform und Unternehmenssuche von Google für Mitarbeiter mit einer selbst betriebenen Open-Source-Plattform für Unternehmens-Agents."
+seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
+description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
 ---
 
 # AgenticOS vs Gemini Enterprise { #agenticos-vs-gemini-enterprise }
@@ -40,7 +41,7 @@ Die Standard-Edition erlaubt einen neuen Agent pro Tag im gepoolten Projekt, Plu
 
 ### Governance, die für jeden Agent gleich ist { #governance-that-is-the-same-for-every-agent }
 
-In Gemini Enterprise benötigen eigene, Partner- und A2A-Agents sowie Kontrollen wie VPC-SC und CMEK Standard oder Plus. In AgenticOS durchläuft jeder Agent denselben Runner, mit denselben [Berechtigungen](../permissions.md), [Genehmigungen](../governance.md#approvals), [Budgetprüfungen](../governance.md#enforcement-is-before-the-request) und demselben [Audit-Log](../governance.md#audit), gleich welche Oberfläche ihn startet.
+In Gemini Enterprise benötigen eigene, Partner- und A2A-Agents sowie Kontrollen wie VPC-SC und CMEK Standard oder Plus. In AgenticOS durchläuft jeder Agent denselben Runner, mit denselben [Berechtigungen](../permissions.md), [Freigaben](../governance.md#approvals), [Budgetprüfungen](../governance.md#enforcement-is-before-the-request) und demselben [Audit-Log](../governance.md#audit), gleich welche Oberfläche ihn startet.
 
 ### Daten dort, wo Sie entscheiden { #data-where-you-decide }
 
@@ -55,6 +56,28 @@ Gemini Enterprise bietet Residenz in den Regionen, die Google unterstützt. Agen
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
 Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) im Workflow Builder und in AgenticOS. Stellen Sie dann jeden auf ein Nicht-Gemini-Modell um und veröffentlichen Sie ihn für jemanden ohne Platz. Erfassen Sie mit der [Vergleichsmethode](comparison.md#a-shared-trial), was jeder zulässt.
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Alternative zu Google Gemini Enterprise? { #is-agenticos-an-alternative-to-google-gemini-enterprise }
+
+Für Agents, die Ihrer Organisation gehören und die sie veröffentlicht, ja. AgenticOS läuft auf Ihrer Infrastruktur, nutzt jedes Modell in jedem Agent und antwortet Kunden ebenso wie Mitarbeitern. Für die Unternehmenssuche über Google Workspace und Microsoft 365 passt Gemini Enterprise besser.
+
+### Kann AgenticOS Gemini-Modelle nutzen? { #can-agenticos-use-gemini-models }
+
+Ja, über Modellprofile für Google Gemini oder Vertex AI, zwei der 27 Provider, die AgenticOS unterstützt.
+
+### Begrenzt AgenticOS, wie viele Agents Sie erstellen können? { #does-agenticos-limit-how-many-agents-you-can-create }
+
+Nein. Es gibt keine Platzgebühr und kein Erstellungskontingent. Ein Agent kostet, was seine Modellaufrufe kosten, bis zu seinem Budget.
+
+### Wo speichert AgenticOS Daten? { #where-does-agenticos-store-data }
+
+In Ihrem eigenen Postgres, wo auch immer Sie es bereitstellen. Mit einem selbst gehosteten Modell verlassen Prompts Ihr Netzwerk nicht.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

@@ -1,7 +1,8 @@
 ---
-source_sha: "6541bd2e459e"
+source_sha: "eb3eec9570d3"
 title: "AgenticOS vs Claude"
-description: "Vergleich von Claude Team und Enterprise, dem Assistenten-Workspace von Anthropic, mit einer selbst gehosteten Plattform für Unternehmens-Agents."
+seo_title: "AgenticOS vs Claude Team und Enterprise: eigene Agents"
+description: "Claude Team und Enterprise vs. AgenticOS: selbst gehostete Agents auf Claude oder jedem Modell, Budgets je Agent, Freigaben, Audit-Logs, ohne Gebühr pro Nutzer."
 ---
 
 # AgenticOS vs Claude { #agenticos-vs-claude }
@@ -68,6 +69,28 @@ Behalten Sie Claude für die alltägliche Arbeit der Mitarbeiter. Nutzen Sie Age
 ## Eine Handbuchfrage ausprobieren { #try-one-handbook-question }
 
 Legen Sie das [gemeinsame Dokumentenbeispiel](../howto/first-document-agent.md) in ein Claude Project und in eine AgenticOS-Sammlung, beide auf demselben Claude-Modell. Stellen Sie die beantwortbare Frage und die Frage zur fehlenden Regel, und geben Sie dieselbe Antwort dann jemandem außerhalb der Organisation. Bei Claude braucht das eine Nutzerlizenz; bei AgenticOS ist es ein Link auf eine [gehostete Seite](../channels.md#a-hosted-page). Erfassen Sie mit der [Vergleichsmethode](comparison.md#a-shared-trial), was jedes Produkt erlaubt.
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Kann AgenticOS Claude-Modelle nutzen? { #can-agenticos-use-claude-models }
+
+Ja. Fügen Sie ein Modellprofil für die Anthropic API, Amazon Bedrock oder Google Vertex AI hinzu, und jeder Agent kann auf Claude laufen. Sie bezahlen Anthropic oder den Cloud-Provider zu deren API-Preisen.
+
+### Ist AgenticOS eine selbst gehostete Alternative zu Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-claude-enterprise }
+
+Für Agents, die Ihre Organisation veröffentlicht, ja. Es läuft auf Ihrer Infrastruktur, mit Budgets pro Agent, Freigaben, Rollen und einem Audit-Log mit Manipulationsnachweis. Es ersetzt Claude nicht als persönlichen Assistenten für jeden Mitarbeiter.
+
+### Berechnet AgenticOS Gebühren pro Nutzerlizenz? { #does-agenticos-charge-per-seat }
+
+Nein. Es gibt keine Gebühr pro Nutzerlizenz und keine Lizenzgebühr. Claude Team beginnt bei 20 $ pro Nutzerlizenz und Monat bei jährlicher Zahlung, und Claude Enterprise berechnet zusätzlich zur Gebühr pro Nutzerlizenz die Nutzung zu API-Preisen.
+
+### Können Personen außerhalb des Unternehmens einen AgenticOS-Agent nutzen? { #can-people-outside-the-company-use-an-agenticos-agent }
+
+Ja. Ein Agent antwortet über ein Website-Widget, einen Link auf eine gehostete Seite, die HTTP-API, Slack, Telegram oder Mattermost, ohne dass eine Nutzerlizenz nötig ist.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

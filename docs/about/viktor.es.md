@@ -1,7 +1,8 @@
 ---
-source_sha: "2ca7dda133d2"
+source_sha: "174f12cba031"
 title: "AgenticOS vs Viktor"
-description: "Compara un compañero de equipo de IA gestionado por workspace con una plataforma de agents versionados que opera tu equipo."
+seo_title: "AgenticOS vs Viktor: alternativa autoalojada a un colega IA"
+description: "Viktor: un colega de IA por workspace de Slack o Teams. Compáralo con AgenticOS: muchos agents gobernados, cualquier modelo y budgets por agent en tu servidor."
 ---
 
 # AgenticOS vs Viktor { #agenticos-vs-viktor }
@@ -65,6 +66,28 @@ Viktor aprende de las conversaciones y de las herramientas conectadas. AgenticOS
 Usa el [ejemplo documental común](../howto/first-document-agent.md). Compara el acceso a la fuente, la respuesta real, una pregunta sobre una política ausente y una actualización de la fuente. Comprueba qué identidad puede recuperar la fuente y cómo se retira el acceso cuando alguien se marcha.
 
 Después ejecuta en cada producto un segundo agent para otro equipo. Comprueba si puede ver las integraciones y la memoria del primer equipo. Ese segundo agent es donde más difieren un compañero de equipo de workspace y una plataforma de agents. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa a Viktor? { #is-agenticos-an-alternative-to-viktor }
+
+Sí, si quieres algo más que un asistente compartido. AgenticOS ejecuta muchos agents, cada uno con sus propias instrucciones, acceso, conocimiento y budget, en tu propia infraestructura. Viktor se pone en marcha más rápido en Slack o Teams y se ejecuta en su propia nube.
+
+### ¿AgenticOS puede responder en Slack como Viktor? { #can-agenticos-answer-in-slack-like-viktor }
+
+Sí. Un agent publicado responde en Slack, y un usuario vinculado ejecuta los runs como sí mismo. AgenticOS también responde en Telegram, Mattermost, un widget para sitios web, una página alojada y la API HTTP. Todavía no tiene canal para Microsoft Teams.
+
+### ¿Cómo se comparan los precios? { #how-does-pricing-compare }
+
+Viktor vende créditos por workspace, desde $50 al mes por 20.000. AgenticOS no tiene cuota de licencia: pagas directamente a los providers de modelos, y cada agent tiene su propio budget mensual.
+
+### ¿Dónde se almacenan los datos? { #where-is-the-data-stored }
+
+Viktor dice que está alojado en AWS us-east-1. AgenticOS almacena las conversaciones, los documentos y los vectores en tu propio Postgres, allí donde lo despliegues.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Wonderful](wonderful.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

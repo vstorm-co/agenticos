@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs OpenCode"
-description: "OpenCode is an open-source coding agent for one developer. AgenticOS is an open-source platform for a company's agents."
+seo_title: "AgenticOS vs OpenCode: two open-source agent tools compared"
+description: "OpenCode is an MIT coding agent for one developer. AgenticOS is an Apache-2.0 platform for a company's AI agents, with roles, budgets and audit logs."
 ---
 
 # AgenticOS vs OpenCode
@@ -55,6 +56,28 @@ A developer can use OpenCode with any model to write a new [capability](../howto
 ## Try it on one task
 
 Answer the [shared handbook](../howto/first-document-agent.md) question in both. Then hand the result to five colleagues and check who can ask a follow-up, what it costs, and what record remains. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to OpenCode?
+
+Not for coding in a repository. OpenCode is a coding agent for one developer. AgenticOS is a platform for many agents and many users, with roles, budgets and audit logs.
+
+### Are OpenCode and AgenticOS both open source?
+
+Yes. OpenCode is MIT and AgenticOS is Apache-2.0, and both can use local models.
+
+### Can AgenticOS agents be shared with people who do not code?
+
+Yes. They answer through a widget, a hosted page, Slack, Telegram, Mattermost or the HTTP API, with nothing to install.
+
+### Can OpenCode help build AgenticOS capabilities?
+
+Yes. A capability is typed Python in the repository, and OpenCode can help write and test it with any model.
+
+## Related comparisons
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs n8n](n8n.md) · [All comparisons](comparison.md)
 
 ## Sources
 

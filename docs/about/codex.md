@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs OpenAI Codex"
-description: "Codex is OpenAI's coding agent. AgenticOS runs governed agents for the whole company, and Codex can help extend it."
+seo_title: "AgenticOS vs OpenAI Codex: company agents or a coding agent"
+description: "OpenAI Codex is a coding agent for developers. AgenticOS is an open-source, self-hosted platform for governed company agents. Compare and combine them."
 ---
 
 # AgenticOS vs OpenAI Codex
@@ -56,6 +57,28 @@ An engineer can use Codex to write, test and review a new [capability](../howto/
 ## Try it on one task
 
 Give both the [shared handbook](../howto/first-document-agent.md) question. Then give the answer to a colleague who does not code, and check what each needs before they can ask their own question. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to OpenAI Codex?
+
+No, they solve different problems. Codex is a coding agent for developers. AgenticOS is a platform for governed agents that business teams build and everyone uses.
+
+### Is OpenAI Codex open source?
+
+The Codex CLI is Apache-2.0. Codex cloud, code review and the ChatGPT app are proprietary services. AgenticOS is Apache-2.0 as a whole.
+
+### Can Codex help extend AgenticOS?
+
+Yes. An engineer can use Codex to write and review a new capability in typed Python. Once merged, it is a switch in every agent builder.
+
+### Can AgenticOS agents run code?
+
+Yes. Run Python executes code with no network or filesystem, and Files & shell gives an agent a workspace in isolated containers. Both are switched on per agent.
+
+## Related comparisons
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenCode](opencode.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [All comparisons](comparison.md)
 
 ## Sources
 

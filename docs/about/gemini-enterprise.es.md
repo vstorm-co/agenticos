@@ -1,7 +1,8 @@
 ---
-source_sha: "eb00b1812132"
+source_sha: "cd3c14eb72c2"
 title: "AgenticOS vs Gemini Enterprise"
-description: "Compara la plataforma de agents para empleados y la búsqueda empresarial de Google con una plataforma autoalojada y de código abierto para los agents de la empresa."
+seo_title: "AgenticOS vs Gemini Enterprise: alternativa autoalojada"
+description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo en cada agent, sin cuota por puesto ni cuotas de creación, ocho superficies, en tus servidores."
 ---
 
 # AgenticOS vs Gemini Enterprise { #agenticos-vs-gemini-enterprise }
@@ -55,6 +56,28 @@ Gemini Enterprise ofrece residencia en las regiones que admite Google. AgenticOS
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
 Construye el [agent documental compartido](../howto/first-document-agent.md) en Workflow Builder y en AgenticOS. Después cambia cada uno a un modelo que no sea Gemini y publícalo para alguien sin puesto. Registra lo que permite cada uno con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa a Google Gemini Enterprise? { #is-agenticos-an-alternative-to-google-gemini-enterprise }
+
+Para los agents que tu organización posee y publica, sí. AgenticOS se ejecuta en tu infraestructura, usa cualquier modelo en cada agent y responde a clientes además de a empleados. Para la búsqueda empresarial en Google Workspace y Microsoft 365, Gemini Enterprise encaja mejor.
+
+### ¿AgenticOS puede usar modelos Gemini? { #can-agenticos-use-gemini-models }
+
+Sí, a través de perfiles de modelo de Google Gemini o Vertex AI, dos de los 27 providers que admite AgenticOS.
+
+### ¿AgenticOS limita cuántos agents puedes crear? { #does-agenticos-limit-how-many-agents-you-can-create }
+
+No. No hay cuota por puesto ni cuota de creación. Un agent cuesta lo que cuestan sus llamadas al modelo, con el tope de su budget.
+
+### ¿Dónde almacena AgenticOS los datos? { #where-does-agenticos-store-data }
+
+En tu propio Postgres, allí donde lo despliegues. Con un modelo autoalojado, los prompts no salen de tu red.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

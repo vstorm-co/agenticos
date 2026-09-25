@@ -1,7 +1,8 @@
 ---
-source_sha: "08e94982c326"
+source_sha: "1a0452323f46"
 title: "AgenticOS vs Wonderful"
-description: "Vergleich einer geschlossenen, von Teams des Anbieters gelieferten Plattform mit einer offenen Plattform, die Ihnen gehört, und separat vereinbarter Implementierungshilfe."
+seo_title: "AgenticOS vs Wonderful: eine KI-Plattform, die Ihnen gehört"
+description: "Wonderfuls geliefertes Enterprise-AI-OS im Vergleich mit AgenticOS, einer Open-Source-Agent-Plattform, die Sie besitzen und betreiben, mit Hilfe von Vstorm."
 ---
 
 # AgenticOS vs Wonderful { #agenticos-vs-wonderful }
@@ -66,6 +67,28 @@ Stellen Sie beiden Anbietern dieselben Fragen.
 Mit AgenticOS kann Vstorm die Installation auf der Infrastruktur des Kunden, Dokumentation, Prozessgestaltung und individuelle Entwicklung besprechen. Support, Wartung, Integrationen und Reaktionszusagen werden für das Projekt vereinbart; sie kommen nicht automatisch mit dem Repository.
 
 Definieren Sie eine überprüfbare Aufgabe anhand des [Dokumentenbeispiels](../howto/first-document-agent.md) und des [Betriebsleitfadens](../rollout.md). Für Implementierungshilfe wenden Sie sich an [Vstorm](https://vstorm.co/) oder an Kacper. Vergleichen Sie den vereinbarten Lieferumfang zusammen mit den [Softwarekriterien](comparison.md).
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Alternative zu Wonderful? { #is-agenticos-an-alternative-to-wonderful }
+
+Für Organisationen, denen die Plattform selbst gehören soll, ja. AgenticOS ist Open Source und läuft auf Ihrer Infrastruktur, und Vstorm kann bei der Implementierung helfen. Wonderful liefert eine geschlossene Plattform mit eigenen Deployment-Teams.
+
+### Lässt sich AgenticOS On-Premises betreiben? { #can-agenticos-be-deployed-on-premises }
+
+Ja. Es läuft mit Docker Compose auf Ihrem eigenen Host. Mit einem lokalen Modell kann der gesamte Weg in Ihrem Netzwerk bleiben.
+
+### Unterstützt AgenticOS Sprach- oder WhatsApp-Agents? { #does-agenticos-support-voice-or-whatsapp-agents }
+
+Noch nicht. Seine Oberflächen sind Web-Chat, ein Widget, eine gehostete Seite, die HTTP-API, ein WebSocket, Slack, Telegram und Mattermost.
+
+### Was passiert, wenn wir die Zusammenarbeit mit Vstorm beenden? { #what-happens-if-we-stop-working-with-vstorm }
+
+Die Bereitstellung läuft weiter. Der Quellcode steht unter Apache-2.0, Specs werden als YAML exportiert und die Daten liegen in Ihrem Postgres, sodass ein anderes Team sie betreiben kann.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [AgenticOS vs Dify](dify.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

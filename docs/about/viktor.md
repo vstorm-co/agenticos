@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Viktor"
-description: "Compare one managed AI teammate per workspace with a platform of versioned agents your team operates."
+seo_title: "AgenticOS vs Viktor: a self-hosted AI teammate alternative"
+description: "Viktor is one AI teammate per Slack or Teams workspace. Compare it with AgenticOS: many governed agents, any model and per-agent budgets on your servers."
 ---
 
 # AgenticOS vs Viktor
@@ -64,6 +65,28 @@ Viktor learns from conversations and connected tools. AgenticOS adds managed doc
 Use the [shared document fixture](../howto/first-document-agent.md). Compare source access, the actual answer, a missing-policy question and a source update. Check which identity can retrieve the source, and how access is removed when someone leaves.
 
 Then run a second agent for a different team in each product. Check whether it can see the first team's integrations and memory. That second agent is where a workspace teammate and an agent platform differ most. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to Viktor?
+
+Yes, if you want more than one shared assistant. AgenticOS runs many agents, each with its own instructions, access, knowledge and budget, on your own infrastructure. Viktor is quicker to start in Slack or Teams and runs in its own cloud.
+
+### Can AgenticOS answer in Slack like Viktor?
+
+Yes. A published agent answers in Slack, and a linked user runs as themselves. AgenticOS also answers in Telegram, Mattermost, a website widget, a hosted page and the HTTP API. It has no Microsoft Teams channel yet.
+
+### How does pricing compare?
+
+Viktor sells workspace credits, from $50 a month for 20,000. AgenticOS has no licence fee: you pay model providers directly, and each agent has its own monthly budget.
+
+### Where is the data stored?
+
+Viktor says it is hosted on AWS us-east-1. AgenticOS stores conversations, documents and vectors in your own Postgres, wherever you deploy it.
+
+## Related comparisons
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Wonderful](wonderful.md) · [All comparisons](comparison.md)
 
 ## Sources
 

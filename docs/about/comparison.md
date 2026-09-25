@@ -1,6 +1,7 @@
 ---
 title: "Compare AgenticOS"
-description: "How AgenticOS compares with assistant apps, agent builders, teammate services, delivered platforms and coding agents."
+seo_title: "AgenticOS comparisons: self-hosted AI agent platform"
+description: "Compare AgenticOS, the open-source, self-hosted AI agent platform, with Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n and coding agents."
 ---
 
 # Compare AgenticOS
@@ -75,6 +76,24 @@ Record the product version or service plan, model, source processing, identity, 
 A vendor description establishes a documented option, not its quality on your workload. No competitor account was exercised for these guides. Untested behavior stays unknown rather than becoming a missing-feature mark. Prices and plan contents change often, so confirm them on the linked page before you quote them.
 
 For a published trial, report the exact inputs, actual outputs, failed attempts and configuration. Separate model usage from infrastructure, implementation and ongoing operation. Check [licences](../licenses.md), provider terms and the edition you would deploy.
+
+## Frequently asked questions
+
+### Is AgenticOS open source?
+
+Yes. AgenticOS is licensed under Apache-2.0 and runs on your own infrastructure with Docker Compose. Some bundled components carry their own licences, listed on the [licences](../licenses.md) page.
+
+### Is AgenticOS a self-hosted alternative to ChatGPT Enterprise or Claude Enterprise?
+
+For agents your organization owns, yes. It runs agents on any of 27 model providers, OpenAI and Anthropic included, with budgets, approvals and audit logs in every deployment. It is not a personal assistant for every employee; see the [ChatGPT](chatgpt.md) and [Claude](claude-apps.md) guides.
+
+### How much does AgenticOS cost?
+
+There is no licence or seat fee. You pay your model providers at their own rates and run the infrastructure: [4 vCPU and 8 GB of RAM](../deploy.md) runs it. Implementation help from Vstorm is agreed separately.
+
+### Which comparison should I read first?
+
+Start from the kind of product you are weighing: an assistant app, a builder in a cloud suite, a self-hosted builder, a teammate service, a delivered platform or a coding agent. The [table at the top](#pick-the-guide-for-your-decision) points to each guide.
 
 ## Other starting points
 

@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs ChatGPT"
-description: "Compare ChatGPT Business and Enterprise, including workspace agents, with a self-hosted platform for company agents."
+seo_title: "AgenticOS vs ChatGPT Enterprise: a self-hosted alternative"
+description: "Compare ChatGPT Business, Enterprise and workspace agents with AgenticOS: self-hosted, any model, eight surfaces, per-agent budgets and audit logs."
 ---
 
 # AgenticOS vs ChatGPT
@@ -64,6 +65,28 @@ Keep ChatGPT for employees' own work. Use AgenticOS for agents that serve custom
 ## Try one handbook question
 
 Build the [shared document agent](../howto/first-document-agent.md) as a workspace agent and as an AgenticOS agent on the same OpenAI model. Call each from a script and check what the call returns. Then put it in front of a visitor without a ChatGPT account. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS a self-hosted alternative to ChatGPT Enterprise?
+
+For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to eight surfaces with its own budget and audit trail. It does not replace ChatGPT as an assistant for every employee.
+
+### Can AgenticOS use OpenAI models?
+
+Yes. Add a model profile for OpenAI or Azure OpenAI. You can move an agent to another provider later without republishing it.
+
+### How are ChatGPT workspace agents different from AgenticOS agents?
+
+Workspace agents run in OpenAI's cloud on OpenAI models, in ChatGPT, Slack, schedules and an API trigger that returns no answer. AgenticOS agents run on your infrastructure, on any model, and answer through an API that returns the result, a widget, a hosted page and chat bots.
+
+### What replaces OpenAI's Agent Builder after it shuts down?
+
+OpenAI points users to the Agents SDK or ChatGPT workspace agents. AgenticOS is an alternative if you want a builder you host yourself, with a spec format that keeps loading across upgrades.
+
+## Related comparisons
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [All comparisons](comparison.md)
 
 ## Sources
 

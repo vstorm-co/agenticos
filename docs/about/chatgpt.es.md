@@ -1,7 +1,8 @@
 ---
-source_sha: "41849273e1f5"
+source_sha: "c2db9c1b3168"
 title: "AgenticOS vs ChatGPT"
-description: "Compara ChatGPT Business y Enterprise, incluidos los workspace agents, con una plataforma autoalojada para los agents de la empresa."
+seo_title: "AgenticOS vs ChatGPT Enterprise: alternativa autoalojada"
+description: "Compara ChatGPT Business, Enterprise y los workspace agents con AgenticOS: autoalojado, cualquier modelo, ocho superficies, budgets por agent y auditoría."
 ---
 
 # AgenticOS vs ChatGPT { #agenticos-vs-chatgpt }
@@ -65,6 +66,28 @@ Mantén ChatGPT para el trabajo propio de los empleados. Usa AgenticOS para los 
 ## Prueba una pregunta del manual { #try-one-handbook-question }
 
 Construye el [agent documental compartido](../howto/first-document-agent.md) como workspace agent y como agent de AgenticOS sobre el mismo modelo de OpenAI. Llama a cada uno desde un script y comprueba qué devuelve la llamada. Después ponlo delante de un visitante sin cuenta de ChatGPT. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa autoalojada a ChatGPT Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise }
+
+Para los agents que son propiedad de tu organización, sí. Se ejecuta en tu infraestructura, usa OpenAI o cualquier otro provider y publica cada agent en ocho superficies con su propio budget y su registro de auditoría. No sustituye a ChatGPT como asistente para cada empleado.
+
+### ¿AgenticOS puede usar modelos de OpenAI? { #can-agenticos-use-openai-models }
+
+Sí. Añade un perfil de modelo para OpenAI o Azure OpenAI. Más adelante puedes pasar un agent a otro provider sin volver a publicarlo.
+
+### ¿En qué se diferencian los workspace agents de ChatGPT de los agents de AgenticOS? { #how-are-chatgpt-workspace-agents-different-from-agenticos-agents }
+
+Los workspace agents se ejecutan en la nube de OpenAI con modelos de OpenAI, en ChatGPT, Slack, programaciones y un trigger de API que no devuelve ninguna respuesta. Los agents de AgenticOS se ejecutan en tu infraestructura, con cualquier modelo, y responden a través de una API que devuelve el resultado, un widget, una página alojada y bots de chat.
+
+### ¿Qué sustituye a Agent Builder de OpenAI cuando se cierre? { #what-replaces-openais-agent-builder-after-it-shuts-down }
+
+OpenAI remite a sus usuarios al Agents SDK o a los workspace agents de ChatGPT. AgenticOS es una alternativa si quieres un builder que alojes tú mismo, con un formato de spec que sigue cargando entre actualizaciones.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

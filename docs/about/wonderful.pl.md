@@ -1,12 +1,13 @@
 ---
-source_sha: "08e94982c326"
+source_sha: "1a0452323f46"
 title: "AgenticOS vs Wonderful"
-description: "Porównanie zamkniętej platformy dostarczanej przez zespoły producenta z otwartą platformą, która należy do Ciebie, z pomocą we wdrożeniu ustalaną osobno."
+seo_title: "AgenticOS vs Wonderful: platforma AI dla firm na własność"
+description: "Porównaj dostarczany enterprise AI OS Wonderful z AgenticOS, platformą agentów open source na własność, którą sam uruchamiasz, z pomocą we wdrożeniu od Vstorm."
 ---
 
 # AgenticOS vs Wonderful { #agenticos-vs-wonderful }
 
-Wonderful sprzedaje zamkniętą platformę AI enterprise razem z zespołami forward-deployed, które budują agentów wewnątrz Twojej organizacji i etapami przekazują nad nimi własność. AgenticOS to otwarta platforma, która od pierwszego dnia należy do Twojej organizacji. Jej źródła są na licencji Apache-2.0, działa na Twojej infrastrukturze, a zakres pomocy we wdrożeniu od Vstorm ustala się osobno.
+Wonderful sprzedaje zamkniętą platformę AI enterprise razem z zespołami forward-deployed, które budują agentów wewnątrz twojej organizacji i etapami przekazują nad nimi własność. AgenticOS to otwarta platforma, która od pierwszego dnia należy do twojej organizacji. Jej źródła są na licencji Apache-2.0, działa na twojej infrastrukturze, a zakres pomocy we wdrożeniu od Vstorm ustala się osobno.
 
 Pytanie dotyczy nie tyle tego, które oprogramowanie jest lepsze, ile tego, co chcesz mieć na własność, gdy projekt się skończy: umowę z producentem platformy czy samą platformę.
 
@@ -18,12 +19,12 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. W
 | --- | --- | --- |
 | Co kupujesz | Platformę z zespołami wdrożeniowymi i strategami | Oprogramowanie, które uruchamiasz; pomoc we wdrożeniu uzgadniana osobno |
 | Źródła | Własnościowe; eksport agentów i konfiguracji przez UI lub API | Apache-2.0; całą platformę można czytać i forkować |
-| Gdzie działa | Wielotenantowy SaaS, single-tenant, Twoja chmura albo odizolowane od sieci on-premises | Twoja infrastruktura, z Docker Compose |
+| Gdzie działa | Wielotenantowy SaaS, single-tenant, twoja chmura albo odizolowane od sieci on-premises | Twoja infrastruktura, z Docker Compose |
 | Ceny | Nieopublikowane; sprzedaż przez handlowców | Bez opłaty licencyjnej; modele, infrastruktura i ewentualne uzgodnione usługi |
 | Kanały | Głos, czat, e-mail, WhatsApp i SMS | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Modele | Routing per zadanie przez platformę | Twój wybór spośród 27 providerów, ustawiany per profil modelu |
 | Nadzór | AI Gateway z limitami budżetu per zespół i logami audytowymi | Budżety per agent i per organizacja, zatwierdzenia i log audytowy wykrywający manipulacje |
-| Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO | Twoje kontrole na Twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
+| Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
@@ -31,7 +32,7 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. W
 
 Wonderful opisuje eksport agentów, skilli, narzędzi i konfiguracji nadzoru oraz headless API. To realne zobowiązanie. Runtime pozostaje zamknięty, więc wyeksportowany agent i tak potrzebuje miejsca, w którym będzie działał.
 
-W AgenticOS to właśnie runtime jest częścią, która należy do Ciebie. Źródła są na licencji Apache-2.0, speci [eksportują się jako YAML](../features.md#exportable-into-your-own-repository) do Twojego repozytorium, a dane leżą w [Twoim Postgresie](../data-protection.md#where-personal-data-lives). Jeśli rozstaniesz się z Vstorm, wdrożenie dalej działa, a utrzymywać je może inny zespół.
+W AgenticOS to właśnie runtime jest częścią, która należy do Ciebie. Źródła są na licencji Apache-2.0, speci [eksportują się jako YAML](../features.md#exportable-into-your-own-repository) do twojego repozytorium, a dane leżą w [twoim Postgresie](../data-protection.md#where-personal-data-lives). Jeśli rozstaniesz się z Vstorm, wdrożenie dalej działa, a utrzymywać je może inny zespół.
 
 ### Model kosztów, który widzisz przed podpisaniem umowy { #a-cost-model-you-can-see-before-you-sign }
 
@@ -43,7 +44,7 @@ Model dostawy Wonderful przechodzi etapami od pracy prowadzonej przez Wonderful 
 
 ### Kontrole, które możesz sprawdzić { #controls-you-can-inspect }
 
-Certyfikaty Wonderful obejmują jego własną usługę. W AgenticOS sprawdzasz same kontrole: [katalog uprawnień](../permissions.md), [vault](../secrets.md#envelope-encryption), [log audytowy](../governance.md#audit) i jego łańcuch haszy oraz [testy odmów](../security.md#the-refusals-as-a-set), które działają w CI. [Profil HIPAA](../security.md#the-hipaa-profile-and-what-it-does-not-claim) i komenda `data-protection-report` dają dowody dla jednego wdrożenia. Twoja certyfikacja obejmuje Twoje wdrożenie.
+Certyfikaty Wonderful obejmują jego własną usługę. W AgenticOS sprawdzasz same kontrole: [katalog uprawnień](../permissions.md), [vault](../secrets.md#envelope-encryption), [log audytowy](../governance.md#audit) i jego łańcuch haszy oraz [testy odmów](../security.md#the-refusals-as-a-set), które działają w CI. [Profil HIPAA](../security.md#the-hipaa-profile-and-what-it-does-not-claim) i komenda `data-protection-report` dają dowody dla jednego wdrożenia. Twoja certyfikacja obejmuje twoje wdrożenie.
 
 ## Kiedy Wonderful pasuje lepiej { #when-wonderful-is-the-better-fit }
 
@@ -66,6 +67,28 @@ Zadaj obu producentom te same pytania.
 W przypadku AgenticOS Vstorm może omówić instalację na infrastrukturze klienta, dokumentację, projektowanie procesów i rozwój na zamówienie. Wsparcie, utrzymanie, integracje i zobowiązania dotyczące czasu reakcji uzgadnia się dla projektu; nie przychodzą automatycznie razem z repozytorium.
 
 Zdefiniuj jedno sprawdzalne zadanie na podstawie [przykładu dokumentu](../howto/first-document-agent.md) i [przewodnika po utrzymaniu](../rollout.md). W sprawie pomocy we wdrożeniu skontaktuj się z [Vstorm](https://vstorm.co/) albo z Kacprem. Porównaj uzgodniony zakres dostawy obok [kryteriów dotyczących oprogramowania](comparison.md).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS to alternatywa dla Wonderful? { #is-agenticos-an-alternative-to-wonderful }
+
+Dla organizacji, które chcą mieć platformę na własność, tak. AgenticOS jest open source i działa na twojej infrastrukturze, a Vstorm może pomóc go wdrożyć. Wonderful dostarcza zamkniętą platformę z własnymi zespołami wdrożeniowymi.
+
+### Czy AgenticOS można wdrożyć on-premises? { #can-agenticos-be-deployed-on-premises }
+
+Tak. Działa z Docker Compose na twoim własnym hoście. Z lokalnym modelem cała ścieżka może pozostać w twojej sieci.
+
+### Czy AgenticOS obsługuje agentów głosowych lub WhatsApp? { #does-agenticos-support-voice-or-whatsapp-agents }
+
+Jeszcze nie. Jego powierzchnie to czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram i Mattermost.
+
+### Co się stanie, jeśli przestaniemy współpracować z Vstorm? { #what-happens-if-we-stop-working-with-vstorm }
+
+Wdrożenie działa dalej. Źródła są na licencji Apache-2.0, speci eksportują się jako YAML, a dane są w twoim Postgresie, więc utrzymanie może przejąć inny zespół.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [AgenticOS vs Dify](dify.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 

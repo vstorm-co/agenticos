@@ -1,7 +1,8 @@
 ---
-source_sha: "a7342e50843d"
+source_sha: "6daf4c941912"
 title: "AgenticOS vs Copilot Studio"
-description: "Vergleichen Sie den Low-Code-Agent-Builder von Microsoft in Power Platform mit einer selbst betriebenen Open-Source-Plattform für Unternehmens-Agents."
+seo_title: "AgenticOS vs Copilot Studio: selbst gehostete Alternative"
+description: "Microsoft Copilot Studio vs. AgenticOS: keine Copilot Credits, jeder Modell-Provider, Ihre eigene Infrastruktur, Budgets pro Agent und offenes Audit."
 ---
 
 # AgenticOS vs Copilot Studio { #agenticos-vs-copilot-studio }
@@ -24,7 +25,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Durchsetzung der Ausgaben | Monatliche Limits pro Agent; Agents werden bei 125 % der vorausbezahlten Kapazität deaktiviert | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Oberflächen | Teams, Microsoft 365, SharePoint, Web, WhatsApp, Sprache sowie Slack oder Telegram über Azure Bot Service | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
 | Identität | Microsoft Entra ID | OIDC-SSO einschließlich Entra, LDAP und Kerberos |
-| Governance | Datenrichtlinien von Power Platform, Purview-Audit, Entra Agent ID | Berechtigungskatalog, Grants, Genehmigungen und ein Audit-Log mit Manipulationsnachweis |
+| Governance | Datenrichtlinien von Power Platform, Purview-Audit, Entra Agent ID | Berechtigungskatalog, Grants, Freigaben und ein Audit-Log mit Manipulationsnachweis |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
 
@@ -57,6 +58,28 @@ AgenticOS meldet Personen mit Entra ID über [OIDC](../configuration.md#single-s
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
 Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) in beiden, auf vergleichbaren Modellen. Stellen Sie hundert Fragen und vergleichen Sie die Rechnung: Credits auf der einen Seite, Modellkosten auf der anderen. Prüfen Sie dann, was passiert, wenn das Limit erreicht ist. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Alternative zu Microsoft Copilot Studio? { #is-agenticos-an-alternative-to-microsoft-copilot-studio }
+
+Ja, wenn Ihnen die Plattform selbst gehören soll. AgenticOS läuft auf Ihrer Infrastruktur, mit jedem Modell-Provider und ohne Credit-Zähler. Copilot Studio passt besser, wenn Agents in Teams und Microsoft 365 leben.
+
+### Funktioniert AgenticOS mit Microsoft Entra ID und SharePoint? { #does-agenticos-work-with-microsoft-entra-id-and-sharepoint }
+
+Ja. Personen melden sich mit Entra ID über OIDC an, Verzeichnisgruppen werden Rollen zugeordnet, und Sammlungen synchronisieren Dateien aus SharePoint und OneDrive.
+
+### Was kostet Copilot Studio im Vergleich zu AgenticOS? { #how-much-does-copilot-studio-cost-compared-with-agenticos }
+
+Copilot Studio verkauft 25.000 Copilot Credits für 200 $ im Monat oder 0,01 $ pro Credit bei nutzungsbasierter Abrechnung. AgenticOS erhebt keine eigene Gebühr; Sie bezahlen Ihren Modell-Provider für die Tokens, die ein Agent verbraucht.
+
+### Kann AgenticOS Agents in Microsoft Teams veröffentlichen? { #can-agenticos-publish-agents-to-microsoft-teams }
+
+Noch nicht. Es veröffentlicht im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Telegram und Mattermost.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs n8n](n8n.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

@@ -1,7 +1,8 @@
 ---
-source_sha: "73d658736c90"
+source_sha: "135a9b310e53"
 title: "AgenticOS vs Dify"
-description: "Compara dos plataformas de agents autoalojadas en licencia, multi-tenancy, gobernanza y la forma en que un equipo cambia un agent."
+seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
+description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
 ---
 
 # AgenticOS vs Dify { #agenticos-vs-dify }
@@ -67,6 +68,28 @@ En Dify cambias un proceso editando el lienzo. En AgenticOS un responsable de ne
 Usa el mismo [manual sintético](../howto/first-document-agent.md), las mismas preguntas y las mismas comprobaciones de referencia. Registra en cada lado la versión, el modelo, la configuración de procesamiento de fuentes y la identidad. Después cambia el responsable de la solicitud en la fuente y repite tras el procesamiento.
 
 Añade dos comprobaciones que muestran las diferencias anteriores. Crea un segundo tenant para un segundo equipo, y dale a un agent un budget de unos pocos céntimos; después ejecútalo hasta superar el límite. Registra qué permite, qué rechaza y qué registra cada producto, con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS es una alternativa de código abierto a Dify? { #is-agenticos-an-open-source-alternative-to-dify }
+
+Sí. Ambos son autoalojados y ambos hacen recuperación de documentos. AgenticOS es Apache-2.0 sin condiciones sobre multi-tenancy ni logotipo, e incluye SSO, roles, budgets, aprobaciones y un registro de auditoría con detección de manipulaciones sin una edición Enterprise.
+
+### ¿Dify puede funcionar como servicio multi-tenant? { #can-dify-run-as-a-multi-tenant-service }
+
+La licencia de Dify exige permiso por escrito para operar un entorno multi-tenant, donde un tenant es un workspace. AgenticOS da servicio a muchas organizaciones desde un solo despliegue bajo Apache-2.0.
+
+### ¿AgenticOS tiene un constructor visual de workflows como Dify? { #does-agenticos-have-a-visual-workflow-builder-like-dify }
+
+No. AgenticOS construye agents a partir de instrucciones, capabilities, conocimiento y un budget, y resuelve el trabajo de varios pasos con delegación, planificación y triggers. Si tu equipo trabaja con un lienzo de nodos, Dify encaja mejor.
+
+### ¿Cuál de los dos cuesta menos de operar? { #which-one-costs-less-to-run }
+
+Dify Community Edition y AgenticOS son gratuitos para autoalojar; pagas los modelos y la infraestructura. El equipo comercial de Dify fija el precio de sus funciones Enterprise. En AgenticOS esos controles ya están en el producto de código abierto.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs n8n](n8n.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

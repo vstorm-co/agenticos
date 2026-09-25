@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Gemini Enterprise"
-description: "Compare Google's employee agent platform and enterprise search with a self-hosted, open-source platform for company agents."
+seo_title: "AgenticOS vs Gemini Enterprise: a self-hosted alternative"
+description: "Compare Google Gemini Enterprise with AgenticOS: any model in every agent, no seat fee or build quotas, eight surfaces, on your own servers."
 ---
 
 # AgenticOS vs Gemini Enterprise
@@ -54,6 +55,28 @@ Gemini Enterprise offers residency in the regions Google supports. AgenticOS kee
 ## Try it on one task
 
 Build the [shared document agent](../howto/first-document-agent.md) in Workflow Builder and in AgenticOS. Then switch each to a non-Gemini model, and publish it to someone without a seat. Record what each allows with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to Google Gemini Enterprise?
+
+For agents your organization owns and publishes, yes. AgenticOS runs on your infrastructure, uses any model in every agent and answers customers as well as employees. For enterprise search across Google Workspace and Microsoft 365, Gemini Enterprise fits better.
+
+### Can AgenticOS use Gemini models?
+
+Yes, through Google Gemini or Vertex AI model profiles, two of the 27 providers AgenticOS supports.
+
+### Does AgenticOS limit how many agents you can create?
+
+No. There is no seat fee and no creation quota. An agent costs what its model calls cost, up to its budget.
+
+### Where does AgenticOS store data?
+
+In your own Postgres, wherever you deploy it. With a self-hosted model, prompts do not leave your network.
+
+## Related comparisons
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [All comparisons](comparison.md)
 
 ## Sources
 

@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Dify"
-description: "Compare two self-hosted agent platforms on licence, tenancy, governance and how a team changes an agent."
+seo_title: "AgenticOS vs Dify: an Apache-2.0, multi-tenant alternative"
+description: "Compare Dify and AgenticOS, two self-hosted AI agent platforms: licence conditions, multi-tenancy, SSO, budgets, approvals, audit logs and pricing."
 ---
 
 # AgenticOS vs Dify
@@ -66,6 +67,28 @@ In Dify you change a process by editing the canvas. In AgenticOS a business owne
 Use the same [synthetic handbook](../howto/first-document-agent.md), questions and reference checks. Record the version, model, source-processing settings and identity on each side. Then change the request owner in the source and repeat after processing.
 
 Add two checks that show the differences above. Create a second tenant for a second team, and give an agent a budget of a few cents, then run it past the cap. Record what each product allows, refuses and logs, with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an open-source alternative to Dify?
+
+Yes. Both self-host and both handle document retrieval. AgenticOS is Apache-2.0 with no multi-tenant or logo conditions, and it includes SSO, roles, budgets, approvals and a tamper-evident audit log without an enterprise edition.
+
+### Can Dify run as a multi-tenant service?
+
+Dify's licence requires written permission to operate a multi-tenant environment, where one tenant is one workspace. AgenticOS serves many organizations from one deployment under Apache-2.0.
+
+### Does AgenticOS have a visual workflow builder like Dify?
+
+No. AgenticOS builds agents from instructions, capabilities, knowledge and a budget, and handles multi-step work with delegation, planning and triggers. If a node canvas is how your team works, Dify fits better.
+
+### Which one costs less to run?
+
+Dify Community Edition and AgenticOS are both free to self-host; you pay for models and infrastructure. Dify's Enterprise features are priced by its sales team. In AgenticOS those controls are already in the open-source product.
+
+## Related comparisons
+
+[AgenticOS vs n8n](n8n.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [All comparisons](comparison.md)
 
 ## Sources
 

@@ -1,7 +1,8 @@
 ---
-source_sha: "6541bd2e459e"
+source_sha: "eb3eec9570d3"
 title: "AgenticOS vs Claude"
-description: "Compara Claude Team y Enterprise, el workspace de asistente de Anthropic, con una plataforma autoalojada para los agents de la empresa."
+seo_title: "AgenticOS vs Claude Team y Enterprise: agents que son tuyos"
+description: "Compara Claude Team y Enterprise con AgenticOS: agents autoalojados con Claude u otro modelo, budgets por agent, aprobaciones, auditoría y sin coste por puesto."
 ---
 
 # AgenticOS vs Claude { #agenticos-vs-claude }
@@ -68,6 +69,28 @@ Mantén Claude para el trabajo diario de los empleados. Usa AgenticOS para los a
 ## Prueba una pregunta del manual { #try-one-handbook-question }
 
 Pon el [ejemplo documental común](../howto/first-document-agent.md) en un Project de Claude y en una colección de AgenticOS, ambos con el mismo modelo Claude. Haz la pregunta con respuesta en la documentación y la pregunta sobre la política ausente, y después da la misma respuesta a alguien de fuera de la organización. Con Claude eso requiere un puesto; con AgenticOS es un enlace a una [página alojada](../channels.md#a-hosted-page). Registra lo que permite cada uno con el [método de comparación](comparison.md#a-shared-trial).
+
+## Preguntas frecuentes { #frequently-asked-questions }
+
+### ¿AgenticOS puede usar modelos Claude? { #can-agenticos-use-claude-models }
+
+Sí. Añade un perfil de modelo para la API de Anthropic, Amazon Bedrock o Google Vertex AI, y cualquier agent puede ejecutarse con Claude. Pagas a Anthropic o al proveedor de nube según sus tarifas de API.
+
+### ¿AgenticOS es una alternativa autoalojada a Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-claude-enterprise }
+
+Para los agents que publica tu organización, sí. Se ejecuta en tu infraestructura con budgets por agent, aprobaciones, roles y un registro de auditoría con detección de manipulaciones. No sustituye a Claude como asistente personal para cada empleado.
+
+### ¿AgenticOS cobra por puesto? { #does-agenticos-charge-per-seat }
+
+No. No hay cuota por puesto ni de licencia. Claude Team empieza en $20 por puesto al mes con pago anual, y Claude Enterprise añade a su cuota por puesto el uso a tarifas de API.
+
+### ¿Pueden usar un agent de AgenticOS personas de fuera de la empresa? { #can-people-outside-the-company-use-an-agenticos-agent }
+
+Sí. Un agent responde a través de un widget para sitios web, un enlace a una página alojada, la API HTTP, Slack, Telegram o Mattermost, sin necesidad de puesto.
+
+## Comparativas relacionadas { #related-comparisons }
+
+[AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [Todas las comparativas](comparison.md)
 
 ## Fuentes { #sources }
 

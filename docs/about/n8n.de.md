@@ -1,7 +1,8 @@
 ---
-source_sha: "b7d447c613d8"
+source_sha: "7eecc52a021f"
 title: "AgenticOS vs n8n"
-description: "Vergleichen Sie Workflow-Automatisierung mit KI-Agent-Knoten und eine Plattform, die um kontrollierte Agents herum gebaut ist."
+seo_title: "AgenticOS vs n8n: Apache-2.0-Alternative für KI-Agents"
+description: "n8n und AgenticOS für KI-Agents: Lizenz, SSO und Rollen ohne kostenpflichtige Tarife, Budgets pro Agent statt Ausführungskontingenten, und Freigaben."
 ---
 
 # AgenticOS vs n8n { #agenticos-vs-n8n }
@@ -23,8 +24,8 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Rollen | Projekte und Rollen in kostenpflichtigen Tarifen; nicht in der Community Edition | Sechs Rollen und Grants pro Ressource in jedem Deployment |
 | Umgebungen und Versionskontrolle | Ab Business | Umgebungen und YAML-Export in jedem Deployment |
 | Ausgabenkontrolle | Ausführungskontingente pro Tarif | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
-| Audit | Log-Streaming bei Enterprise | Manipulationssicheres Audit-Log in jedem Deployment |
-| Menschliche Genehmigung | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug, über eine gemeinsame Warteschlange |
+| Audit | Log-Streaming bei Enterprise | Audit-Log mit Manipulationsnachweis in jedem Deployment |
+| Menschliche Freigabe | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug, über eine gemeinsame Warteschlange |
 | Preise | Community kostenlos; Cloud ab 20 € im Monat für 2.500 Ausführungen bei jährlicher Abrechnung; Business 667 € im Monat, selbst betrieben | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -64,11 +65,33 @@ n8n baut Retrieval aus Knoten: Loader, Embeddings und ein Vektorspeicher Ihrer W
 
 ## Beides zusammen nutzen { #use-them-together }
 
-Ein n8n-Workflow kann einen AgenticOS-Agent über die [HTTP-API](../channels.md#the-public-api) aufrufen und die Antwort zurückerhalten, wobei Budget, Genehmigung und Audit angewendet werden. Ein AgenticOS-[Webhook-Trigger](../triggers.md) kann einen Agent starten, wenn n8n an ihn sendet.
+Ein n8n-Workflow kann einen AgenticOS-Agent über die [HTTP-API](../channels.md#the-public-api) aufrufen und die Antwort zurückerhalten, wobei Budget, Freigabe und Audit angewendet werden. Ein AgenticOS-[Webhook-Trigger](../triggers.md) kann einen Agent starten, wenn n8n an ihn sendet.
 
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
 Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) in beiden. Geben Sie jedem ein Ausgabenlimit von wenigen Cent und lassen Sie ihn über das Limit hinaus laufen. Geben Sie dann einem zweiten Team eine eigene Kopie und prüfen Sie, was das erste Team sehen kann. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Open-Source-Alternative zu n8n? { #is-agenticos-an-open-source-alternative-to-n8n }
+
+Für KI-Agents, ja. AgenticOS steht unter Apache-2.0, während n8n die Sustainable Use License verwendet. Um Daten auf einer visuellen Arbeitsfläche zwischen vielen Systemen zu bewegen, passt n8n besser, und beide arbeiten gut zusammen.
+
+### Ist n8n Open Source? { #is-n8n-open-source }
+
+Nicht im Sinne der OSI. Seine Sustainable Use License erlaubt interne geschäftliche, nicht kommerzielle und private Nutzung, und Funktionen in `.ee`-Dateien benötigen eine n8n-Enterprise-Lizenz.
+
+### Kann n8n einen AgenticOS-Agent aufrufen? { #can-n8n-call-an-agenticos-agent }
+
+Ja. Ein n8n-Workflow kann die HTTP-API von AgenticOS aufrufen und die Antwort zurückerhalten, wobei Budget, Freigaben und Audit des Agents angewendet werden.
+
+### Wie unterscheiden sich die Preise von n8n und AgenticOS? { #how-does-n8n-pricing-compare-with-agenticos }
+
+n8n Cloud beginnt bei 20 € im Monat für 2.500 Ausführungen bei jährlicher Abrechnung und zählt jeden Agent-Durchgang als eine Ausführung. AgenticOS hat keine Lizenzgebühr und misst die Modellkosten gegen das Budget jedes Agents.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Dify](dify.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

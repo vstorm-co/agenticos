@@ -1,7 +1,8 @@
 ---
-source_sha: "d0e31f6b27f0"
+source_sha: "6b7c5763a7d2"
 title: "AgenticOS vs OpenCode"
-description: "OpenCode ist ein Open-Source-Coding-Agent für einen Entwickler. AgenticOS ist eine Open-Source-Plattform für die Agents eines Unternehmens."
+seo_title: "AgenticOS vs OpenCode: Open-Source-Agent-Tools im Vergleich"
+description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS eine Apache-2.0-Plattform für KI-Agents im Unternehmen, mit Rollen, Budgets und Audit-Logs."
 ---
 
 # AgenticOS vs OpenCode { #agenticos-vs-opencode }
@@ -19,9 +20,9 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Quellcode | MIT | Apache-2.0 |
 | Modelle | 75+ Provider über Models.dev, einschließlich lokaler | 27 Provider, einschließlich lokaler |
 | Benutzer und Zugriff | Ein Benutzer; Zen-Teams haben Admin und Member | Organisationen, sechs Rollen, 27 Berechtigungen, Grants pro Ressource |
-| Genehmigungen | `allow`, `ask` oder `deny` pro Werkzeug, an der Tastatur beantwortet | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
+| Freigaben | `allow`, `ask` oder `deny` pro Werkzeug, an der Tastatur beantwortet | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Monatliche Limits auf dem Zen-Gateway | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
-| Audit | Nicht dokumentiert | Manipulationssicheres Audit-Log |
+| Audit | Nicht dokumentiert | Audit-Log mit Manipulationsnachweis |
 | Teilen | Öffentliche Freigabelinks auf `opncd.ai`, bis die Freigabe aufgehoben wird | Grants, gehostete Seiten und Artefakte mit Besitzer und Sichtbarkeit |
 | Preise | Kostenlos; optional Zen mit nutzungsbasierter Abrechnung und Go für 10 $ im Monat; Enterprise pro Platz | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
@@ -56,6 +57,28 @@ Ein Entwickler kann OpenCode mit jedem Modell nutzen, um eine neue [Capability](
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
 Beantworten Sie die Frage aus dem [gemeinsamen Handbuch](../howto/first-document-agent.md) in beiden. Übergeben Sie das Ergebnis dann an fünf Kollegen und prüfen Sie, wer eine Rückfrage stellen kann, was sie kostet und welcher Nachweis bleibt. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Alternative zu OpenCode? { #is-agenticos-an-alternative-to-opencode }
+
+Nicht für das Programmieren in einem Repository. OpenCode ist ein Coding-Agent für einen Entwickler. AgenticOS ist eine Plattform für viele Agents und viele Benutzer, mit Rollen, Budgets und Audit-Logs.
+
+### Sind OpenCode und AgenticOS beide Open Source? { #are-opencode-and-agenticos-both-open-source }
+
+Ja. OpenCode steht unter MIT und AgenticOS unter Apache-2.0, und beide können lokale Modelle nutzen.
+
+### Lassen sich AgenticOS-Agents mit Menschen teilen, die nicht programmieren? { #can-agenticos-agents-be-shared-with-people-who-do-not-code }
+
+Ja. Sie antworten über ein Widget, eine gehostete Seite, Slack, Telegram, Mattermost oder die HTTP-API, ohne dass etwas installiert werden muss.
+
+### Kann OpenCode beim Bauen von AgenticOS-Capabilities helfen? { #can-opencode-help-build-agenticos-capabilities }
+
+Ja. Eine Capability ist typisiertes Python im Repository, und OpenCode kann mit jedem Modell helfen, sie zu schreiben und zu testen.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs n8n](n8n.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

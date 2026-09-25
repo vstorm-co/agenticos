@@ -1,12 +1,13 @@
 ---
-source_sha: "6541bd2e459e"
+source_sha: "eb3eec9570d3"
 title: "AgenticOS vs Claude"
-description: "Porównanie Claude Team i Enterprise, przestrzeni roboczej asystenta od Anthropic, z samodzielnie hostowaną platformą dla agentów firmy."
+seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
+description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
 ---
 
 # AgenticOS vs Claude { #agenticos-vs-claude }
 
-Claude Team i Claude Enterprise dają każdemu pracownikowi asystenta od Anthropic: czat, Projects, Research, Cowork, konektory, skille i dodatki do Office, na modelach Claude, w chmurze Anthropic. AgenticOS buduje agentów dla Twojej organizacji, a nie stanowiska dla Twoich pracowników. Każdy agent ma własne zadanie, model, wiedzę, budżet i reguły dostępu i odpowiada na Twojej stronie internetowej, w Twoich narzędziach czatu i przez Twoje API.
+Claude Team i Claude Enterprise dają każdemu pracownikowi asystenta od Anthropic: czat, Projects, Research, Cowork, konektory, skille i dodatki do Office, na modelach Claude, w chmurze Anthropic. AgenticOS buduje agentów dla twojej organizacji, a nie stanowiska dla twoich pracowników. Każdy agent ma własne zadanie, model, wiedzę, budżet i reguły dostępu i odpowiada na twojej stronie internetowej, w twoich narzędziach czatu i przez twoje API.
 
 To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez Anthropic API, Amazon Bedrock albo Google Vertex AI, więc subskrypcja Claude i wdrożenie AgenticOS często działają obok siebie.
 
@@ -26,17 +27,17 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Kontrola wydatków | Limity wydatków organizacji, grupy i użytkownika | Budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
 | Zatwierdzenia | Działający użytkownik albo tryb automatyczny | Run czeka, aż zdecyduje osoba z `approvals:decide` |
 | Log audytowy | Enterprise; 180 dni zdarzeń w CSV | Każdy plan; wykrywa manipulacje, eksport do CSV albo JSONL |
-| Ceny | Team $20 za stanowisko miesięcznie przy rozliczeniu rocznym, $25 przy miesięcznym; Enterprise $20 za stanowisko miesięcznie plus użycie według stawek API, od 20 stanowisk | Użycie modeli według stawek Twojego providera plus infrastruktura |
+| Ceny | Team $20 za stanowisko miesięcznie przy rozliczeniu rocznym, $25 przy miesięcznym; Enterprise $20 za stanowisko miesięcznie plus użycie według stawek API, od 20 stanowisk | Użycie modeli według stawek twojego providera plus infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
 
 ### Agenci do zadania, a nie asystenci dla osoby { #agents-for-a-job-not-assistants-for-a-person }
 
-Claude Projects przechowują instrukcje i wiedzę dla osób, które w nich czatują. Agent AgenticOS to opublikowany obiekt z własną [historią wersji](../concepts.md#version), [środowiskami](../environments.md#what-an-environment-is) do testów i [eksportem do YAML](../features.md#exportable-into-your-own-repository) do Twojego repozytorium. Ten sam agent odpowiada na [każdej powierzchni](../channels.md), w tym w [osadzanym widgecie](../channels.md#the-website-widget) dla anonimowych odwiedzających i na [hostowanej stronie](../channels.md#a-hosted-page). Aplikacje Anthropic nie mają widgetu ani publicznego endpointu per asystent.
+Claude Projects przechowują instrukcje i wiedzę dla osób, które w nich czatują. Agent AgenticOS to opublikowany obiekt z własną [historią wersji](../concepts.md#version), [środowiskami](../environments.md#what-an-environment-is) do testów i [eksportem do YAML](../features.md#exportable-into-your-own-repository) do twojego repozytorium. Ten sam agent odpowiada na [każdej powierzchni](../channels.md), w tym w [osadzanym widgecie](../channels.md#the-website-widget) dla anonimowych odwiedzających i na [hostowanej stronie](../channels.md#a-hosted-page). Aplikacje Anthropic nie mają widgetu ani publicznego endpointu per asystent.
 
 ### Dowolny model i możliwość trzymania go lokalnie { #any-model-and-the-option-to-keep-it-local }
 
-Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [27 providerów](../models.md#providers), w tym Anthropic, Bedrock i Vertex dla Claude, a także OpenAI, Google, Mistral oraz Ollama czy LiteLLM na Twoim własnym sprzęcie. [Profil modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks) pozwala agentowi przejść na inny model lub providera bez ponownej publikacji.
+Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [27 providerów](../models.md#providers), w tym Anthropic, Bedrock i Vertex dla Claude, a także OpenAI, Google, Mistral oraz Ollama czy LiteLLM na twoim własnym sprzęcie. [Profil modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks) pozwala agentowi przejść na inny model lub providera bez ponownej publikacji.
 
 ### Zatwierdzenie przez kogoś innego niż zlecający { #approval-by-someone-other-than-the-requester }
 
@@ -52,22 +53,44 @@ W Claude logi audytowe, role niestandardowe, SCIM, niestandardowa retencja i Com
 
 ### Wiedza, którą możesz dostroić { #knowledge-you-can-tune }
 
-Claude Projects automatycznie przechodzą na wyszukiwanie, gdy wiedza projektu rośnie, i nie udostępniają żadnych ustawień. W AgenticOS dla każdej kolekcji wybierasz [parser](../file-processing.md#parser-selection-rag), [chunking](../file-processing.md#chunking-configuration), OCR i opisywanie obrazów. Dokumenty i wektory zostają w [Twoim Postgresie](../file-processing.md#vector-storage), a [konektory synchronizacji](../howto/configure-sync-sources.md#what-a-sync-removes) utrzymują kolekcje w aktualnym stanie.
+Claude Projects automatycznie przechodzą na wyszukiwanie, gdy wiedza projektu rośnie, i nie udostępniają żadnych ustawień. W AgenticOS dla każdej kolekcji wybierasz [parser](../file-processing.md#parser-selection-rag), [chunking](../file-processing.md#chunking-configuration), OCR i opisywanie obrazów. Dokumenty i wektory zostają w [twoim Postgresie](../file-processing.md#vector-storage), a [konektory synchronizacji](../howto/configure-sync-sources.md#what-a-sync-removes) utrzymują kolekcje w aktualnym stanie.
 
 ## Kiedy sam Claude wystarczy { #when-claude-alone-is-enough }
 
 - Chcesz mocnego asystenta dla każdego pracownika, bez niczego do utrzymywania.
-- Cowork, Claude Code, dodatki do Office i Chrome w ramach jednego stanowiska pokrywają Twoje potrzeby.
+- Cowork, Claude Code, dodatki do Office i Chrome w ramach jednego stanowiska pokrywają twoje potrzeby.
 - Potrzebujesz certyfikatów Anthropic, kluczy zarządzanych przez klienta albo integracji partnerskich z Compliance API.
 - Potrzebujesz SAML albo SCIM już dziś. AgenticOS oferuje OIDC, LDAP i Kerberos, ale jeszcze nie SAML ani SCIM.
 
 ## Używaj obu razem { #use-them-together }
 
-Zostaw Claude do codziennej pracy pracowników. Używaj AgenticOS dla agentów, którzy potrzebują właściciela, budżetu, kroku zatwierdzenia albo publicznej powierzchni. Dodaj profil modelu Anthropic i opublikuj agenta: widget supportu, bota na Telegramie, wewnętrznego agenta polityk. Każdy z nich działa na modelach Claude pod Twoim własnym nadzorem.
+Zostaw Claude do codziennej pracy pracowników. Używaj AgenticOS dla agentów, którzy potrzebują właściciela, budżetu, kroku zatwierdzenia albo publicznej powierzchni. Dodaj profil modelu Anthropic i opublikuj agenta: widget supportu, bota na Telegramie, wewnętrznego agenta polityk. Każdy z nich działa na modelach Claude pod twoim własnym nadzorem.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
 
 Umieść [wspólny przykład dokumentu](../howto/first-document-agent.md) w Claude Project i w kolekcji AgenticOS, w obu przypadkach na tym samym modelu Claude. Zadaj pytanie, na które materiał odpowiada, i pytanie o brakującą zasadę, a potem udostępnij tę samą odpowiedź komuś spoza organizacji. W Claude wymaga to stanowiska; w AgenticOS wystarczy link do [hostowanej strony](../channels.md#a-hosted-page). Zapisz, na co każdy produkt pozwala, według [metody porównania](comparison.md#a-shared-trial).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS może używać modeli Claude? { #can-agenticos-use-claude-models }
+
+Tak. Dodaj profil modelu dla Anthropic API, Amazon Bedrock lub Google Vertex AI, a każdy agent może działać na Claude. Płacisz Anthropic albo providerowi chmury według ich stawek API.
+
+### Czy AgenticOS to samodzielnie hostowana alternatywa dla Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-claude-enterprise }
+
+Dla agentów publikowanych przez twoją organizację, tak. Działa na twojej infrastrukturze z budżetami per agent, zatwierdzeniami, rolami i logiem audytowym wykrywającym manipulacje. Nie zastępuje Claude jako osobistego asystenta każdego pracownika.
+
+### Czy AgenticOS pobiera opłatę za stanowisko? { #does-agenticos-charge-per-seat }
+
+Nie. Nie ma opłaty za stanowisko ani opłaty licencyjnej. Claude Team zaczyna się od $20 za stanowisko miesięcznie przy rozliczeniu rocznym, a Claude Enterprise dolicza do opłaty za stanowisko użycie według stawek API.
+
+### Czy osoby spoza firmy mogą korzystać z agenta AgenticOS? { #can-people-outside-the-company-use-an-agenticos-agent }
+
+Tak. Agent odpowiada przez widget na stronie internetowej, link do hostowanej strony, HTTP API, Slack, Telegram lub Mattermost, bez potrzeby stanowiska.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 

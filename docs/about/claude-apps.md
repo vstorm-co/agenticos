@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Claude"
-description: "Compare Claude Team and Enterprise, Anthropic's assistant workspace, with a self-hosted platform for company agents."
+seo_title: "AgenticOS vs Claude Team and Enterprise: agents you own"
+description: "Compare Claude Team and Enterprise with AgenticOS: self-hosted agents on Claude or any model, per-agent budgets, approvals, audit logs and no seat fee."
 ---
 
 # AgenticOS vs Claude
@@ -67,6 +68,28 @@ Keep Claude for employees' everyday work. Use AgenticOS for the agents that need
 ## Try one handbook question
 
 Put the [shared document fixture](../howto/first-document-agent.md) in a Claude Project and in an AgenticOS collection, both on the same Claude model. Ask the supported and missing-policy questions, then give the same answer to someone outside the organization. With Claude that needs a seat; with AgenticOS it is a [hosted page](../channels.md#a-hosted-page) link. Record what each allows with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Can AgenticOS use Claude models?
+
+Yes. Add a model profile for the Anthropic API, Amazon Bedrock or Google Vertex AI, and any agent can run on Claude. You pay Anthropic or the cloud provider at their API rates.
+
+### Is AgenticOS a self-hosted alternative to Claude Enterprise?
+
+For agents your organization publishes, yes. It runs on your infrastructure with per-agent budgets, approvals, roles and a tamper-evident audit log. It does not replace Claude as a personal assistant for every employee.
+
+### Does AgenticOS charge per seat?
+
+No. There is no seat or licence fee. Claude Team starts at $20 per seat per month billed annually, and Claude Enterprise adds usage at API rates to its seat fee.
+
+### Can people outside the company use an AgenticOS agent?
+
+Yes. An agent answers through a website widget, a hosted page link, the HTTP API, Slack, Telegram or Mattermost, with no seat needed.
+
+## Related comparisons
+
+[AgenticOS vs ChatGPT](chatgpt.md) · [AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [All comparisons](comparison.md)
 
 ## Sources
 

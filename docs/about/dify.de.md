@@ -1,7 +1,8 @@
 ---
-source_sha: "73d658736c90"
+source_sha: "135a9b310e53"
 title: "AgenticOS vs Dify"
-description: "Vergleich zweier selbst gehosteter Agent-Plattformen nach Lizenz, Mandantenfähigkeit, Governance und der Art, wie ein Team einen Agent ändert."
+seo_title: "AgenticOS vs Dify: mandantenfähige Apache-2.0-Alternative"
+description: "Dify und AgenticOS, selbst gehostete KI-Agent-Plattformen, im Vergleich: Lizenzbedingungen, Mandantenfähigkeit, SSO, Budgets, Freigaben, Audit-Logs, Preise."
 ---
 
 # AgenticOS vs Dify { #agenticos-vs-dify }
@@ -19,7 +20,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Mandantenfähigkeit | Ein Workspace; mehrere Workspaces sind Enterprise | Viele Organisationen in einer Bereitstellung |
 | Rollen | Vier eingebaute Rollen; eigene Rollen sind Enterprise | Sechs Rollen, 27 Berechtigungen und Grants pro Ressource für Personen und Gruppen |
 | Anmeldung | E-Mail; SSO ist Enterprise | E-Mail, Google, OIDC SSO, LDAP und Kerberos, mit Zuordnung von Verzeichnisgruppen |
-| Audit | Enterprise | Manipulationssicheres Audit-Log mit Export als CSV und JSONL |
+| Audit | Enterprise | Audit-Log mit Manipulationsnachweis mit Export als CSV und JSONL |
 | Ausgabenkontrolle | Abrechnung beim Provider oder Nachrichten-Credits in der Cloud | Ein monatliches Budget pro Agent und pro Organisation, vor jeder Modellanfrage geprüft |
 | Menschliche Freigabe | Ein Human-Input-Knoten in einem Workflow | Freigabe pro Capability und pro Werkzeug; der Run wartet, bis jemand entscheidet |
 | Oberflächen | Web-App, Embed, API, MCP-Server; Slack über ein Plugin | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
@@ -67,6 +68,28 @@ In Dify ändern Sie einen Prozess, indem Sie die Arbeitsfläche bearbeiten. In A
 Verwenden Sie dasselbe [synthetische Handbuch](../howto/first-document-agent.md), dieselben Fragen und dieselben Referenzprüfungen. Erfassen Sie auf beiden Seiten Version, Modell, Einstellungen der Quellenverarbeitung und Identität. Ändern Sie dann den Verantwortlichen für die Anfrage in der Quelle und wiederholen Sie den Versuch nach der Verarbeitung.
 
 Ergänzen Sie zwei Prüfungen, die die oben genannten Unterschiede zeigen. Legen Sie einen zweiten Mandanten für ein zweites Team an, geben Sie einem Agent ein Budget von wenigen Cent und lassen Sie ihn über die Obergrenze hinaus laufen. Erfassen Sie mit der [Vergleichsmethode](comparison.md#a-shared-trial), was jedes Produkt erlaubt, ablehnt und protokolliert.
+
+## Häufig gestellte Fragen { #frequently-asked-questions }
+
+### Ist AgenticOS eine Open-Source-Alternative zu Dify? { #is-agenticos-an-open-source-alternative-to-dify }
+
+Ja. Beide lassen sich selbst hosten und beide beherrschen Dokumenten-Retrieval. AgenticOS steht unter Apache-2.0, ohne Bedingungen zu Mandantenfähigkeit oder Logo, und enthält SSO, Rollen, Budgets, Freigaben und ein Audit-Log mit Manipulationsnachweis ohne Enterprise-Edition.
+
+### Kann Dify als mandantenfähiger Dienst laufen? { #can-dify-run-as-a-multi-tenant-service }
+
+Difys Lizenz verlangt eine schriftliche Genehmigung, um eine mandantenfähige Umgebung zu betreiben, wobei ein Mandant ein Workspace ist. AgenticOS bedient unter Apache-2.0 viele Organisationen aus einer Bereitstellung.
+
+### Hat AgenticOS einen visuellen Workflow-Builder wie Dify? { #does-agenticos-have-a-visual-workflow-builder-like-dify }
+
+Nein. AgenticOS baut Agents aus Instruktionen, Capabilities, Wissen und einem Budget und erledigt mehrstufige Arbeit mit Delegation, Planung und Triggern. Wenn Ihr Team mit einer Arbeitsfläche aus Knoten arbeitet, passt Dify besser.
+
+### Welches ist im Betrieb günstiger? { #which-one-costs-less-to-run }
+
+Die Dify Community Edition und AgenticOS lassen sich beide kostenlos selbst hosten; Sie bezahlen für Modelle und Infrastruktur. Die Enterprise-Funktionen von Dify werden von seinem Vertriebsteam bepreist. In AgenticOS sind diese Kontrollen bereits im Open-Source-Produkt enthalten.
+
+## Verwandte Vergleiche { #related-comparisons }
+
+[AgenticOS vs n8n](n8n.md) · [AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Gemini Enterprise](gemini-enterprise.md) · [Alle Vergleiche](comparison.md)
 
 ## Quellen { #sources }
 

@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Claude Code"
-description: "Claude Code is a coding agent for developers. AgenticOS is where the agents for the rest of the company run, and Claude Code can help build them."
+seo_title: "AgenticOS vs Claude Code: company agents or a coding agent"
+description: "Claude Code is a coding agent for developers. AgenticOS is an open-source platform for company AI agents. See how they differ and how to use both."
 ---
 
 # AgenticOS vs Claude Code
@@ -60,6 +61,28 @@ A spec also [exports as YAML](../features.md#exportable-into-your-own-repository
 ## Try it on one task
 
 Give the same task to both: answer a question from the [shared handbook](../howto/first-document-agent.md). Then give the answer to a colleague outside engineering. Claude Code needs them to install it and sign in. AgenticOS needs a [hosted page](../channels.md#a-hosted-page) link or a Slack mention. Record the result with the [comparison method](comparison.md#a-shared-trial).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to Claude Code?
+
+No, they do different jobs. Claude Code is a coding agent for developers. AgenticOS is a platform for the agents the rest of the company uses. Many teams use both.
+
+### Can Claude Code help build on AgenticOS?
+
+Yes. AgenticOS is extended in typed Python, and a capability written with Claude Code's help becomes available in every agent builder once merged. The repository includes agent skills and rules for that work.
+
+### Can AgenticOS agents use Claude models?
+
+Yes, through the Anthropic API, Amazon Bedrock or Google Vertex AI, three of the 27 providers AgenticOS supports.
+
+### Is Claude Code open source?
+
+No. Its repository states "All rights reserved", and use is under Anthropic's Commercial Terms. AgenticOS is Apache-2.0.
+
+## Related comparisons
+
+[AgenticOS vs OpenAI Codex](codex.md) · [AgenticOS vs OpenCode](opencode.md) · [AgenticOS vs Claude](claude-apps.md) · [All comparisons](comparison.md)
 
 ## Sources
 

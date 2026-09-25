@@ -1,6 +1,7 @@
 ---
 title: "AgenticOS vs Wonderful"
-description: "Compare a closed platform delivered by vendor teams with an open platform you own, with implementation help scoped separately."
+seo_title: "AgenticOS vs Wonderful: an enterprise AI platform you own"
+description: "Compare Wonderful's delivered enterprise AI OS with AgenticOS, an open-source agent platform you own and run, with implementation help from Vstorm."
 ---
 
 # AgenticOS vs Wonderful
@@ -65,6 +66,28 @@ Ask both vendors the same questions.
 With AgenticOS, Vstorm can discuss installation on client infrastructure, documentation, process design and custom development. Support, maintenance, integrations and response commitments are agreed for the project; they do not come automatically with the repository.
 
 Define one checkable task using the [document example](../howto/first-document-agent.md) and [operating guide](../rollout.md). For implementation help, contact [Vstorm](https://vstorm.co/) or Kacper. Compare the agreed delivery scope alongside the [software criteria](comparison.md).
+
+## Frequently asked questions
+
+### Is AgenticOS an alternative to Wonderful?
+
+For organizations that want to own the platform, yes. AgenticOS is open source and runs on your infrastructure, and Vstorm can help implement it. Wonderful delivers a closed platform with its own deployment teams.
+
+### Can AgenticOS be deployed on-premises?
+
+Yes. It runs with Docker Compose on your own host. With a local model, the whole path can stay on your network.
+
+### Does AgenticOS support voice or WhatsApp agents?
+
+Not yet. Its surfaces are web chat, a widget, a hosted page, the HTTP API, a WebSocket, Slack, Telegram and Mattermost.
+
+### What happens if we stop working with Vstorm?
+
+The deployment keeps running. The source is Apache-2.0, specs export as YAML and the data is in your Postgres, so another team can operate it.
+
+## Related comparisons
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Viktor](viktor.md) · [AgenticOS vs Dify](dify.md) · [All comparisons](comparison.md)
 
 ## Sources
 

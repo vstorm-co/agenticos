@@ -1,7 +1,8 @@
 ---
-source_sha: "eb00b1812132"
+source_sha: "cd3c14eb72c2"
 title: "AgenticOS vs Gemini Enterprise"
-description: "Porównaj platformę agentów dla pracowników i wyszukiwarkę firmową Google z open-source'ową platformą self-hosted dla firmowych agentów."
+seo_title: "AgenticOS vs Gemini Enterprise: alternatywa self-hosted"
+description: "Porównaj Google Gemini Enterprise z AgenticOS: dowolny model w każdym agencie, bez opłat za stanowisko i limitów budowania, osiem powierzchni, własne serwery."
 ---
 
 # AgenticOS vs Gemini Enterprise { #agenticos-vs-gemini-enterprise }
@@ -50,11 +51,33 @@ Gemini Enterprise oferuje rezydencję danych w regionach obsługiwanych przez Go
 
 - Główną potrzebą jest wyszukiwanie uwzględniające uprawnienia w Google Workspace, Microsoft 365 i wielu narzędziach SaaS, z możliwością wykonywania akcji.
 - Chcesz własnych agentów Google, takich jak Deep Research i Gemini Notebook.
-- Twoja organizacja działa na Google Cloud i zarządza przez jego IAM, logi audytowe i Model Armor.
+- twoja organizacja działa na Google Cloud i zarządza przez jego IAM, logi audytowe i Model Armor.
 
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
 Zbuduj [wspólnego agenta dokumentowego](../howto/first-document-agent.md) w Workflow Builder i w AgenticOS. Następnie przełącz każdego z nich na model inny niż Gemini i opublikuj go dla osoby bez stanowiska. Zapisz, na co pozwala każdy z nich, według [metody porównania](comparison.md#a-shared-trial).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS to alternatywa dla Google Gemini Enterprise? { #is-agenticos-an-alternative-to-google-gemini-enterprise }
+
+Dla agentów, których właścicielem jest twoja organizacja i które ona publikuje, tak. AgenticOS działa na twojej infrastrukturze, używa dowolnego modelu w każdym agencie i odpowiada zarówno klientom, jak i pracownikom. Do wyszukiwania firmowego w Google Workspace i Microsoft 365 lepiej pasuje Gemini Enterprise.
+
+### Czy AgenticOS może używać modeli Gemini? { #can-agenticos-use-gemini-models }
+
+Tak, przez profile modeli Google Gemini lub Vertex AI, dwóch z 27 providerów obsługiwanych przez AgenticOS.
+
+### Czy AgenticOS ogranicza liczbę agentów, których można utworzyć? { #does-agenticos-limit-how-many-agents-you-can-create }
+
+Nie. Nie ma opłaty za stanowisko ani limitu tworzenia. Agent kosztuje tyle, ile kosztują jego wywołania modelu, do wysokości jego budżetu.
+
+### Gdzie AgenticOS przechowuje dane? { #where-does-agenticos-store-data }
+
+W twoim własnym Postgresie, gdziekolwiek go wdrożysz. Z modelem hostowanym samodzielnie prompty nie opuszczają twojej sieci.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs Copilot Studio](copilot-studio.md) · [AgenticOS vs Claude](claude-apps.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 

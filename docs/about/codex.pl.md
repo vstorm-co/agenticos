@@ -1,7 +1,8 @@
 ---
-source_sha: "b7ac54815ce6"
+source_sha: "74107fac73b3"
 title: "AgenticOS vs OpenAI Codex"
-description: "Codex to agent programistyczny OpenAI. AgenticOS uruchamia zarządzanych agentów dla całej firmy, a Codex może pomóc go rozbudowywać."
+seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
+description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
 ---
 
 # AgenticOS vs OpenAI Codex { #agenticos-vs-openai-codex }
@@ -57,6 +58,28 @@ Inżynier może użyć Codex, żeby napisać, przetestować i przejrzeć nową [
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
 Zadaj obu to samo pytanie o [wspólny podręcznik](../howto/first-document-agent.md). Następnie przekaż odpowiedź koledze, który nie programuje, i sprawdź, czego każdy z nich potrzebuje, zanim ten kolega zada własne pytanie. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
+
+## Najczęściej zadawane pytania { #frequently-asked-questions }
+
+### Czy AgenticOS to alternatywa dla OpenAI Codex? { #is-agenticos-an-alternative-to-openai-codex }
+
+Nie, rozwiązują różne problemy. Codex to agent programistyczny dla deweloperów. AgenticOS to platforma dla zarządzanych agentów, których budują zespoły biznesowe, a używają wszyscy.
+
+### Czy OpenAI Codex jest open source? { #is-openai-codex-open-source }
+
+Codex CLI jest na licencji Apache-2.0. Codex cloud, code review i aplikacja ChatGPT to usługi własnościowe. AgenticOS jest w całości na licencji Apache-2.0.
+
+### Czy Codex pomoże rozbudować AgenticOS? { #can-codex-help-extend-agenticos }
+
+Tak. Inżynier może użyć Codex do napisania i przejrzenia nowej capability w typowanym Pythonie. Po scaleniu jest ona przełącznikiem w każdym builderze agentów.
+
+### Czy agenci AgenticOS mogą uruchamiać kod? { #can-agenticos-agents-run-code }
+
+Tak. Run Python wykonuje kod bez dostępu do sieci i systemu plików, a Files & shell daje agentowi workspace w izolowanych kontenerach. Obie włącza się dla każdego agenta osobno.
+
+## Powiązane porównania { #related-comparisons }
+
+[AgenticOS vs Claude Code](claude-code.md) · [AgenticOS vs OpenCode](opencode.md) · [AgenticOS vs ChatGPT](chatgpt.md) · [Wszystkie porównania](comparison.md)
 
 ## Źródła { #sources }
 
