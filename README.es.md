@@ -1,4 +1,4 @@
-<!-- source_sha: 9b8b5cecdd8d -->
+<!-- source_sha: 5e02402cf61c -->
 
 <div align="center">
 
@@ -7,10 +7,8 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Un solo lugar para construir, ejecutar y gobernar los agents de IA de tu empresa.</b><br>
-  Autoalojado y de código abierto — en tu Postgres, en tu Docker, bajo tu
-  dominio.<br>
-  <sub>El OS del nombre es una afirmación que cumplimos: <a href="#el-mejor-os-agéntico-que-puedes-ejecutar-tú-mismo">siete funciones, siete mecanismos</a>.</sub>
+  <b>Pon a los agents de IA a trabajar en las tareas de tu equipo.</b><br>
+  Crea agents en el navegador, conecta documentos y herramientas y ejecútalos en infraestructura bajo tu control.
 </p>
 
 <p>
@@ -61,6 +59,13 @@ agent escribe el código, lo ejecuta en una caja cerrada y responde.
 
 </div>
 
+**[Crea tu primer agent con documentos](docs/howto/first-document-agent.es.md)** · [Elige una tarea](docs/use-cases.es.md) · [Compara plataformas](docs/about/comparison.es.md) · [Despliegue y operación](docs/rollout.es.md) · [Ayuda](docs/help.es.md)
+
+Empieza con una respuesta verificable basada en un manual. Después prueba un borrador de solicitud o un gráfico de CSV y conserva la fuente junto al resultado real.
+
+Tu equipo se encarga de la operación. Los modelos, el análisis de documentos, los embeddings, las herramientas y las trazas pueden usar servicios externos según la configuración.
+
+
 Y la misma consola en el escritorio, con compañía: la
 [aplicación de escritorio](#en-el-escritorio-si-quieres) opcional, su mascota y un
 atajo que hace una captura de pantalla directamente en un chat nuevo.
@@ -83,7 +88,7 @@ atajo que hace una captura de pantalla directamente en un chat nuevo.
 
 Un comando, y lo único que necesita es Docker. Descarga un archivo compose, se
 trae las imágenes publicadas, hace cuatro preguntas y te devuelve una consola con
-un agent que funciona dentro. Nada sale de tu máquina.
+un agent que funciona dentro. Tu equipo se encarga de la operación. Los modelos, el análisis de documentos, los embeddings, las herramientas y las trazas pueden usar servicios externos según la configuración.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
@@ -175,7 +180,7 @@ agent — y [docs/install.es.md](docs/install.es.md) tiene el resto.
   respuesta, sin release.
 - 🔌 **MCP, a escala de registro.** **5.802 servidores** en el catálogo,
   buscables por nombre — 99 de ellos revisados a mano y con su OAuth
-  conectado. O cualquier URL.
+  conectado. O un endpoint compatible.
 - 📚 **Documentos leídos como es debido.** Elige el lector de PDF por colección,
   o para un solo archivo: PyMuPDF incorporado, LlamaParse cuando el significado
   está en las tablas, LiteParse OCR autoalojado para escaneos. Más cómo se parte
@@ -191,9 +196,7 @@ agent — y [docs/install.es.md](docs/install.es.md) tiene el resto.
   es esa misma consola en una ventana propia, más una mascota en el escritorio y
   un atajo que hace una captura directamente en un chat nuevo. Un añadido, nunca
   un requisito.
-- 🛡️ **Gobernado.** Budgets que detienen un run antes de la petición al modelo,
-  aprobación para todo lo que tiene efectos, un rastro de auditoría y aislamiento
-  de inquilinos en el esquema.
+- 🛡️ Aprobaciones humanas configurables para herramientas compatibles, control de gasto antes del modelo, auditoría y acceso por tenant.
 - 📊 **Un dashboard que cada persona organiza.** 35 tarjetas — runs, gasto, salud
   de los servicios, calidad de las respuestas, capacidad de la sandbox —, cada
   una limitada a lo que ese lector puede ver. Un responsable de finanzas y un
@@ -337,7 +340,7 @@ distintos en el mismo despliegue.
 <tr>
 <td width="50%">
 
-**Cuánto cuesta** — Gasto por periodo y por agent. El tope se comprueba antes de preguntar al modelo, así que algo desbocado se detiene a media frase en vez de llegar como una factura.
+**Cuánto cuesta** — El gasto registrado se comprueba antes de las peticiones al modelo. Una petición en curso o runs concurrentes pueden superar el límite. Consulta [límites del budget](docs/governance.es.md#budgets).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
@@ -347,7 +350,7 @@ distintos en el mismo despliegue.
 </td>
 <td width="50%">
 
-**Claves y credenciales** — Todas las claves, cifradas y separadas por equipo. Reemplazables, nunca legibles de nuevo — tampoco por quien administra el servidor.
+**Claves y credenciales** — Las claves se cifran en reposo y se delimitan por propietario. Las respuestas normales de consola/API no devuelven texto plano. El operador forma parte de la frontera de confianza.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
@@ -359,7 +362,7 @@ distintos en el mismo despliegue.
 <tr>
 <td width="50%">
 
-**Las herramientas que ya pagas** — 5.802 servidores MCP en el catálogo, buscables por nombre, 99 de ellos revisados a mano y con su OAuth conectado. O cualquier servidor por URL. Ningún conector que escribir.
+**Las herramientas que ya pagas** — Conecta servidores MCP compatibles con transportes, credenciales y destinos permitidos. Consulta [configuración MCP](docs/mcp.es.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
@@ -394,7 +397,7 @@ de abajo es un mecanismo que puedes leer en el código fuente, no una promesa.
 | **Ejecuta y aísla procesos** | Ejecuta agents, detiene uno al llegar a su budget, aísla inquilinos en el esquema en lugar de en el código de servicio y guarda cada run con lo que costó |
 | **Impone límites de recursos** - cuotas, cgroups | Budgets mensuales por agent, comprobados *antes* de cada petición al modelo en lugar de contados después. Un run que falla registra igualmente lo que gastó |
 | **Controla el acceso** - usuarios, permisos, `sudo` | Un [catálogo de permisos](docs/permissions.es.md) en el código, roles compuestos a partir de él y concesiones por recurso que amplían y nunca reducen. `approval: required` es el `sudo`: una herramienta que actúa sobre el mundo exterior espera a una persona |
-| **Alcanza el hardware a través de controladores** | Una sola interfaz hacia [27 providers de modelos](docs/models.es.md) y hacia [cualquier servidor MCP por URL](docs/mcp.es.md). Cambia un perfil de modelo y todos los agents que lo usan se mueven, sin que haya que republicar ninguno |
+| **Alcanza el hardware a través de controladores** | Una sola interfaz hacia [27 providers de modelos](docs/models.es.md) y hacia [servidores MCP compatibles](docs/mcp.es.md). Cambia un perfil de modelo y todos los agents que lo usan se mueven, sin que haya que republicar ninguno |
 | **Mantiene un sistema de archivos** | [Colecciones, skills y contexto adjunto](docs/file-processing.es.md) en tu propio Postgres, con los embeddings con clave por organización |
 | **Da una sola shell a muchas interfaces** | Un solo runner detrás del chat web, la API HTTP, Slack, Telegram, un widget, una página alojada y un horario. El mismo budget, la misma puerta de aprobación, el mismo rastro de auditoría |
 | **Escribe un registro de auditoría** - syslog, auditd | Quién ejecutó qué, cuándo, cuánto costó y quién lo aprobó. Se escribe incluso cuando el run falló |
@@ -433,7 +436,7 @@ puerta de aprobación.
 | **Hacer el trabajo** | Ejecutar Python, mantener una [sandbox](docs/sandbox.es.md) con archivos y una shell, dibujar gráficos, generar imágenes |
 | **Ocuparse de lo que es demasiado grande para una respuesta** | Delegar en subagents, llevar una lista de tareas, pensar más rato, compactar una conversación larga |
 | **No salirse de la raya** | Guardrails que redactan o bloquean, topes de salida por herramienta y el reloj |
-| **Cualquier otra cosa** | [Cualquier servidor MCP por URL](docs/mcp.es.md) - 5.802 en el catálogo, 99 de ellos revisados y con sus flujos de OAuth conectados, y ningún conector que escribir |
+| **Cualquier otra cosa** | [Servidores MCP compatibles](docs/mcp.es.md) - 5.802 en el catálogo, 99 de ellos revisados y con sus flujos de OAuth conectados, y ningún conector que escribir |
 
 ## Dónde responde
 
@@ -471,32 +474,13 @@ adjunta.
 
 ## Comparado con las alternativas
 
-El único de estos que puedes ejecutar de principio a fin en infraestructura que
-ya tienes, con agents que edita alguien que no es ingeniero y que un contable
-puede auditar.
+Elige por tarea y responsabilidad operativa. Estas guías con fuentes describen opciones documentadas, no ganadores medidos.
 
-| | **AgenticOS** | Cloudflare&nbsp;OS | Glean | Una&nbsp;biblioteca |
-|---|:---:|:---:|:---:|:---:|
-| Código abierto | ✅ Apache-2.0 | ✅ Apache-2.0 | — | ✅ |
-| **Funciona sobre infraestructura corriente** (Postgres, Redis, Docker) | ✅ | — | — | ✅ |
-| Funciona aislado de la red, sin cuenta con el proveedor | ✅ | — | — | ✅ |
-| Modelos locales (Ollama, LiteLLM) | ✅ | ✅ | — | ✅ |
-| Agent construido y editado por alguien que no es ingeniero | ✅ | ~ | ✅ | — |
-| Versionado al publicar, exportable a tu git | ✅ | ~ | — | — |
-| Budget que detiene un run antes de la llamada al modelo | ✅ | ~ | ~ | DIY |
-| Aprobación humana en herramientas con efectos | ✅ | ✅ | ~ | DIY |
-| Aislamiento multiinquilino en el esquema | ✅ | ~ | ✅ | DIY |
-| Vault de secretos por organización | ✅ | ✅ | ✅ | DIY |
-| **Cualquier servidor MCP por URL, 5.802 en el catálogo** | ✅ | ✅ | ~ | ~ |
-| **Slack, Telegram, widget, página alojada y API desde un solo runner** | ✅ | — | ~ | DIY |
-| Conectores con ACL a más de 275 sistemas SaaS | — | ~ | ✅ | — |
-| Harness de evaluación | — | — | ✅ | ~ |
-| SAML / SCIM | — | ✅ | ✅ | — |
+- [AgenticOS vs Viktor](docs/about/viktor.es.md): Servicio de asistente o despliegue propio.
+- [AgenticOS vs Dify](docs/about/dify.es.md): Dos builders autoalojados para la misma tarea documental.
+- [AgenticOS vs Wonderful](docs/about/wonderful.es.md): Alcance de entrega empresarial y operación.
 
-<sub>✅ de primera clase · ~ parcial o mediante configuración · — no disponible · DIY lo conectas tú mismo.
-"Una biblioteca" significa LangGraph, Pydantic AI o similar. Refleja el estado de cada proyecto a fecha de 2026-08;
-las correcciones son bienvenidas por PR. Las tres últimas filas nos toca arreglarlas a nosotros y están en la
-<a href="https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md">hoja de ruta</a>.</sub>
+[Comparaciones de AgenticOS](docs/about/comparison.es.md).
 
 ## Por qué existe
 
@@ -528,8 +512,7 @@ otro, y ninguna respuesta de la API devuelve jamás una.
 
 Hecha con MkDocs: `make docs` la sirve en :8001. El stack, en una línea: FastAPI
 + Pydantic v2, PostgreSQL con pgvector, Redis, Prefect,
-[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Nada llama a casa: las únicas
-llamadas salientes son las que hacen tus agents.
+[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Los destinos externos dependen de modelos, parsers, embeddings, herramientas, canales, sandboxes y trazas configurados. Revisa el [flujo de datos](docs/security.es.md).
 
 ## Contribuir
 
@@ -587,13 +570,10 @@ pregunta su revisión legal, y MIT no dice nada al respecto.
 ### ¿Necesitas ayuda para poner agents en producción?
 
 <p>
-Somos <a href="https://vstorm.co"><b>Vstorm</b></a>, una consultoría de ingeniería
-de IA agéntica aplicada con más de 30 implantaciones de agents en producción.<br>
-AgenticOS es aquello sobre lo que los construimos, y lo desplegamos dentro de la
-infraestructura del cliente: tu nube, tu centro de datos o aislado de la red.
+Vstorm ayuda a desplegar AgenticOS en infraestructura del cliente, crear documentación y procesos y desarrollar elementos personalizados. Mantenimiento y soporte se acuerdan por proyecto.
 </p>
 
-<a href="https://vstorm.co/contact-us/">
+<a href="https://vstorm.co/">
   <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
 </a>
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "86db3a8931da"
+source_sha: "b0d255e47822"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -106,8 +106,7 @@ Aquí hay dos cosas que conviene saber:
 - **El nombre y la descripción de una tool son prompt.** Se echa mano de
   `search_refund_policy` en preguntas en las que `search_documents` se queda sin
   usar. Ambos son editables por agent.
-- **Todo lo que tiene efectos pide aprobación por defecto.** El run se aparca y
-  espera a una persona. Configúralo por capability, o por tool.
+- Las herramientas declaradas con efectos solicitan aprobación según la política configurada. Revisa las excepciones de capability y herramienta antes de publicar.
 
 ## 5. Dale algo que leer { #5-give-it-something-to-read }
 

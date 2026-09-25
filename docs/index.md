@@ -5,9 +5,7 @@
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
-Why it is called an operating system is
-<a href="#why-it-is-called-an-operating-system">seven functions further down</a>.
+Put AI agents to work on your team's tasks. Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -23,6 +21,13 @@ Why it is called an operating system is
 </p>
 
 </div>
+
+**[Build your first document agent](howto/first-document-agent.md)** · [Choose a task](use-cases.md) · [Compare platforms](about/comparison.md) · [Deploy and operate](rollout.md) · [Get help](help.md)
+
+Start with a handbook answer you can check. Then try a request draft or a CSV chart, keeping the source and actual output together.
+
+Your team owns operation. Models, parsing, embeddings, tools and tracing can use external services depending on configuration.
+
 
 ---
 
@@ -106,10 +111,9 @@ instead.
     records what it spent, because a budget that ignores failures is not a
     budget.
 
-- :material-hand-back-right:{ .lg .middle } **Approval for anything side-effecting**
+- :material-hand-back-right:{ .lg .middle } **Approval is configurable for supported tools**
 
-    A tool that acts on the outside world parks the run and waits for a person.
-    Set per capability, overridable per tool.
+    A configured gate parks the run for an authorized person. Coverage depends on the capability, tool and policy.
 
 - :material-account-key:{ .lg .middle } **Permissions in code, roles composed from them**
 
@@ -230,7 +234,7 @@ came from.
 |---|---|
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails — switched on per agent |
-| **[Integrations](mcp.md)** | Any MCP server by URL, with 59 common ones in the picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
+| **[Integrations](mcp.md)** | Compatible MCP servers, with 59 common ones in the picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
 | **[Models](models.md)** | 27 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
 | **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
@@ -249,7 +253,7 @@ came from.
   request.
 - It is **governed**: budgets that stop a run, approvals that wait for a person,
   permissions checked at every call site.
-- It is **yours**: your Postgres, your hardware, nothing phoning home.
+- It is **yours**: your Postgres, your hardware.
 
 ## Next
 
@@ -287,8 +291,7 @@ FastAPI and Pydantic v2 on PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) fo
 the agent runtime, pgvector for retrieval, Prefect for background work, and
 Next.js 15 for the console.
 
-Nothing here phones home: model prices come from a bundled snapshot, and the only
-outbound calls are the ones your agents make.
+External destinations depend on model, parser, embedding, tool, channel, sandbox and tracing configuration. Review the [data-flow statement](security.md).
 
 ## Licence
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "86db3a8931da"
+source_sha: "b0d255e47822"
 ---
 
 # Twój pierwszy agent { #your-first-agent }
@@ -104,8 +104,7 @@ Dwie rzeczy warto tu wiedzieć:
 - **Nazwa i opis narzędzia są promptem.** Po `search_refund_policy` model sięga
   przy pytaniach, przy których pomija `search_documents`. Oba da się edytować per
   agent.
-- **Wszystko, co ma skutki uboczne, domyślnie prosi o zatwierdzenie.** Run
-  parkuje i czeka na człowieka. Ustaw to per capability albo per narzędzie.
+- Narzędzia zadeklarowane jako wywołujące skutki uboczne proszą o zatwierdzenie zgodnie z konfiguracją. Przed publikacją sprawdź nadpisania capability i narzędzi.
 
 ## 5. Daj mu coś do czytania { #5-give-it-something-to-read }
 
