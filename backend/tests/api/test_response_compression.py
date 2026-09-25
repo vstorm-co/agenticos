@@ -23,7 +23,7 @@ _BIG = [{"role": "assistant", "content": "the agent said something" * 8} for _ i
 def _app() -> FastAPI:
     """The application's own compression settings, over routes that isolate them."""
     built = FastAPI()
-    built.add_middleware(GZipMiddleware, **real_app.user_middleware[0].kwargs)
+    built.add_middleware(GZipMiddleware, **real_app.user_middleware[-1].kwargs)
 
     @built.get("/transcript")
     async def transcript() -> JSONResponse:
@@ -105,9 +105,28 @@ def test_every_excluded_type_starlette_ships_is_still_excluded() -> None:
     assert "application/pdf" in UNCOMPRESSED_CONTENT_TYPES
 
 
-def test_compression_is_the_outermost_layer_of_the_application() -> None:
-    """`add_middleware` inserts at the front, so index 0 wraps every other layer."""
-    assert real_app.user_middleware[0].cls is GZipMiddleware
+def test_compression_is_the_innermost_layer_of_the_application() -> None:
+    """`add_middleware` inserts at the front, so the last entry is the first added."""
+    assert real_app.user_middleware[-1].cls is GZipMiddleware
+
+
+async def test_the_application_leaves_a_small_answer_uncompressed(client) -> None:
+    """Above GZip, the `BaseHTTPMiddleware` layers would hand it every body as a
+    stream, and Starlette does not apply `minimum_size` to a stream."""
+    resp = await client.get(f"{settings.API_V1_STR}/health", headers={"Accept-Encoding": "gzip"})
+
+    assert resp.status_code == 200
+    assert "content-encoding" not in resp.headers
+
+
+async def test_the_application_compresses_a_large_answer(client) -> None:
+    resp = await client.get(
+        f"{settings.API_V1_STR}/openapi.json", headers={"Accept-Encoding": "gzip"}
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-encoding"] == "gzip"
+    assert "paths" in resp.json()
 
 
 async def test_the_security_headers_still_reach_a_response_through_compression(client) -> None:

@@ -20,9 +20,9 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **Opening a conversation no longer ships an uncompressed transcript.** The API
-  gzips its responses as the outermost middleware, and the console's `/api/*`
-  proxy compresses again for the browser what the API compressed, since `fetch`
-  hands it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
   hundred turns with every tool call's arguments and result, and went out raw.
   Event streams, partial responses and already-compressed media and office
   formats are left alone, and the chat WebSocket is untouched.

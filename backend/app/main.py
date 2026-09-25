@@ -360,6 +360,18 @@ OS for your agents.
     setup_logfire()
     instrument_app(app)
 
+    # Innermost, so it sees a response as the route produced it. The
+    # `BaseHTTPMiddleware` layers above re-emit every body as a stream, and
+    # Starlette skips `minimum_size` for a stream. Level 5 rather than 9: on JSON
+    # the last levels buy a few percent for several times the CPU, and the load
+    # test already found a deployment CPU-bound (`docs/load-testing.md`).
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        compresslevel=5,
+        exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
+    )
+
     # Outermost of the three, because it exists to answer before anything reads the
     # body - a middleware under CORS or the session would run after the request had
     # already been received.
@@ -384,9 +396,10 @@ OS for your agents.
 
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
-    # Above CORS, so it wraps it: a preflight OPTIONS is answered by CORSMiddleware
-    # without calling inward, so a security layer beneath it would never see that
-    # response and the preflight would go out bare. The set uses `setdefault`, so a per-response override still wins -
+    # Added last, so it is the outermost middleware and wraps CORS: a preflight
+    # OPTIONS is answered by CORSMiddleware without calling inward, so a security
+    # layer beneath it would never see that response and the preflight would go
+    # out bare. The set uses `setdefault`, so a per-response override still wins -
     # `files.py` opts its one framed endpoint down to SAMEORIGIN this way. The doc
     # pages are excluded by their real mounted paths (the schema lives under the
     # API prefix, not at `/openapi.json`), so the CSP cannot break Swagger/ReDoc
@@ -396,17 +409,6 @@ OS for your agents.
     app.add_middleware(
         SecurityHeadersMiddleware,
         exclude_paths={path for path in (docs_url, redoc_url, openapi_url) if path},
-    )
-
-    # Outermost, so it compresses what every other layer has finished with,
-    # including an answer one of them gives without calling inward. Level 5 rather than 9: on JSON the last
-    # levels buy a few percent for several times the CPU, and the load test already
-    # found a deployment CPU-bound (`docs/load-testing.md`).
-    app.add_middleware(
-        GZipMiddleware,
-        minimum_size=1024,
-        compresslevel=5,
-        exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
     )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
