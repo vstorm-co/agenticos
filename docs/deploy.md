@@ -166,17 +166,11 @@ the same containers; pick on whether you already run one.
 
 !!! note "Leave compression to the application"
 
-    Both halves compress what they answer with: the API registers gzip in its own
-    middleware stack, and Next does the same for HTML and RSC payloads. A
-    transcript is the reason - `GET /conversations/{id}/messages` returns a
-    hundred turns with their reasoning, their timelines and every tool call's
-    arguments and result, and that is JSON measured in megabytes.
-
-    So the proxy needs no `gzip on`, and it must not blank the client's
-    `Accept-Encoding` on the way through. That header is how the usual "let the
-    proxy compress it" recipe starts, and here it only turns the compression off.
-    Nothing double-compresses: a response already carrying `Content-Encoding`
-    is passed through by both Nginx and Traefik.
+    The API gzips its own answers, the console's `/api/*` proxy compresses again
+    for the browser whatever the API compressed, and Next compresses its pages. So
+    the proxy needs no `gzip on`, and it must not blank the client's
+    `Accept-Encoding`: that only turns the compression off. A response already
+    carrying `Content-Encoding` passes through Nginx and Traefik unchanged.
 
 ### Option A: Traefik
 

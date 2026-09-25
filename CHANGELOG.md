@@ -20,33 +20,25 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **Opening a conversation no longer ships an uncompressed transcript.** The API
-  registers gzip in its middleware stack, outermost so `Vary: Accept-Encoding`
-  reaches every answer. `GET /conversations/{id}/messages` returns up to a
-  hundred turns carrying their reasoning, their timelines and every tool call's
-  arguments and result, and that JSON went out raw. Event streams, partial
-  responses, and media and office formats that are already compressed are
-  excluded; the chat WebSocket is untouched, since compression never sees a
-  non-HTTP scope. No proxy configuration is needed, and blanking a client's
-  `Accept-Encoding` at the proxy now turns compression off rather than moving it.
+  gzips its responses as the outermost middleware, and the console's `/api/*`
+  proxy compresses again for the browser what the API compressed, since `fetch`
+  hands it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
 
 ### Fixed
 
-- **A transcript read no longer loads the text of every attachment.** Reading a
-  thread eager-loaded whole `chat_files` rows, including `parsed_content` - the
-  full extracted text of each upload, a contract or a spreadsheet entire - to
-  serialize the four fields an attachment card shows. It is narrowed to those
-  four now, on the thread transcript, the run transcript and the whole-conversation
-  read alike. The column is untouched where it is the point: the model's prompt
-  and the file preview still read it.
-- **`chat_files.message_id` is indexed** (`0097_chat_files_message_idx`). Every
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
   index on the table led with `user_id`, so the join every transcript read makes
   scanned it whole.
 - **A transcript read authorizes once, not twice.** The page and the thread's
-  total were two service calls with one caller between them, so each resolved the
-  conversation separately. On a thread reached through a channel that was two
-  membership checks, each able to unseal a bot token and ask Slack or Telegram
-  whether the reader is still in the room, against a sixty-second cache that
-  fails open to the network call.
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
 
 ## [0.0.497] - 2026-09-25
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "69e5f026dffe"
+source_sha: "4204964a3eae"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -187,18 +187,12 @@ betreiben.
 
 !!! note "Komprimierung bleibt Sache der Anwendung"
 
-    Beide Hälften komprimieren, was sie ausliefern: die API registriert gzip in
-    ihrem eigenen Middleware-Stack, und Next tut dasselbe für HTML- und
-    RSC-Payloads. Ein Transkript ist der Grund dafür -
-    `GET /conversations/{id}/messages` gibt hundert Turns mit ihren Überlegungen,
-    ihren Zeitleisten und den Argumenten und Ergebnissen jedes Tool-Aufrufs
-    zurück, und das ist JSON in Megabyte.
-
-    Der Proxy braucht also kein `gzip on`, und er darf das `Accept-Encoding` des
-    Clients unterwegs nicht leeren. Mit diesem Header beginnt das übliche Rezept
-    "der Proxy soll komprimieren", und hier schaltet es die Komprimierung nur ab.
-    Doppelt komprimiert wird nichts: eine Antwort, die bereits `Content-Encoding`
-    trägt, reichen Nginx und Traefik unverändert durch.
+    Die API komprimiert ihre eigenen Antworten mit gzip, der `/api/*`-Proxy der
+    Konsole komprimiert für den Browser erneut, was die API komprimiert hat, und
+    Next komprimiert seine Seiten. Der Proxy braucht also kein `gzip on`, und er
+    darf das `Accept-Encoding` des Clients nicht leeren: das schaltet die
+    Komprimierung nur ab. Eine Antwort, die bereits `Content-Encoding` trägt,
+    reichen Nginx und Traefik unverändert durch.
 
 ### Option A: Traefik { #option-a-traefik }
 

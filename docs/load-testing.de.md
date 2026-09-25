@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3a34cbf0bf"
+source_sha: "53546688c766"
 ---
 
 # Last- und Belastbarkeitstests { #load-and-resilience-testing }
@@ -218,7 +218,7 @@ Gesagt statt dem Zufall überlassen:
 - **Was es kostet, eine Antwort zu bewegen.** Der Driver läuft auf derselben
   Maschine wie das Deployment, also ist jede Zahl hier Latenz ohne Leitung
   darunter. Deshalb sagen die Läufe weiter unten auch nichts über die
-  Antwortkomprimierung, die die API seit `0.0.497` macht: auf Loopback ist sie
+  Antwortkomprimierung der API: auf Loopback ist sie
   aufgewendete CPU und nicht gesparte Bandbreite, und das Workload, das am
   meisten davon hat - ein langes Transkript - ist im Mix nicht enthalten.
 - **Einen Cluster.** Ein Deployment, eine Datenbank. Das Ziel von NFA-006 ist

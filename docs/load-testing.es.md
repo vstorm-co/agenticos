@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3a34cbf0bf"
+source_sha: "53546688c766"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -214,7 +214,7 @@ Dicho en vez de dejado al descubrimiento:
 - **Lo que cuesta mover una respuesta.** El driver corre en la misma máquina
   que el deployment, así que cada número de aquí es latencia sin un enlace
   debajo. Por eso las ejecuciones de más abajo tampoco dicen nada sobre la
-  compresión de respuestas, que la API hace desde `0.0.497`: en loopback es CPU
+  compresión de respuestas de la API: en loopback es CPU
   gastada y ancho de banda no ahorrado, y la carga que más gana con ella - un
   transcript largo - no está en la mezcla.
 - **Un clúster.** Un despliegue, una base de datos. El objetivo de NFA-006 es
