@@ -275,6 +275,7 @@ nav:
           - deploy.md
       - Keep it under control:
           - permissions.md
+          - directory.md
           - governance.md
           - secrets.md
           - data-protection.md

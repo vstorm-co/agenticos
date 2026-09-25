@@ -29,6 +29,8 @@ services:
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
       - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
       - OIDC_ICON=${OIDC_ICON:-}
+      - LDAP_DISPLAY_NAME=${LDAP_DISPLAY_NAME:-}
+      - KERBEROS_DISPLAY_NAME=${KERBEROS_DISPLAY_NAME:-}
     ports:
       - "3000:3000"
     networks:

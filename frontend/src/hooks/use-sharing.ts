@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
+  GrantSubject,
   ResourceGrant,
   ResourceSharing,
   ShareInput,
@@ -73,9 +74,14 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  // Two endpoints rather than one keyed on a kind, because a user id and a group
+  // id are both bare UUIDs: one path taking either could not tell which it was
+  // handed.
   const revoke = useMutation({
-    mutationFn: (subjectUserId: string) =>
-      apiClient.delete<void>(`${base}/grants/${subjectUserId}`),
+    mutationFn: (subject: GrantSubject) =>
+      subject.kind === "group"
+        ? apiClient.delete<void>(`${base}/group-grants/${subject.id}`)
+        : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("accessRemoved"));

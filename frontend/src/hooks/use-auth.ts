@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { User, LoginRequest, RegisterRequest } from "@/types";
+import type { DirectoryLoginRequest, User, LoginRequest, RegisterRequest } from "@/types";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
@@ -34,6 +34,12 @@ const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 // and it would otherwise install the previous account and its token over the
 // one the cookies now hold, leaving the socket and the page as different people.
 let identityEpoch = 0;
+
+/** What a sign-in route answers: the account, and the token the chat socket needs. */
+interface SignInResponse {
+  user: User;
+  access_token: string;
+}
 
 function ensureTokenRefresh(adopt: (u: User) => void): void {
   if (tokenRefreshTimer) return;
@@ -183,14 +189,13 @@ export function useAuth() {
     ensureTokenRefresh(adopt);
   }, [setUser, queryClient]);
 
-  const login = useCallback(
-    async (credentials: LoginRequest, returnTo?: string | null) => {
+  // Both sign-in forms end the same way - a user and a token in the answer - so
+  // they differ only in the request that gets them there.
+  const signIn = useCallback(
+    async (request: () => Promise<SignInResponse>, returnTo?: string | null) => {
       setLoading(true);
       try {
-        const response = await apiClient.post<{
-          user: User;
-          access_token: string;
-        }>("/auth/login", credentials);
+        const response = await request();
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
@@ -201,6 +206,29 @@ export function useAuth() {
       }
     },
     [router, setUser, setLoading, queryClient],
+  );
+
+  const login = useCallback(
+    (credentials: LoginRequest, returnTo?: string | null) =>
+      signIn(() => apiClient.post<SignInResponse>("/auth/login", credentials), returnTo),
+    [signIn],
+  );
+
+  // A directory account is created on its first sign-in, so the flow names which
+  // staged invitation's cookie the proxy forwards for the sign-up admission, the
+  // way `register` does (#1414).
+  const loginWithDirectory = useCallback(
+    (
+      credentials: DirectoryLoginRequest,
+      returnTo?: string | null,
+      invitationFlow?: string | null,
+    ) => {
+      const path = invitationFlow
+        ? `/auth/ldap/login?${INVITATION_FLOW_PARAM}=${invitationFlow}`
+        : "/auth/ldap/login";
+      return signIn(() => apiClient.post<SignInResponse>(path, credentials), returnTo);
+    },
+    [signIn],
   );
 
   // The flow names which staged invitation's cookie the register proxy forwards for
@@ -254,6 +282,7 @@ export function useAuth() {
     isAuthenticated,
     isLoading,
     login,
+    loginWithDirectory,
     register,
     logout: handleLogout,
     refreshToken,
