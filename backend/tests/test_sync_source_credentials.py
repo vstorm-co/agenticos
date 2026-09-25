@@ -283,7 +283,12 @@ class TestWhatTheConnectorsDeclare:
 
         # `none` is a declaration too: a public website has no credential to
         # offer, and the wizard skips the step rather than listing every secret.
-        assert kinds == {"gdrive": "gcp_service_account", "s3": "aws_credentials", "web": "none"}
+        assert kinds == {
+            "gdrive": "gcp_service_account",
+            "s3": "aws_credentials",
+            "web": "none",
+            "git": "git_token",
+        }
 
     def test_no_connector_config_schema_carries_a_credential_field(self):
         """The `secret: true` marker is gone, and with it `_mask_config`,

@@ -1,5 +1,5 @@
 ---
-source_sha: "7999a1202c63"
+source_sha: "f203f752d3d1"
 ---
 
 # Einen Sync-Connector hinzufügen { #add-a-sync-connector }
@@ -107,6 +107,19 @@ entfernen, was er nicht erreicht hat.
 nicht lesen konnte. Der Sync zählt jeden als fehlgeschlagene Datei und zeigt ihn
 im Sync-Protokoll, also formulieren Sie ihn in Ihren eigenen Worten: ein Host und
 ein Statuscode, nie der Text der Gegenseite.
+
+### Zwei optionale Hooks: Änderung und Aufräumen { #two-optional-hooks-change-and-cleanup }
+
+`list_files()` und `_fetch()` sind alles, was ein Connector schreiben muss. Zwei
+weitere Methoden haben Vorgaben, mit denen ein Connector so arbeitet wie Drive
+und S3, und ein Connector überschreibt eine davon, wenn seine Quelle die Frage
+beantworten kann, die sie stellt. `GitConnector` in
+`app/services/rag/connectors/git.py` überschreibt beide.
+
+| Hook | Vorgabe | Überschreiben, wenn |
+|------|---------|---------------------|
+| `remote_version(config, credential)` | `None`: jeder Lauf listet auf | Die Quelle kann günstig sagen, auf welchem Stand ihr gesamter Inhalt ist, etwa ein Commit oder ein Change-Token. Nach einem Lauf ohne fehlgeschlagene Datei speichert der Sync den Wert zusammen mit einem Fingerabdruck der Konfiguration. Der nächste Lauf, der dasselbe Paar vorfindet, hält vor `list_files()` an. Der Wert muss sich ändern, sobald sich eine aufgelistete Datei oder die Auflistung selbst geändert haben könnte. |
+| `aclose()` | nichts | Der Connector hält zwischen `list_files()` und den Downloads etwas vor, etwa einen Klon oder eine Session. Es wird aufgerufen, sobald der Sync vorbei ist, ob er erfolgreich war oder nicht. |
 
 ## Schritt für Schritt: ein Notion-Connector { #step-by-step-a-notion-connector }
 

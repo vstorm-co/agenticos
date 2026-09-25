@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A Git repository can feed a knowledge base.** A `git` sync source reads a
+  repository's documentation over HTTPS from GitHub, GitLab or any host that
+  serves git, with an access token from the Vault. By default it reads
+  Markdown and plain text, not the source tree. It makes a shallow, sparse
+  clone of the documentation only, and a file deleted from the branch is
+  removed like any other the source stops listing. The repository's host is
+  checked and pinned like any other tenant-chosen address, and an internal host
+  is refused. What a clone would write is measured before it is written: a file
+  over the knowledge base's document cap, or more than 512 MB in all, fails the
+  sync with nothing written (#987).
+- **A Git access token is a vault secret kind of its own, bound to its host.**
+  A Git source takes only a `git_token`, and sends it only to the host it was
+  added with, so editing a source cannot aim the organization's token, or any
+  other key, at a server of the editor's choosing.
+- **An unchanged source is not read again.** A connector that can say cheaply
+  what its source is at - a Git branch's head commit - is asked first, and a
+  scheduled sync that finds the same answer under the same configuration as the
+  last clean run stops there, without listing or downloading anything. A run
+  with a failed file records nothing, so the next one reads everything again.
+  The answer is kept in the new `sync_sources.sync_state` (migration
+  `0097_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
+  the answer and `aclose` for what a sync made, such as a clone.
+
+### Fixed
+
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
+
 ## [0.0.496] - 2026-09-25
 
 ### Added

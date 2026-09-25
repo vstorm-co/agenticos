@@ -1,7 +1,7 @@
 # Configure sync sources
 
 Sync sources pull documents from external services (Google Drive, S3/MinIO, a
-public website) into knowledge collections on their own. Each source stores a
+public website, a Git repository) into knowledge collections on their own. Each source stores a
 connector type, a target collection, connector-specific settings, a sync mode, an
 optional schedule, and the id of the [vault secret](../secrets.md) that
 authenticates it - a website needs none.
@@ -30,7 +30,7 @@ outcome of every sync operation.
 ### List available connector types
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -60,6 +60,22 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Add a Git source -- a repository's docs, nightly
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Then choose its access token as the source's credential in the UI, or send
+`secret_id` with a `PATCH` — see [Git repository setup](#git-repository-setup).
+
 ### Trigger sync manually
 
 ```bash
@@ -83,7 +99,8 @@ in the `rag-sources` listing.
 
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
 2. Click **"+ Add Source"**.
-3. Select a connector type (Google Drive, S3, Website). The form fields are
+3. Select a connector type (Google Drive, S3, Website, Git
+   repository). The form fields are
    generated from the JSON Schema of the connector's `CONFIG_MODEL`. A website
    has no credential step.
 4. Fill in the connector-specific config fields (e.g. folder ID, bucket
@@ -129,6 +146,28 @@ Only the source's own documents are removed. An upload, or a document another
 source brought into the same collection, is never touched. A document ingested
 before its source recorded this (September 2026) is kept until the source
 ingests it again.
+
+### What a second sync does
+
+A sync after the first one does as little as the source lets it:
+
+- **An unchanged file costs a download, not an embedding.** Its SHA-256 matches
+  the stored document's, so it is counted as `skipped` and never parsed or
+  embedded again.
+- **An unchanged source costs one request.** A connector that can say what its
+  whole content is at — a Git branch's head commit — records that after every run
+  that finished with nothing failed. The next `new_only` or `update_only` run that
+  finds the same value, under the same configuration, stops before it lists
+  anything: its log shows no files processed, and it removes nothing. Changing the
+  configuration, the collection or the mode makes the next run read everything
+  again, and `full` never stops early.
+- **A file a stopped sync left half-done is put right.** A worker that stopped
+  after storing a file's vectors, and before recording them, leaves them untracked.
+  The next sync of that source deletes what nothing tracks and ingests the file
+  again, and it does not stop early while such a file is waiting.
+
+A run with a failed file records no state, so the next run reads the source in
+full and retries it.
 
 ## Schedule
 
@@ -296,6 +335,92 @@ everyone who can search the collection it feeds, as with any other source. See
 Only HTML pages are imported. A PDF or other file linked from a page is not
 downloaded.
 
+## Git repository setup
+
+A `git` source reads a repository's documentation over HTTPS — GitHub, GitLab or
+any other host that serves git over HTTPS. It needs the clone URL and an access
+token, not either platform's API.
+
+### 1. Issue a token for the one repository
+
+**A token's reach is the source's reach.** Everything the source ingests becomes
+searchable by whoever can read the collection, so a token that can read every
+private repository its owner can is a token that can publish all of them to that
+audience. See [who ends up able to read what a source
+ingested](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** a fine-grained personal access token, *Only select repositories*,
+  with the one repository, and **Contents: Read-only** as its only permission.
+- **GitLab:** a project access token on the one project, role **Reporter**, scope
+  **`read_repository`** only.
+
+Give it an expiry date. When it expires, the source's next sync fails with *the
+repository refused the source's token*, and the fix is a new token in the same
+vault secret.
+
+### 2. Add it to the Vault
+
+Add the token to the Vault as a **Git access token**, with the **host** it
+belongs to: `github.com`, `gitlab.com`, or your own server such as
+`git.example.com:8443`. A host with non-ASCII letters is entered in its encoded
+form, such as `xn--bcher-kva.example` for `bücher.example`. Then choose the token
+on the source's credential step. It is sent
+as an HTTP `Authorization` header, never in the URL, and never in a command line
+another process can read.
+
+**The host is the token's, not the source's.** Whoever edits a source chooses
+its repository URL, and a token is sent only to the host it was added with. So
+editing a source cannot aim the organization's token at another server, and no
+other kind of key, such as a model provider's API key, can be chosen for a Git
+source at all.
+
+### 3. Git connector config fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Yes | -- | The HTTPS clone URL, e.g. `https://github.com/acme/handbook.git`. No user name or token in it. |
+| `branch` | string | No | `main` | The branch to read. |
+| `path_prefix` | string | No | -- | A directory inside the repository, e.g. `docs`. Leave empty for the whole repository. |
+| `include` | list of strings | No | `**/*.md`, `**/*.txt` | Which files to ingest, as `.gitignore`-style patterns relative to `path_prefix`. |
+
+The default is documentation, not the whole tree: a repository's source code is
+not a corpus, and ingesting it fills a knowledge base with code nobody asked to
+search. Add a pattern such as `**/*.pdf` for another format the collection's
+parser reads. A pattern cannot start with `!`.
+
+Each file is a document whose address is
+`git://<host>/<owner>/<repo>@<branch>/<path>`, with `:<port>` after the host when
+the port is not 443. The branch is part of the address, so two sources reading two
+branches of one repository into one collection keep separate documents.
+
+### 4. What a sync transfers
+
+The first request of every sync is `git ls-remote` for the branch — about a
+kilobyte. When the head commit has not moved since the last clean run, the sync
+stops there. When it has moved, the connector makes a shallow, partial, sparse
+clone: one commit, and only the files the include patterns match. A monorepo's
+documentation therefore costs its documentation, not its source tree.
+
+Before the clone writes anything to the worker's disk, the connector measures
+every file it would write. A file over the knowledge base's document cap
+(`MAX_UPLOAD_SIZE_MB`, 50 MB by default), or more than 512 MB of files in all, is
+refused, and nothing is written.
+
+Symbolic links and submodules are not followed, and a link is not ingested as a
+document.
+
+### Network rules
+
+The URL must be `https://`. Its host is resolved once and checked like any other
+address a tenant chooses: a host that resolves to a private, loopback or
+link-local address is refused when the source is saved and again when it syncs,
+and git connects only to the addresses that check approved. Redirects are not
+followed. A deployment behind an egress proxy (`HTTPS_PROXY`) keeps using it; the
+proxy then resolves the host itself.
+
+The worker image ships `git`. A worker built from another image needs `git`
+2.37 or newer on its `PATH`.
+
 ## API reference
 
 All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
@@ -445,6 +570,7 @@ available types with `rag-sources` or `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) is available.
 S3 (`s3`) is available.
 Website (`web`) is available.
+Git (`git`) is available.
 
 ### Google Drive: "this source has no credential"
 
@@ -511,6 +637,70 @@ seen.
 The listing stopped short: a crawl reached `max_pages`, or some pages could not
 be read. What was found was ingested, and nothing was removed. Raise `max_pages`,
 or narrow the crawl with `path_prefix`, until a run finishes without this message.
+
+### Git: "The repository refused the source's token"
+
+The token has expired, was revoked, or cannot read this repository. Issue a new
+one as described in [Git repository setup](#git-repository-setup) and replace the
+value of the vault secret the source uses; every source using that secret picks
+it up on its next sync.
+
+### Git: "The repository was not found, or the source's token cannot see it"
+
+Check the clone URL first. A private repository answers *not found* rather than
+*forbidden* to a token that cannot read it, so a fine-grained token issued for a
+different repository reads as this.
+
+### Git: "The repository has no branch named …"
+
+The `branch` field names a branch the repository does not have. Its default is
+`main`; an older repository's default branch may be `master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB"
+
+A file the include patterns match is larger than the knowledge base's document
+cap. Narrow `include` or `path_prefix` so that the file is left out. Nothing was
+written for this sync.
+
+### Git: "… over the … MB one sync may check out"
+
+All the files the include patterns match are more than 512 MB together. Narrow
+`include` or `path_prefix`, or split the repository into more than one source,
+each with its own prefix.
+
+### Git: "This token was added for …, and the repository is on …"
+
+The source's repository is on a different host from the one its token was added
+with. Either the URL is wrong, or the source needs a token added for that host.
+Nothing was sent to the repository's host.
+
+### Git: "A Git source needs a Git access token"
+
+The source names a secret of another kind, such as an API key. Add the token as a
+**Git access token**, with its host, and choose that one.
+
+### "Another sync of this source is still running"
+
+A run was triggered while another run of the same source was in progress, so it
+did not start. The run in progress finishes normally; trigger again after it if
+the source changed meanwhile.
+
+### Git: "… resolves to a private address"
+
+The repository's host resolves inside the deployment's network, so the source is
+refused. A self-hosted Git server on an internal address cannot be reached by a
+sync source.
+
+### Git: "git is not installed on this worker"
+
+The worker runs from an image without `git`. The shipped `backend/Dockerfile`
+installs it; a custom image needs it added.
+
+### Git: a sync finished with no files processed
+
+The branch's head commit is the one the last clean run read, under the same
+configuration, so there was nothing to do. Switch the source to `full` for one run
+to read everything again regardless.
 
 ### Scheduled syncs are not running
 

@@ -90,6 +90,9 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
             )
         ),
         download_file=AsyncMock(side_effect=download),
+        # What Drive inherits from the base: no version to stop early on.
+        remote_version=AsyncMock(return_value=None),
+        aclose=AsyncMock(),
     )
 
 
@@ -129,6 +132,7 @@ async def _syncing(
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=[]),
+        stale_for_source=AsyncMock(return_value=[]),
     )
 
     @asynccontextmanager
@@ -579,6 +583,7 @@ class TestAListingTheStoreCannotAnswer:
                     complete_ingestion=AsyncMock(),
                     fail_ingestion=AsyncMock(),
                     unlisted_by_source=AsyncMock(return_value=[]),
+                    stale_for_source=AsyncMock(return_value=[]),
                 ),
             ),
         ):
@@ -610,6 +615,7 @@ class TestTheLocalDirectorySync:
             complete_ingestion=AsyncMock(),
             fail_ingestion=AsyncMock(),
             unlisted_by_source=AsyncMock(return_value=[]),
+            stale_for_source=AsyncMock(return_value=[]),
         )
 
         @asynccontextmanager

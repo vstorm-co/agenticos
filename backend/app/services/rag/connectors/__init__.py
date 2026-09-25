@@ -172,6 +172,31 @@ class BaseSyncConnector(ABC):
     ) -> None:
         """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
 
+    async def remote_version(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> str | None:
+        """What the source's whole content is at now, if that is cheap to ask.
+
+        A value the sync stores after a run that finished cleanly. When the next
+        run reads the same value under the same configuration, nothing upstream
+        has changed and it stops before listing or downloading anything - a Git
+        branch's head commit is the case this exists for, answered by one
+        `ls-remote` instead of a clone.
+
+        `None`, the default, means the source cannot say, and every run lists.
+        A connector that answers must answer a *different* value whenever any
+        listed file's bytes, or the listing itself, could have changed.
+        """
+        return None
+
+    async def aclose(self) -> None:  # noqa: B027
+        """Release what one sync made - a clone, a session. Called once the sync is over.
+
+        Nothing, by default: a connector that holds nothing between calls has
+        nothing to release. The `noqa` is that decision - an optional hook, not
+        an abstract one every connector must spell out.
+        """
+
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Why this config would not be accepted, or `None` if it would.
 
@@ -199,3 +224,6 @@ CONNECTOR_REGISTRY["s3"] = S3Connector
 from app.services.rag.connectors.web import WebConnector
 
 CONNECTOR_REGISTRY["web"] = WebConnector
+from app.services.rag.connectors.git import GitConnector
+
+CONNECTOR_REGISTRY["git"] = GitConnector

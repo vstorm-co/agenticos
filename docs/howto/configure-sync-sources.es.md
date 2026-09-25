@@ -1,11 +1,11 @@
 ---
-source_sha: "7dfde94e116e"
+source_sha: "86769ff55566"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
 
 Las fuentes de sincronización traen documentos de servicios externos (Google
-Drive, S3/MinIO, un sitio web público) a las colecciones de conocimiento por su
+Drive, S3/MinIO, un sitio web público, un repositorio Git) a las colecciones de conocimiento por su
 cuenta. Cada fuente guarda un tipo de connector, una colección de destino,
 opciones propias del connector, un modo de sincronización, un horario opcional y
 el id del [secreto del vault](../secrets.md) que la autentica - un sitio web no
@@ -35,7 +35,7 @@ de `SyncLog` deja constancia del resultado de cada operación de sincronización
 ### Listar los tipos de connector disponibles { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -65,6 +65,23 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Añadir una fuente de Git -- la documentación de un repositorio, cada noche { #add-a-git-source-a-repositorys-docs-nightly }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Después elige su token de acceso como credencial de la fuente en la interfaz, o
+envía `secret_id` con un `PATCH` — consulta
+[Configurar un repositorio Git](#git-repository-setup).
+
 ### Lanzar una sincronización a mano { #trigger-sync-manually }
 
 ```bash
@@ -88,7 +105,8 @@ el listado de `rag-sources`.
 
 1. Ve a **Knowledge Base** y abre la pestaña **Sync**.
 2. Pulsa **"+ Add Source"**.
-3. Elige un tipo de connector (Google Drive, S3, Website). Los campos del
+3. Elige un tipo de connector (Google Drive, S3, Website, Git
+   repository). Los campos del
    formulario se generan a partir del JSON Schema del `CONFIG_MODEL` del
    connector. Un sitio web no tiene paso de credencial.
 4. Rellena los campos de configuración propios del connector (por ejemplo, el
@@ -140,6 +158,30 @@ Solo se eliminan los documentos de la propia fuente. Una subida, o un documento
 que otra fuente trajo a la misma colección, no se toca nunca. Un documento
 ingestado antes de que su fuente registrara esto (septiembre de 2026) se
 conserva hasta que la fuente vuelva a ingestarlo.
+
+### Qué hace una segunda sincronización { #what-a-second-sync-does }
+
+Una sincronización posterior a la primera hace tan poco como la fuente le
+permite:
+
+- **Un archivo sin cambios cuesta una descarga, no un embedding.** Su SHA-256
+  coincide con el del documento almacenado, así que se cuenta como `skipped` y
+  no se vuelve a parsear ni a embeber.
+- **Una fuente sin cambios cuesta una petición.** Un connector capaz de decir en
+  qué punto está todo su contenido —el commit de cabeza de una rama de Git— lo
+  registra después de cada ejecución que termina sin ningún fallo. La siguiente
+  ejecución `new_only` o `update_only` que encuentra el mismo valor, con la misma
+  configuración, se detiene antes de listar nada: su registro no muestra ningún
+  archivo procesado, y no elimina nada. Cambiar la configuración, la colección o el modo hace que la
+  siguiente ejecución lo vuelva a leer todo, y `full` nunca se detiene antes.
+- **Un archivo que una sincronización interrumpida dejó a medias se corrige.**
+  Un worker detenido después de guardar los vectores de un archivo y antes de
+  registrarlos los deja sin ninguna fila que los siga. La siguiente sincronización
+  de esa fuente borra lo que nada sigue y vuelve a ingerir el archivo; mientras
+  un archivo así espera, no se detiene antes.
+
+Una ejecución con un archivo fallido no registra ningún estado, así que la
+siguiente lee la fuente entera y vuelve a intentarlo.
 
 ## Horario { #schedule }
 
@@ -312,6 +354,97 @@ como con cualquier otra fuente. Consulta
 Solo se importan páginas HTML. Un PDF u otro archivo enlazado desde una página no
 se descarga.
 
+## Configurar un repositorio Git { #git-repository-setup }
+
+Una fuente `git` lee la documentación de un repositorio por HTTPS: GitHub, GitLab
+o cualquier otro host que sirva git por HTTPS. Necesita la URL de clonado y un
+token de acceso, no la API de ninguna de las dos plataformas.
+
+### 1. Emite un token para ese único repositorio { #1-issue-a-token-for-the-one-repository }
+
+**El alcance del token es el alcance de la fuente.** Todo lo que la fuente
+ingiere pasa a poder buscarlo cualquiera que pueda leer la colección, así que un
+token capaz de leer todos los repositorios privados que puede leer su dueño es un
+token capaz de publicarlos todos para ese público. Consulta [quién acaba pudiendo
+leer lo que ingirió una
+fuente](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** un personal access token de tipo fine-grained, con *Only select
+  repositories*, ese único repositorio y **Contents: Read-only** como único
+  permiso.
+- **GitLab:** un project access token en ese único proyecto, con el rol
+  **Reporter** y solo el scope **`read_repository`**.
+
+Ponle una fecha de caducidad. Cuando caduque, la siguiente sincronización de la
+fuente falla con *the repository refused the source's token*, y la solución es un
+token nuevo en el mismo secreto del vault.
+
+### 2. Añádelo al vault { #2-add-it-to-the-vault }
+
+Añade el token al vault como **Git access token**, con el **host** al que
+pertenece: `github.com`, `gitlab.com` o tu propio servidor, como
+`git.example.com:8443`. Un host con letras que no son ASCII se escribe en su forma
+codificada, por ejemplo `xn--bcher-kva.example` para `bücher.example`. Después
+elige el token en el paso de credencial de la fuente. Se
+envía en una cabecera HTTP `Authorization`, nunca en la URL ni en una línea de
+comandos que otro proceso pueda leer.
+
+**El host es del token, no de la fuente.** Quien edita una fuente elige la URL de
+su repositorio, y un token solo se envía al host con el que se añadió. Así que
+editar una fuente no puede dirigir el token de la organización a otro servidor, y
+ningún otro tipo de clave, como la API key de un provider de modelos, puede
+elegirse para una fuente de Git.
+
+### 3. Campos de configuración del connector de Git { #3-git-connector-config-fields }
+
+| Campo | Tipo | Obligatorio | Valor por defecto | Descripción |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Sí | -- | La URL de clonado HTTPS, por ejemplo `https://github.com/acme/handbook.git`. Sin nombre de usuario ni token. |
+| `branch` | string | No | `main` | La rama que se lee. |
+| `path_prefix` | string | No | -- | Un directorio dentro del repositorio, por ejemplo `docs`. Déjalo vacío para el repositorio entero. |
+| `include` | lista de strings | No | `**/*.md`, `**/*.txt` | Qué archivos se ingieren, como patrones al estilo de `.gitignore` relativos a `path_prefix`. |
+
+El valor por defecto es la documentación, no el árbol entero: el código fuente de
+un repositorio no es un corpus, e ingerirlo llena la base de conocimiento de
+código que nadie ha pedido buscar. Añade un patrón como `**/*.pdf` para otro
+formato que lea el parser de la colección. Un patrón no puede empezar por `!`.
+
+Cada archivo es un documento cuya dirección es
+`git://<host>/<owner>/<repo>@<branch>/<path>`, con `:<port>` tras el host cuando
+el puerto no es 443. La rama forma parte de la dirección, así que dos fuentes que leen dos ramas de un mismo repositorio en una
+misma colección mantienen documentos separados.
+
+### 4. Qué transfiere una sincronización { #4-what-a-sync-transfers }
+
+La primera petición de cada sincronización es `git ls-remote` para la rama: más o
+menos un kilobyte. Si el commit de cabeza no se ha movido desde la última
+ejecución limpia, la sincronización se detiene ahí. Si se ha movido, el connector
+hace un clonado superficial, parcial y disperso (shallow, partial, sparse): un
+solo commit, y solo los archivos que casan con los patrones de inclusión. Por eso
+la documentación de un monorepo cuesta lo que su documentación, no lo que su
+árbol de código.
+
+Antes de que el clonado escriba nada en el disco del worker, el connector mide
+cada archivo que escribiría. Un archivo que supera el límite de documento de la
+base de conocimiento (`MAX_UPLOAD_SIZE_MB`, 50 MB por defecto), o más de 512 MB
+de archivos en total, se rechaza, y no se escribe nada.
+
+Los enlaces simbólicos y los submódulos no se siguen, y un enlace no se ingiere
+como documento.
+
+### Reglas de red { #network-rules }
+
+La URL tiene que ser `https://`. Su host se resuelve una sola vez y se comprueba
+como cualquier otra dirección que elige un inquilino: un host que resuelve a una
+dirección privada, de loopback o link-local se rechaza al guardar la fuente y de
+nuevo al sincronizar, y git solo se conecta a las direcciones que esa
+comprobación aprobó. Las redirecciones no se siguen. Un deployment detrás de un
+proxy de salida (`HTTPS_PROXY`) lo sigue usando; en ese caso el proxy resuelve el
+host por su cuenta.
+
+La imagen del worker incluye `git`. Un worker construido a partir de otra imagen
+necesita `git` 2.37 o posterior en su `PATH`.
+
 ## Referencia de la API { #api-reference }
 
 Todos los endpoints de las fuentes de sincronización viven bajo
@@ -465,6 +598,7 @@ los tipos disponibles con `rag-sources` o con
 Google Drive (`gdrive`) está disponible.
 S3 (`s3`) está disponible.
 Website (`web`) está disponible.
+Git (`git`) está disponible.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -536,6 +670,71 @@ El listado se quedó corto: un crawl alcanzó `max_pages`, o algunas páginas no
 pudieron leer. Lo que se encontró se ingestó, y no se eliminó nada. Sube
 `max_pages`, o acota el crawl con `path_prefix`, hasta que un run termine sin este
 mensaje.
+
+### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
+
+El token ha caducado, se ha revocado o no puede leer este repositorio. Emite uno
+nuevo como se describe en [Configurar un repositorio Git](#git-repository-setup)
+y sustituye el valor del secreto del vault que usa la fuente; todas las fuentes
+que usan ese secreto lo recogen en su siguiente sincronización.
+
+### Git: "The repository was not found, or the source's token cannot see it" { #git-the-repository-was-not-found-or-the-sources-token-cannot-see-it }
+
+Comprueba primero la URL de clonado. Un repositorio privado responde *not found*
+en lugar de *forbidden* a un token que no puede leerlo, así que un token
+fine-grained emitido para otro repositorio se ve así.
+
+### Git: "The repository has no branch named …" { #git-the-repository-has-no-branch-named }
+
+El campo `branch` nombra una rama que el repositorio no tiene. Su valor por
+defecto es `main`; la rama por defecto de un repositorio más antiguo puede ser
+`master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB" { #git-is-mb-and-a-synced-file-may-be-at-most-mb }
+
+Un archivo que casa con los patrones de inclusión supera el límite de documento
+de la base de conocimiento. Acota `include` o `path_prefix` para que ese archivo
+quede fuera. En esta sincronización no se escribió nada.
+
+### Git: "… over the … MB one sync may check out" { #git-over-the-mb-one-sync-may-check-out }
+
+Todos los archivos que casan con los patrones de inclusión suman más de 512 MB.
+Acota `include` o `path_prefix`, o divide el repositorio en varias fuentes, cada
+una con su propio prefijo.
+
+### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
+
+El repositorio de la fuente está en un host distinto de aquel con el que se añadió
+su token. O la URL es incorrecta, o la fuente necesita un token añadido para ese
+host. No se envió nada al host del repositorio.
+
+### Git: "A Git source needs a Git access token" { #git-a-git-source-needs-a-git-access-token }
+
+La fuente nombra un secreto de otro kind, como una API key. Añade el token como
+**Git access token**, con su host, y elige ese.
+
+### "Another sync of this source is still running" { #another-sync-of-this-source-is-still-running }
+
+Se lanzó una ejecución mientras había otra de la misma fuente en curso, así que no
+arrancó. La ejecución en curso termina con normalidad; vuelve a lanzarla después
+si la fuente ha cambiado entretanto.
+
+### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
+
+El host del repositorio resuelve dentro de la red del deployment, así que la
+fuente se rechaza. Una fuente de sincronización no puede llegar a un servidor Git
+autoalojado en una dirección interna.
+
+### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
+
+El worker se ejecuta desde una imagen sin `git`. El `backend/Dockerfile` que se
+distribuye lo instala; a una imagen propia hay que añadírselo.
+
+### Git: una sincronización terminó sin ningún archivo procesado { #git-a-sync-finished-with-no-files-processed }
+
+El commit de cabeza de la rama es el mismo que leyó la última ejecución limpia,
+con la misma configuración, así que no había nada que hacer. Cambia la fuente a
+`full` durante una ejecución para volver a leerlo todo de todos modos.
 
 ### Las sincronizaciones programadas no se ejecutan { #scheduled-syncs-are-not-running }
 

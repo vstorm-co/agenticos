@@ -656,6 +656,31 @@ class RAGDocumentService:
         )
         return [row for row in rows if row.source_path not in listed]
 
+    async def stale_for_source(
+        self, *, sync_source_id: UUID, collection_name: str
+    ) -> list[RAGDocument]:
+        """The rows a dead run of this source left `PROCESSING` (`get_stale_for_sync_source`)."""
+        return await rag_document_repo.get_stale_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+
+    async def settled_at(
+        self, *, sync_source_id: UUID, collection_name: str, source_path: str
+    ) -> list[RAGDocument]:
+        """This source's settled rows at one address."""
+        rows = await rag_document_repo.get_settled_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+        return [row for row in rows if row.source_path == source_path]
+
+    async def tracked_vector_ids(
+        self, *, collection_name: str, vector_document_ids: set[str]
+    ) -> set[str]:
+        """Which of these stored documents some row of the collection tracks."""
+        return await rag_document_repo.get_tracked_vector_ids(
+            self.db, collection_name=collection_name, vector_document_ids=vector_document_ids
+        )
+
     async def forget_document(self, doc_id: str) -> None:
         """Delete a document's row alone, once its vectors are already gone.
 

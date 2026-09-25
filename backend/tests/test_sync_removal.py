@@ -53,7 +53,13 @@ def _connector(
         if isinstance(listing, Exception)
         else AsyncMock(return_value=listing)
     )
-    return MagicMock(list_files=listed, download_file=AsyncMock(side_effect=download))
+    return MagicMock(
+        list_files=listed,
+        download_file=AsyncMock(side_effect=download),
+        # The base's answers: no version to stop early on, nothing to release.
+        remote_version=AsyncMock(return_value=None),
+        aclose=AsyncMock(),
+    )
 
 
 @asynccontextmanager
@@ -84,6 +90,7 @@ async def _syncing(
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=unlisted),
+        stale_for_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(),
     )
     syncs = MagicMock(complete_sync=AsyncMock(return_value=log))

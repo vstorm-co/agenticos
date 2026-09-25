@@ -1,5 +1,5 @@
 ---
-source_sha: "7999a1202c63"
+source_sha: "f203f752d3d1"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }
@@ -102,6 +102,19 @@ en lugar de eliminar todo lo que no alcanzó.
 leer. El sync cuenta cada una como un archivo fallido y la muestra en el log del
 sync, así que escríbela con tus propias palabras: un host y un código de estado,
 nunca el texto del sistema remoto.
+
+### Dos hooks opcionales: cambio y limpieza { #two-optional-hooks-change-and-cleanup }
+
+`list_files()` y `_fetch()` son todo lo que un connector tiene que escribir. Otros
+dos métodos tienen valores por defecto que hacen funcionar un connector como lo
+hacen Drive y S3, y un connector sobrescribe uno cuando su source puede responder
+a la pregunta que plantea. `GitConnector`, en `app/services/rag/connectors/git.py`,
+sobrescribe los dos.
+
+| Hook | Por defecto | Sobrescríbelo cuando |
+|------|---------|------------------|
+| `remote_version(config, credential)` | `None`: cada ejecución lista | La source puede decir de forma barata en qué punto está todo su contenido, como un commit o un token de cambios. Tras una ejecución sin ningún fallo, el sync guarda el valor junto con una huella de la configuración. La siguiente ejecución que encuentra el mismo par se detiene antes de `list_files()`. El valor tiene que cambiar siempre que haya podido cambiar cualquier archivo listado, o el propio listado. |
+| `aclose()` | nada | El connector conserva algo entre `list_files()` y las descargas, como un clon o una sesión. Se llama una vez terminado el sync, tanto si ha salido bien como si no. |
 
 ## Paso a paso: un connector de Notion { #step-by-step-a-notion-connector }
 

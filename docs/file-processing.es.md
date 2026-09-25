@@ -1,5 +1,5 @@
 ---
-source_sha: "09b31f0626e6"
+source_sha: "81f76b874f26"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1209,9 +1209,10 @@ propio shell.
     ámbito de deployment, porque una caída significa que el id de carpeta de un
     tenant elige qué se lee bajo la identidad del operador.
 
-Lo que la fuente nombra en `secret_id` es un `gcp_service_account` para Drive o un
-par `aws_credentials` para S3, declarado por el conector como `SECRET_KIND` y
-ofrecido al asistente como `secret_kind` en el listado de conectores.
+Lo que la fuente nombra en `secret_id` es un `gcp_service_account` para Drive, un
+par `aws_credentials` para S3 o un `git_token` para un repositorio Git, declarado
+por el conector como `SECRET_KIND` y ofrecido al asistente como `secret_kind` en
+el listado de conectores.
 
 Antes estaba en `config`, cifrado por `app/core/crypto.py` — una sola clave Fernet
 de ámbito de deployment sobre la credencial de cada tenant, que es justo la

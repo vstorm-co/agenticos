@@ -1,5 +1,5 @@
 ---
-source_sha: "09b31f0626e6"
+source_sha: "81f76b874f26"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1190,9 +1190,10 @@ poleceniu CLI `rag-sync-gdrive`, które operator uruchamia z własnej powłoki.
     folderu jednego tenanta wybiera to, co jest czytane pod tożsamością
     operatora.
 
-To, co source wskazuje w `secret_id`, to `gcp_service_account` dla Drive albo
-para `aws_credentials` dla S3, deklarowane przez konektor jako `SECRET_KIND`
-i podawane kreatorowi jako `secret_kind` na listingu konektorów.
+To, co source wskazuje w `secret_id`, to `gcp_service_account` dla Drive, para
+`aws_credentials` dla S3 albo `git_token` dla repozytorium Git, deklarowane przez
+konektor jako `SECRET_KIND` i podawane kreatorowi jako `secret_kind` na listingu
+konektorów.
 
 Kiedyś siedziało to w `config`, zaszyfrowane przez `app/core/crypto.py` — jeden
 klucz Fernet obowiązujący dla całego wdrożenia nad poświadczeniem każdego
