@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.505] - 2026-09-26
+
 ### Changed
 
 - **Comparisons cover eleven products in depth.** The comparison hub groups
@@ -26,12 +28,12 @@ Two things are versioned separately from this file and worth knowing about:
   identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
   guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
   Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
-  sources checked on 25 September 2026.
+  sources checked on 25 September 2026 (#1894).
 - **Comparison guides are written for search.** Each has a search title, a
   meta description and a frequently-asked-questions section, in all four
   languages. The site adds Open Graph and Twitter card tags to every page and
   publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
-  lists every comparison.
+  lists every comparison (#1894).
 
 ## [0.0.504] - 2026-09-25
 
