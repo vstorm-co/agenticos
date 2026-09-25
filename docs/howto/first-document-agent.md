@@ -48,6 +48,6 @@ Change the owner to the facilities team in the test file. In the [collection doc
 
 ## Share the next step
 
-Once you have checked the result, choose [Slack or another entry point](../channels.md). The hosted page is public by link: use public or synthetic material there. Channel choice does not establish document access rules.
+Once you have checked the result, put the agent [in Slack](slack-handbook-assistant.md) or choose [another entry point](../channels.md). The hosted page is public by link: use public or synthetic material there. Channel choice does not establish document access rules.
 
 Before a team pilot, assign the [operating owner](../rollout.md). If a step fails, include the version, configuration and redacted reproduction in a [help request](../help.md).

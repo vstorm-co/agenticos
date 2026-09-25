@@ -1,5 +1,5 @@
 ---
-source_sha: "90d62e9ab4aa"
+source_sha: "115abe7a042f"
 title: "Crea tu primer agent con documentos"
 description: "Crea un asistente que responda preguntas sobre solicitudes de equipos. Este ejemplo sintético contiene un hecho comprobable y una laguna deliberada. Es un procedimiento, no un informe de resultados medidos."
 ---
@@ -49,6 +49,6 @@ Cambia el responsable del archivo de prueba a facilities team. En la [lista de d
 
 ## Comparte el siguiente paso { #share-the-next-step }
 
-Tras verificar el resultado, elige [Slack u otro punto de acceso](../channels.md). La Hosted Page es pública mediante enlace: usa datos públicos o sintéticos. El canal no determina los permisos documentales.
+Tras verificar el resultado, lleva el agent [a Slack](slack-handbook-assistant.md) o elige [otro punto de acceso](../channels.md). La Hosted Page es pública mediante enlace: usa datos públicos o sintéticos. El canal no determina los permisos documentales.
 
 Asigna un [responsable operativo](../rollout.md) antes del piloto. Si falla un paso, incluye versión, configuración y reproducción sin datos privados en una [solicitud de ayuda](../help.md).
