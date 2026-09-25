@@ -1,5 +1,5 @@
 ---
-source_sha: "a434e301f063"
+source_sha: "fc3a34cbf0bf"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -211,6 +211,12 @@ Dicho en vez de dejado al descubrimiento:
 - **Nada sobre un proveedor real.** Toda latencia en una ejecución por defecto es la
   de la plataforma más el retardo declarado del stub.
 - **La consola.** El frontend no se ejercita; esto son rutas de API.
+- **Lo que cuesta mover una respuesta.** El driver corre en la misma máquina
+  que el deployment, así que cada número de aquí es latencia sin un enlace
+  debajo. Por eso las ejecuciones de más abajo tampoco dicen nada sobre la
+  compresión de respuestas, que la API hace desde `0.0.497`: en loopback es CPU
+  gastada y ancho de banda no ahorrado, y la carga que más gana con ella - un
+  transcript largo - no está en la mezcla.
 - **Un clúster.** Un despliegue, una base de datos. El objetivo de NFA-006 es
   arquitectónico y una ejecución en un solo host no dice nada al respecto en ningún
   sentido.

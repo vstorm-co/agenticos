@@ -1,5 +1,5 @@
 ---
-source_sha: "7c25dca319aa"
+source_sha: "69e5f026dffe"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -172,6 +172,20 @@ nie da się wysłać zaproszeń ani resetów hasła, oraz `LOGFIRE_TOKEN`, pod k
 
 Coś musi terminować TLS i routować te dwie nazwy. Obie opcje poniżej sięgają do
 tych samych kontenerów; wybierz na podstawie tego, czy już któreś uruchamiasz.
+
+!!! note "Kompresję zostaw aplikacji"
+
+    Obie połowy kompresują to, czym odpowiadają: API rejestruje gzip we własnym
+    stosie middleware, a Next robi to samo z ładunkami HTML i RSC. Powodem jest
+    transkrypcja - `GET /conversations/{id}/messages` zwraca sto tur wraz z ich
+    rozumowaniem, osiami czasu oraz argumentami i wynikiem każdego wywołania
+    narzędzia, a to JSON liczony w megabajtach.
+
+    Proxy nie potrzebuje więc `gzip on` i nie może po drodze czyścić
+    `Accept-Encoding` klienta. Od tego nagłówka zaczyna się zwykły przepis "niech
+    kompresuje proxy", a tutaj wyłącza on kompresję i tyle. Nic nie jest
+    kompresowane dwa razy: odpowiedź, która już niesie `Content-Encoding`, Nginx
+    i Traefik przepuszczają bez zmian.
 
 ### Opcja A: Traefik { #option-a-traefik }
 

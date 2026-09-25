@@ -1,5 +1,5 @@
 ---
-source_sha: "7c25dca319aa"
+source_sha: "69e5f026dffe"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -182,6 +182,20 @@ y `LOGFIRE_TOKEN`, que es adonde van las trazas de los runs de los agents.
 
 Algo tiene que terminar el TLS y enrutar los dos nombres. Las dos opciones de
 abajo llegan a los mismos contenedores; elige según si ya tienes uno en marcha.
+
+!!! note "Deja la compresión a la aplicación"
+
+    Las dos mitades comprimen lo que responden: la API registra gzip en su propio
+    stack de middleware, y Next hace lo mismo con las cargas HTML y RSC. Un
+    transcript es la razón: `GET /conversations/{id}/messages` devuelve cien
+    turnos con su razonamiento, sus cronologías y los argumentos y el resultado de
+    cada llamada a una herramienta, y eso es JSON medido en megabytes.
+
+    Así que el proxy no necesita `gzip on`, y no debe vaciar el `Accept-Encoding`
+    del cliente por el camino. Con esa cabecera empieza la receta habitual de
+    «que comprima el proxy», y aquí lo único que hace es apagar la compresión.
+    Nada se comprime dos veces: una respuesta que ya lleva `Content-Encoding`
+    pasa tal cual por Nginx y por Traefik.
 
 ### Opción A: Traefik { #option-a-traefik }
 

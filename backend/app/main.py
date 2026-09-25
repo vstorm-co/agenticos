@@ -8,6 +8,7 @@ from typing import TypedDict
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
@@ -45,6 +46,22 @@ from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
 logger = logging.getLogger(__name__)
+
+# Extends Starlette's own list, which already holds images, video, audio, zip and
+# `text/event-stream`. These are what the byte-serving routes answer with
+# (`_stored_bytes.py`, `_chat_file_bytes.py`): an OOXML file is a zip container and
+# a PDF is usually already stream-compressed, so there is nothing to win - and
+# compressing a StreamingResponse deletes its `Content-Length`, which costs the
+# browser the download progress it would otherwise draw. A CSV export stays
+# compressible; that one is worth it.
+UNCOMPRESSED_CONTENT_TYPES = (
+    *DEFAULT_EXCLUDED_CONTENT_TYPES,
+    "application/octet-stream",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+)
 
 
 class LifespanState(TypedDict, total=False):
@@ -371,10 +388,11 @@ OS for your agents.
 
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
-    # Added last, so it is the outermost middleware and wraps CORS: a preflight
-    # OPTIONS is answered by CORSMiddleware without calling inward, so a security
-    # layer beneath it would never see that response and the preflight would go
-    # out bare. The set uses `setdefault`, so a per-response override still wins -
+    # Above CORS, so it wraps it: a preflight OPTIONS is answered by CORSMiddleware
+    # without calling inward, so a security layer beneath it would never see that
+    # response and the preflight would go out bare. Only `GZipMiddleware` is added
+    # after this one, and that touches bytes rather than headers, so the invariant
+    # this comment is about still holds. The set uses `setdefault`, so a per-response override still wins -
     # `files.py` opts its one framed endpoint down to SAMEORIGIN this way. The doc
     # pages are excluded by their real mounted paths (the schema lives under the
     # API prefix, not at `/openapi.json`), so the CSP cannot break Swagger/ReDoc
@@ -384,6 +402,35 @@ OS for your agents.
     app.add_middleware(
         SecurityHeadersMiddleware,
         exclude_paths={path for path in (docs_url, redoc_url, openapi_url) if path},
+    )
+
+    # Added last, so it is the outermost middleware of all: compression is the last
+    # thing that should happen to a response and the first thing undone on the way
+    # back. Two consequences decide the position rather than taste. Everything below
+    # is a `BaseHTTPMiddleware` that re-emits the body through an anyio stream, so
+    # compressing underneath them would push gzipped bytes through two of those for
+    # nothing. And `Vary: Accept-Encoding` reaches every answer this way, including
+    # one an inner layer short-circuits - a response cached without that header is
+    # served gzipped to a client that never asked.
+    #
+    # A transcript is why this is here at all: `GET /conversations/{id}/messages`
+    # answers with up to a hundred turns carrying their reasoning, their `parts`
+    # timeline and every tool call's arguments and result, and that JSON went out
+    # raw. Starlette handles the hazards itself, so none of them needs a wrapper: a
+    # non-`http` scope passes straight through (the chat WebSocket), `text/event-stream`
+    # and already-compressed media are excluded, a 206 is left alone, a body already
+    # carrying `Content-Encoding` is untouched, a streaming chunk is flushed with
+    # `Z_SYNC_FLUSH` rather than held back, and a body over 128 KiB compresses in a
+    # worker thread instead of on the event loop.
+    #
+    # Level 5 rather than the default 9: on JSON the last four levels buy a couple of
+    # percent for several times the CPU, and this runs on every response of a
+    # deployment whose load test already found it CPU-bound (`docs/load-testing.md`).
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        compresslevel=5,
+        exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
     )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)

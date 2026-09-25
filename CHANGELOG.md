@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  registers gzip in its middleware stack, outermost so `Vary: Accept-Encoding`
+  reaches every answer. `GET /conversations/{id}/messages` returns up to a
+  hundred turns carrying their reasoning, their timelines and every tool call's
+  arguments and result, and that JSON went out raw. Event streams, partial
+  responses, and media and office formats that are already compressed are
+  excluded; the chat WebSocket is untouched, since compression never sees a
+  non-HTTP scope. No proxy configuration is needed, and blanking a client's
+  `Accept-Encoding` at the proxy now turns compression off rather than moving it.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** Reading a
+  thread eager-loaded whole `chat_files` rows, including `parsed_content` - the
+  full extracted text of each upload, a contract or a spreadsheet entire - to
+  serialize the four fields an attachment card shows. It is narrowed to those
+  four now, on the thread transcript, the run transcript and the whole-conversation
+  read alike. The column is untouched where it is the point: the model's prompt
+  and the file preview still read it.
+- **`chat_files.message_id` is indexed** (`0097_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  total were two service calls with one caller between them, so each resolved the
+  conversation separately. On a thread reached through a channel that was two
+  membership checks, each able to unseal a bot token and ask Slack or Telegram
+  whether the reader is still in the room, against a sixty-second cache that
+  fails open to the network call.
+
 ## [0.0.497] - 2026-09-25
 
 ### Added
