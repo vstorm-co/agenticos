@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.492"
+version = "0.0.502"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -116,6 +116,9 @@ dependencies = [
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
+    # Renders a Markdown artifact into the page it is served as. Already here
+    # through `rich`; declared because `app/services/artifact.py` imports it.
+    "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.1",
     "pydantic-monty>=0.0.23",
@@ -175,6 +178,12 @@ dependencies = [
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
     "olefile>=0.47",
+    # Signing in with a directory account (#1773): the two-step bind against
+    # Active Directory, OpenLDAP or FreeIPA. Pure Python, so the image needs no
+    # libldap and no compiler for it, which is why it and not `python-ldap` or
+    # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
+    # decision is recorded in `licenses/policy.toml`.
+    "ldap3>=2.9.1",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -227,6 +236,15 @@ browser = [
     "cdp-use==1.4.5",
     "pydantic-ai-slim[typesafe]>=2.45.0",
 ]
+# Integrated Windows sign-in (SPNEGO), the `KERBEROS_ENABLED` half of #1773.
+# `gssapi` publishes no Linux wheel: it compiles against the system Kerberos
+# headers, which is why it is an extra rather than a dependency every install and
+# every CI job would have to build. The image takes it with
+# `--build-arg EXTRAS="--extra kerberos"`, and the Dockerfile installs
+# `libkrb5-dev` to build and `libgssapi-krb5-2` to run only for that build.
+kerberos = [
+    "gssapi>=1.9.0",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -254,6 +272,9 @@ dev = [
     # `fastapi-cache2` or `jinja2` going dead, which is the half of #155 worth
     # more than the megabytes it recovered.
     "deptry>=0.23.0",
+    # `ldap3` ships no annotations; typeshed's stubs are what lets the adapter
+    # over it be held to the platform layer's type gate.
+    "types-ldap3>=2.9.13",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
 # reference pages import the application to read its docstrings - so this group
@@ -608,6 +629,12 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -785,6 +812,12 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
     "app/repositories/memory.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
@@ -848,6 +881,20 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Groups, directory group mappings, and signing in with a directory (#1773).
+    # Authentication and membership: what they refuse is the feature.
+    "app/db/models/group.py",
+    "app/db/models/directory_mapping.py",
+    "app/repositories/group.py",
+    "app/repositories/directory_mapping.py",
+    "app/schemas/group.py",
+    "app/schemas/directory.py",
+    "app/services/group.py",
+    "app/services/directory/**",
+    "app/api/routes/v1/groups.py",
+    "app/api/routes/v1/directory_mappings.py",
+    "app/api/routes/v1/directory_auth.py",
+    "app/api/routes/v1/_directory_handoff.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -936,6 +983,12 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -1146,6 +1199,12 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
     "app/repositories/memory.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
@@ -1209,6 +1268,20 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Groups, directory group mappings, and signing in with a directory (#1773).
+    # Authentication and membership: what they refuse is the feature.
+    "app/db/models/group.py",
+    "app/db/models/directory_mapping.py",
+    "app/repositories/group.py",
+    "app/repositories/directory_mapping.py",
+    "app/schemas/group.py",
+    "app/schemas/directory.py",
+    "app/services/group.py",
+    "app/services/directory/**",
+    "app/api/routes/v1/groups.py",
+    "app/api/routes/v1/directory_mappings.py",
+    "app/api/routes/v1/directory_auth.py",
+    "app/api/routes/v1/_directory_handoff.py",
 ]
 branch = true
 omit = [

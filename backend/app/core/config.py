@@ -109,6 +109,26 @@ class Settings(BaseSettings):
     # (#1591 review).
     CHAT_TURN_INLINE_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
 
+    # A published artifact is one self-contained page, and these bound it. The
+    # size is per version: a report with its charts and a library inlined fits
+    # in a few megabytes, and a page past this one is an export, which belongs in
+    # the workspace. The version count is per artifact - a report republished
+    # every hour would otherwise grow storage for ever between retention sweeps.
+    ARTIFACT_MAX_BYTES: int = Field(default=5 * 1024 * 1024, gt=0)
+    ARTIFACT_MAX_VERSIONS: int = Field(default=20, ge=1)
+    # How long a signed content address stays valid. The console and the public
+    # page ask for a fresh one every time they draw the frame, so this is only
+    # the window in which an address copied out of a frame still opens - and the
+    # window in which access revoked a moment ago still reaches a page that was
+    # already open.
+    ARTIFACT_VIEW_TTL_SECONDS: int = Field(default=300, gt=0, le=3600)
+    # Where artifact content is served from. Unset, it is the API's own public
+    # address, and isolation rests on the `sandbox` policy every content
+    # response carries, which gives the page an opaque origin. Set to a host on
+    # a separate registrable domain that routes to this API, it also puts the
+    # page on another site, which a security review may ask for.
+    ARTIFACT_ORIGIN: str | None = None
+
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
     # member uploading a fifty-megabyte export is somebody the organization
@@ -296,6 +316,125 @@ class Settings(BaseSettings):
     # recognised already (`email_verified`, and Entra ID's `xms_edov`). Empty
     # unless a deployment's provider names it something else again.
     OIDC_VERIFIED_CLAIM: str = ""
+    # The claim carrying the groups a person is in - `groups` for Entra ID,
+    # Okta and a Keycloak group-membership mapper. Empty means OIDC sign-ins do
+    # not touch memberships at all; set, each sign-in reconciles the person's
+    # directory-managed memberships against the organizations' directory group
+    # mappings (#1773). A claim that is configured but absent from a token is
+    # read as "in no groups", because that is what the providers that omit an
+    # empty list mean by it.
+    OIDC_GROUPS_CLAIM: str = ""
+
+    # Signing in with a directory account - Active Directory, OpenLDAP, FreeIPA -
+    # by binding as it (#1773). Empty `LDAP_URL` switches it off and the sign-in
+    # route answers 404, as an unconfigured OIDC issuer does. `ldaps://` is TLS
+    # from the first byte; `ldap://` must either upgrade with StartTLS or be
+    # allowed in plaintext explicitly, because a bind sends the password.
+    LDAP_URL: str = ""
+    LDAP_START_TLS: bool = False
+    LDAP_ALLOW_PLAINTEXT: bool = False
+    # A PEM bundle to verify the directory's certificate against, for a directory
+    # signed by a company CA. Empty uses the system trust store.
+    LDAP_CA_CERT_FILE: str = ""
+    # The service account a sign-in searches with before binding as the person.
+    # Both empty searches anonymously, which some directories allow and Active
+    # Directory does not.
+    LDAP_BIND_DN: str = ""
+    LDAP_BIND_PASSWORD: str = ""
+    LDAP_USER_BASE_DN: str = ""
+    # `{username}` is what the person typed, escaped for a filter. The default
+    # finds an account by any of the four names people sign in with.
+    LDAP_USER_FILTER: str = (
+        "(&(objectClass=person)(|(uid={username})(sAMAccountName={username})"
+        "(userPrincipalName={username})(mail={username})))"
+    )
+    LDAP_EMAIL_ATTRIBUTE: str = "mail"
+    LDAP_NAME_ATTRIBUTE: str = "displayName"
+    # The account's stable identifier - `entryUUID` on OpenLDAP and FreeIPA,
+    # `objectGUID` on Active Directory. The account is keyed on it rather than on
+    # the address, for the reason OIDC is keyed on `sub`.
+    LDAP_ID_ATTRIBUTE: str = "entryUUID"
+    LDAP_GROUP_ATTRIBUTE: str = "memberOf"
+    # For a directory without `memberOf`: search here for groups instead, with a
+    # filter taking `{dn}` and `{username}`. Active Directory's nested groups are
+    # `(member:1.2.840.113556.1.4.1941:={dn})`.
+    LDAP_GROUP_BASE_DN: str = ""
+    LDAP_GROUP_FILTER: str = "(member={dn})"
+    # Whole seconds: `ldap3` packs the read timeout into a `timeval` with
+    # `struct.pack('LL', ...)` on Linux and macOS, where a float fails every
+    # connection with "required argument is not an integer".
+    LDAP_TIMEOUT_SECONDS: int = Field(default=10, gt=0)
+
+    # Integrated Windows sign-in: a browser on a domain-joined machine hands over
+    # its Kerberos ticket through SPNEGO and nobody types a password (#1773). It
+    # resolves the principal through the directory above, so it needs `LDAP_URL`,
+    # and the `kerberos` extra for `gssapi`.
+    KERBEROS_ENABLED: bool = False
+    # The keytab holding this service's key. Empty uses the default keytab
+    # (`KRB5_KTNAME`, else `/etc/krb5.keytab`).
+    KERBEROS_KEYTAB: str = ""
+    # `HTTP/agenticos.corp.example.com@CORP.EXAMPLE.COM`. Empty accepts a ticket
+    # for any principal the keytab holds.
+    KERBEROS_SERVICE_PRINCIPAL: str = ""
+    # `{principal}` is the full `user@REALM`, `{username}` the part before `@`.
+    LDAP_KERBEROS_FILTER: str = "(userPrincipalName={principal})"
+
+    @model_validator(mode="after")
+    def validate_directory_sign_in(self) -> "Settings":
+        """A directory configuration that would send a password in the clear, or find nobody, is refused.
+
+        Checked at startup rather than at the first sign-in: a typo here would
+        otherwise surface as every person in the company being told their
+        password is wrong.
+        """
+        if self.KERBEROS_ENABLED and not self.LDAP_URL:
+            raise ValueError(
+                "KERBEROS_ENABLED needs LDAP_URL - a ticket names a principal, and the "
+                "directory is what turns it into an address and a set of groups"
+            )
+        if self.LDAP_URL and self.OIDC_GROUPS_CLAIM:
+            # Each reports groups in its own identifiers - a DN from LDAP, an
+            # object id or a path from OIDC - and the sync reconciles a person's
+            # directory memberships against whichever signed them in, so
+            # alternating sign-in methods would remove and recreate their access.
+            raise ValueError(
+                "Set LDAP_URL or OIDC_GROUPS_CLAIM, not both - two sources of directory "
+                "groups would undo each other's memberships at every sign-in"
+            )
+        if not self.LDAP_URL:
+            return self
+        if not self.LDAP_URL.startswith(("ldap://", "ldaps://")):
+            raise ValueError("LDAP_URL must start with ldaps:// or ldap://")
+        if self.LDAP_URL.startswith("ldaps://") and self.LDAP_START_TLS:
+            raise ValueError(
+                "LDAP_START_TLS is for ldap:// - an ldaps:// connection is already TLS"
+            )
+        if (
+            self.LDAP_URL.startswith("ldap://")
+            and not self.LDAP_START_TLS
+            and not self.LDAP_ALLOW_PLAINTEXT
+        ):
+            raise ValueError(
+                "An ldap:// URL sends every sign-in's password in the clear. Use ldaps://, "
+                "set LDAP_START_TLS=true, or set LDAP_ALLOW_PLAINTEXT=true to accept that"
+            )
+        if not self.LDAP_USER_BASE_DN:
+            raise ValueError("LDAP_USER_BASE_DN is required when LDAP_URL is set")
+        if "{username}" not in self.LDAP_USER_FILTER:
+            raise ValueError("LDAP_USER_FILTER must contain {username}")
+        if bool(self.LDAP_BIND_DN) != bool(self.LDAP_BIND_PASSWORD):
+            raise ValueError("Set LDAP_BIND_DN and LDAP_BIND_PASSWORD together, or neither")
+        if (
+            self.LDAP_GROUP_BASE_DN
+            and "{dn}" not in self.LDAP_GROUP_FILTER
+            and ("{username}" not in self.LDAP_GROUP_FILTER)
+        ):
+            raise ValueError("LDAP_GROUP_FILTER must contain {dn} or {username}")
+        if self.KERBEROS_ENABLED and not (
+            "{principal}" in self.LDAP_KERBEROS_FILTER or "{username}" in self.LDAP_KERBEROS_FILTER
+        ):
+            raise ValueError("LDAP_KERBEROS_FILTER must contain {principal} or {username}")
+        return self
 
     VAULT_MASTER_KEY: str = ""
     # Every master key the vault may unwrap with, by version - the staged form

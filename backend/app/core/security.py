@@ -197,6 +197,20 @@ def create_magic_link_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def create_artifact_view_token(version_id: UUID, *, expires_in: timedelta) -> str:
+    """A short-lived address for one artifact version's bytes.
+
+    The content route authenticates nothing else, which is the point: the page is
+    served where no cookie reaches, so the access decision is taken when the token
+    is minted - by a member's grant or by a public link - and the token carries
+    only its outcome. It names a version rather than an artifact, so a frame that
+    was drawn for version 3 still shows version 3 after version 4 lands.
+    """
+    expire = datetime.now(UTC) + expires_in
+    to_encode = {"exp": expire, "sub": str(version_id), "type": "artifact_view"}
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def verify_special_token(token: str, expected_type: str) -> dict[str, Any] | None:
     """Verify a non-access JWT (password_reset, magic_link) and require a
     specific `type` claim. Returns payload on success, None otherwise.

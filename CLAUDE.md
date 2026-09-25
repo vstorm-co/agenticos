@@ -199,6 +199,7 @@ retranslated is how a stale translation stops being visible.
 |---|---|
 | Spec, version, exposure, run | `docs/concepts.md` |
 | The three permission layers, scopes, grants | `docs/permissions.md` |
+| Groups, directory group mappings, LDAP and Kerberos sign-in | `docs/directory.md` |
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
@@ -215,6 +216,7 @@ retranslated is how a stale translation stops being visible.
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
+| Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |

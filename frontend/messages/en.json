@@ -756,7 +756,10 @@
     "signupDomainsAllowed": "Only addresses at {domains} can register here.",
     "signupClosedHeading": "Sign-up is closed",
     "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to invite you.",
-    "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you."
+    "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you.",
+    "directorySignIn": "Sign in with {provider}",
+    "directoryUsername": "{provider} username",
+    "useEmailInstead": "Use email and password instead"
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -1182,7 +1185,11 @@
       "writingPlan": "Writing the plan",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}",
       "workingThroughPage": "Working through a page",
-      "browsePage": "Work Through a Page"
+      "browsePage": "Work Through a Page",
+      "publishingArtifact": "Publishing a page",
+      "publishArtifact": "Published page",
+      "artifactVersion": "Version {version} · open the page",
+      "artifactUnchanged": "Unchanged, still version {version} · open the page"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1846,6 +1853,14 @@
         "empty": {
           "title": "Nothing here yet",
           "description": "Notifications will show up here."
+        }
+      },
+      "artifacts": {
+        "title": "Artifacts",
+        "description": "The pages your agents published most recently.",
+        "empty": {
+          "title": "Nothing published yet",
+          "description": "Reports and dashboards an agent publishes appear here."
         }
       }
     },
@@ -2745,7 +2760,8 @@
     "deploymentSettings": "Deployment",
     "routines": "Routines",
     "collapseSidebar": "Collapse the sidebar",
-    "expandSidebar": "Expand the sidebar"
+    "expandSidebar": "Expand the sidebar",
+    "artifacts": "Artifacts"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -2787,6 +2803,10 @@
       "create-org": {
         "title": "Create an organization?",
         "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
+      },
+      "create-group": {
+        "title": "Create a group?",
+        "body": "A group lets you share an agent, a skill or a collection with several people in one step. Want to create one now? We'll walk you through it."
       },
       "create-routine": {
         "title": "Set up your first routine?",
@@ -3170,6 +3190,26 @@
         "title": "How long data lives here",
         "body": "A period per class - conversations, runs, workspaces, memory, uploads and the audit trail. A sweep runs daily and deletes for good, within whatever bounds the deployment set; the audit trail has a floor you can lengthen and never shorten."
       },
+      "org-groups": {
+        "title": "Share with a group",
+        "body": "A group is a named set of members. Share an agent, a skill, a collection or a vault secret with it, and everybody in it gets that access at once - their roles stay as they are."
+      },
+      "org-groups-new": {
+        "title": "Create a group",
+        "body": "Give it a name and, if you like, a line on what it is for. Then open its members to add people, or let a directory mapping place them when they sign in."
+      },
+      "org-directory": {
+        "title": "Who the directory lets in",
+        "body": "Each mapping turns a directory group - an LDAP group or an OIDC groups claim - into a role here, and optionally a group. The sync applies them at every sign-in and keeps the memberships it made in step."
+      },
+      "org-directory-new": {
+        "title": "Map a directory group",
+        "body": "Paste the group's DN or claim value and pick a role. You can only hand out roles below your own."
+      },
+      "flow-group-create": {
+        "title": "Create the group",
+        "body": "Choose New group, give it a name, and create it. We'll move on as soon as it exists."
+      },
       "org-roles": {
         "title": "What each role may do",
         "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
@@ -3241,6 +3281,10 @@
       "knowledge-local-services": {
         "title": "Local services",
         "body": "Servers on your own network: register an Ollama to embed with no key, or an OCR server for LiteParse, and pick one per collection - so a knowledge base can stay entirely on your hardware."
+      },
+      "artifacts-list": {
+        "title": "Published pages",
+        "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
       }
     }
   },
@@ -3295,7 +3339,8 @@
         "workspaces": "Agent workspaces",
         "memory": "Agent memory",
         "knowledge_documents": "Uploaded documents",
-        "audit": "Audit trail"
+        "audit": "Audit trail",
+        "artifacts": "Published artifacts and their versions"
       }
     },
     "memory": {
@@ -4398,6 +4443,7 @@
     "orgIntegrations": "Org integrations",
     "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
+    "removedCount": "{count} removed",
     "schedule": "Schedule",
     "search": {
       "allBases": "All knowledge bases",
@@ -4697,8 +4743,8 @@
     "access": "Access",
     "accessFor": "Access for {name}",
     "accessRemoved": "Access removed",
-    "addSomeone": "Add someone",
-    "chooseMember": "Choose a member",
+    "addSubject": "Add a person or group",
+    "chooseSubject": "Choose a member or group",
     "collectionRuntimeNote": "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
     "everyoneAlreadyHasAccess": "Everyone already has access",
     "failedLoadShares": "Failed to load shares",
@@ -4709,8 +4755,8 @@
     "levelUse": "Can use",
     "notSharedWithAnyone": "Not shared with anyone yet.",
     "ownedBy": "Owned by {email}",
-    "people": "People",
-    "peopleReaches": "A share lifts one person's access to this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
+    "peopleAndGroups": "People and groups",
+    "peopleReaches": "A share lifts the access of one person, or of everybody in a group, to this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
     "secretRuntimeNote": "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
     "share": "Share",
     "sharingUpdated": "Sharing updated",
@@ -4722,7 +4768,10 @@
     "visibilityReaches": "Who reaches this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without being named. Sharing adds people on top of this; it never takes access away.",
     "visibilityTeam": "Team (no longer offered)",
     "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}}. This organization has no teams - pick one of the two above.",
-    "visibilityUpdated": "Visibility updated"
+    "visibilityUpdated": "Visibility updated",
+    "groupsHeading": "Groups",
+    "membersHeading": "Members",
+    "groupSubject": "Group"
   },
   "skills": {
     "addFile": "Add file",
@@ -5329,5 +5378,112 @@
     },
     "clearAll": "Clear all",
     "dismissRow": "Dismiss"
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "description": "Pages your agents published - reports, small dashboards, summaries. Each one keeps its link when the agent publishes it again, and its earlier versions stay readable.",
+    "cannotSee": "You cannot see this organization's artifacts",
+    "askForAccess": "Ask an administrator for access to artifacts.",
+    "count": "{count, plural, =1 {1 artifact} other {# artifacts}}",
+    "search": "Search artifacts…",
+    "noMatches": "No artifact matches",
+    "noMatchesWhy": "Titles and names are searched.",
+    "noneYet": "Nothing published yet",
+    "noneYetWhy": "An agent with the Artifacts capability publishes a page here when you ask it for a report or a dashboard. It is private to you until you share it.",
+    "sharedOrg": "Whole organization",
+    "publicBadge": "Public link",
+    "publishedVersion": "Version {version} · {when}",
+    "versionUnavailable": "This version is not available",
+    "versionUnavailableWhy": "It was replaced by newer versions and is no longer kept, or your access changed a moment ago. Pick the latest version above.",
+    "unavailable": "This artifact is not available",
+    "unavailableWhy": "It was deleted, or you no longer have access to it.",
+    "couldNotLoad": "This artifact could not be loaded",
+    "publishedAs": "Published as {name}",
+    "deleteTitle": "Delete {title}?",
+    "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
+    "deleted": "Artifact deleted",
+    "publicLink": "Public link",
+    "publicLinkOn": "Anyone with this link can open the latest version, without an account.",
+    "publicLinkNone": "Only people this artifact is shared with can open it.",
+    "createPublicLink": "Create a public link",
+    "rotatePublicLink": "Replace the link",
+    "disablePublicLink": "Turn off",
+    "publicLinkReady": "Public link ready",
+    "publicLinkOff": "Public link turned off",
+    "version": "Version",
+    "latestVersion": "Latest version",
+    "versionOption": "Version {version} · {when}",
+    "publicUpdated": "Updated {when}"
+  },
+  "groups": {
+    "title": "Groups",
+    "description": "Named sets of this organization's members, shared with as one.",
+    "organizations": "Organizations",
+    "members": "Members",
+    "intro": "A group is a set of members you can share agents, skills, collections and vault secrets with in one step. Everybody in it gets the access the share gives, and nothing about their role changes. Directory mappings can also place people in a group when they sign in.",
+    "newGroup": "New group",
+    "editGroup": "Edit group",
+    "name": "Name",
+    "namePlaceholder": "Finance",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What this group is for",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "created": "Group created",
+    "saved": "Group saved",
+    "deleted": "Group deleted",
+    "memberAdded": "Added to the group",
+    "memberRemoved": "Removed from the group",
+    "groupCount": "{count, plural, =0 {No groups} =1 {1 group} other {# groups}}",
+    "membersOf": "Members of {name}",
+    "memberCount": "{count, plural, =1 {1 member} other {# members}}",
+    "editNamed": "Edit {name}",
+    "emptyTitle": "No groups yet",
+    "emptyBody": "Create a group to share with several people at once.",
+    "deleteTitle": "Delete {name}?",
+    "deleteBody": "Everything shared with this group stops reaching its members through it, and the directory mappings that name it are deleted too. The members themselves stay in the organization.",
+    "delete": "Delete",
+    "membersBody": "Who this group reaches. People marked Directory were placed by the directory sign-in sync, which removes them again when the directory stops listing them.",
+    "nobodyYet": "Nobody is in this group yet.",
+    "directoryMemberHint": "Placed by the directory sign-in sync, which removes them when the directory stops listing them. Removing them here lasts until their next sign-in.",
+    "addMember": "Add a member",
+    "chooseMember": "Choose a member",
+    "everyoneIsIn": "Everyone is already in this group",
+    "add": "Add"
+  },
+  "directory": {
+    "navLabel": "Directory",
+    "title": "Directory mappings",
+    "description": "Which directory groups make somebody what in this organization.",
+    "organizations": "Organizations",
+    "members": "Members",
+    "badge": "Directory",
+    "memberHint": "Kept in step by the directory sync, which changes and removes this membership as the directory does. Changing the role here takes it over, and the sync leaves it alone from then on.",
+    "howItWorks": "When somebody signs in through the directory (LDAP or Kerberos), or through an OIDC provider that sends a groups claim, every mapping below that matches one of their directory groups places them in this organization with the mapped role, and in the mapped group if there is one.",
+    "precedence": "When several mappings match, the role is chosen in this order: admin, builder, operator, member, viewer. Memberships the sync made are marked Directory, and it updates and removes only those. Changing such a member's role by hand takes the membership over.",
+    "removal": "Deleting a mapping removes the people it placed at their next sign-in, unless their membership was taken over.",
+    "notYours": "Directory mappings are for member managers",
+    "askAnAdmin": "Reading them takes the permission to manage members. Ask an administrator of this organization.",
+    "listTitle": "Mappings",
+    "mappingCount": "{count, plural, =0 {No mappings} =1 {1 mapping} other {# mappings}}",
+    "externalGroup": "Directory group",
+    "externalGroupHint": "An LDAP group DN, or a value of the OIDC provider's groups claim. Case does not matter.",
+    "role": "Role",
+    "group": "Group",
+    "groupHint": "Optional. Signing in also places the person in this group.",
+    "noGroup": "No group",
+    "addMapping": "Add mapping",
+    "dialogBody": "Everybody the directory lists in this group gets the role below when they sign in.",
+    "noRoleToOffer": "No role you can hand out",
+    "emptyTitle": "No mappings yet",
+    "emptyBody": "Map a directory group to a role, and its members join this organization when they sign in.",
+    "deleteTitle": "Delete this mapping?",
+    "deleteBody": "The people {group} placed here leave the organization at their next sign-in, unless their membership was taken over.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "add": "Add",
+    "mappingAdded": "Mapping added",
+    "mappingDeleted": "Mapping deleted"
   }
 }

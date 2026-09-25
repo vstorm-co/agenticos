@@ -14,6 +14,7 @@ export const RETENTION_CLASSES = [
   "conversations",
   "runs",
   "workspaces",
+  "artifacts",
   "memory",
   "knowledge_documents",
   "audit",

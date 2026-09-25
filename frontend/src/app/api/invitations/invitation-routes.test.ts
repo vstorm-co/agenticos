@@ -306,6 +306,23 @@ describe("starting an OAuth sign-in", () => {
     );
   });
 
+  it("starts Kerberos at the directory sign-in, not an OAuth provider (#1773)", async () => {
+    // A Kerberos sign-in is a Negotiate challenge, not an OAuth dance, so the
+    // backend serves it under /auth; the invitation rides it all the same.
+    const response = await get({ [stageCookie(FLOW)]: "h" }, "kerberos", forFlow(FLOW));
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:8000/api/v1/auth/kerberos/login?invitation_handle=h",
+    );
+  });
+
+  it("does not start LDAP here, because a password sign-in is no redirect", async () => {
+    const response = await get({}, "ldap");
+
+    expect(response.status).toBe(404);
+  });
+
   it("refuses a provider it does not know, rather than build a redirect from it", async () => {
     const response = await get({ [stageCookie(FLOW)]: "h" }, "../evil", forFlow(FLOW));
 

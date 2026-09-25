@@ -18,6 +18,7 @@ import * as adminUsers from "./admin/users/route";
 import * as agent from "./agent/[[...path]]/route";
 import * as agents from "./agents/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
+import * as artifacts from "./artifacts/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
@@ -44,6 +45,12 @@ import * as orgInvitation from "./orgs/[id]/invitations/[invitationId]/route";
 import * as orgMembers from "./orgs/[id]/members/route";
 import * as orgMember from "./orgs/[id]/members/[userId]/route";
 import * as orgRetention from "./orgs/[id]/retention/route";
+import * as orgGroups from "./orgs/[id]/groups/route";
+import * as orgGroup from "./orgs/[id]/groups/[groupId]/route";
+import * as orgGroupMembers from "./orgs/[id]/groups/[groupId]/members/route";
+import * as orgGroupMember from "./orgs/[id]/groups/[groupId]/members/[userId]/route";
+import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
+import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
@@ -85,6 +92,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["agent", agent],
   ["agents", agents],
   ["approvals", approvals],
+  ["artifacts", artifacts],
   ["audit", audit],
   ["catalog", catalog],
   ["channels", channels],
@@ -107,6 +115,12 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/members", orgMembers],
   ["orgs/[id]/members/[userId]", orgMember],
   ["orgs/[id]/retention", orgRetention],
+  ["orgs/[id]/groups", orgGroups],
+  ["orgs/[id]/groups/[groupId]", orgGroup],
+  ["orgs/[id]/groups/[groupId]/members", orgGroupMembers],
+  ["orgs/[id]/groups/[groupId]/members/[userId]", orgGroupMember],
+  ["orgs/[id]/directory-mappings", orgDirectoryMappings],
+  ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
   ["rag", rag],
   ["ratings", ratings],

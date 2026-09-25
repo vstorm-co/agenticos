@@ -357,7 +357,10 @@ from Decision 1's table, composite ids joined with `:`, e.g.
 for a report), `summary` (plain text, pre-rendered at write time — never a
 raw comment or secret value), `context_url` (nullable, built the way
 `NotificationService._link` already builds one, with `?org=<id>` so the
-reader lands in the right tenant), `render_context` (nullable JSONB — the
+reader lands in the right tenant — a console **path**, never an origin plus
+one, so the console navigates it as a sub-route rather than reloading the
+whole document; `notification_center.absolute_context_url` puts the origin
+back on for the one reader that has none, the email), `render_context` (nullable JSONB — the
 typed template variables an event's specific `EmailKey` needs, captured at
 write time, see Decision 3), `in_app_visible` (boolean, the recipient's
 in-app preference for this `(event_type, channel=IN_APP)` at write time —
@@ -686,7 +689,10 @@ renders — their `render_context` needs no re-derivation once the gate has
 passed. Every event type without a specific `EmailKey` renders through one
 shared `EmailKey.NOTIFICATION` template off `summary`/`context_url`, since a
 bespoke template per new event type is not scope
-this plan takes on.
+this plan takes on. That key is the one rendered from the *stored* column
+rather than from the frozen `render_context`, and so the one place the
+origin is restored at send time — every `*_url` inside a `render_context` is
+already absolute when it is written.
 
 **Deduplication is the database, not Redis.** The
 `(recipient_user_id, event_type, occurrence_id)` unique constraint from
@@ -930,6 +936,16 @@ notifications past a longer outer bound regardless of read state (proposed:
 one year) — written as one named class of data, so when #1420 ships its
 per-organization settings, adopting `notifications` as one more row in that
 table is a follow-up, not a redesign.
+
+The same window is what pays for the *shape* of `context_url` changing under
+rows that already exist. The column used to hold `FRONTEND_URL` plus a path
+and now holds the path alone, and nothing backfills the old ones: a data
+migration would have to know which origin was current when each row was
+written, which is not necessarily the one configured today. Both readers
+tolerate either shape instead — `absolute_context_url` returns a value that
+already carries an origin untouched, and the console renders one through the
+plain anchor every row used to have — and the legacy population is gone
+within the outer bound above without anything rewriting user-facing content.
 
 `announcements` is deliberately not part of this sweep. Purging the
 per-recipient `notifications` rows a broadcast fanned out to is exactly what

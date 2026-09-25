@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.organization import OrganizationMember, OrgRole
+from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
 from app.db.models.user import User
 
 
@@ -356,12 +356,14 @@ async def create(
     user_id: UUID,
     role: str = OrgRole.MEMBER.value,
     invited_by_user_id: UUID | None = None,
+    source: MembershipSource = MembershipSource.MANUAL,
 ) -> OrganizationMember:
     member = OrganizationMember(
         organization_id=organization_id,
         user_id=user_id,
         role=role,
         invited_by_user_id=invited_by_user_id,
+        source=source.value,
     )
     db.add(member)
     await db.flush()
@@ -369,13 +371,30 @@ async def create(
     return member
 
 
+async def list_for_user_by_source(
+    db: AsyncSession, *, user_id: UUID, source: MembershipSource
+) -> list[OrganizationMember]:
+    """Every membership of one person that one writer maintains."""
+    result = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.source == source.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def update_role(
     db: AsyncSession,
     member: OrganizationMember,
     *,
     role: str,
+    source: MembershipSource | None = None,
 ) -> OrganizationMember:
+    """Change a membership's role, and who maintains it when `source` is given."""
     member.role = role
+    if source is not None:
+        member.source = source.value
     await db.flush()
     await db.refresh(member)
     return member
