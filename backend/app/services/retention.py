@@ -119,8 +119,18 @@ def _table_sweep_max_batches(active_members: int) -> int:
     single organization's own pass can grow. `max(MAX_BATCHES, ...)` keeps a deployment that has
     lowered the write limit, or an organization with no active members left, no worse off than
     an older class. A backlog beyond even this is still worked off over several sweeps, exactly
-    as an older class is - this only makes "one pass keeps up with real usage" true again; it
-    does not promise a single pass drains an unbounded backlog.
+    as an older class is - this only makes "one pass keeps up with a heavy tenant's real usage"
+    true again; it does not promise a single pass drains an unbounded backlog.
+
+    What it deliberately does *not* close: the write limit is per member and there is no
+    organization-wide one, so an organization with more members than
+    `MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET`, every one of them sustaining the full per-member
+    ceiling all day, produces more per day than a daily sweep capped here can remove, and its
+    backlog grows. Lifting the cap to cover that case is the wrong lever - it would let one such
+    tenant's pass issue an unbounded run of DELETEs and delay every later organization in the
+    same sweep. The right one is an organization-wide write-admission limit, a product decision
+    of its own; this bound is sized for a heavy tenant, not for one whose entire membership
+    writes flat out without pause.
     """
     members = min(active_members, MAX_MEMBERS_FOR_TABLE_SWEEP_BUDGET)
     per_organization_per_day = settings.RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24 * members
