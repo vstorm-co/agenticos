@@ -17,10 +17,27 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
+from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+
+# `MessageFileRead` serializes four columns. The row also holds `parsed_content` -
+# the whole extracted text of the upload, a contract or a spreadsheet in full - and
+# a transcript read used to pull every byte of it into memory to serialize none of
+# it. Narrowed here rather than deferred on the model, because `services/attachments.py`
+# and `api/routes/v1/files.py` genuinely read that column, and under asyncio a
+# deferred column they touch is a `MissingGreenlet`, not a second query.
+_MESSAGE_FILE_COLUMNS = (
+    # `message_id` is what selectin maps the rows back onto their turn with. SQLAlchemy
+    # adds the foreign key itself, but naming it here means the load does not depend on
+    # that staying true.
+    ChatFile.message_id,
+    ChatFile.filename,
+    ChatFile.mime_type,
+    ChatFile.file_type,
+)
 
 
 async def agents_in_conversations(
@@ -179,7 +196,9 @@ async def get_conversation_by_id(
             select(Conversation)
             .options(
                 selectinload(Conversation.messages).selectinload(Message.tool_calls),
-                selectinload(Conversation.messages).selectinload(Message.files),
+                selectinload(Conversation.messages)
+                .selectinload(Message.files)
+                .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
             .where(Conversation.id == conversation_id)
         )
@@ -666,7 +685,9 @@ async def get_messages_by_conversation(
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
@@ -879,7 +900,9 @@ async def get_messages_by_run(
     query = select(Message).where(Message.run_id == run_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
