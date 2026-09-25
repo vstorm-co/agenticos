@@ -208,6 +208,19 @@ describe("platformProxy", () => {
       expect(await gunzip(response)).toBe(transcript);
     });
 
+    it("is not compressed for a client that refuses gzip by quality", async () => {
+      backendReplies(transcript, compressed);
+
+      const response = await platformProxy().GET(
+        request("/api/conversations/c1/messages", {
+          headers: { "Accept-Encoding": "br, gzip;q=0" },
+        }),
+      );
+
+      expect(response.headers.get("Content-Encoding")).toBeNull();
+      expect(await response.text()).toBe(transcript);
+    });
+
     it("arrives whole and plain for a client that does not", async () => {
       backendReplies(transcript, compressed);
 
