@@ -47,6 +47,8 @@ Two things are versioned separately from this file and worth knowing about:
   account a password sign-in reaches. It needs an image built with the new
   `kerberos` extra (#1773).
 
+## [0.0.500] - 2026-09-25
+
 ### Fixed
 
 - **A document two sync sources list stays until both stop listing it.** A
