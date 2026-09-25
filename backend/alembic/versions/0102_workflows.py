@@ -16,8 +16,8 @@ references `workflows`, and a mutual constraint would need deferred
 constraints on both inserts and deletes for no benefit `create_version`
 (insert-then-point) does not already get for free.
 
-Revision ID: 0093_workflows
-Revises: 0092_virtual_tables
+Revision ID: 0102_workflows
+Revises: 0100_virtual_tables
 Create Date: 2026-09-22
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0093_workflows"
-down_revision: str | Sequence[str] | None = "0092_virtual_tables"
+revision: str = "0102_workflows"
+down_revision: str | Sequence[str] | None = "0100_virtual_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
