@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.499] - 2026-09-25
+
 ### Changed
 
 - **Opening a conversation no longer ships an uncompressed transcript.** The API
