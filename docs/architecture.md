@@ -77,7 +77,7 @@ type rather than as data access.
 | `core/security.py` | JWT / API key utilities |
 | `agents/` | AI agents and tools |
 | `rag/` | RAG module (embeddings, vector store, retrieval) |
-| `rag/connectors/` | Sync connectors (Google Drive, S3) |
+| `rag/connectors/` | Sync connectors (Google Drive, S3, websites) |
 | `commands/` | Django-style CLI commands |
 
 ## Layer responsibilities
@@ -869,8 +869,9 @@ Documents can be ingested via:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (admin only, file upload)
-3. **Sync Sources** -- Configured connectors (Google Drive, S3) that pull documents
-   on a schedule or on-demand.
+3. **Sync Sources** -- Configured connectors (Google Drive, S3, websites) that pull
+   documents on a schedule or on-demand, and remove what their source no longer
+   holds.
 
 Each ingested document gets:
 - Parsed into text (parser chosen per collection, overridable per upload)

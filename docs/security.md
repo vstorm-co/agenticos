@@ -28,6 +28,7 @@ boundaries that matter are the ones a request crosses on its way to the data.
 | API → PostgreSQL / Redis | Queries and cache reads, over TLS when configured | Yes — the store is the operator's; what it protects at rest is under "What is encrypted where" |
 | API / worker → model providers, channels, MCP servers, search vendors, Logfire | Prompts, tool calls, queries, replies, traces | No — these are third parties; what reaches them is a per-agent decision, except deployment-wide tracing (below) |
 | Worker → connectors (Google Drive, S3, …) | Credentials unsealed from the vault, fetched documents | No — a connector credential is a vault secret referenced by id |
+| Worker → public websites (the `web` connector) | GET requests for pages, sitemaps and robots.txt; no credential | No — the start URL is typed by a tenant and every link after it is chosen by the site, so each request and redirect is SSRF-checked and dialled at the checked address (`app/core/pinned_http.py`), and stays on one host |
 
 Authority inside a tenant is never a role name on a route: it is a membership row
 plus the permission catalog (`app/core/permissions.py`), resolved per resource.
@@ -223,7 +224,8 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports Postgres's live state from `pg_stat_ssl` | Postgres, on a live connection: `test_store_tls.py`; Redis, at URL construction and in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`), whose `script-src` carries a per-request nonce and `'strict-dynamic'` rather than `'unsafe-inline'` | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
-| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget and hosted pages (`app/services/rate_limit.py`); per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; the channel-bot limit is implemented but thinly tested |
+| Agent-authored pages cannot reach the console | A published [artifact](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'` and `frame-ancestors` naming only the console; optionally from its own registrable domain (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `artifacts.test.tsx`, `csp.test.ts` |
+| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public artifact links and their signed content addresses (`app/services/rate_limit.py`); per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; the channel-bot limit is implemented but thinly tested |
 
 ### The refusals as a set
 

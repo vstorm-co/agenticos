@@ -89,6 +89,7 @@ decides which fields exist.
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
+| `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
@@ -97,6 +98,11 @@ GitHub connect flow reads it server-side to run the token exchange — so it mus
 never silently used for the whole organization's connection, and with two org-visible
 apps stored the connect is refused (naming both) rather than keyed to whichever name
 sorts first.
+
+`git_token` carries its host because a Git sync source sends the token to a URL
+whoever edits the source chooses. Bound to the host the token was added with, the
+token cannot be aimed at another server by editing the source, and no other key
+can stand in for it.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.

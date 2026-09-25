@@ -16,6 +16,7 @@ import pytest
 
 from app.api.routes.v1._sharing_loaders import (
     load_agent,
+    load_artifact,
     load_collection,
     load_context,
     load_secret,
@@ -25,6 +26,7 @@ from app.api.routes.v1._sharing_loaders import (
 )
 from app.api.routes.v1.sharing import (
     agent_sharing_router,
+    artifact_sharing_router,
     collection_sharing_router,
     context_sharing_router,
     secret_sharing_router,
@@ -43,6 +45,7 @@ ROUTERS = (
     ("secrets", secret_sharing_router),
     ("tables", table_sharing_router),
     ("workflows", workflow_sharing_router),
+    ("artifacts", artifact_sharing_router),
 )
 
 LOADERS = (
@@ -53,6 +56,7 @@ LOADERS = (
     ("secret", load_secret, "Secret not found", "secret_id"),
     ("table", load_table, "Table not found", "table_id"),
     ("workflow", load_workflow, "Workflow not found", "workflow_id"),
+    ("artifact", load_artifact, "Artifact not found", "artifact_id"),
 )
 
 

@@ -75,9 +75,14 @@ WORKDIR /app
 #
 # No Node.js: the `liteparse` PyPI package ships its own native binary (PyO3).
 # The npm CLI this used to install was never on the code path.
+#
+# `git` is the Git sync connector's transport (#987): it clones a repository's
+# documentation sparse and partial, which no Python client does as cheaply.
+# `ca-certificates` is what it verifies the host's certificate against.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
+    git ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder

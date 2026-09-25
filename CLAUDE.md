@@ -217,6 +217,7 @@ retranslated is how a stale translation stops being visible.
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
+| Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |

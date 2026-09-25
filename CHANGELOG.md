@@ -33,6 +33,133 @@ Two things are versioned separately from this file and worth knowing about:
   error envelope. Migration `0092_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 
+## [0.0.497] - 2026-09-25
+
+### Added
+
+- **A Git repository can feed a knowledge base.** A `git` sync source reads a
+  repository's documentation over HTTPS from GitHub, GitLab or any host that
+  serves git, with an access token from the Vault. By default it reads
+  Markdown and plain text, not the source tree. It makes a shallow, sparse
+  clone of the documentation only, and a file deleted from the branch is
+  removed like any other the source stops listing. The repository's host is
+  checked and pinned like any other tenant-chosen address, and an internal host
+  is refused. What a clone would write is measured before it is written: a file
+  over the knowledge base's document cap, or more than 512 MB in all, fails the
+  sync with nothing written (#987).
+- **A Git access token is a vault secret kind of its own, bound to its host.**
+  A Git source takes only a `git_token`, and sends it only to the host it was
+  added with, so editing a source cannot aim the organization's token, or any
+  other key, at a server of the editor's choosing.
+- **An unchanged source is not read again.** A connector that can say cheaply
+  what its source is at - a Git branch's head commit - is asked first, and a
+  scheduled sync that finds the same answer under the same configuration as the
+  last clean run stops there, without listing or downloading anything. A run
+  with a failed file records nothing, so the next one reads everything again.
+  The answer is kept in the new `sync_sources.sync_state` (migration
+  `0097_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
+  the answer and `aclose` for what a sync made, such as a clone.
+
+### Fixed
+
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
+
+## [0.0.496] - 2026-09-25
+
+### Added
+
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
+
+### Changed
+
+- **A sync now removes what its source no longer holds.** A page taken off a
+  site, a file deleted from a Drive folder or an object removed from a bucket
+  used to stay searchable for good. Each sync now removes the documents its own
+  source brought in earlier and no longer lists, and counts them in the sync
+  log's new `removed` column. It removes nothing after a listing that stopped
+  short, such as a crawl at its page limit or one that could not read a page: it
+  says so in the log, and the next complete sync catches up. Documents are
+  matched to the source that brought them in through the new
+  `rag_documents.sync_source_id` (migration `0096_sync_removal.py`). Uploads,
+  and documents another source brought into the same collection, are never
+  touched. A document that could not be removed counts as a failed file, and
+  the completion notification counts what was removed (#984).
+- **One sync of a source runs at a time.** A sync started while another run of
+  the same source is still going does not start, and its log says so: an older
+  run's listing would otherwise remove what the newer run had just ingested.
+- `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
+  the files, whether that is all of them, and what could not be read. A
+  connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
+  out not to hold, which the sync removes rather than counts as failed.
+
+## [0.0.495] - 2026-09-25
+
+### Added
+
+- **An agent can publish a report or a small dashboard under a link that stays
+  put.** The new `artifacts` capability adds one tool, `publish_artifact`, which
+  takes an HTML or Markdown page from the run's workspace - read through its own
+  pydantic-ai-backend, so every sandbox backend works - or inline. The agent and
+  the page's name are its identity, so the next run of the same agent, from a
+  chat, a schedule or the API, publishes a new version behind the same link
+  instead of making a second one - provided the run's person owns the page or
+  holds `artifacts:edit` on it, so a colleague's run cannot replace it. Identical
+  bytes add no version, and the newest `ARTIFACT_MAX_VERSIONS` are kept.
+  The chat links to the version its own run wrote. A new artifact is private
+  to the person the run was for, and a person shares it the way agents and
+  skills are shared - grants, the whole organization - or turns on an "anyone with the link" address that can be
+  replaced or turned off. `artifacts:view` and `artifacts:edit` join the
+  catalog, and an **Artifacts** page, a dashboard card and a retention class
+  measured from the last publication come with it. The page is agent-authored
+  script, so it is served from a cookieless route behind a short-lived signed
+  token under a `sandbox` policy - an opaque origin with no network and no
+  popups, each address loadable a few times a minute - and `ARTIFACT_ORIGIN`
+  can move it to a domain of its own.
+  ([#70](https://github.com/vstorm-co/agenticos/issues/70))
+
+## [0.0.494] - 2026-09-25
+
+### Fixed
+
+- **The `objectstore` compose profile could not start MinIO.** MinIO stopped
+  publishing images, and `quay.io/minio/minio` now answers 401 for every tag,
+  so `make docker-minio` failed on every machine and CI's backend job with it.
+  The profile runs `pgsty/minio`, the community-maintained build of the same
+  server, pinned to `RELEASE.2026-08-04T00-00-00Z`. Nothing changes for a
+  deployment that keeps the local file backend or points at another S3 store.
+
+## [0.0.493] - 2026-09-25
+
+### Fixed
+
+- **A notification opened its destination by reloading the whole console.**
+  `notifications.context_url` held `FRONTEND_URL` plus a path, and the bell and
+  the dashboard card rendered it as a plain anchor - so clicking a row fetched a
+  whole new document to reach a page the reader was usually already standing
+  inside, throwing away everything the query cache held and racing the
+  mark-read write against the unload. The column holds the path alone now and
+  both surfaces navigate it as a sub-route, with the origin put back on for the
+  one reader that has none: the email. Rows written before this keep their
+  absolute destination, keep working, and age out with the retention sweep -
+  no migration rewrites them.
+
 ## [0.0.492] - 2026-09-22
 
 ### Fixed

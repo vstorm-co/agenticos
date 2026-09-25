@@ -49,6 +49,7 @@ RetentionClass = Literal[
     "conversations",
     "runs",
     "workspaces",
+    "artifacts",
     "memory",
     "knowledge_documents",
     "audit",

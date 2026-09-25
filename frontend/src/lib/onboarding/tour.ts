@@ -303,6 +303,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.workflowsView,
   },
 
+  // Published artifacts - pages agents wrote. Nothing to create here (a run
+  // publishes one), so a single describing stop on the list, view-gated.
+  {
+    id: "artifacts-list",
+    page: ROUTES.ARTIFACTS,
+    target: "artifacts-list",
+    permission: Perm.artifactsView,
+  },
+
   {
     id: "activity-overview",
     page: ROUTES.RUNS,

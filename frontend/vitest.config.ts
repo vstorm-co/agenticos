@@ -76,6 +76,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/routines.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/artifacts/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
