@@ -1,5 +1,5 @@
 ---
-source_sha: "4748c414939a"
+source_sha: "f1a0848d1217"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -90,6 +90,8 @@ colección que nadie le conectó.
 | Configuración | Valor por defecto | Rango |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` se aplica solo cuando el modelo no pide un número por su cuenta.
@@ -121,6 +123,41 @@ va más allá del fragmento que nombra.
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no
 tener ninguna, porque el modelo sigue intentándolo y razona a partir del silencio.
+
+### Análisis y expansión de la consulta { #query-analysis-and-expansion }
+
+Las preguntas cortas, poco especificadas o con vocabulario que no coincide
+recuperan de menos. Desactivado por defecto, `query_analysis_mode` expande
+opcionalmente la consulta *antes* de la recuperación:
+
+| Modo | Qué hace | Coste |
+|---|---|---|
+| `off` | Busca la consulta tal como está escrita | ninguno |
+| `multi_query` | El modelo del run escribe hasta `query_analysis_max_variants` reformulaciones; el original y las variantes se buscan por separado y sus resultados se fusionan | una llamada al modelo, más una recuperación por consulta |
+| `hyde` | El modelo del run escribe una breve respuesta hipotética, y la recuperación se ejecuta contra *su* embedding | una llamada al modelo |
+
+`multi_query` y `hyde` añaden cada uno una llamada al modelo antes de la
+búsqueda, así que cambian latencia y un poco de gasto por recuperación en
+preguntas difusas. `multi_query` además recupera una vez por consulta, una tras
+otra, y cada recuperación genera el embedding de su propia consulta —las
+variantes no se agrupan en una sola llamada de embedding—, así que mantén
+`query_analysis_max_variants` bajo para acotar la ramificación.
+
+Ambos modos usan el propio modelo del agente —no hay un modelo aparte que
+configurar— y su coste se mide contra el presupuesto del run como cualquier otra
+llamada al modelo. Un presupuesto agotado omite la expansión sin llamar al
+modelo, y lo mismo ocurre con un modelo que falla o no puede responder a una
+petición simple: la búsqueda se ejecuta entonces con la consulta tal como está
+escrita en lugar de fallar.
+
+La expansión amplía la *recuperación*, nunca el *acceso*. Cada consulta que
+produce se busca bajo el mismo ámbito de inquilino y los mismos filtros de negocio
+que el original, así que una consulta expandida nunca puede alcanzar un documento
+de otra organización o fuera de ámbito. Se combina con el reordenamiento: la
+expansión amplía el conjunto de candidatos y los resultados se fusionan, y un
+reranker reordenaría lo que devolvió la fusión. Con `parent_context` activado, el
+texto circundante se añade una sola vez, a los resultados fusionados, así que sus
+límites cubren toda la búsqueda y no cada consulta por separado.
 
 ## Skills { #skills }
 

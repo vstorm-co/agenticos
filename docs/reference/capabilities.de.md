@@ -1,5 +1,5 @@
 ---
-source_sha: "4748c414939a"
+source_sha: "f1a0848d1217"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -92,6 +92,8 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
@@ -124,6 +126,43 @@ Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird 
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als
 gar kein Suchtool, denn das Modell versucht es weiter und schließt aus dem
 Schweigen.
+
+### Abfrageanalyse und -erweiterung { #query-analysis-and-expansion }
+
+Kurze, unterspezifizierte oder im Vokabular abweichende Fragen finden zu wenig.
+Standardmäßig aus, erweitert `query_analysis_mode` die Abfrage optional *vor* dem
+Abruf:
+
+| Modus | Was er tut | Kosten |
+|---|---|---|
+| `off` | Sucht die Abfrage so, wie sie geschrieben wurde | keine |
+| `multi_query` | Das Modell des Runs schreibt bis zu `query_analysis_max_variants` Umformulierungen; das Original und die Varianten werden je einzeln gesucht und ihre Ergebnisse zusammengeführt | ein Modellaufruf, plus ein Abruf je Abfrage |
+| `hyde` | Das Modell des Runs schreibt eine kurze hypothetische Antwort, und der Abruf läuft gegen *deren* Embedding | ein Modellaufruf |
+
+`multi_query` und `hyde` fügen je einen Modellaufruf vor der Suche hinzu und
+tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
+unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
+der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
+werden nicht in einem Embedding-Aufruf gebündelt —, also halte
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+
+Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
+konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie
+jeder andere Modellaufruf. Ein erschöpftes Budget überspringt die Erweiterung,
+ohne das Modell aufzurufen, und ebenso ein Modell, das scheitert oder keine
+einfache Anfrage beantworten kann: Die Suche läuft dann mit der Abfrage, wie sie
+geschrieben wurde, statt zu scheitern.
+
+Erweiterung erhöht die *Trefferquote*, niemals den *Zugriff*. Jede von ihr
+erzeugte Abfrage wird unter demselben Mandanten-Scope und denselben
+Geschäftsfiltern wie das Original gesucht, sodass eine erweiterte Abfrage niemals
+ein Dokument einer anderen Organisation oder außerhalb des Scopes erreichen kann.
+Sie fügt sich mit dem Reranking zusammen: Erweiterung verbreitert die
+Kandidatenmenge und die Ergebnisse werden zusammengeführt, und ein Reranker würde
+umsortieren, was die Zusammenführung zurückgab. Mit eingeschaltetem
+`parent_context` wird der umgebende Text einmal an die zusammengeführten
+Ergebnisse angefügt, sodass seine Grenzen für die ganze Suche gelten und nicht
+für jede Abfrage einzeln.
 
 ## Skills { #skills }
 

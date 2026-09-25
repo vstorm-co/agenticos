@@ -635,6 +635,9 @@ include = [
     "app/services/rag/connectors/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    # The query strings a knowledge search runs, and the one place an expansion
+    # failure is allowed to fall back to the plain query (#1649).
+    "app/services/rag/query_analysis.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -990,6 +993,9 @@ include = [
     "app/services/rag/connectors/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    # The query strings a knowledge search runs, and the one place an expansion
+    # failure is allowed to fall back to the plain query (#1649).
+    "app/services/rag/query_analysis.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",

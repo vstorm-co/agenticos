@@ -9,8 +9,12 @@ write token never leaves the vault path it came in on.
 import uuid
 from unittest.mock import MagicMock, patch
 
+from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models.instrumented import InstrumentationSettings
+from pydantic_ai.models.test import TestModel
+
 from app.agents.factory import _instrument
-from app.agents.observability import instrument_agent, suppress_content
+from app.agents.observability import inherited_instrumentation, instrument_agent, suppress_content
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.secret_kinds import ApiKeySecret
 
@@ -276,3 +280,19 @@ class TestSpec:
     def test_an_ordinary_slug_is_accepted(self):
         spec = ObservabilitySpec(organization="vstorm", project="agenticos-eu")
         assert (spec.organization, spec.project) == ("vstorm", "agenticos-eu")
+
+
+class TestInheritedInstrumentation:
+    def test_an_auxiliary_agent_takes_its_hosts_setting(self):
+        settings = InstrumentationSettings(include_content=False)
+        host = PydanticAgent(TestModel())
+        host.instrument = settings
+        assert inherited_instrumentation(host) is settings
+
+    def test_a_host_on_the_global_default_passes_the_default_on(self):
+        assert inherited_instrumentation(PydanticAgent(TestModel())) is None
+
+    def test_with_no_host_the_policy_is_the_one_that_cannot_leak(self):
+        inherited = inherited_instrumentation(None)
+        assert isinstance(inherited, InstrumentationSettings)
+        assert inherited.include_content is False

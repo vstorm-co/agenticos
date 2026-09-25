@@ -1,5 +1,5 @@
 ---
-source_sha: "4748c414939a"
+source_sha: "f1a0848d1217"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -92,6 +92,8 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
@@ -124,6 +126,40 @@ poza wskazany chunk.
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze
 niż brak narzędzia, bo model próbuje go dalej i wyciąga wnioski z tej ciszy.
+
+### Analiza i rozszerzanie zapytania { #query-analysis-and-expansion }
+
+Krótkie, niedookreślone lub rozjeżdżające się słownikowo pytania wyszukują za
+mało. Domyślnie wyłączone `query_analysis_mode` opcjonalnie rozszerza zapytanie
+*przed* wyszukiwaniem:
+
+| Tryb | Co robi | Koszt |
+|---|---|---|
+| `off` | Wyszukuje zapytanie tak, jak je napisano | brak |
+| `multi_query` | Model runu pisze do `query_analysis_max_variants` przeredagowań; oryginał i warianty są wyszukiwane osobno, a ich wyniki łączone | jedno wywołanie modelu plus jedno wyszukiwanie na zapytanie |
+| `hyde` | Model runu pisze krótką hipotetyczną odpowiedź, a wyszukiwanie działa na *jej* embeddingu | jedno wywołanie modelu |
+
+`multi_query` i `hyde` dokładają po jednym wywołaniu modelu przed
+wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełność przy
+rozmytych pytaniach. `multi_query` dodatkowo wyszukuje raz na każde zapytanie,
+jedno po drugim, a każde wyszukiwanie osobno tworzy embedding swojego zapytania —
+warianty nie są łączone w jedno wywołanie embeddingu — więc trzymaj
+`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie.
+
+Oba tryby używają własnego modelu agenta — nie ma osobnego modelu do
+skonfigurowania — a ich koszt jest mierzony względem budżetu runu jak każde inne
+wywołanie modelu. Wyczerpany budżet pomija rozszerzanie bez wywołania modelu, tak
+samo jak model, który zawiedzie albo nie potrafi odpowiedzieć na zwykłe żądanie:
+wyszukiwanie działa wtedy na zapytaniu w oryginalnym brzmieniu, zamiast zawieść.
+
+Rozszerzanie zwiększa *pełność*, nigdy *dostęp*. Każde wygenerowane zapytanie jest
+wyszukiwane w tym samym zakresie dzierżawcy i przy tych samych filtrach
+biznesowych co oryginał, więc rozszerzone zapytanie nigdy nie sięgnie do dokumentu
+innej organizacji ani spoza zakresu. Komponuje się z ponownym rankingiem:
+rozszerzanie poszerza zbiór kandydatów, a wyniki są łączone, i reranker
+przestawiłby to, co zwróciło łączenie. Przy włączonym `parent_context` otaczający
+tekst jest dodawany raz, do połączonych wyników, więc jego limity obejmują całe
+wyszukiwanie, a nie każde zapytanie z osobna.
 
 ## Skille { #skills }
 
