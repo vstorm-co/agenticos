@@ -21,10 +21,21 @@ stop that from being a `pymdownx.snippets` include:
 So the page carries a marker and this hook substitutes the changelog into it,
 rewriting the links on the way through. The file stays correct on GitHub and the
 page stays correct on the site.
+
+The third is what a search engine or a link preview reads from a page's head.
+Material writes the title, the description, the canonical URL and the `hreflang`
+alternates, and nothing a social card or a rich result needs. So a page may set
+`seo_title` for the `<title>` a search result shows, every page gets Open Graph
+and Twitter tags, and a page with a "Frequently asked questions" section gets
+`FAQPage` structured data read from that section's own headings - written once,
+in the Markdown a reader sees, rather than a second copy in front matter that
+drifts from it.
 """
 
 from __future__ import annotations
 
+import html
+import json
 import re
 import shutil
 import sys
@@ -46,10 +57,21 @@ if TYPE_CHECKING:
 RELEASE_NOTES = "release-notes.md"
 LLMS_TXT = "llms.txt"
 CHANGELOG_MARKER = "<!-- changelog -->"
+SEO_TITLE_KEY = "seo_title"
+SOCIAL_IMAGE = "assets/social-preview.png"
+# The id every locale's FAQ heading carries: translations pin English anchors, so
+# `{ #frequently-asked-questions }` is the one marker the Polish page shares too.
+FAQ_SECTION_ID = "frequently-asked-questions"
+OG_LOCALES = {"en": "en_US", "pl": "pl_PL", "de": "de_DE", "es": "es_ES"}
 
 _CHANGELOG = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
 _DOCS_LINK = re.compile(r"\]\(docs/(?=[\w./#-]+\))")
 _LEADING_HEADING = re.compile(r"\A#\s.*?\n", re.DOTALL)
+_TITLE = re.compile(r"<title>.*?</title>", re.DOTALL)
+_HEADERLINK = re.compile(r'<a class="headerlink"[^>]*>.*?</a>', re.DOTALL)
+_BLOCK_END = re.compile(r"</(?:p|li|td|th|pre|div)>|<br\s*/?>")
+_TAG = re.compile(r"<[^>]+>")
+_FAQ_QUESTION = re.compile(r'<h3 id="[^"]*">(.*?)</h3>', re.DOTALL)
 
 # One admonition per locale rather than one English sentence for everybody: the
 # reader this is addressed to is the one who chose a language and is now being
@@ -136,6 +158,119 @@ def on_page_markdown(
     if heading is None:
         return notice + markdown
     return f"{heading.group()}\n{notice}{markdown[heading.end() :]}"
+
+
+def _plain_text(fragment: str) -> str:
+    """Rendered HTML as the sentence a reader sees: no tags, no pilcrow, one space."""
+    text = _BLOCK_END.sub(" ", _HEADERLINK.sub("", fragment))
+    return " ".join(html.unescape(_TAG.sub("", text)).split())
+
+
+def faq_entries(output: str) -> list[tuple[str, str]]:
+    """Question and answer pairs from a page's FAQ section, in page order.
+
+    The section runs from its `h2` to the next `h2` or the end of the article, and
+    each `h3` inside it is a question whose answer is everything up to the next.
+    A question with no answer text is left out rather than published empty.
+    """
+    start = output.find(f'<h2 id="{FAQ_SECTION_ID}">')
+    if start == -1:
+        return []
+    body = output.index("</h2>", start) + len("</h2>")
+    ends = [i for i in (output.find("<h2", body), output.find("</article>", body)) if i != -1]
+    section = output[body : min(ends)] if ends else output[body:]
+    parts = _FAQ_QUESTION.split(section)
+    pairs = (
+        (_plain_text(q), _plain_text(a)) for q, a in zip(parts[1::2], parts[2::2], strict=True)
+    )
+    return [(question, answer) for question, answer in pairs if question and answer]
+
+
+def _json_ld(data: dict[str, object]) -> str:
+    # `</` would close the script element early, whatever the JSON around it says.
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return f'<script type="application/ld+json">{payload}</script>'
+
+
+def _site_root(config: MkDocsConfig) -> str:
+    """The English site's root URL, which is where the shared assets are served.
+
+    A localized build answers `site_url` with its own prefix - `.../pl/` - and the
+    assets are not copied under it, so an image URL built from that would 404.
+    """
+    root = (config.site_url or "").rstrip("/")
+    locale = config.theme["language"]
+    if locale != DEFAULT_LOCALE and root.endswith(f"/{locale}"):
+        root = root[: -len(locale) - 1]
+    return f"{root}/"
+
+
+def head_tags(output: str, *, page: Page, config: MkDocsConfig) -> str:
+    """The social-card and structured-data tags this page adds to its `<head>`.
+
+    A card's title is the `<title>` the page already renders, so a shared link and
+    a search result name the page the same way.
+    """
+    rendered = _TITLE.search(output)
+    title = _plain_text(rendered.group()) if rendered else config.site_name
+    description = str(page.meta.get("description") or config.site_description or "")
+    image = _site_root(config) + SOCIAL_IMAGE
+    locale = config.theme["language"]
+    properties = {
+        "og:type": "website",
+        "og:site_name": config.site_name,
+        "og:title": title,
+        "og:description": description,
+        "og:url": page.canonical_url or "",
+        "og:image": image,
+        "og:locale": OG_LOCALES.get(locale, locale),
+    }
+    names = {
+        "twitter:card": "summary_large_image",
+        "twitter:title": title,
+        "twitter:description": description,
+        "twitter:image": image,
+    }
+    tags = [
+        f'<meta property="{key}" content="{html.escape(value)}">'
+        for key, value in properties.items()
+        if value
+    ]
+    tags += [
+        f'<meta name="{key}" content="{html.escape(value)}">'
+        for key, value in names.items()
+        if value
+    ]
+    faq = faq_entries(output)
+    if faq:
+        tags.append(
+            _json_ld(
+                {
+                    "@context": "https://schema.org",
+                    "@type": "FAQPage",
+                    "inLanguage": locale,
+                    "mainEntity": [
+                        {
+                            "@type": "Question",
+                            "name": q,
+                            "acceptedAnswer": {"@type": "Answer", "text": a},
+                        }
+                        for q, a in faq
+                    ],
+                }
+            )
+        )
+    return "".join(tags)
+
+
+def on_post_page(output: str, *, page: Page, config: MkDocsConfig) -> str:
+    """Apply a page's `seo_title` and add its social and structured-data tags."""
+    seo_title = page.meta.get(SEO_TITLE_KEY)
+    if seo_title:
+        output = _TITLE.sub(
+            lambda _: f"<title>{html.escape(str(seo_title))}</title>", output, count=1
+        )
+    return output.replace("</head>", head_tags(output, page=page, config=config) + "</head>", 1)
 
 
 def on_post_build(*, config: MkDocsConfig) -> None:

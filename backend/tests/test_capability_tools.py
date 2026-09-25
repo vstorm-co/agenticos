@@ -9,16 +9,33 @@ from __future__ import annotations
 
 import asyncio
 import json
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
-from pydantic_ai import ModelRetry, RunContext
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
+from app.agents.capabilities.budget import (
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
 from app.agents.capabilities.charts._toolset import ChartSeriesInput
@@ -30,11 +47,13 @@ from app.agents.capabilities.code_execution._sandbox import (
     run_python,
 )
 from app.agents.capabilities.knowledge._search import _format_results
-from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
+from app.agents.capabilities.knowledge._toolset import _model_generate, build_knowledge_toolset
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
+from app.services.rag.models import ParentContextMode
+from app.services.rag.query_analysis import QueryExpansionFailed
 
 
 def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
@@ -124,6 +143,34 @@ class TestKnowledgeTool:
         assert "unavailable" in answered
 
     @pytest.mark.anyio
+    async def test_the_agents_parent_context_mode_reaches_the_backend(self):
+        """The small-to-big mode is the agent's, not the model's, decision (#1651)."""
+        toolset = build_knowledge_toolset(default_top_k=5, parent_context=ParentContextMode.WINDOW)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+
+    @pytest.mark.anyio
+    async def test_parent_context_defaults_to_off(self):
+        """An agent that configured nothing gets the unchanged, matched-chunk result."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.OFF
+
+    @pytest.mark.anyio
     async def test_business_filters_reach_the_backend(self):
         """The whitelisted filters are assembled and passed to the search."""
         toolset = build_knowledge_toolset(default_top_k=5)
@@ -201,13 +248,210 @@ class TestKnowledgeTool:
         backend.assert_not_awaited()
 
 
+class TestQueryAnalysisWiring:
+    """The tool builds the model-backed generator only when a mode needs it, and
+    hands the mode, its bounds and the generator down to the search (#1649)."""
+
+    @pytest.mark.anyio
+    async def test_model_generate_runs_a_metered_call_over_the_run_model(self):
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="change my password"),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            out = await generate("prompt")
+        assert out == "change my password"
+        # Booked against the run's ledger rather than spent invisibly, which is
+        # what keeps a budget able to see it - and on its own usage, so it takes
+        # nothing from the host run's request allowance.
+        assert ledger.input_tokens > 0
+        assert ctx.usage.requests == 0
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("include_content", [False, True])
+    async def test_the_expansion_call_is_traced_as_its_host_run_is(self, include_content):
+        """The nested agent takes the host agent's instrumentation, so its spans
+        reach the host's exporter and honour its content setting - a host whose
+        spec says `content: none` does not leak the question through the
+        expansion prompt to the global, content-on default."""
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        host = Agent(TestModel())
+        host.instrument = InstrumentationSettings(
+            tracer_provider=provider, include_content=include_content
+        )
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="a variant"),
+            usage=RunUsage(),
+            agent=host,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with metered_by(SpendLedger()):
+            await generate("rephrase: my salary review")
+
+        spans = exporter.get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("my salary review" in recorded) is include_content
+
+    @pytest.mark.anyio
+    async def test_parallel_expansions_book_exactly_what_each_spent(self):
+        """Two searches the model issued in one turn expand at once. Each books
+        its own response, so the ledger holds the real total - not a snapshot
+        delta that also counted the other call's tokens."""
+        both_in_flight = asyncio.Barrier(2)
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            await both_in_flight.wait()
+            return ModelResponse(
+                parts=[TextPart("a variant")],
+                usage=RequestUsage(input_tokens=100, output_tokens=7),
+            )
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(respond), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            await asyncio.gather(generate("first"), generate("second"))
+
+        assert (ledger.input_tokens, ledger.output_tokens) == (200, 14)
+        assert len(ledger.entries) == 2
+        assert ctx.usage.requests == 0
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_exhausted_budget_skips_the_expansion_and_still_searches(self):
+        """The host guard only refuses the host's next request; the expansion is a
+        request of the tool's own, so it asks first. Refused, it makes no model
+        call and the plain query is searched exactly as `off` would."""
+        model_calls: list[str] = []
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            model_calls.append("called")
+            return ModelResponse(parts=[TextPart("a variant")])
+
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        toolset = build_knowledge_toolset(default_top_k=5, query_analysis_mode="multi_query")
+        search = toolset.tools["search_documents"].function
+        ctx = RunContext(
+            deps=AgentDeps(kb_collection_names=["kb_a"], organization_id=uuid4()),
+            model=FunctionModel(respond),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+        )
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("1.00"),
+                    period_spend=AsyncMock(return_value=Decimal("1.00")),
+                )
+            ],
+        )
+
+        with (
+            guarded_by(guard),
+            patch(
+                "app.agents.capabilities.knowledge._search.get_retrieval_service",
+                return_value=service,
+            ),
+        ):
+            answer = await search(ctx, query="reset password")
+
+        assert model_calls == []
+        service.retrieve.assert_awaited_once()
+        assert service.retrieve.await_args.kwargs["query"] == "reset password"
+        assert answer == "No relevant documents found in the knowledge base."
+
+    @pytest.mark.anyio
+    async def test_a_provider_refusal_is_reported_as_an_expected_expansion_failure(self):
+        async def refuse(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise ModelHTTPError(status_code=503, model_name="m", body="overloaded")
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(refuse), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with pytest.raises(QueryExpansionFailed) as failure:
+            await generate("prompt")
+        assert isinstance(failure.value.__cause__, ModelHTTPError)
+
+    @pytest.mark.anyio
+    async def test_a_bug_in_the_expansion_call_is_not_reported_as_expected(self):
+        """Only the declared failures become a fallback; a programming error keeps
+        its own type so it cannot be mistaken for an outage."""
+
+        async def broken(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise KeyError("a bug")
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(broken), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with pytest.raises(KeyError):
+            await generate("prompt")
+
+    def test_model_generate_returns_none_for_a_model_that_cannot_run_a_request(self):
+        """A realtime model is not request-response, so the modes degrade."""
+        ctx = RunContext(deps=None, model=object(), usage=RunUsage(), retry=0, max_retries=1)
+        assert _model_generate(ctx) is None
+
+    @pytest.mark.anyio
+    async def test_a_mode_hands_a_generator_and_its_bounds_to_the_search(self):
+        toolset = build_knowledge_toolset(
+            default_top_k=5, query_analysis_mode="multi_query", query_analysis_max_variants=2
+        )
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_tool_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        kwargs = backend.await_args.kwargs
+        assert kwargs["analysis_mode"] == "multi_query"
+        assert kwargs["analysis_max_variants"] == 2
+        assert kwargs["generate"] is not None
+
+    @pytest.mark.anyio
+    async def test_the_default_is_off_with_no_generator(self):
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        assert backend.call_args.kwargs["analysis_mode"] == "off"
+        assert backend.call_args.kwargs["generate"] is None
+
+
 class TestKnowledgeFormatting:
     def test_no_results_says_so_rather_than_returning_nothing(self):
         """An empty string reads to the model as a broken tool."""
         assert "No relevant" in _format_results([])
 
     def test_results_carry_their_source(self):
-        result = MagicMock(score=0.9, content="Refunds within 30 days.")
+        result = MagicMock(score=0.9, content="Refunds within 30 days.", expanded_content=None)
         result.metadata = {"filename": "policy.pdf", "page_num": 3}
         formatted = _format_results([result])
         assert "policy.pdf" in formatted
@@ -216,9 +460,27 @@ class TestKnowledgeFormatting:
 
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""
-        result = MagicMock(score=0.9, content="text")
+        result = MagicMock(score=0.9, content="text", expanded_content=None)
         result.metadata = {"filename": "a.pdf"}
         assert "cite inline" in _format_results([result])
+
+    def test_the_expanded_passage_is_shown_when_present(self):
+        """Small-to-big: the model reads the surrounding context, not the chunk alone."""
+        result = MagicMock(
+            score=0.9,
+            content="the matched chunk",
+            expanded_content="before\n\nthe matched chunk\n\nafter",
+        )
+        result.metadata = {"filename": "a.pdf"}
+        formatted = _format_results([result])
+        assert "before" in formatted
+        assert "after" in formatted
+
+    def test_the_matched_chunk_is_shown_when_there_is_no_expansion(self):
+        """`off` (the default) leaves the formatted output exactly as before."""
+        result = MagicMock(score=0.9, content="just the chunk", expanded_content=None)
+        result.metadata = {"filename": "a.pdf"}
+        assert "just the chunk" in _format_results([result])
 
 
 class TestCodeExecutionTool:

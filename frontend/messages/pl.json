@@ -96,7 +96,8 @@
     "allOrganizations": "Wszystkie organizacje",
     "deploymentSettings": "Instalacja",
     "collapseSidebar": "Zwiń panel boczny",
-    "expandSidebar": "Rozwiń panel boczny"
+    "expandSidebar": "Rozwiń panel boczny",
+    "artifacts": "Artefakty"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -192,7 +193,10 @@
     "signupDomainsAllowed": "Zarejestrować się mogą tylko adresy w domenach {domains}.",
     "signupClosedHeading": "Rejestracja jest zamknięta",
     "signupClosedBody": "{app} nie przyjmuje nowych kont. Poproś administratora o zaproszenie.",
-    "signupWithInvitation": "Rejestrujesz się z zaproszeniem, więc ograniczenia rejestracji tej instalacji Cię nie dotyczą."
+    "signupWithInvitation": "Rejestrujesz się z zaproszeniem, więc ograniczenia rejestracji tej instalacji Cię nie dotyczą.",
+    "directorySignIn": "Zaloguj się przez {provider}",
+    "directoryUsername": "Nazwa użytkownika {provider}",
+    "useEmailInstead": "Użyj e-maila i hasła"
   },
   "profile": {
     "title": "Profil",
@@ -247,7 +251,11 @@
     "tools": {
       "patternInFile": "{pattern} w {file}",
       "workingThroughPage": "Przechodzę przez stronę",
-      "browsePage": "Przejdź przez stronę"
+      "browsePage": "Przejdź przez stronę",
+      "publishingArtifact": "Publikowanie strony",
+      "publishArtifact": "Opublikowana strona",
+      "artifactVersion": "Wersja {version} · otwórz stronę",
+      "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę"
     },
     "unfavourite": "Usuń z ulubionych",
     "controls": {
@@ -481,7 +489,8 @@
         "workspaces": "Workspace'y agentów",
         "memory": "Pamięć agentów",
         "knowledge_documents": "Wgrane dokumenty",
-        "audit": "Ślad audytowy"
+        "audit": "Ślad audytowy",
+        "artifacts": "Opublikowane artefakty i ich wersje"
       }
     },
     "memory": {
@@ -1136,6 +1145,14 @@
           "title": "Nic jeszcze nie działa samo",
           "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
         }
+      },
+      "artifacts": {
+        "title": "Artefakty",
+        "description": "Strony, które Twoje agenty opublikowały ostatnio.",
+        "empty": {
+          "title": "Nic jeszcze nie opublikowano",
+          "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -1421,6 +1438,10 @@
       "create-org": {
         "title": "Utworzyć organizację?",
         "body": "Organizacja to osobna przestrzeń z własnymi agentami, członkami i ustawieniami. Utworzymy jedną teraz? Przeprowadzimy Cię przez to."
+      },
+      "create-group": {
+        "title": "Utworzyć grupę?",
+        "body": "Grupa pozwala jednym ruchem udostępnić agenta, skill albo kolekcję kilku osobom. Utworzymy jedną teraz? Przeprowadzimy Cię przez to."
       },
       "create-routine": {
         "title": "Ustawić pierwszą rutynę?",
@@ -1792,6 +1813,26 @@
         "title": "Jak długo żyją tu dane",
         "body": "Okres na klasę - rozmowy, runy, workspace'y, pamięć, wgrane pliki i ślad audytowy. Sweep chodzi codziennie i usuwa na stałe, w granicach ustawionych przez wdrożenie; ślad audytowy ma podłogę, którą można wydłużyć i nigdy skrócić."
       },
+      "org-groups": {
+        "title": "Udostępniaj grupie",
+        "body": "Grupa to nazwany zbiór członków. Udostępnij jej agenta, skill, kolekcję albo sekret w vault, a wszyscy w grupie dostaną ten dostęp naraz - ich role zostają bez zmian."
+      },
+      "org-groups-new": {
+        "title": "Utwórz grupę",
+        "body": "Nadaj jej nazwę i, jeśli chcesz, jedno zdanie o tym, do czego służy. Potem otwórz jej członków, żeby dodać ludzi, albo pozwól mapowaniu katalogu umieszczać ich przy logowaniu."
+      },
+      "org-directory": {
+        "title": "Kogo wpuszcza katalog",
+        "body": "Każde mapowanie zamienia grupę katalogu - grupę LDAP albo claim z grupami OIDC - w rolę tutaj i opcjonalnie w grupę. Synchronizacja stosuje je przy każdym logowaniu i utrzymuje utworzone przez siebie członkostwa."
+      },
+      "org-directory-new": {
+        "title": "Zmapuj grupę katalogu",
+        "body": "Wklej DN grupy albo wartość claimu i wybierz rolę. Możesz nadawać tylko role niższe od własnej."
+      },
+      "flow-group-create": {
+        "title": "Utwórz grupę",
+        "body": "Wybierz Nowa grupa, nadaj nazwę i utwórz ją. Przejdziemy dalej, gdy tylko powstanie."
+      },
       "org-roles": {
         "title": "Co może każda rola",
         "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
@@ -1839,6 +1880,10 @@
       "workspaces-detail": {
         "title": "Wnętrze przestrzeni",
         "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+      },
+      "artifacts-list": {
+        "title": "Opublikowane strony",
+        "body": "Raporty i dashboardy opublikowane przez Twoje agenty. Otwórz jeden, żeby go zobaczyć, wybierz wcześniejszą wersję, udostępnij go współpracownikom albo nadaj mu link publiczny."
       }
     }
   },
@@ -2094,8 +2139,8 @@
     "access": "Dostęp",
     "accessFor": "Dostęp dla {name}",
     "accessRemoved": "Dostęp cofnięty",
-    "addSomeone": "Dodaj kogoś",
-    "chooseMember": "Wybierz członka",
+    "addSubject": "Dodaj osobę lub grupę",
+    "chooseSubject": "Wybierz członka lub grupę",
     "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić — także dla osób, które same nie mogą otworzyć kolekcji.",
     "everyoneAlreadyHasAccess": "Wszyscy już mają dostęp",
     "failedLoadShares": "Nie udało się wczytać udostępnień",
@@ -2106,8 +2151,8 @@
     "levelUse": "Może używać",
     "notSharedWithAnyone": "Jeszcze nikomu nie udostępnione.",
     "ownedBy": "Właściciel: {email}",
-    "people": "Osoby",
-    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}}, nie zmieniając jej roli nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
+    "peopleAndGroups": "Osoby i grupy",
+    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby albo wszystkich w grupie do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}}, nie zmieniając ich ról nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
     "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować — nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
     "share": "Udostępnij",
     "sharingUpdated": "Udostępnianie zaktualizowane",
@@ -2119,7 +2164,10 @@
     "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
     "visibilityTeam": "Zespół (już nieoferowane)",
     "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
-    "visibilityUpdated": "Widoczność zaktualizowana"
+    "visibilityUpdated": "Widoczność zaktualizowana",
+    "groupsHeading": "Grupy",
+    "membersHeading": "Członkowie",
+    "groupSubject": "Grupa"
   },
   "vault": {
     "access": "Dostęp",
@@ -2978,5 +3026,112 @@
     },
     "clearAll": "Wyczyść",
     "dismissRow": "Odrzuć"
+  },
+  "artifacts": {
+    "title": "Artefakty",
+    "description": "Strony opublikowane przez Twoje agenty - raporty, małe dashboardy, podsumowania. Każda zachowuje swój link, gdy agent opublikuje ją ponownie, a wcześniejsze wersje pozostają dostępne.",
+    "cannotSee": "Nie widzisz artefaktów tej organizacji",
+    "askForAccess": "Poproś administratora o dostęp do artefaktów.",
+    "count": "{count, plural, one {1 artefakt} few {# artefakty} many {# artefaktów} other {# artefaktu}}",
+    "search": "Szukaj artefaktów…",
+    "noMatches": "Żaden artefakt nie pasuje",
+    "noMatchesWhy": "Przeszukiwane są tytuły i nazwy.",
+    "noneYet": "Nic jeszcze nie opublikowano",
+    "noneYetWhy": "Agent z capability Artifacts publikuje tu stronę, gdy poprosisz go o raport albo dashboard. Jest prywatna, dopóki jej nie udostępnisz.",
+    "sharedOrg": "Cała organizacja",
+    "publicBadge": "Link publiczny",
+    "publishedVersion": "Wersja {version} · {when}",
+    "versionUnavailable": "Ta wersja jest niedostępna",
+    "versionUnavailableWhy": "Zastąpiły ją nowsze wersje i nie jest już przechowywana albo przed chwilą zmienił się Twój dostęp. Wybierz najnowszą wersję powyżej.",
+    "unavailable": "Ten artefakt jest niedostępny",
+    "unavailableWhy": "Został usunięty albo nie masz już do niego dostępu.",
+    "couldNotLoad": "Nie udało się wczytać artefaktu",
+    "publishedAs": "Opublikowany jako {name}",
+    "deleteTitle": "Usunąć {title}?",
+    "deleteWhy": "Znikną wszystkie wersje i link publiczny, a osoby, którym go udostępniono, nie otworzą go więcej. Agent utworzy nowy, gdy następnym razem opublikuje stronę pod tą nazwą.",
+    "deleted": "Artefakt usunięty",
+    "publicLink": "Link publiczny",
+    "publicLinkOn": "Każdy, kto ma ten link, otworzy najnowszą wersję bez konta.",
+    "publicLinkNone": "Otworzyć go mogą tylko osoby, którym go udostępniono.",
+    "createPublicLink": "Utwórz link publiczny",
+    "rotatePublicLink": "Wymień link",
+    "disablePublicLink": "Wyłącz",
+    "publicLinkReady": "Link publiczny gotowy",
+    "publicLinkOff": "Link publiczny wyłączony",
+    "version": "Wersja",
+    "latestVersion": "Najnowsza wersja",
+    "versionOption": "Wersja {version} · {when}",
+    "publicUpdated": "Zaktualizowano {when}"
+  },
+  "groups": {
+    "title": "Grupy",
+    "description": "Nazwane zbiory członków tej organizacji, którym udostępnia się jak jednej osobie.",
+    "organizations": "Organizacje",
+    "members": "Członkowie",
+    "intro": "Grupa to zbiór członków, którym jednym ruchem udostępnisz agentów, skille, kolekcje i sekrety w vault. Każdy w grupie dostaje dostęp, który daje udostępnienie, a jego rola się nie zmienia. Mapowania katalogu mogą też umieszczać ludzi w grupie przy logowaniu.",
+    "newGroup": "Nowa grupa",
+    "editGroup": "Edytuj grupę",
+    "name": "Nazwa",
+    "namePlaceholder": "Finanse",
+    "descriptionLabel": "Opis",
+    "descriptionPlaceholder": "Do czego służy ta grupa",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "create": "Utwórz",
+    "created": "Grupa utworzona",
+    "saved": "Grupa zapisana",
+    "deleted": "Grupa usunięta",
+    "memberAdded": "Dodano do grupy",
+    "memberRemoved": "Usunięto z grupy",
+    "groupCount": "{count, plural, =0 {Brak grup} one {1 grupa} few {# grupy} many {# grup} other {# grupy}}",
+    "membersOf": "Członkowie grupy {name}",
+    "memberCount": "{count, plural, one {1 członek} few {# członkowie} many {# członków} other {# członka}}",
+    "editNamed": "Edytuj {name}",
+    "emptyTitle": "Nie ma jeszcze grup",
+    "emptyBody": "Utwórz grupę, żeby udostępniać kilku osobom naraz.",
+    "deleteTitle": "Usunąć {name}?",
+    "deleteBody": "Wszystko, co udostępniono tej grupie, przestaje przez nią docierać do jej członków, a mapowania katalogu, które ją wskazują, też zostaną usunięte. Sami członkowie zostają w organizacji.",
+    "delete": "Usuń",
+    "membersBody": "Do kogo dociera ta grupa. Osoby oznaczone jako Katalog umieściła tu synchronizacja logowania przez katalog, która usuwa je znowu, gdy katalog przestaje je wymieniać.",
+    "nobodyYet": "W tej grupie nie ma jeszcze nikogo.",
+    "directoryMemberHint": "Umieszczona przez synchronizację logowania przez katalog, która usuwa ją, gdy katalog przestaje ją wymieniać. Usunięcie tutaj trwa do jej następnego logowania.",
+    "addMember": "Dodaj członka",
+    "chooseMember": "Wybierz członka",
+    "everyoneIsIn": "Wszyscy są już w tej grupie",
+    "add": "Dodaj"
+  },
+  "directory": {
+    "navLabel": "Katalog",
+    "title": "Mapowania katalogu",
+    "description": "Które grupy katalogu czynią kogoś kim w tej organizacji.",
+    "organizations": "Organizacje",
+    "members": "Członkowie",
+    "badge": "Katalog",
+    "memberHint": "Utrzymywane przez synchronizację z katalogiem, która zmienia i usuwa to członkostwo razem z katalogiem. Zmiana roli tutaj przejmuje je, a synchronizacja od tej pory go nie rusza.",
+    "howItWorks": "Gdy ktoś loguje się przez katalog (LDAP lub Kerberos) albo przez dostawcę OIDC, który wysyła claim z grupami, każde mapowanie poniżej pasujące do jednej z jego grup katalogu umieszcza go w tej organizacji ze zmapowaną rolą, a także w zmapowanej grupie, jeśli jest.",
+    "precedence": "Gdy pasuje kilka mapowań, rola jest wybierana w tej kolejności: admin, builder, operator, member, viewer. Członkostwa utworzone przez synchronizację są oznaczone jako Katalog i tylko je ona aktualizuje i usuwa. Ręczna zmiana roli takiego członka przejmuje członkostwo.",
+    "removal": "Usunięcie mapowania usuwa osoby, które ono umieściło, przy ich następnym logowaniu, chyba że ich członkostwo zostało przejęte.",
+    "notYours": "Mapowania katalogu są dla zarządzających członkami",
+    "askAnAdmin": "Ich odczyt wymaga uprawnienia do zarządzania członkami. Poproś administratora tej organizacji.",
+    "listTitle": "Mapowania",
+    "mappingCount": "{count, plural, =0 {Brak mapowań} one {1 mapowanie} few {# mapowania} many {# mapowań} other {# mapowania}}",
+    "externalGroup": "Grupa katalogu",
+    "externalGroupHint": "DN grupy LDAP albo wartość claimu z grupami dostawcy OIDC. Wielkość liter nie ma znaczenia.",
+    "role": "Rola",
+    "group": "Grupa",
+    "groupHint": "Opcjonalnie. Logowanie umieszcza tę osobę także w tej grupie.",
+    "noGroup": "Bez grupy",
+    "addMapping": "Dodaj mapowanie",
+    "dialogBody": "Każdy, kogo katalog wymienia w tej grupie, dostaje przy logowaniu rolę poniżej.",
+    "noRoleToOffer": "Brak roli, którą możesz nadać",
+    "emptyTitle": "Nie ma jeszcze mapowań",
+    "emptyBody": "Zmapuj grupę katalogu na rolę, a jej członkowie dołączą do tej organizacji przy logowaniu.",
+    "deleteTitle": "Usunąć to mapowanie?",
+    "deleteBody": "Osoby, które umieściło tu {group}, opuszczą organizację przy następnym logowaniu, chyba że ich członkostwo zostało przejęte.",
+    "delete": "Usuń",
+    "cancel": "Anuluj",
+    "add": "Dodaj",
+    "mappingAdded": "Mapowanie dodane",
+    "mappingDeleted": "Mapowanie usunięte"
   }
 }

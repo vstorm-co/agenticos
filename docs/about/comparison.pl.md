@@ -1,155 +1,104 @@
 ---
-source_sha: "0683b5318348"
+source_sha: "eeabd2250add"
+title: "Porównaj AgenticOS"
+seo_title: "Porównania AgenticOS: platforma agentów AI self-hosted"
+description: "Porównaj AgenticOS, platformę agentów AI open source i self-hosted, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
 ---
 
-# Kiedy sięgnąć po coś innego { #when-to-use-something-else }
+# Porównaj AgenticOS { #compare-agenticos }
 
-Ta strona jest napisana tak, żeby przydała się wtedy, gdy odpowiedzią nie jest
-AgenticOS. Porównanie, które zawsze kończy się tak samo, nie jest porównaniem, a
-kategorie poniżej pokrywają się na tyle, że zły wybór kosztuje miesiące.
+Większość produktów w tej przestrzeni to jedna z pięciu rzeczy: aplikacja asystenta, builder agentów, usługa wirtualnego współpracownika, dostarczana platforma enterprise albo agent do kodowania. AgenticOS to platforma dla agentów firmy, którą uruchamiasz samodzielnie. Te poradniki pokazują, gdzie pasuje każda z opcji i co dodaje AgenticOS.
 
-Krótka wersja: **biblioteka** jest właściwa dla jednego agenta wewnątrz
-produktu, **hostowana platforma** jest właściwa, gdy nie chcesz zajmować się
-maszyną, **agentowy workspace** jest właściwy, gdy użytkownikiem jest Twój
-własny pracownik, a AgenticOS jest właściwy, gdy agenci mają być edytowalni
-przez osobę niebędącą inżynierem, nadzorowani przez kogoś, kto za nich
-odpowiada, i uruchamiani na sprzęcie, który kontrolujesz — wszystko trzy naraz.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Przegląd do 25 października 2026 albo wcześniej, gdy producent zmieni ofertę opisaną w poradniku. Każdy poradnik podaje swoje źródła. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji.
 
-## Kategorie { #the-categories }
+## Wybierz poradnik do swojej decyzji { #pick-the-guide-for-your-decision }
 
-| | Co to jest | Kiedy użyć tego zamiast |
-|---|---|---|
-| [Pydantic AI](https://ai.pydantic.dev) | Biblioteka agentowa, na której działa AgenticOS | Budujesz jednego agenta, w Pythonie, jako część produktu |
-| LangGraph, LangChain, LlamaIndex, elizaOS | Biblioteki i frameworki do komponowania wywołań modelu | To samo — chcesz kodu, nie platformy, i nie przeszkadza Ci, że deployment jest Twój |
-| [Cloudflare OS](https://github.com/cloudflare/cloudflare-os) | Otwartoźródłowy agentowy workspace na Cloudflare Workers | Twoimi użytkownikami są Twoi własni pracownicy, jesteś już na Cloudflare i bardziej zależy Ci na aplikacjach per osoba niż na nadzorowanym katalogu agentów |
-| [Glean](https://www.glean.com) | Hostowana wyszukiwarka korporacyjna z agentami na wierzchu | Chcesz 275+ konektorów świadomych ACL zaindeksowanych za Ciebie, a dane mogą leżeć w chmurze dostawcy |
-| Dify, Flowise | Wizualne kreatory agentów, możliwe do samodzielnego hostowania | Chcesz kreatora i płótna do workflow, a model nadzoru liczy się dla Ciebie mniej niż to, jak szybko ktoś złoży przepływ |
-| Hostowane korporacyjne platformy agentowe | Zamknięte platformy sprzedawane razem z zespołem wdrożeniowym | Chcesz, żeby za wynik odpowiadał ktoś inny, a koszt licencji nie jest ograniczeniem |
-| OpenAI Assistants, Bedrock Agents | Hostowane środowiska uruchomieniowe agentów | Nie przeszkadza Ci jeden dostawca i nie potrzebujesz danych na własnym sprzęcie |
+| Rozważasz | Produkty | Poradnik |
+| --- | --- | --- |
+| Firmowego asystenta czatu albo agentów, których właścicielem jest twoja organizacja | Claude Team i Enterprise, ChatGPT Business i Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
+| Builder w pakiecie chmurowym producenta | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
+| Samodzielnie hostowany builder albo narzędzie do automatyzacji | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
+| Usługę wirtualnego współpracownika w Slacku lub Teams | Viktor | [Viktor](viktor.md) |
+| Dostarczaną platformę enterprise | Wonderful | [Wonderful](wonderful.md) |
+| Agenta do kodowania albo platformę dla wszystkich pozostałych | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
-## Open source to nie to samo co możliwość samodzielnego hostowania { #open-source-is-not-the-same-as-self-hostable }
+## Rynek w skrócie { #the-field-at-a-glance }
 
-To dwie różne obietnice, a różnica między nimi decyduje o wdrożeniach.
+| Produkt | Czym jest | Gdzie działa | Źródła | Modele |
+| --- | --- | --- | --- | --- |
+| **AgenticOS** | Platforma dla agentów firmy, budowanych w przeglądarce | Twoja infrastruktura | Apache-2.0 | 27 providerów, w tym lokalni |
+| Claude Team / Enterprise | Przestrzeń robocza asystenta od Anthropic | Chmura Anthropic | Własnościowa | Tylko Claude |
+| ChatGPT Business / Enterprise | Przestrzeń robocza asystenta od OpenAI, z agentami workspace'u | Chmura OpenAI | Własnościowa | Tylko OpenAI |
+| Copilot Studio | Builder agentów low-code na Power Platform | Chmura Microsoftu | Własnościowa | Modele OpenAI i Anthropic, a także Azure Foundry |
+| Gemini Enterprise | Platforma agentów i wyszukiwania dla pracowników od Google | Google Cloud | Własnościowa | Gemini w aplikacji |
+| Dify | Wizualny builder aplikacji LLM i workflow | Hostowany samodzielnie albo Dify Cloud | Zmodyfikowana Apache 2.0 z warunkami | Wiele, w tym Ollama |
+| n8n | Automatyzacja workflow z węzłami agentów AI | Hostowany samodzielnie albo n8n Cloud | Sustainable Use License | Wiele, w tym Ollama |
+| Viktor | Jeden wirtualny współpracownik AI na workspace Slacka lub Teams | Chmura Viktor | Własnościowa | OpenAI, Anthropic, Google, Kimi |
+| Wonderful | Platforma AI enterprise z zespołami wdrożeniowymi | SaaS, single-tenant, twoja chmura albo on-premises | Własnościowa | Niezależna od modelu, routing per zadanie |
+| Claude Code | Agent do kodowania dla programistów | Maszyny programistów, chmura Anthropic | Własnościowa | Tylko Claude |
+| OpenAI Codex | Agent do kodowania dla programistów | Maszyny programistów, chmura OpenAI | CLI Apache-2.0, chmura własnościowa | OpenAI; CLI przyjmuje też innych |
+| OpenCode | Otwartoźródłowy agent do kodowania | Maszyny programistów | MIT | Ponad 75 providerów |
 
-**Open source** znaczy, że możesz przeczytać kod i zrobić forka.
-**Self-hostable** znaczy, że możesz uruchomić całość na infrastrukturze, którą
-już masz, bez zależności od platformy dostawcy.
+Każda komórka pochodzi z własnych stron producenta; poradniki podają do nich linki. „Własnościowa” opisuje licencję, nie jakość.
 
-AgenticOS potrzebuje PostgreSQL z pgvector, Redisa i Dockera. Niczego więcej,
-żadnego konta nigdzie, a jedyne żądania wychodzące to te, które robią Twoi
-agenci. To cała powierzchnia wdrożenia i dlatego może on działać wewnątrz sieci
-szpitalnej albo w środowisku odciętym od internetu.
+## Co AgenticOS wnosi do każdego porównania { #what-agenticos-brings-to-every-comparison }
 
-Cloudflare OS jest na licencji Apache-2.0 i jest naprawdę otwarty, a zbudowano
-go na Durable Objects, Dynamic Workers i Cap'n Web. Uruchomienie go poza
-Cloudflare oznacza samodzielne uruchomienie `workerd`, a README samego projektu
-wymienia dokumentację tego jako jeszcze nienapisaną. Jeśli ograniczeniem
-wdrożeniowym jest „to nie może zależeć od konkretnej chmury”, to właśnie tę
-rzecz trzeba sprawdzić najpierw.
+Te punkty powtarzają się w każdym poradniku, więc podajemy je raz, tutaj.
 
-!!! info "Żadne z tych stanowisk nie jest błędne"
+- **Wdrożenie należy do Ciebie.** Działa na twoim sprzęcie z twoim własnym Postgresem i magazynem danych, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
+- **Dowolny model, przełączany w jednym miejscu.** [27 providerów](../models.md#providers) stoi za [profilem modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks). Zmień profil, a każdy agent, który go używa, przejdzie na nowy model bez ponownej publikacji.
+- **Agent to wersjonowany dokument.** Publikacja zamraża [wersję](../concepts.md#version), [środowiska](../environments.md#what-an-environment-is) wskazują na wersje, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do twojego własnego repozytorium git.
+- **Nadzór jest w produkcie open source.** [Budżety](../governance.md#enforcement-is-before-the-request) są sprawdzane przed każdym żądaniem do modelu. [Zatwierdzenia](../governance.md#approvals) wstrzymują run, dopóki ktoś nie zdecyduje. [Log audytowy](../governance.md#audit) wykrywa manipulacje. Nic z tego nie czeka na plan enterprise.
+- **Wiele zespołów, jedno wdrożenie.** Organizacje są tenantami, odizolowanymi w schemacie. [Model uprawnień](../permissions.md#the-built-in-roles) ma sześć ról i granty per zasób. [Logowanie jednokrotne OIDC, LDAP i Kerberos](../directory.md#signing-in-with-a-directory-account) mapują grupy z katalogu na role.
+- **Jeden agent, każda powierzchnia.** Ten sam opublikowany agent odpowiada w czacie webowym, w widgecie, na hostowanej stronie, przez HTTP API, WebSocket, w Slacku, Telegramie i Mattermost. Zobacz [powierzchnie](../channels.md).
+- **Rozszerzalny w kodzie.** [Capability](../howto/add-capability.md) to typowany Python, a [dowolny serwer MCP](../mcp.md) podłącza się przez URL. Konfiguracja sięga tylko tego, co zarejestrował kod.
+- **Bez opłaty za stanowisko.** Płacisz bezpośrednio providerom modeli i utrzymujesz infrastrukturę. Vstorm oferuje pomoc we wdrożeniu w ramach osobnej umowy; zobacz [utrzymanie i wdrożenie](../rollout.md).
 
-    Budowanie na prymitywach jednej platformy to sposób, w jaki Cloudflare OS
-    dostaje sandboxowanie per dokument i dostęp ograniczony capability, które są
-    naprawdę trudne do odtworzenia na zwykłej infrastrukturze. To wymiana i to,
-    którą jej stronę chcesz, zależy od tego, gdzie oprogramowanie musi działać.
+## Czego AgenticOS jeszcze nie robi { #what-agenticos-does-not-do-yet }
 
-## Cloudflare OS { #cloudflare-os }
+Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty względem swoich wymagań przed pilotażem.
 
-Najbliższa temu projektowi rzecz z nazwy, a co do kształtu — inny produkt.
+- Role to sześć ról wbudowanych; role niestandardowe nie są jeszcze dostępne.
+- Logowanie nie ma jeszcze SAML ani SCIM; SAML działa przez brokera tożsamości, takiego jak Keycloak. Zobacz [czego logowanie przez katalog jeszcze nie robi](../directory.md#what-this-does-not-do-yet).
+- Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
+- Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, głos ani e-mail.
+- Nie ma wizualnego canvasu workflow. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
+- Ustawienia zatwierdzeń obejmują narzędzia capabilities. Narzędzia MCP są bramkowane per rozmowa, nie per narzędzie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
+- Wdrożenie to Docker Compose na jednym hoście. Nie ma manifestów Kubernetes.
+- Utrzymujesz go sam albo uzgadniasz utrzymanie z Vstorm lub innym partnerem.
 
-**Cloudflare OS jest workspace'em.** Każda osoba dostaje agenta, środowisko do
-pisania i uruchamiania kodu oraz osobiste aplikacje, które może zbudować i
-udostępnić. Model bezpieczeństwa jest znakomity: agenci startują bez dostępu do
-czegokolwiek, poświadczenia nigdy nie docierają do agenta, a każdy zasób, który
-agent czyta, jest zapisywany i sprawdzany wobec tego, kto później otworzy wynik.
+## Wspólna próba { #a-shared-trial }
 
-**AgenticOS jest katalogiem.** Publikujesz agentów, a oni odpowiadają ludziom,
-którzy często nie są pracownikami — klientowi w widgecie, użytkownikowi na
-Slacku, systemowi za kluczem API. Jednostką jest opublikowany, wersjonowany
-agent z budżetem i odbiorcami, a nie workspace jednej osoby.
+Użyj przykładu z [pierwszego agenta dokumentowego](../howto/first-document-agent.md) w obu produktach. Zadaj pytanie, na które materiał odpowiada, i pytanie o brakującą zasadę. Zmień właściciela zgłoszeń, przetwórz źródło ponownie i powtórz. Zachowaj faktyczne odpowiedzi i konfigurację, łącznie z porażkami.
 
-Wybierz Cloudflare OS, jeśli użytkownikiem agenta jest Twój własny personel i
-jesteś na Cloudflare. Wybierz AgenticOS, jeśli agent ma być zwrócony na zewnątrz,
-nadzorowany per agent i działać tam, gdzie każesz.
+Zapisz wersję produktu lub plan usługi, model, przetwarzanie źródła, tożsamość, dostęp do narzędzi, konfigurację zatwierdzeń, kanał, koszt i osobę odpowiedzialną za utrzymanie. Zacznij od samego wyszukiwania. Jeśli liczy się akcja narzędzia, uzgodnij nieszkodliwą akcję testową i oczekiwane dla niej zatwierdzenie, zanim ją dodasz.
 
-## Glean { #glean }
+## Co znaczą dowody { #what-the-evidence-means }
 
-Glean to przede wszystkim wyszukiwarka korporacyjna, z agentami zbudowanymi na
-indeksie. Jego siłą jest to, czego AgenticOS nie próbuje: konektory do 275+
-systemów, które wnoszą do indeksu własne reguły dostępu każdego dokumentu, więc
-odpowiedź nigdy nie może zacytować czegoś, czego pytający nie mógłby otworzyć.
+Opis producenta dowodzi, że dana opcja jest udokumentowana, a nie jaka jest jej jakość przy twoim obciążeniu. Na potrzeby tych poradników nie testowano żadnego konta u konkurencji. Nieprzetestowane zachowanie pozostaje nieznane, a nie staje się oznaczeniem brakującej funkcji. Ceny i zawartość planów często się zmieniają, więc potwierdź je na podlinkowanej stronie, zanim je zacytujesz.
 
-Wynikają z tego dwie rzeczy. Jeśli Twoim problemem jest *„nasza wiedza jest w
-czterdziestu systemach, a wyszukiwanie nie działa”*, to jest to, do czego służy
-Glean, i AgenticOS mu nie dorówna — nasze wyszukiwanie działa per kolekcja i nie
-dziedziczy jeszcze ACL ze źródła.
+W opublikowanej próbie podaj dokładne dane wejściowe, faktyczne wyniki, nieudane próby i konfigurację. Oddziel użycie modelu od infrastruktury, wdrożenia i bieżącego utrzymania. Sprawdź [licencje](../licenses.md), warunki providerów i edycję, którą byś wdrożył.
 
-Jeśli Twoim problemem jest *„potrzebujemy nadzorowanych agentów, a dane nie mogą
-wyjść”*, porównanie wychodzi w drugą stronę: Glean jest hostowany, wyceniany za
-stanowisko z minimum korporacyjnym i nie jest czymś, co uruchamiasz sam.
+## Najczęściej zadawane pytania { #frequently-asked-questions }
 
-## Biblioteka i dobudowanie reszty samemu { #a-library-and-building-the-rest-yourself }
+### Czy AgenticOS jest open source? { #is-agenticos-open-source }
 
-LangGraph, LangChain, LlamaIndex, Pydantic AI. Najczęstsza prawidłowa odpowiedź
-i ta, z którą ten projekt konkuruje najmniej: AgenticOS **działa na** Pydantic
-AI, więc biblioteka jest warstwą pod spodem, a nie alternatywą dla niego.
+Tak. AgenticOS jest na licencji Apache-2.0 i działa na twojej własnej infrastrukturze z Docker Compose. Część dołączonych komponentów ma własne licencje, wymienione na stronie [licencji](../licenses.md).
 
-Biblioteka plus kolejka plus baza danych szybko dają działającego agenta, a przy
-jednym czy dwóch agentach to mniej pracy niż nauka platformy.
+### Czy AgenticOS to samodzielnie hostowana alternatywa dla ChatGPT Enterprise lub Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise-or-claude-enterprise }
 
-Sięgnij po bibliotekę bezpośrednio, gdy:
+Dla agentów, których właścicielem jest twoja organizacja, tak. Uruchamia agentów na dowolnym z 27 providerów modeli, w tym OpenAI i Anthropic, z budżetami, zatwierdzeniami i logami audytowymi w każdym wdrożeniu. Nie jest osobistym asystentem dla każdego pracownika; zobacz poradniki [ChatGPT](chatgpt.md) i [Claude](claude-apps.md).
 
-- **Agent jest produktem.** Jego zachowanie to funkcja, którą wydajesz,
-  wersjonowana razem z Twoim kodem, przeglądana w Twoich pull requestach. UI,
-  które pozwala komuś innemu je zmienić, nie jest tu zaletą — jest sposobem, w
-  jaki Twój produkt zmienia się bez wydania.
-- **Potrzebujesz pętli.** Własnego przepływu sterowania, grafu z cyklami,
-  polityki ponowień, której nie wyraża niczyja abstrakcja. Platforma daje Ci
-  dobrze zdefiniowany runner; a to jest dokładnie to, czego starasz się nie mieć.
-- **W tej historii nie ma nikogo spoza inżynierii.** Jeśli każdą zmianę i tak od
-  początku miał pisać inżynier, ta warstwa pośrednia nie kupuje Ci niczego.
-- **Jest jeden agent.** Albo dwóch. Ekonomia poniżej odwraca się dopiero przy
-  kilku.
+### Ile kosztuje AgenticOS? { #how-much-does-agenticos-cost }
 
-To, co bierzesz na siebie w zamian, to
-[siedem zadań](index.md#what-makes-something-an-operating-system-for-agents), po
-jednym naraz i zwykle w tej kolejności, każde dopiero po tym, jak raz już
-zabolało:
+Nie ma opłaty licencyjnej ani opłaty za stanowisko. Płacisz providerom modeli według ich własnych stawek i utrzymujesz infrastrukturę: do uruchomienia wystarczą [4 vCPU i 8 GB RAM](../deploy.md). Pomoc we wdrożeniu od Vstorm ustala się osobno.
 
-| Skończysz, pisząc | Ponieważ |
-|---|---|
-| Budżet, który zatrzymuje run | Liczenie wydatku po fakcie nie jest budżetem, a pierwsza zaskakująca faktura tego uczy |
-| Approval rozstrzygany raz | Druga decyzja na rozstrzygniętym approvalu to wyścig i nie jest to teoretyczne |
-| Izolację tenantów | Gdy pierwszy raz zapomni się o `WHERE organization_id`, jest to incydent danych, a nie błąd |
-| Magazyn sekretów per tenant | Jeden klucz na całe wdrożenie znaczy, że jeden wyciek jest wyciekiem każdego klienta |
-| Jedną ścieżkę wykonania dla wszystkich powierzchni | Inaczej Slack i Twoje API nie zgadzają się co do tego, ile kosztował agent |
-| Ślad audytowy, który zapisuje porażki | Rejestr logujący tylko sukcesy odpowiada podczas incydentu na złe pytanie |
+### Od którego porównania zacząć? { #which-comparison-should-i-read-first }
 
-Nic z tego nie jest trudne. Wszystko to jest pracą, której nie wykonujesz nad
-swoim produktem, i jest całością tego, czym jest ta platforma.
+Zacznij od rodzaju produktu, który rozważasz: aplikacji asystenta, buildera w pakiecie chmurowym, samodzielnie hostowanego buildera, usługi wirtualnego współpracownika, dostarczanej platformy albo agenta do kodowania. [Tabela na górze](#pick-the-guide-for-your-decision) wskazuje każdy poradnik.
 
-!!! info "Granica leży gdzieś koło piątego agenta"
+## Inne punkty wyjścia { #other-starting-points }
 
-    Albo wcześniej, przy pierwszej osobie, która potrzebuje zmienić to, co agent
-    mówi, i nie ma dostępu do commitowania. Przed tym momentem biblioteka i
-    kolejka to mniej pracy i to ich powinieneś użyć.
+Biblioteka taka jak [Pydantic AI](https://ai.pydantic.dev/) pasuje do agenta wbudowanego we własną aplikację; AgenticOS na niej działa i dodaje aplikację do konfigurowania i utrzymywania agentów. [OpenClaw](https://github.com/openclaw/openclaw) opisuje wdrożenia osobiste i dla wspólnego zespołu. [Lindy](https://www.lindy.ai/) oferuje usługę wirtualnego współpracownika. To kolejni kandydaci, a nie produkty tutaj wykluczone.
 
-A jeśli i tak zamierzasz zbudować te sześć wierszy, to
-[siedem zadań](index.md#what-makes-something-an-operating-system-for-agents) jest
-rozsądną specyfikacją, względem której można budować — niezależnie od tego, czy
-użyjesz akurat tej.
-
-## Podsumowanie { #recap }
-
-- Użyj **biblioteki** do jednego agenta wewnątrz produktu; użyj tego do katalogu
-  agentów — granica leży koło piątego agenta albo przy pierwszym budującym spoza
-  inżynierii.
-- **Open source i możliwość samodzielnego hostowania to różne obietnice** —
-  sprawdź, której naprawdę potrzebujesz.
-- **Cloudflare OS** to workspace dla pracowników; to jest katalog agentów
-  zwróconych na zewnątrz.
-- **Glean** wygrywa konektorami i wyszukiwaniem świadomym ACL; to wygrywa wtedy,
-  gdy dane nie mogą opuścić Twojej infrastruktury.
-- **Zbudowanie tego samemu** jest słuszne mniej więcej do piątego agenta, a
-  siedem zadań jest specyfikacją tak czy inaczej.
+Zacznij od [zadania na dokumencie](../howto/first-document-agent.md), a potem przejrzyj [utrzymanie i wdrożenie](../rollout.md). Właścicielami tych poradników są opiekunowie AgenticOS.

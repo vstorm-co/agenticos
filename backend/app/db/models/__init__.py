@@ -7,6 +7,7 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
@@ -48,12 +49,18 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.models.group import Group, GroupMember
+from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
+from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
+    "Artifact",
+    "ArtifactMediaType",
+    "ArtifactVersion",
     "User",
     "Session",
     "Conversation",
@@ -62,6 +69,7 @@ __all__ = [
     "ChatFile",
     "MessageRating",
     "RAGDocument",
+    "RAGDocumentClaim",
     "SyncLog",
     "SyncSource",
     "ConversationFavourite",
@@ -79,6 +87,7 @@ __all__ = [
     "CollectionTeardown",
     "UserSlashCommand",
     "DeploymentSettings",
+    "DirectoryGroupMapping",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
@@ -118,6 +127,8 @@ __all__ = [
     "SkillResource",
     "ResourceGrant",
     "GrantLevel",
+    "Group",
+    "GroupMember",
     "Visibility",
     "Notification",
     "NotificationChannel",

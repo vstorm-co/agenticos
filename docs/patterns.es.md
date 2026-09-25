@@ -1,5 +1,5 @@
 ---
-source_sha: "141e97d23d12"
+source_sha: "df313b9bcff6"
 ---
 
 # Patrones de código { #code-patterns }
@@ -306,7 +306,7 @@ hereda de `BaseSyncConnector` y se registra en el diccionario
 ### Añadir un conector nuevo { #adding-a-new-connector }
 
 1. Crea un archivo en `app/services/rag/connectors/` (por ejemplo,
-   `sharepoint.py`).
+   `confluence.py`).
 2. Hereda de `BaseSyncConnector` e implementa los métodos requeridos.
 3. Registra el conector en `CONNECTOR_REGISTRY`.
 
@@ -321,25 +321,27 @@ from app.services.rag.connectors import (
     BaseSyncConnector,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 
-class SharePointConfig(BaseModel):
+class ConfluenceConfig(BaseModel):
     # No default, so the one required field; the wizard draws it from the
     # model's JSON Schema and a refusal names its title.
-    site_url: str = Field(title="Site URL")
+    space_key: str = Field(title="Space key")
 
-class SharePointConnector(BaseSyncConnector):
-    CONNECTOR_TYPE = "sharepoint"
-    DISPLAY_NAME = "SharePoint"
+class ConfluenceConnector(BaseSyncConnector):
+    CONNECTOR_TYPE = "confluence"
+    DISPLAY_NAME = "Confluence"
     # What authenticates it. The credential is a vault secret the source names,
     # unsealed by the caller - never a field of CONFIG_MODEL.
     SECRET_KIND = SecretKind.API_KEY
-    CONFIG_MODEL = SharePointConfig
+    CONFIG_MODEL = ConfluenceConfig
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        # Return metadata for available files
+    ) -> RemoteListing:
+        # Metadata for the available files, and complete=False if the listing
+        # stopped short - the sync removes nothing against a partial one
         ...
 
     async def _fetch(
@@ -354,12 +356,13 @@ class SharePointConnector(BaseSyncConnector):
         ...
 
 # Register so the sync service can discover it
-CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector
+CONNECTOR_REGISTRY["confluence"] = ConfluenceConnector
 ```
 
 El `RagSyncService` usa `CONNECTOR_REGISTRY` para buscar el conector adecuado por
 tipo, validar su configuración, listar los archivos remotos, descargarlos y
-entregárselos a la pipeline de ingesta.
+entregárselos a la pipeline de ingesta. Tras un listado completo elimina los
+documentos que la fuente trajo antes y ya no lista.
 
 ## Patrones del frontend { #frontend-patterns }
 

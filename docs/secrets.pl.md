@@ -1,5 +1,5 @@
 ---
-source_sha: "da79e004aa8d"
+source_sha: "dfb14d9e1139"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -96,6 +96,8 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `aws_credentials` | Access key id, secret access key, region, opcjonalny token sesji |
 | `gcp_service_account` | JSON konta serwisowego, walidowany przy wprowadzaniu |
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
+| `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
+| `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -105,6 +107,20 @@ być dokładnie jeden**: prywatne poświadczenie członka nigdy nie zostaje po c
 użyte dla połączenia całej organizacji, a przy dwóch zapisanych aplikacjach
 widocznych dla organizacji łączenie zostaje odrzucone (z nazwaniem obu), zamiast
 zostać przypisane do tej, której nazwa sortuje się pierwsza.
+
+`git_token` niesie swój host, bo źródło synchronizacji Git wysyła token pod adres
+URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został
+dodany, token nie może zostać skierowany na inny serwer przez edycję źródła
+i żaden inny klucz nie może go zastąpić.
+
+`entra_app` to to, jako co loguje się źródło synchronizacji SharePoint albo
+OneDrive. Jego zasięg ustala się w Microsoft Entra, nie tutaj: o tym, które
+witryny może czytać, decydują uprawnienia Graph, na które administrator udzielił
+zgody, a token nie mówi, które to są. Przyznaj mu `Sites.Selected` na tej jednej
+witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
+podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
+sekretu.
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole

@@ -107,6 +107,41 @@ test("completed rows bank useful types and answer tasks; noise has no context va
     skill: 0,
   });
 });
+test("next-task progress caps at four and carries the surplus to the task after", () => {
+  const s = E.context({ random: () => 0.3 });
+  assert.deepEqual(
+    E.taskProgress(s).map((p) => [p.type, p.have, p.need]),
+    [
+      ["instruction", 0, 4],
+      ["document", 0, 4],
+      ["memory", 0, 4],
+    ],
+  );
+  s.collected.instruction = 7;
+  s.collected.document = 2;
+  assert.deepEqual(
+    E.taskProgress(s).map((p) => p.have),
+    [4, 2, 0],
+  );
+  s.collected.document = 4;
+  s.collected.memory = 4;
+  s.board[17] = Array(10).fill("noise");
+  E.clearRows(s);
+  assert.equal(s.tasks, 1);
+  assert.deepEqual(
+    E.taskProgress(s).map((p) => p.have),
+    [3, 0, 0],
+  );
+});
+test("only the first row clear of a run explains what a task needs", () => {
+  const s = E.context({ random: () => 0.3 });
+  s.board[17] = Array(10).fill("noise");
+  E.clearRows(s);
+  assert.match(s.message, /A task needs 4 I \+ 4 D \+ 4 M/);
+  s.board[17] = Array(10).fill("noise");
+  E.clearRows(s);
+  assert.equal(s.message, "1 row compacted. Useful context banked.");
+});
 test("discard is limited, perks add one charge, and overflow ends a game", () => {
   const s = E.context({ filter: true });
   assert.equal(s.erasers, 4);

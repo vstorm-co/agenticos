@@ -32,6 +32,20 @@ export const ORG_ROLES = "org-roles-detail";
 export const ORG_RETENTION = "org-retention-detail";
 
 /**
+ * `/orgs/<id>/groups` — the organization's groups, and who is in each. Its own
+ * walk rather than a stop on the members one: it ends on the offer to create a
+ * group, which the members walk leaves to creating an organization.
+ */
+export const ORG_GROUPS = "org-groups-detail";
+
+/**
+ * `/orgs/<id>/directory` — which directory groups make somebody what here. Its
+ * own identity for the retention page's reason: it is drawn only for a caller
+ * holding `members:manage`, which an ordinary member does not.
+ */
+export const ORG_DIRECTORY = "org-directory-detail";
+
+/**
  * The Settings section, `/settings/*`. Its four pages — profile, account,
  * notifications, slash-commands — share one tabbed layout, so one identity stands
  * in for all of them and a single "?" stop points at the tabs on whichever page
@@ -286,6 +300,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.contextView,
   },
 
+  // Published artifacts - pages agents wrote. Nothing to create here (a run
+  // publishes one), so a single describing stop on the list, view-gated.
+  {
+    id: "artifacts-list",
+    page: ROUTES.ARTIFACTS,
+    target: "artifacts-list",
+    permission: Perm.artifactsView,
+  },
+
   {
     id: "activity-overview",
     page: ROUTES.RUNS,
@@ -421,6 +444,33 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "org-retention",
     permission: Perm.orgSettings,
   },
+  // Groups: what a group is for, then its create button. Reading them is
+  // ungated - anyone shares with a group - and creating one is `members:manage`.
+  { id: "org-groups", page: ORG_GROUPS, target: "org-groups" },
+  {
+    id: "org-groups-new",
+    page: ORG_GROUPS,
+    target: "org-groups-new",
+    permission: Perm.membersManage,
+  },
+  // Directory mappings: how the sync decides, then adding one. The page renders
+  // only for `members:manage`. Adding hands a role out, so its button also needs
+  // `roles:manage` - two permissions a step cannot both carry - and it is gated
+  // on the rarer of the two and optional, so a caller holding that one without
+  // the other skips it rather than waits on a button that never mounts.
+  {
+    id: "org-directory",
+    page: ORG_DIRECTORY,
+    target: "org-directory",
+    permission: Perm.membersManage,
+  },
+  {
+    id: "org-directory-new",
+    page: ORG_DIRECTORY,
+    target: "org-directory-new",
+    permission: Perm.rolesManage,
+    optional: true,
+  },
 
   {
     id: "vault-new",
@@ -545,6 +595,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;
+    if (path.endsWith("/groups")) return ORG_GROUPS;
+    if (path.endsWith("/directory")) return ORG_DIRECTORY;
     return ORG_MEMBERS;
   }
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;

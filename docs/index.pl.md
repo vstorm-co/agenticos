@@ -1,5 +1,5 @@
 ---
-source_sha: "43f1f48849f0"
+source_sha: "89439dd9f4e7"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,9 +9,7 @@ source_sha: "43f1f48849f0"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Jedno miejsce, w którym budujesz, uruchamiasz i nadzorujesz agentów AI swojej firmy. Hostowany u siebie, otwarty źródłowo i Twój.
-Dlaczego nazywa się to systemem operacyjnym, wyjaśnia
-<a href="#why-it-is-called-an-operating-system">siedem funkcji niżej</a>.
+Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, a następnie uruchamiaj ich na kontrolowanej przez siebie infrastrukturze.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -27,6 +25,13 @@ Dlaczego nazywa się to systemem operacyjnym, wyjaśnia
 </p>
 
 </div>
+
+**[Zbuduj pierwszego agenta z dokumentem](howto/first-document-agent.md)** · [Wybierz zadanie](use-cases.md) · [Porównaj platformy](about/comparison.md) · [Wdrożenie i utrzymanie](rollout.md) · [Pomoc](help.md)
+
+Zacznij od odpowiedzi na pytanie o dokument, którą możesz sprawdzić. Następnie wypróbuj szkic zgłoszenia lub wykres z CSV, zachowując źródło i rzeczywisty wynik.
+
+Twój zespół odpowiada za utrzymanie. Modele, parsowanie, embeddingi, narzędzia i tracing mogą korzystać z usług zewnętrznych zależnie od konfiguracji.
+
 
 ---
 
@@ -112,10 +117,9 @@ Dlatego AgenticOS wyprowadza agenta poza kod, a w zamian otacza go nadzorem.
     nie powiódł, i tak zapisuje, ile wydał, bo budżet ignorujący porażki nie jest
     budżetem.
 
-- :material-hand-back-right:{ .lg .middle } **Approval dla wszystkiego, co ma skutki uboczne**
+- :material-hand-back-right:{ .lg .middle } **Konfigurowalne zatwierdzanie obsługiwanych narzędzi**
 
-    Narzędzie działające na świat zewnętrzny parkuje run i czeka na człowieka.
-    Ustawiany per capability, nadpisywalny per narzędzie.
+    Skonfigurowana bramka zatrzymuje run do decyzji uprawnionej osoby. Zakres zależy od capability, narzędzia i polityki.
 
 - :material-account-key:{ .lg .middle } **Uprawnienia w kodzie, role złożone z nich**
 
@@ -236,7 +240,7 @@ przyszło pytanie.
 |---|---|
 | **Agenci** | Budowani w UI, wersjonowani przy publikacji, eksportowalni jako YAML do Twojego własnego repozytorium git |
 | **[Capabilities](reference/capabilities.md)** | Wyszukiwanie w wiedzy, wyszukiwanie i pobieranie z sieci, prawdziwa przeglądarka, Python, sandbox z plikami i powłoką, wykresy, obrazy, delegacja, planowanie, guardraile — włączane per agent |
-| **[Integracje](mcp.md)** | Dowolny serwer MCP po URL, z 59 popularnymi w wyborze — GitHub, Linear, Notion, Slack, Stripe, Postgres |
+| **[Integracje](mcp.md)** | Zgodne serwery MCP, z 59 popularnymi w wyborze — GitHub, Linear, Notion, Slack, Stripe, Postgres |
 | **[Modele](models.md)** | 27 providerów, klucze per organizacja, fallbacki oraz hostowana u siebie Ollama albo proxy LiteLLM |
 | **[Wiedza](file-processing.md)** | Wyszukiwanie po Twoich dokumentach z trzema parserami PDF, własnym chunkingiem, OCR-em i opisem obrazów — per kolekcja, nadpisywalne per wgranie. Synchronizacja Google Drive i S3 |
 | **[Skille](skills.md)** | Spisane know-how, które agent wczytuje tylko wtedy, gdy uzna je za istotne |
@@ -254,7 +258,7 @@ przyszło pytanie.
   pull requeście.
 - Jest **nadzorowany**: budżety zatrzymujące run, approvale czekające na
   człowieka, uprawnienia sprawdzane w każdym miejscu wywołania.
-- Jest **Twój**: Twój Postgres, Twój sprzęt, nic nie dzwoni do domu.
+- Jest **Twój**: Twój Postgres, Twój sprzęt.
 
 ## Dalej { #next }
 
@@ -290,8 +294,7 @@ FastAPI i Pydantic v2 na PostgreSQL, [Pydantic AI](https://ai.pydantic.dev) jako
 środowisko uruchomieniowe agentów, pgvector do wyszukiwania, Prefect do pracy w
 tle i Next.js 15 dla konsoli.
 
-Nic tutaj nie dzwoni do domu: ceny modeli pochodzą z dołączonego snapshotu, a
-jedyne wywołania wychodzące to te, które robią Twoi agenci.
+Zewnętrzne miejsca przetwarzania zależą od konfiguracji modeli, parserów, embeddingów, narzędzi, kanałów, sandboxów i tracingu. Sprawdź [przepływ danych](security.md).
 
 ## Licencja { #licence }
 

@@ -180,6 +180,7 @@ export interface RAGSyncLog {
   updated: number;
   skipped: number;
   failed: number;
+  removed: number;
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;

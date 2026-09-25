@@ -41,6 +41,42 @@ class RemoteFile(BaseModel):
     source_path: str  # Dedup key: "gdrive://file_id", "s3://bucket/key"
 
 
+class RemoteListing(BaseModel):
+    """What a source holds, and whether a sync may treat the answer as the whole of it.
+
+    `complete` is what removal hangs on. A sync removes the documents its source
+    brought in earlier and no longer lists, and that is only safe against a
+    listing that is known to be everything: a crawl that stopped at its page
+    ceiling, or could not read one page of a site, did not see the pages behind
+    it, and removing those would empty a collection because of one timeout.
+    Drive and S3 answer a listing whole or raise, so theirs is always complete.
+
+    `problems` are sentences this repository wrote - a URL's host, a status
+    code, never a page's own text - so the sync log can show them. Each one is a
+    page the source could not read, and counts as a failed file.
+    """
+
+    files: list[RemoteFile]
+    complete: bool = True
+    problems: list[str] = []
+
+
+class WithdrawnFile(Exception):
+    """A listed file its source turned out not to hold, found only when it was fetched.
+
+    A sitemap names a page before anything reads it, so its listing cannot know
+    that the page now says `noindex` or has gone. Raised from `_fetch`, this tells
+    the sync that the file is not a failure to retry but no longer the source's:
+    it is left out of what the listing vouches for, so a document it brought in
+    earlier is removed like any other the source stopped listing. `message` is a
+    sentence this repository wrote, as a listing's `problems` are.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
 class ConfigRefusal(BaseModel):
     """Why a connector will not accept a config, and which of its fields.
 
@@ -90,7 +126,7 @@ class BaseSyncConnector(ABC):
     @abstractmethod
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List files available for sync from this source.
 
         `credential` is the unsealed vault secret, or `None` when the source has
@@ -98,6 +134,10 @@ class BaseSyncConnector(ABC):
         raises rather than reaching for a deployment-wide fallback: there is no
         such thing here, and inventing one would let a source read under the
         operator's identity rather than its own.
+
+        A listing that cannot vouch for being everything says so with
+        `complete=False` rather than raising, so what it did find is still
+        ingested - see `RemoteListing`.
         """
 
     async def download_file(
@@ -132,6 +172,36 @@ class BaseSyncConnector(ABC):
     ) -> None:
         """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
 
+    async def remote_version(
+        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
+    ) -> str | None:
+        """What the source's whole content is at now, if that is cheap to ask.
+
+        A value the sync stores after a run that finished cleanly. When the next
+        run reads the same value under the same configuration, nothing upstream
+        has changed and it stops before listing or downloading anything - a Git
+        branch's head commit is the case this exists for, answered by one
+        `ls-remote` instead of a clone.
+
+        `previous` is the value the last clean run under this same configuration
+        stored, or `None`. A source that can only say what changed *since* a
+        point - SharePoint's delta link - answers `previous` back when nothing
+        has; one that can say where it is outright, as a commit does, ignores it.
+
+        `None`, the default, means the source cannot say, and every run lists.
+        A connector that answers must answer a *different* value whenever any
+        listed file's bytes, or the listing itself, could have changed.
+        """
+        return None
+
+    async def aclose(self) -> None:  # noqa: B027
+        """Release what one sync made - a clone, a session. Called once the sync is over.
+
+        Nothing, by default: a connector that holds nothing between calls has
+        nothing to release. The `noqa` is that decision - an optional hook, not
+        an abstract one every connector must spell out.
+        """
+
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Why this config would not be accepted, or `None` if it would.
 
@@ -156,3 +226,12 @@ CONNECTOR_REGISTRY["gdrive"] = GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
 
 CONNECTOR_REGISTRY["s3"] = S3Connector
+from app.services.rag.connectors.web import WebConnector
+
+CONNECTOR_REGISTRY["web"] = WebConnector
+from app.services.rag.connectors.git import GitConnector
+
+CONNECTOR_REGISTRY["git"] = GitConnector
+from app.services.rag.connectors.sharepoint import SharePointConnector
+
+CONNECTOR_REGISTRY["sharepoint"] = SharePointConnector

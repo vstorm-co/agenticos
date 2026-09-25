@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "a76ef1e767d9"
 ---
 
 # Arquitectura { #architecture }
@@ -83,7 +83,7 @@ importado como tipo y no como acceso a datos.
 | `core/security.py` | Utilidades de JWT / claves de API |
 | `agents/` | Agents de IA y sus herramientas |
 | `rag/` | Módulo RAG (embeddings, vector store, recuperación) |
-| `rag/connectors/` | Conectores de sincronización (Google Drive, S3) |
+| `rag/connectors/` | Conectores de sincronización (Google Drive, S3, sitios web) |
 | `commands/` | Comandos de CLI al estilo de Django |
 
 ## Responsabilidades de cada capa { #layer-responsibilities }
@@ -740,7 +740,7 @@ lectura; el usuario es lo que la estrecha más.**
   `role: "assistant"` que todo el mundo lee en `/chat` y que al modelo se le
   devuelve como si fueran sus propias palabras. El nivel se le enuncia a quien lo
   concede, así que es el nivel que se hace cumplir (#931).
-- En `list_messages` ese único argumento hace dos trabajos — autoriza, *y* además
+- En `transcript` ese único argumento hace dos trabajos — autoriza, *y* además
   enriquece cada mensaje con la valoración de quien llama. Esa sobrecarga es la
   razón de que su mitad autorizadora faltara tanto tiempo: la ruta lo pasaba, el
   argumento estaba claramente ahí en la revisión, y estaba haciendo el otro
@@ -785,8 +785,8 @@ Cuatro consecuencias que merece conocer:
   una consulta para decirlo, y una lectura que solo *autoriza* lo apaga
   explícitamente con `include_favourite=False`. Esas son las lecturas cuyo
   resultado se descarta o no es una conversación:
-  `GET /conversations/{id}/messages`, que resuelve el hilo dos veces a través de
-  `list_messages` y `conversation_cost`; las tres rutas de workspace; cada turno de
+  `GET /conversations/{id}/messages`, que resuelve el hilo una vez, a través de
+  `transcript`, para la página y su coste; las tres rutas de workspace; cada turno de
   un chat existente, a través de `agent._resolve_in_org`; y las escrituras —
   `add_message`, `delete_conversation` y `set_favourite`, que sobrescribe la propia
   marca. Encendido por defecto es lo que impide que una ruta que *sí* serializa una
@@ -920,8 +920,9 @@ Los documentos se pueden ingerir mediante:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (solo admin, subida de archivo)
-3. **Fuentes de sincronización** -- Conectores configurados (Google Drive, S3) que
-   traen documentos de forma programada o bajo demanda.
+3. **Fuentes de sincronización** -- Conectores configurados (Google Drive, S3,
+   sitios web) que traen documentos de forma programada o bajo demanda, y eliminan
+   lo que su fuente ya no contiene.
 
 Cada documento ingerido se:
 - Parsea a texto (parser elegido por colección, anulable por subida)

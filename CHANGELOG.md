@@ -17,6 +17,308 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.505] - 2026-09-26
+
+### Changed
+
+- **Comparisons cover eleven products in depth.** The comparison hub groups
+  assistant apps, cloud-suite builders, self-hosted builders, teammate
+  services, delivered platforms and coding agents, and states what AgenticOS
+  does not do yet. The Viktor, Dify and Wonderful guides now compare tenancy,
+  identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
+  guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
+  Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
+  sources checked on 25 September 2026 (#1894).
+- **Comparison guides are written for search.** Each has a search title, a
+  meta description and a frequently-asked-questions section, in all four
+  languages. The site adds Open Graph and Twitter card tags to every page and
+  publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
+  lists every comparison (#1894).
+
+## [0.0.504] - 2026-09-25
+
+### Added
+
+- **A first document task and clearer platform comparisons.** The documentation
+  includes a synthetic handbook tutorial with answer checks, use-case entry
+  points, a help route and sourced comparisons with Viktor, Dify and Wonderful.
+  Comparisons distinguish documented options from untested behavior (#1893).
+
+### Changed
+
+- **README and docs start with the work an agent can do.** Navigation connects
+  the first task, platform selection and deployment responsibilities in English,
+  Polish, German and Spanish. The operating guide explains costs, ownership and
+  separately scoped Vstorm implementation help. Statements about approvals,
+  budgets, secrets, MCP compatibility and outbound data now describe their
+  configuration-dependent limits (#1893).
+
+## [0.0.503] - 2026-09-25
+
+### Added
+
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget and traced under the agent's own
+  observability settings. An exhausted budget or a failed model call falls back
+  to the plain query. Every produced query is searched under the same tenant
+  scope and filters as the original, so expansion widens recall and never access
+  (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
+
+## [0.0.502] - 2026-09-25
+
+### Added
+
+- **Groups.** An organization can gather its members into named groups and
+  share an agent, a skill, a collection, a context file, a vault secret or an
+  artifact with a whole group at once. A group grant reaches whoever is in the
+  group when access is checked, so people joining later get access and people
+  leaving lose it with nothing to revoke. When a person reaches a resource
+  through several grants, the highest one wins. A group carries no role of its
+  own (#1773).
+- **Directory groups decide who joins an organization, with which role.** A
+  directory group mapping says "everyone in this directory group is a *builder*
+  here, in the group *Platform*". It is applied at every directory sign-in, and at
+  every OIDC sign-in once `OIDC_GROUPS_CLAIM` names the provider's groups claim.
+  The sync joins, re-roles and removes only the memberships it made itself. It
+  never demotes or removes an owner, and it cannot map a role its author could not
+  assign. A matching mapping admits a first sign-in on an invite-only deployment,
+  the way an invitation does. An Entra ID group overage is refused rather than
+  read as "no groups" (#1773).
+- **Sign in with a directory account.** With `LDAP_URL` set, people sign in to
+  Active Directory, OpenLDAP or FreeIPA with the username and password they use
+  everywhere else. The check is the standard two-step bind, over verified TLS. An
+  empty password never reaches the directory, the username is escaped into the
+  search filter, and a username matching two accounts is refused. Plaintext
+  `ldap://` is refused at startup unless explicitly allowed (#1773).
+- **Integrated Windows sign-in.** With `KERBEROS_ENABLED` set, a browser on a
+  domain-joined machine signs its user in with its Kerberos ticket (SPNEGO), and
+  nobody types a password. The ticket resolves through the directory to the same
+  account a password sign-in reaches. It needs an image built with the new
+  `kerberos` extra (#1773).
+
+## [0.0.501] - 2026-09-25
+
+### Added
+
+- **A SharePoint site or a OneDrive can feed a knowledge base.** A
+  `sharepoint` sync source reads one document library, or one folder in it,
+  through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
+  default, and a file deleted from the library is removed like any other the
+  source stops listing. The second sync asks Graph's change feed first and
+  stops there when nothing in the library changed. When something did, only
+  new and changed files are embedded. Throttling and outages are retried as
+  Graph's `Retry-After` asks, and a folder that still cannot be listed is
+  named on the sync log, and that run removes nothing. The setup guide tells an
+  administrator to grant the app `Sites.Selected` on one site rather than
+  `Files.Read.All` on the tenant, and says what happens otherwise (#985).
+- **A Microsoft Entra app is a vault secret kind of its own.** `entra_app`
+  holds a tenant id, a client id and a client secret, and a SharePoint source
+  takes only this kind.
+- `BaseSyncConnector.remote_version` is handed `previous`, the value the last
+  clean run stored under the same configuration, so a source that can only say
+  what changed since a point can answer that nothing did.
+
+## [0.0.500] - 2026-09-25
+
+### Fixed
+
+- **A document two sync sources list stays until both stop listing it.** A
+  synced document belonged only to the source that ingested it last. When two
+  sources on one collection listed the same page, the page was removed as soon
+  as that one source stopped listing it, although the other still listed it. A
+  source in `update_only` mode never ingested it again. Each source that lists a
+  document now claims it, in the new `rag_document_claims` table, which replaces
+  `rag_documents.sync_source_id` and is backfilled from it (migration
+  `0099_rag_document_claims.py`). A sync that stops listing a document drops its
+  own claim. It removes the document only when no other source feeding the
+  collection still claims it (#1879).
+
+## [0.0.499] - 2026-09-25
+
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
+
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
+
+## [0.0.497] - 2026-09-25
+
+### Added
+
+- **A Git repository can feed a knowledge base.** A `git` sync source reads a
+  repository's documentation over HTTPS from GitHub, GitLab or any host that
+  serves git, with an access token from the Vault. By default it reads
+  Markdown and plain text, not the source tree. It makes a shallow, sparse
+  clone of the documentation only, and a file deleted from the branch is
+  removed like any other the source stops listing. The repository's host is
+  checked and pinned like any other tenant-chosen address, and an internal host
+  is refused. What a clone would write is measured before it is written: a file
+  over the knowledge base's document cap, or more than 512 MB in all, fails the
+  sync with nothing written (#987).
+- **A Git access token is a vault secret kind of its own, bound to its host.**
+  A Git source takes only a `git_token`, and sends it only to the host it was
+  added with, so editing a source cannot aim the organization's token, or any
+  other key, at a server of the editor's choosing.
+- **An unchanged source is not read again.** A connector that can say cheaply
+  what its source is at - a Git branch's head commit - is asked first, and a
+  scheduled sync that finds the same answer under the same configuration as the
+  last clean run stops there, without listing or downloading anything. A run
+  with a failed file records nothing, so the next one reads everything again.
+  The answer is kept in the new `sync_sources.sync_state` (migration
+  `0097_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
+  the answer and `aclose` for what a sync made, such as a clone.
+
+### Fixed
+
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
+
+## [0.0.496] - 2026-09-25
+
+### Added
+
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
+
+### Changed
+
+- **A sync now removes what its source no longer holds.** A page taken off a
+  site, a file deleted from a Drive folder or an object removed from a bucket
+  used to stay searchable for good. Each sync now removes the documents its own
+  source brought in earlier and no longer lists, and counts them in the sync
+  log's new `removed` column. It removes nothing after a listing that stopped
+  short, such as a crawl at its page limit or one that could not read a page: it
+  says so in the log, and the next complete sync catches up. Documents are
+  matched to the source that brought them in through the new
+  `rag_documents.sync_source_id` (migration `0096_sync_removal.py`). Uploads,
+  and documents another source brought into the same collection, are never
+  touched. A document that could not be removed counts as a failed file, and
+  the completion notification counts what was removed (#984).
+- **One sync of a source runs at a time.** A sync started while another run of
+  the same source is still going does not start, and its log says so: an older
+  run's listing would otherwise remove what the newer run had just ingested.
+- `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
+  the files, whether that is all of them, and what could not be read. A
+  connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
+  out not to hold, which the sync removes rather than counts as failed.
+
+## [0.0.495] - 2026-09-25
+
+### Added
+
+- **An agent can publish a report or a small dashboard under a link that stays
+  put.** The new `artifacts` capability adds one tool, `publish_artifact`, which
+  takes an HTML or Markdown page from the run's workspace - read through its own
+  pydantic-ai-backend, so every sandbox backend works - or inline. The agent and
+  the page's name are its identity, so the next run of the same agent, from a
+  chat, a schedule or the API, publishes a new version behind the same link
+  instead of making a second one - provided the run's person owns the page or
+  holds `artifacts:edit` on it, so a colleague's run cannot replace it. Identical
+  bytes add no version, and the newest `ARTIFACT_MAX_VERSIONS` are kept.
+  The chat links to the version its own run wrote. A new artifact is private
+  to the person the run was for, and a person shares it the way agents and
+  skills are shared - grants, the whole organization - or turns on an "anyone with the link" address that can be
+  replaced or turned off. `artifacts:view` and `artifacts:edit` join the
+  catalog, and an **Artifacts** page, a dashboard card and a retention class
+  measured from the last publication come with it. The page is agent-authored
+  script, so it is served from a cookieless route behind a short-lived signed
+  token under a `sandbox` policy - an opaque origin with no network and no
+  popups, each address loadable a few times a minute - and `ARTIFACT_ORIGIN`
+  can move it to a domain of its own.
+  ([#70](https://github.com/vstorm-co/agenticos/issues/70))
+
+## [0.0.494] - 2026-09-25
+
+### Fixed
+
+- **The `objectstore` compose profile could not start MinIO.** MinIO stopped
+  publishing images, and `quay.io/minio/minio` now answers 401 for every tag,
+  so `make docker-minio` failed on every machine and CI's backend job with it.
+  The profile runs `pgsty/minio`, the community-maintained build of the same
+  server, pinned to `RELEASE.2026-08-04T00-00-00Z`. Nothing changes for a
+  deployment that keeps the local file backend or points at another S3 store.
+
+## [0.0.493] - 2026-09-25
+
+### Fixed
+
+- **A notification opened its destination by reloading the whole console.**
+  `notifications.context_url` held `FRONTEND_URL` plus a path, and the bell and
+  the dashboard card rendered it as a plain anchor - so clicking a row fetched a
+  whole new document to reach a page the reader was usually already standing
+  inside, throwing away everything the query cache held and racing the
+  mark-read write against the unload. The column holds the path alone now and
+  both surfaces navigate it as a sub-route, with the origin put back on for the
+  one reader that has none: the email. Rows written before this keep their
+  absolute destination, keep working, and age out with the retention sweep -
+  no migration rewrites them.
+
 ## [0.0.492] - 2026-09-22
 
 ### Fixed

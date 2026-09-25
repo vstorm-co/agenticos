@@ -1,5 +1,5 @@
 ---
-source_sha: "43f1f48849f0"
+source_sha: "89439dd9f4e7"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,9 +9,7 @@ source_sha: "43f1f48849f0"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Un solo lugar para construir, ejecutar y gobernar los agents de IA de tu empresa. Autoalojado, de código abierto y tuyo.
-Por qué se llama sistema operativo está
-<a href="#why-it-is-called-an-operating-system">siete funciones más abajo</a>.
+Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el navegador, conecta documentos y herramientas y ejecútalos en infraestructura bajo tu control.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -27,6 +25,13 @@ Por qué se llama sistema operativo está
 </p>
 
 </div>
+
+**[Crea tu primer agent con documentos](howto/first-document-agent.md)** · [Elige una tarea](use-cases.md) · [Compara plataformas](about/comparison.md) · [Despliegue y operación](rollout.md) · [Ayuda](help.md)
+
+Empieza con una respuesta verificable basada en un manual. Después prueba un borrador de solicitud o un gráfico de CSV y conserva la fuente junto al resultado real.
+
+Tu equipo se encarga de la operación. Los modelos, el análisis de documentos, los embeddings, las herramientas y las trazas pueden usar servicios externos según la configuración.
+
 
 ---
 
@@ -118,10 +123,9 @@ alrededor.
     registra igualmente lo que gastó, porque un budget que ignora los fallos no
     es un budget.
 
-- :material-hand-back-right:{ .lg .middle } **Aprobación para todo lo que tiene efectos**
+- :material-hand-back-right:{ .lg .middle } **Aprobaciones configurables para herramientas compatibles**
 
-    Una herramienta que actúa sobre el mundo exterior aparca el run y espera a
-    una persona. Se fija por capability y se puede anular por herramienta.
+    Una aprobación configurada pausa el run para una persona autorizada. La cobertura depende de capability, herramienta y política.
 
 - :material-account-key:{ .lg .middle } **Permisos en el código, roles compuestos a partir de ellos**
 
@@ -246,7 +250,7 @@ vino la pregunta.
 |---|---|
 | **Agents** | Construidos en una UI, versionados al publicar, exportables como YAML a tu propio repositorio git |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, búsqueda y descarga web, un navegador de verdad, Python, una sandbox con archivos y una shell, gráficos, imágenes, delegación, planificación, guardrails — activados por agent |
-| **[Integraciones](mcp.md)** | Cualquier servidor MCP por URL, con 59 de los más habituales en el selector — GitHub, Linear, Notion, Slack, Stripe, Postgres |
+| **[Integraciones](mcp.md)** | Servidores MCP compatibles, con 59 de los más habituales en el selector — GitHub, Linear, Notion, Slack, Stripe, Postgres |
 | **[Modelos](models.md)** | 27 providers, claves por organización, fallbacks y Ollama autoalojado o un proxy LiteLLM |
 | **[Conocimiento](file-processing.md)** | Retrieval sobre tus documentos con tres parsers de PDF, tu propio chunking, OCR y descripción de imágenes — por colección, anulable por subida. Sincronización con Google Drive y S3 |
 | **[Skills](skills.md)** | Conocimiento escrito que el agent carga solo cuando decide que es relevante |
@@ -302,8 +306,7 @@ FastAPI y Pydantic v2 sobre PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
 para el runtime del agent, pgvector para retrieval, Prefect para el trabajo en
 segundo plano y Next.js 15 para la consola.
 
-Nada de esto llama a casa: los precios de los modelos vienen de una instantánea
-incluida, y las únicas llamadas salientes son las que hacen tus agents.
+Los destinos externos dependen de modelos, parsers, embeddings, herramientas, canales, sandboxes y trazas configurados. Revisa el [flujo de datos](security.md).
 
 ## Licencia { #licence }
 

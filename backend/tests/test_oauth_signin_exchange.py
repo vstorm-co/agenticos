@@ -73,7 +73,7 @@ async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
 
     resp = await client.get(_CALLBACK)
@@ -128,7 +128,7 @@ async def test_the_oauth_login_binds_its_access_token_to_a_session(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
 
     redirect = await client.get(_CALLBACK)
@@ -163,7 +163,7 @@ async def test_a_failed_code_issue_leaves_no_session_row(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
     monkeypatch.setattr(
         OAuthExchangeService, "issue", AsyncMock(side_effect=RuntimeError("exchange store down"))
@@ -196,7 +196,7 @@ async def test_a_desktop_sign_in_returns_through_the_deep_link(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
     started = AsyncMock(return_value=Response(status_code=302))
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
@@ -238,7 +238,7 @@ async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
     started = AsyncMock(return_value=Response(status_code=302))
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
@@ -271,7 +271,7 @@ async def test_a_callback_with_no_state_goes_to_the_console(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
     monkeypatch.setattr(
         oauth.google, "authorize_redirect", AsyncMock(return_value=Response(status_code=302))
@@ -295,7 +295,7 @@ async def test_an_ordinary_sign_in_still_returns_to_the_console(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
 
     redirect = await client.get(_CALLBACK)
@@ -318,7 +318,7 @@ async def test_the_return_scheme_is_the_deployments_not_the_callers(
     monkeypatch.setattr(
         UserService,
         "get_or_create_oauth_user",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+        AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True)),
     )
 
     redirect = await client.get(f"{_CALLBACK}?client=desktop&scheme=evil")

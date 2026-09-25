@@ -5,7 +5,7 @@
 # is a copy that disagrees with the one contributors read. The nav below decides
 # what an outside reader meets first; nothing is duplicated for them.
 site_name: AgenticOS
-site_description: One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
+site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
 site_url: https://vstorm-co.github.io/agenticos/
 repo_url: https://github.com/vstorm-co/agenticos
 repo_name: vstorm-co/agenticos
@@ -161,11 +161,11 @@ plugins:
           default: true
           name: English
           build: true
-          site_description: One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
+          site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
         - locale: pl
           name: Polski
           build: true
-          site_description: Jedno miejsce, w którym budujesz, uruchamiasz i nadzorujesz agentów AI swojej firmy. Self-hosted, open source i w pełni Twoje.
+          site_description: Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, uruchamiaj na własnej infrastrukturze.
           nav_translations:
             Features: Funkcje
             Learn: Nauka
@@ -179,11 +179,13 @@ plugins:
             Development - contributing: Rozwój - współtworzenie
             Extending the platform: Rozszerzanie platformy
             About: O projekcie
+            Use cases: Zastosowania
+            Comparisons: Porównania
             Release Notes: Informacje o wydaniach
         - locale: de
           name: Deutsch
           build: true
-          site_description: Ein Ort, um die KI-Agenten Ihres Unternehmens zu bauen, zu betreiben und zu steuern. Selbst gehostet, quelloffen und Ihr Eigentum.
+          site_description: Agents im Browser erstellen, Dokumente und Werkzeuge verbinden und auf eigener Infrastruktur betreiben.
           nav_translations:
             Features: Funktionen
             Learn: Lernen
@@ -197,11 +199,13 @@ plugins:
             Development - contributing: Entwicklung - Mitwirken
             Extending the platform: Die Plattform erweitern
             About: Über das Projekt
+            Use cases: Anwendungsfälle
+            Comparisons: Vergleiche
             Release Notes: Versionshinweise
         - locale: es
           name: Español
           build: true
-          site_description: Un solo lugar para construir, ejecutar y gobernar los agentes de IA de tu empresa. Autoalojado, de código abierto y tuyo.
+          site_description: Crea agents en el navegador, conecta documentos y herramientas y usa infraestructura bajo tu control.
           nav_translations:
             Features: Funciones
             Learn: Aprende
@@ -215,6 +219,8 @@ plugins:
             Development - contributing: Desarrollo - contribuir
             Extending the platform: Ampliar la plataforma
             About: Acerca del proyecto
+            Use cases: Casos de uso
+            Comparisons: Comparaciones
             Release Notes: Notas de la versión
   - search
   # Screenshots of the console are the only thing on this site a reader cannot
@@ -248,10 +254,25 @@ plugins:
 nav:
   - AgenticOS: index.md
   - Features: features.md
+  - Use cases: use-cases.md
+  - Comparisons:
+      - about/comparison.md
+      - about/claude-apps.md
+      - about/chatgpt.md
+      - about/copilot-studio.md
+      - about/gemini-enterprise.md
+      - about/dify.md
+      - about/n8n.md
+      - about/viktor.md
+      - about/wonderful.md
+      - about/claude-code.md
+      - about/codex.md
+      - about/opencode.md
   - Learn:
       - learn/index.md
       - Get started:
           - install.md
+          - howto/first-document-agent.md
           - first-agent.md
           - concepts.md
           - console.md
@@ -268,12 +289,14 @@ nav:
       - Put it in front of people:
           - environments.md
           - channels.md
+          - artifacts.md
           - desktop.md
           - rollout.md
           - deployment.md
           - deploy.md
       - Keep it under control:
           - permissions.md
+          - directory.md
           - governance.md
           - secrets.md
           - data-protection.md
@@ -313,7 +336,7 @@ nav:
           - howto/add-sync-connector.md
   - About:
       - about/index.md
-      - about/comparison.md
+      - help.md
   - Release Notes: release-notes.md
 
 extra:

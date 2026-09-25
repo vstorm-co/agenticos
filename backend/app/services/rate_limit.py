@@ -1,8 +1,9 @@
 """How often one caller may reach a public surface.
 
-Six of this platform's surfaces are reachable without a session: the public run
-API, the widget's script, its config endpoint, its socket, a hosted page's config
-and that page's logo. Every one of them reads at least one row before it decides
+Eight of this platform's surfaces are reachable without a session: the public run
+API, the widget's script, its config endpoint, its socket, a hosted page's config,
+that page's logo, a public artifact link and the signed address an artifact's page
+is served from. Every one of them reads at least one row before it decides
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -218,6 +219,51 @@ async def hosted_admission_allowed(public_key: str) -> Decision:
         surface="hosted_config",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def public_artifact_allowed(public_key: str) -> Decision:
+    """Whether a public artifact link may be opened again right now.
+
+    Keyed on the link, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own. What it bounds is one
+    link being hammered into database reads; the key's 192 bits are what make
+    finding one by guessing a non-strategy.
+    """
+    return await consume(
+        surface="public_artifact",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+ARTIFACT_CONTENT_LOADS_PER_MINUTE = 10
+"""How often one signed artifact address may be loaded in a minute.
+
+A frame loads its address once and a reload or two after that; the console and
+the public page mint a fresh one each time they draw the frame. Ten is room for
+that and no more.
+"""
+
+
+async def artifact_content_allowed(token: str) -> Decision:
+    """Whether the page behind this signed address may be served again right now.
+
+    Keyed on the address, not the caller's. The token is minted by this server -
+    behind a grant, or behind the public link's own limit - so it cannot be
+    varied for free the way a visitor key can, and one leaked address replayed
+    from anywhere spends one allowance. Getting more means minting more, which
+    is metered where it happens. The address is also the one thing every viewer
+    has of their own: counting per network address would put a whole office
+    behind one proxy in one bucket.
+
+    The address is a bearer credential for minutes, so it is counted by its
+    digest and never written into a Redis key as it is.
+    """
+    return await consume(
+        surface="artifact_content",
+        caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
+        limit=Limit(attempts=ARTIFACT_CONTENT_LOADS_PER_MINUTE),
     )
 
 

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useOnboardingFlow } from "./use-onboarding-flow";
-import { useOnboardingStore } from "@/stores";
+import { useOnboardingStore, useOrgStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
@@ -28,6 +28,8 @@ const rig = vi.hoisted(() => ({
   personalConnections: [] as unknown[],
   mcpLoading: false,
   orgs: [] as unknown[] | undefined,
+  groups: [] as unknown[],
+  groupsOrg: "",
   routines: 0,
   anyRunnable: true,
   anyRunnableLoading: false,
@@ -79,6 +81,13 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: rig.orgs, isLoading: false, isFetching: false }),
 }));
+vi.mock("@/hooks/use-groups", () => ({
+  // Records which organization it was asked about, the way the real hook keys on it.
+  useGroups: (orgId: string) => {
+    rig.groupsOrg = orgId;
+    return { groups: rig.groups, isLoading: false, isFetching: false };
+  },
+}));
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
 }));
@@ -129,6 +138,9 @@ beforeEach(() => {
   rig.personalConnections = [];
   rig.mcpLoading = false;
   rig.orgs = [];
+  rig.groups = [];
+  rig.groupsOrg = "";
+  useOrgStore.setState({ activeOrgId: null });
   rig.routines = 0;
   rig.anyRunnable = true;
   rig.anyRunnableLoading = false;
@@ -295,6 +307,25 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(false);
     act(() => result.current.finish());
     expect(useOnboardingStore.getState().isOpen).toBe(false);
+  });
+
+  it("advances the group flow when the organization in view gains a group", () => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    rig.groups = [{ id: "g-1" }];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-group"));
+    expect(result.current.step?.id).toBe("flow-group-create");
+    expect(result.current.signalMet).toBe(false);
+    expect(rig.groupsOrg).toBe("org-1");
+
+    rig.groups = [{ id: "g-1" }, { id: "g-2" }];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("asks about no organization's groups before one is active", () => {
+    renderHook(() => useOnboardingFlow());
+    expect(rig.groupsOrg).toBe("");
   });
 
   it("advances the agent flow when an agent is created", () => {

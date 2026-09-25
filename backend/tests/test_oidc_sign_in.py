@@ -203,7 +203,7 @@ class TestTheRoundTrip:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": _CLAIMS}),
         )
-        created = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+        created = AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True))
         monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
 
         resp = await client.get(_CALLBACK)

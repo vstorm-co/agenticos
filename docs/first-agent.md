@@ -98,8 +98,7 @@ Two things are worth knowing here:
 - **A tool's name and description are prompt.** `search_refund_policy` gets
   reached for on questions `search_documents` is passed over for. Both are
   editable per agent.
-- **Anything side-effecting asks for approval by default.** The run parks and
-  waits for a person. Set it per capability, or per tool.
+- Tools declared side-effecting request approval under the configured policy. Review capability and tool overrides before publishing.
 
 ## 5. Give it something to read
 

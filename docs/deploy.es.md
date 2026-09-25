@@ -1,5 +1,5 @@
 ---
-source_sha: "7c25dca319aa"
+source_sha: "4204964a3eae"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -182,6 +182,14 @@ y `LOGFIRE_TOKEN`, que es adonde van las trazas de los runs de los agents.
 
 Algo tiene que terminar el TLS y enrutar los dos nombres. Las dos opciones de
 abajo llegan a los mismos contenedores; elige según si ya tienes uno en marcha.
+
+!!! note "Deja la compresión a la aplicación"
+
+    La API comprime con gzip sus propias respuestas, el proxy `/api/*` de la
+    consola vuelve a comprimir para el navegador lo que la API comprimió, y Next
+    comprime sus páginas. Así que el proxy no necesita `gzip on`, y no debe vaciar
+    el `Accept-Encoding` del cliente: eso solo apaga la compresión. Una respuesta
+    que ya lleva `Content-Encoding` pasa tal cual por Nginx y por Traefik.
 
 ### Opción A: Traefik { #option-a-traefik }
 

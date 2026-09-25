@@ -10,51 +10,72 @@ import uuid
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.models.instrumented import InstrumentedModel
+from pydantic_ai.models.instrumented import InstrumentationSettings, InstrumentedModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from app.agents.factory import _instrument
-from app.agents.observability import auxiliary_model, instrument_agent, suppress_content
+from app.agents.observability import (
+    auxiliary_model,
+    inherited_instrumentation,
+    instrument_agent,
+    suppress_content,
+)
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.secret_kinds import ApiKeySecret
 
 MODULE = "app.agents.factory"
 
 
-def _ctx(*, model: Any, trace_include_content: bool) -> RunContext[None]:
-    return RunContext(
-        deps=None,
-        model=model,
-        usage=RunUsage(),
-        trace_include_content=trace_include_content,
-    )
+def _ctx(*, model: Any, host: PydanticAgent[None, str] | None) -> RunContext[None]:
+    return RunContext(deps=None, model=model, usage=RunUsage(), agent=host)
+
+
+def _host(instrument: InstrumentationSettings | None) -> PydanticAgent[None, str]:
+    host = PydanticAgent(TestModel())
+    host.instrument = instrument
+    return host
 
 
 class TestAuxiliaryModel:
-    """The model a code-built auxiliary agent runs on inherits the run's content
-    mode, so a run tracing without content does not leak an auxiliary call's
-    prompt or output to its Logfire project (agenticos#1809)."""
+    """The model a code-built auxiliary agent runs on carries the host's trace
+    policy, so an auxiliary call neither leaks content a run keeps out of its
+    traces (agenticos#1809) nor lands in a different project than the run's."""
 
-    def test_content_off_wraps_the_model_content_free(self):
+    def test_a_content_free_host_wraps_the_model_in_its_own_settings(self):
         model = TestModel()
-        result = auxiliary_model(_ctx(model=model, trace_include_content=False))
+        settings = InstrumentationSettings(include_content=False)
+        result = auxiliary_model(_ctx(model=model, host=_host(settings)))
         assert isinstance(result, InstrumentedModel)
-        assert result.instrumentation_settings.include_content is False
+        assert result.instrumentation_settings is settings
         assert result.wrapped is model
 
-    def test_content_on_leaves_the_model_untouched(self):
-        """Tracing with content, there is nothing to suppress, so the run's own
-        model is returned unchanged rather than wrapped a second time."""
+    def test_a_host_routed_to_its_own_project_keeps_that_route_with_content(self):
+        """A per-agent exporter traces with content to the client's project; the
+        auxiliary call must follow it there rather than fall to the global
+        default, which is the operator's project."""
         model = TestModel()
-        assert auxiliary_model(_ctx(model=model, trace_include_content=True)) is model
+        routed = InstrumentationSettings(include_content=True)
+        result = auxiliary_model(_ctx(model=model, host=_host(routed)))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings is routed
+
+    def test_a_host_on_the_global_default_leaves_the_model_untouched(self):
+        model = TestModel()
+        assert auxiliary_model(_ctx(model=model, host=_host(None))) is model
+
+    def test_with_no_host_the_model_is_traced_without_content(self):
+        result = auxiliary_model(_ctx(model=TestModel(), host=None))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings.include_content is False
 
     def test_a_non_request_response_model_is_returned_unchanged(self):
         """A realtime model cannot be wrapped and does not run an auxiliary agent,
         so it is handed back as-is for the caller to reject."""
         realtime = object()
-        assert auxiliary_model(_ctx(model=realtime, trace_include_content=False)) is realtime
+        assert auxiliary_model(_ctx(model=realtime, host=None)) is realtime
 
 
 def _secret(token: str = "pylf_v1_eu_secret") -> ApiKeySecret:
@@ -316,3 +337,19 @@ class TestSpec:
     def test_an_ordinary_slug_is_accepted(self):
         spec = ObservabilitySpec(organization="vstorm", project="agenticos-eu")
         assert (spec.organization, spec.project) == ("vstorm", "agenticos-eu")
+
+
+class TestInheritedInstrumentation:
+    def test_an_auxiliary_agent_takes_its_hosts_setting(self):
+        settings = InstrumentationSettings(include_content=False)
+        host = PydanticAgent(TestModel())
+        host.instrument = settings
+        assert inherited_instrumentation(host) is settings
+
+    def test_a_host_on_the_global_default_passes_the_default_on(self):
+        assert inherited_instrumentation(PydanticAgent(TestModel())) is None
+
+    def test_with_no_host_the_policy_is_the_one_that_cannot_leak(self):
+        inherited = inherited_instrumentation(None)
+        assert isinstance(inherited, InstrumentationSettings)
+        assert inherited.include_content is False

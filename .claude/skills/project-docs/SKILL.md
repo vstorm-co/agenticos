@@ -45,6 +45,26 @@ rendered their own source for a while.
 **`--strict` does not validate anchors.** A `#fragment` that matches no heading passes
 the build. Check fragments by hand, or with a script over the headings.
 
+## Search and link previews
+
+`scripts/mkdocs_hooks.py` writes what a search result or a shared link reads from a
+page's head; Material writes only the title, description, canonical and `hreflang`.
+
+- **`seo_title`** in front matter replaces the `<title>` - at most 60 characters,
+  starting with the page's own name. `title` stays short because the nav uses it.
+- **`description`** is the meta description and the card text - at most 160
+  characters. A page without one falls back to `site_description`.
+- **Every page gets Open Graph and Twitter tags**, with `docs/assets/social-preview.png`
+  as the image from the site root in every locale.
+- **A `## Frequently asked questions` section becomes `FAQPage` structured data**:
+  each `###` inside it is a question, the text up to the next one its answer. A
+  translation must pin `{ #frequently-asked-questions }`, which is how the hook finds
+  the section in every language. Answers are published as plain text, so keep each
+  one self-contained. `backend/tests/test_mkdocs_seo.py` covers the extraction.
+
+Translate `seo_title` and `description` with the page; they are read by people
+searching in that language.
+
 ## mkdocstrings
 
 The API reference is generated from docstrings rather than written twice — this

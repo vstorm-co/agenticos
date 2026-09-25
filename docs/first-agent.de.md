@@ -1,5 +1,5 @@
 ---
-source_sha: "86db3a8931da"
+source_sha: "b0d255e47822"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -106,8 +106,7 @@ Zwei Dinge lohnen sich hier zu wissen:
 - **Name und Beschreibung eines Tools sind Prompt.** Nach
   `search_refund_policy` wird bei Fragen gegriffen, bei denen
   `search_documents` übergangen wird. Beides ist pro Agent editierbar.
-- **Alles mit Nebenwirkung fragt standardmäßig nach Freigabe.** Der Run parkt und
-  wartet auf einen Menschen. Stellen Sie es pro Capability ein oder pro Tool.
+- Als nebenwirkend deklarierte Werkzeuge verlangen gemäß konfigurierter Richtlinie eine Freigabe. Prüfen Sie Capability- und Werkzeugüberschreibungen vor der Veröffentlichung.
 
 ## 5. Ihm etwas zu lesen geben { #5-give-it-something-to-read }
 
