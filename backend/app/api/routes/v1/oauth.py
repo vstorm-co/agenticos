@@ -226,7 +226,7 @@ async def provider_callback(
         # it can still authenticate at its provider, and must not keep
         # reshaping memberships from there.
         if not user.is_active:
-            logger.warning("oauth_callback_account_disabled", extra={"provider": provider})
+            logger.warning("oauth_callback_account_disabled", extra={"user_id": str(user.id)})
             params = urlencode({"error": "User account is disabled"})
             return RedirectResponse(url=f"{frontend}/login?{params}")
         if groups is not None:
