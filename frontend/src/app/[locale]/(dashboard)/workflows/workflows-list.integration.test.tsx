@@ -60,15 +60,23 @@ const WORKFLOWS = [
   workflow("Old", "archived"),
 ];
 
-beforeEach(() => {
-  perms.can = () => true;
-  vi.mocked(apiClient.get).mockReset();
-  vi.mocked(apiClient.get).mockImplementation((path: string) => {
+/** Serve `rows` from `/workflows` the way the paged route does — a `skip`/`limit` window. */
+function serve(rows: WorkflowRead[]) {
+  vi.mocked(apiClient.get).mockImplementation((path: string, config?: unknown) => {
     if (path === "/workflows") {
-      return Promise.resolve({ items: WORKFLOWS, total: WORKFLOWS.length });
+      const params = (config as { params?: { skip?: string; limit?: string } } | undefined)?.params;
+      const skip = Number(params?.skip ?? 0);
+      const limit = Number(params?.limit ?? 50);
+      return Promise.resolve({ items: rows.slice(skip, skip + limit), total: rows.length });
     }
     return Promise.resolve({ items: [], total: 0 });
   });
+}
+
+beforeEach(() => {
+  perms.can = () => true;
+  vi.mocked(apiClient.get).mockReset();
+  serve(WORKFLOWS);
 });
 
 describe("the workflows list", () => {
@@ -130,5 +138,44 @@ describe("the workflows list", () => {
 
     expect(await screen.findByText("Blank workflow")).toBeInTheDocument();
     expect(screen.getByText("Two-step sequence")).toBeInTheDocument();
+  });
+});
+
+describe("the workflows list past one page", () => {
+  // Sixty drafts and, last of all, one published workflow — so the published one
+  // lands beyond the first page of fifty. This is the exact shape #1787 got
+  // wrong: the registry only ever showed the first page, and a status filter over
+  // it reported "no matches" for a match that was never on screen.
+  const MANY: WorkflowRead[] = [
+    ...Array.from({ length: 60 }, (_, i) => workflow(`Draft ${i + 1}`, "draft")),
+    workflow("FindMe", "published"),
+  ];
+
+  beforeEach(() => serve(MANY));
+
+  it("reaches a workflow on a later page through the pager", async () => {
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByRole("link", { name: "Draft 1" });
+
+    // The 61st row is not on the first page of fifty.
+    expect(screen.queryByRole("link", { name: "FindMe" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(await screen.findByRole("link", { name: "FindMe" })).toBeInTheDocument();
+  });
+
+  it("finds a status match that is not on the first page", async () => {
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByRole("link", { name: "Draft 1" });
+
+    // Filtering to Published surfaces the one match even though it sat past the
+    // first page — the false negative Codex flagged, now fixed by filtering the
+    // whole walked registry rather than one page of it.
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(screen.getByRole("option", { name: "Published" }));
+
+    expect(await screen.findByRole("link", { name: "FindMe" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Draft 1" })).toBeNull();
   });
 });

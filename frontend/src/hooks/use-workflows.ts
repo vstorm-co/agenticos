@@ -50,8 +50,21 @@ async function seedGraph(
   return workflow;
 }
 
+/** The largest page the list route will answer (`limit: le=100`). */
+const WORKFLOWS_MAX_PAGE = 100;
+
 /**
- * The workflow registry — the list and the create mutation.
+ * The workflow registry — the whole list and the create mutation.
+ *
+ * The list is walked to completion, page by page, rather than read one page at a
+ * time: the registry page filters by status and pages *in the browser*, and a
+ * status filter that only saw the first page reported "no matches" for a match
+ * sitting on a later one (#1787). `total` is the count the walk started from, so
+ * a pager can describe the whole set even as it is drawn from cache.
+ *
+ * Paged rather than raised to one large request, because the route caps `limit`
+ * at a hundred: a registry with three hundred workflows is three requests, and a
+ * single capped request would be the first-fifty bug again at a higher number.
  *
  * Mutations invalidate rather than patch: a create returns a fresh draft row and
  * guessing the list's new shape is how a stale registry shows.
@@ -63,7 +76,19 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
 
   const { data, isLoading, error } = useQuery({
     queryKey: qk.workflows.list(),
-    queryFn: () => listWorkflows(),
+    queryFn: async () => {
+      const first = await listWorkflows({ skip: 0, limit: WORKFLOWS_MAX_PAGE });
+      const items = [...first.items];
+      while (items.length < first.total && items.length > 0) {
+        const next = await listWorkflows({ skip: items.length, limit: WORKFLOWS_MAX_PAGE });
+        // A page that answers nothing ends the walk rather than looping: a
+        // workflow deleted between two requests makes `total` larger than what is
+        // left to read, and a `while` trusting the count alone would spin.
+        if (next.items.length === 0) break;
+        items.push(...next.items);
+      }
+      return { items, total: first.total };
+    },
     // How a surface without workflows:view stays out of the network log.
     enabled,
   });

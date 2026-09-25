@@ -65,9 +65,15 @@ export const qk = {
   },
   workflows: {
     all: () => ["workflows"] as const,
-    // The page is part of the key: a list past its page size is several answers,
-    // and caching one as another shows the wrong slice of the registry.
-    list: (skip = 0, limit = 50) => ["workflows", "list", skip, limit] as const,
+    // Called with nothing it is the prefix over every page, which is what a
+    // mutation invalidates and what the registry query reads: the list is walked
+    // to completion and held under one key, filtered and paged in the browser.
+    // A `(skip, limit)` variant stays a sub-key of that prefix, so a caller that
+    // ever reads one server page is invalidated by the same bare `list()`.
+    list: (skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["workflows", "list"] as const)
+        : (["workflows", "list", skip, limit] as const),
     detail: (id: string) => ["workflows", id] as const,
     versions: (id: string) => ["workflows", id, "versions"] as const,
     version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,

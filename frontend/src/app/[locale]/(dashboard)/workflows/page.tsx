@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Copy, Plus, Workflow } from "lucide-react";
@@ -12,11 +12,13 @@ import {
   Button,
   ListCard,
   ListCardEmpty,
+  Pager,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useListControls,
 } from "@/components/ui";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
@@ -50,18 +52,28 @@ export default function WorkflowsPage() {
   const canCreate = can(Perm.workflowsCreate);
   // Gate the list query so a caller without workflows:view never hits the network
   // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
-  const { workflows, total, isLoading, create, duplicate } = useWorkflows({
+  const { workflows, isLoading, create, duplicate } = useWorkflows({
     enabled: can(Perm.workflowsView),
   });
 
   const [filter, setFilter] = useState<Filter>("all");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const visible = useMemo(
-    () => workflows.filter((workflow) => filter === "all" || workflow.status === filter),
-    [workflows, filter],
-  );
+  // Status filter and paging both run over the *whole* registry the hook walked,
+  // so a status still matches a workflow on what would have been a later page
+  // (#1787). The status rides the controls' query — "all" is the empty query
+  // that filters nothing — and `matches` compares it to a row's own status.
+  const list = useListControls({
+    items: workflows,
+    query: filter === "all" ? "" : filter,
+    matches: (workflow, status) => workflow.status === status,
+  });
   const filtersActive = filter !== "all";
+
+  const onFilter = (value: Filter) => {
+    setFilter(value);
+    list.setPage(0);
+  };
 
   const onChoose = (choice: WorkflowCreateChoice) =>
     create.mutate(
@@ -81,7 +93,7 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+    <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
       <SelectTrigger data-tour="workflows-list" className="w-40" aria-label={t("filterByStatus")}>
         <SelectValue />
       </SelectTrigger>
@@ -119,13 +131,13 @@ export default function WorkflowsPage() {
         counted={
           isLoading
             ? null
-            : visible.length === total
-              ? t("shownCount", { count: total })
-              : t("shownOfTotal", { visible: visible.length, total })
+            : list.matched === list.total
+              ? t("shownCount", { count: list.total })
+              : t("shownOfTotal", { visible: list.matched, total: list.total })
         }
         controls={statusControls}
       >
-        {visible.length === 0 ? (
+        {list.matched === 0 ? (
           <ListCardEmpty
             icon={Workflow}
             title={filtersActive ? t("nothingMatches") : t("noWorkflowsYet")}
@@ -138,37 +150,47 @@ export default function WorkflowsPage() {
             }
             cta={
               filtersActive
-                ? { label: t("clearFilter"), onClick: () => setFilter("all") }
+                ? { label: t("clearFilter"), onClick: () => onFilter("all") }
                 : undefined
             }
           />
         ) : (
-          <ul className="divide-border divide-y">
-            {visible.map((workflow) => (
-              <li key={workflow.id} className="flex items-center gap-3 py-3">
-                <Link
-                  href={ROUTES.WORKFLOW_DETAIL(workflow.id)}
-                  className="hover:text-foreground text-foreground min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                >
-                  {workflow.name}
-                </Link>
-                <Badge variant={STATUS_VARIANT[workflow.status] ?? "secondary"}>
-                  {t(`status.${workflow.status}`)}
-                </Badge>
-                {canCreate ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={duplicate.isPending}
-                    aria-label={t("duplicateWorkflow", { name: workflow.name })}
-                    onClick={() => onDuplicate(workflow)}
+          <div className="space-y-4">
+            <ul className="divide-border divide-y">
+              {list.visible.map((workflow) => (
+                <li key={workflow.id} className="flex items-center gap-3 py-3">
+                  <Link
+                    href={ROUTES.WORKFLOW_DETAIL(workflow.id)}
+                    className="hover:text-foreground text-foreground min-w-0 flex-1 truncate text-sm font-medium hover:underline"
                   >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                    {workflow.name}
+                  </Link>
+                  <Badge variant={STATUS_VARIANT[workflow.status] ?? "secondary"}>
+                    {t(`status.${workflow.status}`)}
+                  </Badge>
+                  {canCreate ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={duplicate.isPending}
+                      aria-label={t("duplicateWorkflow", { name: workflow.name })}
+                      onClick={() => onDuplicate(workflow)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <Pager
+              page={list.page}
+              pageCount={list.pageCount}
+              matched={list.matched}
+              total={list.total}
+              onPage={list.setPage}
+              counted={t("shownCount", { count: list.total })}
+            />
+          </div>
         )}
       </ListCard>
 
