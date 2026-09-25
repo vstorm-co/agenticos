@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.496] - 2026-09-25
+
 ### Added
 
 - **A knowledge base can be fed from a website.** The new `web` sync source
