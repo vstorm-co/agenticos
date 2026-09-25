@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
   gives a synthetic fixture, the configuration, the exact prompt, reference
   checks, the usual failures and what to record. The CSV and report tutorials
   include a run recorded on v0.0.504. The use-case index says which tutorials
-  the maintainers have run.
+  the maintainers have run (#1895).
 
 ## [0.0.504] - 2026-09-25
 
