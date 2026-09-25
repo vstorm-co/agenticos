@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "048eca92259d"
 ---
 
 # Governance { #governance }
@@ -1533,6 +1533,13 @@ su ajuste.
 Se configura en **Organizaciones → un workspace → Miembros → Retención**,
 protegido por `org:settings`. Un barrido corre una vez al día y **borra de
 verdad**: una política que conservara las filas no sería una política.
+
+Los datos de [Virtual Tables](virtual-tables.md#limits-and-retention) entran en el mismo
+barrido, con plazos de todo el deployment que ninguna organización fija: los receipts de
+idempotencia a las 24 horas, las filas de outbox despachadas a los 3 días y el history de
+un registro a los 365 días, que es también lo que elimina el history de un registro
+borrado. La entrada que escribe nombra `table_receipts`, `table_outbox` o `table_history` y
+un recuento.
 
 Los tres números propios del despliegue —`retention_defaults`,
 `retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes

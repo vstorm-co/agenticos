@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "048eca92259d"
 ---
 
 # Governance { #governance }
@@ -1565,6 +1565,12 @@ Dlatego okres jest **na klasę** i oba obowiązki dostają swoje ustawienie.
 Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bramką
 `org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
 zostawiałaby wiersze, nie byłaby polityką.
+
+Dane [Virtual Tables](virtual-tables.md#limits-and-retention) wchodzą do tego samego sweepa,
+z okresami całego wdrożenia, których nie ustawia żadna organizacja: receipts idempotencji
+po 24 godzinach, wysłane wiersze outbox po 3 dniach i history rekordu po 365 dniach, co
+usuwa też history usuniętego rekordu. Wpis, który zapisuje, nazywa `table_receipts`,
+`table_outbox` lub `table_history` i liczbę.
 
 Trzy własne liczby wdrożenia — `retention_defaults`, `retention_max_days` i
 `audit_retention_floor_days` — to pola ustawień wdrożenia, zapisywane przez app

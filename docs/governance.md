@@ -1461,6 +1461,12 @@ Set it at **Organizations → a workspace → Members → Retention**, gated on
 `org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
 the rows would not be a policy.
 
+[Virtual Tables](virtual-tables.md#limits-and-retention) data joins the same sweep, on
+deployment-wide periods that no organization sets: idempotency receipts after 24 hours,
+dispatched outbox rows after 3 days and record history after 365 days, which is also what
+removes the history of a deleted record. The entry it writes names `table_receipts`,
+`table_outbox` or `table_history` and a count.
+
 The deployment's own three numbers - `retention_defaults`, `retention_max_days`
 and `audit_retention_floor_days` - are fields on the deployment settings, written
 by an app admin through `PATCH /admin/deployment-settings` like every other

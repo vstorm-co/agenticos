@@ -1,4 +1,4 @@
-<!-- source_sha: c911383112ac -->
+<!-- source_sha: 471d6c338ae3 -->
 
 # Bezpieczeństwo
 
@@ -40,7 +40,12 @@ obrazy, i ich licencje — [Licencje](docs/licenses.pl.md).
 - [ ] Dostrój `RATE_LIMIT_RUN_PER_MINUTE` / `RATE_LIMIT_EMBED_PER_MINUTE` w `.env`.
 - [ ] Przejrzyj limity zapytań na każdej publicznej powierzchni — limit
       wiadomości na odwiedzającego w widgecie embed oraz `rate_limit_rpm` na
-      nadawcę w każdym bocie kanału. Własne route'y konsoli nie są mierzone.
+      nadawcę w każdym bocie kanału. Własne route'y konsoli nie są mierzone, z wyjątkiem
+      zapisów do Virtual Tables, które liczą się do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`.
+- [ ] Przejrzyj limity Virtual Tables (`TABLES_MAX_PER_ORGANIZATION`,
+      `TABLES_MAX_RECORDS_PER_TABLE`, `TABLES_MAX_RECORD_BYTES`) oraz retencję ich
+      receipts, outboxa i history (`TABLES_RECEIPT_TTL_HOURS`,
+      `TABLES_OUTBOX_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`).
 - [ ] Za proxy albo CDN-em ustaw `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **oraz**
       upewnij się, że API nie jest jednocześnie osiągalne bezpośrednio — inaczej
       wszyscy odwiedzający dzielą jeden kubełek albo nagłówek da się podrobić.

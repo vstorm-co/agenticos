@@ -29,6 +29,7 @@ from app.services.virtual_tables.exceptions import (
     SchemaDependencyError,
     SchemaVersionConflictError,
 )
+from app.services.virtual_tables.quotas import enforce_table_count
 from app.services.virtual_tables.schema import build_columns, diff
 
 
@@ -45,6 +46,7 @@ class TableOperations(Operations):
         Raises:
             AuthorizationError: The caller lacks `tables:create`.
             AlreadyExistsError: A live table already has this name.
+            QuotaExceededError: The organization already has as many tables as it may.
             InvalidSchemaError: The columns are inconsistent.
         """
         if not ctx.has(Perm.TABLES_CREATE):
@@ -53,6 +55,7 @@ class TableOperations(Operations):
             )
         columns = build_columns(data.columns, [])
         await self._claim_name(ctx, data.name)
+        await enforce_table_count(self.db, ctx)
         table = await virtual_table_repo.create_table(
             self.db,
             organization_id=ctx.organization_id,

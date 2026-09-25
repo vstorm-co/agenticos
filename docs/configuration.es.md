@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "eec2418794f5"
 ---
 
 # Configuración { #configuration }
@@ -1099,8 +1099,9 @@ Se aplican a las superficies que un desconocido puede alcanzar, y solo a ellas: 
 pública de runs, el script del widget, su configuración, el handshake del socket de
 cualquiera de las dos superficies, la configuración y el logo de una página alojada, y
 la subida de un visitante. Las rutas propias de la consola están detrás de una sesión
-y no se miden — si toda la API debería llevar un techo es una decisión aparte, no
-esta.
+y no se miden, con una excepción: las escrituras en
+[Virtual Tables](virtual-tables.md), que guardan una instantánea por cambio. Si toda la
+API debería llevar un techo es una decisión aparte, no esta.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
@@ -1110,6 +1111,7 @@ esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Escrituras en [Virtual Tables](virtual-tables.md), **por miembro y organización**: un create, update, upsert o delete de registro, y un create, renombrado, archivado o cambio de esquema de tabla. Se aplica a la consola igual que a un script. Las lecturas no se cuentan |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con
@@ -1226,6 +1228,39 @@ que este ajuste es; apagado, el límite sigue siendo seguro pero compartido.
 
     Con dos proxies delante, colapsa la cabecera a un solo salto en tu borde: solo el
     último salto es fiable.
+
+## Límites y retención de Virtual Tables { #virtual-tables-limits-and-retention }
+
+Cuánto puede guardar una organización en [Virtual Tables](virtual-tables.md#limits-and-retention)
+y cuánto tiempo se conservan las copias que deja una escritura. Una escritura por encima de
+un límite se rechaza con `QUOTA_EXCEEDED` (402) y una entrada de auditoría que nombra el
+límite, nunca el contenido.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tablas por organización. Las archivadas cuentan, porque nada borra una tabla |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Registros en una tabla |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt; un registro ya por encima del límite igualmente se borra, conservando solo una marca con el tamaño en vez de los valores |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Cuánto tiempo se conserva una fila de outbox sin despachar. Aún no existe un consumidor (#1785), así que es un corte de carta muerta, no una afirmación de que el evento se entregó - pasado ese tiempo, la fila y el evento que llevaba desaparecen |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Cuánto tiempo se conserva el history de un registro, contado desde el cambio, también para un registro borrado |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Cuántas entradas de auditoría de rechazo por cuota escribe este proceso a la vez, para que una ráfaga de rechazos no abra un número ilimitado de conexiones a la base de datos. El resto de la ráfaga espera a este límite |
+
+Los tres periodos de retención los aplica el [barrido de retención](governance.md#retention)
+diario, para cada organización; no son ajustes por organización.
+
+El presupuesto de un barrido para estas tres clases escala con
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` en vez de con un número fijo de lotes - pero ese límite es
+por *miembro* (`limit_table_write` cuenta las escrituras de cada miembro en su propia cuota),
+así que el presupuesto también escala con cuántos miembros activos tiene la organización:
+hasta `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` filas por miembro activo al día, en
+lotes de 500.
+
+Esa cifra se duplica como margen, para que un rezago ya existente se reduzca en vez de
+solo mantenerse plano, y se limita a 50 miembros, para que una organización inusualmente
+grande no haga crecer su propio barrido sin límite - igualmente se drena, solo en más
+barridos, como cualquier otra clase de retención cuando un rezago supera su presupuesto.
 
 ## Un worker cuyo bucle de eventos ha dejado de girar { #a-worker-whose-event-loop-has-stopped-turning }
 

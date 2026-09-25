@@ -7,6 +7,11 @@ not collide. What ties a key to one request is `payload_hash`: reusing a key for
 different body is refused, because replaying the old answer to a new question is
 the silent failure this exists to prevent.
 
+A receipt answers a retry for `TABLES_RECEIPT_TTL_HOURS` and no longer. The lifetime is
+enforced when the key is used, not left to the retention sweep: a claim clears its own
+key's expired receipt first, so a retry after the lifetime executes as a new write and
+gets a receipt of its own. The sweep only reclaims the space of the ones nobody retried.
+
 Only successes are stored. A refused write (a stale revision, an invalid value)
 leaves no receipt, so the caller corrects the request and retries with the same
 key.
@@ -16,12 +21,14 @@ import hashlib
 import json
 import secrets
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead
@@ -71,6 +78,17 @@ async def run_once[Outcome: BaseModel](
         if operation_key is None:
             return await action(), False
         digest = payload_hash(payload)
+        # An expired receipt answers nothing. Cleared here, inside the savepoint, so the key
+        # then claims a fresh receipt and executes as a new write, exactly at the lifetime
+        # rather than whenever the daily sweep next reaches the row.
+        await virtual_table_repo.delete_expired_receipt(
+            db,
+            organization_id=ctx.organization_id,
+            principal_id=ctx.subject_id,
+            operation=operation,
+            operation_key=operation_key,
+            cutoff=datetime.now(UTC) - timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS),
+        )
         claimed = await virtual_table_repo.claim_receipt(
             db,
             organization_id=ctx.organization_id,

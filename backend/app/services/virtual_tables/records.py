@@ -41,6 +41,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
@@ -160,6 +161,22 @@ def _merge(
     return merged
 
 
+def _changed_cells(
+    before: dict[str, CellValue], after: dict[str, CellValue]
+) -> dict[str, dict[str, CellValue]]:
+    """The `before` and `after` of an update's history row: only the cells that changed.
+
+    A full snapshot of each side would make one edit of one cell cost two copies of the
+    record, however large, and the cost of repeating it would be the size of the record
+    times the number of requests. A column missing from one side was empty there.
+    """
+    changed = [key for key in before.keys() | after.keys() if before.get(key) != after.get(key)]
+    return {
+        "before": {key: before[key] for key in changed if key in before},
+        "after": {key: after[key] for key in changed if key in after},
+    }
+
+
 def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterClause], SortClause]:
     by_id = {column.id: column for column in columns}
     clauses: list[FilterClause] = []
@@ -274,6 +291,7 @@ class RecordOperations(Operations):
 
         Raises:
             AlreadyExistsError: The external id is taken.
+            QuotaExceededError: The record is over the size limit, or the table is full.
             InvalidRecordError: A value does not fit its column.
             ArchivedColumnError: A value names an archived column.
             TableArchivedError: The table is archived.
@@ -283,12 +301,17 @@ class RecordOperations(Operations):
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
+            if data.external_id is not None:
+                # Before the quota is consulted: a full table must still answer an id that
+                # exists with ALREADY_EXISTS, not with a quota refusal about a record that would
+                # never have been written. Taking the count lock first also lets a concurrent
+                # create of the same id commit before this looks.
+                await quotas.lock_record_count(self.db, table)
+                if await self._lookup(ctx, table, data.external_id) is not None:
+                    raise self._already_exists(data.external_id)
             record = await self._insert(ctx, table, data.external_id, data.values)
             if record is None:
-                raise AlreadyExistsError(
-                    message="A record with this external id already exists in the table",
-                    details={"external_id": data.external_id},
-                )
+                raise self._already_exists(data.external_id)
             return self._outcome(record, created=True)
 
         return await self._write(
@@ -363,26 +386,21 @@ class RecordOperations(Operations):
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
-            existing = await virtual_table_repo.get_record_by_external_id(
-                self.db,
-                external_id,
-                table_id=table.id,
-                organization_id=ctx.organization_id,
-                for_update=True,
-            )
+            existing = await self._lookup(ctx, table, external_id)
+            if existing is None:
+                # Take turns with other creates before deciding the id is new. A concurrent
+                # upsert of the same id holds this lock until it commits, so once it is ours
+                # the winner's row is visible: this call then updates it, and never counts a
+                # table its rival just filled and is refused for it.
+                await quotas.lock_record_count(self.db, table)
+                existing = await self._lookup(ctx, table, external_id)
             if existing is None:
                 created = await self._insert(ctx, table, external_id, data.values)
                 if created is not None:
                     return self._outcome(created, created=True)
                 # Another transaction took the external id between the lookup and
                 # the insert. Its row is committed by now, so read and update it.
-                existing = await virtual_table_repo.get_record_by_external_id(
-                    self.db,
-                    external_id,
-                    table_id=table.id,
-                    organization_id=ctx.organization_id,
-                    for_update=True,
-                )
+                existing = await self._lookup(ctx, table, external_id)
                 if existing is None:
                     raise ConcurrentChangeError()
             if data.expected_revision is None:
@@ -411,6 +429,11 @@ class RecordOperations(Operations):
     ) -> None:
         """Delete a record, if it is still at `expected_revision`. Its history stays.
 
+        The delete always succeeds, whatever the record's size. The history row keeps the whole
+        record unless it is over the size limit (one that predates the limit, or written before
+        it was lowered), in which case it keeps only a marker with the size; see
+        `quotas.delete_snapshot`.
+
         With an operation key a retry of a delete that already succeeded returns
         normally instead of reporting the record missing.
         """
@@ -429,7 +452,7 @@ class RecordOperations(Operations):
                 revision=record.revision + 1,
                 operation="delete",
                 actor_user_id=ctx.subject_id,
-                before=dict(record.values),
+                before=quotas.delete_snapshot(record.values),
                 after=None,
             )
             await virtual_table_repo.delete_record(self.db, record)
@@ -472,6 +495,25 @@ class RecordOperations(Operations):
         return RecordWrite(record=outcome.record, created=outcome.created, replayed=replayed)
 
     @staticmethod
+    def _already_exists(external_id: str | None) -> AlreadyExistsError:
+        return AlreadyExistsError(
+            message="A record with this external id already exists in the table",
+            details={"external_id": external_id},
+        )
+
+    async def _lookup(
+        self, ctx: AuthContext, table: VirtualTable, external_id: str
+    ) -> VirtualTableRecord | None:
+        """The record with this external id, locked for the write that follows."""
+        return await virtual_table_repo.get_record_by_external_id(
+            self.db,
+            external_id,
+            table_id=table.id,
+            organization_id=ctx.organization_id,
+            for_update=True,
+        )
+
+    @staticmethod
     def _outcome(record: VirtualTableRecord, *, created: bool) -> WriteOutcome:
         return WriteOutcome(created=created, record=RecordRead.model_validate(record))
 
@@ -484,6 +526,8 @@ class RecordOperations(Operations):
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
         merged = _merge(await self._columns(table), values, None)
+        await quotas.enforce_record_size(ctx, table, merged)
+        await quotas.enforce_record_count(self.db, ctx, table)
         record = await virtual_table_repo.insert_record(
             self.db,
             organization_id=ctx.organization_id,
@@ -566,6 +610,7 @@ class RecordOperations(Operations):
             # snapshot, and a receipt holding a whole copy, for a request that changed
             # nothing would let tiny repeated requests grow the shared database.
             raise _Unchanged(RecordRead.model_validate(record))
+        await quotas.enforce_record_size(ctx, table, merged)
         await virtual_table_repo.update_record(
             self.db,
             record=record,
@@ -581,6 +626,5 @@ class RecordOperations(Operations):
             revision=record.revision,
             operation="update",
             actor_user_id=ctx.subject_id,
-            before=before,
-            after=merged,
+            **_changed_cells(before, merged),
         )
