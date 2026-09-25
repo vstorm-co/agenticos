@@ -1,5 +1,5 @@
 ---
-source_sha: "8a07df7f3be0"
+source_sha: "e20e009e1686"
 ---
 
 # Konfiguration { #configuration }
@@ -660,6 +660,26 @@ andere sind die Daten eines Mandanten.
 genauso wie eine `gdrive`-Quelle einen Service-Account nennt. Endpunkt und Region
 fallen weiterhin auf diese Einstellungen zurück, weil keines von beiden einen
 Principal nennt — sie sagen, wo der Store liegt, nicht, wer fragt.
+
+## Veröffentlichte Artefakte { #published-artifacts }
+
+Seiten, die Agents mit der Capability `artifacts` veröffentlichen. Ihre Bytes
+liegen im Dateispeicher oben; diese Einstellungen begrenzen sie und sagen, von wo
+sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
+| `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+
+**`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
+Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
+`frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
+der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
+nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
+Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.
 
 ## Agent-Workspaces { #agent-workspaces }
 

@@ -77,7 +77,7 @@ type rather than as data access.
 | `core/security.py` | JWT / API key utilities |
 | `agents/` | AI agents and tools |
 | `rag/` | RAG module (embeddings, vector store, retrieval) |
-| `rag/connectors/` | Sync connectors (Google Drive, S3) |
+| `rag/connectors/` | Sync connectors (Google Drive, S3, websites) |
 | `commands/` | Django-style CLI commands |
 
 ## Layer responsibilities
@@ -698,7 +698,7 @@ bounds a read; the user is what narrows it further.**
   deleted, or given a `role: "assistant"` turn that everybody reads in `/chat`
   and the model is handed back as its own words. The level is stated to whoever
   grants it, so it is the level that is enforced (#931).
-- On `list_messages` that one argument does two jobs — it authorizes, *and* it
+- On `transcript` that one argument does two jobs — it authorizes, *and* it
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
   was plainly there in review, and it was doing the other job.
@@ -739,8 +739,8 @@ Four consequences worth knowing:
   thread — asks for nobody's stars and pays no query to say so, and a read that
   only *authorizes* turns it off explicitly with `include_favourite=False`. Those
   are the reads whose result is discarded or is not a conversation:
-  `GET /conversations/{id}/messages`, which resolves the thread twice through
-  `list_messages` and `conversation_cost`; the three workspace routes; every turn
+  `GET /conversations/{id}/messages`, which resolves the thread once, through
+  `transcript`, for both the page and its cost; the three workspace routes; every turn
   of an existing chat, through `agent._resolve_in_org`; and the writes —
   `add_message`, `delete_conversation`, and `set_favourite`, which overwrites the
   flag itself. On by default is what keeps a route that *does* serialize a
@@ -869,8 +869,9 @@ Documents can be ingested via:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (admin only, file upload)
-3. **Sync Sources** -- Configured connectors (Google Drive, S3) that pull documents
-   on a schedule or on-demand.
+3. **Sync Sources** -- Configured connectors (Google Drive, S3, websites) that pull
+   documents on a schedule or on-demand, and remove what their source no longer
+   holds.
 
 Each ingested document gets:
 - Parsed into text (parser chosen per collection, overridable per upload)

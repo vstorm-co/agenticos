@@ -415,6 +415,18 @@ class RetentionService:
             return removed
         if name == "workspaces":
             return await retention_repo.delete_workspaces(self.db, **scope)
+        if name == "artifacts":
+            # Bytes before rows, for the reason conversations give above - and one
+            # locked set for both, so a publish between them cannot split them.
+            expiring = await retention_repo.lock_expiring_artifacts(self.db, **scope)
+            if not expiring:
+                return 0
+            await self._unlink(
+                await retention_repo.stored_paths_for_artifacts(self.db, artifact_ids=expiring)
+            )
+            return await retention_repo.delete_artifacts(
+                self.db, organization_id=organization_id, artifact_ids=expiring
+            )
         if name == "memory":
             return await retention_repo.delete_memory(self.db, **scope)
         # `audit` resolves to a period and is reported, and an organization is

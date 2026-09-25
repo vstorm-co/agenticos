@@ -1,5 +1,5 @@
 ---
-source_sha: "8a07df7f3be0"
+source_sha: "e20e009e1686"
 ---
 
 # Konfiguracja { #configuration }
@@ -624,6 +624,25 @@ synchronizacji `s3` nazywa sekret `aws_credentials` w vaulcie swojej organizacji
 tak samo jak źródło `gdrive` nazywa konto serwisowe. Endpoint i region nadal cofają
 się do tych ustawień, bo żadne z nich nie nazywa principala — mówią, gdzie jest
 magazyn, a nie kto pyta.
+
+## Opublikowane artefakty { #published-artifacts }
+
+Strony, które agenci publikują za pomocą capability `artifacts`. Ich bajty leżą w
+opisanym wyżej magazynie plików; te zmienne je ograniczają i mówią, skąd są
+serwowane. Zobacz [Artefakty](artifacts.md).
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
+| `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+
+**`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
+podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
+Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
+je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
+załadowania strony z originu, na który konsola nie pozwoliła.
 
 ## Workspace'y agentów { #agent-workspaces }
 

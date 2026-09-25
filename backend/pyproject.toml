@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.492"
+version = "0.0.501"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -116,6 +116,9 @@ dependencies = [
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
+    # Renders a Markdown artifact into the page it is served as. Already here
+    # through `rich`; declared because `app/services/artifact.py` imports it.
+    "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.1",
     "pydantic-monty>=0.0.23",
@@ -608,6 +611,12 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -785,6 +794,12 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
     "app/repositories/memory.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
@@ -947,6 +962,12 @@ include = [
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -1157,6 +1178,12 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
     "app/repositories/memory.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",

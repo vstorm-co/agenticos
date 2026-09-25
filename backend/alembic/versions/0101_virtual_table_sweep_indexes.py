@@ -17,8 +17,8 @@ each table N times.
 
 Indexes only, no data change, so `downgrade()` drops them and loses nothing.
 
-Revision ID: 0093_virtual_table_sweep_indexes
-Revises: 0092_virtual_tables
+Revision ID: 0101_virtual_table_sweep_indexes
+Revises: 0100_virtual_tables
 Create Date: 2026-09-22
 """
 
@@ -28,8 +28,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0093_virtual_table_sweep_indexes"
-down_revision: str | Sequence[str] | None = "0092_virtual_tables"
+revision: str = "0101_virtual_table_sweep_indexes"
+down_revision: str | Sequence[str] | None = "0100_virtual_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -21,7 +21,7 @@ from enum import IntEnum
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
 class LockScope(IntEnum):
@@ -48,15 +48,20 @@ class LockScope(IntEnum):
     #: and the purge take this, so one waits for the other and the write that loses
     #: finds no account to write about (#1421).
     PERSONAL_DATA_PER_USER = 6
+    #: One sync source's run, from its listing to its last deletion. Two runs of
+    #: one source overlapping let the older listing delete what the newer run had
+    #: just ingested, because the older one never saw it (#987). Session-scoped,
+    #: unlike the rest: a sync spans many transactions.
+    SYNC_SOURCE_RUN = 7
     #: The live table names of one organization. A name is unique among live
     #: tables, and "is this name free" followed by an insert is two statements:
     #: without this two creates of one name both pass the check and the second
     #: dies on the unique index with a 500 instead of a 409 (#1782).
-    VIRTUAL_TABLE_NAMES_PER_ORG = 7
+    VIRTUAL_TABLE_NAMES_PER_ORG = 8
     #: The record count of one table. A quota reads "how many records" and then
     #: inserts, which two creates can do at once and both pass at limit - 1, so
     #: creates into one table take turns for the length of the check (#1823).
-    VIRTUAL_TABLE_RECORD_COUNT = 8
+    VIRTUAL_TABLE_RECORD_COUNT = 9
 
 
 def _key(subject: UUID) -> int:
@@ -85,6 +90,32 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     await db.execute(
         select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
     )
+
+
+async def try_hold_subject_on_connection(
+    connection: AsyncConnection, scope: LockScope, subject: UUID
+) -> bool:
+    """Take a lock for one subject that outlives the transaction, if it is free.
+
+    The one Postgres *session*-scoped lock here, for work that spans many
+    transactions on other sessions - a sync source's run. It is held until this
+    connection closes, which is also what releases it when a worker dies mid-run:
+    there is no unlock to forget. A connection rather than an `AsyncSession`,
+    because a session gives its connection back when it commits and the lock goes
+    with it (`get_worker_connection`). The transaction the check opened is
+    committed here, so the connection does not sit idle in a transaction for the
+    length of the work.
+
+    Never waits. True means this connection holds it; False means another one
+    does - or a subject whose key collides with it, which refuses one run of an
+    unrelated subject rather than serializing it.
+    """
+    result = await connection.execute(
+        select(func.pg_try_advisory_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+    held = bool(result.scalar_one())
+    await connection.commit()
+    return held
 
 
 async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:

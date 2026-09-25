@@ -269,6 +269,7 @@ nav:
       - Put it in front of people:
           - environments.md
           - channels.md
+          - artifacts.md
           - desktop.md
           - rollout.md
           - deployment.md

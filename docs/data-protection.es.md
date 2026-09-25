@@ -1,5 +1,5 @@
 ---
-source_sha: "cbccbe8fb04d"
+source_sha: "fffc42b4196a"
 ---
 
 # Protección de datos { #data-protection }
@@ -82,6 +82,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `chat_files` | Adjuntos de un mensaje | Nombre de archivo, tipo, tamaño, el texto extraído (`parsed_content`) y la ruta de los bytes en disco | Responder sobre un archivo |
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
 | `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Las filas de una [Virtual Table](virtual-tables.md) y el rastro de cada cambio en ellas | Lo que la organización puso en sus celdas, que puede ser dato personal. Los valores actuales (records); el registro completo en un create y un delete, y solo las celdas que cambiaron en un update (history); el registro completo tal como lo devolvió una escritura con clave (receipts); los ids y el external id de cada registro creado (outbox, sin valores). Borrar un registro elimina solo la fila actual: history y receipts conservan los valores hasta que el barrido diario de retención los elimina: los receipts a las 24 horas, las filas de outbox despachadas a los 3 días y el history a los 365 días, todo como ajustes del deployment. Borrar una cuenta elimina sus receipts y la borra como actor en history; borrar la organización elimina las cuatro | Registros tipados para agents y workflows, reintentos seguros de una escritura y el traspaso de un registro creado |
+| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |
 | `rag_documents`, `knowledge_bases` y una tabla vectorial por colección | Documentos subidos y sincronizados, sus chunks y sus embeddings | El texto del documento y sus vectores, la ruta original del archivo en el origen | Recuperación |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota | Budgets, aprobaciones, historial de runs |
