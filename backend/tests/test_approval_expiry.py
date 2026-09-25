@@ -81,10 +81,12 @@ class _Sweep:
         *,
         run: MagicMock | None = None,
         for_run: list[MagicMock] | None = None,
+        workflow_node_waiting: bool = False,
     ) -> None:
         self.stale = stale
         self.run = run
         self.for_run = for_run if for_run is not None else stale
+        self.workflow_node_waiting = workflow_node_waiting
 
     async def __aenter__(self) -> _Sweep:
         self._patches = {
@@ -98,6 +100,13 @@ class _Sweep:
         self._ctx.start()
         self._audit = patch("app.services.approvals.record_audit", new=AsyncMock())
         self.audit = self._audit.start()
+        self._waiting = patch(
+            "app.services.approvals.workflow_run_repo.find_node_run_waiting_on_agent_run",
+            new=AsyncMock(return_value=MagicMock() if self.workflow_node_waiting else None),
+        )
+        self._waiting.start()
+        self._spawn = patch("app.services.approvals.spawn_after_commit")
+        self.spawned = self._spawn.start()
         # The transcript write is the service's own, so it is stubbed at the same
         # boundary as the repository rather than left to fail into `record`'s
         # own exception handler - which is what "passing" would have meant.
@@ -107,6 +116,10 @@ class _Sweep:
         return self
 
     async def __aexit__(self, *exc_info: object) -> bool:
+        for call in self.spawned.call_args_list:
+            call.args[1].close()
+        self._spawn.stop()
+        self._waiting.stop()
         self._transcript.stop()
         self._audit.stop()
         self._ctx.stop()
@@ -194,6 +207,22 @@ class TestTheRunBehindIt:
         assert ended["run"] is run
         assert ended["status"] == RunStatus.CANCELLED.value
         assert str(settings.APPROVAL_EXPIRY_HOURS) in ended["error"]
+
+    async def test_a_workflow_node_waiting_on_the_ended_run_is_woken(self):
+        """The node must see the run ended and fail, not wait on it for ever."""
+        async with _Sweep([_approval()], run=_parked_run(), workflow_node_waiting=True) as sweep:
+            pass
+
+        sweep.spawned.assert_called_once()
+        assert sweep.spawned.call_args.kwargs["name"] == "workflow-approval-wake"
+
+    async def test_an_ended_run_no_workflow_waits_on_spawns_nothing(self):
+        """A backlog sweep ends hundreds of runs; a wake - and the connection it
+        opens - is only for those a workflow node is parked on."""
+        async with _Sweep([_approval()], run=_parked_run()) as sweep:
+            pass
+
+        sweep.spawned.assert_not_called()
 
     async def test_the_ended_run_cannot_be_resumed(self):
         """`paused_state` is what a resume replays from. Left behind, a run

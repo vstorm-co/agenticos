@@ -37,7 +37,7 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import virtual_tables
-from app.api.routes.v1 import workflows
+from app.api.routes.v1 import workflow_runs, workflows
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
@@ -91,6 +91,7 @@ v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
+v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
 v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
 v1_router.include_router(
     artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]

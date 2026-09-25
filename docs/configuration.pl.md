@@ -1,5 +1,5 @@
 ---
-source_sha: "b88ea462937c"
+source_sha: "3965aa80057f"
 ---
 
 # Konfiguracja { #configuration }
@@ -429,6 +429,23 @@ nie musi być dokładny — żywy run, który zamiatanie mimo to przestawi, zost
 przestawiony z powrotem przez własny zapis końcowy — więc ustaw go daleko za swoim
 najdłuższym uprawnionym runem i nie bliżej. Zobacz
 [Governance](governance.md#a-run-whose-process-died).
+
+### Runy workflowów { #workflow-runs }
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
+| `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie |
+
+Run workflowu przechodzi przez trzy deploymenty Prefecta. `workflow-dispatch-node`
+wykonuje jedną próbę jednego węzła i jest zlecany na żądanie;
+`workflow-dispatch-poll` działa co 10 sekund i zleca każdy gotowy węzeł, który
+nie został zlecony w ciągu ostatniego czasu claimu; `workflow-reconcile` działa
+co 30 sekund i odzyskuje claimy i próby pozostawione przez martwego workera.
+Nawet bez żadnej pracy oba harmonogramy tworzą około 11 500 flow runów dziennie,
+więc dobierz do tego bazę danych serwera Prefect i retencję flow runów.
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 

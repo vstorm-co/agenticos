@@ -422,6 +422,23 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
+### Workflow runs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
+| `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to |
+
+A workflow run moves through three Prefect deployments. `workflow-dispatch-node`
+runs one node's attempt and is submitted on demand; `workflow-dispatch-poll`
+runs every 10 seconds and submits any node that is due and was not submitted
+within the last lease; `workflow-reconcile` runs every 30 seconds and recovers
+claims and attempts a dead worker left behind. Even idle, the two schedules
+create about 11,500 flow runs a day, so size the Prefect server's database and
+its flow-run retention for that.
+
 ## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own

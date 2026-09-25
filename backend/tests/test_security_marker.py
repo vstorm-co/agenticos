@@ -123,6 +123,22 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
     "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestTheLockedReRead::test_a_node_dispatched_by_the_other_wake_meanwhile_gets_no_row": "'approval' names the module; a wake skipping a node that moved on under the lock is sequencing, not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestTheLockedReRead::test_a_node_now_waiting_on_another_agent_run_gets_no_row": "'approval' names the module; a wake skipping a node that moved on under the lock is sequencing, not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestTheLockedReRead::test_a_run_that_ended_meanwhile_gets_no_row": "'approval' names the module; a wake skipping a node that moved on under the lock is sequencing, not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_no_node_run_waiting_on_this_agent_run_is_a_no_op": "the ordinary case - a decision unrelated to any workflow - is a no-op, not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_a_node_run_no_longer_waiting_is_left_alone": "a node run already moved on is left alone, idempotence, no refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_a_run_that_no_longer_exists_is_a_no_op": "a vanished run makes the wake a no-op, defensive handling, no refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_a_waiting_node_run_gets_a_fresh_outbox_row": "the happy path - a decided approval wakes its parked node - not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_a_race_with_the_reconciler_backstop_is_swallowed": "a duplicate-dispatch race is swallowed via the unique index, concurrency correctness, no refusal",
+    "tests/test_workflow_execution_budget.py::TestAccumulate::test_adds_cost_onto_the_running_total": "cost summation, accounting, no refusal",
+    "tests/test_workflow_execution_budget.py::TestAccumulate::test_a_partial_cost_flags_the_run": "cost summation, accounting, no refusal",
+    "tests/test_workflow_execution_budget.py::TestAccumulate::test_an_exact_cost_never_unflags_an_already_partial_run": "cost summation, accounting, no refusal",
+    "tests/test_workflow_execution_facade.py::TestStart::test_a_real_run_reads_the_published_versions_graph_and_budget": "the happy path - a version's pinned budget cap is copied onto the new run - not a refusal",
+    "tests/integration/test_workflow_run_dispatch.py::TestWaits::test_an_expired_approval_wakes_its_node_and_the_node_fails": "an expired approval ends the parked workflow node instead of stranding it, recovery, not a refusal",
+    "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_finds_a_node_run_whose_blocking_approval_was_decided": "the happy path - the backstop finds a decided approval to redispatch - not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_another_pending_approval_on_the_same_run_defers_the_outbox_insert": "'approval' names a parked agent run's decisions; waiting for the last one is sequencing, not a refusal",
+    "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_the_decision_that_clears_the_last_pending_approval_enqueues_it": "'approval' names a parked agent run's decisions; the last decision enqueues the wake, the accepted path",
 }
 
 

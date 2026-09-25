@@ -8,7 +8,7 @@ fact rather than a convention every caller has to remember.
 
 from uuid import UUID
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import ColumnElement, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
@@ -43,6 +43,20 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+def visible_to(*, user_id: UUID, shared_ids: list[UUID]) -> ColumnElement[bool]:
+    """The workflows a caller whose role does not reach them all may see.
+
+    Their own, the organization-visible ones, and those shared with them - the
+    one definition `list_visible` and the run listing both filter by, so the
+    two cannot disagree about which workflows a caller can see.
+    """
+    return or_(
+        Workflow.owner_user_id == user_id,
+        Workflow.visibility == Visibility.ORG.value,
+        Workflow.id.in_(shared_ids) if shared_ids else false(),
+    )
+
+
 async def list_visible(
     db: AsyncSession,
     *,
@@ -62,13 +76,7 @@ async def list_visible(
     """
     where = [Workflow.organization_id == organization_id]
     if not see_all:
-        where.append(
-            or_(
-                Workflow.owner_user_id == user_id,
-                Workflow.visibility == Visibility.ORG.value,
-                Workflow.id.in_(shared_ids) if shared_ids else false(),
-            )
-        )
+        where.append(visible_to(user_id=user_id, shared_ids=shared_ids))
     total = await db.scalar(select(func.count()).select_from(Workflow).where(*where)) or 0
     result = await db.execute(
         select(Workflow)

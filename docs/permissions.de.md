@@ -1,5 +1,5 @@
 ---
-source_sha: "581fad10a861"
+source_sha: "96f9c0b209a5"
 ---
 
 # Berechtigungen { #permissions }
@@ -373,6 +373,33 @@ with me" eines Builders zu "die ganze Organisation minus meins" verkommen. Für
 die kb schließt er außerdem persönliche Zeilen aus (die des Aufrufers von
 Hause aus) und Zeilen mit App-Scope (die des Deployments - nie *mit* jemandem
 geteilt).
+
+### Workflow-Runs { #workflow-runs }
+
+Ein Run hat keine eigene Sichtbarkeit: Er erbt die seines Workflows. Einen zu
+starten verlangt `workflows:run` auf dem Workflow, ein `test`-Run des
+unveröffentlichten Entwurfs zusätzlich `workflows:edit`. Einen Run und seine
+Ereignisse zu lesen verlangt `workflows:view`, und die ungefilterte Liste zeigt
+Runs der Workflows, die der Aufrufer sieht - seine eigenen, die für die
+Organisation sichtbaren und die mit ihm geteilten. Ein Run, den der Aufrufer
+nicht sieht, antwortet genau wie ein Run, den es nicht gibt.
+
+**Abbrechen ist enger gefasst als Starten.** Wer einen Run gestartet hat, darf
+ihn abbrechen, solange er den Workflow noch ausführen darf, und wer den Workflow
+bearbeiten darf, darf jeden seiner Runs abbrechen. Ein Member, der einen für die
+Organisation sichtbaren Workflow ausführen darf, stoppt seine eigenen Runs,
+nicht die eines Kollegen; wer den Run sieht, aber keines der beiden Rechte hat,
+wird mit `403` abgewiesen.
+
+**Ein Run handelt im Namen der Person, die ihn gestartet hat, und die wird bei
+jedem Knoten erneut geprüft.** Ein Knoten kann Tage nach dem Start des Runs
+ausgeführt werden, deshalb verlangt jede Ausführung, dass das Konto noch aktiv
+ist, noch Mitglied der Organisation ist - auch ein App-Admin, wie bei jeder
+Anfrage - und noch `workflows:run` auf dem Workflow hat, bei einem `test`-Run
+zusätzlich `workflows:edit`. Hat sich daran etwas geändert, schlägt der Run mit
+`PRINCIPAL_REVOKED` fehl, bevor der Handler des Knotens läuft. Ein Run braucht
+eine Person, in deren Namen er handelt, also kann ein Kontext ohne Subjekt keinen
+starten.
 
 ## Wo die Tore sitzen { #where-the-gates-go }
 
