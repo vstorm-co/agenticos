@@ -1,5 +1,5 @@
 ---
-source_sha: "188ac5bf76a9"
+source_sha: "90d62e9ab4aa"
 title: "Zbuduj pierwszego agenta z dokumentem"
 description: "Zbuduj asystenta odpowiadającego na pytania o zasady zgłaszania sprzętu. Syntetyczny przykład zawiera fakt do sprawdzenia i celową lukę. To instrukcja wykonania, nie raport z pomiaru wdrożenia."
 ---
@@ -23,7 +23,7 @@ To fikcyjne zasady. Nie określają limitu wydatków.
 
 ## Zbuduj i opublikuj { #build-and-publish }
 
-1. Utwórz kolekcję w **Knowledge → Collections** i wgraj plik. Poczekaj na przetworzenie i sprawdź status dokumentu.
+1. W **Knowledge → Collections** otwórz formularz tworzenia i rozwiń **Embeddings**. Wybierz zgodnego dostawcę/model embeddingów oraz jego klucz z sejfu lub lokalny endpoint. Utwórz kolekcję i wgraj plik. Sam model czatu nie wystarczy. Poczekaj na przetworzenie i sprawdź status dokumentu.
 2. Utwórz agenta w **Agents → New agent** i wybierz profil modelu.
 3. W **Toolbox** włącz knowledge, przypisz tylko testową kolekcję i wpisz instrukcje poniżej.
 4. Ustaw budget i limit kroków odpowiednie do próby, następnie **Publish** testowanej wersji.
@@ -45,7 +45,7 @@ Do not invent policies or submit equipment requests.
 
 Użyj nowej rozmowy testowej. Sprawdź odpowiedź i pobrany materiał w [Activity](../governance.md). Zachowaj także błędne i niepełne odpowiedzi. Przy pustym wyszukiwaniu sprawdź powiązanie kolekcji, uprawnienia i przetwarzanie, zanim zmienisz prompt.
 
-Zmień właściciela na facilities team, zastąp źródło przez [obsługę kolekcji](../file-processing.md), poczekaj na przetworzenie i powtórz w nowej rozmowie. Sprawdź, czy stare źródło nie jest nadal pobierane.
+Zmień właściciela w pliku testowym na facilities team. Na [liście dokumentów kolekcji](../file-processing.md) usuń poprzedni dokument testowy i poczekaj na zakończenie usuwania, zanim wgrasz poprawiony plik. Samo ponowne wgranie tej samej nazwy pliku nie zastępuje starych wektorów. Poczekaj na przetworzenie i powtórz w nowej rozmowie. Sprawdź, czy stare źródło nie jest nadal pobierane.
 
 ## Udostępnij kolejny krok { #share-the-next-step }
 

@@ -22,7 +22,7 @@ These are invented policy facts. No spending allowance is stated.
 
 ## Build and publish
 
-1. Create a collection in **Knowledge → Collections** and upload the file. Wait for processing and check the document status.
+1. In **Knowledge → Collections**, open the create dialog and expand **Embeddings**. Select a compatible embedding provider/model and its vault credential or local endpoint, then create the collection and upload the file. A chat model alone is insufficient. Wait for processing and check the document status.
 2. Create an agent in **Agents → New agent** and select your model profile.
 3. In **Toolbox**, enable knowledge and bind only the test collection. Set the instructions below.
 4. Set a budget and step limit appropriate to the trial, then **Publish** the version you will test.
@@ -44,7 +44,7 @@ Do not invent policies or submit equipment requests.
 
 Ask in a fresh test conversation. Inspect the answer and the retrieved material in [Activity](../governance.md). Keep incorrect or incomplete answers as well as successful ones. If retrieval is empty, check collection binding, permissions and processing before changing the prompt.
 
-Change the owner to the facilities team, replace the test source through the [collection workflow](../file-processing.md), wait for processing and repeat in a fresh conversation. Check that obsolete material is not still being retrieved.
+Change the owner to the facilities team in the test file. In the [collection document list](../file-processing.md), delete the original test document and wait for deletion to finish before uploading the edited file. Uploading the same filename alone does not replace the old vectors. Wait for processing and repeat in a fresh conversation. Check that obsolete material is not still being retrieved.
 
 ## Share the next step
 
