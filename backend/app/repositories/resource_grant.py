@@ -2,9 +2,10 @@
 
 from uuid import UUID
 
-from sqlalchemy import Delete, delete, func, select
+from sqlalchemy import ColumnElement, Delete, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.group import Group, GroupMember
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, ResourceGrant
 
 
@@ -22,6 +23,27 @@ async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
     return result.rowcount  # ty: ignore[unresolved-attribute]
 
 
+def _reaches_member(organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
+    """A grant made to this person, or to a group of this organization they are in.
+
+    The group half is a subquery rather than a list of ids read beforehand, so a
+    membership removed in the same transaction is gone from the very next check
+    and nothing about a group's size decides how large the statement is. It is
+    scoped to `organization_id` on the group as well as on the grant: a grant row
+    names a group, and a group from another tenant must reach nobody here even if
+    a row somehow pointed at one.
+    """
+    groups_of_member = (
+        select(GroupMember.group_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .where(GroupMember.user_id == subject_user_id, Group.organization_id == organization_id)
+    )
+    return or_(
+        ResourceGrant.subject_user_id == subject_user_id,
+        ResourceGrant.subject_group_id.in_(groups_of_member),
+    )
+
+
 async def get_level(
     db: AsyncSession,
     *,
@@ -30,17 +52,23 @@ async def get_level(
     resource_type: str,
     resource_id: UUID,
 ) -> GrantLevel | None:
-    """Return the level this member was granted on one resource, if any."""
+    """The best level this member holds on one resource, directly or through a group.
+
+    A person can reach a row by several grants at once - their own, and one per
+    group it was shared with - and the answer is the highest of them, for the
+    same reason effective access is `max(role scope, grant)`: sharing more never
+    means reaching less.
+    """
     result = await db.execute(
         select(ResourceGrant.level).where(
             ResourceGrant.organization_id == organization_id,
-            ResourceGrant.subject_user_id == subject_user_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.resource_id == resource_id,
+            _reaches_member(organization_id, subject_user_id),
         )
     )
-    level = result.scalar_one_or_none()
-    return GrantLevel(level) if level is not None else None
+    levels = [GrantLevel(level) for level in result.scalars().all()]
+    return max(levels, key=GRANT_ORDER.__getitem__) if levels else None
 
 
 async def list_shared_ids(
@@ -54,17 +82,21 @@ async def list_shared_ids(
     """Ids of one resource type shared with this member at `minimum_level` or above.
 
     Used to widen a listing query: a member sees their own rows plus these.
+    Grants made to a group the member is in count exactly as their own do, and a
+    row reached twice is listed once.
     """
     allowed = [
         level.value for level, rank in GRANT_ORDER.items() if rank >= GRANT_ORDER[minimum_level]
     ]
     result = await db.execute(
-        select(ResourceGrant.resource_id).where(
+        select(ResourceGrant.resource_id)
+        .where(
             ResourceGrant.organization_id == organization_id,
-            ResourceGrant.subject_user_id == subject_user_id,
             ResourceGrant.resource_type == resource_type,
             ResourceGrant.level.in_(allowed),
+            _reaches_member(organization_id, subject_user_id),
         )
+        .distinct()
     )
     return list(result.scalars().all())
 
@@ -147,6 +179,64 @@ async def revoke(
     return bool(removed)
 
 
+async def upsert_for_group(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    subject_group_id: UUID,
+    resource_type: str,
+    resource_id: UUID,
+    level: GrantLevel,
+    created_by_user_id: UUID | None = None,
+) -> ResourceGrant:
+    """Share a resource with a group, replacing any existing level."""
+    result = await db.execute(
+        select(ResourceGrant).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.subject_group_id == subject_group_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.resource_id == resource_id,
+        )
+    )
+    grant = result.scalar_one_or_none()
+    if grant is None:
+        grant = ResourceGrant(
+            organization_id=organization_id,
+            subject_group_id=subject_group_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            level=level.value,
+            created_by_user_id=created_by_user_id,
+        )
+        db.add(grant)
+    else:
+        grant.level = level.value
+    await db.flush()
+    await db.refresh(grant)
+    return grant
+
+
+async def revoke_for_group(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    subject_group_id: UUID,
+    resource_type: str,
+    resource_id: UUID,
+) -> bool:
+    """Stop sharing with a group. Returns True if a share existed."""
+    removed = await _delete_rows(
+        db,
+        delete(ResourceGrant).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.subject_group_id == subject_group_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.resource_id == resource_id,
+        ),
+    )
+    return bool(removed)
+
+
 async def delete_for_resource(
     db: AsyncSession,
     *,
@@ -176,7 +266,7 @@ async def count_for_resources(
     resource_type: str,
     resource_ids: list[UUID],
 ) -> dict[UUID, int]:
-    """How many people each resource is explicitly shared with.
+    """How many people and groups each resource is explicitly shared with.
 
     One grouped query for a whole page rather than one per row: a listing that
     wants to say "shared with 3" for twenty secrets would otherwise issue twenty

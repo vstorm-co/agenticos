@@ -171,6 +171,7 @@ for its staff - without this, its MFA and its offboarding are solved twice.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
 | `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
 | `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
+| `OIDC_GROUPS_CLAIM` | (empty) | The claim listing a person's groups, usually `groups`. Set, each sign-in applies the [directory group mappings](directory.md#directory-group-mappings); empty leaves memberships alone. Refused together with `LDAP_URL` |
 
 The issuer is the only URL. Authorization, token, userinfo and JWKS come from
 `<issuer>/.well-known/openid-configuration`, which the provider keeps correct
@@ -187,7 +188,7 @@ Two buttons on the frontend, configured there:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only |
+| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
 | `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
 
@@ -221,12 +222,61 @@ The sign-up policy applies here exactly as it applies to the registration form:
 an `invite_only` deployment refuses an SSO sign-in from somebody nobody invited,
 and an allowed-domains list refuses an address outside it, with the same
 sentence on the sign-in page. See
-[Who may register](deployment.md#who-may-register). Mapping a provider's groups
-to roles inside an organization is not part of this; people sign in, and an
-administrator places them.
+[Who may register](deployment.md#who-may-register).
+
+With `OIDC_GROUPS_CLAIM` set, the provider's groups decide memberships: each
+organization's [directory group mappings](directory.md#directory-group-mappings)
+join people with a role and place them in groups, and a mapped group admits a
+first sign-in on an `invite_only` deployment the way an invitation does. An Entra
+ID group overage is refused rather than read as "no groups" - see
+[The groups claim over OIDC](directory.md#the-groups-claim-over-oidc).
 
 SAML and SCIM are not implemented. Most identity providers a mid-size company
-runs speak OIDC, and these settings are the whole of what they need.
+runs speak OIDC, and these settings are the whole of what they need. A directory
+with no identity provider in front of it can be used directly - see below.
+
+### Directory sign-in (LDAP)
+
+Signing in with an Active Directory, OpenLDAP or FreeIPA account, by binding as
+it. [Directory sign-in and groups](directory.md) explains the sign-in, what it
+refuses and how groups are read. Empty `LDAP_URL` switches it off, and the route
+answers 404.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LDAP_URL` | (empty) | `ldaps://host[:port]`, or `ldap://` with StartTLS |
+| `LDAP_START_TLS` | `false` | Upgrade an `ldap://` connection before binding |
+| `LDAP_ALLOW_PLAINTEXT` | `false` | Accept `ldap://` without StartTLS, which sends passwords in the clear. Refused at startup otherwise |
+| `LDAP_CA_CERT_FILE` | (empty) | A PEM bundle to verify the directory's certificate against, for a company CA |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | (empty) | The service account a sign-in searches with. Both or neither; neither searches anonymously |
+| `LDAP_USER_BASE_DN` | (empty) | Where accounts are searched. Required with `LDAP_URL` |
+| `LDAP_USER_FILTER` | matches `uid`, `sAMAccountName`, `userPrincipalName` or `mail` | Must contain `{username}`, which is escaped before it is put in |
+| `LDAP_EMAIL_ATTRIBUTE` | `mail` | The account's address |
+| `LDAP_NAME_ATTRIBUTE` | `displayName` | The account's display name |
+| `LDAP_ID_ATTRIBUTE` | `entryUUID` | The stable identifier the account is keyed on - `objectGUID` on Active Directory |
+| `LDAP_GROUP_ATTRIBUTE` | `memberOf` | Where the account's groups are read from |
+| `LDAP_GROUP_BASE_DN` | (empty) | Search here for groups instead, for a directory without `memberOf` |
+| `LDAP_GROUP_FILTER` | `(member={dn})` | The group search, with `{dn}` or `{username}` |
+| `LDAP_TIMEOUT_SECONDS` | `10` | Connect and read timeout for each directory request |
+
+The frontend shows the form with `ldap` in `OAUTH_PROVIDERS`, and names it with
+`LDAP_DISPLAY_NAME` (default `LDAP`).
+
+### Kerberos sign-in
+
+Integrated Windows sign-in through SPNEGO, resolving the ticket's principal
+through the directory above - so it needs `LDAP_URL`, and an image built with the
+`kerberos` extra. See [Integrated Windows sign-in](directory.md#integrated-windows-sign-in-kerberos).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KERBEROS_ENABLED` | `false` | Offer Kerberos sign-in. Refused at startup without `LDAP_URL` |
+| `KERBEROS_KEYTAB` | (empty) | The keytab holding the service's key. Empty uses the default keytab (`KRB5_KTNAME`, else `/etc/krb5.keytab`) |
+| `KERBEROS_SERVICE_PRINCIPAL` | (empty) | `HTTP/<api host>@<REALM>`. Empty accepts a ticket for any principal in the keytab |
+| `LDAP_KERBEROS_FILTER` | `(userPrincipalName={principal})` | How the principal is found in the directory: `{principal}` is `user@REALM`, `{username}` the part before `@` |
+
+The frontend shows the button with `kerberos` in `OAUTH_PROVIDERS`, and names it
+with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 
 ## Database (PostgreSQL)
 

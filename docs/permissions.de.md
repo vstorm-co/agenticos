@@ -1,5 +1,5 @@
 ---
-source_sha: "581fad10a861"
+source_sha: "bdfd08e4a820"
 ---
 
 # Berechtigungen { #permissions }
@@ -255,7 +255,8 @@ Berechtigungen neu kombinieren; Kunden können keine neuen erfinden.
 
 Jede teilbare Ressource trägt eine `owner_user_id` und eine `visibility`
 (`private` | `team` | `org`). Darüber hinaus hält `resource_grants` eine Zeile je
-Teilung: eine Ressource, eine Person, eine Stufe.
+Teilung: eine Ressource, eine Person oder eine [Gruppe](directory.md#groups), eine
+Stufe.
 
 **Ein neuer Agent ist `org`, sofern seine Autorin nichts anderes sagt** — und der
 Dialog, der ihn anlegt, fragt danach. Ein Agent ist etwas, das ein Unternehmen
@@ -272,6 +273,14 @@ ihn sieht, nicht was er tut.
 | `use` | sie außerdem auszuführen oder anzuhängen |
 | `edit` | sie außerdem zu ändern |
 
+Ein Grant an eine Gruppe erreicht, wer in dem Moment in der Gruppe ist, in dem der
+Zugriff geprüft wird: Der Gruppe beizutreten heißt also, den Zugriff zu gewinnen,
+und sie zu verlassen, ihn zu verlieren. Eine Person, die mehrere Grants auf einer
+Zeile hält - ihren eigenen und die ihrer Gruppen -, bekommt den höchsten davon.
+Die Datenbank hält einen Grant an genau ein Subjekt, eine Person oder eine
+Gruppe, und eine Gruppe aus einer anderen Organisation erreicht hier niemanden,
+selbst wenn eine Zeile eine benennen würde.
+
 Die Tabelle ist bewusst generisch - `resource_type` + `resource_id`, ohne
 Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien,
 [Tabellen](virtual-tables.md), Workflows und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
@@ -285,6 +294,9 @@ Eine Formel, in `app/services/access.py`:
 ```
 effective access to one row = max(role scope, grant on that row)
 ```
+
+„Grant on that row“ ist der beste aus dem eigenen Grant der Person und den Grants
+an die Gruppen, in denen sie ist.
 
 !!! danger "Ein Grant erweitert, was eine Rolle erlaubt; er verengt es nie"
 
