@@ -7,8 +7,8 @@ pair stops before listing anything, which for a repository is one `ls-remote`
 instead of a clone. Nullable and no backfill: a source with no state lists,
 which is what every source did before this.
 
-Revision ID: 0096_sync_source_state
-Revises: 0095_sync_removal
+Revision ID: 0097_sync_source_state
+Revises: 0096_sync_removal
 Create Date: 2026-09-25
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0096_sync_source_state"
-down_revision: str | Sequence[str] | None = "0095_sync_removal"
+revision: str = "0097_sync_source_state"
+down_revision: str | Sequence[str] | None = "0096_sync_removal"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

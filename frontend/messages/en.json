@@ -1182,7 +1182,11 @@
       "writingPlan": "Writing the plan",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}",
       "workingThroughPage": "Working through a page",
-      "browsePage": "Work Through a Page"
+      "browsePage": "Work Through a Page",
+      "publishingArtifact": "Publishing a page",
+      "publishArtifact": "Published page",
+      "artifactVersion": "Version {version} · open the page",
+      "artifactUnchanged": "Unchanged, still version {version} · open the page"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1846,6 +1850,14 @@
         "empty": {
           "title": "Nothing here yet",
           "description": "Notifications will show up here."
+        }
+      },
+      "artifacts": {
+        "title": "Artifacts",
+        "description": "The pages your agents published most recently.",
+        "empty": {
+          "title": "Nothing published yet",
+          "description": "Reports and dashboards an agent publishes appear here."
         }
       }
     },
@@ -2745,7 +2757,8 @@
     "deploymentSettings": "Deployment",
     "routines": "Routines",
     "collapseSidebar": "Collapse the sidebar",
-    "expandSidebar": "Expand the sidebar"
+    "expandSidebar": "Expand the sidebar",
+    "artifacts": "Artifacts"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3241,6 +3254,10 @@
       "knowledge-local-services": {
         "title": "Local services",
         "body": "Servers on your own network: register an Ollama to embed with no key, or an OCR server for LiteParse, and pick one per collection - so a knowledge base can stay entirely on your hardware."
+      },
+      "artifacts-list": {
+        "title": "Published pages",
+        "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
       }
     }
   },
@@ -3295,7 +3312,8 @@
         "workspaces": "Agent workspaces",
         "memory": "Agent memory",
         "knowledge_documents": "Uploaded documents",
-        "audit": "Audit trail"
+        "audit": "Audit trail",
+        "artifacts": "Published artifacts and their versions"
       }
     },
     "memory": {
@@ -5330,5 +5348,41 @@
     },
     "clearAll": "Clear all",
     "dismissRow": "Dismiss"
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "description": "Pages your agents published - reports, small dashboards, summaries. Each one keeps its link when the agent publishes it again, and its earlier versions stay readable.",
+    "cannotSee": "You cannot see this organization's artifacts",
+    "askForAccess": "Ask an administrator for access to artifacts.",
+    "count": "{count, plural, =1 {1 artifact} other {# artifacts}}",
+    "search": "Search artifacts…",
+    "noMatches": "No artifact matches",
+    "noMatchesWhy": "Titles and names are searched.",
+    "noneYet": "Nothing published yet",
+    "noneYetWhy": "An agent with the Artifacts capability publishes a page here when you ask it for a report or a dashboard. It is private to you until you share it.",
+    "sharedOrg": "Whole organization",
+    "publicBadge": "Public link",
+    "publishedVersion": "Version {version} · {when}",
+    "versionUnavailable": "This version is not available",
+    "versionUnavailableWhy": "It was replaced by newer versions and is no longer kept, or your access changed a moment ago. Pick the latest version above.",
+    "unavailable": "This artifact is not available",
+    "unavailableWhy": "It was deleted, or you no longer have access to it.",
+    "couldNotLoad": "This artifact could not be loaded",
+    "publishedAs": "Published as {name}",
+    "deleteTitle": "Delete {title}?",
+    "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
+    "deleted": "Artifact deleted",
+    "publicLink": "Public link",
+    "publicLinkOn": "Anyone with this link can open the latest version, without an account.",
+    "publicLinkNone": "Only people this artifact is shared with can open it.",
+    "createPublicLink": "Create a public link",
+    "rotatePublicLink": "Replace the link",
+    "disablePublicLink": "Turn off",
+    "publicLinkReady": "Public link ready",
+    "publicLinkOff": "Public link turned off",
+    "version": "Version",
+    "latestVersion": "Latest version",
+    "versionOption": "Version {version} · {when}",
+    "publicUpdated": "Updated {when}"
   }
 }

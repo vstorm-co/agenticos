@@ -1,5 +1,5 @@
 ---
-source_sha: "7ac1e8fbe2ca"
+source_sha: "84726d7b05f8"
 ---
 
 # Protección de datos { #data-protection }
@@ -81,6 +81,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `conversations`, `messages`, `tool_calls` | Todos los chats en todas las superficies | El texto que la gente escribió, las respuestas y el razonamiento del modelo, argumentos y resultados de herramientas, un resumen continuo de los hilos largos | La función central del producto; el historial al que vuelve la persona |
 | `chat_files` | Adjuntos de un mensaje | Nombre de archivo, tipo, tamaño, el texto extraído (`parsed_content`) y la ruta de los bytes en disco | Responder sobre un archivo |
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
+| `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |
 | `rag_documents`, `knowledge_bases` y una tabla vectorial por colección | Documentos subidos y sincronizados, sus chunks y sus embeddings | El texto del documento y sus vectores, la ruta original del archivo en el origen | Recuperación |
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota | Budgets, aprobaciones, historial de runs |

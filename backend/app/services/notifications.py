@@ -66,7 +66,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.spend import organization_spend_since
 
 # Who answers for the organization. Owners and admins because they answer for
@@ -161,13 +161,13 @@ class NotificationService:
 
         organization = await organization_repo.get_by_id(self.db, run.organization_id)
         organization_name = organization.name if organization else "your organization"
-        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
             "agent_name": agent.name,
             "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
-            "run_url": run_url,
+            "run_url": absolute_context_url(run_path),
             "app_name": settings.PROJECT_NAME,
         }
         await self._center.write(
@@ -175,7 +175,7 @@ class NotificationService:
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=str(run.id),
             summary=f"{agent.name} stopped: {reason}",
-            context_url=run_url,
+            context_url=run_path,
             render_context=render_context,
             organization_id=run.organization_id,
             # `finish` cannot afford a write failure here to poison the
@@ -221,12 +221,12 @@ class NotificationService:
         # Not `&run=`: the Approve and Reject controls are on the queue row,
         # and below `lg` a focused run replaces the list - which would hide
         # them from the reader most likely to be on a phone.
-        approvals_url = self._link("/runs?tab=approvals", run.organization_id)
+        approvals_path = self._link("/runs?tab=approvals", run.organization_id)
         tools = [approval.tool_id for approval in approvals]
         render_context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",
-            "approvals_url": approvals_url,
+            "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
         await self._center.write(
@@ -247,7 +247,7 @@ class NotificationService:
                 ":".join(sorted(str(approval.id) for approval in approvals)).encode()
             ).hexdigest(),
             summary=f"{agent.name} is waiting on your approval",
-            context_url=approvals_url,
+            context_url=approvals_path,
             render_context=render_context,
             organization_id=run.organization_id,
             use_savepoint=True,
@@ -280,17 +280,17 @@ class NotificationService:
         )
         if not recipients:
             return
-        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.RUN_COMPLETED,
             occurrence_id=str(run.id),
             summary=f"{agent.name} finished a run.",
-            context_url=run_url,
+            context_url=run_path,
             render_context={
                 "agent_name": agent.name,
                 "app_name": settings.PROJECT_NAME,
-                "run_url": run_url,
+                "run_url": absolute_context_url(run_path),
             },
             organization_id=run.organization_id,
             use_savepoint=True,
@@ -307,7 +307,7 @@ class NotificationService:
         )
         if not recipients:
             return
-        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         # Directly verified (a standalone script exercising both branches
         # through this exact call path prints the two distinct summaries
         # below) - not a gap in the test, a gap in the tool: the same class of
@@ -324,11 +324,11 @@ class NotificationService:
             event_type=NotificationEventType.RUN_FAILED,
             occurrence_id=str(run.id),
             summary=summary,
-            context_url=run_url,
+            context_url=run_path,
             render_context={
                 "agent_name": agent.name,
                 "app_name": settings.PROJECT_NAME,
-                "run_url": run_url,
+                "run_url": absolute_context_url(run_path),
             },
             organization_id=run.organization_id,
             use_savepoint=True,
@@ -364,19 +364,19 @@ class NotificationService:
         recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
         if not recipients:
             return
-        doc_url = self._collection_link(doc.knowledge_base_id, doc.organization_id)
+        doc_path = self._collection_link(doc.knowledge_base_id, doc.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.INGESTION_FAILED,
             occurrence_id=f"{doc.id}:{attempt}",
             summary=f"'{doc.filename}' failed to ingest: {error_message}",
-            context_url=doc_url,
+            context_url=doc_path,
             render_context={
                 "filename": doc.filename,
                 "collection_name": doc.collection_name,
                 "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
                 "app_name": settings.PROJECT_NAME,
-                "doc_url": doc_url,
+                "doc_url": absolute_context_url(doc_path),
             },
             organization_id=doc.organization_id,
             use_savepoint=True,
@@ -410,7 +410,7 @@ class NotificationService:
         recipients = await self._ingestion_audience(initiator_user_id, organization_id)
         if not recipients:
             return
-        collection_url = self._collection_link(collection_id, organization_id)
+        collection_path = self._collection_link(collection_id, organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.INGESTION_COMPLETED,
@@ -419,12 +419,12 @@ class NotificationService:
                 f"Sync of '{collection_name}' finished: {ingested} ingested, "
                 f"{updated} updated, {skipped} skipped, {removed} removed, {failed} failed."
             ),
-            context_url=collection_url,
+            context_url=collection_path,
             render_context={
                 "collection_name": collection_name,
                 "collection_id": str(collection_id) if collection_id else "",
                 "app_name": settings.PROJECT_NAME,
-                "sync_url": collection_url,
+                "sync_url": absolute_context_url(collection_path),
             },
             organization_id=organization_id,
             use_savepoint=True,
@@ -447,7 +447,7 @@ class NotificationService:
         recipients = await self._ingestion_audience(initiator_user_id, organization_id)
         if not recipients:
             return
-        collection_url = self._collection_link(collection_id, organization_id)
+        collection_path = self._collection_link(collection_id, organization_id)
         # A source with no collection assigned has no name to quote, and the
         # empty `collection_name` it passes is the read gate's own marker for
         # that case rather than a value to render (`_collections_visible`).
@@ -457,12 +457,12 @@ class NotificationService:
             event_type=NotificationEventType.INGESTION_FAILED,
             occurrence_id=occurrence_id,
             summary=f"Sync of {subject} failed: {error}",
-            context_url=collection_url,
+            context_url=collection_path,
             render_context={
                 "collection_name": collection_name,
                 "collection_id": str(collection_id) if collection_id else "",
                 "app_name": settings.PROJECT_NAME,
-                "sync_url": collection_url,
+                "sync_url": absolute_context_url(collection_path),
             },
             organization_id=organization_id,
             use_savepoint=True,
@@ -543,17 +543,17 @@ class NotificationService:
         if not recipients:
             return
         path = _SECURITY_EVENT_PATH.get(entry.target_type or "", "/admin")
-        url = self._deployment_or_org_link(path, entry.organization_id)
+        link_path = self._deployment_or_org_link(path, entry.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.SECURITY_EVENT,
             occurrence_id=str(entry.id),
             summary=_security_event_summary(entry),
-            context_url=url,
+            context_url=link_path,
             render_context={
                 "action": entry.action,
                 "app_name": settings.PROJECT_NAME,
-                "url": url,
+                "url": absolute_context_url(link_path),
             },
             organization_id=entry.organization_id,
             # The real administrator, not `entry.actor_user_id` bare - an
@@ -587,17 +587,17 @@ class NotificationService:
         )
         if not recipients:
             return
-        url = f"{self._frontend}/admin/settings"
+        link_path = "/admin/settings"
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.CONFIGURATION_CHANGED,
             occurrence_id=str(entry.id),
             summary="The deployment's settings were updated.",
-            context_url=url,
+            context_url=link_path,
             render_context={
                 "action": entry.action,
                 "app_name": settings.PROJECT_NAME,
-                "url": url,
+                "url": absolute_context_url(link_path),
             },
             organization_id=None,
             # The real administrator, for the reason `security_event` above
@@ -652,14 +652,14 @@ class NotificationService:
         total = await organization_spend_since(self.db, organization_id, since, until=window_start)
         organization = await organization_repo.get_by_id(self.db, organization_id)
         organization_name = organization.name if organization else "your organization"
-        dashboard_url = self._link("/agents", organization_id)
+        dashboard_path = self._link("/agents", organization_id)
         render_context = {
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
             "total": f"{total:.2f}",
             "runs": str(sum(row[3] for row in rows)),
             "agents": str(len({row[0] for row in rows})),
-            "dashboard_url": dashboard_url,
+            "dashboard_url": absolute_context_url(dashboard_path),
             "app_name": settings.PROJECT_NAME,
         }
         written = await self._center.write(
@@ -667,7 +667,7 @@ class NotificationService:
             event_type=NotificationEventType.USAGE_REPORT,
             occurrence_id=f"{organization_id}:{period}:{window_start.isoformat()}",
             summary=f"Usage report for {organization_name}",
-            context_url=dashboard_url,
+            context_url=dashboard_path,
             render_context=render_context,
             organization_id=organization_id,
             # The report flow shares one session across every organization in
@@ -733,14 +733,14 @@ class NotificationService:
 
         organization = await organization_repo.get_by_id(self.db, agent.organization_id)
         organization_name = organization.name if organization else "your organization"
-        dashboard_url = self._link(f"/agents/{agent.id}", agent.organization_id)
+        dashboard_path = self._link(f"/agents/{agent.id}", agent.organization_id)
         render_context = {
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
             "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
             "runs": str(sum(row[3] for row in mine)),
             "agents": agent.name,
-            "dashboard_url": dashboard_url,
+            "dashboard_url": absolute_context_url(dashboard_path),
             "app_name": settings.PROJECT_NAME,
         }
         written = await self._center.write(
@@ -748,19 +748,15 @@ class NotificationService:
             event_type=NotificationEventType.AGENT_USAGE_REPORT,
             occurrence_id=f"{agent.id}:{period}:{window_start.isoformat()}",
             summary=f"Usage report for {agent.name}",
-            context_url=dashboard_url,
+            context_url=dashboard_path,
             render_context=render_context,
             organization_id=agent.organization_id,
             use_savepoint=True,
         )
         return bool(written)
 
-    @property
-    def _frontend(self) -> str:
-        return settings.FRONTEND_URL.rstrip("/")
-
     def _link(self, path: str, organization_id: UUID) -> str:
-        """A console link that says which organization it is about.
+        """A console path that says which organization it is about.
 
         Every alert URL used to be organization-agnostic, and the page it opens
         acts on whichever organization the reader last used - `apiClient` stamps
@@ -778,9 +774,20 @@ class NotificationService:
         carries a query: the approvals link is `/runs?tab=approvals` (#935), and
         appending a second `?` to it names no organization at all - the console
         reads `tab=approvals?org=...` as the tab.
+
+        A path and not a URL, because the console is what reads this one: the
+        value is stored in `notifications.context_url`, and a destination
+        carrying an origin is somewhere else entirely as far as the router is
+        concerned - so the click reloaded the whole document to reach a page
+        the reader was usually already standing inside, throwing away the query
+        cache and racing the mark-read write against the unload. The one reader
+        with no origin to resolve a path against is an email, and
+        `absolute_context_url` is where that origin goes back on - which is why
+        every `*_url` in a `render_context` here is absolute and every
+        `context_url` beside it is not.
         """
         separator = "&" if "?" in path else "?"
-        return f"{self._frontend}{path}{separator}org={organization_id}"
+        return f"{path}{separator}org={organization_id}"
 
     def _collection_link(self, collection_id: UUID | None, organization_id: UUID) -> str:
         """A collection's own page, or the RAG list when there is no specific
@@ -796,7 +803,7 @@ class NotificationService:
         management) has no organization at all, and `?org=None` would name
         one that does not exist."""
         if organization_id is None:
-            return f"{self._frontend}{path}"
+            return path
         return self._link(path, organization_id)
 
     async def _ingestion_audience(

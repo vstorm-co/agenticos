@@ -46,6 +46,7 @@ tools listed.
 | `compaction` | Context management | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -844,6 +845,37 @@ also has a workspace (the `sandbox` capability), the same image is written into 
 under `/output`, so a later `execute` step can build with it — assemble a PDF, a
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
+
+## Artifacts
+
+`publish_artifact` — *Publish a finished page - a report, a small dashboard, a
+summary - under a stable link.*
+
+Publishes one self-contained HTML or Markdown document as an
+[artifact](../artifacts.md): a shared resource with an owner, a visibility and
+grants, opened in a browser under a link that stays put. No configuration.
+
+**The name is the identity.** `(organization, agent, name)` picks the artifact,
+so the next run of the same agent that publishes `weekly-report` - from a chat, a
+schedule or the API - adds a version to the same one instead of making a second
+link. Identical bytes add no version and answer `unchanged`.
+
+**Where the page comes from.** `path` reads a file from the run's workspace
+through its own backend, so it works wherever the `sandbox` capability does;
+`content` takes the page inline for an agent with no workspace. Exactly one of the
+two. A wrong call - both or neither, a name outside
+`^[a-z0-9][a-z0-9-]{0,63}$`, an unknown extension, an empty or oversized page -
+is a retry naming what to change. A read the workspace's permission rules refuse
+is a result, not a retry.
+
+**Not side-effecting.** A first publication is private to the person the run was
+for, and only a person widens who reads it, so the approval gate would only
+park the scheduled report this exists for. An author who wants each republish of
+a shared page approved sets `tool_approval` on `publish_artifact`.
+
+**The page has no network.** It is served in an opaque origin under a `sandbox`
+policy with `connect-src 'none'`, and the tool text tells the model to inline
+everything. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegation
 

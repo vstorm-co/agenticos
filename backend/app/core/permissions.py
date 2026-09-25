@@ -52,6 +52,12 @@ class Perm(StrEnum):
     # the same answer - and left a member no way to keep a key of their own.
     SECRETS_VIEW = "secrets:view"
     SECRETS_EDIT = "secrets:edit"
+    # A page an agent published. A resource like the rest - an owner, a
+    # visibility, grants - and its own pair because opening a report is
+    # something a role gets without also being able to build the agent that
+    # wrote it. `edit` covers managing it: sharing, the public link, deletion.
+    ARTIFACTS_VIEW = "artifacts:view"
+    ARTIFACTS_EDIT = "artifacts:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
@@ -94,6 +100,8 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.CONTEXT_EDIT,
         Perm.SECRETS_VIEW,
         Perm.SECRETS_EDIT,
+        Perm.ARTIFACTS_VIEW,
+        Perm.ARTIFACTS_EDIT,
     }
 )
 
@@ -194,6 +202,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -210,6 +220,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -224,6 +236,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.SHARED,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.MCP_MANAGE: Scope.ALL,
@@ -247,6 +261,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.ALL,
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
@@ -265,6 +280,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.OWN,
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.CONTEXT_EDIT: Scope.OWN,
+        Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.ARTIFACTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
@@ -274,6 +291,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.SHARED,
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
+        Perm.ARTIFACTS_VIEW: Scope.SHARED,
     },
 }
 
