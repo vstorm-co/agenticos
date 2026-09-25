@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.500] - 2026-09-25
+
 ### Fixed
 
 - **A document two sync sources list stays until both stop listing it.** A
