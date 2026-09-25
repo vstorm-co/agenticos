@@ -1,5 +1,5 @@
 ---
-source_sha: "5b981aaf60d8"
+source_sha: "3a0f2eee0058"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -154,6 +154,7 @@ zostanie zamknięty dla tego przeglądania.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Sandboxes / Workspaces** | Izolowane sesje plików i powłoki, w których pracował agent | [Sandbox](sandbox.md) |
@@ -180,7 +181,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

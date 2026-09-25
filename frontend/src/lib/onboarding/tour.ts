@@ -61,6 +61,9 @@ export const SETTINGS_DETAIL = "settings-detail";
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
 
+/** A table's detail view, `/tables/<id>`, collapsed to one identity the same way. */
+export const TABLE_DETAIL = "table-detail";
+
 /**
  * One stop on the guided tour.
  *
@@ -430,6 +433,37 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.collectionsView,
   },
 
+  {
+    id: "tables-catalog",
+    page: ROUTES.TABLES,
+    target: "tables-catalog",
+    permission: Perm.tablesView,
+    inTour: true,
+  },
+  {
+    id: "tables-new",
+    page: ROUTES.TABLES,
+    target: "tables-new",
+    permission: Perm.tablesCreate,
+    inTour: true,
+  },
+  // The table detail, `/tables/<id>`. "?"-only and shown in place: it is in no
+  // section flow, so the walk never opens a table from the catalog - there is no
+  // seeded example to open, the same as `workspaces-detail` - and a "?" pressed on
+  // a table spotlights that table's own controls. `table-columns`
+  // is `optional`, not permission-gated: the button it anchors on renders from
+  // `table.can_edit`, a per-row boolean no static `Permission` can express (see
+  // `docs/virtual-tables.md#who-can-do-what`), so a role-level gate here would
+  // either hide the step from an editor or wait four seconds for a viewer whose
+  // refusal never mounted it.
+  {
+    id: "table-columns",
+    page: TABLE_DETAIL,
+    target: "table-columns",
+    optional: true,
+  },
+  { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
@@ -601,6 +635,7 @@ export function pageKey(path: string): string {
   }
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
   return path;
 }
 

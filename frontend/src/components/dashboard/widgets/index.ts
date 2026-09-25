@@ -42,6 +42,7 @@ import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
 import { RoutinesWidget } from "./routines";
 import { KnowledgeWidget } from "./knowledge";
+import { TablesWidget } from "./tables-widget";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
 import { TopOrgsWidget } from "./top-orgs";
@@ -54,6 +55,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   channels: ChannelsWidget,
   routines: RoutinesWidget,
   knowledge: KnowledgeWidget,
+  tables: TablesWidget,
   platform: PlatformWidget,
   health: HealthWidget,
   "top-orgs": TopOrgsWidget,

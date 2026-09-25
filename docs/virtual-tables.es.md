@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "efe600e397d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -90,10 +90,13 @@ turnan: la escritura espera a la que está en curso y se juzga luego según lo q
 confirmó, así que un registro nunca cae en una tabla archivada un momento antes.
 
 Archivar una columna, o la tabla entera, pregunta primero a cada comprobador de
-dependencias registrado si algo aún la usa. Los workflows, las vistas y los triggers
-todavía no existen, así que no hay ninguno registrado y nada bloquea;
-`app/services/virtual_tables/dependencies.py` es donde una función registra el suyo, y
-un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`.
+dependencias registrado si algo que el llamante puede ver y también cambiar aún la usa.
+Hoy están
+registradas las vistas guardadas (ver [Vistas guardadas](#saved-views)); los workflows
+y los triggers registrarán los suyos en `app/services/virtual_tables/dependencies.py`.
+Un rechazo nombra a los dependientes en `SCHEMA_DEPENDENCY`. Cualquier otro
+dependiente nunca se nombra y nunca bloquea al llamante: su función se adapta al
+cambio por sí misma.
 
 ## Registros y revisions { #records-and-revisions }
 
@@ -163,6 +166,60 @@ momento de creación.
 No hay `total`, porque contar una tabla filtrada no es barato. `has_more` indica si sigue
 otra página.
 
+## Vistas guardadas { #saved-views }
+
+Una **vista** es un filtro, orden y agrupación guardados sobre los registros de una
+tabla - lo que guardan las pantallas de tabla/kanban/lista de la consola para que
+nadie tenga que rehacer el mismo tablero en cada visita. Es un subrecurso de la
+tabla, no un recurso compartible propio: una vista no tiene propietario ni grants
+de su propio tipo, y `shared` significa solo "visible para cualquiera que ya tenga
+`tables:view` sobre la tabla superior" - nunca amplía el acceso más allá de lo que
+permite la propia tabla.
+
+`GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
+listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
+(como máximo 100): primero las vistas propias del llamante, luego las compartidas,
+cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, sort,
+visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
+necesita la presentación de la consola: `visible_columns` (`null` significa cada
+columna viva) y `group_by` (una columna `single_select` viva, para los carriles de
+un tablero kanban).
+
+| Campo | Significado |
+|---|---|
+| `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
+| `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
+| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_delete` | Si este llamante puede borrarla |
+
+Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
+una vista necesita `tables:edit` sobre la tabla, así que un propietario al que se le
+retiró el permiso de edición aún puede borrar sus vistas, pero ya no reformarlas ni
+compartirlas.
+
+Cambiar o borrar una vista es más estrecho:
+solo su propietario, o un llamante cuyo [scope](permissions.md) de `tables:edit`
+sea `ALL` - no "cualquiera que pueda editar la tabla" - de modo que un editor
+compartido no pueda redirigir en silencio el filtro guardado de otro miembro. Se
+rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
+`NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
+llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
+puede hacer este llamante.
+
+Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
+una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
+ordenar o agrupar: una de las suyas o - para un llamante cuyo scope de `tables:edit`
+sea `ALL` - una compartida. Ninguna otra vista bloquea el archivado ni se nombra,
+porque el llamante no podría quitarla de en medio; eso incluye toda vista privada de
+otro miembro, que no se revela ni siquiera a un llamante con scope `ALL`. Mostrar
+una columna en `visible_columns` tampoco bloquea.
+
+Lo que una vista aún nombra de una columna que ya no está viva se omite al leer la
+vista: un filtro sobre ella desaparece, un orden por ella vuelve a `created_at`, una
+agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya no
+muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
+guardada no se reescribe.
+
 ## Qué se confirma junto { #what-commits-together }
 
 Una escritura de registro, su fila de historial, su recibo de idempotencia y, en un
@@ -206,6 +263,14 @@ nombrar una tabla de otro tenant.
 La tabla de otra organización y una a la que el llamante no puede acceder son ambas un
 404. Un contexto sin sujeto autenticado no alcanza nada.
 
+Si un llamante concreto puede editar una tabla concreta también está directamente
+en la respuesta: `TableSummary.can_edit` y `TableRead.can_edit` se resuelven en el
+servidor (scope del rol o un grant explícito) y se envían en cada lectura, igual
+que `Agent.can_run` - así una fila del catálogo o una página de detalle nunca
+tienen que adivinar si sus controles de edición serían rechazados. El propio
+`can_manage` y `can_delete` de una vista guardada son la misma idea, un nivel más abajo (ver
+[Vistas guardadas](#saved-views)).
+
 ## Errores { #errors }
 
 Cada rechazo responde `{"error": {"code", "message", "details"}}`, y el `code` es lo que
@@ -218,7 +283,7 @@ un cliente usa para bifurcar.
 | `SCHEMA_VERSION_CONFLICT` | 409 | El esquema cambió desde que se leyó |
 | `SCHEMA_DEPENDENCY` | 409 | Algo depende de lo que el cambio elimina |
 | `TABLE_ARCHIVED` | 409 | La tabla rechaza escrituras |
-| `ALREADY_EXISTS` | 409 | El nombre de la tabla o el external id ya está en uso |
+| `ALREADY_EXISTS` | 409 | El nombre de la tabla, el de una vista o el external id ya está en uso |
 | `INVALID_RECORD` | 422 | Un valor no encaja con su columna; `details.fields` nombra cada uno |
 | `ARCHIVED_COLUMN` | 422 | Un valor nombra una columna archivada |
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
@@ -259,9 +324,14 @@ sesión.
 - **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
   a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
   está aún por acordar.
-- Las herramientas del agent, los nodos de workflow y las pantallas de la consola, que
-  llamarán a este servicio.
-- Consumidores del outbox y comprobadores de dependencias para workflows, vistas y
-  triggers.
+- Las herramientas del agent y los nodos tipados de workflow sobre tablas, y los
+  triggers al crear un registro. Las pantallas de la consola (crear tabla, editar
+  esquema, editar las celdas de un registro y las vistas guardadas de
+  tabla/kanban/lista que describe la sección [Vistas guardadas](#saved-views)) ya
+  existen; el acceso al mismo servicio desde agents y workflows, todavía no, y
+  tampoco crear ni borrar registros desde la consola.
+- Consumidores del outbox y comprobadores de dependencias para workflows y
+  triggers - las vistas guardadas ya registran el suyo (ver
+  [Vistas guardadas](#saved-views)).
 - Cuotas o límites de tasa por tenant para el crecimiento de historial y receipts, y guardar
   solo los cambios.

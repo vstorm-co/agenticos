@@ -1,5 +1,5 @@
 ---
-source_sha: "5b981aaf60d8"
+source_sha: "3a0f2eee0058"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -151,6 +151,7 @@ una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 | **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
 | **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
+| **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Sesiones aisladas de archivos y shell en las que trabajó un agent | [La sandbox](sandbox.md) |
@@ -178,7 +179,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

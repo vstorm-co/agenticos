@@ -43,6 +43,7 @@ import {
   Plug,
   Repeat,
   ShieldCheck,
+  Table2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -115,6 +116,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.RAG,
         icon: Database,
         permission: Perm.collectionsView,
+      },
+      {
+        labelKey: "tables",
+        href: ROUTES.TABLES,
+        icon: Table2,
+        permission: Perm.tablesView,
+        dataTour: "nav-tables",
       },
     ],
   },
