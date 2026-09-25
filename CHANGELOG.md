@@ -17,8 +17,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.501] - 2026-09-25
-
 ### Added
 
 - **Groups.** An organization can gather its members into named groups and
@@ -48,6 +46,11 @@ Two things are versioned separately from this file and worth knowing about:
   nobody types a password. The ticket resolves through the directory to the same
   account a password sign-in reaches. It needs an image built with the new
   `kerberos` extra (#1773).
+
+## [0.0.501] - 2026-09-25
+
+### Added
+
 - **A SharePoint site or a OneDrive can feed a knowledge base.** A
   `sharepoint` sync source reads one document library, or one folder in it,
   through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
