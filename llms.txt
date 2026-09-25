@@ -93,4 +93,18 @@ This test is written to be applied to other products in the category, and to thi
 
 - [Rolling it out](https://vstorm-co.github.io/agenticos/rollout/): who does what, a realistic first ninety days, what it costs, the questions a security review asks, and where to get help - Vstorm deploys it inside client infrastructure, stands up local models, and adapts it to one process.
 - [About](https://vstorm-co.github.io/agenticos/about/): why it exists, what it deliberately is not, and where it is not yet finished.
-- [When to use something else](https://vstorm-co.github.io/agenticos/about/comparison/): an honest comparison with Cloudflare OS, Glean, a library, and building it yourself.
+- [Compare AgenticOS](https://vstorm-co.github.io/agenticos/about/comparison/): how it compares with assistant apps, cloud-suite builders, self-hosted builders, a teammate service, a delivered platform and coding agents, and what it does not do yet.
+
+## Comparisons
+
+Each guide cites the vendor's own pages, checked on 25 September 2026, and says when the other product is the better fit.
+
+- [AgenticOS vs Claude](https://vstorm-co.github.io/agenticos/about/claude-apps/): Claude Team and Enterprise are seats for employees on Claude models in Anthropic's cloud; AgenticOS publishes agents on any model, on your infrastructure, with per-agent budgets and no seat fee.
+- [AgenticOS vs ChatGPT](https://vstorm-co.github.io/agenticos/about/chatgpt/): ChatGPT Business, Enterprise and workspace agents run on OpenAI models in OpenAI's cloud; AgenticOS agents run anywhere, on any model, and answer through an API that returns the result.
+- [AgenticOS vs Copilot Studio](https://vstorm-co.github.io/agenticos/about/copilot-studio/): Microsoft's builder bills Copilot Credits per feature in Microsoft's cloud; AgenticOS meters model cost against each agent's budget on your own servers.
+- [AgenticOS vs Gemini Enterprise](https://vstorm-co.github.io/agenticos/about/gemini-enterprise/): Google's employee agent platform uses Gemini in its app and builder; AgenticOS uses any model in every agent, with no seat fee or build quota.
+- [AgenticOS vs Dify](https://vstorm-co.github.io/agenticos/about/dify/): Dify's licence restricts multi-tenant operation and puts SSO and audit in its Enterprise edition; AgenticOS is Apache-2.0 and multi-tenant with both included.
+- [AgenticOS vs n8n](https://vstorm-co.github.io/agenticos/about/n8n/): n8n is workflow automation under the Sustainable Use License, priced by executions; AgenticOS is an Apache-2.0 agent platform with per-agent budgets, and the two work together.
+- [AgenticOS vs Viktor](https://vstorm-co.github.io/agenticos/about/viktor/): Viktor is one shared AI teammate per Slack or Teams workspace; AgenticOS runs many agents with their own access, knowledge and budgets.
+- [AgenticOS vs Wonderful](https://vstorm-co.github.io/agenticos/about/wonderful/): Wonderful delivers a closed enterprise platform with its own teams; AgenticOS is a platform the client owns, with implementation help from Vstorm agreed separately.
+- [AgenticOS vs Claude Code](https://vstorm-co.github.io/agenticos/about/claude-code/), [vs OpenAI Codex](https://vstorm-co.github.io/agenticos/about/codex/) and [vs OpenCode](https://vstorm-co.github.io/agenticos/about/opencode/): coding agents for developers; AgenticOS is for the agents everyone else uses, and these tools help extend it.

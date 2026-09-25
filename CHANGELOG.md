@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Comparisons cover eleven products in depth.** The comparison hub groups
+  assistant apps, cloud-suite builders, self-hosted builders, teammate
+  services, delivered platforms and coding agents, and states what AgenticOS
+  does not do yet. The Viktor, Dify and Wonderful guides now compare tenancy,
+  identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
+  guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
+  Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
+  sources checked on 25 September 2026.
+- **Comparison guides are written for search.** Each has a search title, a
+  meta description and a frequently-asked-questions section, in all four
+  languages. The site adds Open Graph and Twitter card tags to every page and
+  publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
+  lists every comparison.
+
 ## [0.0.504] - 2026-09-25
 
 ### Added
