@@ -19,7 +19,7 @@ import WorkflowEditorPage from "./page";
  * composition decision directly; the real store drives the seed effect.
  */
 
-const state = vi.hoisted(() => ({ canEdit: true }));
+const state = vi.hoisted(() => ({ canEdit: true, status: "draft" as string }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -47,7 +47,7 @@ vi.mock("@/hooks", () => ({
     can: (permission: string) => (permission === "workflows:edit" ? state.canEdit : true),
   }),
   useWorkflow: () => ({
-    workflow: WORKFLOW,
+    workflow: { ...WORKFLOW, status: state.status },
     isLoading: false,
     saveDraft: { mutateAsync: vi.fn() },
     publish: { mutateAsync: vi.fn() },
@@ -86,6 +86,7 @@ async function renderPage() {
 
 beforeEach(() => {
   state.canEdit = true;
+  state.status = "draft";
 });
 
 afterEach(() => {
@@ -112,6 +113,22 @@ describe("the workflow editor page permission gate", () => {
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");
     // No autosave/publish, no palette, no property panel, no conflict banner.
+    expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
+  });
+
+  it("renders an archived workflow read-only even for a caller with workflows:edit", async () => {
+    // The backend's `_ensure_editable` rejects every write to an archived
+    // workflow, so an editor-role caller still takes the read-only path — palette,
+    // actions, autosave and publish must not mount to 403 (#1787).
+    state.canEdit = true;
+    state.status = "archived";
+    await renderPage();
+
+    const canvas = await screen.findByTestId("canvas");
+    expect(canvas).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
     expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();

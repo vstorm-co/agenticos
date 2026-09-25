@@ -184,6 +184,67 @@ describe("PublishDialog", () => {
     expect(screen.getByRole("button", { name: "Publish version" })).toBeEnabled();
   });
 
+  it("disables the publish trigger while the draft is still saving", async () => {
+    // A dirty draft means the last edit has not reached the server, so publishing
+    // now would freeze a stale draft and drop the local edits (#1787). The trigger
+    // is disabled until the save lands, so the dialog cannot even be opened.
+    seed(VALID_GRAPH, 2);
+    act(() => useWorkflowEditorStore.getState().markDirty());
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /Publish/ })).toBeDisabled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("blocks the confirm and shows a hint when the draft turns dirty mid-dialog", async () => {
+    // The dialog is opened while the draft is clean, then an autosave-triggering
+    // edit lands (the ~400ms debounce or an in-flight PATCH). The confirm must
+    // block and a hint must appear rather than freezing the stale server draft.
+    seed(VALID_GRAPH, 2);
+    const publish = vi.fn();
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    expect(screen.getByRole("button", { name: "Publish version" })).toBeEnabled();
+
+    act(() => useWorkflowEditorStore.getState().markDirty());
+
+    expect(screen.getByText("Finishing save…")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish version" })).toBeDisabled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("allows publishing once the save lands and the draft is clean", async () => {
+    // Once `markSaved` clears `isDirty`, the server draft equals the canvas, so the
+    // publish is allowed and carries the revision the save advanced to.
+    seed(VALID_GRAPH, 2);
+    act(() => useWorkflowEditorStore.getState().markDirty());
+    const publish = vi.fn().mockResolvedValue(publishedVersion());
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+
+    expect(screen.getByRole("button", { name: /Publish/ })).toBeDisabled();
+
+    act(() => useWorkflowEditorStore.getState().markSaved(3));
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    await waitFor(() => expect(publish).toHaveBeenCalledWith({ note: null, expected_revision: 3 }));
+  });
+
+  it("keeps the confirm blocked by client validation even when the draft is clean", async () => {
+    // The save-gate does not weaken the existing validation gate: an invalid graph
+    // stays blocked whether or not it is persisted.
+    seed(EMPTY_GRAPH, 0);
+    const publish = vi.fn();
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+
+    expect(screen.getByText("Fix the problems below before publishing.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish version" })).toBeDisabled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("can be dismissed with Cancel", async () => {
     seed(VALID_GRAPH, 0);
     render(<PublishDialog catalog={[DEBUG_ECHO]} publish={vi.fn()} />);

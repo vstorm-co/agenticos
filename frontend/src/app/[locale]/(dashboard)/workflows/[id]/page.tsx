@@ -57,7 +57,11 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const { workflow, isLoading, saveDraft, publish } = useWorkflow(id);
   const { nodes } = useNodeCatalog();
   const { can } = usePermissions();
-  const canEdit = can(Perm.workflowsEdit);
+  // An archived workflow is read-only server-side (`_ensure_editable` rejects its
+  // writes), so it takes the read-only render path even for a caller with
+  // `workflows:edit`: never mount palette/actions/autosave/publish that would 403.
+  // Computed after the loading guard defers rendering, so `workflow` is present.
+  const canEdit = can(Perm.workflowsEdit) && workflow?.status !== "archived";
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);

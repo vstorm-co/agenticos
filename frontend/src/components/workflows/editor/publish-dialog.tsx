@@ -68,6 +68,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   const t = useTranslations("workflows");
   const graph = useWorkflowEditorStore((state) => state.graph);
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
+  const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
 
@@ -95,7 +96,12 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   };
 
   const confirm = async () => {
-    if (expectedRevision === null) return;
+    // Publishing freezes the server's stored draft. While `isDirty` stands, the
+    // canvas holds edits the last PATCH has not persisted (an autosave still in
+    // its debounce or in flight), so the server draft is older than what the user
+    // sees. `markSaved` clears `isDirty` only after a successful save, so
+    // `!isDirty` guarantees the stored draft equals the current canvas.
+    if (expectedRevision === null || isDirty) return;
     setSubmitting(true);
     setServerProblems([]);
     try {
@@ -126,7 +132,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" disabled={isDirty}>
           <UploadCloud className="h-4 w-4" aria-hidden />
           {t("publish")}
         </Button>
@@ -151,13 +157,14 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
         {clientProblems.length > 0 && (
           <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
         )}
+        {isDirty && <p className="text-muted-foreground text-xs">{t("publishSaving")}</p>}
         <ProblemsFooter problems={problems} onSelectNode={selectNode} />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             {t("publishCancel")}
           </Button>
-          <Button onClick={() => void confirm()} disabled={blocked || submitting}>
+          <Button onClick={() => void confirm()} disabled={blocked || submitting || isDirty}>
             {t("publishConfirm")}
           </Button>
         </DialogFooter>
