@@ -10,6 +10,7 @@ import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
+import { useGroups } from "@/hooks/use-groups";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
@@ -24,7 +25,7 @@ import {
   type OrgState,
 } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
-import { useOnboardingStore } from "@/stores";
+import { useOnboardingStore, useOrgStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
 import type { ChoiceValue } from "@/stores/onboarding-store";
@@ -115,6 +116,9 @@ function useOrgSnapshot(): {
   const mcp = useOrgMcpConnections();
   const personalMcp = useMcpConnections();
   const orgs = useOrganizationList();
+  // The active organization's, which is the one in the groups page's URL: the
+  // page adopts the organization it names before its own requests go out.
+  const groups = useGroups(useOrgStore((state) => state.activeOrgId) ?? "");
   // The org-wide list, which is what the Routines page shows and therefore what
   // grows by one when the reader creates a schedule or a trigger.
   const routines = useOrgTriggers();
@@ -150,6 +154,7 @@ function useOrgSnapshot(): {
         mcp.connections.length + personalMcp.connections.length,
       ),
       org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
+      group: settled(groups.isLoading, groups.isFetching, groups.groups.length),
       routine: settled(routines.isLoading, false, routines.total),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at

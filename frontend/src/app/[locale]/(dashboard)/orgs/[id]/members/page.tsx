@@ -7,6 +7,7 @@ import {
   Link2,
   Loader2,
   MailPlus,
+  Network,
   Archive,
   ShieldCheck,
   Trash2,
@@ -25,6 +26,7 @@ import {
 } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
+import { DirectoryBadge } from "@/components/orgs/directory-badge";
 import {
   Badge,
   Button,
@@ -75,6 +77,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const tGroups = useTranslations("groups");
+  const tDirectory = useTranslations("directory");
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
@@ -200,41 +204,54 @@ export default function OrgMembersPage({ params }: PageProps) {
           // the server's answer about *this target*: whether the requester outranks
           // the role the member holds now, which is what stops a peer Admin getting a
           // selector whose only result is a 403 toast (#700).
+          //
+          // A membership the directory sync made says so beside the role, since
+          // changing that role here is also what takes the row off the sync.
+          const synced =
+            m.source === "directory" ? (
+              <DirectoryBadge explanation={tDirectory("memberHint")} />
+            ) : null;
           if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (
-              <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
-                <SelectTrigger
-                  className="h-8 w-32 capitalize"
-                  aria-label={t("roleFor", { email: m.email })}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* The row's own role, when this caller cannot assign it -
+              <div className="flex items-center gap-2">
+                <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
+                  <SelectTrigger
+                    className="h-8 w-32 capitalize"
+                    aria-label={t("roleFor", { email: m.email })}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* The row's own role, when this caller cannot assign it -
                       a peer Admin, to an Admin. Present because Radix draws the
                       chosen item's text in the trigger, so without it the
                       control renders blank; disabled because assigning it is
                       what they may not do. Demoting that peer still is:
                       `change_role` judges the role being handed out, not the
                       one being replaced (#1028). */}
-                  {!assignable.includes(m.role) && (
-                    <SelectItem value={m.role} disabled className="capitalize">
-                      {m.role}
-                    </SelectItem>
-                  )}
-                  {assignable.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {!assignable.includes(m.role) && (
+                      <SelectItem value={m.role} disabled className="capitalize">
+                        {m.role}
+                      </SelectItem>
+                    )}
+                    {assignable.map((option) => (
+                      <SelectItem key={option} value={option} className="capitalize">
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {synced}
+              </div>
             );
           }
           return (
-            <Badge variant={ROLE_VARIANT[m.role]} className="capitalize">
-              {m.role}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={ROLE_VARIANT[m.role]} className="capitalize">
+                {m.role}
+              </Badge>
+              {synced}
+            </div>
           );
         },
       },
@@ -280,7 +297,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
 
     return cols;
-  }, [canManage, user?.id, assignable, changeRole, removeMember]);
+  }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
     <div className="space-y-6">
@@ -299,6 +316,24 @@ export default function OrgMembersPage({ params }: PageProps) {
                 {t("roles")}
               </Link>
             </Button>
+            {/* For everybody, like the roles: any member reads the groups, because a
+                group is what they pick when sharing something. */}
+            <Button variant="outline" asChild>
+              <Link href={ROUTES.ORG_GROUPS(id)}>
+                <Users className="h-4 w-4" />
+                {tGroups("title")}
+              </Link>
+            </Button>
+            {/* The mappings are readable only with `members:manage`, so the way
+                in is drawn only for those who hold it. */}
+            {canManage ? (
+              <Button variant="outline" asChild>
+                <Link href={ROUTES.ORG_DIRECTORY(id)}>
+                  <Network className="h-4 w-4" />
+                  {tDirectory("navLabel")}
+                </Link>
+              </Button>
+            ) : null}
             {/* Only for the people who can change it - the page refuses anybody
                 else, and a button that leads to a refusal is a button that
                 teaches nothing (#1420). */}

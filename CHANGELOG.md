@@ -30,7 +30,7 @@ Two things are versioned separately from this file and worth knowing about:
   `Idempotency-Key` header makes a retry return the first answer. Access is
   visibility plus grants like context files, with new `tables:view`, `tables:edit`
   and `tables:create` permissions, and every route answers refusals in one typed
-  error envelope. Migration `0092_virtual_tables.py`; see
+  error envelope. Migration `0101_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 - **Virtual Tables in the console: a catalog, table/kanban/list views, and saved
   views.** `/tables` lists, searches and creates tables. A table's page edits its
@@ -43,8 +43,113 @@ Two things are versioned separately from this file and worth knowing about:
   `/tables/{id}/views` (paged, per kind). Archiving a column is refused only by a
   view the caller can both see and change; any other view drops the column when
   read instead. Also a Tables dashboard card, a sidebar entry and onboarding stops.
-  Migration `0095_table_views.py`; see
+  Migration `0104_table_views.py`; see
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
+
+## [0.0.502] - 2026-09-25
+
+### Added
+
+- **Groups.** An organization can gather its members into named groups and
+  share an agent, a skill, a collection, a context file, a vault secret or an
+  artifact with a whole group at once. A group grant reaches whoever is in the
+  group when access is checked, so people joining later get access and people
+  leaving lose it with nothing to revoke. When a person reaches a resource
+  through several grants, the highest one wins. A group carries no role of its
+  own (#1773).
+- **Directory groups decide who joins an organization, with which role.** A
+  directory group mapping says "everyone in this directory group is a *builder*
+  here, in the group *Platform*". It is applied at every directory sign-in, and at
+  every OIDC sign-in once `OIDC_GROUPS_CLAIM` names the provider's groups claim.
+  The sync joins, re-roles and removes only the memberships it made itself. It
+  never demotes or removes an owner, and it cannot map a role its author could not
+  assign. A matching mapping admits a first sign-in on an invite-only deployment,
+  the way an invitation does. An Entra ID group overage is refused rather than
+  read as "no groups" (#1773).
+- **Sign in with a directory account.** With `LDAP_URL` set, people sign in to
+  Active Directory, OpenLDAP or FreeIPA with the username and password they use
+  everywhere else. The check is the standard two-step bind, over verified TLS. An
+  empty password never reaches the directory, the username is escaped into the
+  search filter, and a username matching two accounts is refused. Plaintext
+  `ldap://` is refused at startup unless explicitly allowed (#1773).
+- **Integrated Windows sign-in.** With `KERBEROS_ENABLED` set, a browser on a
+  domain-joined machine signs its user in with its Kerberos ticket (SPNEGO), and
+  nobody types a password. The ticket resolves through the directory to the same
+  account a password sign-in reaches. It needs an image built with the new
+  `kerberos` extra (#1773).
+
+## [0.0.501] - 2026-09-25
+
+### Added
+
+- **A SharePoint site or a OneDrive can feed a knowledge base.** A
+  `sharepoint` sync source reads one document library, or one folder in it,
+  through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
+  default, and a file deleted from the library is removed like any other the
+  source stops listing. The second sync asks Graph's change feed first and
+  stops there when nothing in the library changed. When something did, only
+  new and changed files are embedded. Throttling and outages are retried as
+  Graph's `Retry-After` asks, and a folder that still cannot be listed is
+  named on the sync log, and that run removes nothing. The setup guide tells an
+  administrator to grant the app `Sites.Selected` on one site rather than
+  `Files.Read.All` on the tenant, and says what happens otherwise (#985).
+- **A Microsoft Entra app is a vault secret kind of its own.** `entra_app`
+  holds a tenant id, a client id and a client secret, and a SharePoint source
+  takes only this kind.
+- `BaseSyncConnector.remote_version` is handed `previous`, the value the last
+  clean run stored under the same configuration, so a source that can only say
+  what changed since a point can answer that nothing did.
+
+## [0.0.500] - 2026-09-25
+
+### Fixed
+
+- **A document two sync sources list stays until both stop listing it.** A
+  synced document belonged only to the source that ingested it last. When two
+  sources on one collection listed the same page, the page was removed as soon
+  as that one source stopped listing it, although the other still listed it. A
+  source in `update_only` mode never ingested it again. Each source that lists a
+  document now claims it, in the new `rag_document_claims` table, which replaces
+  `rag_documents.sync_source_id` and is backfilled from it (migration
+  `0099_rag_document_claims.py`). A sync that stops listing a document drops its
+  own claim. It removes the document only when no other source feeding the
+  collection still claims it (#1879).
+
+## [0.0.499] - 2026-09-25
+
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
+
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
 
 ## [0.0.497] - 2026-09-25
 

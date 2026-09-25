@@ -17,6 +17,8 @@ describe("ROUTES", () => {
     expect(ROUTES.ORG_MEMBERS("o1")).toBe("/orgs/o1/members");
     expect(ROUTES.ORG_ROLES("o1")).toBe("/orgs/o1/roles");
     expect(ROUTES.ORG_SETTINGS("o1")).toBe("/orgs/o1/settings");
+    expect(ROUTES.ORG_GROUPS("o1")).toBe("/orgs/o1/groups");
+    expect(ROUTES.ORG_DIRECTORY("o1")).toBe("/orgs/o1/directory");
   });
 
   it("nests each parameterised route under the listing it belongs to", () => {

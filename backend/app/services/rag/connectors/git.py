@@ -278,9 +278,11 @@ class GitConnector(BaseSyncConnector):
         return None
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
     ) -> str:
         """The branch's head commit, read without cloning anything.
+
+        `previous` is not needed: a commit says where the branch is outright.
 
         Raises:
             BadRequestError: no usable token, or the branch does not exist.

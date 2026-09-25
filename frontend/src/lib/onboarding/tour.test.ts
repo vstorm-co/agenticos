@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_BUILDER,
   KB_DETAIL,
+  ORG_DIRECTORY,
+  ORG_GROUPS,
   ORG_MEMBERS,
   ORG_RETENTION,
   ORG_ROLES,
@@ -72,6 +74,8 @@ describe("pageKey", () => {
     // gated on `org:settings`, and an ungated step waits four seconds for a card
     // the refusal never mounts (#1420).
     expect(pageKey("/orgs/abc-123/retention")).toBe(ORG_RETENTION);
+    expect(pageKey("/orgs/abc-123/groups")).toBe(ORG_GROUPS);
+    expect(pageKey("/orgs/abc-123/directory")).toBe(ORG_DIRECTORY);
   });
 
   it("collapses each settings tab and each workspace onto one identity", () => {
@@ -329,6 +333,40 @@ describe("pageHasSteps", () => {
     // shorter walk, not no button — and a walk that a permission does empty is
     // closed by `useOnboardingTour`, not prejudged here.
     expect(pageHasSteps(ROUTES.SKILLS)).toBe(true);
+  });
+});
+
+describe("the groups and directory pages", () => {
+  it("have stops, so their headers render a help button at all", () => {
+    expect(pageHasSteps("/orgs/some-id/groups")).toBe(true);
+    expect(pageHasSteps("/orgs/some-id/directory")).toBe(true);
+  });
+
+  it("show every member what a group is for, and only a member manager its create button", () => {
+    const viewer = stepsForPage("/orgs/some-id/groups", () => false).map((step) => step.id);
+    const manager = stepsForPage("/orgs/some-id/groups", () => true).map((step) => step.id);
+
+    expect(viewer).toEqual(["org-groups"]);
+    expect(manager).toEqual(["org-groups", "org-groups-new"]);
+  });
+
+  it("walk the directory only for a member manager, and adding only with roles:manage", () => {
+    const path = "/orgs/some-id/directory";
+    const membersOnly = (perm: Permission) => perm === Perm.membersManage;
+
+    expect(stepsForPage(path, () => false)).toEqual([]);
+    expect(stepsForPage(path, membersOnly).map((step) => step.id)).toEqual(["org-directory"]);
+    expect(stepsForPage(path, () => true).map((step) => step.id)).toEqual([
+      "org-directory",
+      "org-directory-new",
+    ]);
+  });
+
+  it("leave the members walk as it was", () => {
+    // Their own journeys, so the members "?" still ends on the create-org offer.
+    expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
+      ORG_STEPS,
+    );
   });
 });
 

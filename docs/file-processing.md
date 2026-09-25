@@ -1278,8 +1278,11 @@ rather than a feature:
   part-way - the web crawler at its page ceiling, or past a page that timed out -
   says `complete=False`, and that run removes nothing
   ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Removal is scoped
-  by `rag_documents.sync_source_id`, not by `source_path`: two sources can feed
-  one collection, and neither may remove what the other brought in.
+  by `rag_document_claims`, not by `source_path`: two sources can feed one
+  collection and list the same document, so each source that lists a document
+  claims it. A source that stops listing it drops its claim, and the document is
+  removed only when no source feeding the collection still claims it
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **A sync connector is not an MCP server.** MCP is how an agent reaches a product
 *live*, mid-run; a sync source is a scheduled bulk pull with change detection
@@ -1292,14 +1295,17 @@ Which connectors are being built, and in what order, is decided in
 [#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
 ([#984](https://github.com/vstorm-co/agenticos/issues/984), shipped as the `web`
 connector - see [website setup](howto/configure-sync-sources.md#website-setup)), SharePoint and
-OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985), shipped as the
+`sharepoint` connector - see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
 then Azure Blob and GCS, whose condition is met: `S3Connector` is an
 `ObjectStoreConnector` subclass, so each of those is a client and a
 `CONNECTOR_TYPE` rather than a second copy of the listing loop
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-and email archives are decided **against** for now, each for a reason recorded
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.
 

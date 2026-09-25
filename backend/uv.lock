@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenticos"
-version = "0.0.497"
+version = "0.0.502"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -32,6 +32,7 @@ dependencies = [
     { name = "httpx" },
     { name = "httpx2" },
     { name = "itsdangerous" },
+    { name = "ldap3" },
     { name = "liteparse" },
     { name = "llama-cloud" },
     { name = "logfire", extra = ["asyncpg", "fastapi", "httpx", "redis"] },
@@ -75,6 +76,9 @@ browser = [
     { name = "cdp-use" },
     { name = "pydantic-ai-slim", extra = ["typesafe"] },
 ]
+kerberos = [
+    { name = "gssapi" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -88,6 +92,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "types-ldap3" },
     { name = "vulture" },
 ]
 docs = [
@@ -118,9 +123,11 @@ requires-dist = [
     { name = "google-api-python-client", specifier = ">=2.200.0" },
     { name = "google-auth", specifier = ">=2.58.0" },
     { name = "greenlet", specifier = ">=3.5.5" },
+    { name = "gssapi", marker = "extra == 'kerberos'", specifier = ">=1.9.0" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "httpx2", specifier = ">=2.13.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
+    { name = "ldap3", specifier = ">=2.9.1" },
     { name = "liteparse", specifier = ">=2.14.4" },
     { name = "llama-cloud", specifier = ">=2.16.0" },
     { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.1.0" },
@@ -160,7 +167,7 @@ requires-dist = [
     { name = "websockets", specifier = ">=15.0" },
     { name = "xlrd", specifier = ">=2.0.2" },
 ]
-provides-extras = ["browser"]
+provides-extras = ["browser", "kerberos"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -174,6 +181,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.16.8" },
     { name = "ty", specifier = ">=0.0.82" },
+    { name = "types-ldap3", specifier = ">=2.9.13" },
     { name = "vulture", specifier = ">=2.14" },
 ]
 docs = [
@@ -1268,6 +1276,15 @@ wheels = [
 ]
 
 [[package]]
+name = "decorator"
+version = "5.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/8b/32f9823da46cde7df2087faa08cd98d01b908f8dcab982cdba9c84e85355/decorator-5.3.1.tar.gz", hash = "sha256:4cbcdd55a6efadb9dbea26b858f4fb3264567b52d69ca0d25b721b553f60ea82", size = 58084, upload-time = "2026-05-18T06:03:28.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/7f/798705f5296a58ca505d600456748d1be48078eac8a7050d8a98bc9edb89/decorator-5.3.1-py3-none-any.whl", hash = "sha256:f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c", size = 10365, upload-time = "2026-05-18T06:03:26.517Z" },
+]
+
+[[package]]
 name = "defusedxml"
 version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1903,6 +1920,29 @@ wheels = [
 ]
 
 [[package]]
+name = "gssapi"
+version = "1.12.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "decorator" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6b/fb/9492eb37b5786369b7e96fff2cf4040713acb33b96124813e058cbbd4356/gssapi-1.12.0.tar.gz", hash = "sha256:0b48f17296f869db89221c3bde463fdff35152a4cb99ae4aaa42b0b64333fc6c", size = 95321, upload-time = "2026-08-26T03:00:50.067Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/c5/abbccc9f3c7efaef68efbb8f2dbcebb610dc6631fd1108556dd2a9d967b4/gssapi-1.12.0-cp311-abi3-macosx_10_9_x86_64.whl", hash = "sha256:fbcf4213d72bde6f836dc96511d7410c4c95e0470ccc690bc7f85e402c9ff5ec", size = 644184, upload-time = "2026-08-26T03:00:23.018Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/3d/14bb64c34a1cb1ad6dd86dfdb2d50f2dd9719799edaf5c0a624efbe79a3f/gssapi-1.12.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:ca29e1d31a6edd78d33ec37d0cf7bfde7e259b376051f742816c08380e23e973", size = 676810, upload-time = "2026-08-26T03:00:24.746Z" },
+    { url = "https://files.pythonhosted.org/packages/35/3d/d5f0c7b04c57a1701e664cc50eea88d1c91b876ea7f4b8505aab990210bc/gssapi-1.12.0-cp311-abi3-win32.whl", hash = "sha256:06f3363a5d201cf328e4964e491c37b0777636d67ef19549bbb96792b7293dca", size = 1588670, upload-time = "2026-08-26T03:00:26.438Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/4e/ae027a2e7578a879f476ab0728f32cef86580df05ca56ca1e1918ecb61e8/gssapi-1.12.0-cp311-abi3-win_amd64.whl", hash = "sha256:a953e21f80169bd55fef0d0bf050109ce93d055931558c3b353e8c4e7751f08e", size = 1751663, upload-time = "2026-08-26T03:00:28.267Z" },
+    { url = "https://files.pythonhosted.org/packages/db/5b/22d5bb1b687b1c8c2a12b708299ab041d2b9bc2ae30bbaa527989d94bb4a/gssapi-1.12.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:82fa870b03277494d351912d2f48f55bd305fdc28953dd9c5fd3d82f07bf00c9", size = 761179, upload-time = "2026-08-26T03:00:29.801Z" },
+    { url = "https://files.pythonhosted.org/packages/79/17/ec335f3c3ed42b81c343ef11b71212a4378635029433a7fe23801d526779/gssapi-1.12.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:ada649cbca078a8c2fb398257c93e66f4807a988d6ad36f8bb12744fb21aaf5a", size = 779738, upload-time = "2026-08-26T03:00:31.303Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/21/bf546a0862c0e829beabd8fe337ed0255b2d434575e60ffc61182d8663b3/gssapi-1.12.0-cp314-cp314t-win32.whl", hash = "sha256:89d747b301317e9ab2d5776eafa9bb5e1b37a736bf295eb789aeb57752f23fb0", size = 1783923, upload-time = "2026-08-26T03:00:32.855Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/a9/5006c8dce263b01708d024c25680b0648b294d6e36f1d56c2d797b52c3cb/gssapi-1.12.0-cp314-cp314t-win_amd64.whl", hash = "sha256:59c601325789d9aa34f14117f534f224031de455174ac01b64b7bbbdff6d2bd0", size = 1978925, upload-time = "2026-08-26T03:00:34.623Z" },
+    { url = "https://files.pythonhosted.org/packages/12/e2/78321a281815e6e3078f8738539739c6a9f606e2f09f568711ab4bff21cd/gssapi-1.12.0-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:9d98f9ad2327ab20d7985d0fd413c02c0cce7459ed226952fd078b29c6a2a40b", size = 750982, upload-time = "2026-08-26T03:00:36.208Z" },
+    { url = "https://files.pythonhosted.org/packages/47/91/78d098549eea3358e1e8e6a76f254be2e9ac3c6e7117c81edf880e51b9ab/gssapi-1.12.0-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:6e2bf66d0d02e6cafadc9dc944998a9c2edcd553138b9c68b57236bcc827bd15", size = 769098, upload-time = "2026-08-26T03:00:38.419Z" },
+    { url = "https://files.pythonhosted.org/packages/63/a7/370654dd4c0f2400358bd4e68523814932a80503f210dd1426f09fc9d382/gssapi-1.12.0-cp315-cp315t-win32.whl", hash = "sha256:8b6c966d70025e044aa1f67d4e333854aa5e426ac2a75f201f627ede6aacf0c9", size = 1772974, upload-time = "2026-08-26T03:00:39.974Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/eb/d4cc099a600fe07ccf91af52458c910894c87283f259ec8d3a0c63f33bf3/gssapi-1.12.0-cp315-cp315t-win_amd64.whl", hash = "sha256:4f0811ba2df74bb600697d5af5db7e5aecf9361f8081998d7c2cee3f5e59c752", size = 1960691, upload-time = "2026-08-26T03:00:41.737Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2415,6 +2455,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz", hash = "sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b", size = 63516, upload-time = "2025-11-16T16:26:09.482Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/db/e655086b7f3a705df045bf0933bdd9c2f79bb3c97bfef1384598bb79a217/keyring-25.7.0-py3-none-any.whl", hash = "sha256:be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f", size = 39160, upload-time = "2025-11-16T16:26:08.402Z" },
+]
+
+[[package]]
+name = "ldap3"
+version = "2.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/ac/96bd5464e3edbc61595d0d69989f5d9969ae411866427b2500a8e5b812c0/ldap3-2.9.1.tar.gz", hash = "sha256:f3e7fc4718e3f09dda568b57100095e0ce58633bcabbed8667ce3f8fbaa4229f", size = 398830, upload-time = "2021-07-18T06:34:21.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/f6/71d6ec9f18da0b2201287ce9db6afb1a1f637dedb3f0703409558981c723/ldap3-2.9.1-py2.py3-none-any.whl", hash = "sha256:5869596fc4948797020d3f03b7939da938778a0f9e2009f7a072ccf92b8e8d70", size = 432192, upload-time = "2021-07-18T06:34:12.905Z" },
 ]
 
 [[package]]
@@ -5591,6 +5643,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e4/51/9aed62104cea109b820bbd6c14245af756112017d309da813ef107d42e7e/typer-0.25.1.tar.gz", hash = "sha256:9616eb8853a09ffeabab1698952f33c6f29ffdbceb4eaeecf571880e8d7664cc", size = 122276, upload-time = "2026-04-30T19:32:16.964Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/f9/2b3ff4e56e5fa7debfaf9eb135d0da96f3e9a1d5b27222223c7296336e5f/typer-0.25.1-py3-none-any.whl", hash = "sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89", size = 58409, upload-time = "2026-04-30T19:32:18.271Z" },
+]
+
+[[package]]
+name = "types-ldap3"
+version = "2.9.13.20260827"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/5a/71a62370bd5ece50c0ab63d764b76200a8ede95efa0e74f16d9246b3f0bb/types_ldap3-2.9.13.20260827.tar.gz", hash = "sha256:06091fb1d93f2a012c446f7476dfc72fc2ae5e818552506c1f87770b4e2264ec", size = 34632, upload-time = "2026-08-27T12:07:07.974Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/7c/a63bba957b18a33497fadadd285e6a2c4fd2ac25c3dcbf13f6945442c833/types_ldap3-2.9.13.20260827-py3-none-any.whl", hash = "sha256:11917e8e5f34c6c31a256cd361182b188d346f44fe70d036c4843c5cc9d03d96", size = 57457, upload-time = "2026-08-27T12:07:07.073Z" },
+]
+
+[[package]]
+name = "types-pyasn1"
+version = "0.6.0.20260724"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/24/ba/a3be5620ec108bfb21481a7796a3c352e627969fa67db6a033cdaeacd117/types_pyasn1-0.6.0.20260724.tar.gz", hash = "sha256:00b9324c1ce8167ec1dc503018cc7d4f190f5770dd3e9a365e897e290e0532db", size = 17373, upload-time = "2026-07-24T04:57:47.402Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/ab/9936badd94cfbfb73d2ec83409e203fee44fc83a744e09a8779b37042f45/types_pyasn1-0.6.0.20260724-py3-none-any.whl", hash = "sha256:487987e4492ce2e1ba6f0048f025165383c49d5d16a345ae5dfe7d44045b7910", size = 24054, upload-time = "2026-07-24T04:57:46.482Z" },
 ]
 
 [[package]]

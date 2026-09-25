@@ -9,8 +9,8 @@ organization.
 
 New table only, so `downgrade()` drops it and loses nothing that existed before.
 
-Revision ID: 0095_table_views
-Revises: 0092_virtual_tables
+Revision ID: 0104_table_views
+Revises: 0101_virtual_tables
 Create Date: 2026-09-23
 """
 
@@ -21,8 +21,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0095_table_views"
-down_revision: str | Sequence[str] | None = "0092_virtual_tables"
+revision: str = "0104_table_views"
+down_revision: str | Sequence[str] | None = "0101_virtual_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

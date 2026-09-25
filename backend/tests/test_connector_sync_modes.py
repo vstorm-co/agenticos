@@ -50,6 +50,7 @@ def _stored(*, content_hash: str, source_path: str = SOURCE_PATH) -> MagicMock:
     """One row of a collection's document listing, as the store answers it."""
     return MagicMock(
         id="vector-doc-1",
+        document_id="vector-doc-1",
         filename="handbook.md",
         additional_info={"source_path": source_path, "content_hash": content_hash},
     )
@@ -133,6 +134,7 @@ async def _syncing(
         fail_ingestion=AsyncMock(),
         unlisted_by_source=AsyncMock(return_value=[]),
         stale_for_source=AsyncMock(return_value=[]),
+        claim_listed=AsyncMock(),
     )
 
     @asynccontextmanager
@@ -263,15 +265,59 @@ class TestAnUnchangedFile:
     async def test_it_is_skipped_rather_than_embedded_again(self):
         """The cost this exists to avoid. Before the fix a nightly sync
         re-embedded every unchanged file and inserted a second copy of it."""
-        answer, ingest, _ = await _sync(
+        answer, ingest, documents = await _sync(
             mode="new_only",
             listing=[_stored(content_hash=BODY_HASH)],
             connector=_connector(),
         )
 
         ingest.assert_not_awaited()
-        assert answer["skipped"] == 1
-        assert answer["ingested"] == 0
+        assert (answer["skipped"], answer["ingested"], answer["failed"]) == (1, 0, 0)
+        # The source still lists it, so it claims the stored document whichever
+        # source ingested it, and another source dropping it cannot remove it
+        # from under this one (#1879).
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+
+class TestWhatASourceClaims:
+    """Whatever is stored at an address the source lists is the source's too,
+    whichever source ingested it (#1879)."""
+
+    @pytest.mark.parametrize("mode", ["full", "new_only", "update_only"])
+    async def test_the_stored_document_is_claimed_in_every_mode(self, mode: str):
+        _answer, _ingest, documents = await _sync(
+            mode=mode,
+            listing=[_stored(content_hash="a-different-file-entirely")],
+            connector=_connector(),
+        )
+
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+    async def test_a_failed_download_still_claims_it(self):
+        """The file is still listed, so it is still this source's: another source
+        dropping it before this one's next try must not remove it."""
+        connector = _connector()
+        connector.download_file = AsyncMock(side_effect=RuntimeError("the link timed out"))
+
+        answer, _ingest, documents = await _sync(
+            mode="new_only", listing=[_stored(content_hash=BODY_HASH)], connector=connector
+        )
+
+        assert answer["failed"] == 1
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+    async def test_a_file_nothing_stores_claims_nothing(self):
+        _answer, _ingest, documents = await _sync(
+            mode="new_only", listing=[], connector=_connector()
+        )
+
+        documents.claim_listed.assert_not_awaited()
 
     async def test_update_only_skips_it_too(self):
         answer, ingest, _ = await _sync(

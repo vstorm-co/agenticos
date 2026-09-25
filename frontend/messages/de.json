@@ -752,7 +752,10 @@
     "signupDomainsAllowed": "Hier können sich nur Adressen bei {domains} registrieren.",
     "signupClosedHeading": "Die Registrierung ist geschlossen",
     "signupClosedBody": "{app} nimmt keine neuen Konten an. Bitten Sie einen Administrator, Sie einzuladen.",
-    "signupWithInvitation": "Sie registrieren sich mit einer Einladung, deshalb gelten die Registrierungsbeschränkungen dieses Deployments für Sie nicht."
+    "signupWithInvitation": "Sie registrieren sich mit einer Einladung, deshalb gelten die Registrierungsbeschränkungen dieses Deployments für Sie nicht.",
+    "directorySignIn": "Mit {provider} anmelden",
+    "directoryUsername": "{provider}-Benutzername",
+    "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden"
   },
   "billing": {
     "description": "Verwalten Sie das Abonnement von {org}.",
@@ -2679,6 +2682,10 @@
         "title": "Eine Organisation erstellen?",
         "body": "Eine Organisation ist ein eigener Raum mit eigenen Agents, Mitgliedern und Einstellungen. Wollen Sie jetzt eine erstellen? Wir führen Sie hindurch."
       },
+      "create-group": {
+        "title": "Eine Gruppe erstellen?",
+        "body": "Mit einer Gruppe geben Sie einen Agent, einen Skill oder eine Collection in einem Schritt für mehrere Personen frei. Wollen Sie jetzt eine erstellen? Wir führen Sie hindurch."
+      },
       "create-routine": {
         "title": "Ihre erste Routine einrichten?",
         "body": "Eine Routine führt einen Agent aus, ohne dass jemand an der Tastatur sitzt – nach Zeitplan oder wenn ein Ereignis eintrifft. Wollen Sie jetzt eine einrichten? Wir führen Sie hindurch und lösen den ersten Run gemeinsam aus."
@@ -3060,6 +3067,26 @@
       "org-retention": {
         "title": "Wie lange Daten hier leben",
         "body": "Ein Zeitraum je Klasse – Unterhaltungen, Runs, Workspaces, Gedächtnis, Uploads und der Audit-Trail. Ein Durchlauf läuft täglich und löscht endgültig, innerhalb der Grenzen, die das Deployment gesetzt hat; der Audit-Trail hat eine Untergrenze, die Sie verlängern und nie verkürzen können."
+      },
+      "org-groups": {
+        "title": "Für eine Gruppe freigeben",
+        "body": "Eine Gruppe ist eine benannte Menge von Mitgliedern. Geben Sie einen Agent, einen Skill, eine Collection oder ein Secret im Vault für sie frei, und alle in ihr erhalten diesen Zugriff auf einmal – ihre Rollen bleiben, wie sie sind."
+      },
+      "org-groups-new": {
+        "title": "Eine Gruppe erstellen",
+        "body": "Geben Sie ihr einen Namen und auf Wunsch eine Zeile dazu, wofür sie da ist. Öffnen Sie dann ihre Mitglieder, um Personen hinzuzufügen, oder lassen Sie eine Verzeichniszuordnung sie bei der Anmeldung aufnehmen."
+      },
+      "org-directory": {
+        "title": "Wen das Verzeichnis hereinlässt",
+        "body": "Jede Zuordnung macht aus einer Verzeichnisgruppe – einer LDAP-Gruppe oder einem OIDC-Gruppen-Claim – eine Rolle hier und optional eine Gruppe. Die Synchronisierung wendet sie bei jeder Anmeldung an und hält die von ihr angelegten Mitgliedschaften aktuell."
+      },
+      "org-directory-new": {
+        "title": "Eine Verzeichnisgruppe zuordnen",
+        "body": "Fügen Sie den DN oder Claim-Wert der Gruppe ein und wählen Sie eine Rolle. Sie können nur Rollen unterhalb Ihrer eigenen vergeben."
+      },
+      "flow-group-create": {
+        "title": "Die Gruppe erstellen",
+        "body": "Wählen Sie Neue Gruppe, geben Sie einen Namen ein und erstellen Sie sie. Wir machen weiter, sobald sie existiert."
       },
       "org-roles": {
         "title": "Was jede Rolle darf",
@@ -4691,8 +4718,8 @@
     "access": "Zugriff",
     "accessFor": "Zugriff für {name}",
     "accessRemoved": "Zugriff entfernt",
-    "addSomeone": "Jemanden hinzufügen",
-    "chooseMember": "Mitglied auswählen",
+    "addSubject": "Person oder Gruppe hinzufügen",
+    "chooseSubject": "Mitglied oder Gruppe auswählen",
     "collectionRuntimeNote": "Die Freigabe steuert, wer diese Collection im Builder auswählen und wer sie ändern darf. Ein daran angebundener Agent durchsucht sie für alle, die diesen Agent ausführen dürfen – auch für Personen, die die Collection selbst nicht öffnen können.",
     "everyoneAlreadyHasAccess": "Alle haben bereits Zugriff",
     "failedLoadShares": "Freigaben konnten nicht geladen werden",
@@ -4703,8 +4730,8 @@
     "levelUse": "Darf verwenden",
     "notSharedWithAnyone": "Noch mit niemandem geteilt.",
     "ownedBy": "Gehört {email}",
-    "people": "Personen",
-    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
+    "peopleAndGroups": "Personen und Gruppen",
+    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
     "secretRuntimeNote": "Die Freigabe steuert, wer diesen Schlüssel an einen Agent binden und wer ihn rotieren darf – nicht, wer von ihm profitiert. Sobald ein Agent diesen Schlüssel verwendet, läuft er damit für alle, die diesen Agent ausführen dürfen, auch für Personen, die den Schlüssel hier nicht sehen können.",
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
@@ -4716,7 +4743,10 @@
     "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
     "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
-    "visibilityUpdated": "Sichtbarkeit aktualisiert"
+    "visibilityUpdated": "Sichtbarkeit aktualisiert",
+    "groupsHeading": "Gruppen",
+    "membersHeading": "Mitglieder",
+    "groupSubject": "Gruppe"
   },
   "skills": {
     "addFile": "Datei hinzufügen",
@@ -5445,5 +5475,76 @@
       "noValue": "Kein Wert",
       "archivedLane": "Archiviert"
     }
+  },
+  "groups": {
+    "title": "Gruppen",
+    "description": "Benannte Mengen von Mitgliedern dieser Organisation, für die wie für eine Person freigegeben wird.",
+    "organizations": "Organisationen",
+    "members": "Mitglieder",
+    "intro": "Eine Gruppe ist eine Menge von Mitgliedern, für die Sie Agents, Skills, Collections und Secrets im Vault in einem Schritt freigeben. Alle in der Gruppe erhalten den Zugriff, den die Freigabe gewährt, und an ihrer Rolle ändert sich nichts. Verzeichniszuordnungen können Personen auch bei der Anmeldung in eine Gruppe aufnehmen.",
+    "newGroup": "Neue Gruppe",
+    "editGroup": "Gruppe bearbeiten",
+    "name": "Name",
+    "namePlaceholder": "Finanzen",
+    "descriptionLabel": "Beschreibung",
+    "descriptionPlaceholder": "Wofür diese Gruppe da ist",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "create": "Erstellen",
+    "created": "Gruppe erstellt",
+    "saved": "Gruppe gespeichert",
+    "deleted": "Gruppe gelöscht",
+    "memberAdded": "Zur Gruppe hinzugefügt",
+    "memberRemoved": "Aus der Gruppe entfernt",
+    "groupCount": "{count, plural, =0 {Keine Gruppen} =1 {1 Gruppe} other {# Gruppen}}",
+    "membersOf": "Mitglieder von {name}",
+    "memberCount": "{count, plural, =1 {1 Mitglied} other {# Mitglieder}}",
+    "editNamed": "{name} bearbeiten",
+    "emptyTitle": "Noch keine Gruppen",
+    "emptyBody": "Erstellen Sie eine Gruppe, um für mehrere Personen auf einmal freizugeben.",
+    "deleteTitle": "{name} löschen?",
+    "deleteBody": "Alles, was für diese Gruppe freigegeben ist, erreicht ihre Mitglieder nicht mehr über sie, und die Verzeichniszuordnungen, die sie nennen, werden ebenfalls gelöscht. Die Mitglieder selbst bleiben in der Organisation.",
+    "delete": "Löschen",
+    "membersBody": "Wen diese Gruppe erreicht. Als Verzeichnis markierte Personen hat die Synchronisierung der Verzeichnisanmeldung aufgenommen, und sie entfernt sie wieder, wenn das Verzeichnis sie nicht mehr führt.",
+    "nobodyYet": "In dieser Gruppe ist noch niemand.",
+    "directoryMemberHint": "Von der Synchronisierung der Verzeichnisanmeldung aufgenommen, die diese Person entfernt, wenn das Verzeichnis sie nicht mehr führt. Ein Entfernen hier gilt bis zur nächsten Anmeldung.",
+    "addMember": "Mitglied hinzufügen",
+    "chooseMember": "Mitglied auswählen",
+    "everyoneIsIn": "Alle sind bereits in dieser Gruppe",
+    "add": "Hinzufügen"
+  },
+  "directory": {
+    "navLabel": "Verzeichnis",
+    "title": "Verzeichniszuordnungen",
+    "description": "Welche Verzeichnisgruppen jemanden in dieser Organisation zu was machen.",
+    "organizations": "Organisationen",
+    "members": "Mitglieder",
+    "badge": "Verzeichnis",
+    "memberHint": "Von der Verzeichnissynchronisierung aktuell gehalten, die diese Mitgliedschaft mit dem Verzeichnis ändert und entfernt. Eine Rollenänderung hier übernimmt sie, und die Synchronisierung lässt sie danach in Ruhe.",
+    "howItWorks": "Meldet sich jemand über das Verzeichnis (LDAP oder Kerberos) an oder über einen OIDC-Provider, der einen Gruppen-Claim sendet, nimmt jede Zuordnung unten, die zu einer seiner Verzeichnisgruppen passt, ihn mit der zugeordneten Rolle in diese Organisation auf und, falls vorhanden, in die zugeordnete Gruppe.",
+    "precedence": "Passen mehrere Zuordnungen, wird die Rolle in dieser Reihenfolge gewählt: admin, builder, operator, member, viewer. Von der Synchronisierung angelegte Mitgliedschaften sind als Verzeichnis markiert, und nur diese aktualisiert und entfernt sie. Wer die Rolle eines solchen Mitglieds von Hand ändert, übernimmt die Mitgliedschaft.",
+    "removal": "Das Löschen einer Zuordnung entfernt die Personen, die sie aufgenommen hat, bei ihrer nächsten Anmeldung, sofern ihre Mitgliedschaft nicht übernommen wurde.",
+    "notYours": "Verzeichniszuordnungen sind Sache der Mitgliederverwaltung",
+    "askAnAdmin": "Sie zu lesen erfordert die Berechtigung, Mitglieder zu verwalten. Fragen Sie einen Admin dieser Organisation.",
+    "listTitle": "Zuordnungen",
+    "mappingCount": "{count, plural, =0 {Keine Zuordnungen} =1 {1 Zuordnung} other {# Zuordnungen}}",
+    "externalGroup": "Verzeichnisgruppe",
+    "externalGroupHint": "Ein LDAP-Gruppen-DN oder ein Wert aus dem Gruppen-Claim des OIDC-Providers. Groß- und Kleinschreibung spielt keine Rolle.",
+    "role": "Rolle",
+    "group": "Gruppe",
+    "groupHint": "Optional. Die Anmeldung nimmt die Person auch in diese Gruppe auf.",
+    "noGroup": "Keine Gruppe",
+    "addMapping": "Zuordnung hinzufügen",
+    "dialogBody": "Alle, die das Verzeichnis in dieser Gruppe führt, erhalten bei der Anmeldung die Rolle unten.",
+    "noRoleToOffer": "Keine Rolle, die Sie vergeben dürfen",
+    "emptyTitle": "Noch keine Zuordnungen",
+    "emptyBody": "Ordnen Sie eine Verzeichnisgruppe einer Rolle zu, und ihre Mitglieder treten dieser Organisation bei der Anmeldung bei.",
+    "deleteTitle": "Diese Zuordnung löschen?",
+    "deleteBody": "Die Personen, die {group} hier aufgenommen hat, verlassen die Organisation bei ihrer nächsten Anmeldung, sofern ihre Mitgliedschaft nicht übernommen wurde.",
+    "delete": "Löschen",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "mappingAdded": "Zuordnung hinzugefügt",
+    "mappingDeleted": "Zuordnung gelöscht"
   }
 }

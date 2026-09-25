@@ -16,10 +16,14 @@ import type { AuthProvider } from "@/lib/auth-glyphs.generated";
  * A button the sign-in page can offer.
  *
  * `AuthProvider` is the *glyph* table - the brand marks those pages ship - and
- * `oidc` deliberately is not in it: a generic OpenID Connect provider has no
- * brand, which is the point of it being generic.
+ * the rest deliberately are not in it: a generic OpenID Connect provider has no
+ * brand, which is the point of it being generic, and neither has a company's own
+ * directory, signed in to with an LDAP password or a Kerberos ticket (#1773).
  */
-export type SignInProvider = AuthProvider | "oidc";
+export type SignInProvider = AuthProvider | "oidc" | "ldap" | "kerberos";
+
+/** The providers with no brand of their own, which the deployment names instead. */
+const UNBRANDED: readonly SignInProvider[] = ["oidc", "ldap", "kerberos"];
 
 export interface PublicConfig {
   /** The API origin the browser calls directly: OAuth login, embed uploads, `/docs`. */
@@ -64,6 +68,14 @@ export interface PublicConfig {
    * than a generic glyph.
    */
   oidcIcon: AuthProvider | null;
+  /**
+   * What the LDAP sign-in calls the directory behind it - "Active Directory",
+   * "Acme accounts" - on its button and in its form. The protocol name until the
+   * deployment names it, for the reason the OIDC default gives.
+   */
+  ldapDisplayName: string;
+  /** What the Kerberos button calls the domain sign-in, the same way. */
+  kerberosDisplayName: string;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -75,6 +87,8 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   oauthProviders: ["google"],
   oidcDisplayName: "SSO",
   oidcIcon: null,
+  ldapDisplayName: "LDAP",
+  kerberosDisplayName: "Kerberos",
 };
 
 const AUTH_PROVIDERS: readonly AuthProvider[] = ["google", "github", "microsoft"];
@@ -84,7 +98,7 @@ function isAuthProvider(value: string): value is AuthProvider {
 }
 
 function isSignInProvider(value: string): value is SignInProvider {
-  return value === "oidc" || isAuthProvider(value);
+  return (UNBRANDED as readonly string[]).includes(value) || isAuthProvider(value);
 }
 
 function origin(value: string | undefined, fallback: string): string {
@@ -138,5 +152,8 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
     oauthProviders: providers(env.OAUTH_PROVIDERS, DEFAULT_PUBLIC_CONFIG.oauthProviders),
     oidcDisplayName: env.OIDC_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.oidcDisplayName,
     oidcIcon: icon(env.OIDC_ICON),
+    ldapDisplayName: env.LDAP_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.ldapDisplayName,
+    kerberosDisplayName:
+      env.KERBEROS_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.kerberosDisplayName,
   };
 }

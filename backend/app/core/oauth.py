@@ -28,7 +28,7 @@ from typing import Any
 from authlib.integrations.starlette_client import OAuth
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthenticationError, NotFoundError
 
 #: The provider a route may name. Not every one is configured - `sign_in_client`
 #: answers that - but a name outside this tuple never reaches authlib at all.
@@ -192,6 +192,44 @@ def verified_identity(userinfo: Mapping[str, object] | None) -> tuple[str, str, 
         return None
     name = userinfo.get("name")
     return subject, email, name if isinstance(name, str) else None
+
+
+def groups_claim(claims: Mapping[str, object] | None) -> frozenset[str] | None:
+    """The groups this token says the person is in, or None when groups are not read.
+
+    None means `OIDC_GROUPS_CLAIM` is unset, and the sign-in leaves memberships
+    exactly as they are. Configured, an absent claim is the empty set: Keycloak's
+    group mapper and Okta's groups claim omit an empty list rather than send one,
+    and a person removed from their last group has to lose what it gave them.
+
+    Raises:
+        AuthenticationError: The provider sent a group *overage* instead of the
+            groups - Entra ID does this past 200 groups, naming a Graph endpoint
+            in `_claim_names` - so the token does not say which groups the person
+            is in. Refusing is the only safe reading: treating it as "no groups"
+            would strip every membership the directory gave them, and ignoring it
+            would keep ones it may have taken away.
+    """
+    name = settings.OIDC_GROUPS_CLAIM
+    if not name:
+        return None
+    if claims is None:
+        return frozenset()
+    overage = claims.get("_claim_names")
+    if isinstance(overage, Mapping) and name in overage:
+        raise AuthenticationError(
+            message=(
+                "Your account is in more groups than the identity provider puts in a "
+                "token. Ask an administrator to send only the groups assigned to this "
+                "application."
+            )
+        )
+    value = claims.get(name)
+    if isinstance(value, str):
+        return frozenset({value})
+    if isinstance(value, list):
+        return frozenset(item for item in value if isinstance(item, str))
+    return frozenset()
 
 
 def identity_key(provider: str, subject: str) -> str:

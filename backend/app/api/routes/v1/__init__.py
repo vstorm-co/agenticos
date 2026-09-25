@@ -45,6 +45,7 @@ from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import mattermost_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import members, organizations
+from app.api.routes.v1 import groups, directory_mappings, directory_auth
 from app.api.routes.v1.invitations import (
     org_router as invitations_org_router,
     token_router as invitations_token_router,
@@ -66,6 +67,7 @@ v1_router = APIRouter()
 v1_router.include_router(health.router, tags=["health"])
 
 v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+v1_router.include_router(directory_auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
@@ -165,6 +167,8 @@ v1_router.include_router(mattermost_webhook.router, prefix="/mattermost", tags=[
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])
+v1_router.include_router(groups.router, prefix="/orgs", tags=["groups"])
+v1_router.include_router(directory_mappings.router, prefix="/orgs", tags=["directory"])
 v1_router.include_router(invitations_org_router, prefix="/orgs", tags=["invitations"])
 v1_router.include_router(invitations_token_router, tags=["invitations"])
 

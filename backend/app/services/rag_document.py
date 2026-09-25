@@ -162,9 +162,9 @@ class RAGDocumentService:
         is. `None` leaves the dimension absent, which is what every chunk
         carried before anything wrote it (#1777).
 
-        `sync_source_id` is the source a connector sync ingested this for, which
-        is what lets a later run of that source remove it once it is no longer
-        listed (`unlisted_by_source`).
+        `sync_source_id` is the source a connector sync ingested this for, and
+        the row is opened claimed by it: that claim is what lets a later run of
+        the source remove it once it is no longer listed (`unlisted_by_source`).
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -418,6 +418,7 @@ class RAGDocumentService:
                 collection_name=doc.collection_name,
                 vector_document_id=replaced_document_id,
                 keep_id=doc.id,
+                source_path=doc.source_path,
             )
         # No notification on the way out. A document that indexed cleanly is
         # not news: the collection already shows its status, and one row per
@@ -427,7 +428,12 @@ class RAGDocumentService:
         # whole-attempt figure through `sync_completed`.
 
     async def _retire_superseded(
-        self, *, collection_name: str, vector_document_id: str, keep_id: UUID
+        self,
+        *,
+        collection_name: str,
+        vector_document_id: str,
+        keep_id: UUID,
+        source_path: str | None,
     ) -> None:
         """Drop the tracking rows for a vector document a replacement deleted.
 
@@ -445,6 +451,13 @@ class RAGDocumentService:
         and a worker restart mid-drain no longer orphans the ones still queued -
         the run is recorded on the Prefect server and retried (#1349). An unlink
         before the commit would strand a restored row on a missing file.
+
+        The sync sources claiming a superseded row at the replacement's own
+        address claim the replacement instead: a second source re-ingesting a
+        page the first also lists must not leave the first with no claim on it,
+        or the second dropping the page later would remove it from under the
+        first (#1879). A row at another address - one the store matched by name
+        or by content - keeps its claims to itself, and they go with it.
         """
         superseded = await rag_document_repo.get_superseded(
             self.db,
@@ -452,6 +465,12 @@ class RAGDocumentService:
             vector_document_id=vector_document_id,
             keep_id=keep_id,
         )
+        if source_path is not None:
+            await rag_document_repo.transfer_claims(
+                self.db,
+                from_ids=[stale.id for stale in superseded if stale.source_path == source_path],
+                to_id=keep_id,
+            )
         storage_paths = [stale.storage_path for stale in superseded if stale.storage_path]
         for stale in superseded:
             await rag_document_repo.delete(self.db, stale.id)
@@ -645,7 +664,7 @@ class RAGDocumentService:
     async def unlisted_by_source(
         self, *, sync_source_id: UUID, collection_name: str, listed: set[str]
     ) -> list[RAGDocument]:
-        """The documents a source brought in that its latest listing no longer names.
+        """The documents a source claims that its latest listing no longer names.
 
         `listed` is every `source_path` the listing answered, whether or not this
         run ingested it: a file skipped as unchanged, or one that failed to
@@ -655,6 +674,52 @@ class RAGDocumentService:
             self.db, sync_source_id=sync_source_id, collection_name=collection_name
         )
         return [row for row in rows if row.source_path not in listed]
+
+    async def release_claim(self, doc_id: str, *, sync_source_id: UUID) -> RAGDocument | None:
+        """Withdraw this source's claim, or answer the document for it to remove.
+
+        The document is locked first, until this session's transaction ends
+        (`lock_for_removal`). When another source feeding the collection still
+        claims it, this source's claim is dropped and the answer is `None`, as
+        it is for a row already gone. Otherwise this source is the last to list
+        it: its claim stays, and the locked row is answered for the caller to
+        remove whole in the same transaction - vectors first, then
+        `forget_document` - so a vector delete that fails leaves it claimed and
+        the next run of this source tries again (#1879).
+        """
+        row_id = UUID(doc_id)
+        doc = await rag_document_repo.lock_for_removal(self.db, row_id)
+        if doc is None:
+            return None
+        if not await rag_document_repo.is_claimed_by_another_source(
+            self.db, row_id, sync_source_id=sync_source_id
+        ):
+            return doc
+        await rag_document_repo.delete_claim(self.db, row_id, sync_source_id=sync_source_id)
+        return None
+
+    async def claim_listed(
+        self, *, sync_source_id: UUID, collection_name: str, documents: set[tuple[str, str]]
+    ) -> None:
+        """Claim the stored documents at addresses a sync listed (`claim_listed`).
+
+        `documents` are `(source_path, vector_document_id)` pairs, each the
+        stored document the run found at a listed file's address.
+        """
+        await rag_document_repo.claim_listed(
+            self.db,
+            sync_source_id=sync_source_id,
+            collection_name=collection_name,
+            documents=documents,
+        )
+
+    async def add_claims(self, doc_id: str, *, sync_source_ids: set[UUID]) -> None:
+        """Claim a settled document for other sources that list its address (`add_claims`)."""
+        await rag_document_repo.add_claims(self.db, UUID(doc_id), sync_source_ids=sync_source_ids)
+
+    async def claimants(self, doc_ids: list[str]) -> set[UUID]:
+        """Every source claiming any of these documents."""
+        return await rag_document_repo.get_claimants(self.db, [UUID(doc_id) for doc_id in doc_ids])
 
     async def stale_for_source(
         self, *, sync_source_id: UUID, collection_name: str
@@ -667,7 +732,7 @@ class RAGDocumentService:
     async def settled_at(
         self, *, sync_source_id: UUID, collection_name: str, source_path: str
     ) -> list[RAGDocument]:
-        """This source's settled rows at one address."""
+        """The settled rows this source claims at one address."""
         rows = await rag_document_repo.get_settled_for_sync_source(
             self.db, sync_source_id=sync_source_id, collection_name=collection_name
         )

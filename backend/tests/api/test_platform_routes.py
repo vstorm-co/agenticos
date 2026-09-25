@@ -998,6 +998,12 @@ class _NoRows:
     def scalar_one_or_none(self) -> None:
         return None
 
+    def scalars(self) -> _NoRows:
+        return self
+
+    def all(self) -> list[object]:
+        return []
+
 
 class _NoGrantsSession:
     """Serves one resource and no grants - a member who was never shared with."""
@@ -1461,6 +1467,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # the whole of the proof, and it is refused unless the address it names
         # is still the one staged on that account.
         ("POST", f"{V1}/auth/email-change/confirm"),
+        # Signing in with a directory account (#1773): an LDAP password, checked
+        # by binding as the account, and a domain-joined browser's Kerberos
+        # ticket. Both are the request made *before* there is a session, and both
+        # answer 404 on a deployment that configured neither.
+        ("POST", f"{V1}/auth/ldap/login"),
+        ("GET", f"{V1}/auth/kerberos/login"),
         # One pair for every identity provider: `google`, and the deployment's
         # own `oidc` (#1419). A provider it does not offer is a 404 from
         # `sign_in_client`, not an authenticated route.

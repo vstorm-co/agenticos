@@ -67,10 +67,12 @@ class _Connector(BaseSyncConnector):
         self.listing_error = listing_error
         self.listed = 0
         self.closed = 0
+        self.previous: list[str | None] = []
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
     ) -> str | None:
+        self.previous.append(previous)
         return self.version
 
     async def list_files(
@@ -96,6 +98,9 @@ class _Connector(BaseSyncConnector):
         credential: StorableSecret | None,
     ) -> None:
         dest_path.write_text(f"contents of {file.id}")
+
+
+OPENED_ID = uuid.uuid4()
 
 
 def _row(
@@ -152,6 +157,7 @@ async def _sync(
     tracked: set[str] | None = None,
     store: _Store | None = None,
     ingest_status: IngestionStatus = IngestionStatus.DONE,
+    claimants: set[uuid.UUID] | None = None,
 ) -> _Run:
     source = MagicMock(
         id=SOURCE_ID,
@@ -195,7 +201,7 @@ async def _sync(
         return [row for row in settled or [] if row.source_path == kwargs["source_path"]]
 
     run.documents = MagicMock(
-        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        create_document=AsyncMock(return_value=MagicMock(id=OPENED_ID)),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
         stale_for_source=AsyncMock(return_value=stale or []),
@@ -203,6 +209,9 @@ async def _sync(
         tracked_vector_ids=AsyncMock(return_value=tracked or set()),
         unlisted_by_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(side_effect=forget),
+        claimants=AsyncMock(return_value=claimants or set()),
+        claim_listed=AsyncMock(),
+        add_claims=AsyncMock(),
     )
 
     async def document_ids_at(_self: Any, _collection: str, source_path: str) -> list[str]:
@@ -317,6 +326,24 @@ class TestAnUnchangedSourceStopsEarly:
         assert connector.listed == 1
         assert run.stored_state is None
 
+    async def test_the_connector_is_handed_the_last_clean_runs_version(self) -> None:
+        """What a change feed asks "what changed since" - SharePoint's delta link."""
+        connector = _Connector(files=["a.md"], version="sha-1")
+
+        await _sync(connector, stored_state=_state("sha-1"))
+
+        assert connector.previous == ["sha-1"]
+
+    async def test_a_version_stored_under_another_configuration_is_not_handed_on(self) -> None:
+        """A feed position read for another folder would vouch for the wrong files."""
+        connector = _Connector(files=["a.md"], version="sha-1")
+        other = {**CONFIG, "include": ["**/*.rst"]}
+
+        await _sync(connector, stored_state=_state("sha-1", config=other))
+        await _sync(connector)
+
+        assert connector.previous == [None, None]
+
     async def test_the_connector_is_closed_whichever_way_the_sync_went(self) -> None:
         ok = _Connector(files=["a.md"])
         broken = _Connector(files=[], listing_error=RuntimeError("boom"))
@@ -365,6 +392,26 @@ class TestWhatADeadRunLeftIsSettledFirst:
 
         assert store.removed == ["new"]
         assert run.forgotten == [str(stale.id), str(replaced.id)]
+        run.documents.add_claims.assert_not_awaited()
+
+    async def test_another_sources_claim_on_a_dropped_row_moves_to_the_new_one(self) -> None:
+        """The other source lists the address too. Dropped with the dead row, its
+        claim would leave the document this run ingests again to this source
+        alone, and this source dropping it later would remove it (#1879)."""
+        other = uuid.uuid4()
+        stale = _row("a.md")
+        replaced = _row("a.md", vector_id="old", status=DocumentStatus.DONE)
+
+        run = await _sync(
+            _Connector(files=["a.md"]),
+            stale=[stale],
+            settled=[replaced],
+            store=_Store(at={f"{ROOT}a.md": ["new"]}),
+            claimants={other, SOURCE_ID},
+        )
+
+        run.documents.claimants.assert_awaited_once_with([str(replaced.id)])
+        run.documents.add_claims.assert_awaited_once_with(str(OPENED_ID), sync_source_ids={other})
 
     @pytest.mark.parametrize(
         "store",

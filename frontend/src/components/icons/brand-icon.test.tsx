@@ -79,18 +79,27 @@ describe("connectorBrand", () => {
     ["drive", "gdrive"],
     ["aws", "s3"],
     ["s3", "s3"],
+    ["sharepoint", "microsoft"],
   ])("maps the connector type %s to %s", (connector, brand) => {
     expect(connectorBrand(connector)).toBe(brand);
   });
 
   it("has no mark for a connector type it does not know", () => {
-    expect(connectorBrand("sharepoint")).toBeUndefined();
+    expect(connectorBrand("confluence")).toBeUndefined();
   });
 
   it("only ever names a brand the set draws", () => {
     // A spelling that maps to a name with no glyph would throw at render, in a
     // list, on whichever deployment happens to have that connector.
-    for (const connector of ["google_drive", "gdrive", "drive", "github", "notion", "slack"]) {
+    for (const connector of [
+      "google_drive",
+      "gdrive",
+      "drive",
+      "github",
+      "notion",
+      "slack",
+      "sharepoint",
+    ]) {
       expect(isBrandName(connectorBrand(connector) ?? "")).toBe(true);
     }
   });
