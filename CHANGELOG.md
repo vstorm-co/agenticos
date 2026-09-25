@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Three use-case tutorials you can repeat.** The docs now cover a handbook
+  question answered in Slack, a CSV turned into a chart you can reconcile with
+  its rows, and a weekly report published as an artifact on a schedule. Each
+  gives a synthetic fixture, the configuration, the exact prompt, reference
+  checks, the usual failures and what to record. The CSV and report tutorials
+  include a run recorded on v0.0.504. The use-case index says which tutorials
+  the maintainers have run (#1895).
+
 ## [0.0.505] - 2026-09-26
 
 ### Changed
