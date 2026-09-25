@@ -633,6 +633,8 @@ include = [
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
     "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -985,6 +987,8 @@ include = [
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
     "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",

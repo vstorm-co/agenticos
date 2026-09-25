@@ -67,10 +67,12 @@ class _Connector(BaseSyncConnector):
         self.listing_error = listing_error
         self.listed = 0
         self.closed = 0
+        self.previous: list[str | None] = []
 
     async def remote_version(
-        self, config: ConnectorConfig, credential: StorableSecret | None
+        self, config: ConnectorConfig, credential: StorableSecret | None, previous: str | None
     ) -> str | None:
+        self.previous.append(previous)
         return self.version
 
     async def list_files(
@@ -323,6 +325,24 @@ class TestAnUnchangedSourceStopsEarly:
 
         assert connector.listed == 1
         assert run.stored_state is None
+
+    async def test_the_connector_is_handed_the_last_clean_runs_version(self) -> None:
+        """What a change feed asks "what changed since" - SharePoint's delta link."""
+        connector = _Connector(files=["a.md"], version="sha-1")
+
+        await _sync(connector, stored_state=_state("sha-1"))
+
+        assert connector.previous == ["sha-1"]
+
+    async def test_a_version_stored_under_another_configuration_is_not_handed_on(self) -> None:
+        """A feed position read for another folder would vouch for the wrong files."""
+        connector = _Connector(files=["a.md"], version="sha-1")
+        other = {**CONFIG, "include": ["**/*.rst"]}
+
+        await _sync(connector, stored_state=_state("sha-1", config=other))
+        await _sync(connector)
+
+        assert connector.previous == [None, None]
 
     async def test_the_connector_is_closed_whichever_way_the_sync_went(self) -> None:
         ok = _Connector(files=["a.md"])

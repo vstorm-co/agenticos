@@ -266,17 +266,17 @@ class TestWhatASyncReads:
 @pytest.mark.usefixtures("local_transport")
 class TestTheChangeSignal:
     async def test_the_version_is_the_branch_head_and_moves_with_a_commit(self, repo: Path) -> None:
-        before = await GitConnector().remote_version(_config(), _token())
+        before = await GitConnector().remote_version(_config(), _token(), None)
         assert before == _run("rev-parse", "HEAD", cwd=repo).strip()
 
         (repo / "docs" / "intro.md").write_text("Welcome, again.\n")
         _commit(repo, "edit")
 
-        assert await GitConnector().remote_version(_config(), _token()) != before
+        assert await GitConnector().remote_version(_config(), _token(), None) != before
 
     async def test_a_branch_the_repository_does_not_have_is_refused_by_name(self) -> None:
         with pytest.raises(BadRequestError, match="no branch named 'release'"):
-            await GitConnector().remote_version(_config(branch="release"), _token())
+            await GitConnector().remote_version(_config(branch="release"), _token(), None)
 
     async def test_cloning_a_missing_branch_is_our_sentence_and_not_gits(self) -> None:
         connector = GitConnector()
@@ -367,11 +367,11 @@ class TestWhatGitIsTold:
             patch.object(git_module, "resolve_pinned_url", side_effect=refused),
             pytest.raises(BadRequestError, match="private address"),
         ):
-            await GitConnector().remote_version(_config(), _token())
+            await GitConnector().remote_version(_config(), _token(), None)
 
     async def test_a_source_with_no_credential_is_refused(self) -> None:
         with pytest.raises(BadRequestError, match="no credential"):
-            await GitConnector().remote_version(_config(), None)
+            await GitConnector().remote_version(_config(), None, None)
 
     async def test_an_api_key_is_not_a_git_token(self) -> None:
         """Any API key used to be eligible - the organization's model key included -
@@ -379,7 +379,7 @@ class TestWhatGitIsTold:
         it. A Git source now takes only a token that names its own host."""
         model_key = ApiKeySecret(api_key=SecretStr("sk-model-provider-key"))
         with pytest.raises(BadRequestError, match="needs a Git access token"):
-            await GitConnector().remote_version(_config(), model_key)
+            await GitConnector().remote_version(_config(), model_key, None)
 
     async def test_a_token_is_never_sent_to_a_host_it_was_not_added_for(self) -> None:
         spawned: list[object] = []
@@ -392,7 +392,7 @@ class TestWhatGitIsTold:
             patch.object(git_module.asyncio, "create_subprocess_exec", new=spawn),
             pytest.raises(BadRequestError, match=r"added for github\.com") as caught,
         ):
-            await GitConnector().remote_version(_config(), _token(host="github.com"))
+            await GitConnector().remote_version(_config(), _token(host="github.com"), None)
 
         assert spawned == []
         assert TOKEN not in caught.value.message

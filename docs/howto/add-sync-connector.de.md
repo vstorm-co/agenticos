@@ -1,5 +1,5 @@
 ---
-source_sha: "f203f752d3d1"
+source_sha: "1ff020c86d59"
 ---
 
 # Einen Sync-Connector hinzufügen { #add-a-sync-connector }
@@ -114,11 +114,13 @@ ein Statuscode, nie der Text der Gegenseite.
 weitere Methoden haben Vorgaben, mit denen ein Connector so arbeitet wie Drive
 und S3, und ein Connector überschreibt eine davon, wenn seine Quelle die Frage
 beantworten kann, die sie stellt. `GitConnector` in
-`app/services/rag/connectors/git.py` überschreibt beide.
+`app/services/rag/connectors/git.py` überschreibt beide, ebenso
+`SharePointConnector` in `app/services/rag/connectors/sharepoint.py`, der
+`previous` nutzt.
 
 | Hook | Vorgabe | Überschreiben, wenn |
 |------|---------|---------------------|
-| `remote_version(config, credential)` | `None`: jeder Lauf listet auf | Die Quelle kann günstig sagen, auf welchem Stand ihr gesamter Inhalt ist, etwa ein Commit oder ein Change-Token. Nach einem Lauf ohne fehlgeschlagene Datei speichert der Sync den Wert zusammen mit einem Fingerabdruck der Konfiguration. Der nächste Lauf, der dasselbe Paar vorfindet, hält vor `list_files()` an. Der Wert muss sich ändern, sobald sich eine aufgelistete Datei oder die Auflistung selbst geändert haben könnte. |
+| `remote_version(config, credential, previous)` | `None`: jeder Lauf listet auf | Die Quelle kann günstig sagen, auf welchem Stand ihr gesamter Inhalt ist, etwa ein Commit oder ein Change-Token. Nach einem Lauf ohne fehlgeschlagene Datei speichert der Sync den Wert zusammen mit einem Fingerabdruck der Konfiguration. Der nächste Lauf, der dasselbe Paar vorfindet, hält vor `list_files()` an. Der Wert muss sich ändern, sobald sich eine aufgelistete Datei oder die Auflistung selbst geändert haben könnte. `previous` ist der Wert, den der letzte saubere Lauf unter derselben Konfiguration gespeichert hat, oder `None`. Eine Quelle, die nur melden kann, was sich *seit* einem Punkt geändert hat, etwa ein Graph-Delta-Link, antwortet mit `previous`, wenn sich nichts geändert hat. |
 | `aclose()` | nichts | Der Connector hält zwischen `list_files()` und den Downloads etwas vor, etwa einen Klon oder eine Session. Es wird aufgerufen, sobald der Sync vorbei ist, ob er erfolgreich war oder nicht. |
 
 ## Schritt für Schritt: ein Notion-Connector { #step-by-step-a-notion-connector }
