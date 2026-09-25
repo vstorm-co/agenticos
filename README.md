@@ -456,13 +456,16 @@ chat with it attached.
 
 ## Compared with the alternatives
 
-Choose by task and operating responsibility. These sourced guides describe documented options, not measured winners.
+Choose by the task and by who operates it. Each guide cites the vendor's own pages, shows where AgenticOS goes further, and names what it does not do yet.
 
-- [AgenticOS vs Viktor](docs/about/viktor.md): Managed teammate or owned deployment.
-- [AgenticOS vs Dify](docs/about/dify.md): Two self-hosted builders for the same document task.
-- [AgenticOS vs Wonderful](docs/about/wonderful.md): Enterprise delivery and operating scope.
+- **Assistant apps:** [Claude](docs/about/claude-apps.md) · [ChatGPT](docs/about/chatgpt.md). Seats for employees, or agents your organization owns on any model.
+- **Cloud-suite builders:** [Copilot Studio](docs/about/copilot-studio.md) · [Gemini Enterprise](docs/about/gemini-enterprise.md). A vendor's cloud and meter, or your infrastructure and your provider's prices.
+- **Self-hosted builders:** [Dify](docs/about/dify.md) · [n8n](docs/about/n8n.md). Licence conditions and enterprise tiers, or Apache-2.0 with governance included.
+- **Teammate service:** [Viktor](docs/about/viktor.md). One shared AI employee, or many agents with their own access and budgets.
+- **Delivered platform:** [Wonderful](docs/about/wonderful.md). A platform a vendor delivers, or one you own from day one.
+- **Coding agents:** [Claude Code](docs/about/claude-code.md) · [Codex](docs/about/codex.md) · [OpenCode](docs/about/opencode.md). Built for developers; AgenticOS is for everyone else, and they help extend it.
 
-[AgenticOS comparisons](docs/about/comparison.md).
+[All comparisons, and the gaps](docs/about/comparison.md).
 
 ## Why it exists
 

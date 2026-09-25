@@ -1,4 +1,4 @@
-<!-- source_sha: 5e02402cf61c -->
+<!-- source_sha: f0776c70d819 -->
 
 <div align="center">
 
@@ -475,13 +475,16 @@ als Anhang öffnet.
 
 ## Im Vergleich mit den Alternativen
 
-Wählen Sie nach Aufgabe und Betriebsverantwortung. Die belegten Leitfäden beschreiben dokumentierte Optionen, keine gemessenen Sieger.
+Wählen Sie nach Aufgabe und danach, wer den Betrieb übernimmt. Jeder Leitfaden stützt sich auf die Seiten des Anbieters, zeigt, wo AgenticOS weiter geht, und nennt, was es noch nicht kann.
 
-- [AgenticOS vs Viktor](docs/about/viktor.de.md): Assistentendienst oder eigener Betrieb.
-- [AgenticOS vs Dify](docs/about/dify.de.md): Zwei selbst gehostete Builder für dieselbe Dokumentenaufgabe.
-- [AgenticOS vs Wonderful](docs/about/wonderful.de.md): Enterprise-Lieferumfang und Betrieb.
+- **Assistenten-Apps:** [Claude](docs/about/claude-apps.de.md) · [ChatGPT](docs/about/chatgpt.de.md). Lizenzen für Mitarbeiter oder Agents, die Ihrer Organisation gehören, mit jedem Modell.
+- **Builder in Anbieter-Clouds:** [Copilot Studio](docs/about/copilot-studio.de.md) · [Gemini Enterprise](docs/about/gemini-enterprise.de.md). Cloud und Zähler des Anbieters oder Ihre Infrastruktur und die Preise Ihres Providers.
+- **Selbst gehostete Builder:** [Dify](docs/about/dify.de.md) · [n8n](docs/about/n8n.de.md). Lizenzbedingungen und Enterprise-Stufen oder Apache-2.0 mit Governance inklusive.
+- **Teammate-Dienst:** [Viktor](docs/about/viktor.de.md). Ein geteilter KI-Mitarbeiter oder viele Agents mit eigenem Zugriff und Budget.
+- **Gelieferte Plattform:** [Wonderful](docs/about/wonderful.de.md). Eine vom Anbieter gelieferte Plattform oder eine, die Ihnen vom ersten Tag an gehört.
+- **Coding-Agents:** [Claude Code](docs/about/claude-code.de.md) · [Codex](docs/about/codex.de.md) · [OpenCode](docs/about/opencode.de.md). Für Entwickler gebaut; AgenticOS ist für alle anderen, und sie helfen, es zu erweitern.
 
-[AgenticOS-Vergleiche](docs/about/comparison.de.md).
+[Alle Vergleiche und die Lücken](docs/about/comparison.de.md).
 
 ## Warum es das gibt
 

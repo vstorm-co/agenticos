@@ -1,4 +1,4 @@
-<!-- source_sha: 5e02402cf61c -->
+<!-- source_sha: f0776c70d819 -->
 
 <div align="center">
 
@@ -466,13 +466,16 @@ czat z tym zrzutem w załączniku.
 
 ## Porównanie z alternatywami
 
-Wybieraj według zadania i odpowiedzialności za utrzymanie. Poradniki opisują udokumentowane opcje, nie zmierzonych zwycięzców.
+Wybieraj według zadania i tego, kto będzie utrzymywał rozwiązanie. Każdy poradnik opiera się na stronach producenta, pokazuje, gdzie AgenticOS idzie dalej, i wymienia, czego jeszcze nie robi.
 
-- [AgenticOS vs Viktor](docs/about/viktor.pl.md): Usługa asystenta czy własne wdrożenie.
-- [AgenticOS vs Dify](docs/about/dify.pl.md): Dwa samodzielnie hostowane buildery dla tego samego zadania.
-- [AgenticOS vs Wonderful](docs/about/wonderful.pl.md): Zakres dostawy i utrzymania enterprise.
+- **Aplikacje asystentów:** [Claude](docs/about/claude-apps.pl.md) · [ChatGPT](docs/about/chatgpt.pl.md). Licencje dla pracowników czy agenci należący do organizacji, na dowolnym modelu.
+- **Buildery w chmurach dostawców:** [Copilot Studio](docs/about/copilot-studio.pl.md) · [Gemini Enterprise](docs/about/gemini-enterprise.pl.md). Chmura i licznik dostawcy czy własna infrastruktura i ceny wybranego providera.
+- **Buildery do samodzielnego hostowania:** [Dify](docs/about/dify.pl.md) · [n8n](docs/about/n8n.pl.md). Warunki licencji i plany enterprise czy Apache-2.0 z governance w standardzie.
+- **Usługa „cyfrowego pracownika”:** [Viktor](docs/about/viktor.pl.md). Jeden wspólny asystent czy wielu agentów z własnym dostępem i budżetem.
+- **Platforma dostarczana przez dostawcę:** [Wonderful](docs/about/wonderful.pl.md). Platforma dostarczana przez dostawcę czy własna od pierwszego dnia.
+- **Agenci do programowania:** [Claude Code](docs/about/claude-code.pl.md) · [Codex](docs/about/codex.pl.md) · [OpenCode](docs/about/opencode.pl.md). Stworzone dla programistów; AgenticOS jest dla całej reszty firmy, a oni pomagają go rozwijać.
 
-[Porównania AgenticOS](docs/about/comparison.pl.md).
+[Wszystkie porównania i luki](docs/about/comparison.pl.md).
 
 ## Po co to powstało
 
