@@ -29,7 +29,7 @@ from app.agents.capabilities.budget import (
     BudgetScope,
     SpendLedger,
     SpendLimit,
-    guarding,
+    guarded_by,
     metered_by,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
@@ -310,7 +310,7 @@ class TestMetering:
             limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))]
         )
 
-        with metered_by(ledger), guarding(exhausted):
+        with metered_by(ledger), guarded_by(exhausted):
             result = await capability.after_tool_execute(
                 ctx, call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000
             )

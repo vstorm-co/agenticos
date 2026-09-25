@@ -19,7 +19,7 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
     can_afford_ambient_call,
-    guarding,
+    guarded_by,
     metered_by,
     metered_nested_run,
     price_request,
@@ -478,7 +478,7 @@ class TestCanAffordAmbientCall:
             ledger=SpendLedger(),
             limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
         )
-        with guarding(guard):
+        with guarded_by(guard):
             assert await can_afford_ambient_call() is True
 
     @pytest.mark.anyio
@@ -487,7 +487,7 @@ class TestCanAffordAmbientCall:
             ledger=SpendLedger(),
             limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))],
         )
-        with guarding(guard):
+        with guarded_by(guard):
             assert await can_afford_ambient_call() is False
         # The guard is cleared on block exit, so an ambient call outside it proceeds.
         assert await can_afford_ambient_call() is True

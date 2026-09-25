@@ -481,23 +481,6 @@ def record_ambient_usage(
         ledger.record(model_name, usage, provider)
 
 
-@contextmanager
-def guarding(guard: BudgetGuard) -> Iterator[None]:
-    """Make `guard` the active budget for ambient calls inside this block.
-
-    Opened by the runner alongside :func:`metered_by`, so an auxiliary `Agent` a
-    capability builds itself can re-check the run's caps before it spends -
-    :func:`can_afford_ambient_call` reads what is set here. Outside a run there is
-    no guard, and an ambient call proceeds unmetered and unrefused, which is what a
-    preview, the CLI and an ingestion job want.
-    """
-    token = _active_guard.set(guard)
-    try:
-        yield
-    finally:
-        _active_guard.reset(token)
-
-
 async def can_afford_ambient_call() -> bool:
     """Whether an auxiliary model call may be made under the active guard.
 

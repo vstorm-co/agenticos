@@ -37,7 +37,7 @@ from app.agents.capabilities.budget import (
     BudgetScope,
     SpendLedger,
     SpendLimit,
-    guarding,
+    guarded_by,
     metered_by,
 )
 from app.agents.capabilities.system_reminders import (
@@ -388,7 +388,7 @@ class TestLlmReminder:
         exhausted = BudgetGuard(
             limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))]
         )
-        with guarding(exhausted), patch("app.agents.capabilities._ambient.Agent", _no_agent):
+        with guarded_by(exhausted), patch("app.agents.capabilities._ambient.Agent", _no_agent):
             result = await reminder(ctx)
         assert result is not None
         assert "the goal" in result

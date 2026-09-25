@@ -42,7 +42,7 @@ from app.agents.capabilities.budget import (
     BudgetScope,
     SpendLedger,
     SpendLimit,
-    guarding,
+    guarded_by,
     metered_by,
 )
 from app.agents.capabilities.compaction import (
@@ -890,7 +890,7 @@ class TestTheSummaryInheritsTheRun:
         ctx: RunContext[None] = RunContext(deps=None, model=TestModel(), usage=RunUsage())
         with (
             patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=[])) as summary,
-            guarding(self._exhausted()),
+            guarded_by(self._exhausted()),
         ):
             result = await strategy.compact(history, ctx)
         assert result == history
@@ -902,7 +902,7 @@ class TestTheSummaryInheritsTheRun:
         strategy = build_strategy(_triggers_immediately("sliding_window", keep_messages=2))
         history = [_user("x") for _ in range(5)]
         ctx: RunContext[None] = RunContext(deps=None, model=TestModel(), usage=RunUsage())
-        with guarding(self._exhausted()):
+        with guarded_by(self._exhausted()):
             compacted = await strategy.compact(history, ctx)
         assert len(compacted) < len(history)
 
