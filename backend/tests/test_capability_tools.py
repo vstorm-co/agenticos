@@ -268,6 +268,7 @@ class TestQueryAnalysisWiring:
         assert ctx.usage.requests == 0
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_an_exhausted_budget_skips_the_expansion_and_still_searches(self):
         """The host guard only refuses the host's next request; the expansion is a
         request of the tool's own, so it asks first. Refused, it makes no model
