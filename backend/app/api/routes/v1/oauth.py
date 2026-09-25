@@ -15,11 +15,23 @@ from uuid import uuid4
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import InvitationStagingSvc, OAuthExchangeSvc, SessionSvc, UserSvc
+from app.api.deps import (
+    DirectorySyncSvc,
+    InvitationStagingSvc,
+    OAuthExchangeSvc,
+    SessionSvc,
+    UserSvc,
+)
 from app.api.routes.v1._oauth_claims import claims_for
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
-from app.core.oauth import identity_key, redirect_uri_for, sign_in_client, verified_identity
+from app.core.oauth import (
+    groups_claim,
+    identity_key,
+    redirect_uri_for,
+    sign_in_client,
+    verified_identity,
+)
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.token import OAuthExchangeRequest, Token
 
@@ -167,13 +179,20 @@ async def provider_callback(
     user_service: UserSvc,
     exchange_service: OAuthExchangeSvc,
     session_service: SessionSvc,
+    directory_sync: DirectorySyncSvc,
 ):
-    """Finish the round trip and hand the frontend a code for its tokens."""
+    """Finish the round trip and hand the frontend a code for its tokens.
+
+    For the generic provider with `OIDC_GROUPS_CLAIM` set, the groups in the
+    token are applied to the person's directory-managed memberships, exactly as
+    a directory sign-in applies its own (#1773).
+    """
     client = sign_in_client(provider)
     frontend = settings.FRONTEND_URL.rstrip("/")
     try:
         token = await client.authorize_access_token(request)
-        identity = verified_identity(await claims_for(client, token))
+        claims = await claims_for(client, token)
+        identity = verified_identity(claims)
 
         if identity is None:
             # One sentence for three refusals - no subject, no address, an
@@ -185,6 +204,9 @@ async def provider_callback(
             return RedirectResponse(url=f"{frontend}/login?{params}")
 
         subject, email, full_name = identity
+        # Google reports no groups, and only the deployment's own provider is
+        # trusted to say which of its groups somebody is in.
+        groups = groups_claim(claims) if provider == "oidc" else None
 
         # Taken off the session rather than read: an invitation is consumed by the
         # attempt it was started for, so a token left behind cannot admit a second,
@@ -198,7 +220,10 @@ async def provider_callback(
             email=email,
             full_name=full_name,
             invitation_token=request.session.pop(_INVITATION_KEY, None),
+            admitted_by_directory=groups is not None and await directory_sync.admits(groups),
         )
+        if groups is not None:
+            await directory_sync.apply(user.id, groups, provider=provider)
 
         refresh_token = create_refresh_token(subject=str(user.id))
 

@@ -37,7 +37,11 @@ async def claims_for(client: Any, token: dict[str, Any]) -> dict[str, Any] | Non
         provider directs profile reads at is the one that is current.
     """
     parsed: dict[str, Any] = dict(token.get("userinfo") or {})
-    if all(parsed.get(name) for name in _SUFFICIENT) and _says_verified(parsed):
+    if (
+        all(parsed.get(name) for name in _SUFFICIENT)
+        and _says_verified(parsed)
+        and _has_groups_if_read(parsed)
+    ):
         return parsed
 
     try:
@@ -59,3 +63,16 @@ def _says_verified(claims: dict[str, Any]) -> bool:
     from app.core.oauth import verification_claim_names
 
     return any(name in claims for name in verification_claim_names())
+
+
+def _has_groups_if_read(claims: dict[str, Any]) -> bool:
+    """Whether the groups claim is here, where the deployment reads one.
+
+    A provider may keep group membership at UserInfo only - Okta's org
+    authorization server does unless the claim is added to the ID token - and a
+    token without it would read as "in no groups", removing every membership the
+    directory gave the person. So its absence is worth the round trip too.
+    """
+    from app.core.config import settings
+
+    return not settings.OIDC_GROUPS_CLAIM or settings.OIDC_GROUPS_CLAIM in claims

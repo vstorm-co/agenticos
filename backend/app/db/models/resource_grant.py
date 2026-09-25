@@ -51,7 +51,7 @@ GRANT_ORDER: dict[GrantLevel, int] = {
 
 
 class ResourceGrant(Base, TimestampMixin):
-    """One share of one resource with one member.
+    """One share of one resource with one member, or with one group.
 
     Deliberately generic (`resource_type` + `resource_id`, no foreign key
     to the target): agents, collections and skills all share the same sharing
@@ -59,6 +59,11 @@ class ResourceGrant(Base, TimestampMixin):
     resource type. The trade-off is that the database cannot cascade-delete a
     grant when its target goes away, so services delete grants alongside the
     resource.
+
+    The subject is a person or a group, never both and never neither -
+    `ck_resource_grant_one_subject` says so where no code path can forget it. A
+    group grant reaches whoever is in the group when access is resolved, so
+    leaving the group is losing the access, with nothing to revoke (#1773).
     """
 
     __tablename__ = "resource_grants"
@@ -70,10 +75,16 @@ class ResourceGrant(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    subject_user_id: Mapped[uuid.UUID] = mapped_column(
+    subject_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    subject_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("groups.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     resource_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -94,11 +105,21 @@ class ResourceGrant(Base, TimestampMixin):
             "subject_user_id",
             name="uq_resource_grant_subject",
         ),
+        UniqueConstraint(
+            "resource_type",
+            "resource_id",
+            "subject_group_id",
+            name="uq_resource_grant_group",
+        ),
         CheckConstraint("level IN ('read', 'use', 'edit')", name="ck_resource_grant_level"),
+        CheckConstraint(
+            "(subject_user_id IS NULL) <> (subject_group_id IS NULL)",
+            name="ck_resource_grant_one_subject",
+        ),
     )
 
     def __repr__(self) -> str:
+        subject = self.subject_user_id or f"group:{self.subject_group_id}"
         return (
-            f"<ResourceGrant({self.resource_type}:{self.resource_id} "
-            f"-> {self.subject_user_id} = {self.level})>"
+            f"<ResourceGrant({self.resource_type}:{self.resource_id} -> {subject} = {self.level})>"
         )

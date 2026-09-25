@@ -1,5 +1,5 @@
 ---
-source_sha: "b88ea462937c"
+source_sha: "c51c3dd508c7"
 ---
 
 # Konfiguracja { #configuration }
@@ -175,6 +175,7 @@ dwa razy.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Callback, zarejestrowany u dostawcy |
 | `OIDC_SCOPES` | `openid email profile` | Rozdzielone spacją. Dodaj własny scope dostawcy, jeśli potrzebuje go dla claimów |
 | `OIDC_VERIFIED_CLAIM` | (puste) | Trzeci claim akceptowany jako „ten adres jest potwierdzony”, dla dostawcy, który nazywa go po swojemu |
+| `OIDC_GROUPS_CLAIM` | (puste) | Claim z listą grup danej osoby, zwykle `groups`. Ustawiony sprawia, że każde logowanie stosuje [mapowania grup katalogowych](directory.md#directory-group-mappings); pusty zostawia członkostwa w spokoju |
 
 Issuer to jedyny URL. Authorization, token, userinfo i JWKS biorą się z
 `<issuer>/.well-known/openid-configuration`, który dostawca utrzymuje aktualny
@@ -190,7 +191,7 @@ Dwa przyciski po stronie frontendu, konfigurowane tam:
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO |
+| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO. `ldap` dodaje formularz katalogowy, a `kerberos` przycisk logowania Windows, opisane niżej |
 | `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
 
@@ -224,13 +225,62 @@ Polityka rejestracji działa tu dokładnie tak, jak działa dla formularza
 rejestracji: wdrożenie `invite_only` odmawia logowania SSO komuś, kogo nikt nie
 zaprosił, a lista dozwolonych domen odmawia adresowi spoza niej — tym samym
 zdaniem na stronie logowania. Zobacz
-[Kto może się zarejestrować](deployment.md#who-may-register). Mapowanie grup
-dostawcy na role w organizacji nie jest tego częścią; ludzie się logują, a
-administrator ich umieszcza.
+[Kto może się zarejestrować](deployment.md#who-may-register).
+
+Przy ustawionym `OIDC_GROUPS_CLAIM` o członkostwach decydują grupy dostawcy:
+[mapowania grup katalogowych](directory.md#directory-group-mappings) każdej
+organizacji dołączają ludzi z rolą i umieszczają ich w grupach, a zmapowana grupa
+wpuszcza pierwsze logowanie na wdrożeniu `invite_only` tak, jak robi to
+zaproszenie. Przekroczenie limitu grup w Entra ID (group overage) jest odrzucane,
+a nie czytane jako „brak grup” — zobacz
+[Claim grup przez OIDC](directory.md#the-groups-claim-over-oidc).
 
 SAML i SCIM nie są zaimplementowane. Większość dostawców tożsamości, których
 używa średniej wielkości firma, mówi po OIDC, a te ustawienia to całość tego,
-czego potrzebują.
+czego potrzebują. Katalogu, przed którym nie stoi żaden dostawca tożsamości, można
+użyć bezpośrednio — zobacz niżej.
+
+### Logowanie katalogowe (LDAP) { #directory-sign-in-ldap }
+
+Logowanie kontem Active Directory, OpenLDAP albo FreeIPA przez bind jako to konto.
+[Logowanie katalogowe i grupy](directory.md) wyjaśnia logowanie, czego odmawia i
+jak czytane są grupy. Puste `LDAP_URL` je wyłącza, a route odpowiada 404.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `LDAP_URL` | (puste) | `ldaps://host[:port]` albo `ldap://` ze StartTLS |
+| `LDAP_START_TLS` | `false` | Podnosi połączenie `ldap://` do TLS przed bindem |
+| `LDAP_ALLOW_PLAINTEXT` | `false` | Akceptuje `ldap://` bez StartTLS, co wysyła hasła otwartym tekstem. W przeciwnym razie odrzucane przy starcie |
+| `LDAP_CA_CERT_FILE` | (puste) | Pakiet PEM, względem którego weryfikowany jest certyfikat katalogu, dla firmowego CA |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | (puste) | Konto serwisowe, którym logowanie przeszukuje katalog. Oba albo żadne; bez obu wyszukiwanie jest anonimowe |
+| `LDAP_USER_BASE_DN` | (puste) | Gdzie szukane są konta. Wymagane razem z `LDAP_URL` |
+| `LDAP_USER_FILTER` | dopasowuje `uid`, `sAMAccountName`, `userPrincipalName` albo `mail` | Musi zawierać `{username}`, które jest escapowane przed wstawieniem |
+| `LDAP_EMAIL_ATTRIBUTE` | `mail` | Adres konta |
+| `LDAP_NAME_ATTRIBUTE` | `displayName` | Nazwa wyświetlana konta |
+| `LDAP_ID_ATTRIBUTE` | `entryUUID` | Stabilny identyfikator, po którym kluczowane jest konto — `objectGUID` w Active Directory |
+| `LDAP_GROUP_ATTRIBUTE` | `memberOf` | Skąd czytane są grupy konta |
+| `LDAP_GROUP_BASE_DN` | (puste) | Szukaj grup tutaj, dla katalogu bez `memberOf` |
+| `LDAP_GROUP_FILTER` | `(member={dn})` | Wyszukiwanie grup, z `{dn}` albo `{username}` |
+| `LDAP_TIMEOUT_SECONDS` | `10` | Timeout połączenia i odczytu dla każdego żądania do katalogu |
+
+Frontend pokazuje formularz, gdy `OAUTH_PROVIDERS` zawiera `ldap`, i nazywa go
+według `LDAP_DISPLAY_NAME` (domyślnie `LDAP`).
+
+### Logowanie Kerberos { #kerberos-sign-in }
+
+Zintegrowane logowanie Windows przez SPNEGO, które rozwiązuje principal z biletu
+przez powyższy katalog — więc wymaga `LDAP_URL` i obrazu zbudowanego z extra
+`kerberos`. Zobacz [Zintegrowane logowanie Windows](directory.md#integrated-windows-sign-in-kerberos).
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `KERBEROS_ENABLED` | `false` | Oferuje logowanie Kerberos. Odrzucane przy starcie bez `LDAP_URL` |
+| `KERBEROS_KEYTAB` | (puste) | Keytab z kluczem usługi. Puste używa domyślnego keytabu (`KRB5_KTNAME`, a w przeciwnym razie `/etc/krb5.keytab`) |
+| `KERBEROS_SERVICE_PRINCIPAL` | (puste) | `HTTP/<api host>@<REALM>`. Puste akceptuje bilet dla dowolnego principala z keytabu |
+| `LDAP_KERBEROS_FILTER` | `(userPrincipalName={principal})` | Jak principal jest odnajdywany w katalogu: `{principal}` to `user@REALM`, `{username}` to część przed `@` |
+
+Frontend pokazuje przycisk, gdy `OAUTH_PROVIDERS` zawiera `kerberos`, i nazywa go
+według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 
 ## Baza danych (PostgreSQL) { #database-postgresql }
 

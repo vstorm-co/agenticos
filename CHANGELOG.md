@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Groups.** An organization can gather its members into named groups and
+  share an agent, a skill, a collection, a context file, a vault secret or an
+  artifact with a whole group at once. A group grant reaches whoever is in the
+  group when access is checked, so people joining later get access and people
+  leaving lose it with nothing to revoke. When a person reaches a resource
+  through several grants, the highest one wins. A group carries no role of its
+  own (#1773).
+- **Directory groups decide who joins an organization, with which role.** A
+  directory group mapping says "everyone in this directory group is a *builder*
+  here, in the group *Platform*". It is applied at every directory sign-in, and at
+  every OIDC sign-in once `OIDC_GROUPS_CLAIM` names the provider's groups claim.
+  The sync joins, re-roles and removes only the memberships it made itself. It
+  never demotes or removes an owner, and it cannot map a role its author could not
+  assign. A matching mapping admits a first sign-in on an invite-only deployment,
+  the way an invitation does. An Entra ID group overage is refused rather than
+  read as "no groups" (#1773).
+- **Sign in with a directory account.** With `LDAP_URL` set, people sign in to
+  Active Directory, OpenLDAP or FreeIPA with the username and password they use
+  everywhere else. The check is the standard two-step bind, over verified TLS. An
+  empty password never reaches the directory, the username is escaped into the
+  search filter, and a username matching two accounts is refused. Plaintext
+  `ldap://` is refused at startup unless explicitly allowed (#1773).
+- **Integrated Windows sign-in.** With `KERBEROS_ENABLED` set, a browser on a
+  domain-joined machine signs its user in with its Kerberos ticket (SPNEGO), and
+  nobody types a password. The ticket resolves through the directory to the same
+  account a password sign-in reaches. It needs an image built with the new
+  `kerberos` extra (#1773).
+
 ## [0.0.497] - 2026-09-25
 
 ### Added
