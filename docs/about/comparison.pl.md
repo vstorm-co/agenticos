@@ -1,155 +1,33 @@
 ---
-source_sha: "0683b5318348"
+source_sha: "6e9d986613f7"
+title: "Porównaj AgenticOS"
+description: "Wybieraj według zadania i odpowiedzialności za utrzymanie. Poradniki przygotowuje zespół AgenticOS. Opisują udokumentowane możliwości, a nie zmierzone wyniki porównawczego testu."
 ---
 
-# Kiedy sięgnąć po coś innego { #when-to-use-something-else }
+# Porównaj AgenticOS { #compare-agenticos }
 
-Ta strona jest napisana tak, żeby przydała się wtedy, gdy odpowiedzią nie jest
-AgenticOS. Porównanie, które zawsze kończy się tak samo, nie jest porównaniem, a
-kategorie poniżej pokrywają się na tyle, że zły wybór kosztuje miesiące.
+Wybieraj według zadania i odpowiedzialności za utrzymanie. Poradniki przygotowuje zespół AgenticOS. Opisują udokumentowane możliwości, a nie zmierzone wyniki porównawczego testu.
 
-Krótka wersja: **biblioteka** jest właściwa dla jednego agenta wewnątrz
-produktu, **hostowana platforma** jest właściwa, gdy nie chcesz zajmować się
-maszyną, **agentowy workspace** jest właściwy, gdy użytkownikiem jest Twój
-własny pracownik, a AgenticOS jest właściwy, gdy agenci mają być edytowalni
-przez osobę niebędącą inżynierem, nadzorowani przez kogoś, kto za nich
-odpowiada, i uruchamiani na sprzęcie, który kontrolujesz — wszystko trzy naraz.
+| Decyzja | Poradnik |
+| --- | --- |
+| Usługa asystenta czy własne wdrożenie? | [AgenticOS vs Viktor](viktor.md) |
+| Który samodzielnie hostowany builder pasuje do dokumentów? | [AgenticOS vs Dify](dify.md) |
+| Co obejmuje dostawa rozwiązania enterprise? | [AgenticOS vs Wonderful](wonderful.md) |
 
-## Kategorie { #the-categories }
+## Wspólna próba { #a-shared-trial }
 
-| | Co to jest | Kiedy użyć tego zamiast |
-|---|---|---|
-| [Pydantic AI](https://ai.pydantic.dev) | Biblioteka agentowa, na której działa AgenticOS | Budujesz jednego agenta, w Pythonie, jako część produktu |
-| LangGraph, LangChain, LlamaIndex, elizaOS | Biblioteki i frameworki do komponowania wywołań modelu | To samo — chcesz kodu, nie platformy, i nie przeszkadza Ci, że deployment jest Twój |
-| [Cloudflare OS](https://github.com/cloudflare/cloudflare-os) | Otwartoźródłowy agentowy workspace na Cloudflare Workers | Twoimi użytkownikami są Twoi własni pracownicy, jesteś już na Cloudflare i bardziej zależy Ci na aplikacjach per osoba niż na nadzorowanym katalogu agentów |
-| [Glean](https://www.glean.com) | Hostowana wyszukiwarka korporacyjna z agentami na wierzchu | Chcesz 275+ konektorów świadomych ACL zaindeksowanych za Ciebie, a dane mogą leżeć w chmurze dostawcy |
-| Dify, Flowise | Wizualne kreatory agentów, możliwe do samodzielnego hostowania | Chcesz kreatora i płótna do workflow, a model nadzoru liczy się dla Ciebie mniej niż to, jak szybko ktoś złoży przepływ |
-| Hostowane korporacyjne platformy agentowe | Zamknięte platformy sprzedawane razem z zespołem wdrożeniowym | Chcesz, żeby za wynik odpowiadał ktoś inny, a koszt licencji nie jest ograniczeniem |
-| OpenAI Assistants, Bedrock Agents | Hostowane środowiska uruchomieniowe agentów | Nie przeszkadza Ci jeden dostawca i nie potrzebujesz danych na własnym sprzęcie |
+Użyj [tego samego dokumentu](../howto/first-document-agent.md) w obu produktach. Zadaj pytanie z odpowiedzią i pytanie o brakującą zasadę. Zmień właściciela zgłoszeń, przetwórz źródło i powtórz próbę. Zachowaj odpowiedzi, konfigurację i nieudane próby.
 
-## Open source to nie to samo co możliwość samodzielnego hostowania { #open-source-is-not-the-same-as-self-hostable }
+Zapisz wersję lub plan usługi, model, przetwarzanie źródła, tożsamość, dostęp do narzędzi, zatwierdzenia, kanał, koszt i właściciela utrzymania. Zacznij od wyszukiwania. Jeśli potrzebujesz działania narzędzia, najpierw określ bezpieczną operację testową i oczekiwane zatwierdzenie.
 
-To dwie różne obietnice, a różnica między nimi decyduje o wdrożeniach.
+## Znaczenie dowodów { #what-the-evidence-means }
 
-**Open source** znaczy, że możesz przeczytać kod i zrobić forka.
-**Self-hostable** znaczy, że możesz uruchomić całość na infrastrukturze, którą
-już masz, bez zależności od platformy dostawcy.
+Każdy poradnik wskazuje źródła i datę. Opis producenta potwierdza deklarowaną możliwość, a nie jakość dla Twojego zadania. Nie testowaliśmy kont konkurentów. Niesprawdzone zachowanie pozostaje niewiadomą, nie brakiem funkcji.
 
-AgenticOS potrzebuje PostgreSQL z pgvector, Redisa i Dockera. Niczego więcej,
-żadnego konta nigdzie, a jedyne żądania wychodzące to te, które robią Twoi
-agenci. To cała powierzchnia wdrożenia i dlatego może on działać wewnątrz sieci
-szpitalnej albo w środowisku odciętym od internetu.
+Publikując test, podaj dokładne dane wejściowe, wyniki, błędy i konfigurację. Oddziel użycie modeli od infrastruktury, wdrożenia i utrzymania. Sprawdź [licencje](../licenses.md), warunki dostawców i wybraną edycję.
 
-Cloudflare OS jest na licencji Apache-2.0 i jest naprawdę otwarty, a zbudowano
-go na Durable Objects, Dynamic Workers i Cap'n Web. Uruchomienie go poza
-Cloudflare oznacza samodzielne uruchomienie `workerd`, a README samego projektu
-wymienia dokumentację tego jako jeszcze nienapisaną. Jeśli ograniczeniem
-wdrożeniowym jest „to nie może zależeć od konkretnej chmury”, to właśnie tę
-rzecz trzeba sprawdzić najpierw.
+## Inne punkty wyjścia { #other-starting-points }
 
-!!! info "Żadne z tych stanowisk nie jest błędne"
+Biblioteka taka jak [Pydantic AI](https://ai.pydantic.dev/) pasuje do agenta we własnej aplikacji. AgenticOS dodaje aplikację do konfigurowania i obsługi agentów. [n8n](https://n8n.io/) obejmuje workflow i agentów AI. [OpenClaw](https://github.com/openclaw/openclaw) dokumentuje wdrożenia osobiste i zespołowe. [Lindy](https://www.lindy.ai/) oferuje usługę asystenta. To dodatkowe opcje, nie produkty wykluczone przez porównanie.
 
-    Budowanie na prymitywach jednej platformy to sposób, w jaki Cloudflare OS
-    dostaje sandboxowanie per dokument i dostęp ograniczony capability, które są
-    naprawdę trudne do odtworzenia na zwykłej infrastrukturze. To wymiana i to,
-    którą jej stronę chcesz, zależy od tego, gdzie oprogramowanie musi działać.
-
-## Cloudflare OS { #cloudflare-os }
-
-Najbliższa temu projektowi rzecz z nazwy, a co do kształtu — inny produkt.
-
-**Cloudflare OS jest workspace'em.** Każda osoba dostaje agenta, środowisko do
-pisania i uruchamiania kodu oraz osobiste aplikacje, które może zbudować i
-udostępnić. Model bezpieczeństwa jest znakomity: agenci startują bez dostępu do
-czegokolwiek, poświadczenia nigdy nie docierają do agenta, a każdy zasób, który
-agent czyta, jest zapisywany i sprawdzany wobec tego, kto później otworzy wynik.
-
-**AgenticOS jest katalogiem.** Publikujesz agentów, a oni odpowiadają ludziom,
-którzy często nie są pracownikami — klientowi w widgecie, użytkownikowi na
-Slacku, systemowi za kluczem API. Jednostką jest opublikowany, wersjonowany
-agent z budżetem i odbiorcami, a nie workspace jednej osoby.
-
-Wybierz Cloudflare OS, jeśli użytkownikiem agenta jest Twój własny personel i
-jesteś na Cloudflare. Wybierz AgenticOS, jeśli agent ma być zwrócony na zewnątrz,
-nadzorowany per agent i działać tam, gdzie każesz.
-
-## Glean { #glean }
-
-Glean to przede wszystkim wyszukiwarka korporacyjna, z agentami zbudowanymi na
-indeksie. Jego siłą jest to, czego AgenticOS nie próbuje: konektory do 275+
-systemów, które wnoszą do indeksu własne reguły dostępu każdego dokumentu, więc
-odpowiedź nigdy nie może zacytować czegoś, czego pytający nie mógłby otworzyć.
-
-Wynikają z tego dwie rzeczy. Jeśli Twoim problemem jest *„nasza wiedza jest w
-czterdziestu systemach, a wyszukiwanie nie działa”*, to jest to, do czego służy
-Glean, i AgenticOS mu nie dorówna — nasze wyszukiwanie działa per kolekcja i nie
-dziedziczy jeszcze ACL ze źródła.
-
-Jeśli Twoim problemem jest *„potrzebujemy nadzorowanych agentów, a dane nie mogą
-wyjść”*, porównanie wychodzi w drugą stronę: Glean jest hostowany, wyceniany za
-stanowisko z minimum korporacyjnym i nie jest czymś, co uruchamiasz sam.
-
-## Biblioteka i dobudowanie reszty samemu { #a-library-and-building-the-rest-yourself }
-
-LangGraph, LangChain, LlamaIndex, Pydantic AI. Najczęstsza prawidłowa odpowiedź
-i ta, z którą ten projekt konkuruje najmniej: AgenticOS **działa na** Pydantic
-AI, więc biblioteka jest warstwą pod spodem, a nie alternatywą dla niego.
-
-Biblioteka plus kolejka plus baza danych szybko dają działającego agenta, a przy
-jednym czy dwóch agentach to mniej pracy niż nauka platformy.
-
-Sięgnij po bibliotekę bezpośrednio, gdy:
-
-- **Agent jest produktem.** Jego zachowanie to funkcja, którą wydajesz,
-  wersjonowana razem z Twoim kodem, przeglądana w Twoich pull requestach. UI,
-  które pozwala komuś innemu je zmienić, nie jest tu zaletą — jest sposobem, w
-  jaki Twój produkt zmienia się bez wydania.
-- **Potrzebujesz pętli.** Własnego przepływu sterowania, grafu z cyklami,
-  polityki ponowień, której nie wyraża niczyja abstrakcja. Platforma daje Ci
-  dobrze zdefiniowany runner; a to jest dokładnie to, czego starasz się nie mieć.
-- **W tej historii nie ma nikogo spoza inżynierii.** Jeśli każdą zmianę i tak od
-  początku miał pisać inżynier, ta warstwa pośrednia nie kupuje Ci niczego.
-- **Jest jeden agent.** Albo dwóch. Ekonomia poniżej odwraca się dopiero przy
-  kilku.
-
-To, co bierzesz na siebie w zamian, to
-[siedem zadań](index.md#what-makes-something-an-operating-system-for-agents), po
-jednym naraz i zwykle w tej kolejności, każde dopiero po tym, jak raz już
-zabolało:
-
-| Skończysz, pisząc | Ponieważ |
-|---|---|
-| Budżet, który zatrzymuje run | Liczenie wydatku po fakcie nie jest budżetem, a pierwsza zaskakująca faktura tego uczy |
-| Approval rozstrzygany raz | Druga decyzja na rozstrzygniętym approvalu to wyścig i nie jest to teoretyczne |
-| Izolację tenantów | Gdy pierwszy raz zapomni się o `WHERE organization_id`, jest to incydent danych, a nie błąd |
-| Magazyn sekretów per tenant | Jeden klucz na całe wdrożenie znaczy, że jeden wyciek jest wyciekiem każdego klienta |
-| Jedną ścieżkę wykonania dla wszystkich powierzchni | Inaczej Slack i Twoje API nie zgadzają się co do tego, ile kosztował agent |
-| Ślad audytowy, który zapisuje porażki | Rejestr logujący tylko sukcesy odpowiada podczas incydentu na złe pytanie |
-
-Nic z tego nie jest trudne. Wszystko to jest pracą, której nie wykonujesz nad
-swoim produktem, i jest całością tego, czym jest ta platforma.
-
-!!! info "Granica leży gdzieś koło piątego agenta"
-
-    Albo wcześniej, przy pierwszej osobie, która potrzebuje zmienić to, co agent
-    mówi, i nie ma dostępu do commitowania. Przed tym momentem biblioteka i
-    kolejka to mniej pracy i to ich powinieneś użyć.
-
-A jeśli i tak zamierzasz zbudować te sześć wierszy, to
-[siedem zadań](index.md#what-makes-something-an-operating-system-for-agents) jest
-rozsądną specyfikacją, względem której można budować — niezależnie od tego, czy
-użyjesz akurat tej.
-
-## Podsumowanie { #recap }
-
-- Użyj **biblioteki** do jednego agenta wewnątrz produktu; użyj tego do katalogu
-  agentów — granica leży koło piątego agenta albo przy pierwszym budującym spoza
-  inżynierii.
-- **Open source i możliwość samodzielnego hostowania to różne obietnice** —
-  sprawdź, której naprawdę potrzebujesz.
-- **Cloudflare OS** to workspace dla pracowników; to jest katalog agentów
-  zwróconych na zewnątrz.
-- **Glean** wygrywa konektorami i wyszukiwaniem świadomym ACL; to wygrywa wtedy,
-  gdy dane nie mogą opuścić Twojej infrastruktury.
-- **Zbudowanie tego samemu** jest słuszne mniej więcej do piątego agenta, a
-  siedem zadań jest specyfikacją tak czy inaczej.
+Zacznij od [zadania dokumentowego](../howto/first-document-agent.md), potem sprawdź [utrzymanie i wdrożenie](../rollout.md). Opiekunami poradników są maintainerzy AgenticOS. Źródła sprawdzono 25 września 2026; kolejny przegląd do 25 października 2026 lub po zmianie oferty producenta.
