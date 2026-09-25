@@ -1,5 +1,5 @@
 ---
-source_sha: "25ca6d2da0fe"
+source_sha: "bc91324ffeae"
 ---
 
 # Konfiguration { #configuration }
@@ -181,6 +181,7 @@ werden seine MFA und sein Offboarding zweimal gelöst.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Der beim Anbieter registrierte Callback |
 | `OIDC_SCOPES` | `openid email profile` | Durch Leerzeichen getrennt. Den eigenen Scope des Anbieters ergänzen, wo er einen für die Claims braucht |
 | `OIDC_VERIFIED_CLAIM` | (leer) | Ein dritter Claim, der als „diese Adresse ist bestätigt“ gilt, für einen Anbieter mit eigenem Namen dafür |
+| `OIDC_GROUPS_CLAIM` | (leer) | Der Claim, der die Gruppen einer Person auflistet, meist `groups`. Gesetzt, wendet jede Anmeldung die [Zuordnungen von Verzeichnisgruppen](directory.md#directory-group-mappings) an; leer lässt Mitgliedschaften unberührt. Zusammen mit `LDAP_URL` abgewiesen |
 
 Der Issuer ist die einzige URL. Authorization, Token, Userinfo und JWKS kommen
 aus `<issuer>/.well-known/openid-configuration`, das der Anbieter über eine
@@ -198,7 +199,7 @@ Zwei Knöpfe im Frontend, dort konfiguriert:
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO |
+| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO. `ldap` ergänzt das Verzeichnisformular und `kerberos` den Knopf für die Windows-Anmeldung, siehe unten |
 | `OIDC_DISPLAY_NAME` | `SSO` | Wie der Knopf den Anbieter nennt: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (leer) | `google`, `github` oder `microsoft` — die Marken, die die Anmeldeseite ohnehin mitbringt. Alles andere zeichnet einen schlichten Schlüssel |
 
@@ -233,13 +234,63 @@ Die Registrierungsrichtlinie gilt hier genau wie für das Registrierungsformular
 ein `invite_only`-Deployment weist eine SSO-Anmeldung von jemandem ab, den
 niemand eingeladen hat, und eine Domain-Erlaubnisliste weist eine Adresse
 außerhalb davon ab — mit demselben Satz auf der Anmeldeseite. Siehe
-[Wer sich registrieren darf](deployment.md#who-may-register). Die Zuordnung der
-Gruppen eines Anbieters zu Rollen innerhalb einer Organisation gehört nicht dazu;
-Menschen melden sich an, und eine Administratorin ordnet sie ein.
+[Wer sich registrieren darf](deployment.md#who-may-register).
+
+Ist `OIDC_GROUPS_CLAIM` gesetzt, entscheiden die Gruppen des Anbieters über
+Mitgliedschaften: Die [Zuordnungen von Verzeichnisgruppen](directory.md#directory-group-mappings)
+jeder Organisation nehmen Menschen mit einer Rolle auf und ordnen sie Gruppen zu,
+und eine zugeordnete Gruppe lässt eine erste Anmeldung auf einem
+`invite_only`-Deployment so zu, wie es eine Einladung tut. Ein Gruppen-Overage
+von Entra ID wird abgewiesen, statt als „keine Gruppen“ gelesen zu werden —
+siehe [Der Gruppen-Claim über OIDC](directory.md#the-groups-claim-over-oidc).
 
 SAML und SCIM sind nicht implementiert. Die meisten Identitätsanbieter, die ein
 mittelständisches Unternehmen betreibt, sprechen OIDC, und diese Einstellungen
-sind alles, was sie brauchen.
+sind alles, was sie brauchen. Ein Verzeichnis ohne vorgeschalteten
+Identitätsanbieter lässt sich direkt nutzen — siehe unten.
+
+### Verzeichnisanmeldung (LDAP) { #directory-sign-in-ldap }
+
+Anmeldung mit einem Konto aus Active Directory, OpenLDAP oder FreeIPA, indem als
+dieses Konto gebunden wird. [Verzeichnisanmeldung und Gruppen](directory.md)
+erklärt die Anmeldung, was sie abweist und wie Gruppen gelesen werden. Ein leeres
+`LDAP_URL` schaltet sie ab, und die Route antwortet mit 404.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `LDAP_URL` | (leer) | `ldaps://host[:port]`, oder `ldap://` mit StartTLS |
+| `LDAP_START_TLS` | `false` | Eine `ldap://`-Verbindung vor dem Bind hochstufen |
+| `LDAP_ALLOW_PLAINTEXT` | `false` | `ldap://` ohne StartTLS akzeptieren, was Passwörter im Klartext sendet. Andernfalls beim Start abgewiesen |
+| `LDAP_CA_CERT_FILE` | (leer) | Ein PEM-Bundle, gegen das das Zertifikat des Verzeichnisses geprüft wird, für eine unternehmenseigene CA |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | (leer) | Das Dienstkonto, mit dem eine Anmeldung sucht. Beide oder keines; keines sucht anonym |
+| `LDAP_USER_BASE_DN` | (leer) | Wo Konten gesucht werden. Pflicht zusammen mit `LDAP_URL` |
+| `LDAP_USER_FILTER` | trifft `uid`, `sAMAccountName`, `userPrincipalName` oder `mail` | Muss `{username}` enthalten, das vor dem Einsetzen maskiert wird |
+| `LDAP_EMAIL_ATTRIBUTE` | `mail` | Die Adresse des Kontos |
+| `LDAP_NAME_ATTRIBUTE` | `displayName` | Der Anzeigename des Kontos |
+| `LDAP_ID_ATTRIBUTE` | `entryUUID` | Die stabile Kennung, an der das Konto hängt — `objectGUID` bei Active Directory |
+| `LDAP_GROUP_ATTRIBUTE` | `memberOf` | Woraus die Gruppen des Kontos gelesen werden |
+| `LDAP_GROUP_BASE_DN` | (leer) | Stattdessen hier nach Gruppen suchen, für ein Verzeichnis ohne `memberOf` |
+| `LDAP_GROUP_FILTER` | `(member={dn})` | Die Gruppensuche, mit `{dn}` oder `{username}` |
+| `LDAP_TIMEOUT_SECONDS` | `10` | Verbindungs- und Lese-Timeout für jede Anfrage an das Verzeichnis |
+
+Das Frontend zeigt das Formular mit `ldap` in `OAUTH_PROVIDERS` und benennt es
+mit `LDAP_DISPLAY_NAME` (Standard `LDAP`).
+
+### Kerberos-Anmeldung { #kerberos-sign-in }
+
+Integrierte Windows-Anmeldung über SPNEGO, die den Principal des Tickets über das
+Verzeichnis oben auflöst — sie braucht also `LDAP_URL` und ein Image, das mit dem
+Extra `kerberos` gebaut wurde. Siehe [Integrierte Windows-Anmeldung](directory.md#integrated-windows-sign-in-kerberos).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `KERBEROS_ENABLED` | `false` | Kerberos-Anmeldung anbieten. Ohne `LDAP_URL` beim Start abgewiesen |
+| `KERBEROS_KEYTAB` | (leer) | Die Keytab mit dem Schlüssel des Dienstes. Leer nutzt die Standard-Keytab (`KRB5_KTNAME`, sonst `/etc/krb5.keytab`) |
+| `KERBEROS_SERVICE_PRINCIPAL` | (leer) | `HTTP/<api host>@<REALM>`. Leer akzeptiert ein Ticket für jeden Principal in der Keytab |
+| `LDAP_KERBEROS_FILTER` | `(userPrincipalName={principal})` | Wie der Principal im Verzeichnis gefunden wird: `{principal}` ist `user@REALM`, `{username}` der Teil vor dem `@` |
+
+Das Frontend zeigt den Knopf mit `kerberos` in `OAUTH_PROVIDERS` und benennt ihn
+mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 
 ## Datenbank (PostgreSQL) { #database-postgresql }
 
@@ -660,6 +711,26 @@ andere sind die Daten eines Mandanten.
 genauso wie eine `gdrive`-Quelle einen Service-Account nennt. Endpunkt und Region
 fallen weiterhin auf diese Einstellungen zurück, weil keines von beiden einen
 Principal nennt — sie sagen, wo der Store liegt, nicht, wer fragt.
+
+## Veröffentlichte Artefakte { #published-artifacts }
+
+Seiten, die Agents mit der Capability `artifacts` veröffentlichen. Ihre Bytes
+liegen im Dateispeicher oben; diese Einstellungen begrenzen sie und sagen, von wo
+sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
+| `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+
+**`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
+Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
+`frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
+der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
+nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
+Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.
 
 ## Agent-Workspaces { #agent-workspaces }
 

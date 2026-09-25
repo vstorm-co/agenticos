@@ -8,12 +8,16 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, literal, select, tuple_
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.models.rag_document_claim import RAGDocumentClaim
+from app.db.models.sync_source import SyncSource
 
 
 @dataclass(frozen=True)
@@ -112,6 +116,7 @@ async def create(
     filetype: str,
     storage_path: str,
     source_path: str | None = None,
+    sync_source_id: UUID | None = None,
     status: DocumentStatus = DocumentStatus.PROCESSING,
     organization_id: UUID | None = None,
     knowledge_base_id: UUID | None = None,
@@ -122,7 +127,7 @@ async def create(
     organizational_unit: str | None = None,
     initiated_by_user_id: UUID | None = None,
 ) -> RAGDocument:
-    """Create a new RAG document record."""
+    """Create a new RAG document record, claimed by `sync_source_id` when a sync opens it."""
     doc = RAGDocument(
         collection_name=collection_name,
         filename=filename,
@@ -142,6 +147,9 @@ async def create(
     )
     db.add(doc)
     await db.flush()
+    if sync_source_id is not None:
+        db.add(RAGDocumentClaim(rag_document_id=doc.id, sync_source_id=sync_source_id))
+        await db.flush()
     return doc
 
 
@@ -276,6 +284,220 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     )
     await db.flush()
     return int(result.rowcount or 0)
+
+
+async def get_settled_for_sync_source(
+    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+) -> list[RAGDocument]:
+    """The settled rows one sync source claims in one collection.
+
+    `PROCESSING` is left out for the reason `discard_failed` gives: such a row
+    belongs to an attempt that may still be running, and removing it would
+    strand the vectors that attempt is about to write. One a dead run left
+    behind is `get_stale_for_sync_source`'s, and settled before this is asked.
+
+    Scoped to the source's *current* collection: rows it claimed in one it was
+    repointed away from are that collection's now, and a sync of the new one has
+    no business reaching them.
+    """
+    result = await db.execute(
+        select(RAGDocument)
+        .join(RAGDocumentClaim, RAGDocumentClaim.rag_document_id == RAGDocument.id)
+        .where(
+            RAGDocumentClaim.sync_source_id == sync_source_id,
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.status != DocumentStatus.PROCESSING,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_stale_for_sync_source(
+    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+) -> list[RAGDocument]:
+    """The `PROCESSING` rows one sync source left in one collection.
+
+    Asked by a run holding the source's run lock, so none of these belongs to a
+    run still going: each is what a worker that died mid-file left, whose
+    vectors may or may not have been written. A row with no `source_path` is not
+    one a sync opened - `_open_document_row` always gives it one - and is left
+    for whoever did. A `PROCESSING` row has one claim, the source that opened
+    it: other sources claim a row only once it settles (`claim_listed`,
+    `add_claims`, `transfer_claims`), so this never reaches a row another
+    source's run may still be writing.
+    """
+    result = await db.execute(
+        select(RAGDocument)
+        .join(RAGDocumentClaim, RAGDocumentClaim.rag_document_id == RAGDocument.id)
+        .where(
+            RAGDocumentClaim.sync_source_id == sync_source_id,
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.status == DocumentStatus.PROCESSING,
+            RAGDocument.source_path.is_not(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def lock_for_removal(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
+    """The row, locked until this transaction ends, or `None` when it is already gone.
+
+    What makes "is this source the document's last claimant" a decision that
+    still holds when the row is deleted. Two sources dropping one document at
+    once each saw the other's claim, each withdrew its own, and left a
+    document nobody claims and no sync would ever remove; a source claiming it
+    meanwhile lost its claim with the row. Each now waits for the other's
+    transaction: a claim, whose foreign key takes a share lock on this row, as
+    much as a removal.
+    """
+    result = await db.execute(
+        select(RAGDocument)
+        .where(RAGDocument.id == doc_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def is_claimed_by_another_source(
+    db: AsyncSession, doc_id: UUID, *, sync_source_id: UUID
+) -> bool:
+    """Whether a source other than this one still claims the document for its collection.
+
+    Only a source still feeding the document's collection counts: one repointed
+    elsewhere no longer lists anything here, and its old claim must not keep a
+    document no source will ever remove.
+    """
+    result = await db.execute(
+        select(
+            exists().where(
+                RAGDocumentClaim.rag_document_id == doc_id,
+                RAGDocumentClaim.sync_source_id != sync_source_id,
+                SyncSource.id == RAGDocumentClaim.sync_source_id,
+                RAGDocument.id == RAGDocumentClaim.rag_document_id,
+                SyncSource.collection_name == RAGDocument.collection_name,
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+async def delete_claim(db: AsyncSession, doc_id: UUID, *, sync_source_id: UUID) -> None:
+    """Withdraw one source's claim on a document, leaving the document."""
+    await db.execute(
+        sql_delete(RAGDocumentClaim).where(
+            RAGDocumentClaim.rag_document_id == doc_id,
+            RAGDocumentClaim.sync_source_id == sync_source_id,
+        )
+    )
+    await db.flush()
+
+
+async def add_claims(db: AsyncSession, doc_id: UUID, *, sync_source_ids: set[UUID]) -> None:
+    """Claim one document for each of these sources, keeping claims it already has."""
+    if not sync_source_ids:
+        return
+    await db.execute(
+        pg_insert(RAGDocumentClaim)
+        .values(
+            [
+                {"rag_document_id": doc_id, "sync_source_id": source}
+                for source in sorted(sync_source_ids)
+            ]
+        )
+        .on_conflict_do_nothing()
+    )
+    await db.flush()
+
+
+async def get_claimants(db: AsyncSession, doc_ids: list[UUID]) -> set[UUID]:
+    """Every source claiming any of these documents."""
+    if not doc_ids:
+        return set()
+    result = await db.execute(
+        select(RAGDocumentClaim.sync_source_id)
+        .where(RAGDocumentClaim.rag_document_id.in_(doc_ids))
+        .distinct()
+    )
+    return set(result.scalars().all())
+
+
+# Two bind parameters a pair: well under asyncpg's 32767 whatever a listing holds.
+CLAIM_BATCH = 1000
+
+
+async def claim_listed(
+    db: AsyncSession,
+    *,
+    sync_source_id: UUID,
+    collection_name: str,
+    documents: set[tuple[str, str]],
+) -> None:
+    """Claim the settled rows tracking these `(source_path, vector_document_id)` pairs.
+
+    A sync that finds a listed file already stored - ingested by another
+    source, or skipped as unchanged - opens no row for it, so it held no claim
+    on it, and the other source dropping it removed a document this one still
+    lists. The pair, not the address alone: the stored document came from the
+    ingester's tenant-scoped lookup, so matching its id keeps this to the
+    document the sync actually compared, never another tenant's row under a
+    shared collection name.
+
+    `FOR KEY SHARE`, so a row another source holds for removal is waited for
+    and then skipped once it is gone, rather than failing the claim's foreign
+    key and the whole sync with it (`lock_for_removal`).
+    """
+    pairs = sorted(documents)
+    for start in range(0, len(pairs), CLAIM_BATCH):
+        await db.execute(
+            pg_insert(RAGDocumentClaim)
+            .from_select(
+                ["rag_document_id", "sync_source_id"],
+                select(RAGDocument.id, literal(sync_source_id, PG_UUID(as_uuid=True)))
+                .where(
+                    RAGDocument.collection_name == collection_name,
+                    RAGDocument.status == DocumentStatus.DONE,
+                    tuple_(RAGDocument.source_path, RAGDocument.vector_document_id).in_(
+                        pairs[start : start + CLAIM_BATCH]
+                    ),
+                )
+                .with_for_update(key_share=True),
+            )
+            .on_conflict_do_nothing()
+        )
+    await db.flush()
+
+
+async def transfer_claims(db: AsyncSession, *, from_ids: list[UUID], to_id: UUID) -> None:
+    """Copy the claims on `from_ids` onto `to_id`, before the rows they were on are deleted."""
+    if not from_ids:
+        return
+    await db.execute(
+        pg_insert(RAGDocumentClaim)
+        .from_select(
+            ["rag_document_id", "sync_source_id"],
+            select(literal(to_id, PG_UUID(as_uuid=True)), RAGDocumentClaim.sync_source_id)
+            .where(RAGDocumentClaim.rag_document_id.in_(from_ids))
+            .distinct(),
+        )
+        .on_conflict_do_nothing()
+    )
+    await db.flush()
+
+
+async def get_tracked_vector_ids(
+    db: AsyncSession, *, collection_name: str, vector_document_ids: set[str]
+) -> set[str]:
+    """Which of these stored documents a row of the collection points at."""
+    if not vector_document_ids:
+        return set()
+    result = await db.execute(
+        select(RAGDocument.vector_document_id).where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.vector_document_id.in_(vector_document_ids),
+        )
+    )
+    return {str(value) for value in result.scalars().all() if value}
 
 
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:

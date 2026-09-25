@@ -382,7 +382,9 @@
         count +
         " row" +
         (count > 1 ? "s" : "") +
-        " compacted. Useful context banked.";
+        (s.lines === count && !s.tasks
+          ? " compacted. A task needs 4 I + 4 D + 4 M - watch Next task."
+          : " compacted. Useful context banked.");
       while (
         s.collected.instruction >= 4 &&
         s.collected.document >= 4 &&
@@ -417,6 +419,12 @@
       }
     });
     return count;
+  }
+  // Banked blocks past four wait for the task after next, so the meter caps.
+  function taskProgress(s) {
+    return TYPES.slice(0, 3).map(function (type) {
+      return { type: type, have: Math.min(4, s.collected[type]), need: 4 };
+    });
   }
   function lock(s) {
     if (s.status !== "playing") return;
@@ -471,6 +479,7 @@
     move,
     rotate,
     clearRows,
+    taskProgress,
     lock,
     hardDrop,
     discard,

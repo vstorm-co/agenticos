@@ -41,7 +41,7 @@ from app.repositories import user as user_repo
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
-from app.services.notification_center import NotificationCenterService
+from app.services.notification_center import NotificationCenterService, absolute_context_url
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +289,12 @@ class NotificationDeliveryService:
         rendering (Decision 3) - `render_context`, frozen at write time, is
         used as written for every event type but one. `approval_requested`
         re-derives which key renders, against the recipient's *current*
-        `approvals:decide`, not a snapshot from when the run parked."""
+        `approvals:decide`, not a snapshot from when the run parked.
+
+        The generic fallback below is the one key built from the *stored*
+        column rather than from that frozen context, and so the one place the
+        origin is put back on at send time: `context_url` holds a console path,
+        and an email has no origin to resolve one against."""
         event_type = NotificationEventType(notification.event_type)
         context = dict(notification.render_context or {})
         if event_type is NotificationEventType.APPROVAL_REQUESTED:
@@ -306,7 +311,7 @@ class NotificationDeliveryService:
             return fixed, context
         return EmailKey.NOTIFICATION, {
             "summary": notification.summary,
-            "context_url": notification.context_url or "",
+            "context_url": absolute_context_url(notification.context_url),
             "app_name": settings.PROJECT_NAME,
         }
 

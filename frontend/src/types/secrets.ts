@@ -17,7 +17,9 @@ export type SecretKind =
   | "aws_credentials"
   | "gcp_service_account"
   | "github_oauth_app"
-  | "google_oauth_app";
+  | "google_oauth_app"
+  | "git_token"
+  | "entra_app";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no

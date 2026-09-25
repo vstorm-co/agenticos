@@ -1,5 +1,5 @@
 ---
-source_sha: "4fc9ab1fab50"
+source_sha: "0f2e647408d7"
 ---
 
 # Uprawnienia { #permissions }
@@ -241,7 +241,8 @@ uprawnienia; klienci nie mogą wymyślać nowych.
 
 Każdy zasób, który da się udostępnić, niesie `owner_user_id` i `visibility`
 (`private` | `team` | `org`). Na to nakłada się `resource_grants`, które trzyma
-jeden wiersz na udostępnienie: jeden zasób, jedna osoba, jeden poziom.
+jeden wiersz na udostępnienie: jeden zasób, jedna osoba albo jedna
+[grupa](directory.md#groups), jeden poziom.
 
 **Nowy agent jest `org`, chyba że autor powie inaczej** — i dialog, który go
 tworzy, o to pyta. Agent to rzecz, którą firma buduje, więc firma ma go znaleźć;
@@ -258,6 +259,13 @@ robi.
 | `use` | dodatkowo uruchomić go albo podpiąć |
 | `edit` | dodatkowo go zmienić |
 
+Grant dla grupy sięga do każdego, kto jest w grupie w chwili sprawdzania dostępu,
+więc dołączenie do grupy oznacza zyskanie dostępu, a odejście z niej — jego
+utratę. Osoba trzymająca kilka grantów na jednym wierszu — własny i grantów
+swoich grup — dostaje najwyższy z nich. Baza danych trzyma grant dla dokładnie
+jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
+do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
+
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
 do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu i przechowywane
 klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
@@ -271,6 +279,9 @@ Jeden wzór, w `app/services/access.py`:
 ```
 effective access to one row = max(role scope, grant on that row)
 ```
+
+„Grant on that row” to najlepszy z własnego grantu danej osoby i grantów dla
+grup, w których ona jest.
 
 !!! danger "Grant poszerza to, na co pozwala rola; nigdy tego nie zawęża"
 

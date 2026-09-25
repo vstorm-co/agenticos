@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useNotificationInbox } from "@/hooks";
+import { isInAppPath } from "@/lib/notification-link";
 import { cn, timeAgo } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import { Bell } from "lucide-react";
@@ -84,11 +86,7 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
             };
             return (
               <li key={item.id}>
-                {item.context_url ? (
-                  <a href={item.context_url} onClick={handleRead} className={rowClassName}>
-                    {content}
-                  </a>
-                ) : (
+                {!item.context_url ? (
                   <button
                     type="button"
                     onClick={handleRead}
@@ -97,6 +95,24 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
                   >
                     {content}
                   </button>
+                ) : isInAppPath(item.context_url) ? (
+                  // `prefetch={false}`: five rows in view, each otherwise
+                  // fetching a dynamic dashboard route nobody has asked for.
+                  <Link
+                    href={item.context_url}
+                    prefetch={false}
+                    onClick={handleRead}
+                    className={rowClassName}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  // A row written before `context_url` held a path, which
+                  // carries an origin and so is a whole new document either
+                  // way. Nothing migrates those; they age out.
+                  <a href={item.context_url} onClick={handleRead} className={rowClassName}>
+                    {content}
+                  </a>
                 )}
               </li>
             );

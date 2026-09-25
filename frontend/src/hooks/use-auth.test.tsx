@@ -350,6 +350,40 @@ describe("signing in", () => {
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
   });
 
+  it("signs in through the directory the same way, with a username", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t-d" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.loginWithDirectory({ username: "jdoe", password: "pw" }, "/agents");
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/ldap/login", {
+      username: "jdoe",
+      password: "pw",
+    });
+    expect(useAuthStore.getState().accessToken).toBe("t-d");
+    expect(push).toHaveBeenLastCalledWith("/agents");
+  });
+
+  it("names the staged invitation's flow on a directory sign-in, which may create the account", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t-d" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.loginWithDirectory(
+        { username: "jdoe", password: "pw" },
+        null,
+        "0123456789abcdef0123456789abcdef",
+      );
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/ldap/login?flow=0123456789abcdef0123456789abcdef",
+      { username: "jdoe", password: "pw" },
+    );
+  });
+
   it("registers without signing anybody in", async () => {
     // Registration may need a verification step, so it does not touch the session.
     vi.mocked(apiClient.post).mockResolvedValue({ id: "u-2", email: "new@example.com" });

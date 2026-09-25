@@ -1,5 +1,5 @@
 ---
-source_sha: "b20c8050c479"
+source_sha: "09378a249384"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -51,6 +51,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
 | `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
 | `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
+| `artifacts` | Artefakte | utility | `publish_artifact` | — | — |
 | `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -970,6 +971,41 @@ Workspace hat (die `sandbox`-Capability), wird dasselbe Bild dort unter `/output
 abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, eine
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
+
+## Artefakte { #artifacts }
+
+`publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
+kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
+
+Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
+[Artefakt](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
+Sichtbarkeit und Grants, die im Browser unter einem Link geöffnet wird, der
+bleibt. Keine Konfiguration.
+
+**Der Name ist die Identität.** `(organization, agent, name)` wählt das Artefakt
+aus, sodass der nächste Run desselben Agents, der `weekly-report` veröffentlicht —
+aus einem Chat, einem Zeitplan oder der API —, demselben Artefakt eine Version
+hinzufügt, statt einen zweiten Link anzulegen. Identische Bytes fügen keine
+Version hinzu und antworten mit `unchanged`.
+
+**Woher die Seite kommt.** `path` liest eine Datei aus dem Workspace des Runs über
+dessen eigenes Backend, funktioniert also überall, wo die Capability `sandbox`
+funktioniert; `content` nimmt die Seite inline für einen Agent ohne Workspace.
+Genau eines von beiden. Ein falscher Aufruf — beides oder keines, ein Name
+außerhalb von `^[a-z0-9][a-z0-9-]{0,63}$`, eine unbekannte Endung, eine leere
+oder zu große Seite — ist ein Retry, der nennt, was zu ändern ist. Ein Lesen, das
+die Berechtigungsregeln des Workspace ablehnen, ist ein Ergebnis, kein Retry.
+
+**Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
+für die der Run lief, und nur eine Person erweitert, wer sie liest; das
+Genehmigungs-Gate würde also nur den geplanten Bericht parken, für den das hier
+existiert. Ein Autor, der jede erneute Veröffentlichung einer geteilten Seite
+genehmigt haben möchte, setzt `tool_approval` auf `publish_artifact`.
+
+**Die Seite hat kein Netzwerk.** Sie wird in einem opaken Origin unter einer
+`sandbox`-Policy mit `connect-src 'none'` ausgeliefert, und der Tool-Text sagt dem
+Modell, alles einzubetten. Siehe
+[wie die Seite isoliert wird](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegation { #delegation }
 

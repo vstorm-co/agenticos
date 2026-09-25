@@ -1,10 +1,12 @@
 # ruff: noqa: I001
 """Sync source service - org-scoped integration management."""
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.updates import writable
@@ -93,6 +95,30 @@ async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
     if refusal.field is None:
         raise BadRequestError(message=sentence, details={"connector_type": connector_type})
     raise refused_field(f"config.{refusal.field}", sentence, connector_type=connector_type)
+
+
+class SyncState(BaseModel):
+    """What a source's content was at when its last clean run finished.
+
+    `version` is the connector's `remote_version`; `fingerprint` is
+    `sync_fingerprint` of what the run was configured with. Both have to match
+    for a run to stop early, because the same commit read with a different
+    include pattern, into another collection or under another mode is not the
+    same sync (#987).
+    """
+
+    version: str
+    fingerprint: str
+
+
+def sync_fingerprint(config: dict, *, collection_name: str, sync_mode: str) -> str:
+    """A digest of everything that decides what a run of this source reads and writes."""
+    document = json.dumps(
+        {"config": config, "collection_name": collection_name, "sync_mode": sync_mode},
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(document.encode()).hexdigest()
 
 
 def _raw_config(source: SyncSource) -> dict:
@@ -187,6 +213,7 @@ class SyncSourceService:
                 ingested=log.ingested,
                 updated=log.updated,
                 skipped=log.skipped,
+                removed=log.removed,
                 failed=log.failed,
                 error_message=log.error_message,
                 started_at=log.started_at,
@@ -496,14 +523,21 @@ class SyncSourceService:
         source_id: str,
         status: str,
         error: str | None = None,
+        *,
+        sync_state: SyncState | None = None,
     ) -> None:
-        """Update sync source status after a sync operation completes."""
+        """Update sync source status after a sync operation completes.
+
+        `sync_state` is what a clean run read; omitted, the source keeps the one
+        it had, so a failed run is retried in full rather than skipped as current.
+        """
         await sync_source_repo.update_sync_status(
             self.db,
             UUID(source_id),
             last_sync_at=datetime.now(UTC),
             last_sync_status=status,
             last_error=error,
+            sync_state=None if sync_state is None else sync_state.model_dump(),
         )
 
     @staticmethod

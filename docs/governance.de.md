@@ -1,5 +1,5 @@
 ---
-source_sha: "65df12b25237"
+source_sha: "d12dda296e9f"
 ---
 
 # Governance { #governance }
@@ -1681,6 +1681,7 @@ Ort für die Fristen je Tenant.
 | Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
 | Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
+| Artefakte | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |

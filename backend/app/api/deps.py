@@ -316,6 +316,48 @@ RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
+from app.services.group import GroupService
+from app.services.directory import (
+    DirectoryMappingService,
+    DirectorySignInService,
+    DirectorySyncService,
+    build_directory,
+    build_ticket_acceptor,
+)
+
+
+def get_group_service(db: DBSession) -> GroupService:
+    """Create GroupService instance with database session."""
+    return GroupService(db)
+
+
+def get_directory_mapping_service(db: DBSession) -> DirectoryMappingService:
+    """Create DirectoryMappingService instance with database session."""
+    return DirectoryMappingService(db)
+
+
+def get_directory_sign_in_service(db: DBSession) -> DirectorySignInService:
+    """The directory sign-in, with whichever adapters the deployment configured.
+
+    Built per request from the settings: constructing the LDAP adapter opens no
+    connection, and a test overriding the settings gets adapters that match.
+    """
+    return DirectorySignInService(
+        db,
+        directory=build_directory(settings),
+        acceptor=build_ticket_acceptor(settings),
+    )
+
+
+def get_directory_sync_service(db: DBSession) -> DirectorySyncService:
+    """Create DirectorySyncService instance with database session."""
+    return DirectorySyncService(db)
+
+
+GroupSvc = Annotated[GroupService, Depends(get_group_service)]
+DirectorySyncSvc = Annotated[DirectorySyncService, Depends(get_directory_sync_service)]
+DirectoryMappingSvc = Annotated[DirectoryMappingService, Depends(get_directory_mapping_service)]
+DirectorySignInSvc = Annotated[DirectorySignInService, Depends(get_directory_sign_in_service)]
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -585,6 +627,16 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.artifact import ArtifactService
+
+
+def get_artifact_service(db: DBSession) -> ArtifactService:
+    """Create ArtifactService instance with database session."""
+    return ArtifactService(db)
+
+
+ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
 from app.services.memory import MemoryService
 
 
@@ -811,6 +863,22 @@ async def limit_hosted_config(public_key: str) -> None:
     """
     _refuse_if_over(
         await rate_limit.hosted_admission_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_public_artifact(public_key: str) -> None:
+    """Refuse a public artifact link opened too often. Per link, not per address."""
+    _refuse_if_over(
+        await rate_limit.public_artifact_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_artifact_content(token: str) -> None:
+    """Refuse a signed artifact address loaded too often. Per address, before any read."""
+    _refuse_if_over(
+        await rate_limit.artifact_content_allowed(token),
         "Too many requests. Try again shortly.",
     )
 

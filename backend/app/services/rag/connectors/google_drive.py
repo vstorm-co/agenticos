@@ -37,6 +37,7 @@ from app.services.rag.connectors import (
     ConfigRefusal,
     ConnectorConfig,
     RemoteFile,
+    RemoteListing,
 )
 from app.services.rag.remote_names import checked_drive_folder_id
 
@@ -216,7 +217,7 @@ class GoogleDriveConnector(BaseSyncConnector):
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
+    ) -> RemoteListing:
         """List all files in the configured Google Drive folder."""
         folder_id = config["folder_id"]
         include_subfolders = config.get("include_subfolders", True)
@@ -225,7 +226,7 @@ class GoogleDriveConnector(BaseSyncConnector):
             service = self._get_drive_service(credential)
             return self._list_folder(service, folder_id, include_subfolders)
 
-        return await asyncio.to_thread(_list)
+        return RemoteListing(files=await asyncio.to_thread(_list))
 
     async def _fetch(
         self,

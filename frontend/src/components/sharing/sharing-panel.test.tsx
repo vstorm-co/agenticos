@@ -2,8 +2,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { SharingPanel, toLevel } from "./sharing-panel";
+import { parseSubject, toLevel } from "./grants";
+import { SharingPanel } from "./sharing-panel";
 import type { OrganizationMember } from "@/types";
+import type { Group } from "@/types/groups";
 import type { ResourceGrant, ResourceSharing } from "@/types/sharing";
 
 const share = { mutate: vi.fn(), isPending: false };
@@ -12,12 +14,14 @@ const setVisibility = { mutate: vi.fn(), isPending: false };
 
 let sharing: ResourceSharing | undefined;
 let members: OrganizationMember[];
+let groups: Group[];
 
 // Read at render time, not at factory time, so each test can reshape the state
 // the panel is given.
 vi.mock("@/hooks", () => ({
   useSharing: () => ({ sharing, isLoading: sharing === undefined, share, revoke, setVisibility }),
   useMembers: () => ({ members }),
+  useGroups: () => ({ groups }),
 }));
 
 function member(userId: string, email: string): OrganizationMember {
@@ -31,6 +35,18 @@ function member(userId: string, email: string): OrganizationMember {
     avatar_url: null,
     avatar_color: null,
     joined_at: "2026-01-01T00:00:00Z",
+    source: "manual",
+  };
+}
+
+function group(id: string, name: string): Group {
+  return {
+    id,
+    organization_id: "org-1",
+    name,
+    description: null,
+    member_count: 3,
+    created_at: "2026-01-01T00:00:00Z",
   };
 }
 
@@ -38,9 +54,22 @@ const GRANT: ResourceGrant = {
   id: "g1",
   subject_user_id: "u-sam",
   subject_email: "sam@example.com",
+  subject_group_id: null,
+  subject_group_name: null,
   resource_type: "agent",
   resource_id: "a1",
   level: "read",
+};
+
+const GROUP_GRANT: ResourceGrant = {
+  id: "g2",
+  subject_user_id: null,
+  subject_email: null,
+  subject_group_id: "g-fin",
+  subject_group_name: "Finance",
+  resource_type: "agent",
+  resource_id: "a1",
+  level: "use",
 };
 
 const SHARING: ResourceSharing = {
@@ -58,6 +87,9 @@ function renderPanel(canManage = true, overrides?: Partial<ResourceSharing>) {
   if (overrides) sharing = { ...SHARING, ...overrides };
   return render(<SharingPanel resourceType="agent" resourceId="a1" canManage={canManage} />);
 }
+
+/** The picker's label: one picker for members and groups both. */
+const ADD = "Add a person or group";
 
 /** Open a Radix select and choose one of its options. */
 async function choose(trigger: HTMLElement, option: string) {
@@ -83,6 +115,7 @@ beforeEach(() => {
     member("u-sam", "sam@example.com"),
     member("u-nina", "nina@example.com"),
   ];
+  groups = [group("g-fin", "Finance"), group("g-ops", "Ops")];
 });
 
 describe("SharingPanel", () => {
@@ -146,9 +179,10 @@ describe("SharingPanel", () => {
     // Everyone in this organization already reaches the resource, which is a
     // different thing from the member list having failed to load.
     members = [member("u-owner", "owner@example.com"), member("u-sam", "sam@example.com")];
-    renderPanel();
-    expect(screen.getByLabelText("Add someone")).toHaveTextContent("Everyone already has access");
-    expect(screen.getByLabelText("Add someone")).toBeDisabled();
+    groups = [group("g-fin", "Finance")];
+    renderPanel(true, { grants: [GRANT, GROUP_GRANT] });
+    expect(screen.getByLabelText(ADD)).toHaveTextContent("Everyone already has access");
+    expect(screen.getByLabelText(ADD)).toBeDisabled();
   });
 
   it("falls back to the subject id when the server could not name them", () => {
@@ -168,12 +202,12 @@ describe("SharingPanel", () => {
   it("revokes the person whose row was clicked", async () => {
     renderPanel();
     await userEvent.click(screen.getByRole("button", { name: "Remove sam@example.com" }));
-    expect(revoke.mutate).toHaveBeenCalledWith("u-sam");
+    expect(revoke.mutate).toHaveBeenCalledWith({ kind: "user", id: "u-sam" });
   });
 
   it("offers only members who do not already reach it", async () => {
     renderPanel();
-    await userEvent.click(screen.getByLabelText("Add someone"));
+    await userEvent.click(screen.getByLabelText(ADD));
 
     expect(await screen.findByRole("option", { name: "nina@example.com" })).toBeInTheDocument();
     // Sam already has a grant and the owner cannot be granted access they
@@ -184,11 +218,64 @@ describe("SharingPanel", () => {
 
   it("shares with the member and level that were chosen", async () => {
     renderPanel();
-    await choose(screen.getByLabelText("Add someone"), "nina@example.com");
+    await choose(screen.getByLabelText(ADD), "nina@example.com");
     await choose(screen.getByLabelText("Access"), "Can use");
     await userEvent.click(screen.getByRole("button", { name: "Share" }));
 
     expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-nina", level: "use" });
+  });
+
+  it("lists a group it is shared with by name, marked as a group", () => {
+    renderPanel(true, { grants: [GRANT, GROUP_GRANT] });
+
+    expect(screen.getByText("Finance")).toBeInTheDocument();
+    expect(screen.getByText("Group")).toHaveClass("sr-only");
+    expect(screen.getByLabelText("Access for Finance")).toHaveTextContent("Can use");
+  });
+
+  it("falls back to the group id when the server could not name it", () => {
+    renderPanel(true, { grants: [{ ...GROUP_GRANT, subject_group_name: null }] });
+
+    expect(screen.getByText("g-fin")).toBeInTheDocument();
+  });
+
+  it("changes a group's level by the group's key, not a user's", async () => {
+    renderPanel(true, { grants: [GROUP_GRANT] });
+    await choose(screen.getByLabelText("Access for Finance"), "Can edit");
+
+    expect(share.mutate).toHaveBeenCalledWith({ subject_group_id: "g-fin", level: "edit" });
+  });
+
+  it("revokes a group at the group endpoint", async () => {
+    renderPanel(true, { grants: [GROUP_GRANT] });
+    await userEvent.click(screen.getByRole("button", { name: "Remove Finance" }));
+
+    expect(revoke.mutate).toHaveBeenCalledWith({ kind: "group", id: "g-fin" });
+  });
+
+  it("offers only the groups it is not already shared with", async () => {
+    renderPanel(true, { grants: [GRANT, GROUP_GRANT] });
+    await userEvent.click(screen.getByLabelText(ADD));
+
+    expect(await screen.findByRole("option", { name: "Ops" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Finance" })).not.toBeInTheDocument();
+  });
+
+  it("shares with the group that was chosen, by its own key", async () => {
+    renderPanel();
+    await choose(screen.getByLabelText(ADD), "Ops");
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+
+    expect(share.mutate).toHaveBeenCalledWith({ subject_group_id: "g-ops", level: "read" });
+  });
+
+  it("offers groups alone when every member already reaches it", async () => {
+    members = [member("u-owner", "owner@example.com"), member("u-sam", "sam@example.com")];
+    renderPanel();
+    await userEvent.click(screen.getByLabelText(ADD));
+
+    expect(await screen.findByRole("option", { name: "Ops" })).toBeInTheDocument();
+    expect(screen.queryByText("Members")).not.toBeInTheDocument();
   });
 
   it("cannot share with nobody", () => {
@@ -255,5 +342,18 @@ describe("toLevel", () => {
     // silently grant something nobody chose; throwing says a level was added to
     // the backend and not to this list.
     expect(() => toLevel("admin")).toThrow("Unknown grant level: admin");
+  });
+});
+
+describe("parseSubject", () => {
+  it("reads back the kind the picker encoded", () => {
+    expect(parseSubject("user:u-1")).toEqual({ kind: "user", id: "u-1" });
+    expect(parseSubject("group:g-1")).toEqual({ kind: "group", id: "g-1" });
+  });
+
+  it.each(["u-1", "user:", "team:t-1"])("refuses %j rather than guessing a kind", (value) => {
+    // A member and a group are both bare UUIDs; guessing which one a value meant
+    // would share with the wrong kind of subject.
+    expect(() => parseSubject(value)).toThrow(`Unknown grant subject: ${value}`);
   });
 });

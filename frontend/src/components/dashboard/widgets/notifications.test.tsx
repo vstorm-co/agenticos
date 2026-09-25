@@ -91,7 +91,28 @@ describe("the notifications widget", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
-  it("marks an unread row read on click, through a link when it has a destination", async () => {
+  it("opens a row's destination as a sub-route of the console, and marks it read", async () => {
+    // The href is what decides whether the click swaps the page under the
+    // layout already mounted or fetches a whole new document - `next/link` and
+    // a plain anchor both render an `<a>`, so the destination is the assertion.
+    const markRead = vi.fn().mockResolvedValue(undefined);
+    renderWidget({
+      notifications: [notification({ context_url: "/agents/a1?org=o1" })],
+      markRead,
+    });
+
+    await userEvent.click(screen.getByText("jarvis's run finished."));
+
+    expect(screen.getByText("jarvis's run finished.").closest("a")).toHaveAttribute(
+      "href",
+      "/agents/a1?org=o1",
+    );
+    expect(markRead).toHaveBeenCalledWith("n1");
+  });
+
+  it("still opens a row written before the column held a path", async () => {
+    // Nothing migrates those rows: they carry an origin, reload the document
+    // the way every row used to, and age out with the retention sweep.
     const markRead = vi.fn().mockResolvedValue(undefined);
     renderWidget({
       notifications: [notification({ context_url: "https://app.example.com/agents/a1" })],
@@ -100,6 +121,10 @@ describe("the notifications widget", () => {
 
     await userEvent.click(screen.getByText("jarvis's run finished."));
 
+    expect(screen.getByText("jarvis's run finished.").closest("a")).toHaveAttribute(
+      "href",
+      "https://app.example.com/agents/a1",
+    );
     expect(markRead).toHaveBeenCalledWith("n1");
   });
 

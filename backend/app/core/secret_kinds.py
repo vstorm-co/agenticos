@@ -37,6 +37,11 @@ The kinds are the shapes that actually exist, and no more:
     A Google OAuth client's `client_id` and `client_secret`, for connecting a
     mailbox a trigger reads. The same two fields as GitHub's and a separate kind
     on purpose: a kind names what a credential is *for*.
+`entra_app`
+    A Microsoft Entra app registration - tenant, client id and client secret -
+    that a SharePoint or OneDrive sync source reads a site with. Three fields,
+    because a client secret is useless without the tenant and the app it
+    belongs to.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
 :data:`SecretValue` adds `none`, which the runtime can hold but nobody can
@@ -79,6 +84,8 @@ class SecretKind(StrEnum):
     GITHUB_OAUTH_APP = "github_oauth_app"
     GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
+    GIT_TOKEN = "git_token"
+    ENTRA_APP = "entra_app"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -260,6 +267,87 @@ class GcpServiceAccountSecret(_SecretBase):
         return email[-4:]
 
 
+class GitTokenSecret(_SecretBase):
+    """An access token for git over HTTPS, and the one host it may be sent to.
+
+    A kind of its own rather than an `api_key`, because a Git source sends its
+    token to a URL the source's editor types. With any API key eligible, a member
+    who could edit a source could pick the organization's model key, point the
+    source at a server of their own and read the key out of the basic-auth header
+    (#987). Here the host is part of what the vault holds - set by whoever added
+    the token, sealed with it - and the connector refuses to send the token
+    anywhere else.
+    """
+
+    kind: Literal[SecretKind.GIT_TOKEN] = SecretKind.GIT_TOKEN
+    token: CredentialStr = Field(
+        title="Access token",
+        description="A token that can read the repository, e.g. a fine-grained GitHub token",
+    )
+    host: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]{1,5})?$",
+        title="Host",
+        description="Where the token may be sent, e.g. github.com or gitlab.example.com:8443",
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.token.get_secret_value()[-4:]
+
+    def allows(self, hostname: str, port: int | None) -> bool:
+        """Whether a repository at this host and port may be sent the token.
+
+        `hostname` as `urlsplit` answers it: lower-cased, and an IPv6 literal
+        without its brackets - which the stored host keeps, as a URL writes it.
+        An internationalized name arrives IDNA-encoded (`xn--...`), the only
+        spelling `host` can store: `GitConfig` encodes the URL's host before
+        anything reads it.
+        """
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        expected = host if port in (None, 443) else f"{host}:{port}"
+        return self.host.lower().removesuffix(":443") == expected.lower()
+
+
+class EntraAppSecret(_SecretBase):
+    """A Microsoft Entra app registration a SharePoint or OneDrive source signs in as.
+
+    The client credentials flow: the app proves itself with its secret and gets
+    a Microsoft Graph token carrying the *application* permissions an
+    administrator consented to. Those decide the source's reach, not anything a
+    source's editor types: `Files.Read.All` reads every drive in the tenant,
+    `Sites.Selected` only the sites the app was granted
+    (`docs/howto/configure-sync-sources.md#sharepoint-and-onedrive-setup`).
+
+    `tenant_id` goes into the sign-in URL's path, so it is held to what a tenant
+    id or a tenant's domain can be spelled with.
+    """
+
+    kind: Literal[SecretKind.ENTRA_APP] = SecretKind.ENTRA_APP
+    tenant_id: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
+        title="Tenant ID",
+        description="The directory (tenant) id, or the tenant's domain, e.g. contoso.onmicrosoft.com",
+    )
+    client_id: str = Field(
+        pattern=r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+        title="Client ID",
+        description="The app registration's application (client) id",
+    )
+    client_secret: CredentialStr = Field(
+        title="Client secret", description="The secret's value, not its id"
+    )
+
+    @property
+    def hint(self) -> str:
+        # The client id, not the secret: it is public, and it is what names the
+        # app registration in the Entra admin center.
+        return self.client_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -362,7 +450,9 @@ StorableSecret = Annotated[
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
     | GithubAppSecret
-    | GoogleOAuthAppSecret,
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -375,7 +465,9 @@ SecretValue = Annotated[
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
     | GithubAppSecret
-    | GoogleOAuthAppSecret,
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -456,6 +548,8 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
     SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
+    SecretKind.GIT_TOKEN: GitTokenSecret,
+    SecretKind.ENTRA_APP: EntraAppSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -486,6 +580,15 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
     SecretKind.GOOGLE_OAUTH_APP: (
         "Google OAuth client",
         "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
+    ),
+    SecretKind.GIT_TOKEN: (
+        "Git access token",
+        "A token that reads repositories over HTTPS, and the one host it may be sent to.",
+    ),
+    SecretKind.ENTRA_APP: (
+        "Microsoft Entra app",
+        "An app registration's tenant, client id and client secret - for reading "
+        "SharePoint sites and OneDrive folders through Microsoft Graph.",
     ),
 }
 
