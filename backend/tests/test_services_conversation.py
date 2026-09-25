@@ -1250,9 +1250,7 @@ class TestConversationServiceListMessages:
     async def test_the_cost_is_the_whole_thread_and_not_the_page(
         self, service: ConversationService
     ):
-        """A client adding up the page it was handed would answer "the first
-        hundred turns" under a label reading "this conversation" - so the page
-        bounds reach the messages and the total is asked for the thread."""
+        """The page bounds reach the messages; the cost is asked for the thread."""
         conv_id = uuid4()
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -1270,12 +1268,7 @@ class TestConversationServiceListMessages:
     async def test_a_transcript_authorizes_its_conversation_exactly_once(
         self, service: ConversationService
     ):
-        """How many times the read authorizes is the behaviour here, so the count
-        is the assertion rather than a stand-in for one. The page and the total
-        used to be two service calls with one caller between them, so every
-        transcript resolved its conversation twice - and on a thread reached
-        through a channel that is two membership checks, each able to unseal a bot
-        token and ask the platform whether the reader is still in the room."""
+        """On a channel thread each authorization can ask the platform about the reader."""
         conv_id = uuid4()
 
         with (
@@ -1833,13 +1826,7 @@ class TestSayingATurnWasStopped:
 
 
 class TestWhatTheThreadCost:
-    """The total `transcript` answers with, beside the page of messages.
-
-    Scoped by the one authorization the page is scoped by, and for the same
-    reason: a total is enough to tell how heavily somebody else's conversation
-    was used. `_cost` itself takes an id and answers, so these go through
-    `transcript`, which is where the refusal lives.
-    """
+    """The cost `transcript` answers with, under the page's authorization."""
 
     @pytest.fixture
     def service(self) -> ConversationService:
@@ -1848,9 +1835,7 @@ class TestWhatTheThreadCost:
     @pytest.mark.security
     @pytest.mark.anyio
     async def test_another_tenants_thread_is_not_totalled(self, service: ConversationService):
-        """And the aggregate never runs: a refusal that read the totals first and
-        threw afterwards is still a refusal, but it is one query away from being
-        a leak the moment somebody wraps the call."""
+        """And the aggregate never runs before the refusal."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=None)
             mock_repo.conversation_cost = AsyncMock(return_value=None)

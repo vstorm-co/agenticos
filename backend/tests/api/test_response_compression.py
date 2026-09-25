@@ -1,16 +1,4 @@
-"""Responses are compressed on the way out, and the bodies that must not be are not.
-
-A transcript is why this exists. `GET /conversations/{id}/messages` answers with up
-to a hundred turns carrying their reasoning, their `parts` timeline and every tool
-call's arguments and result, and until `GZipMiddleware` was registered that JSON went
-out raw over whatever link the reader happened to be on.
-
-The tests that matter here are the ones nothing else would notice losing: the
-exclusion that keeps an event stream uncompressed (there is no SSE route today, so
-the first one added would hang in production rather than fail in CI), the position
-of the layer in the stack, and `Vary` naming the encoding - a response cached
-without it is served gzipped to a client that never asked for it.
-"""
+"""Responses are compressed on the way out, and the bodies that must not be are not."""
 
 from __future__ import annotations
 
@@ -35,12 +23,7 @@ _BIG = [{"role": "assistant", "content": "the agent said something" * 8} for _ i
 def _app() -> FastAPI:
     """The application's own compression settings, over routes that isolate them."""
     built = FastAPI()
-    built.add_middleware(
-        GZipMiddleware,
-        minimum_size=1024,
-        compresslevel=5,
-        exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
-    )
+    built.add_middleware(GZipMiddleware, **real_app.user_middleware[0].kwargs)
 
     @built.get("/transcript")
     async def transcript() -> JSONResponse:
@@ -77,13 +60,10 @@ async def test_a_transcript_sized_body_is_compressed_and_arrives_intact() -> Non
     resp = await _get("/transcript")
 
     assert resp.headers["content-encoding"] == "gzip"
-    # httpx decodes the body but leaves the header, so both halves are assertable:
-    # the answer is the same JSON it would have been uncompressed.
     assert resp.json() == json.loads(json.dumps(_BIG))
 
 
 async def test_a_small_body_is_left_alone() -> None:
-    """Below a TCP segment there is nothing to win, and a header to pay for."""
     resp = await _get("/tiny")
 
     assert "content-encoding" not in resp.headers
@@ -98,18 +78,15 @@ async def test_a_client_that_does_not_ask_for_gzip_gets_plain_bytes() -> None:
 
 async def test_the_answer_varies_on_the_encoding_that_was_asked_for() -> None:
     """A shared cache that stored this without `Vary` would hand a gzipped body to
-    the next client, whatever that client said it could read."""
+    a client that never asked for one."""
     resp = await _get("/transcript")
 
     assert "accept-encoding" in resp.headers["vary"].lower()
 
 
 async def test_an_event_stream_is_never_compressed() -> None:
-    """There is no SSE route in this backend today - chat streams over a
-    WebSocket, which compression cannot reach at all. So nothing else in the
-    suite would notice this exclusion being dropped, and the first event stream
-    somebody adds would stall behind a compressor instead of failing here.
-    """
+    """No route streams SSE today, so nothing else would notice this exclusion
+    going: the first event stream added would stall behind the compressor."""
     resp = await _get("/stream")
 
     assert "content-encoding" not in resp.headers
@@ -117,37 +94,23 @@ async def test_an_event_stream_is_never_compressed() -> None:
 
 
 async def test_an_already_compressed_download_keeps_its_own_encoding() -> None:
-    """A PDF and the office formats are containers that are already compressed, so
-    compressing them again burns CPU for nothing - and it drops the
-    `Content-Length` a streamed response carries, which is the download progress
-    the browser draws."""
     resp = await _get("/download")
 
     assert "content-encoding" not in resp.headers
 
 
 def test_every_excluded_type_starlette_ships_is_still_excluded() -> None:
-    """The list is built by splatting Starlette's own rather than retyping it, so
-    an addition upstream - a future sibling of `text/event-stream` - is inherited.
-    Retyping the tuple is how that would be lost."""
     assert "text/event-stream" in UNCOMPRESSED_CONTENT_TYPES
     assert "image/png" in UNCOMPRESSED_CONTENT_TYPES
     assert "application/pdf" in UNCOMPRESSED_CONTENT_TYPES
 
 
 def test_compression_is_the_outermost_layer_of_the_application() -> None:
-    """`add_middleware` inserts at the front, so index 0 is the layer added last
-    and the one wrapping every other. Position is a decision here, not an
-    accident: everything below is a `BaseHTTPMiddleware` that re-emits the body
-    through an anyio stream, and `Vary: Accept-Encoding` has to reach an answer an
-    inner layer short-circuits. A later `add_middleware` call would move it
-    silently, which is what this pins.
-    """
+    """`add_middleware` inserts at the front, so index 0 wraps every other layer."""
     assert real_app.user_middleware[0].cls is GZipMiddleware
 
 
-async def test_the_security_headers_still_reach_a_compressed_response(client) -> None:
-    """Compression sits above them, so it must not shadow what they set."""
+async def test_the_security_headers_still_reach_a_response_through_compression(client) -> None:
     resp = await client.get(f"{settings.API_V1_STR}/health")
 
     assert "content-security-policy" in resp.headers

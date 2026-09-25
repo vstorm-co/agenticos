@@ -23,16 +23,11 @@ from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 
-# `MessageFileRead` serializes four columns. The row also holds `parsed_content` -
-# the whole extracted text of the upload, a contract or a spreadsheet in full - and
-# a transcript read used to pull every byte of it into memory to serialize none of
-# it. Narrowed here rather than deferred on the model, because `services/attachments.py`
-# and `api/routes/v1/files.py` genuinely read that column, and under asyncio a
-# deferred column they touch is a `MissingGreenlet`, not a second query.
+# What `MessageFileRead` serializes, plus the key selectin groups rows by. A
+# transcript never needs `parsed_content`, the upload's whole extracted text. It is
+# narrowed per query rather than deferred on the model because `services/attachments.py`
+# and `routes/v1/files.py` read it, and under asyncio a deferred load is a `MissingGreenlet`.
 _MESSAGE_FILE_COLUMNS = (
-    # `message_id` is what selectin maps the rows back onto their turn with. SQLAlchemy
-    # adds the foreign key itself, but naming it here means the load does not depend on
-    # that staying true.
     ChatFile.message_id,
     ChatFile.filename,
     ChatFile.mime_type,

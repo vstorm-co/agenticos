@@ -1,17 +1,6 @@
-"""A transcript read does not drag the text of every attachment through memory.
+"""A transcript read leaves `chat_files.parsed_content` in the database.
 
-`MessageFileRead` serializes four scalars - the id, the name, the MIME type and
-the kind - so an attachment on a turn costs a card in the UI. The row behind it
-also holds `parsed_content`, the whole extracted text of the upload: a contract, a
-spreadsheet, a forty-page PDF, in full. `selectinload(Message.files)` fetched all
-of it on every transcript read and then serialized none of it, and because `Text`
-is TOASTed the database decompressed every chunk to hand it over.
-
-These run against a real database because the thing under test is which columns a
-query fetched, which a mock cannot answer. `parsed_content` is still loaded
-wherever it is the point - `services/attachments.py` builds the model's prompt out
-of it, `api/routes/v1/files.py` previews it - so the last test here is the one
-that proves the narrowing did not reach those.
+Against a real database because the question is which columns a query fetched.
 """
 
 from __future__ import annotations
@@ -123,9 +112,7 @@ async def test_the_whole_conversation_read_leaves_it_too(db) -> None:
 
 
 async def test_touching_the_text_on_a_transcript_row_says_so(db) -> None:
-    """`raiseload` rather than a second query: a lazy load here is a
-    `MissingGreenlet` under asyncio anyway, and this names the attribute and the
-    reason instead of the event loop."""
+    """`raiseload` names the attribute; a lazy load would be a `MissingGreenlet`."""
     conversation, _message, _chat_file = await _thread_with_an_attachment(db)
 
     messages = await conversation_repo.get_messages_by_conversation(
@@ -137,7 +124,6 @@ async def test_touching_the_text_on_a_transcript_row_says_so(db) -> None:
 
 
 async def test_an_attachment_card_still_carries_its_name_and_type(db) -> None:
-    """The guard against narrowing too far: what the reader sees is unchanged."""
     conversation, _message, chat_file = await _thread_with_an_attachment(db)
 
     messages = await conversation_repo.get_messages_by_conversation(
@@ -156,10 +142,7 @@ async def test_an_attachment_card_still_carries_its_name_and_type(db) -> None:
 
 
 async def test_the_model_can_still_read_a_documents_text(db) -> None:
-    """The narrowing is on the transcript query, not on the column. Deferring it
-    on the model instead would have turned every prompt build and every file
-    preview into a lazy load, which under asyncio is a 500 rather than a second
-    query."""
+    """The narrowing is on the transcript query, not on the column."""
     _conversation, _message, chat_file = await _thread_with_an_attachment(db)
 
     rows = await chat_file_repo.get_many(db, [chat_file.id], user_id=chat_file.user_id)

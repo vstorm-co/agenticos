@@ -758,20 +758,12 @@ class ConversationService:
         reader's rating - a second job for one argument, and the reason its
         authorizing half was missed for so long.
 
-        The page and the cost answer one request, so they authorize once. They
-        used to be two methods with one caller each, and that caller awaited
-        both: every transcript read paid for `get_conversation` twice, and with
-        it the share lookup and the channel-membership check - which unseals a
-        bot token and asks Slack or Telegram whether the reader is still in the
-        room, on a 60-second cache that fails open to the network call. Two of
-        those on the critical path of opening a conversation.
+        The page and the cost share one authorization: on a channel thread each
+        `get_conversation` can ask the platform whether the reader is still in
+        the room.
 
-        The cost is summed over every turn, not over the page asked for: a
-        client adding up what it was handed would answer "the first hundred
-        turns" while the label says "this conversation". It is `None` where
-        nothing in the thread was ever measured - a conversation older than the
-        columns, or one whose every turn failed before a cost was read. Zeroes
-        would be a claim this has none to make.
+        The cost is summed over every turn, not over the page asked for, and is
+        `None` where nothing in the thread was ever measured.
         """
         await self.get_conversation(
             conversation_id,
@@ -791,6 +783,7 @@ class ConversationService:
         statuses = await conversation_repo.run_statuses(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
+        cost = await self._cost(conversation_id)
         if user_id is not None and items:
             message_ids = [msg.id for msg in items]
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
@@ -810,16 +803,11 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 msg_schema.run_status = statuses.get(msg.run_id) if msg.run_id else None
                 enriched.append(msg_schema)
-            return enriched, total, await self._cost(conversation_id)
-        return list(items), total, await self._cost(conversation_id)
+            return enriched, total, cost
+        return list(items), total, cost
 
     async def _cost(self, conversation_id: UUID) -> ConversationCost | None:
-        """The thread's totals, for a caller that has already authorized the read.
-
-        Private because the authorization is the caller's: this takes an id and
-        answers, and the only thing standing between it and another tenant's
-        spend is :meth:`transcript` having asked first.
-        """
+        """The thread's totals. Unscoped: the caller must have authorized the read."""
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
             return None
@@ -1027,10 +1015,7 @@ class ConversationService:
         The run's own load path, distinct from `list_attached_files`: that one
         validates a *fresh* submission and refuses an already-linked id, which is
         exactly what the turn's files are once `persist_user_turn` has linked them.
-        Loaded by id (the primary key) and scoped to the caller (#706). That was
-        also what kept it off an unindexed `message_id`, which
-        `0097_chat_files_message_idx` has since indexed; the load path is still the
-        narrower of the two and stays as it is. A file a
+        Loaded by id (the primary key) and scoped to the caller (#706). A file a
         best-effort `link_files_to_message` left unlinked is still read, so a
         transient link failure does not silently drop the turn's attachments; a
         file already on a *different* message is skipped - `persist_user_turn`
