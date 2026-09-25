@@ -1,5 +1,5 @@
 ---
-source_sha: "17bcc29aa385"
+source_sha: "f1c199421e4a"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -547,7 +547,8 @@ wartość przy następnej synchronizacji.
 
 Każdy plik jest dokumentem o adresie `sharepoint://<drive-id>/<item-id>`. Adres
 podąża za plikiem, a nie za jego ścieżką, więc plik, którego nazwę zmieniono albo
-który przeniesiono wewnątrz biblioteki, zachowuje swój dokument.
+który przeniesiono wewnątrz biblioteki, zachowuje swój dokument. Dokument zachowuje
+nazwę pliku z chwili przetworzenia, dopóki nie zmieni się zawartość pliku.
 
 Notesy OneNote i pliki innych typów nie są przetwarzane.
 

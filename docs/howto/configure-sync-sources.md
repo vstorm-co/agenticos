@@ -522,7 +522,8 @@ vault secret. Every source that uses it picks up the new value on its next sync.
 
 Each file is a document whose address is `sharepoint://<drive-id>/<item-id>`.
 The address follows the file, not its path, so a file that is renamed or moved
-inside the library keeps its document.
+inside the library keeps its document. The document keeps the file name it was
+ingested with until the file's content changes.
 
 OneNote notebooks and files of other types are not ingested.
 

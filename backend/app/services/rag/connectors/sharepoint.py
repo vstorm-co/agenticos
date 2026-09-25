@@ -50,7 +50,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import ClassVar
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -444,7 +444,8 @@ class _Graph:
                     message=f"SharePoint answered HTTP {status} when {what} was downloaded.",
                     details={"status": status},
                 )
-            target = location
+            # A `Location` may be relative to the URL that answered it.
+            target = urljoin(target, location)
         raise ExternalServiceError(
             message=f"SharePoint redirected the download of {what} too many times."
         )

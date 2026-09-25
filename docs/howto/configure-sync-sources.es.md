@@ -1,5 +1,5 @@
 ---
-source_sha: "17bcc29aa385"
+source_sha: "f1c199421e4a"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -548,7 +548,8 @@ recogen el valor nuevo en su siguiente sincronización.
 
 Cada archivo es un documento cuya dirección es `sharepoint://<drive-id>/<item-id>`.
 La dirección sigue al archivo, no a su ruta, así que un archivo que se renombra o
-se mueve dentro de la biblioteca conserva su documento.
+se mueve dentro de la biblioteca conserva su documento. El documento conserva el
+nombre de archivo con el que se ingirió hasta que cambia el contenido del archivo.
 
 Los blocs de notas de OneNote y los archivos de otros tipos no se ingieren.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "17bcc29aa385"
+source_sha: "f1c199421e4a"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -555,7 +555,9 @@ ersetzen Sie den Wert im selben Vault-Secret. Jede Quelle, die es nutzt,
 
 Jede Datei ist ein Dokument mit der Adresse `sharepoint://<drive-id>/<item-id>`.
 Die Adresse folgt der Datei, nicht ihrem Pfad, sodass eine Datei, die innerhalb
-der Bibliothek umbenannt oder verschoben wird, ihr Dokument behält.
+der Bibliothek umbenannt oder verschoben wird, ihr Dokument behält. Das Dokument
+behält den Dateinamen, mit dem es aufgenommen wurde, bis sich der Inhalt der Datei
+ändert.
 
 OneNote-Notizbücher und Dateien anderer Typen werden nicht aufgenommen.
 

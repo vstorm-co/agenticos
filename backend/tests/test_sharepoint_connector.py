@@ -764,6 +764,19 @@ class TestDownloads:
         with pytest.raises(ExternalServiceError, match="outside SharePoint"):
             await connector.download_file(handbook, tmp_path, credential=CREDENTIAL)
 
+    async def test_a_relative_redirect_is_resolved_against_sharepoint(self, tmp_path: Path) -> None:
+        tenant = _handbook()
+        connector, handbook = await self._file(tenant, "Handbook.pdf")
+        tenant.queue(
+            "/_layouts/15/download.aspx",
+            httpx.Response(302, headers={"location": "/_layouts/15/download.aspx?id=i-hr&hop=2"}),
+        )
+
+        path = await connector.download_file(handbook, tmp_path, credential=CREDENTIAL)
+
+        assert path.read_bytes() == b"%PDF-1.7 hr"
+        assert str(tenant.requests[-1].url).startswith("https://contoso.sharepoint.com/_layouts/")
+
     async def test_a_redirect_loop_ends(self, tmp_path: Path) -> None:
         tenant = _handbook()
         connector, handbook = await self._file(tenant, "Handbook.pdf")
