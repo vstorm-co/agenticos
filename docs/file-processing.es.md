@@ -1,5 +1,5 @@
 ---
-source_sha: "a40ae2358eec"
+source_sha: "81f76b874f26"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1209,9 +1209,10 @@ propio shell.
     ámbito de deployment, porque una caída significa que el id de carpeta de un
     tenant elige qué se lee bajo la identidad del operador.
 
-Lo que la fuente nombra en `secret_id` es un `gcp_service_account` para Drive o un
-par `aws_credentials` para S3, declarado por el conector como `SECRET_KIND` y
-ofrecido al asistente como `secret_kind` en el listado de conectores.
+Lo que la fuente nombra en `secret_id` es un `gcp_service_account` para Drive, un
+par `aws_credentials` para S3 o un `git_token` para un repositorio Git, declarado
+por el conector como `SECRET_KIND` y ofrecido al asistente como `secret_kind` en
+el listado de conectores.
 
 Antes estaba en `config`, cifrado por `app/core/crypto.py` — una sola clave Fernet
 de ámbito de deployment sobre la credencial de cada tenant, que es justo la
@@ -1372,6 +1373,17 @@ sorpresa en vez de una funcionalidad:
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), así que un conector
   que traiga miles de archivos convierte esa paginación en urgente y no en un
   detalle.
+- **Un listado que sabe si está completo.** Una sincronización elimina los
+  documentos que su fuente trajo antes y ya no lista, así que `list_files`
+  responde con un `RemoteListing` cuyo `complete` dice si lo que nombra es todo.
+  Un listado que termina o lanza una excepción está completo por construcción.
+  Uno que puede detenerse a medias - el crawler web en su límite de páginas, o
+  tras una página que agotó el tiempo de espera - dice `complete=False`, y ese run
+  no elimina nada
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). La eliminación se
+  acota por `rag_documents.sync_source_id`, no por `source_path`: dos fuentes
+  pueden alimentar una misma colección, y ninguna puede eliminar lo que trajo la
+  otra.
 
 **Un conector de sincronización no es un servidor MCP.** MCP es cómo un agent llega
 a un producto *en vivo*, a mitad de run; una fuente de sincronización es una
@@ -1383,7 +1395,10 @@ que responder antes de escribir uno es qué mitad se está construyendo — véa
 
 Qué conectores se están construyendo, y en qué orden, se decide en
 [#938](https://github.com/vstorm-co/agenticos/issues/938): un crawler web
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint y OneDrive
+([#984](https://github.com/vstorm-co/agenticos/issues/984), publicado como el
+conector `web` - véase la
+[configuración de un sitio web](howto/configure-sync-sources.md#website-setup)),
+SharePoint y OneDrive
 ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), la documentación de un
 repositorio de git
@@ -1391,8 +1406,9 @@ repositorio de git
 GCS, cuya condición está cumplida: `S3Connector` es una subclase de
 `ObjectStoreConnector`, así que cada uno de esos es un cliente y un
 `CONNECTOR_TYPE` en vez de una segunda copia del bucle de listado
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack y los
-archivos de correo se han decidido **en contra** por ahora, cada uno por un motivo
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack y los archivos de correo se han decidido **en contra** por ahora, cada uno por un motivo
 registrado ahí — los dos últimos porque una conversación se recupera mal y las
 integraciones de canal ya ponen un agent *dentro* de Slack.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e5ee0101434e"
+source_sha: "653bbdc4380b"
 ---
 
 # Bezpieczeństwo { #security }
@@ -33,6 +33,7 @@ danych.
 | API → PostgreSQL / Redis | Zapytania i odczyty z cache, po TLS, gdy jest skonfigurowany | Tak — magazyn należy do operatora; co chroni w spoczynku, jest pod „Co jest gdzie szyfrowane” |
 | API / worker → providerzy modeli, kanały, serwery MCP, dostawcy wyszukiwania, Logfire | Prompty, wywołania narzędzi, zapytania, odpowiedzi, trace'y | Nie — to strony trzecie; co do nich trafia, jest decyzją per agent, z wyjątkiem tracingu na poziomie całego wdrożenia (poniżej) |
 | Worker → konektory (Google Drive, S3, …) | Poświadczenia odpieczętowane z vaultu, pobrane dokumenty | Nie — poświadczenie konektora to sekret w vault wskazywany po id |
+| Worker → publiczne strony internetowe (konektor `web`) | Żądania GET o strony, sitemapy i robots.txt; bez poświadczenia | Nie — początkowy adres URL wpisuje tenant, a każdy kolejny link wybiera strona, więc każde żądanie i przekierowanie przechodzi sprawdzenie SSRF, jest wysyłane na sprawdzony adres (`app/core/pinned_http.py`) i pozostaje na jednym hoście |
 
 Władza wewnątrz tenanta nigdy nie jest nazwą roli na route'cie: to wiersz
 członkostwa plus katalog uprawnień (`app/core/permissions.py`), rozstrzygany per
@@ -227,7 +228,8 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | TLS do PostgreSQL i Redisa | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` raportuje żywy stan Postgresa z `pg_stat_ssl` | Postgres, na żywym połączeniu: `test_store_tls.py`; Redis, przy budowie URL-a i w `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`), którego `script-src` niesie nonce per żądanie i `'strict-dynamic'` zamiast `'unsafe-inline'` | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
-| Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed i stronach hostowanych (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
+| Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'` i `frame-ancestors` wymieniające tylko konsolę; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `artifacts.test.tsx`, `csp.test.ts` |
+| Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach artefaktów i ich podpisanych adresach treści (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
 
 ### Odmowy jako zbiór { #the-refusals-as-a-set }
 

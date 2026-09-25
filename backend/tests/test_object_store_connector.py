@@ -93,7 +93,7 @@ class TestWhatEveryObjectStoreGetsForFree:
             [StoredObject(key="legal/"), StoredObject(key="legal/nda.pdf", size=12)]
         )
 
-        files = await connector.list_files({"container": "docs"}, None)
+        files = (await connector.list_files({"container": "docs"}, None)).files
 
         assert [f.name for f in files] == ["nda.pdf"]
 
@@ -102,7 +102,7 @@ class TestWhatEveryObjectStoreGetsForFree:
         it is built once here rather than per client."""
         connector = BlobConnector([StoredObject(key="legal/nda.pdf")])
 
-        files = await connector.list_files({"container": "docs"}, None)
+        files = (await connector.list_files({"container": "docs"}, None)).files
 
         assert files[0].source_path == "azblob://docs/legal/nda.pdf"
         assert files[0].id == "legal/nda.pdf"
@@ -114,7 +114,7 @@ class TestWhatEveryObjectStoreGetsForFree:
             [StoredObject(key="a/readme.md"), StoredObject(key="b/readme.md")]
         )
 
-        files = await connector.list_files({"container": "docs"}, None)
+        files = (await connector.list_files({"container": "docs"}, None)).files
 
         assert {f.source_path for f in files} == {
             "azblob://docs/a/readme.md",
@@ -125,7 +125,7 @@ class TestWhatEveryObjectStoreGetsForFree:
         when = datetime.datetime(2026, 8, 20, 9, 30, tzinfo=datetime.UTC)
         connector = BlobConnector([StoredObject(key="a.md", size=41, modified_at=when)])
 
-        files = await connector.list_files({"container": "docs"}, None)
+        files = (await connector.list_files({"container": "docs"}, None)).files
 
         assert (files[0].size, files[0].modified_at) == (41, when)
 
@@ -196,9 +196,10 @@ class TestTheS3ConnectorStillListsWhatItListed:
             ]
         )
         with patch.object(S3Connector, "_get_s3_client", return_value=client):
-            files = await S3Connector().list_files(
+            listing = await S3Connector().list_files(
                 {"bucket": "acme", "prefix": "legal/"}, self._credential()
             )
+        files = listing.files
 
         assert [f.source_path for f in files] == ["s3://acme/legal/nda.pdf"]
         assert files[0].modified_at == datetime.datetime(2026, 8, 20, 9, 30, tzinfo=datetime.UTC)

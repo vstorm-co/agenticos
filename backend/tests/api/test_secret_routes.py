@@ -123,6 +123,7 @@ class TestListing:
             "github_oauth_app",
             "github_app",
             "google_oauth_app",
+            "git_token",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
 

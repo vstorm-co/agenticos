@@ -61,8 +61,12 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
+    "Artifact",
+    "ArtifactMediaType",
+    "ArtifactVersion",
     "User",
     "Session",
     "Conversation",

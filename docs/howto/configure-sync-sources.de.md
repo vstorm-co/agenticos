@@ -1,19 +1,22 @@
 ---
-source_sha: "482d37ce9407"
+source_sha: "86769ff55566"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
 
-Sync-Quellen holen Dokumente aus externen Diensten (Google Drive, S3/MinIO)
-selbsttätig in Knowledge-Collections. Jede Quelle speichert einen Connector-Typ,
-eine Ziel-Collection, connector-spezifische Einstellungen, einen Sync-Modus, einen
-optionalen Zeitplan und die id des [Vault-Secrets](../secrets.md), das sie
-authentifiziert.
+Sync-Quellen holen Dokumente aus externen Diensten (Google Drive, S3/MinIO, eine
+öffentliche Website, ein Git-Repository) selbsttätig in Knowledge-Collections. Jede Quelle speichert
+einen Connector-Typ, eine Ziel-Collection, connector-spezifische Einstellungen,
+einen Sync-Modus, einen optionalen Zeitplan und die id des
+[Vault-Secrets](../secrets.md), das sie authentifiziert - eine Website braucht
+keines.
 
 Läuft ein Sync, listet der Connector die entfernten Dateien auf, lädt sie in ein
 temporäres Verzeichnis herunter und schickt sie durch die übliche
-Ingestion-Pipeline (parsen, chunken, einbetten, speichern). Ein Eintrag in
-`SyncLog` hält das Ergebnis jedes einzelnen Sync-Vorgangs fest.
+Ingestion-Pipeline (parsen, chunken, einbetten, speichern). Ist die Auflistung
+vollständig, werden Dokumente entfernt, die die Quelle früher eingebracht hat und
+nicht mehr auflistet. Ein Eintrag in `SyncLog` hält das Ergebnis jedes einzelnen
+Sync-Vorgangs fest.
 
 ### Die Architektur auf einen Blick { #architecture-at-a-glance }
 
@@ -33,7 +36,7 @@ Ingestion-Pipeline (parsen, chunken, einbetten, speichern). Ein Eintrag in
 ### Verfügbare Connector-Typen auflisten { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3)
+# Shows all registered connectors (e.g. gdrive, s3, git)
 uv run agenticos cmd rag-sources
 ```
 
@@ -63,6 +66,23 @@ uv run agenticos cmd rag-source-add \
   --schedule 0
 ```
 
+### Eine Git-Quelle anlegen -- die Doku eines Repositorys, jede Nacht { #add-a-git-source-a-repositorys-docs-nightly }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Handbook" \
+  --type git \
+  --org 0c8f2b1e-... \
+  --collection handbook \
+  --config '{"repository_url": "https://github.com/acme/handbook.git", "branch": "main", "path_prefix": "docs"}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+Wählen Sie anschließend in der Oberfläche sein Access-Token als Credential der
+Quelle aus, oder senden Sie `secret_id` mit einem `PATCH` — siehe
+[Git-Repository einrichten](#git-repository-setup).
+
 ### Einen Sync von Hand auslösen { #trigger-sync-manually }
 
 ```bash
@@ -86,8 +106,10 @@ in der Auflistung von `rag-sources` steht.
 
 1. Öffnen Sie **Knowledge Base** und dort den Tab **Sync**.
 2. Klicken Sie auf **"+ Add Source"**.
-3. Wählen Sie einen Connector-Typ (Google Drive, S3). Die Formularfelder werden
-   aus dem JSON Schema des `CONFIG_MODEL` des Connectors erzeugt.
+3. Wählen Sie einen Connector-Typ (Google Drive, S3, Website, Git
+   repository). Die Formularfelder
+   werden aus dem JSON Schema des `CONFIG_MODEL` des Connectors erzeugt. Eine
+   Website hat keinen Credential-Schritt.
 4. Füllen Sie die connector-spezifischen Konfigurationsfelder aus (etwa Folder-ID,
    Bucket-Name).
 5. Wählen Sie eine Ziel-Collection, einen Sync-Modus und ein Zeitintervall.
@@ -113,6 +135,54 @@ HTTP-Client tun.
     übersprungen werden — das ist der schnellste inkrementelle Sync.
     `update_only` frischt vorhandene Dokumente auf, ohne neue hinzuzunehmen;
     `full` ist jedes Mal ein sauberer Neuimport.
+
+### Was ein Sync entfernt { #what-a-sync-removes }
+
+In jedem Modus entfernt ein Sync die Dokumente, die seine Quelle früher
+eingebracht hat und nicht mehr auflistet: eine von der Website genommene Seite,
+eine aus dem Drive-Ordner gelöschte Datei, ein aus dem Bucket entferntes Objekt.
+Das Sync-Protokoll zählt sie unter `removed`.
+
+Er entfernt nichts, solange die Auflistung nicht **vollständig** war. Ein Crawl,
+der an seinem Seitenlimit angehalten hat oder eine der Seiten nicht lesen konnte,
+hat nicht gesehen, was er nicht auflistet. Dieser Lauf behält jedes Dokument und
+sagt das in der Meldung des Sync-Protokolls. Der nächste Sync mit einer
+vollständigen Auflistung entfernt, was verschwunden ist. Ein Dokument, das nicht
+entfernt werden konnte, zählt als fehlgeschlagene Datei, und der nächste Sync
+versucht es erneut.
+
+Pro Quelle läuft immer nur ein Sync. Ein Sync, der gestartet wird, während ein
+anderer Sync derselben Quelle noch läuft, startet nicht, und sein Protokoll sagt
+das.
+
+Entfernt werden nur die eigenen Dokumente der Quelle. Ein Upload oder ein
+Dokument, das eine andere Quelle in dieselbe Collection gebracht hat, wird nie
+angerührt. Ein Dokument, das aufgenommen wurde, bevor seine Quelle dies
+festhielt (September 2026), bleibt erhalten, bis die Quelle es erneut aufnimmt.
+
+### Was ein zweiter Sync tut { #what-a-second-sync-does }
+
+Ein Sync nach dem ersten tut so wenig, wie die Quelle es zulässt:
+
+- **Eine unveränderte Datei kostet einen Download, keine Einbettung.** Ihr
+  SHA-256 stimmt mit dem des gespeicherten Dokuments überein, also wird sie als
+  `skipped` gezählt und weder erneut geparst noch eingebettet.
+- **Eine unveränderte Quelle kostet eine Anfrage.** Ein Connector, der sagen
+  kann, auf welchem Stand sein gesamter Inhalt ist — der Head-Commit eines
+  Git-Branches —, hält diesen Stand nach jedem Lauf fest, der ohne
+  fehlgeschlagene Datei endete. Der nächste Lauf mit `new_only` oder
+  `update_only`, der unter derselben Konfiguration denselben Wert vorfindet, hält
+  an, bevor er irgendetwas auflistet: Sein Protokoll zeigt keine verarbeiteten
+  Dateien, und er entfernt nichts. Eine Änderung der Konfiguration, der Collection oder des Modus lässt
+  den nächsten Lauf wieder alles lesen, und `full` hält nie vorzeitig an.
+- **Eine Datei, die ein abgebrochener Sync halb fertig hinterließ, wird in
+  Ordnung gebracht.** Ein Worker, der nach dem Speichern der Vektoren einer Datei
+  und vor ihrem Festhalten anhielt, lässt sie ohne verfolgende Zeile zurück. Der
+  nächste Sync dieser Quelle löscht, was nichts verfolgt, und nimmt die Datei
+  erneut auf; solange eine solche Datei wartet, hält er nicht vorzeitig an.
+
+Ein Lauf mit einer fehlgeschlagenen Datei hält keinen Stand fest, sodass der
+nächste Lauf die Quelle vollständig liest und die Datei erneut versucht.
 
 ## Zeitplan { #schedule }
 
@@ -222,6 +292,163 @@ Bei MinIO lautet der Endpunkt üblicherweise `http://minio:9000` (Docker) oder
 | `bucket` | string | Ja | -- | Name des S3-Buckets |
 | `prefix` | string | Nein | `""` | Key-Präfix, das den Sync eingrenzt (etwa `documents/legal/`). Für den ganzen Bucket leer lassen. |
 
+## Eine Website einrichten { #website-setup }
+
+Eine `web`-Quelle liest eine öffentliche Website, meist die Dokumentationsseite
+eines Produkts. Sie braucht kein Credential und keinen Vault-Eintrag. Geben Sie
+ihr eine Start-URL, und sie folgt entweder den Links von dieser Seite aus oder
+liest die Seiten, die eine Sitemap auflistet.
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "Product docs" \
+  --type web \
+  --org 0c8f2b1e-... \
+  --collection product-docs \
+  --config '{"root_url": "https://docs.example.com/guide/", "max_depth": 3}' \
+  --sync-mode new_only \
+  --schedule 1440
+```
+
+### Konfigurationsfelder des Website-Connectors { #website-connector-config-fields }
+
+| Feld | Typ | Pflicht | Vorgabe | Beschreibung |
+|-------|------|----------|---------|-------------|
+| `root_url` | string | Ja | -- | Die Seite, von der der Crawl ausgeht. Ihr Host ist der einzige Host, den die Quelle liest. |
+| `max_depth` | integer | Nein | `2` | Wie viele Links weit von der Start-URL aus gefolgt wird, `0` bis `10`. `0` liest nur die Startseite. |
+| `path_prefix` | string | Nein | der Ordner der Start-URL | Nur Seiten, deren Pfad damit beginnt, werden gelesen. `https://docs.example.com/guide/intro` liest vorgabemäßig `/guide/`; `/` setzen für den ganzen Host. |
+| `sitemap_url` | string | Nein | -- | Die Seiten lesen, die diese Sitemap auflistet, statt Links zu folgen. Sie muss auf dem Host der Start-URL liegen und `https://` verwenden, wenn die Start-URL es tut. Einem Sitemap-Index wird bis zu seinen Sitemaps gefolgt. |
+| `max_pages` | integer | Nein | `500` | Der Crawl hält an, nachdem er so viele Seiten gelesen hat, `1` bis `5000`. |
+
+### Was einen Crawl begrenzt { #what-bounds-a-crawl }
+
+- **Ein Host und ein Pfad.** Links auf andere Hosts und auf Pfade außerhalb von
+  `path_prefix` werden nicht verfolgt. Einer Weiterleitung, die sie verlässt,
+  ebenfalls nicht. Eine Start-URL auf `https://` wird nie für `http://`
+  verlassen: Einem Link oder einer Weiterleitung auf eine unverschlüsselte Seite
+  wird nicht gefolgt.
+- **Das Netz des Deployments ist unerreichbar.** Jede Anfrage - robots.txt, die
+  Sitemap, jede Seite und jede Weiterleitung - wird gegen dieselbe SSRF-Richtlinie
+  geprüft wie Webhooks und MCP-Server. Sie geht an die Adresse, die die Prüfung
+  bestanden hat. Eine Start-URL, die auf eine private, Loopback-, Link-Local- oder
+  Cloud-Metadata-Adresse auflöst, wird beim Speichern der Quelle abgelehnt.
+- **robots.txt wird befolgt**, für Sitemaps und Seiten, einschließlich
+  `Crawl-delay` bis zu zehn Sekunden. Der Crawler gibt sich als
+  `AgenticOS-Crawler` zu erkennen. Er wartet zwischen Anfragen mindestens eine
+  halbe Sekunde, und eine Seite, die `noindex` oder `nofollow` angibt, wird
+  respektiert. Eine Seite, die eine Sitemap noch auflistet, nachdem sie `noindex`
+  angibt oder verschwunden ist, wird aus der Collection entfernt.
+- **Größe und Zeit.** Eine Seite über 5 MB wird nicht gelesen. Der Crawl hält bei
+  `max_pages` an. Ein Sync hört nach sechs Stunden auf, die Website zu lesen, und
+  ein Sync, der angehalten hat, entfernt nichts.
+
+Jede Seite wird als Markdown-Dokument gespeichert, das ihren Text und die URL
+enthält, von der sie stammt, ohne ihren Query-String. Navigation, Kopf- und Fußzeilen und Skripte bleiben
+außen vor. Eine Seite wird nur neu eingebettet, wenn sich ihr Text ändert. Ein
+neuer Build-Stempel oder ein Tracking-Skript im Markup zählt nicht als Änderung.
+
+### Wer lesen kann, was sie importiert { #who-can-read-what-it-imports }
+
+Eine Website-Quelle hat kein Credential, also reicht sie so weit, wie die Website
+jedem im Internet zeigt. Über einen Login kommt sie nie hinaus. Alles, was sie
+importiert, ist für jeden durchsuchbar, der die Collection durchsuchen kann, die
+sie speist - wie bei jeder anderen Quelle. Siehe
+[wer am Ende lesen kann, was eine Quelle aufgenommen hat](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Importiert werden nur HTML-Seiten. Ein PDF oder eine andere Datei, die von einer
+Seite verlinkt ist, wird nicht heruntergeladen.
+
+## Git-Repository einrichten { #git-repository-setup }
+
+Eine `git`-Quelle liest die Dokumentation eines Repositorys über HTTPS — von
+GitHub, GitLab oder jedem anderen Host, der git über HTTPS ausliefert. Sie
+braucht die Clone-URL und ein Access-Token, nicht die API der jeweiligen
+Plattform.
+
+### 1. Ein Token für genau ein Repository ausstellen { #1-issue-a-token-for-the-one-repository }
+
+**Die Reichweite des Tokens ist die Reichweite der Quelle.** Alles, was die
+Quelle aufnimmt, wird für jeden durchsuchbar, der die Collection lesen darf. Ein
+Token, das jedes private Repository seines Besitzers lesen kann, kann also alle
+davon diesem Publikum zugänglich machen. Siehe [wer am Ende lesen kann, was eine
+Quelle aufgenommen
+hat](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+- **GitHub:** ein fine-grained Personal Access Token, *Only select repositories*,
+  mit dem einen Repository und **Contents: Read-only** als einziger Berechtigung.
+- **GitLab:** ein Project Access Token auf dem einen Projekt, Rolle **Reporter**,
+  nur mit dem Scope **`read_repository`**.
+
+Geben Sie ihm ein Ablaufdatum. Läuft es ab, schlägt der nächste Sync der Quelle
+mit *the repository refused the source's token* fehl, und die Abhilfe ist ein
+neues Token im selben Vault-Secret.
+
+### 2. Es im Vault ablegen { #2-add-it-to-the-vault }
+
+Legen Sie das Token als **Git-Zugriffstoken** im Vault ab, zusammen mit dem
+**Host**, zu dem es gehört: `github.com`, `gitlab.com` oder Ihr eigener Server
+wie `git.example.com:8443`. Einen Host mit Nicht-ASCII-Buchstaben geben Sie in
+seiner kodierten Form ein, etwa `xn--bcher-kva.example` für `bücher.example`.
+Wählen Sie das Token dann im Credential-Schritt der Quelle aus. Es wird als HTTP-Header `Authorization` gesendet, nie in der URL und nie in
+einer Befehlszeile, die ein anderer Prozess lesen kann.
+
+**Der Host gehört zum Token, nicht zur Quelle.** Wer eine Quelle bearbeitet,
+wählt ihre Repository-URL, und ein Token wird nur an den Host gesendet, mit dem
+es abgelegt wurde. Das Bearbeiten einer Quelle kann das Token der Organisation
+also nicht auf einen anderen Server richten, und keine andere Art von Schlüssel,
+etwa der API key eines Modell-Providers, lässt sich für eine Git-Quelle
+überhaupt auswählen.
+
+### 3. Konfigurationsfelder des Git-Connectors { #3-git-connector-config-fields }
+
+| Feld | Typ | Pflicht | Vorgabe | Beschreibung |
+|-------|------|----------|---------|-------------|
+| `repository_url` | string | Ja | -- | Die HTTPS-Clone-URL, etwa `https://github.com/acme/handbook.git`. Ohne Benutzername oder Token darin. |
+| `branch` | string | Nein | `main` | Der zu lesende Branch. |
+| `path_prefix` | string | Nein | -- | Ein Verzeichnis im Repository, etwa `docs`. Für das ganze Repository leer lassen. |
+| `include` | list of strings | Nein | `**/*.md`, `**/*.txt` | Welche Dateien aufgenommen werden, als Muster im Stil von `.gitignore` relativ zu `path_prefix`. |
+
+Die Vorgabe ist die Dokumentation, nicht der ganze Baum: Der Quellcode eines
+Repositorys ist kein Korpus, und ihn aufzunehmen füllt eine Knowledge Base mit
+Code, den niemand durchsuchen wollte. Ergänzen Sie ein Muster wie `**/*.pdf` für
+ein weiteres Format, das der Parser der Collection liest. Ein Muster darf nicht
+mit `!` beginnen.
+
+Jede Datei ist ein Dokument mit der Adresse
+`git://<host>/<owner>/<repo>@<branch>/<path>`, mit `:<port>` nach dem Host, wenn
+der Port nicht 443 ist. Der Branch ist Teil der Adresse, sodass zwei Quellen, die zwei Branches eines Repositorys in eine Collection
+lesen, getrennte Dokumente behalten.
+
+### 4. Was ein Sync überträgt { #4-what-a-sync-transfers }
+
+Die erste Anfrage jedes Syncs ist `git ls-remote` für den Branch — etwa ein
+Kilobyte. Hat sich der Head-Commit seit dem letzten sauberen Lauf nicht bewegt,
+hält der Sync dort an. Hat er sich bewegt, erstellt der Connector einen flachen,
+partiellen, sparse Klon: ein Commit und nur die Dateien, auf die die
+Include-Muster passen. Die Dokumentation eines Monorepos kostet daher ihre
+Dokumentation, nicht seinen Quellbaum.
+
+Bevor der Klon etwas auf die Festplatte des Workers schreibt, misst der Connector
+jede Datei, die er schreiben würde. Eine Datei über der Dokumentgrenze der
+Wissensbasis (`MAX_UPLOAD_SIZE_MB`, standardmäßig 50 MB) oder insgesamt mehr als
+512 MB an Dateien werden abgelehnt, und nichts wird geschrieben.
+
+Symbolischen Links und Submodulen wird nicht gefolgt, und ein Link wird nicht als
+Dokument aufgenommen.
+
+### Netzwerkregeln { #network-rules }
+
+Die URL muss `https://` sein. Ihr Host wird einmal aufgelöst und wie jede andere
+Adresse geprüft, die ein Mandant wählt: Ein Host, der auf eine private,
+Loopback- oder Link-Local-Adresse auflöst, wird beim Speichern der Quelle
+abgelehnt und beim Sync erneut, und git verbindet sich nur mit den Adressen, die
+diese Prüfung zugelassen hat. Weiterleitungen wird nicht gefolgt. Ein Deployment
+hinter einem Egress-Proxy (`HTTPS_PROXY`) nutzt ihn weiterhin; der Proxy löst
+den Host dann selbst auf.
+
+Das Worker-Image enthält `git`. Ein Worker aus einem anderen Image braucht `git`
+2.37 oder neuer in seinem `PATH`.
+
 ## API-Referenz { #api-reference }
 
 Alle Endpunkte für Sync-Quellen liegen unter `/api/v1/rag/sync/`. Das Auflisten
@@ -327,8 +554,9 @@ Jeder Sync erzeugt einen `SyncLog`-Eintrag mit den folgenden Feldern:
 | `ingested` | Erfolgreich aufgenommen (neu) |
 | `updated` | Erfolgreich erneut aufgenommen (ersetzt) |
 | `skipped` | Übersprungen (bereits vorhanden oder unverändert) |
-| `failed` | Aufnahme fehlgeschlagen |
-| `error_message` | Einzelheiten zum Fehler (wenn `status` gleich `error` ist) |
+| `failed` | Aufnahme fehlgeschlagen, einschließlich Seiten oder Dateien, die die Auflistung nicht lesen konnte, und Dokumenten, die nicht entfernt werden konnten |
+| `removed` | Entfernt, weil die Quelle sie nicht mehr auflistet (siehe [was ein Sync entfernt](#what-a-sync-removes)) |
+| `error_message` | Was schiefging oder warum nichts entfernt wurde. Ein Lauf kann `done` sein und trotzdem eine Meldung tragen, etwa wenn ein Crawl an seinem Seitenlimit angehalten hat |
 | `started_at` | Wann der Sync begann |
 | `completed_at` | Wann der Sync endete |
 
@@ -372,6 +600,8 @@ Der angegebene Connector-Typ steht nicht in `CONNECTOR_REGISTRY`. Prüfen Sie di
 verfügbaren Typen mit `rag-sources` oder `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) ist verfügbar.
 S3 (`s3`) ist verfügbar.
+Website (`web`) ist verfügbar.
+Git (`git`) ist verfügbar.
 
 ### Google Drive: "this source has no credential" { #google-drive-this-source-has-no-credential }
 
@@ -404,6 +634,117 @@ Viewer-Zugriff.
 Prüfen Sie, ob `S3_RAG_ACCESS_KEY`, `S3_RAG_SECRET_KEY` und `S3_RAG_ENDPOINT` in
 der `.env` richtig gesetzt sind. Achten Sie bei MinIO darauf, dass der Endpunkt
 den Port enthält (etwa `http://localhost:9000`).
+
+### Website: "resolves to private/internal address" { #website-resolves-to-privateinternal-address }
+
+Die Start-URL oder die Sitemap zeigt in das Netz des Deployments, oder ihr Name
+löst dorthin auf. Eine Website-Quelle liest nur öffentliche Adressen. Um eine
+interne Website zu indexieren, veröffentlichen Sie ihre Seiten an einem
+öffentlichen Ort oder laden Sie die Dateien direkt hoch.
+
+### Website: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
+
+`/robots.txt` auf dem Host der Start-URL lief dreimal hintereinander in eine
+Zeitüberschreitung oder antwortete mit einem Serverfehler (5xx). Der Crawler rät
+nicht, was eine unerreichbare robots.txt erlauben würde, also bricht der Lauf ab.
+Eine fehlende robots.txt (404) oder eine verbotene (403) bedeutet keine Regeln,
+und der Crawl läuft weiter.
+
+### Website: "The start URL … did not lead to an HTML page" { #website-the-start-url-did-not-lead-to-an-html-page }
+
+Die Start-URL antwortete mit 404, leitete auf einen anderen Host oder aus
+`path_prefix` heraus weiter oder lieferte etwas anderes als HTML. Öffnen Sie sie
+in einem Browser und nehmen Sie dann die Adresse, bei der sie landet, als
+`root_url`.
+
+### Website: "robots.txt does not allow the start URL" { #website-robotstxt-does-not-allow-the-start-url }
+
+Die Website bittet Crawler, diesen Pfad zu meiden. Wählen Sie eine Start-URL, die
+die Website erlaubt, oder bitten Sie den Besitzer der Website, `AgenticOS-Crawler`
+zuzulassen.
+
+### Website: "… answered HTTP 403" oder "… could not be reached" { #website-answered-http-403-or-could-not-be-reached }
+
+Die Seite verlangt einen Login, oder die Website hat den Crawler abgewiesen. War
+die Antwort eine Zeitüberschreitung, 429 oder 5xx, schlug sie nach drei Versuchen
+fehl. Jede solche Seite zählt als fehlgeschlagene Datei. In diesem Lauf wird
+nichts entfernt, weil die Seiten dahinter nicht gesehen wurden.
+
+### "The source could not be listed completely, so documents it may no longer hold were kept" { #the-source-could-not-be-listed-completely-so-documents-it-may-no-longer-hold-were-kept }
+
+Die Auflistung brach vorzeitig ab: Ein Crawl erreichte `max_pages`, oder einige
+Seiten konnten nicht gelesen werden. Was gefunden wurde, ist aufgenommen, und
+nichts wurde entfernt. Erhöhen Sie `max_pages` oder grenzen Sie den Crawl mit
+`path_prefix` ein, bis ein Lauf ohne diese Meldung endet.
+
+### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
+
+Das Token ist abgelaufen, wurde widerrufen oder kann dieses Repository nicht
+lesen. Stellen Sie ein neues aus, wie unter
+[Git-Repository einrichten](#git-repository-setup) beschrieben, und ersetzen Sie
+den Wert des Vault-Secrets, das die Quelle nutzt; jede Quelle mit diesem Secret
+übernimmt ihn bei ihrem nächsten Sync.
+
+### Git: "The repository was not found, or the source's token cannot see it" { #git-the-repository-was-not-found-or-the-sources-token-cannot-see-it }
+
+Prüfen Sie zuerst die Clone-URL. Ein privates Repository antwortet einem Token,
+das es nicht lesen kann, mit *not found* statt mit *forbidden*, deshalb zeigt
+sich ein fine-grained Token, das für ein anderes Repository ausgestellt wurde,
+auf diese Weise.
+
+### Git: "The repository has no branch named …" { #git-the-repository-has-no-branch-named }
+
+Das Feld `branch` nennt einen Branch, den das Repository nicht hat. Die Vorgabe
+ist `main`; der Standard-Branch eines älteren Repositorys heißt womöglich
+`master`.
+
+### Git: "… is … MB, and a synced file may be at most … MB" { #git-is-mb-and-a-synced-file-may-be-at-most-mb }
+
+Eine Datei, auf die die Include-Muster passen, ist größer als die Dokumentgrenze
+der Wissensbasis. Schränken Sie `include` oder `path_prefix` so ein, dass die
+Datei wegfällt. Für diesen Sync wurde nichts geschrieben.
+
+### Git: "… over the … MB one sync may check out" { #git-over-the-mb-one-sync-may-check-out }
+
+Alle Dateien, auf die die Include-Muster passen, sind zusammen größer als 512 MB.
+Schränken Sie `include` oder `path_prefix` ein, oder teilen Sie das Repository auf
+mehrere Quellen mit je eigenem Präfix auf.
+
+### Git: "This token was added for …, and the repository is on …" { #git-this-token-was-added-for-and-the-repository-is-on }
+
+Das Repository der Quelle liegt auf einem anderen Host als dem, mit dem ihr Token
+abgelegt wurde. Entweder ist die URL falsch, oder die Quelle braucht ein Token,
+das für diesen Host abgelegt wurde. An den Host des Repositorys wurde nichts
+gesendet.
+
+### Git: "A Git source needs a Git access token" { #git-a-git-source-needs-a-git-access-token }
+
+Die Quelle nennt ein Secret einer anderen Art, etwa einen API key. Legen Sie das
+Token als **Git-Zugriffstoken** mit seinem Host ab und wählen Sie dieses aus.
+
+### "Another sync of this source is still running" { #another-sync-of-this-source-is-still-running }
+
+Ein Lauf wurde ausgelöst, während ein anderer Lauf derselben Quelle noch im Gang
+war, also ist er nicht gestartet. Der laufende Lauf endet regulär; lösen Sie
+danach erneut aus, falls sich die Quelle in der Zwischenzeit geändert hat.
+
+### Git: "… resolves to a private address" { #git-resolves-to-a-private-address }
+
+Der Host des Repositorys löst innerhalb des Netzwerks des Deployments auf, also
+wird die Quelle abgelehnt. Ein selbst betriebener Git-Server unter einer internen
+Adresse ist für eine Sync-Quelle nicht erreichbar.
+
+### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
+
+Der Worker läuft aus einem Image ohne `git`. Das mitgelieferte
+`backend/Dockerfile` installiert es; einem eigenen Image muss es hinzugefügt
+werden.
+
+### Git: ein Sync endete ohne verarbeitete Dateien { #git-a-sync-finished-with-no-files-processed }
+
+Der Head-Commit des Branches ist derjenige, den der letzte saubere Lauf unter
+derselben Konfiguration gelesen hat, also gab es nichts zu tun. Stellen Sie die
+Quelle für einen Lauf auf `full`, um ungeachtet dessen wieder alles zu lesen.
 
 ### Geplante Syncs laufen nicht { #scheduled-syncs-are-not-running }
 
