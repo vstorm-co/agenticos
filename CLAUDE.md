@@ -241,6 +241,7 @@ retranslated is how a stale translation stops being visible.
 | The Learn track's own landing | `docs/learn/index.md` |
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |
+| How it compares with other products, and its own gaps | `docs/about/comparison.md` |
 | The six decisions that shape the codebase | `docs/about/design.md` (repo only) |
 | Delivery state and what is left | `docs/ROADMAP.md` (repo only) |
 | Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |

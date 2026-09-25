@@ -1,4 +1,4 @@
-<!-- source_sha: 5e02402cf61c -->
+<!-- source_sha: f0776c70d819 -->
 
 <div align="center">
 
@@ -474,13 +474,16 @@ adjunta.
 
 ## Comparado con las alternativas
 
-Elige por tarea y responsabilidad operativa. Estas guías con fuentes describen opciones documentadas, no ganadores medidos.
+Elige por tarea y por quién lo opera. Cada guía se basa en las páginas del propio proveedor, muestra dónde AgenticOS va más allá y dice lo que todavía no hace.
 
-- [AgenticOS vs Viktor](docs/about/viktor.es.md): Servicio de asistente o despliegue propio.
-- [AgenticOS vs Dify](docs/about/dify.es.md): Dos builders autoalojados para la misma tarea documental.
-- [AgenticOS vs Wonderful](docs/about/wonderful.es.md): Alcance de entrega empresarial y operación.
+- **Apps de asistente:** [Claude](docs/about/claude-apps.es.md) · [ChatGPT](docs/about/chatgpt.es.md). Licencias por empleado o agents que son de tu organización, con cualquier modelo.
+- **Builders en la nube de un proveedor:** [Copilot Studio](docs/about/copilot-studio.es.md) · [Gemini Enterprise](docs/about/gemini-enterprise.es.md). La nube y el contador del proveedor, o tu infraestructura y los precios de tu provider.
+- **Builders autoalojados:** [Dify](docs/about/dify.es.md) · [n8n](docs/about/n8n.es.md). Condiciones de licencia y planes enterprise, o Apache-2.0 con la gobernanza incluida.
+- **Servicio de compañero IA:** [Viktor](docs/about/viktor.es.md). Un único empleado IA compartido, o muchos agents con su propio acceso y budget.
+- **Plataforma entregada:** [Wonderful](docs/about/wonderful.es.md). Una plataforma que entrega un proveedor, o una que es tuya desde el primer día.
+- **Agents de programación:** [Claude Code](docs/about/claude-code.es.md) · [Codex](docs/about/codex.es.md) · [OpenCode](docs/about/opencode.es.md). Pensados para desarrolladores; AgenticOS es para todos los demás, y ellos ayudan a extenderlo.
 
-[Comparaciones de AgenticOS](docs/about/comparison.es.md).
+[Todas las comparaciones y las carencias](docs/about/comparison.es.md).
 
 ## Por qué existe
 

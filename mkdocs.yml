@@ -261,9 +261,17 @@ nav:
       - howto/scheduled-report.md
   - Comparisons:
       - about/comparison.md
-      - about/viktor.md
+      - about/claude-apps.md
+      - about/chatgpt.md
+      - about/copilot-studio.md
+      - about/gemini-enterprise.md
       - about/dify.md
+      - about/n8n.md
+      - about/viktor.md
       - about/wonderful.md
+      - about/claude-code.md
+      - about/codex.md
+      - about/opencode.md
   - Learn:
       - learn/index.md
       - Get started:
