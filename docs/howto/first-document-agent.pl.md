@@ -1,5 +1,5 @@
 ---
-source_sha: "90d62e9ab4aa"
+source_sha: "115abe7a042f"
 title: "Zbuduj pierwszego agenta z dokumentem"
 description: "Zbuduj asystenta odpowiadającego na pytania o zasady zgłaszania sprzętu. Syntetyczny przykład zawiera fakt do sprawdzenia i celową lukę. To instrukcja wykonania, nie raport z pomiaru wdrożenia."
 ---
@@ -49,6 +49,6 @@ Zmień właściciela w pliku testowym na facilities team. Na [liście dokumentó
 
 ## Udostępnij kolejny krok { #share-the-next-step }
 
-Po sprawdzeniu wyniku wybierz [Slack lub inny kanał](../channels.md). Hosted page jest publiczna dla posiadacza linku: używaj publicznych lub syntetycznych danych. Kanał nie określa uprawnień do dokumentów.
+Po sprawdzeniu wyniku umieść agenta [w Slacku](slack-handbook-assistant.md) albo wybierz [inny kanał](../channels.md). Hosted page jest publiczna dla posiadacza linku: używaj publicznych lub syntetycznych danych. Kanał nie określa uprawnień do dokumentów.
 
 Przed pilotem przypisz [właściciela utrzymania](../rollout.md). W razie błędu podaj wersję, konfigurację i zanonimizowane kroki w [zgłoszeniu pomocy](../help.md).

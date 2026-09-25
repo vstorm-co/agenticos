@@ -254,7 +254,11 @@ plugins:
 nav:
   - AgenticOS: index.md
   - Features: features.md
-  - Use cases: use-cases.md
+  - Use cases:
+      - use-cases.md
+      - howto/slack-handbook-assistant.md
+      - howto/csv-chart.md
+      - howto/scheduled-report.md
   - Comparisons:
       - about/comparison.md
       - about/claude-apps.md

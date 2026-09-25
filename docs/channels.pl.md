@@ -1,5 +1,5 @@
 ---
-source_sha: "b7e986f50dc1"
+source_sha: "e5fd7d3d2206"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -748,7 +748,7 @@ wywołujący — wartością `RATE_LIMIT_RUN_PER_MINUTE`.
    Token** (`xoxb-…`).
 4. **Event Subscriptions → Enable Events → Subscribe to bot events** i dodaj pięć
    eventów wymienionych niżej.
-5. Zarejestruj bota: **Channels → Add bot**, platforma `slack`, wklej token
+5. Zarejestruj bota: **Channels → Add channel**, platforma `slack`, wklej token
    bota.
 6. Wybierz transport — Socket Mode nie wymaga wystawiania niczego na zewnątrz
    i jest właściwym wyborem na laptopie:
@@ -945,7 +945,7 @@ rzeczy dostaje dwie, z tego samego powodu.
 ## Telegram { #telegram }
 
 1. Utwórz bota u @BotFather, skopiuj token.
-2. **Channels → Add bot**, platforma `telegram`.
+2. **Channels → Add channel**, platforma `telegram`.
 3. Zarejestruj webhook z poziomu UI albo uruchom polling w środowisku
    deweloperskim — publiczny URL nie jest potrzebny.
 
@@ -970,7 +970,7 @@ tego deploymentu.
 
 1. W Mattermoście *Integrations → Bot Accounts → Add Bot Account*. Skopiuj token,
    który zostanie pokazany raz — to jest **token bota**.
-2. Zarejestruj go: **Channels → Add bot**, platforma `mattermost`, wklej token
+2. Zarejestruj go: **Channels → Add channel**, platforma `mattermost`, wklej token
    i ustaw **Server URL** na swój Mattermost, np.
    `https://mattermost.acme.internal` albo `http://mattermost:8065` wewnątrz
    compose. Pole tokena webhooka zostaw puste.

@@ -1,5 +1,5 @@
 ---
-source_sha: "90d62e9ab4aa"
+source_sha: "115abe7a042f"
 title: "Den ersten Dokumenten-Agent bauen"
 description: "Erstellen Sie einen Assistenten für Fragen zu Geräteanträgen. Das synthetische Beispiel enthält einen prüfbaren Fakt und eine absichtliche Informationslücke. Dies ist eine Anleitung, kein Bericht über gemessene Deployment-Ergebnisse."
 ---
@@ -49,6 +49,6 @@ Fragen Sie in einer neuen Testkonversation. Prüfen Sie Antwort und abgerufenes 
 
 ## Den nächsten Schritt teilen { #share-the-next-step }
 
-Wählen Sie nach der Ergebnisprüfung [Slack oder einen anderen Zugang](../channels.md). Die Hosted Page ist per Link öffentlich: verwenden Sie öffentliche oder synthetische Daten. Der Kanal definiert keine Dokumentberechtigungen.
+Stellen Sie den Agent nach der Ergebnisprüfung [in Slack](slack-handbook-assistant.md) bereit oder wählen Sie [einen anderen Zugang](../channels.md). Die Hosted Page ist per Link öffentlich: verwenden Sie öffentliche oder synthetische Daten. Der Kanal definiert keine Dokumentberechtigungen.
 
 Benennen Sie vor dem Pilot die [Betriebsverantwortung](../rollout.md). Geben Sie bei Problemen Version, Konfiguration und bereinigte Reproduktion in einer [Hilfeanfrage](../help.md) an.
