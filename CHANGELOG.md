@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.498] - 2026-09-25
+
 ### Changed
 
 - **Context Tetris shows what the next task still needs.** The Tasks meter
