@@ -31,7 +31,7 @@ Maintained by the AgenticOS team at Vstorm. Sources checked 25 September 2026. A
 
 Wonderful describes exports of agents, skills, tools and governance configuration, and a headless API. That is a real commitment. The runtime stays closed, so an exported agent still needs somewhere to run.
 
-With AgenticOS the runtime is the part you own. The source is Apache-2.0, specs [export as YAML](../features.md#exportable-into-your-own-repository) into your repository, and the data sits in [your Postgres](../data-protection.md#where-personal-data-lives). If you part ways with Vstorm, the deployment keeps running and another team can operate it.
+With AgenticOS the runtime is the part you own. The source is Apache-2.0, specs [export as YAML](../features.md#exportable-into-your-own-repository) into your repository, and the data sits in stores you run: Postgres, plus the media and workspace volumes [a backup covers](../deploy.md#backups). If you part ways with Vstorm, the deployment keeps running and another team can operate it.
 
 ### A cost model you can see before you sign
 
@@ -83,7 +83,7 @@ Not yet. Its surfaces are web chat, a widget, a hosted page, the HTTP API, a Web
 
 ### What happens if we stop working with Vstorm?
 
-The deployment keeps running. The source is Apache-2.0, specs export as YAML and the data is in your Postgres, so another team can operate it.
+The deployment keeps running. The source is Apache-2.0, specs export as YAML, and the data is in stores you run: Postgres plus media and workspace volumes. Another team can operate it.
 
 ## Related comparisons
 

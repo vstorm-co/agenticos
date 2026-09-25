@@ -30,7 +30,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 
 ### A bill you can predict from the model price
 
-Copilot Studio meters each feature in credits, adds a premium rate for reasoning models, and bills its newer GitHub Copilot harness from the moment you start building. AgenticOS records the model's own cost for [every run](../governance.md#what-run-history-shows) from a bundled price snapshot. An agent's [budget](../governance.md#budgets) is checked [before each model request](../governance.md#enforcement-is-before-the-request), rather than disabling the agent once capacity runs out.
+Copilot Studio meters each feature in credits, adds a premium rate for reasoning models, and bills its newer GitHub Copilot harness from the moment you start building. AgenticOS records the model's own cost on [each run](../governance.md#what-run-history-shows) from a bundled price snapshot. A model too new for the snapshot is recorded as [partially priced](../models.md#what-a-run-costs), and a keyless self-hosted provider records no spend. An agent's [budget](../governance.md#budgets) is checked [before each model request](../governance.md#enforcement-is-before-the-request), rather than disabling the agent once capacity runs out.
 
 ### Any cloud, or none
 
@@ -56,7 +56,7 @@ AgenticOS signs people in with Entra ID over [OIDC](../configuration.md#single-s
 
 ## Try it on one task
 
-Build the [shared document agent](../howto/first-document-agent.md) in both, on comparable models. Run a hundred questions and compare the bill: credits on one side, model cost on the other. Then check what happens when the limit is reached. Record the result with the [comparison method](comparison.md#a-shared-trial).
+Build the [shared document agent](../howto/first-document-agent.md) in both, on comparable models. Run a hundred questions and compare the bill: credits on one side, model cost on the other. Pick a model the price snapshot covers, so the AgenticOS figure is complete. Then check what happens when the limit is reached. Record the result with the [comparison method](comparison.md#a-shared-trial).
 
 ## Frequently asked questions
 

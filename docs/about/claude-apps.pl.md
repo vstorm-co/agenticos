@@ -1,5 +1,5 @@
 ---
-source_sha: "eb3eec9570d3"
+source_sha: "54c544558f40"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -9,7 +9,7 @@ description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude
 
 Claude Team i Claude Enterprise dają każdemu pracownikowi asystenta od Anthropic: czat, Projects, Research, Cowork, konektory, skille i dodatki do Office, na modelach Claude, w chmurze Anthropic. AgenticOS buduje agentów dla twojej organizacji, a nie stanowiska dla twoich pracowników. Każdy agent ma własne zadanie, model, wiedzę, budżet i reguły dostępu i odpowiada na twojej stronie internetowej, w twoich narzędziach czatu i przez twoje API.
 
-To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez Anthropic API, Amazon Bedrock albo Google Vertex AI, więc subskrypcja Claude i wdrożenie AgenticOS często działają obok siebie.
+To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez Anthropic API albo Amazon Bedrock, więc subskrypcja Claude i wdrożenie AgenticOS często działają obok siebie.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja bazowa AgenticOS: v0.0.504. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
 
@@ -37,11 +37,11 @@ Claude Projects przechowują instrukcje i wiedzę dla osób, które w nich czatu
 
 ### Dowolny model i możliwość trzymania go lokalnie { #any-model-and-the-option-to-keep-it-local }
 
-Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [27 providerów](../models.md#providers), w tym Anthropic, Bedrock i Vertex dla Claude, a także OpenAI, Google, Mistral oraz Ollama czy LiteLLM na twoim własnym sprzęcie. [Profil modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks) pozwala agentowi przejść na inny model lub providera bez ponownej publikacji.
+Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [27 providerów](../models.md#providers), w tym Anthropic i Bedrock dla Claude, a także OpenAI, Google, Mistral oraz Ollama czy LiteLLM na twoim własnym sprzęcie. [Profil modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks) pozwala agentowi przejść na inny model lub providera bez ponownej publikacji.
 
 ### Zatwierdzenie przez kogoś innego niż zlecający { #approval-by-someone-other-than-the-requester }
 
-W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie ze skutkami ubocznymi [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
+W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie capability ze skutkami ubocznymi [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
 
 ### Koszt per agent, a nie per stanowisko { #cost-per-agent-not-per-seat }
 
@@ -49,7 +49,7 @@ Claude ogranicza wydatki per organizacja, grupa i użytkownik. Nie ma budżetu p
 
 ### Kontrole enterprise bez planu Enterprise { #enterprise-controls-without-an-enterprise-tier }
 
-W Claude logi audytowe, role niestandardowe, SCIM, niestandardowa retencja i Compliance API są dostępne tylko w Enterprise, przy minimum 20 stanowiskach. AgenticOS ma je w każdym wdrożeniu: [log audytowy wykrywający manipulacje](../governance.md#audit), [role i granty](../permissions.md#layer-3-visibility-and-grants), [mapowanie grup z katalogu](../directory.md#directory-group-mappings) i [retencję per klasa danych](../governance.md#retention). SCIM jeszcze nie ma; zobacz [braki](comparison.md#what-agenticos-does-not-do-yet).
+W Claude logi audytowe, role niestandardowe, SCIM, niestandardowa retencja i Compliance API są dostępne tylko w Enterprise, przy minimum 20 stanowiskach. AgenticOS ma większość z nich w każdym wdrożeniu: [log audytowy wykrywający manipulacje](../governance.md#audit), sześć wbudowanych [ról z grantami per zasób](../permissions.md#layer-3-visibility-and-grants), [mapowanie grup z katalogu](../directory.md#directory-group-mappings) i [retencję per klasa danych](../governance.md#retention). Ról niestandardowych i SCIM jeszcze nie ma; zobacz [braki](comparison.md#what-agenticos-does-not-do-yet).
 
 ### Wiedza, którą możesz dostroić { #knowledge-you-can-tune }
 
@@ -74,7 +74,7 @@ Umieść [wspólny przykład dokumentu](../howto/first-document-agent.md) w Clau
 
 ### Czy AgenticOS może używać modeli Claude? { #can-agenticos-use-claude-models }
 
-Tak. Dodaj profil modelu dla Anthropic API, Amazon Bedrock lub Google Vertex AI, a każdy agent może działać na Claude. Płacisz Anthropic albo providerowi chmury według ich stawek API.
+Tak. Dodaj profil modelu dla Anthropic API lub Amazon Bedrock, a każdy agent może działać na Claude. Płacisz Anthropic albo AWS według ich stawek API.
 
 ### Czy AgenticOS to samodzielnie hostowana alternatywa dla Claude Enterprise? { #is-agenticos-a-self-hosted-alternative-to-claude-enterprise }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c2db9c1b3168"
+source_sha: "30a97fa6f902"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: alternativa autoalojada"
 description: "Compara ChatGPT Business, Enterprise y los workspace agents con AgenticOS: autoalojado, cualquier modelo, ocho superficies, budgets por agent y auditoría."
@@ -46,7 +46,7 @@ Los límites de OpenAI se aplican a workspaces, grupos y usuarios, y OpenAI advi
 
 ### Controles empresariales en todos los despliegues { #enterprise-controls-in-every-deployment }
 
-En ChatGPT, SCIM, los roles personalizados, la Compliance API y la residencia de datos son exclusivos de Enterprise. AgenticOS incluye [mapeo de grupos del directorio](../directory.md#directory-group-mappings), [roles y concesiones](../permissions.md#layer-3-visibility-and-grants), un [registro de auditoría con detección de manipulaciones](../governance.md#audit) y [retención por clase de datos](../governance.md#retention) en el producto Apache-2.0. La residencia es allí donde lo despliegues.
+En ChatGPT, SCIM, los roles personalizados, la Compliance API y la residencia de datos son exclusivos de Enterprise. AgenticOS incluye [mapeo de grupos del directorio](../directory.md#directory-group-mappings), seis [roles integrados con concesiones por recurso](../permissions.md#layer-3-visibility-and-grants), un [registro de auditoría con detección de manipulaciones](../governance.md#audit) y [retención por clase de datos](../governance.md#retention) en el producto Apache-2.0. Los roles personalizados y SCIM todavía no están. Tus datos se quedan allí donde lo despliegues.
 
 ### Una plataforma que no cambia bajo tus pies { #a-platform-that-does-not-move-under-you }
 
@@ -71,7 +71,7 @@ Construye el [agent documental compartido](../howto/first-document-agent.md) com
 
 ### ¿AgenticOS es una alternativa autoalojada a ChatGPT Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise }
 
-Para los agents que son propiedad de tu organización, sí. Se ejecuta en tu infraestructura, usa OpenAI o cualquier otro provider y publica cada agent en ocho superficies con su propio budget y su registro de auditoría. No sustituye a ChatGPT como asistente para cada empleado.
+Para los agents que son propiedad de tu organización, sí. Se ejecuta en tu infraestructura, usa OpenAI o cualquier otro provider y publica cada agent en ocho superficies con su propio budget y su historial de runs. No sustituye a ChatGPT como asistente para cada empleado.
 
 ### ¿AgenticOS puede usar modelos de OpenAI? { #can-agenticos-use-openai-models }
 

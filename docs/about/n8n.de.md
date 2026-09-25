@@ -1,5 +1,5 @@
 ---
-source_sha: "7eecc52a021f"
+source_sha: "6a4832545d9e"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: Apache-2.0-Alternative für KI-Agents"
 description: "n8n und AgenticOS für KI-Agents: Lizenz, SSO und Rollen ohne kostenpflichtige Tarife, Budgets pro Agent statt Ausführungskontingenten, und Freigaben."
@@ -25,7 +25,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Umgebungen und Versionskontrolle | Ab Business | Umgebungen und YAML-Export in jedem Deployment |
 | Ausgabenkontrolle | Ausführungskontingente pro Tarif | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Audit | Log-Streaming bei Enterprise | Audit-Log mit Manipulationsnachweis in jedem Deployment |
-| Menschliche Freigabe | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug, über eine gemeinsame Warteschlange |
+| Menschliche Freigabe | Pro Werkzeug, über neun Review-Kanäle | Pro Capability und pro Werkzeug für Capability-Werkzeuge, über eine gemeinsame Warteschlange; MCP-Werkzeuge werden nicht pro Werkzeug freigegeben |
 | Preise | Community kostenlos; Cloud ab 20 € im Monat für 2.500 Ausführungen bei jährlicher Abrechnung; Business 667 € im Monat, selbst betrieben | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -47,7 +47,7 @@ In n8n kommen SSO, Projekte, Umgebungen, Git-Versionskontrolle und Log-Streaming
 
 ### Geld, nicht Ausführungen { #money-not-executions }
 
-n8n zählt Ausführungen, und ein Agent-Durchgang ist eine Ausführung, gleich was das Modell verbraucht hat. Die Dokumentation beschreibt kein Budget für Modell-Tokens oder Kosten. AgenticOS misst, was tatsächlich Geld kostet. Das [Budget](../governance.md#budgets) jedes Agents wird [vor jeder Modellanfrage](../governance.md#enforcement-is-before-the-request) geprüft, [delegierte Arbeit](../governance.md#delegation-spends-the-parents-budget) wird dem übergeordneten Agent angerechnet, und die [Kostenansicht](../governance.md#what-the-cost-screen-shows) zeigt die Ausgaben pro Agent.
+n8n zählt Ausführungen, und ein Agent-Durchgang ist eine Ausführung, gleich was das Modell verbraucht hat. Die Dokumentation beschreibt kein Budget für Modell-Tokens oder Kosten. AgenticOS misst die Modellkosten, bepreist anhand eines mitgelieferten Snapshots. Das [Budget](../governance.md#budgets) jedes Agents wird [vor jeder Modellanfrage](../governance.md#enforcement-is-before-the-request) geprüft, [delegierte Arbeit](../governance.md#delegation-spends-the-parents-budget) wird dem übergeordneten Agent angerechnet, und die [Kostenansicht](../governance.md#what-the-cost-screen-shows) zeigt die Ausgaben pro Agent.
 
 ### Ein Agent, den ein fachlich Verantwortlicher ändern kann { #an-agent-a-business-owner-can-change }
 
@@ -65,7 +65,7 @@ n8n baut Retrieval aus Knoten: Loader, Embeddings und ein Vektorspeicher Ihrer W
 
 ## Beides zusammen nutzen { #use-them-together }
 
-Ein n8n-Workflow kann einen AgenticOS-Agent über die [HTTP-API](../channels.md#the-public-api) aufrufen und die Antwort zurückerhalten, wobei Budget, Freigabe und Audit angewendet werden. Ein AgenticOS-[Webhook-Trigger](../triggers.md) kann einen Agent starten, wenn n8n an ihn sendet.
+Ein n8n-Workflow kann einen AgenticOS-Agent über die [HTTP-API](../channels.md#the-public-api) aufrufen und die Antwort zurückerhalten. Das Budget des Agents wird geprüft, seine Capability-Freigaben gelten, und der Run wird in der [Run-Historie](../governance.md#what-run-history-shows) erfasst. Ein AgenticOS-[Webhook-Trigger](../triggers.md) kann einen Agent starten, wenn n8n an ihn sendet.
 
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
@@ -83,7 +83,7 @@ Nicht im Sinne der OSI. Seine Sustainable Use License erlaubt interne geschäftl
 
 ### Kann n8n einen AgenticOS-Agent aufrufen? { #can-n8n-call-an-agenticos-agent }
 
-Ja. Ein n8n-Workflow kann die HTTP-API von AgenticOS aufrufen und die Antwort zurückerhalten, wobei Budget, Freigaben und Audit des Agents angewendet werden.
+Ja. Ein n8n-Workflow kann die HTTP-API von AgenticOS aufrufen und die Antwort zurückerhalten. Das Budget des Agents wird geprüft, und der Run wird in der Run-Historie erfasst.
 
 ### Wie unterscheiden sich die Preise von n8n und AgenticOS? { #how-does-n8n-pricing-compare-with-agenticos }
 

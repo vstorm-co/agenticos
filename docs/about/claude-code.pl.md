@@ -1,5 +1,5 @@
 ---
-source_sha: "5316c014d06e"
+source_sha: "30ce1d601d1d"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: agenci dla firmy czy do kodowania"
 description: "Claude Code to agent do kodowania dla programistów. AgenticOS to platforma open source dla firmowych agentów AI. Zobacz, czym się różnią i jak używać obu."
@@ -75,7 +75,7 @@ Tak. AgenticOS rozszerza się w typowanym Pythonie, a capability napisana z pomo
 
 ### Czy agenci AgenticOS mogą używać modeli Claude? { #can-agenticos-agents-use-claude-models }
 
-Tak, przez Anthropic API, Amazon Bedrock lub Google Vertex AI, trzech z 27 providerów obsługiwanych przez AgenticOS.
+Tak, przez Anthropic API lub Amazon Bedrock, dwóch z 27 providerów obsługiwanych przez AgenticOS.
 
 ### Czy Claude Code jest open source? { #is-claude-code-open-source }
 

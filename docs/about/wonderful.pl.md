@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0452323f46"
+source_sha: "de6a961ce6a4"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: platforma AI dla firm na własność"
 description: "Porównaj dostarczany enterprise AI OS Wonderful z AgenticOS, platformą agentów open source na własność, którą sam uruchamiasz, z pomocą we wdrożeniu od Vstorm."
@@ -32,7 +32,7 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 25 września 2026. W
 
 Wonderful opisuje eksport agentów, skilli, narzędzi i konfiguracji nadzoru oraz headless API. To realne zobowiązanie. Runtime pozostaje zamknięty, więc wyeksportowany agent i tak potrzebuje miejsca, w którym będzie działał.
 
-W AgenticOS to właśnie runtime jest częścią, która należy do Ciebie. Źródła są na licencji Apache-2.0, speci [eksportują się jako YAML](../features.md#exportable-into-your-own-repository) do twojego repozytorium, a dane leżą w [twoim Postgresie](../data-protection.md#where-personal-data-lives). Jeśli rozstaniesz się z Vstorm, wdrożenie dalej działa, a utrzymywać je może inny zespół.
+W AgenticOS to właśnie runtime jest częścią, która należy do Ciebie. Źródła są na licencji Apache-2.0, speci [eksportują się jako YAML](../features.md#exportable-into-your-own-repository) do twojego repozytorium, a dane leżą w magazynach, które sam utrzymujesz: w Postgresie oraz w wolumenach mediów i workspace'ów, które [obejmuje kopia zapasowa](../deploy.md#backups). Jeśli rozstaniesz się z Vstorm, wdrożenie dalej działa, a utrzymywać je może inny zespół.
 
 ### Model kosztów, który widzisz przed podpisaniem umowy { #a-cost-model-you-can-see-before-you-sign }
 
@@ -84,7 +84,7 @@ Jeszcze nie. Jego powierzchnie to czat webowy, widget, hostowana strona, HTTP AP
 
 ### Co się stanie, jeśli przestaniemy współpracować z Vstorm? { #what-happens-if-we-stop-working-with-vstorm }
 
-Wdrożenie działa dalej. Źródła są na licencji Apache-2.0, speci eksportują się jako YAML, a dane są w twoim Postgresie, więc utrzymanie może przejąć inny zespół.
+Wdrożenie działa dalej. Źródła są na licencji Apache-2.0, speci eksportują się jako YAML, a dane są w magazynach, które sam utrzymujesz: w Postgresie oraz w wolumenach mediów i workspace'ów. Utrzymanie może przejąć inny zespół.
 
 ## Powiązane porównania { #related-comparisons }
 

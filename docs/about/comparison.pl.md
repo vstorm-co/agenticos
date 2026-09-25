@@ -1,5 +1,5 @@
 ---
-source_sha: "0e10e8407613"
+source_sha: "eeabd2250add"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: platforma agentów AI self-hosted"
 description: "Porównaj AgenticOS, platformę agentów AI open source i self-hosted, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -45,7 +45,7 @@ Każda komórka pochodzi z własnych stron producenta; poradniki podają do nich
 
 Te punkty powtarzają się w każdym poradniku, więc podajemy je raz, tutaj.
 
-- **Wdrożenie należy do Ciebie.** Działa na twoim sprzęcie z twoim Postgresem, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
+- **Wdrożenie należy do Ciebie.** Działa na twoim sprzęcie z twoim własnym Postgresem i magazynem danych, a świeża instalacja niczego nigdzie nie wysyła. Możliwa jest w pełni lokalna konfiguracja, z lokalnymi modelami czatu, lokalnymi embeddingami i lokalnym parsowaniem. Zobacz [domyślnie nic nie wychodzi](../data-protection.md#nothing-leaves-by-default).
 - **Dowolny model, przełączany w jednym miejscu.** [27 providerów](../models.md#providers) stoi za [profilem modelu](../models.md#a-model-profile) z [fallbackami](../models.md#fallbacks). Zmień profil, a każdy agent, który go używa, przejdzie na nowy model bez ponownej publikacji.
 - **Agent to wersjonowany dokument.** Publikacja zamraża [wersję](../concepts.md#version), [środowiska](../environments.md#what-an-environment-is) wskazują na wersje, a spec [eksportuje się jako YAML](../features.md#exportable-into-your-own-repository) do twojego własnego repozytorium git.
 - **Nadzór jest w produkcie open source.** [Budżety](../governance.md#enforcement-is-before-the-request) są sprawdzane przed każdym żądaniem do modelu. [Zatwierdzenia](../governance.md#approvals) wstrzymują run, dopóki ktoś nie zdecyduje. [Log audytowy](../governance.md#audit) wykrywa manipulacje. Nic z tego nie czeka na plan enterprise.
@@ -58,6 +58,7 @@ Te punkty powtarzają się w każdym poradniku, więc podajemy je raz, tutaj.
 
 Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty względem swoich wymagań przed pilotażem.
 
+- Role to sześć ról wbudowanych; role niestandardowe nie są jeszcze dostępne.
 - Logowanie nie ma jeszcze SAML ani SCIM; SAML działa przez brokera tożsamości, takiego jak Keycloak. Zobacz [czego logowanie przez katalog jeszcze nie robi](../directory.md#what-this-does-not-do-yet).
 - Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
 - Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, głos ani e-mail.

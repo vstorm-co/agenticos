@@ -1,5 +1,5 @@
 ---
-source_sha: "0e10e8407613"
+source_sha: "eeabd2250add"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: plataforma de agents autoalojada"
 description: "Compara AgenticOS, plataforma de agents de IA open source y autoalojada, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -45,7 +45,7 @@ Cada celda procede de las propias páginas del proveedor; las guías las enlazan
 
 Estos puntos recorren todas las guías, así que se exponen una sola vez aquí.
 
-- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu Postgres, y una instalación nueva no envía nada a ninguna parte. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [nada sale por defecto](../data-protection.md#nothing-leaves-by-default).
+- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu propio Postgres y tu propio almacenamiento, y una instalación nueva no envía nada a ninguna parte. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [nada sale por defecto](../data-protection.md#nothing-leaves-by-default).
 - **Cualquier modelo, cambiado en un solo lugar.** [27 providers](../models.md#providers) se sitúan detrás de un [perfil de modelo](../models.md#a-model-profile) con [fallbacks](../models.md#fallbacks). Cambia el perfil y todos los agents que lo usan se mueven, sin volver a publicar.
 - **Un agent es un documento versionado.** Publicar congela una [versión](../concepts.md#version), los [entornos](../environments.md#what-an-environment-is) apuntan a versiones, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) a tu propio repositorio git.
 - **La gobernanza está en el producto de código abierto.** Los [budgets](../governance.md#enforcement-is-before-the-request) se comprueban antes de cada petición al modelo. Las [aprobaciones](../governance.md#approvals) detienen un run hasta que alguien decide. El [registro de auditoría](../governance.md#audit) detecta manipulaciones. Nada de esto espera a un plan empresarial.
@@ -58,6 +58,7 @@ Estos puntos recorren todas las guías, así que se exponen una sola vez aquí.
 
 Una comparación que oculta sus propias carencias es un anuncio. Contrasta estos puntos con tus requisitos antes de un piloto.
 
+- Los roles son los seis integrados; los roles personalizados todavía no están disponibles.
 - El inicio de sesión todavía no tiene SAML ni SCIM; SAML funciona a través de un broker de identidad como Keycloak. Consulta [lo que el inicio de sesión con directorio todavía no hace](../directory.md#what-this-does-not-do-yet).
 - No hay un entorno de evaluación ni un panel de trazas. Existen las valoraciones y el historial de runs. Consulta [dónde no está terminado](index.md#where-this-one-is-not-finished).
 - No hay canal de conversación para Microsoft Teams, WhatsApp, voz ni correo electrónico.

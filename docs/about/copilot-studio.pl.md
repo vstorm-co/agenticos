@@ -1,5 +1,5 @@
 ---
-source_sha: "6daf4c941912"
+source_sha: "b7162a5c58d3"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternatywa self-hosted"
 description: "Porównaj Microsoft Copilot Studio z AgenticOS: bez Copilot Credits, dowolny provider modeli, własna infrastruktura, budżety per agent i otwarty audyt."
@@ -31,7 +31,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 
 ### Rachunek przewidywalny z ceny modelu { #a-bill-you-can-predict-from-the-model-price }
 
-Copilot Studio nalicza kredyty za każdą funkcję, dolicza stawkę premium za modele rozumujące i rozlicza swój nowszy harness GitHub Copilot od chwili, gdy zaczynasz budować. AgenticOS zapisuje własny koszt modelu dla [każdego runa](../governance.md#what-run-history-shows) na podstawie dołączonego zestawu cen. [Budżet](../governance.md#budgets) agenta jest sprawdzany [przed każdym zapytaniem do modelu](../governance.md#enforcement-is-before-the-request), zamiast wyłączać agenta, gdy wyczerpie się pula.
+Copilot Studio nalicza kredyty za każdą funkcję, dolicza stawkę premium za modele rozumujące i rozlicza swój nowszy harness GitHub Copilot od chwili, gdy zaczynasz budować. AgenticOS zapisuje własny koszt modelu przy [każdym runie](../governance.md#what-run-history-shows) na podstawie dołączonego zestawu cen. Model zbyt nowy dla zestawu cen zapisywany jest jako [częściowo wyceniony](../models.md#what-a-run-costs), a provider hostowany samodzielnie bez klucza nie zapisuje żadnego wydatku. [Budżet](../governance.md#budgets) agenta jest sprawdzany [przed każdym zapytaniem do modelu](../governance.md#enforcement-is-before-the-request), zamiast wyłączać agenta, gdy wyczerpie się pula.
 
 ### Dowolna chmura albo żadna { #any-cloud-or-none }
 
@@ -57,7 +57,7 @@ AgenticOS loguje użytkowników przez Entra ID po [OIDC](../configuration.md#sin
 
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
-Zbuduj [wspólnego agenta dokumentowego](../howto/first-document-agent.md) w obu, na porównywalnych modelach. Zadaj sto pytań i porównaj rachunek: kredyty po jednej stronie, koszt modelu po drugiej. Następnie sprawdź, co się dzieje po osiągnięciu limitu. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
+Zbuduj [wspólnego agenta dokumentowego](../howto/first-document-agent.md) w obu, na porównywalnych modelach. Zadaj sto pytań i porównaj rachunek: kredyty po jednej stronie, koszt modelu po drugiej. Wybierz model objęty zestawem cen, aby wynik AgenticOS był kompletny. Następnie sprawdź, co się dzieje po osiągnięciu limitu. Zapisz wynik według [metody porównania](comparison.md#a-shared-trial).
 
 ## Najczęściej zadawane pytania { #frequently-asked-questions }
 

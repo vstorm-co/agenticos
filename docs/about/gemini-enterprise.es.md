@@ -1,5 +1,5 @@
 ---
-source_sha: "cd3c14eb72c2"
+source_sha: "a4ea427a6641"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: alternativa autoalojada"
 description: "Compara Google Gemini Enterprise con AgenticOS: cualquier modelo en cada agent, sin cuota por puesto ni cuotas de creación, ocho superficies, en tus servidores."
@@ -73,7 +73,7 @@ No. No hay cuota por puesto ni cuota de creación. Un agent cuesta lo que cuesta
 
 ### ¿Dónde almacena AgenticOS los datos? { #where-does-agenticos-store-data }
 
-En tu propio Postgres, allí donde lo despliegues. Con un modelo autoalojado, los prompts no salen de tu red.
+En almacenes que operas tú, allí donde lo despliegues: las conversaciones, los documentos y los vectores en Postgres, y los archivos en un volumen de medios o en tu bucket de S3. Con un modelo autoalojado, los prompts no salen de tu red.
 
 ## Comparativas relacionadas { #related-comparisons }
 

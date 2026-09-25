@@ -24,7 +24,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Environments and version control | Business and above | Environments and YAML export in every deployment |
 | Spend control | Execution quotas per plan | A budget per agent and per organization, checked before each model request |
 | Audit | Log streaming on Enterprise | Tamper-evident audit log in every deployment |
-| Human approval | Per tool, through nine review channels | Per capability and per tool, through a shared queue |
+| Human approval | Per tool, through nine review channels | Per capability and per tool for capability tools, through a shared queue; MCP tools are not gated per tool |
 | Pricing | Community free; Cloud from €20 a month for 2,500 executions, billed annually; Business €667 a month, self-hosted | No licence fee; model usage and infrastructure |
 
 ## Where AgenticOS goes further
@@ -46,7 +46,7 @@ In n8n, SSO, projects, environments, Git version control and log streaming come 
 
 ### Money, not executions
 
-n8n counts executions, and one agent turn is one execution, whatever the model spent. Its documentation describes no budget on model tokens or cost. AgenticOS meters what actually costs money. Each agent's [budget](../governance.md#budgets) is checked [before each model request](../governance.md#enforcement-is-before-the-request), [delegated work](../governance.md#delegation-spends-the-parents-budget) counts against the parent, and the [cost screen](../governance.md#what-the-cost-screen-shows) shows spend per agent.
+n8n counts executions, and one agent turn is one execution, whatever the model spent. Its documentation describes no budget on model tokens or cost. AgenticOS meters model cost, priced from a bundled snapshot. Each agent's [budget](../governance.md#budgets) is checked [before each model request](../governance.md#enforcement-is-before-the-request), [delegated work](../governance.md#delegation-spends-the-parents-budget) counts against the parent, and the [cost screen](../governance.md#what-the-cost-screen-shows) shows spend per agent.
 
 ### An agent a business owner can change
 
@@ -64,7 +64,7 @@ n8n builds retrieval from nodes: loaders, embeddings and a vector store you choo
 
 ## Use them together
 
-An n8n workflow can call an AgenticOS agent over the [HTTP API](../channels.md#the-public-api) and get the answer back, with the budget, approval and audit applied. An AgenticOS [webhook trigger](../triggers.md) can start an agent when n8n posts to it.
+An n8n workflow can call an AgenticOS agent over the [HTTP API](../channels.md#the-public-api) and get the answer back. The agent's budget is checked, its capability approvals apply, and the run is recorded in [run history](../governance.md#what-run-history-shows). An AgenticOS [webhook trigger](../triggers.md) can start an agent when n8n posts to it.
 
 ## Try it on one task
 
@@ -82,7 +82,7 @@ Not in the OSI sense. Its Sustainable Use License allows internal business, non-
 
 ### Can n8n call an AgenticOS agent?
 
-Yes. An n8n workflow can call the AgenticOS HTTP API and get the answer back, with the agent's budget, approvals and audit applied.
+Yes. An n8n workflow can call the AgenticOS HTTP API and get the answer back. The agent's budget is checked and the run is recorded in run history.
 
 ### How does n8n pricing compare with AgenticOS?
 

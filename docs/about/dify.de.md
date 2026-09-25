@@ -1,5 +1,5 @@
 ---
-source_sha: "135a9b310e53"
+source_sha: "3689d8258a77"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: mandantenfähige Apache-2.0-Alternative"
 description: "Dify und AgenticOS, selbst gehostete KI-Agent-Plattformen, im Vergleich: Lizenzbedingungen, Mandantenfähigkeit, SSO, Budgets, Freigaben, Audit-Logs, Preise."
@@ -22,7 +22,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Anmeldung | E-Mail; SSO ist Enterprise | E-Mail, Google, OIDC SSO, LDAP und Kerberos, mit Zuordnung von Verzeichnisgruppen |
 | Audit | Enterprise | Audit-Log mit Manipulationsnachweis mit Export als CSV und JSONL |
 | Ausgabenkontrolle | Abrechnung beim Provider oder Nachrichten-Credits in der Cloud | Ein monatliches Budget pro Agent und pro Organisation, vor jeder Modellanfrage geprüft |
-| Menschliche Freigabe | Ein Human-Input-Knoten in einem Workflow | Freigabe pro Capability und pro Werkzeug; der Run wartet, bis jemand entscheidet |
+| Menschliche Freigabe | Ein Human-Input-Knoten in einem Workflow | Freigabe pro Capability und pro Werkzeug für Capability-Werkzeuge; der Run wartet, bis jemand entscheidet. MCP-Werkzeuge werden nicht pro Werkzeug freigegeben |
 | Oberflächen | Web-App, Embed, API, MCP-Server; Slack über ein Plugin | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
 | Kubernetes | Helm-Charts aus der Community; offizielle Hochverfügbarkeit ist Enterprise | Docker Compose auf einem Host |
 
@@ -36,12 +36,14 @@ AgenticOS steht unter Apache-2.0. [Organisationen](../concepts.md#organizations)
 
 ### Die Kontrollen, die ein Unternehmen verlangt, im Open-Source-Produkt { #the-controls-an-enterprise-asks-for-in-the-open-source-product }
 
-Die Preisseite von Dify führt SSO nur für Enterprise, und seine Dokumentation ordnet eigene Rollen und mehrere Workspaces Enterprise zu. In AgenticOS sind sie Teil des Apache-2.0-Produkts:
+Die Preisseite von Dify führt SSO nur für Enterprise, und seine Dokumentation ordnet eigene Rollen und mehrere Workspaces Enterprise zu. AgenticOS liefert Single Sign-on und viele Organisationen im Apache-2.0-Produkt, dazu:
 
 - [OIDC Single Sign-on](../configuration.md#single-sign-on-generic-oidc) mit Entra, Okta, Keycloak und anderen, [LDAP und Kerberos](../directory.md#signing-in-with-a-directory-account) sowie die [Zuordnung von Verzeichnisgruppen](../directory.md#directory-group-mappings) zu Rollen.
 - [Sechs Rollen und Grants pro Ressource](../permissions.md#layer-3-visibility-and-grants), die den Zugriff auf einen Agent oder eine Sammlung erweitern.
 - Ein [Audit-Log mit Manipulationsnachweis](../governance.md#audit), geschrieben in derselben Transaktion wie die Aktion, die es festhält.
 - [Aufbewahrungsfristen](../governance.md#retention) pro Datenklasse und [per Envelope-Verschlüsselung geschützte Secrets](../secrets.md#envelope-encryption), pro Organisation versiegelt.
+
+Die sechs Rollen sind fest vorgegeben. Eigene Rollen gibt es, wie SCIM, noch nicht.
 
 ### Ein Budget, das den nächsten Modellaufruf stoppt { #a-budget-that-stops-the-next-model-call }
 
@@ -51,7 +53,7 @@ AgenticOS prüft das [monatliche Budget](../governance.md#budgets) jedes Agents 
 
 ### Freigabe am Werkzeug, nicht nur im Ablauf { #approval-on-the-tool-not-only-in-the-flow }
 
-Der Human-Input-Knoten von Dify pausiert einen Workflow und sendet ein Formular, und die Anfrage schließt nach der ersten Antwort. In AgenticOS wird eine [Freigabe](../governance.md#approvals) pro Capability festgelegt und kann pro Werkzeug überschrieben werden. Der Run wartet, die Personen Ihrer Wahl werden [benachrichtigt](../governance.md#alerts), und eine zweite Entscheidung über eine bereits entschiedene Freigabe wird abgelehnt.
+Der Human-Input-Knoten von Dify pausiert einen Workflow und sendet ein Formular, und die Anfrage schließt nach der ersten Antwort. In AgenticOS wird eine [Freigabe](../governance.md#approvals) pro Capability festgelegt und kann pro Werkzeug überschrieben werden. Sie gilt für Capability-Werkzeuge; ein MCP-Werkzeug erfordert nur dann eine Freigabe, wenn eine Web-Chat-Konversation bei allem nachfragt. Der Run wartet, die Personen Ihrer Wahl werden [benachrichtigt](../governance.md#alerts), und eine zweite Entscheidung über eine bereits entschiedene Freigabe wird abgelehnt.
 
 ### Eine Änderung, die ein Fachteam vornehmen kann { #a-change-a-business-team-can-make }
 

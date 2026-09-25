@@ -1,5 +1,5 @@
 ---
-source_sha: "135a9b310e53"
+source_sha: "3689d8258a77"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: wielotenantowa alternatywa na Apache-2.0"
 description: "Porównaj Dify i AgenticOS, dwie platformy agentów AI self-hosted: warunki licencji, wielotenantowość, SSO, budżety, zatwierdzenia, logi audytowe i ceny."
@@ -22,7 +22,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Logowanie | E-mail; SSO to Enterprise | E-mail, Google, OIDC SSO, LDAP i Kerberos, z mapowaniem grup z katalogu |
 | Audyt | Enterprise | Log audytowy wykrywający manipulacje, z eksportem do CSV i JSONL |
 | Kontrola wydatków | Rozliczenia u providera albo kredyty wiadomości w Cloud | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
-| Zatwierdzenie przez człowieka | Węzeł Human Input w workflow | Zatwierdzenie per capability i per narzędzie; run czeka, dopóki ktoś nie zdecyduje |
+| Zatwierdzenie przez człowieka | Węzeł Human Input w workflow | Zatwierdzenie per capability i per narzędzie dla narzędzi capabilities; run czeka, dopóki ktoś nie zdecyduje. Narzędzia MCP nie są bramkowane per narzędzie |
 | Powierzchnie | Aplikacja web, embed, API, serwer MCP; Slack przez plugin | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Kubernetes | Społecznościowe charty Helm; oficjalna wysoka dostępność to Enterprise | Docker Compose na jednym hoście |
 
@@ -36,12 +36,14 @@ AgenticOS jest na licencji Apache-2.0. [Organizacje](../concepts.md#organization
 
 ### Kontrole, o które pyta enterprise, w produkcie open source { #the-controls-an-enterprise-asks-for-in-the-open-source-product }
 
-Strona cennika Dify podaje SSO jako funkcję wyłącznie dla Enterprise, a jego dokumentacja umieszcza role niestandardowe i wiele workspace'ów w Enterprise. W AgenticOS są one częścią produktu na licencji Apache-2.0:
+Strona cennika Dify podaje SSO jako funkcję wyłącznie dla Enterprise, a jego dokumentacja umieszcza role niestandardowe i wiele workspace'ów w Enterprise. AgenticOS dostarcza logowanie jednokrotne i wiele organizacji w produkcie na licencji Apache-2.0, a razem z nimi:
 
 - [Logowanie jednokrotne OIDC](../configuration.md#single-sign-on-generic-oidc) z Entra, Okta, Keycloak i innymi, [LDAP i Kerberos](../directory.md#signing-in-with-a-directory-account) oraz [mapowanie grup z katalogu](../directory.md#directory-group-mappings) na role.
 - [Sześć ról i granty per zasób](../permissions.md#layer-3-visibility-and-grants), które poszerzają dostęp do jednego agenta lub kolekcji.
 - [Log audytowy wykrywający manipulacje](../governance.md#audit), zapisywany w tej samej transakcji co akcja, którą rejestruje.
 - [Okresy retencji](../governance.md#retention) per klasa danych i [sekrety szyfrowane kopertowo](../secrets.md#envelope-encryption), zapieczętowane per organizacja.
+
+Sześć ról jest stałych. Role niestandardowe, podobnie jak SCIM, nie są jeszcze dostępne.
 
 ### Budżet, który zatrzymuje następne wywołanie modelu { #a-budget-that-stops-the-next-model-call }
 
@@ -51,7 +53,7 @@ AgenticOS sprawdza [miesięczny budżet](../governance.md#budgets) każdego agen
 
 ### Zatwierdzenie na narzędziu, nie tylko w przepływie { #approval-on-the-tool-not-only-in-the-flow }
 
-Węzeł Human Input w Dify wstrzymuje workflow i wysyła formularz, a żądanie zamyka się po pierwszej odpowiedzi. W AgenticOS [zatwierdzenie](../governance.md#approvals) ustawia się per capability i można je nadpisać per narzędzie. Run czeka, wybrane przez Ciebie osoby dostają [alert](../governance.md#alerts), a druga decyzja w sprawie już rozstrzygniętego zatwierdzenia jest odrzucana.
+Węzeł Human Input w Dify wstrzymuje workflow i wysyła formularz, a żądanie zamyka się po pierwszej odpowiedzi. W AgenticOS [zatwierdzenie](../governance.md#approvals) ustawia się per capability i można je nadpisać per narzędzie. Obejmuje narzędzia capabilities; narzędzie MCP jest bramkowane tylko wtedy, gdy rozmowa w czacie webowym pyta o wszystko. Run czeka, wybrane przez Ciebie osoby dostają [alert](../governance.md#alerts), a druga decyzja w sprawie już rozstrzygniętego zatwierdzenia jest odrzucana.
 
 ### Zmiana, którą może wprowadzić zespół biznesowy { #a-change-a-business-team-can-make }
 

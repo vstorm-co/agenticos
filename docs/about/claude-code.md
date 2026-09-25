@@ -74,7 +74,7 @@ Yes. AgenticOS is extended in typed Python, and a capability written with Claude
 
 ### Can AgenticOS agents use Claude models?
 
-Yes, through the Anthropic API, Amazon Bedrock or Google Vertex AI, three of the 27 providers AgenticOS supports.
+Yes, through the Anthropic API or Amazon Bedrock, two of the 27 providers AgenticOS supports.
 
 ### Is Claude Code open source?
 

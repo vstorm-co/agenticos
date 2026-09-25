@@ -1,5 +1,5 @@
 ---
-source_sha: "0e10e8407613"
+source_sha: "eeabd2250add"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: selbst gehostete KI-Agent-Plattform"
 description: "Die selbst gehostete Open-Source-Plattform AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -45,7 +45,7 @@ Jede Zelle stammt von den eigenen Seiten des Anbieters; die Leitfäden verlinken
 
 Diese Punkte ziehen sich durch jeden Leitfaden und stehen deshalb einmal hier.
 
-- **Die Bereitstellung gehört Ihnen.** Sie läuft auf Ihrer Hardware mit Ihrem Postgres, und eine frische Installation sendet nichts nach außen. Eine vollständig lokale Einrichtung ist möglich, mit lokalen Chat-Modellen, lokalen Embeddings und lokalem Parsing. Siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
+- **Die Bereitstellung gehört Ihnen.** Sie läuft auf Ihrer Hardware mit Ihrem eigenen Postgres und Speicher, und eine frische Installation sendet nichts nach außen. Eine vollständig lokale Einrichtung ist möglich, mit lokalen Chat-Modellen, lokalen Embeddings und lokalem Parsing. Siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
 - **Jedes Modell, an einer Stelle umgestellt.** [27 Provider](../models.md#providers) stehen hinter einem [Modellprofil](../models.md#a-model-profile) mit [Fallbacks](../models.md#fallbacks). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne erneute Veröffentlichung.
 - **Ein Agent ist ein versioniertes Dokument.** Die Veröffentlichung friert eine [Version](../concepts.md#version) ein, [Umgebungen](../environments.md#what-an-environment-is) verweisen auf Versionen, und der Spec [wird als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr eigenes Git-Repository.
 - **Governance steckt im Open-Source-Produkt.** [Budgets](../governance.md#enforcement-is-before-the-request) werden vor jeder Modellanfrage geprüft. [Freigaben](../governance.md#approvals) halten einen Run an, bis jemand entscheidet. Das [Audit-Log](../governance.md#audit) macht Manipulationen nachweisbar. Nichts davon wartet auf eine Enterprise-Stufe.
@@ -58,6 +58,7 @@ Diese Punkte ziehen sich durch jeden Leitfaden und stehen deshalb einmal hier.
 
 Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie diese Punkte vor einem Pilotprojekt gegen Ihre Anforderungen.
 
+- Es gibt nur die sechs eingebauten Rollen; benutzerdefinierte Rollen sind noch nicht verfügbar.
 - Die Anmeldung hat noch kein SAML und kein SCIM; SAML funktioniert über einen Identity-Broker wie Keycloak. Siehe [was die Verzeichnisanmeldung noch nicht kann](../directory.md#what-this-does-not-do-yet).
 - Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Sprache oder E-Mail.

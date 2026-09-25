@@ -1,5 +1,5 @@
 ---
-source_sha: "7eecc52a021f"
+source_sha: "6a4832545d9e"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -25,7 +25,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Środowiska i kontrola wersji | Business i wyższe | Środowiska i eksport do YAML w każdym wdrożeniu |
 | Kontrola wydatków | Limity wykonań w zależności od planu | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Audyt | Log streaming w Enterprise | Odporny na manipulacje dziennik audytu w każdym wdrożeniu |
-| Zatwierdzanie przez człowieka | Dla każdego narzędzia, przez dziewięć kanałów przeglądu | Dla każdej capability i każdego narzędzia, przez wspólną kolejkę |
+| Zatwierdzanie przez człowieka | Dla każdego narzędzia, przez dziewięć kanałów przeglądu | Dla każdej capability i każdego narzędzia capabilities, przez wspólną kolejkę; narzędzia MCP nie są bramkowane per narzędzie |
 | Cennik | Community za darmo; Cloud od 20 EUR miesięcznie za 2500 wykonań, przy płatności rocznej; Business 667 EUR miesięcznie, self-hosted | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
@@ -47,7 +47,7 @@ W n8n SSO, projekty, środowiska, kontrola wersji w Git i log streaming są dost
 
 ### Pieniądze, a nie wykonania { #money-not-executions }
 
-n8n liczy wykonania, a jedna tura agenta to jedno wykonanie, niezależnie od tego, ile zużył model. Jego dokumentacja nie opisuje budżetu na tokeny modelu ani na koszt. AgenticOS mierzy to, co faktycznie kosztuje pieniądze. [Budżet](../governance.md#budgets) każdego agenta jest sprawdzany [przed każdym zapytaniem do modelu](../governance.md#enforcement-is-before-the-request), [delegowana praca](../governance.md#delegation-spends-the-parents-budget) obciąża agenta nadrzędnego, a [ekran kosztów](../governance.md#what-the-cost-screen-shows) pokazuje wydatki na agenta.
+n8n liczy wykonania, a jedna tura agenta to jedno wykonanie, niezależnie od tego, ile zużył model. Jego dokumentacja nie opisuje budżetu na tokeny modelu ani na koszt. AgenticOS mierzy koszt modelu, wyceniony na podstawie dołączonej migawki cen. [Budżet](../governance.md#budgets) każdego agenta jest sprawdzany [przed każdym zapytaniem do modelu](../governance.md#enforcement-is-before-the-request), [delegowana praca](../governance.md#delegation-spends-the-parents-budget) obciąża agenta nadrzędnego, a [ekran kosztów](../governance.md#what-the-cost-screen-shows) pokazuje wydatki na agenta.
 
 ### Agent, którego może zmienić właściciel biznesowy { #an-agent-a-business-owner-can-change }
 
@@ -65,7 +65,7 @@ n8n buduje wyszukiwanie z węzłów: loaderów, embeddingów i wybranej przez ci
 
 ## Używaj obu razem { #use-them-together }
 
-Workflow n8n może wywołać agenta AgenticOS przez [HTTP API](../channels.md#the-public-api) i otrzymać odpowiedź, z zastosowanym budżetem, zatwierdzaniem i audytem. [Wyzwalacz webhook](../triggers.md) w AgenticOS może uruchomić agenta, gdy n8n wyśle do niego żądanie.
+Workflow n8n może wywołać agenta AgenticOS przez [HTTP API](../channels.md#the-public-api) i otrzymać odpowiedź. Budżet agenta jest sprawdzany, obowiązują jego zatwierdzenia capabilities, a run zostaje zapisany w [historii runów](../governance.md#what-run-history-shows). [Wyzwalacz webhook](../triggers.md) w AgenticOS może uruchomić agenta, gdy n8n wyśle do niego żądanie.
 
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
 
@@ -83,7 +83,7 @@ Nie w rozumieniu OSI. Jego Sustainable Use License pozwala na wewnętrzne użyci
 
 ### Czy n8n może wywołać agenta AgenticOS? { #can-n8n-call-an-agenticos-agent }
 
-Tak. Workflow n8n może wywołać HTTP API AgenticOS i otrzymać odpowiedź, z zastosowanym budżetem, zatwierdzaniem i audytem agenta.
+Tak. Workflow n8n może wywołać HTTP API AgenticOS i otrzymać odpowiedź. Budżet agenta jest sprawdzany, a run zostaje zapisany w historii runów.
 
 ### Jak ceny n8n wypadają na tle AgenticOS? { #how-does-n8n-pricing-compare-with-agenticos }
 

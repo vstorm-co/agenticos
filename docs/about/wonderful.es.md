@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0452323f46"
+source_sha: "de6a961ce6a4"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: plataforma de IA empresarial propia"
 description: "Compara el AI OS empresarial entregado de Wonderful con AgenticOS, plataforma de agents open source que posees y operas, con ayuda de implementación de Vstorm."
@@ -32,7 +32,7 @@ Mantenido por el equipo de AgenticOS en Vstorm. Fuentes revisadas el 25 de septi
 
 Wonderful describe la exportación de agents, skills, herramientas y configuración de gobernanza, y una API headless. Es un compromiso real. El runtime sigue siendo cerrado, así que un agent exportado sigue necesitando un lugar donde ejecutarse.
 
-Con AgenticOS el runtime es la parte que posees. El código fuente es Apache-2.0, los specs [se exportan como YAML](../features.md#exportable-into-your-own-repository) a tu repositorio, y los datos están en [tu Postgres](../data-protection.md#where-personal-data-lives). Si te separas de Vstorm, el despliegue sigue funcionando y otro equipo puede operarlo.
+Con AgenticOS el runtime es la parte que posees. El código fuente es Apache-2.0, los specs [se exportan como YAML](../features.md#exportable-into-your-own-repository) a tu repositorio, y los datos están en almacenes que operas tú: Postgres, más los volúmenes de medios y de workspace que [cubre una copia de seguridad](../deploy.md#backups). Si te separas de Vstorm, el despliegue sigue funcionando y otro equipo puede operarlo.
 
 ### Un modelo de costes que puedes ver antes de firmar { #a-cost-model-you-can-see-before-you-sign }
 
@@ -84,7 +84,7 @@ Todavía no. Sus superficies son el chat web, un widget, una página alojada, la
 
 ### ¿Qué pasa si dejamos de trabajar con Vstorm? { #what-happens-if-we-stop-working-with-vstorm }
 
-El despliegue sigue funcionando. El código fuente es Apache-2.0, los specs se exportan como YAML y los datos están en tu Postgres, así que otro equipo puede operarlo.
+El despliegue sigue funcionando. El código fuente es Apache-2.0, los specs se exportan como YAML, y los datos están en almacenes que operas tú: Postgres más los volúmenes de medios y de workspace. Otro equipo puede operarlo.
 
 ## Comparativas relacionadas { #related-comparisons }
 

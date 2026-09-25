@@ -1,5 +1,5 @@
 ---
-source_sha: "cd3c14eb72c2"
+source_sha: "a4ea427a6641"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: alternatywa self-hosted"
 description: "Porównaj Google Gemini Enterprise z AgenticOS: dowolny model w każdym agencie, bez opłat za stanowisko i limitów budowania, osiem powierzchni, własne serwery."
@@ -73,7 +73,7 @@ Nie. Nie ma opłaty za stanowisko ani limitu tworzenia. Agent kosztuje tyle, ile
 
 ### Gdzie AgenticOS przechowuje dane? { #where-does-agenticos-store-data }
 
-W twoim własnym Postgresie, gdziekolwiek go wdrożysz. Z modelem hostowanym samodzielnie prompty nie opuszczają twojej sieci.
+W magazynach, które sam utrzymujesz, gdziekolwiek je wdrożysz: rozmowy, dokumenty i wektory w Postgresie, a pliki w wolumenie mediów albo w twoim buckecie S3. Z modelem hostowanym samodzielnie prompty nie opuszczają twojej sieci.
 
 ## Powiązane porównania { #related-comparisons }
 

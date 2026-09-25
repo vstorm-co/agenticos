@@ -45,7 +45,7 @@ OpenAI's limits apply to workspaces, groups and users, and OpenAI notes that an 
 
 ### Enterprise controls in every deployment
 
-On ChatGPT, SCIM, custom roles, the Compliance API and data residency are Enterprise-only. AgenticOS ships [directory group mappings](../directory.md#directory-group-mappings), [roles and grants](../permissions.md#layer-3-visibility-and-grants), a [tamper-evident audit log](../governance.md#audit) and [retention per data class](../governance.md#retention) in the Apache-2.0 product. Residency is wherever you deploy it.
+On ChatGPT, SCIM, custom roles, the Compliance API and data residency are Enterprise-only. AgenticOS ships [directory group mappings](../directory.md#directory-group-mappings), six built-in [roles with per-resource grants](../permissions.md#layer-3-visibility-and-grants), a [tamper-evident audit log](../governance.md#audit) and [retention per data class](../governance.md#retention) in the Apache-2.0 product. Custom roles and SCIM are not there yet. Your data stays wherever you deploy it.
 
 ### A platform that does not move under you
 
@@ -70,7 +70,7 @@ Build the [shared document agent](../howto/first-document-agent.md) as a workspa
 
 ### Is AgenticOS a self-hosted alternative to ChatGPT Enterprise?
 
-For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to eight surfaces with its own budget and audit trail. It does not replace ChatGPT as an assistant for every employee.
+For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to eight surfaces with its own budget and run history. It does not replace ChatGPT as an assistant for every employee.
 
 ### Can AgenticOS use OpenAI models?
 

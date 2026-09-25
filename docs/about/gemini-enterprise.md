@@ -72,7 +72,7 @@ No. There is no seat fee and no creation quota. An agent costs what its model ca
 
 ### Where does AgenticOS store data?
 
-In your own Postgres, wherever you deploy it. With a self-hosted model, prompts do not leave your network.
+In stores you run, wherever you deploy it: conversations, documents and vectors in Postgres, and files in a media volume or your S3 bucket. With a self-hosted model, prompts do not leave your network.
 
 ## Related comparisons
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "135a9b310e53"
+source_sha: "3689d8258a77"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
 description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
@@ -22,7 +22,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Inicio de sesión | Correo electrónico; SSO es Enterprise | Correo electrónico, Google, SSO OIDC, LDAP y Kerberos, con asignaciones de grupos del directorio |
 | Auditoría | Enterprise | Registro de auditoría con detección de manipulaciones, con exportación CSV y JSONL |
 | Control del gasto | Facturación del provider, o créditos de mensajes de Cloud | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
-| Aprobación humana | Un nodo Human Input en un workflow | Aprobación por capability y por herramienta; el run queda detenido hasta que alguien decide |
+| Aprobación humana | Un nodo Human Input en un workflow | Aprobación por capability y por herramienta para las herramientas de capability; el run queda detenido hasta que alguien decide. Las herramientas MCP no se controlan por herramienta |
 | Superficies | App web, embed, API, servidor MCP; Slack mediante un plugin | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
 | Kubernetes | Helm charts de la comunidad; la alta disponibilidad oficial es Enterprise | Docker Compose en un único host |
 
@@ -36,12 +36,14 @@ AgenticOS es Apache-2.0. Las [organizaciones](../concepts.md#organizations) son 
 
 ### Los controles que pide una empresa, en el producto de código abierto { #the-controls-an-enterprise-asks-for-in-the-open-source-product }
 
-La página de precios de Dify indica SSO como exclusivo de Enterprise, y su documentación sitúa los roles personalizados y los múltiples workspaces en Enterprise. En AgenticOS vienen en el producto Apache-2.0:
+La página de precios de Dify indica SSO como exclusivo de Enterprise, y su documentación sitúa los roles personalizados y los múltiples workspaces en Enterprise. AgenticOS incluye el inicio de sesión único y muchas organizaciones en el producto Apache-2.0, junto con:
 
 - [Inicio de sesión único OIDC](../configuration.md#single-sign-on-generic-oidc) con Entra, Okta, Keycloak y otros, [LDAP y Kerberos](../directory.md#signing-in-with-a-directory-account), y [asignaciones de grupos del directorio](../directory.md#directory-group-mappings) a roles.
 - [Seis roles y grants por recurso](../permissions.md#layer-3-visibility-and-grants) que amplían el acceso a un agent o una colección.
 - Un [registro de auditoría con detección de manipulaciones](../governance.md#audit), escrito en la misma transacción que la acción que registra.
 - [Periodos de retención](../governance.md#retention) por clase de datos, y [secretos con cifrado de sobre](../secrets.md#envelope-encryption) sellados por organización.
+
+Los seis roles son fijos. Los roles personalizados, igual que SCIM, todavía no están disponibles.
 
 ### Un budget que detiene la siguiente llamada al modelo { #a-budget-that-stops-the-next-model-call }
 
@@ -51,7 +53,7 @@ AgenticOS comprueba el [budget mensual](../governance.md#budgets) de cada agent 
 
 ### Aprobación en la herramienta, no solo en el flujo { #approval-on-the-tool-not-only-in-the-flow }
 
-El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solicitud se cierra tras la primera respuesta. En AgenticOS una [aprobación](../governance.md#approvals) se configura por capability y puede sobrescribirse por herramienta. El run queda detenido, las personas que elijas reciben una [alerta](../governance.md#alerts), y se rechaza una segunda decisión sobre una aprobación ya decidida.
+El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solicitud se cierra tras la primera respuesta. En AgenticOS una [aprobación](../governance.md#approvals) se configura por capability y puede sobrescribirse por herramienta. Cubre las herramientas de capability; una herramienta MCP solo se controla cuando una conversación del chat web pide aprobar todo. El run queda detenido, las personas que elijas reciben una [alerta](../governance.md#alerts), y se rechaza una segunda decisión sobre una aprobación ya decidida.
 
 ### Un cambio que puede hacer un equipo de negocio { #a-change-a-business-team-can-make }
 

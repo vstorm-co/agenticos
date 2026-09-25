@@ -44,7 +44,7 @@ Each cell is taken from the vendor's own pages; the guides link them. "Proprieta
 
 These run through every guide, so they are stated once here.
 
-- **The deployment is yours.** It runs on your hardware with your Postgres, and a fresh install sends nothing anywhere. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
+- **The deployment is yours.** It runs on your hardware with your own Postgres and storage, and a fresh install sends nothing anywhere. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
 - **Any model, switched in one place.** [27 providers](../models.md#providers) sit behind a [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks). Change the profile and every agent using it moves, without a republish.
 - **An agent is a versioned document.** Publishing freezes a [version](../concepts.md#version), [environments](../environments.md#what-an-environment-is) point at versions, and the spec [exports as YAML](../features.md#exportable-into-your-own-repository) into your own git repository.
 - **Governance is in the open-source product.** [Budgets](../governance.md#enforcement-is-before-the-request) are checked before each model request. [Approvals](../governance.md#approvals) park a run until someone decides. The [audit log](../governance.md#audit) is tamper-evident. None of it waits for an enterprise tier.
@@ -57,6 +57,7 @@ These run through every guide, so they are stated once here.
 
 A comparison that hides its own gaps is an advertisement. Check these against your requirements before a pilot.
 
+- Roles are the six built-in ones; custom roles are not available yet.
 - Sign-in has no SAML or SCIM yet; SAML works through an identity broker such as Keycloak. See [what directory sign-in does not do yet](../directory.md#what-this-does-not-do-yet).
 - There is no evaluation harness and no trace dashboard. Ratings and run history exist. See [where it is not finished](index.md#where-this-one-is-not-finished).
 - There is no Microsoft Teams, WhatsApp, voice or email conversation channel.

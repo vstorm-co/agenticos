@@ -1,5 +1,5 @@
 ---
-source_sha: "1a0452323f46"
+source_sha: "de6a961ce6a4"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: eine KI-Plattform, die Ihnen gehört"
 description: "Wonderfuls geliefertes Enterprise-AI-OS im Vergleich mit AgenticOS, einer Open-Source-Agent-Plattform, die Sie besitzen und betreiben, mit Hilfe von Vstorm."
@@ -32,7 +32,7 @@ Verantwortlich: das AgenticOS-Team bei Vstorm. Quellen geprüft am 25. September
 
 Wonderful beschreibt Exporte von Agents, Skills, Werkzeugen und Governance-Konfiguration sowie eine Headless-API. Das ist eine echte Zusage. Die Laufzeitumgebung bleibt geschlossen, sodass ein exportierter Agent weiterhin einen Ort braucht, an dem er läuft.
 
-Bei AgenticOS ist die Laufzeitumgebung der Teil, der Ihnen gehört. Der Quellcode steht unter Apache-2.0, Specs [werden als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr Repository, und die Daten liegen in [Ihrem Postgres](../data-protection.md#where-personal-data-lives). Wenn Sie sich von Vstorm trennen, läuft die Bereitstellung weiter, und ein anderes Team kann sie betreiben.
+Bei AgenticOS ist die Laufzeitumgebung der Teil, der Ihnen gehört. Der Quellcode steht unter Apache-2.0, Specs [werden als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr Repository, und die Daten liegen in Speichern, die Sie betreiben: Postgres sowie die Media- und Workspace-Volumes, die [ein Backup abdeckt](../deploy.md#backups). Wenn Sie sich von Vstorm trennen, läuft die Bereitstellung weiter, und ein anderes Team kann sie betreiben.
 
 ### Ein Kostenmodell, das Sie vor der Unterschrift sehen { #a-cost-model-you-can-see-before-you-sign }
 
@@ -84,7 +84,7 @@ Noch nicht. Seine Oberflächen sind Web-Chat, ein Widget, eine gehostete Seite, 
 
 ### Was passiert, wenn wir die Zusammenarbeit mit Vstorm beenden? { #what-happens-if-we-stop-working-with-vstorm }
 
-Die Bereitstellung läuft weiter. Der Quellcode steht unter Apache-2.0, Specs werden als YAML exportiert und die Daten liegen in Ihrem Postgres, sodass ein anderes Team sie betreiben kann.
+Die Bereitstellung läuft weiter. Der Quellcode steht unter Apache-2.0, Specs werden als YAML exportiert, und die Daten liegen in Speichern, die Sie betreiben: Postgres sowie Media- und Workspace-Volumes. Ein anderes Team kann sie betreiben.
 
 ## Verwandte Vergleiche { #related-comparisons }
 

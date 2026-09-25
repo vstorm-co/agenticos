@@ -1,5 +1,5 @@
 ---
-source_sha: "cd3c14eb72c2"
+source_sha: "a4ea427a6641"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
 description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
@@ -73,7 +73,7 @@ Nein. Es gibt keine Platzgebühr und kein Erstellungskontingent. Ein Agent koste
 
 ### Wo speichert AgenticOS Daten? { #where-does-agenticos-store-data }
 
-In Ihrem eigenen Postgres, wo auch immer Sie es bereitstellen. Mit einem selbst gehosteten Modell verlassen Prompts Ihr Netzwerk nicht.
+In Speichern, die Sie betreiben, wo auch immer Sie es bereitstellen: Unterhaltungen, Dokumente und Vektoren in Postgres und Dateien in einem Media-Volume oder Ihrem S3-Bucket. Mit einem selbst gehosteten Modell verlassen Prompts Ihr Netzwerk nicht.
 
 ## Verwandte Vergleiche { #related-comparisons }
 

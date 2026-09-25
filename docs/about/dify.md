@@ -21,7 +21,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Sign-in | Email; SSO is Enterprise | Email, Google, OIDC SSO, LDAP and Kerberos, with directory group mappings |
 | Audit | Enterprise | Tamper-evident audit log with CSV and JSONL export |
 | Spend control | Provider billing, or Cloud message credits | A monthly budget per agent and per organization, checked before each model request |
-| Human approval | A Human Input node in a workflow | Approval per capability and per tool; the run parks until someone decides |
+| Human approval | A Human Input node in a workflow | Approval per capability and per tool for capability tools; the run parks until someone decides. MCP tools are not gated per tool |
 | Surfaces | Web app, embed, API, MCP server; Slack through a plugin | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Kubernetes | Community Helm charts; official high availability is Enterprise | Docker Compose on one host |
 
@@ -35,12 +35,14 @@ AgenticOS is Apache-2.0. [Organizations](../concepts.md#organizations) are tenan
 
 ### The controls an enterprise asks for, in the open-source product
 
-The Dify pricing page lists SSO as Enterprise-only, and its documentation puts custom roles and multiple workspaces in Enterprise. In AgenticOS these ship in the Apache-2.0 product:
+The Dify pricing page lists SSO as Enterprise-only, and its documentation puts custom roles and multiple workspaces in Enterprise. AgenticOS ships single sign-on and many organizations in the Apache-2.0 product, along with:
 
 - [OIDC single sign-on](../configuration.md#single-sign-on-generic-oidc) with Entra, Okta, Keycloak and others, [LDAP and Kerberos](../directory.md#signing-in-with-a-directory-account), and [directory group mappings](../directory.md#directory-group-mappings) to roles.
 - [Six roles and per-resource grants](../permissions.md#layer-3-visibility-and-grants) that widen access to one agent or collection.
 - A [tamper-evident audit log](../governance.md#audit), written in the same transaction as the action it records.
 - [Retention periods](../governance.md#retention) per data class, and [envelope-encrypted secrets](../secrets.md#envelope-encryption) sealed per organization.
+
+The six roles are fixed. Custom roles, like SCIM, are not available yet.
 
 ### A budget that stops the next model call
 
@@ -50,7 +52,7 @@ AgenticOS checks each agent's [monthly budget](../governance.md#budgets) and the
 
 ### Approval on the tool, not only in the flow
 
-Dify's Human Input node pauses a workflow and sends a form, and the request closes after the first response. In AgenticOS an [approval](../governance.md#approvals) is set per capability and can be overridden per tool. The run parks, the people you choose are [alerted](../governance.md#alerts), and a second decision on a decided approval is refused.
+Dify's Human Input node pauses a workflow and sends a form, and the request closes after the first response. In AgenticOS an [approval](../governance.md#approvals) is set per capability and can be overridden per tool. It covers capability tools; an MCP tool is gated only when a web-chat conversation asks about everything. The run parks, the people you choose are [alerted](../governance.md#alerts), and a second decision on a decided approval is refused.
 
 ### A change a business team can make
 

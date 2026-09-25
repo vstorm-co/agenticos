@@ -1,5 +1,5 @@
 ---
-source_sha: "6daf4c941912"
+source_sha: "b7162a5c58d3"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternativa autoalojada"
 description: "Compara Microsoft Copilot Studio con AgenticOS: sin Copilot Credits, cualquier provider de modelos, tu infraestructura, budgets por agent y auditoría abierta."
@@ -31,7 +31,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 
 ### Una factura que puedes prever a partir del precio del modelo { #a-bill-you-can-predict-from-the-model-price }
 
-Copilot Studio mide cada función en créditos, añade una tarifa premium para los modelos de razonamiento y factura su harness más reciente de GitHub Copilot desde el momento en que empiezas a construir. AgenticOS registra el coste propio del modelo en [cada run](../governance.md#what-run-history-shows) a partir de una instantánea de precios incluida. El [budget](../governance.md#budgets) de un agent se comprueba [antes de cada petición al modelo](../governance.md#enforcement-is-before-the-request), en lugar de desactivar el agent cuando se agota la capacidad.
+Copilot Studio mide cada función en créditos, añade una tarifa premium para los modelos de razonamiento y factura su harness más reciente de GitHub Copilot desde el momento en que empiezas a construir. AgenticOS registra el coste propio del modelo en [cada run](../governance.md#what-run-history-shows) a partir de una instantánea de precios incluida. Un modelo demasiado nuevo para la instantánea se registra como [parcialmente tarifado](../models.md#what-a-run-costs), y un provider autoalojado sin clave no registra gasto. El [budget](../governance.md#budgets) de un agent se comprueba [antes de cada petición al modelo](../governance.md#enforcement-is-before-the-request), en lugar de desactivar el agent cuando se agota la capacidad.
 
 ### Cualquier nube, o ninguna { #any-cloud-or-none }
 
@@ -57,7 +57,7 @@ AgenticOS inicia la sesión de las personas con Entra ID a través de [OIDC](../
 
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
-Construye el [agent documental compartido](../howto/first-document-agent.md) en ambos, con modelos comparables. Lanza cien preguntas y compara la factura: créditos en un lado, coste del modelo en el otro. Después comprueba qué ocurre cuando se alcanza el límite. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
+Construye el [agent documental compartido](../howto/first-document-agent.md) en ambos, con modelos comparables. Lanza cien preguntas y compara la factura: créditos en un lado, coste del modelo en el otro. Elige un modelo que cubra la instantánea de precios, para que la cifra de AgenticOS sea completa. Después comprueba qué ocurre cuando se alcanza el límite. Registra el resultado con el [método de comparación](comparison.md#a-shared-trial).
 
 ## Preguntas frecuentes { #frequently-asked-questions }
 

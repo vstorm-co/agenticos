@@ -1,5 +1,5 @@
 ---
-source_sha: "6daf4c941912"
+source_sha: "b7162a5c58d3"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: selbst gehostete Alternative"
 description: "Microsoft Copilot Studio vs. AgenticOS: keine Copilot Credits, jeder Modell-Provider, Ihre eigene Infrastruktur, Budgets pro Agent und offenes Audit."
@@ -31,7 +31,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 
 ### Eine Rechnung, die sich aus dem Modellpreis vorhersagen lässt { #a-bill-you-can-predict-from-the-model-price }
 
-Copilot Studio misst jede Funktion in Credits, schlägt für Reasoning-Modelle einen Premiumtarif auf und rechnet seinen neueren GitHub-Copilot-Harness ab dem Moment ab, in dem Sie mit dem Erstellen beginnen. AgenticOS erfasst die eigenen Kosten des Modells für [jeden Run](../governance.md#what-run-history-shows) anhand eines mitgelieferten Preis-Snapshots. Das [Budget](../governance.md#budgets) eines Agents wird [vor jeder Modellanfrage](../governance.md#enforcement-is-before-the-request) geprüft, statt den Agent zu deaktivieren, sobald die Kapazität aufgebraucht ist.
+Copilot Studio misst jede Funktion in Credits, schlägt für Reasoning-Modelle einen Premiumtarif auf und rechnet seinen neueren GitHub-Copilot-Harness ab dem Moment ab, in dem Sie mit dem Erstellen beginnen. AgenticOS erfasst die eigenen Kosten des Modells bei [jedem Run](../governance.md#what-run-history-shows) anhand eines mitgelieferten Preis-Snapshots. Ein Modell, das für den Snapshot zu neu ist, wird als [teilweise bepreist](../models.md#what-a-run-costs) erfasst, und ein selbst gehosteter Provider ohne Key erfasst keine Ausgaben. Das [Budget](../governance.md#budgets) eines Agents wird [vor jeder Modellanfrage](../governance.md#enforcement-is-before-the-request) geprüft, statt den Agent zu deaktivieren, sobald die Kapazität aufgebraucht ist.
 
 ### Jede Cloud, oder keine { #any-cloud-or-none }
 
@@ -57,7 +57,7 @@ AgenticOS meldet Personen mit Entra ID über [OIDC](../configuration.md#single-s
 
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
 
-Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) in beiden, auf vergleichbaren Modellen. Stellen Sie hundert Fragen und vergleichen Sie die Rechnung: Credits auf der einen Seite, Modellkosten auf der anderen. Prüfen Sie dann, was passiert, wenn das Limit erreicht ist. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
+Erstellen Sie den [gemeinsamen Dokumenten-Agent](../howto/first-document-agent.md) in beiden, auf vergleichbaren Modellen. Stellen Sie hundert Fragen und vergleichen Sie die Rechnung: Credits auf der einen Seite, Modellkosten auf der anderen. Wählen Sie ein Modell, das der Preis-Snapshot abdeckt, damit der Wert in AgenticOS vollständig ist. Prüfen Sie dann, was passiert, wenn das Limit erreicht ist. Erfassen Sie das Ergebnis mit der [Vergleichsmethode](comparison.md#a-shared-trial).
 
 ## Häufig gestellte Fragen { #frequently-asked-questions }
 

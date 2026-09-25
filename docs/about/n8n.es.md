@@ -1,5 +1,5 @@
 ---
-source_sha: "7eecc52a021f"
+source_sha: "6a4832545d9e"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
 description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
@@ -25,7 +25,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 25 de septiembre de 2
 | Entornos y control de versiones | Business y superiores | Entornos y exportación a YAML en todos los despliegues |
 | Control del gasto | Cuotas de ejecuciones por plan | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Auditoría | Log streaming en Enterprise | Registro de auditoría con evidencia de manipulación en todos los despliegues |
-| Aprobación humana | Por herramienta, a través de nueve canales de revisión | Por capability y por herramienta, a través de una cola compartida |
+| Aprobación humana | Por herramienta, a través de nueve canales de revisión | Por capability y por herramienta para las herramientas de capability, a través de una cola compartida; las herramientas MCP no se controlan por herramienta |
 | Precio | Community gratis; Cloud desde 20 € al mes por 2500 ejecuciones, con facturación anual; Business a 667 € al mes, autoalojado | Sin cuota de licencia; uso del modelo e infraestructura |
 
 ## Dónde AgenticOS va más allá { #where-agenticos-goes-further }
@@ -47,7 +47,7 @@ En n8n, el SSO, los proyectos, los entornos, el control de versiones con Git y e
 
 ### Dinero, no ejecuciones { #money-not-executions }
 
-n8n cuenta ejecuciones, y un turno de un agent es una ejecución, gaste lo que gaste el modelo. Su documentación no describe ningún budget sobre tokens o coste del modelo. AgenticOS mide lo que de verdad cuesta dinero. El [budget](../governance.md#budgets) de cada agent se comprueba [antes de cada petición al modelo](../governance.md#enforcement-is-before-the-request), el [trabajo delegado](../governance.md#delegation-spends-the-parents-budget) cuenta contra el agent padre y la [pantalla de costes](../governance.md#what-the-cost-screen-shows) muestra el gasto por agent.
+n8n cuenta ejecuciones, y un turno de un agent es una ejecución, gaste lo que gaste el modelo. Su documentación no describe ningún budget sobre tokens o coste del modelo. AgenticOS mide el coste del modelo, tarifado a partir de una instantánea de precios incluida. El [budget](../governance.md#budgets) de cada agent se comprueba [antes de cada petición al modelo](../governance.md#enforcement-is-before-the-request), el [trabajo delegado](../governance.md#delegation-spends-the-parents-budget) cuenta contra el agent padre y la [pantalla de costes](../governance.md#what-the-cost-screen-shows) muestra el gasto por agent.
 
 ### Un agent que el responsable de negocio puede cambiar { #an-agent-a-business-owner-can-change }
 
@@ -65,7 +65,7 @@ n8n construye la recuperación con nodos: loaders, embeddings y un almacén vect
 
 ## Úsalos juntos { #use-them-together }
 
-Un workflow de n8n puede llamar a un agent de AgenticOS a través de la [API HTTP](../channels.md#the-public-api) y recibir la respuesta, con el budget, la aprobación y la auditoría aplicados. Un [trigger de webhook](../triggers.md) de AgenticOS puede iniciar un agent cuando n8n le envía un POST.
+Un workflow de n8n puede llamar a un agent de AgenticOS a través de la [API HTTP](../channels.md#the-public-api) y recibir la respuesta. Se comprueba el budget del agent, se aplican sus aprobaciones de capability y el run queda registrado en el [historial de runs](../governance.md#what-run-history-shows). Un [trigger de webhook](../triggers.md) de AgenticOS puede iniciar un agent cuando n8n le envía un POST.
 
 ## Pruébalo con una tarea { #try-it-on-one-task }
 
@@ -83,7 +83,7 @@ No en el sentido de la OSI. Su Sustainable Use License permite el uso empresaria
 
 ### ¿n8n puede llamar a un agent de AgenticOS? { #can-n8n-call-an-agenticos-agent }
 
-Sí. Un workflow de n8n puede llamar a la API HTTP de AgenticOS y recibir la respuesta, con el budget, las aprobaciones y la auditoría del agent aplicados.
+Sí. Un workflow de n8n puede llamar a la API HTTP de AgenticOS y recibir la respuesta. Se comprueba el budget del agent y el run queda registrado en el historial de runs.
 
 ### ¿Cómo se comparan los precios de n8n y AgenticOS? { #how-does-n8n-pricing-compare-with-agenticos }
 
