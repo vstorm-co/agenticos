@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9ab7228bc5"
+source_sha: "4748c414939a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -102,15 +102,21 @@ ruta de retorno:
 | Modo | Lo que recibe el modelo |
 |---|---|
 | `off` | Solo el fragmento coincidente — el valor por defecto, sin cambios |
-| `window` | El fragmento coincidente más sus vecinos en el mismo documento |
-| `parent` | Todos los fragmentos del documento padre, en orden |
+| `window` | El fragmento coincidente con el fragmento anterior y el siguiente del mismo documento |
+| `parent` | El fragmento coincidente con tanto de su documento alrededor como quepa, el texto más cercano primero |
 
-La expansión nunca cambia qué fragmentos coincidieron, sus puntuaciones ni sus
-citas, y permanece dentro del propio ámbito de inquilino y colección de quien
-llama: extrae los hermanos de un documento ya coincidente, que llevan la misma
-etiqueta de inquilino. El contexto devuelto está acotado por resultado y por turno
-(ajustes del deployment), y las ventanas superpuestas se deduplican, de modo que
-un documento amplio no puede inundar el contexto del modelo.
+El fragmento coincidente nunca se acorta. Solo el texto añadido a su alrededor
+cuenta contra dos límites fijos - 8.000 caracteres por resultado y 24.000 por
+búsqueda -, así que activar el modo nunca le muestra al modelo menos que `off`.
+Un pasaje sigue siendo continuo: crece hacia fuera desde la coincidencia y se
+detiene en el primer fragmento que no cabe o que ya se devolvió con un resultado
+anterior, de modo que nunca se une texto que no era contiguo en el documento.
+
+Los fragmentos se leen por su posición alrededor de la coincidencia, nunca el
+documento entero, y la expansión permanece dentro del propio ámbito de inquilino y
+colección de quien llama. Nunca cambia qué fragmentos coincidieron, sus
+puntuaciones ni sus citas; una cita dice `with surrounding text` cuando el pasaje
+va más allá del fragmento que nombra.
 
 Vinculada sin colecciones, esta capability no aporta **nada**: no se adjunta en
 absoluto. Una herramienta de búsqueda que siempre devuelve vacío es peor que no

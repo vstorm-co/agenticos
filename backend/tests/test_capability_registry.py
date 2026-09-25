@@ -49,7 +49,6 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
 from app.services.capability_contracts import real_tool_definition
-from app.services.rag.models import ParentContextMode
 
 
 @pytest.fixture(autouse=True)
@@ -600,13 +599,20 @@ class TestConfigValidation:
     def test_a_valid_parent_context_mode_is_parsed(self):
         config = get("knowledge").validate_config({"parent_context": "window"})
         assert isinstance(config, KnowledgeConfig)
-        assert config.parent_context is ParentContextMode.WINDOW
+        assert config.parent_context == "window"
 
     def test_parent_context_defaults_to_off_when_omitted(self):
         """An old spec whose config predates the field takes the default (#1651)."""
         config = get("knowledge").validate_config({"default_top_k": 5})
         assert isinstance(config, KnowledgeConfig)
-        assert config.parent_context is ParentContextMode.OFF
+        assert config.parent_context == "off"
+
+    def test_the_builder_is_offered_the_parent_context_modes_as_a_choice(self):
+        """An inline `enum` is what the schema form renders as a select; an enum
+        class reaches the schema as a `$ref` and became a free-text box."""
+        field = KnowledgeConfig.model_json_schema()["properties"]["parent_context"]
+        assert field["enum"] == ["off", "window", "parent"]
+        assert set(field["x-enum-labels"]) == {"off", "window", "parent"}
 
     def test_an_unknown_parent_context_mode_is_refused_at_publish(self):
         """The Builder marks the field rather than a run failing later."""

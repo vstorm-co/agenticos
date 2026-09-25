@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9ab7228bc5"
+source_sha: "4748c414939a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -104,15 +104,22 @@ otaczającego kontekstu jest *zwracane* wraz z każdym trafieniem, składanego n
 | Tryb | Co otrzymuje model |
 |---|---|
 | `off` | Sam dopasowany fragment — wartość domyślna, zachowanie bez zmian |
-| `window` | Dopasowany fragment plus jego sąsiedzi w tym samym dokumencie |
-| `parent` | Wszystkie fragmenty dokumentu nadrzędnego, w kolejności |
+| `window` | Dopasowany fragment z fragmentem przed nim i po nim w tym samym dokumencie |
+| `parent` | Dopasowany fragment z taką częścią dokumentu wokół niego, jaka się zmieści, najbliższy tekst najpierw |
 
-Rozszerzenie nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
-wyników ani cytowań, i pozostaje w obrębie własnego zakresu najemcy i kolekcji
-wywołującego — pobiera rodzeństwo już dopasowanego dokumentu, które nosi ten sam
-znacznik najemcy. Zwracany kontekst jest ograniczony na wynik i na turę
-(ustawienia deploymentu), a nakładające się okna są deduplikowane, więc szeroki
-dokument nie zaleje kontekstu modelu.
+Dopasowany fragment nigdy nie jest skracany. Do dwóch stałych limitów - 8 000
+znaków na wynik i 24 000 na wyszukiwanie - liczy się tylko tekst dodany wokół
+niego, więc włączenie trybu nigdy nie pokaże modelowi mniej niż `off`. Fragment
+pozostaje ciągły: rośnie na zewnątrz od dopasowania i zatrzymuje się na pierwszym
+fragmencie, który się nie mieści albo został już zwrócony z wcześniejszym
+wynikiem, więc tekst, który nie sąsiadował w dokumencie, nigdy nie zostaje
+sklejony.
+
+Fragmenty są czytane według pozycji wokół dopasowania, nigdy cały dokument, a
+rozszerzenie pozostaje w obrębie własnego zakresu najemcy i kolekcji
+wywołującego. Nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
+wyników ani cytowań; cytowanie mówi `with surrounding text`, gdy fragment sięga
+poza wskazany chunk.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze

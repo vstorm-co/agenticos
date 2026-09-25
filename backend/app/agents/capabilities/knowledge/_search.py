@@ -95,8 +95,12 @@ def _format_results(results: list[Any]) -> str:
         # context, else the matched chunk itself (#1651). The score and citation
         # stay the matched chunk's; only the text the model reads grows.
         body = result.expanded_content or result.content
+        # The page and chunk name the match; said so when the passage below
+        # reaches past it, so a citation is not read as covering the whole text.
+        context_info = ", with surrounding text" if result.expanded_content else ""
         formatted.append(
-            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info} (score: {result.score:.3f})\n"
+            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info}{context_info} "
+            f"(score: {result.score:.3f})\n"
             f"{body}"
         )
     return (

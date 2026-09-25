@@ -24,16 +24,18 @@ the model grows.
 | Mode | What the model receives |
 |---|---|
 | `off` (default) | The matched chunk alone - identical to the pre-#1651 behaviour |
-| `window` | The matched chunk plus its neighbours in the same document |
-| `parent` | The whole parent document's chunks, in order |
+| `window` | The matched chunk with the chunk before and after it |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest first |
 
-Expansion happens on the return path only - it never changes which chunks
-matched, their scores or their citations. It stays inside the caller's own
-retrieval scope (it pulls siblings of an already-matched `parent_doc_id`, which
-carries the same tenant tag), and it is bounded per result and per turn by the
-deployment-level `parent_context_*` settings in `RAGSettings`, so a wide
-document cannot blow the model's context budget. Overlapping windows are
-de-duplicated across results.
+Expansion happens on the return path only (`app/services/rag/parent_context.py`) -
+it never changes which chunks matched, their scores or their citations. The
+matched chunk is never shortened: only added text is charged against the fixed
+limits in that module (8,000 characters per result, 24,000 per search). A
+passage stays contiguous - it closes a direction at the first chunk that does not
+fit or was already returned - and the chunks are read by position around the
+match (`get_chunks_around`), never the whole document. Siblings are read under
+the tenant the match was found under; an unscoped maintenance search is not
+expanded.
 
 The capability builds to `None` when no collection is bound: advertising a
 search tool that always returns empty is worse than not having one, because the

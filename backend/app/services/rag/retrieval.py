@@ -4,7 +4,7 @@ import hashlib
 import logging
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from uuid import UUID
 
 from rank_bm25 import BM25Okapi
@@ -14,12 +14,11 @@ from app.services.rag.filters import (
     RetrievalFilters,
     RetrievalQuery,
     RetrievalScope,
-    TenantScope,
-    UnscopedScope,
     compose,
     scope_for_tenant,
 )
-from app.services.rag.models import DocumentChunk, ParentContextMode, SearchResult
+from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.parent_context import expand_context, expansion_tenant
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
@@ -29,114 +28,6 @@ def _result_key(r: SearchResult) -> str:
     if r.parent_doc_id:
         return f"{r.parent_doc_id}:{r.metadata.get('chunk_num', '')}"
     return hashlib.md5(r.content.encode()).hexdigest()
-
-
-def _expansion_tenant(scope: RetrievalScope, result: SearchResult) -> UUID | None:
-    """The tenant a matched result's siblings are read back under (#1651).
-
-    Expansion must read siblings under the same tenant the match itself was found
-    under, or a shared collection name expands into another organization's chunks.
-
-    - `TenantScope` searched one organization's rows, so its siblings are that
-      organization's.
-    - `AppScope` searched the untagged, deployment-wide rows (`IS NULL`), so `None`.
-    - `UnscopedScope` applies no tenant conjunct, so a single maintenance search
-      can match rows from any tenant. Reading their siblings under a blanket `None`
-      would read only untagged rows - missing a tenant match's own document, or
-      attaching an unrelated untagged document that happens to share its
-      `parent_doc_id`. So an unscoped result's siblings are read under the tenant
-      stamped on the matched row itself (`metadata['organization_id']`, written by
-      `_build_chunk_metadata`), which is the tenant it was indexed under.
-    """
-    if isinstance(scope, TenantScope):
-        return scope.organization_id
-    if isinstance(scope, UnscopedScope):
-        org = result.metadata.get("organization_id")
-        return UUID(org) if org else None
-    return None
-
-
-def _assemble_passage(
-    selected: list[DocumentChunk],
-    match_pos: int | None,
-    parent_doc_id: str,
-    emitted: set[tuple[str, int, int]],
-    cap: int,
-) -> str:
-    """Join `selected` chunks into one passage of at most `cap` characters.
-
-    The matched chunk (`match_pos`) is always included and the passage grows
-    outward from it, nearest neighbours first, so a match deep in a long parent
-    document keeps its own text instead of being truncated away in favour of the
-    document's opening - the failure a naive join-then-truncate produces, where a
-    result still carries the match's citation and score but not the matched text.
-
-    A neighbour already emitted for an earlier result is skipped, but the matched
-    chunk is kept even when it was already emitted. Growth stops in a direction the
-    moment a chunk there does not fit the remaining budget, rather than skipping it
-    for a smaller chunk farther out: the passage is joined in document order, so a
-    farther chunk that jumped a too-large gap would present non-adjacent text as one
-    continuous passage. The kept chunks are joined in document order, and `emitted`
-    is updated with what is kept.
-    """
-    if cap <= 0 or not selected:
-        return ""
-    sep = "\n\n"
-
-    chosen: set[int] = set()
-    used = 0
-
-    def _keep(pos: int) -> str:
-        """Try to keep chunk `pos`. 'kept', 'deduped' (carried by an earlier result,
-        skipped without stopping the run), or 'full' (would overflow the budget)."""
-        nonlocal used
-        chunk = selected[pos]
-        if (parent_doc_id, chunk.page_num, chunk.chunk_num) in emitted:
-            return "deduped"
-        add_len = len(chunk.content) + (len(sep) if chosen else 0)
-        if used + add_len > cap:
-            return "full"
-        chosen.add(pos)
-        used += add_len
-        return "kept"
-
-    if match_pos is None:
-        # No located match (parent mode with missing chunk coordinates): fall back
-        # to a contiguous run from the document's start, stopping at the first chunk
-        # that does not fit rather than splicing a smaller later one over the gap.
-        for pos in range(len(selected)):
-            if _keep(pos) == "full":
-                break
-    else:
-        # The match is kept whatever the budget; the passage then grows outward from
-        # it, nearest neighbours first, and a direction closes as soon as a chunk
-        # there does not fit so the run stays contiguous.
-        chosen.add(match_pos)
-        used += len(selected[match_pos].content)
-        left, right = match_pos - 1, match_pos + 1
-        left_open = right_open = True
-        while left_open or right_open:
-            if left_open:
-                if left < 0 or _keep(left) == "full":
-                    left_open = False
-                else:
-                    left -= 1
-            if right_open:
-                if right >= len(selected) or _keep(right) == "full":
-                    right_open = False
-                else:
-                    right += 1
-
-    pieces: list[str] = []
-    for pos in sorted(chosen):
-        chunk = selected[pos]
-        emitted.add((parent_doc_id, chunk.page_num, chunk.chunk_num))
-        pieces.append(chunk.content)
-    passage = sep.join(pieces)
-    if len(passage) > cap:
-        # Only an oversize matched chunk can exceed the cap; keep it, bounded.
-        passage = passage[:cap]
-    return passage
 
 
 class BaseRetrievalService(ABC):
@@ -354,11 +245,10 @@ class RetrievalService(BaseRetrievalService):
         # dedup above are untouched and operate on the small chunks; this only
         # attaches surrounding context to what was already selected, so `OFF`
         # returns exactly what the pre-#1651 path did.
-        if parent_context is not ParentContextMode.OFF:
-            await self._expand_context(
-                final_results,
-                parent_context,
-                lambda r: (collection_name, _expansion_tenant(scope, r)),
+        expandable, tenant = expansion_tenant(scope)
+        if expandable:
+            await expand_context(
+                self.store, final_results, parent_context, lambda _: (collection_name, tenant)
             )
 
         total_time = time.time() - start_time
@@ -369,107 +259,6 @@ class RetrievalService(BaseRetrievalService):
         )
 
         return final_results
-
-    async def _expand_context(
-        self,
-        results: list[SearchResult],
-        mode: ParentContextMode,
-        resolve_fetch: Callable[[SearchResult], tuple[str, UUID | None] | None],
-    ) -> None:
-        """Attach window/parent context to each result, in place and bounded.
-
-        Small-to-big: the results are the precise matched chunks, and this pulls
-        the larger surrounding context for the model without changing which
-        chunks matched or how they ranked.
-
-        `resolve_fetch` gives the collection and resolved tenant a result's
-        siblings are read under. A single-collection search binds both once; a
-        multi-collection search resolves them per result from the scope it
-        authorized for that result's own collection, so a result's siblings are
-        read under the same tenant that matched it.
-
-        Scope is preserved because the sibling fetch runs through the same
-        tenant-scoped `get_document_chunks` the rest of the store uses: it reads
-        only the resolved tenant's rows (`TenantScope`'s organization, `None` -
-        the untagged, deployment-wide rows - for an app-scoped or unscoped
-        search), so a collection name shared across tenants cannot expand into
-        another organization's chunks. Every sibling shares the matched chunk's
-        `parent_doc_id`, which already passed the scope's tenant and
-        authorization conjuncts, so no chunk outside scope is reachable here.
-
-        Bounded twice: `parent_context_max_chars_per_result` caps one result's
-        passage and `parent_context_max_chars_per_turn` caps the whole turn -
-        one budget across every result passed here, so a multi-collection search
-        cannot exceed the per-turn bound by expanding each collection on its own
-        counter. Overlapping windows are de-duplicated across results, and the
-        matched chunk is always kept (the passage grows outward from it) so it
-        stays independently citable. A document is fetched once per turn however
-        many of its chunks matched.
-        """
-        window_size = self.settings.parent_context_window_size
-        per_result_cap = self.settings.parent_context_max_chars_per_result
-        turn_cap = self.settings.parent_context_max_chars_per_turn
-
-        turn_used = 0
-        # (parent_doc_id, page_num, chunk_num) already returned this turn.
-        emitted: set[tuple[str, int, int]] = set()
-        # One document's chunks, keyed by (collection, tenant, parent_doc_id) - every
-        # argument the sibling read is made under - so several matches from the same
-        # document do not each re-read and re-sort it, and a cache hit can never serve
-        # chunks fetched under a different tenant.
-        doc_cache: dict[tuple[str, UUID | None, str], list[DocumentChunk]] = {}
-
-        for result in results:
-            if turn_used >= turn_cap:
-                break
-            parent_doc_id = result.parent_doc_id
-            # A result whose origin is unknown (the content-hash dedup fallback
-            # key) has no document to expand from.
-            if not parent_doc_id:
-                continue
-            fetch = resolve_fetch(result)
-            if fetch is None:
-                continue
-            collection_name, tenant = fetch
-
-            cache_key = (collection_name, tenant, parent_doc_id)
-            doc_chunks = doc_cache.get(cache_key)
-            if doc_chunks is None:
-                doc_chunks = await self.store.get_document_chunks(
-                    collection_name, parent_doc_id, tenant
-                )
-                doc_cache[cache_key] = doc_chunks
-            if not doc_chunks:
-                continue
-
-            match_page = int(result.metadata.get("page_num", 0) or 0)
-            match_chunk = int(result.metadata.get("chunk_num", 0) or 0)
-            match_index = next(
-                (
-                    i
-                    for i, chunk in enumerate(doc_chunks)
-                    if chunk.page_num == match_page and chunk.chunk_num == match_chunk
-                ),
-                None,
-            )
-
-            if mode is ParentContextMode.WINDOW:
-                if match_index is None:
-                    continue
-                low = max(0, match_index - window_size)
-                high = min(len(doc_chunks), match_index + window_size + 1)
-                selected = doc_chunks[low:high]
-                selected_match: int | None = match_index - low
-            else:  # PARENT: the whole parent document, in order.
-                selected = doc_chunks
-                selected_match = match_index
-
-            cap = min(per_result_cap, turn_cap - turn_used)
-            passage = _assemble_passage(selected, selected_match, parent_doc_id, emitted, cap)
-            if not passage:
-                continue
-            turn_used += len(passage)
-            result.expanded_content = passage
 
     async def retrieve_multi(
         self,
@@ -545,18 +334,15 @@ class RetrievalService(BaseRetrievalService):
         final = deduped[:limit]
 
         # One expansion pass over the merged, cut-to-limit results under a single
-        # per-turn budget. Each result's siblings are read under the scope this
-        # search resolved for that result's own collection (set on the result's
-        # `metadata["collection"]` by `retrieve`), so scope is preserved exactly
-        # as in the single-collection path.
-        if parent_context is not ParentContextMode.OFF:
+        # budget. Each result's siblings are read under the scope this search
+        # resolved for that result's own collection - `retrieve` stamps
+        # `metadata["collection"]` and every collection searched is in `scopes` -
+        # so scope is preserved exactly as in the single-collection path.
+        def resolve_fetch(result: SearchResult) -> tuple[str, UUID | None] | None:
+            collection = str(result.metadata["collection"])
+            expandable, tenant = expansion_tenant(scopes[collection])
+            return (collection, tenant) if expandable else None
 
-            def resolve_fetch(result: SearchResult) -> tuple[str, UUID | None] | None:
-                collection = result.metadata.get("collection")
-                if collection is None or collection not in scopes:
-                    return None
-                return collection, _expansion_tenant(scopes[collection], result)
-
-            await self._expand_context(final, parent_context, resolve_fetch)
+        await expand_context(self.store, final, parent_context, resolve_fetch)
 
         return final

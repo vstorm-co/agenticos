@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability
@@ -23,15 +23,23 @@ class KnowledgeConfig(BaseModel):
         le=50,
         description="Passages returned when the model does not ask for a number",
     )
-    parent_context: ParentContextMode = Field(
-        default=ParentContextMode.OFF,
+    # A `Literal`, not the `ParentContextMode` enum: the Builder's schema form
+    # renders a select only from an inline `enum`, and an enum class reaches the
+    # JSON schema as a `$ref` it shows as a free-text box.
+    parent_context: Literal["off", "window", "parent"] = Field(
+        default="off",
         description=(
-            "Small-to-big retrieval: return each matched chunk with its "
-            "surrounding context. 'off' returns the matched chunk alone (the "
-            "default), 'window' adds its neighbours in the same document, "
-            "'parent' returns the whole parent document. Matching and ranking "
-            "always run on the small chunks; the returned context is bounded."
+            "Small-to-big retrieval: return each matched chunk with the text "
+            "around it. Matching and ranking always run on the small chunks, the "
+            "matched chunk is never shortened, and the added context is bounded."
         ),
+        json_schema_extra={
+            "x-enum-labels": {
+                "off": "The matched passage alone",
+                "window": "The matched passage with its neighbours in the document",
+                "parent": "The matched passage with as much of its document as fits",
+            }
+        },
     )
 
 

@@ -95,15 +95,20 @@ match is *returned* with, assembled on the return path:
 | Mode | What the model receives |
 |---|---|
 | `off` | The matched chunk alone — the default, unchanged behaviour |
-| `window` | The matched chunk plus its neighbours in the same document |
-| `parent` | The whole parent document's chunks, in order |
+| `window` | The matched chunk with the chunk before and after it in the same document |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest text first |
 
-The expansion never changes which chunks matched, their scores or their
-citations, and it stays inside the caller's own tenant and collection scope — it
-pulls siblings of an already-matched document, which carry the same tenant tag.
-Returned context is bounded per result and per turn (deployment settings), and
-overlapping windows are de-duplicated, so a wide document cannot flood the model's
-context.
+The matched chunk is never shortened. Only the text added around it counts against
+two fixed limits - 8,000 characters per result and 24,000 per search - so turning
+the mode on never shows the model less than `off` does. A passage stays contiguous:
+it grows outward from the match and stops at the first chunk that does not fit or
+was already returned with an earlier result, so text that was not adjacent in the
+document is never joined.
+
+Chunks are read by position around the match, never the whole document, and the
+expansion stays inside the caller's own tenant and collection scope. It never
+changes which chunks matched, their scores or their citations; a citation says
+`with surrounding text` when the passage reaches past the chunk it names.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search

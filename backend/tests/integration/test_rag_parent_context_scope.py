@@ -61,12 +61,12 @@ async def _insert(
     prefix: str,
     chunk_num: int,
     emb: str = "[0.1,0.2,0.3]",
+    page_num: int | None = 0,
 ) -> None:
-    meta: dict[str, object] = {
-        "filename": "handbook.pdf",
-        "page_num": 0,
-        "chunk_num": chunk_num,
-    }
+    meta: dict[str, object] = {"filename": "handbook.pdf", "chunk_num": chunk_num}
+    # `None` leaves the key out, as a parser that reports no pages does.
+    if page_num is not None:
+        meta["page_num"] = page_num
     # An untagged (deployment-wide) row carries no organization_id key, exactly as
     # an app-scoped ingest leaves it.
     if tenant is not None:
@@ -79,7 +79,7 @@ async def _insert(
         await session.execute(
             text(insert),
             {
-                "id": f"{tenant}-{prefix}-{chunk_num}",
+                "id": f"{tenant}-{prefix}-{page_num}-{chunk_num}",
                 "pid": DOC,
                 "content": f"{prefix}-c{chunk_num}",
                 "emb": emb,
@@ -150,23 +150,11 @@ async def test_window_expansion_is_scoped_to_the_searching_tenant(engine: AsyncE
     assert "A-c" not in expanded
 
 
-async def test_unscoped_expansion_stays_within_the_matched_rows_tenant(
-    engine: AsyncEngine,
-) -> None:
-    """An unscoped maintenance search that matches a tenant-tagged chunk expands
-    under that chunk's own tenant, not under the untagged rows sharing its id.
-
-    `UnscopedScope` applies no tenant conjunct, so the match can be any tenant's
-    row. Reading its siblings under a blanket `None` (untagged rows) would attach
-    an unrelated untagged document that collides on `parent_doc_id`. Org A's
-    chunks embed onto the query and the untagged ones do not, so the top match is
-    Org A's - and its expansion must return Org A's document only.
-    """
+async def test_an_unscoped_search_is_not_expanded(engine: AsyncEngine) -> None:
+    """An unscoped maintenance search can match any tenant's rows, so it is never
+    expanded - no sibling read runs under a tenant nobody resolved."""
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
-    for chunk_num in range(3):
-        await _insert(store, tenant=ORG_A, prefix="A", chunk_num=chunk_num, emb="[0.1,0.2,0.3]")
-        await _insert(store, tenant=None, prefix="U", chunk_num=chunk_num, emb="[0.9,0.9,0.9]")
+    await _seed_both_tenants(store)
     service = RetrievalService(vector_store=store, settings=RAGSettings())
 
     results = await service.retrieve(
@@ -178,7 +166,87 @@ async def test_unscoped_expansion_stays_within_the_matched_rows_tenant(
     )
 
     assert len(results) == 1
-    expanded = results[0].expanded_content
-    assert expanded is not None
-    assert expanded.split("\n\n") == ["A-c0", "A-c1", "A-c2"]
-    assert "U-c" not in expanded
+    assert results[0].expanded_content is None
+
+
+class TestTheBoundedRead:
+    """`get_chunks_around` reads by position, never the whole document (#1651)."""
+
+    async def test_it_returns_only_the_requested_neighbours_in_order(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        for chunk_num in range(10):
+            await _insert(store, tenant=ORG_A, prefix="A", chunk_num=chunk_num)
+
+        chunks = await store.get_chunks_around(
+            COLLECTION, DOC, ORG_A, page_num=0, chunk_num=5, before=1, after=2
+        )
+
+        assert [chunk.content for chunk in chunks] == ["A-c4", "A-c5", "A-c6", "A-c7"]
+
+    async def test_neighbours_cross_page_boundaries_in_document_order(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`chunk_num` restarts on every page, so position is (page, chunk)."""
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        for page_num in (1, 2):
+            for chunk_num in range(2):
+                await _insert(
+                    store,
+                    tenant=ORG_A,
+                    prefix=f"p{page_num}",
+                    chunk_num=chunk_num,
+                    page_num=page_num,
+                )
+
+        chunks = await store.get_chunks_around(
+            COLLECTION, DOC, ORG_A, page_num=2, chunk_num=0, before=2, after=5
+        )
+
+        assert [chunk.content for chunk in chunks] == ["p1-c0", "p1-c1", "p2-c0", "p2-c1"]
+
+    async def test_a_row_without_a_page_number_sorts_as_page_zero(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        await _insert(store, tenant=ORG_A, prefix="nopage", chunk_num=0, page_num=None)
+        await _insert(store, tenant=ORG_A, prefix="p1", chunk_num=0, page_num=1)
+
+        chunks = await store.get_chunks_around(
+            COLLECTION, DOC, ORG_A, page_num=1, chunk_num=0, before=1, after=0
+        )
+
+        assert [chunk.content for chunk in chunks] == ["nopage-c0", "p1-c0"]
+
+    async def test_the_read_is_scoped_to_the_tenant_and_untagged_rows_to_none(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        for chunk_num in range(3):
+            await _insert(store, tenant=ORG_A, prefix="A", chunk_num=chunk_num)
+            await _insert(store, tenant=None, prefix="U", chunk_num=chunk_num)
+
+        tenant_rows = await store.get_chunks_around(
+            COLLECTION, DOC, ORG_A, page_num=0, chunk_num=1, before=5, after=5
+        )
+        untagged_rows = await store.get_chunks_around(
+            COLLECTION, DOC, None, page_num=0, chunk_num=1, before=5, after=5
+        )
+
+        assert [chunk.content for chunk in tenant_rows] == ["A-c0", "A-c1", "A-c2"]
+        assert [chunk.content for chunk in untagged_rows] == ["U-c0", "U-c1", "U-c2"]
+
+    async def test_an_absent_collection_is_empty(self, engine: AsyncEngine) -> None:
+        store = _store(engine)
+
+        assert (
+            await store.get_chunks_around(
+                COLLECTION, DOC, ORG_A, page_num=0, chunk_num=0, before=1, after=1
+            )
+            == []
+        )
