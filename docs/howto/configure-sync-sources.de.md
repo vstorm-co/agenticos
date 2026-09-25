@@ -1,11 +1,12 @@
 ---
-source_sha: "3a2e7c635873"
+source_sha: "35cbb3d979ce"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
 
 Sync-Quellen holen Dokumente aus externen Diensten (Google Drive, S3/MinIO, eine
-öffentliche Website, ein Git-Repository) selbsttätig in Knowledge-Collections. Jede Quelle speichert
+öffentliche Website, ein Git-Repository, eine SharePoint-Site oder ein OneDrive)
+selbsttätig in Knowledge-Collections. Jede Quelle speichert
 einen Connector-Typ, eine Ziel-Collection, connector-spezifische Einstellungen,
 einen Sync-Modus, einen optionalen Zeitplan und die id des
 [Vault-Secrets](../secrets.md), das sie authentifiziert - eine Website braucht
@@ -36,7 +37,7 @@ Sync-Vorgangs fest.
 ### Verfügbare Connector-Typen auflisten { #list-available-connector-types }
 
 ```bash
-# Shows all registered connectors (e.g. gdrive, s3, git)
+# Shows all registered connectors (e.g. gdrive, s3, git, sharepoint)
 uv run agenticos cmd rag-sources
 ```
 
@@ -83,6 +84,23 @@ Wählen Sie anschließend in der Oberfläche sein Access-Token als Credential de
 Quelle aus, oder senden Sie `secret_id` mit einem `PATCH` — siehe
 [Git-Repository einrichten](#git-repository-setup).
 
+### Eine SharePoint-Quelle anlegen -- ein Bibliotheksordner, alle 6 Stunden { #add-a-sharepoint-source-one-library-folder-every-6-hours }
+
+```bash
+uv run agenticos cmd rag-source-add \
+  --name "HR policies" \
+  --type sharepoint \
+  --org 0c8f2b1e-... \
+  --collection hr \
+  --secret-id <vault-secret-id> \
+  --config '{"site_url": "https://contoso.sharepoint.com/sites/HR", "folder_path": "Policies"}' \
+  --sync-mode new_only \
+  --schedule 360
+```
+
+`--secret-id` ist die Microsoft-Entra-App im Vault der Organisation — siehe
+[SharePoint und OneDrive einrichten](#sharepoint-and-onedrive-setup).
+
 ### Einen Sync von Hand auslösen { #trigger-sync-manually }
 
 ```bash
@@ -107,7 +125,7 @@ in der Auflistung von `rag-sources` steht.
 1. Öffnen Sie **Knowledge Base** und dort den Tab **Sync**.
 2. Klicken Sie auf **"+ Add Source"**.
 3. Wählen Sie einen Connector-Typ (Google Drive, S3, Website, Git
-   repository). Die Formularfelder
+   repository, SharePoint & OneDrive). Die Formularfelder
    werden aus dem JSON Schema des `CONFIG_MODEL` des Connectors erzeugt. Eine
    Website hat keinen Credential-Schritt.
 4. Füllen Sie die connector-spezifischen Konfigurationsfelder aus (etwa Folder-ID,
@@ -171,7 +189,7 @@ Ein Sync nach dem ersten tut so wenig, wie die Quelle es zulässt:
   `skipped` gezählt und weder erneut geparst noch eingebettet.
 - **Eine unveränderte Quelle kostet eine Anfrage.** Ein Connector, der sagen
   kann, auf welchem Stand sein gesamter Inhalt ist — der Head-Commit eines
-  Git-Branches —, hält diesen Stand nach jedem Lauf fest, der ohne
+  Git-Branches, der Änderungsfeed einer SharePoint-Bibliothek —, hält diesen Stand nach jedem Lauf fest, der ohne
   fehlgeschlagene Datei endete. Der nächste Lauf mit `new_only` oder
   `update_only`, der unter derselben Konfiguration denselben Wert vorfindet, hält
   an, bevor er irgendetwas auflistet: Sein Protokoll zeigt keine verarbeiteten
@@ -451,6 +469,137 @@ den Host dann selbst auf.
 Das Worker-Image enthält `git`. Ein Worker aus einem anderen Image braucht `git`
 2.37 oder neuer in seinem `PATH`.
 
+## SharePoint und OneDrive einrichten { #sharepoint-and-onedrive-setup }
+
+Eine `sharepoint`-Quelle liest eine Dokumentbibliothek über Microsoft Graph: die
+Bibliothek einer SharePoint-Site oder das OneDrive einer Person, das Microsoft 365
+als eigene Site führt. Sie kann die ganze Bibliothek lesen oder einen Ordner
+darin. Sie meldet sich als App-Registrierung in Microsoft Entra an, die ein
+Administrator Ihres Tenants einmal anlegt.
+
+### 1. Eine App in Microsoft Entra registrieren { #1-register-an-app-in-microsoft-entra }
+
+Öffnen Sie im [Microsoft Entra admin center](https://entra.microsoft.com)
+**App registrations → New registration**. Geben Sie ihr einen Namen wie *AgenticOS
+sync*, behalten Sie **Accounts in this organizational directory only** bei und
+lassen Sie die Redirect-URI leer. Die Quelle meldet sich als die App selbst an,
+nicht als eine Person.
+
+Notieren Sie in der **Overview** der App die **Application (client) ID** und die
+**Directory (tenant) ID**. Fügen Sie unter **Certificates & secrets** ein Client
+Secret hinzu und kopieren Sie seinen **Value**. Der Wert wird nur einmal
+angezeigt. Die *ID* des Secrets ist nicht das, was die Quelle braucht.
+
+### 2. Ihr eine Site gewähren, nicht den Tenant { #2-grant-it-one-site-not-the-tenant }
+
+**Die Reichweite der App ist die Reichweite der Quelle.** Alles, was die Quelle
+aufnimmt, wird für jeden durchsuchbar, der die Collection lesen kann, die sie
+speist. Siehe [wer am Ende lesen kann, was eine Quelle aufgenommen
+hat](../file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+Fügen Sie unter **API permissions** die Microsoft-Graph-Berechtigung
+**`Sites.Selected`** vom Typ **application** hinzu und erteilen Sie dafür die
+Administratorzustimmung. Für sich allein liest `Sites.Selected` nichts. Ein
+Administrator gewährt der App anschließend Lesezugriff auf die eine Site, die die
+Quelle liest:
+
+```http
+POST https://graph.microsoft.com/v1.0/sites/{site-id}/permissions
+Content-Type: application/json
+
+{
+  "roles": ["read"],
+  "grantedToIdentities": [
+    {"application": {"id": "<client-id>", "displayName": "AgenticOS sync"}}
+  ]
+}
+```
+
+Dieser Aufruf braucht `Sites.FullControl.All`, deshalb macht ihn ein
+Administrator aus Graph Explorer heraus oder mit `Grant-PnPAzureADAppSitePermission`
+aus PnP PowerShell, und nicht mit der App selbst.
+`GET https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/HR?$select=id`
+liefert die Site-id. Ein OneDrive wird auf dieselbe Weise gewährt, über seine Site:
+`contoso-my.sharepoint.com:/personal/jane_contoso_com`.
+
+!!! danger "`Files.Read.All` oder `Sites.Read.All` macht jede Bibliothek im Tenant lesbar"
+
+    Diese Berechtigungen werden tenantweit erteilt. Eine Quelle mit ihnen liest
+    trotzdem nur die Bibliothek, die sie nennt. Aber wer die Quelle bearbeiten
+    kann, kann ihre Site-URL auf jede Site und jedes OneDrive der Organisation
+    richten, und der nächste Sync macht diese Bibliothek für jeden durchsuchbar,
+    der die Collection lesen kann. Nichts in diesem Produkt kann erkennen, welche
+    Berechtigung die App erhalten hat, denn ein Token sagt es nicht. Verwenden Sie
+    `Sites.Selected` und gewähren Sie eine App pro Publikum.
+
+### 3. Sie im Vault ablegen { #3-add-it-to-the-vault }
+
+Legen Sie die App als **Microsoft Entra app** im Vault ab: die Tenant-id (oder die
+Domain des Tenants, etwa `contoso.onmicrosoft.com`), die Client-id und den Wert
+des Client Secrets. Wählen Sie sie dann im Credential-Schritt der Quelle aus. Das
+Secret wird nur an `login.microsoftonline.com` gesendet, zur Anmeldung.
+
+Ein Client Secret läuft ab, spätestens nach zwei Jahren. Ist es abgelaufen,
+schlägt der nächste Sync mit *Microsoft Entra refused the app registration's
+credentials (invalid_client)* fehl. Fügen Sie der App ein neues Secret hinzu und
+ersetzen Sie den Wert im selben Vault-Secret. Jede Quelle, die es nutzt,
+übernimmt den neuen Wert bei ihrem nächsten Sync.
+
+### 4. Konfigurationsfelder des SharePoint-Connectors { #4-sharepoint-connector-config-fields }
+
+| Feld | Typ | Pflicht | Vorgabe | Beschreibung |
+|-------|------|----------|---------|-------------|
+| `site_url` | string | Ja | -- | Die Site, etwa `https://contoso.sharepoint.com/sites/HR`, oder ein OneDrive, etwa `https://contoso-my.sharepoint.com/personal/jane_contoso_com`. Nur die Site: Eine aus dem Browser kopierte Bibliotheks- oder Seiten-URL wird abgelehnt. |
+| `library` | string | Nein | die Standardbibliothek der Site | Der Name der Bibliothek, wie SharePoint ihn anzeigt, etwa `Documents`. Ein OneDrive hat nur seine Standardbibliothek. |
+| `folder_path` | string | Nein | -- | Ein Ordner innerhalb der Bibliothek, etwa `Policies/HR`. Für die ganze Bibliothek leer lassen. |
+| `include_subfolders` | boolean | Nein | `true` | Ob die Ordner unterhalb von `folder_path` gelesen werden. |
+| `extensions` | list of strings | Nein | `.pdf`, `.docx`, `.md`, `.txt` | Welche Dateitypen aufgenommen werden. Ergänzen Sie `.pptx`, `.xlsx` oder einen anderen Typ nur, wenn der Parser der Collection ihn liest: Eine Datei, die der Parser nicht lesen kann, zählt bei jedem Sync als fehlgeschlagene Datei. |
+
+Jede Datei ist ein Dokument mit der Adresse `sharepoint://<drive-id>/<item-id>`.
+Die Adresse folgt der Datei, nicht ihrem Pfad, sodass eine Datei, die innerhalb
+der Bibliothek umbenannt oder verschoben wird, ihr Dokument behält. Das Dokument
+behält den Dateinamen, mit dem es aufgenommen wurde, bis sich der Inhalt der Datei
+ändert.
+
+OneNote-Notizbücher und Dateien anderer Typen werden nicht aufgenommen.
+
+### 5. Was ein Sync überträgt { #5-what-a-sync-transfers }
+
+Jeder Sync beginnt mit dem Änderungsfeed von Microsoft Graph für die Bibliothek.
+Hat sich in der Bibliothek seit dem letzten sauberen Lauf nichts geändert, hält
+der Sync dort an: eine Anfrage und keine Auflistung. Der Feed umfasst die ganze
+Bibliothek, weil Graph ihn nur für die Wurzel einer Bibliothek anbietet. Eine
+Änderung in einem anderen Ordner derselben Bibliothek lässt den nächsten Sync
+daher den Ordner der Quelle erneut auflisten.
+
+Hat sich etwas geändert, listet der Sync den Ordner auf und lädt jede Datei der
+konfigurierten Typen herunter. Eine Datei, deren Inhalt sich nicht geändert hat,
+wird dann vor dem Einbetten übersprungen, sodass nur neue und geänderte Dateien
+eine Einbettung kosten. Eine Datei wird von der Adresse heruntergeladen, die Graph
+für sie angibt, ohne das Token der App. Eine Datei über der Dokumentgrenze der
+Wissensbasis (`MAX_UPLOAD_SIZE_MB`, standardmäßig 50 MB) wird nicht
+heruntergeladen und zählt als fehlgeschlagene Datei.
+
+Graph bremst einen Client, der schnell liest. Eine Anfrage, die Graph drosselt
+(HTTP 429) oder die mit einem 5xx oder einem Netzwerkfehler scheitert, wird
+insgesamt viermal versucht, und der Sync wartet so lange, wie Graphs
+`Retry-After` verlangt, bis zu einer Minute. Ein Ordner, der sich dann immer noch
+nicht auflisten lässt, wird im Sync-Protokoll genannt, und dieser Sync entfernt
+nichts, weil die Dateien in diesem Ordner nicht gesehen wurden. Die Dateien in
+den anderen Ordnern werden trotzdem aufgenommen.
+
+Eine Datei, die nach der Auflistung und vor ihrem Download gelöscht wurde, wird
+entfernt wie eine Datei, die die Auflistung nicht genannt hat.
+
+### Netzwerk { #network }
+
+Der Worker braucht ausgehendes HTTPS zu `login.microsoftonline.com`,
+`graph.microsoft.com` und den `*.sharepoint.com`-Hosts Ihres Tenants. Nichts, was
+der Bearbeiter einer Quelle eintippt, wird zu einer Adresse, mit der sich der
+Worker verbindet: Die Site-URL ist nur ein Name, den Graph nachschlägt. Die
+nationalen Clouds von Microsoft, etwa US Government und China, nutzen andere Hosts
+und werden nicht unterstützt.
+
 ## API-Referenz { #api-reference }
 
 Alle Endpunkte für Sync-Quellen liegen unter `/api/v1/rag/sync/`. Das Auflisten
@@ -674,10 +823,12 @@ nichts entfernt, weil die Seiten dahinter nicht gesehen wurden.
 
 ### "The source could not be listed completely, so documents it may no longer hold were kept" { #the-source-could-not-be-listed-completely-so-documents-it-may-no-longer-hold-were-kept }
 
-Die Auflistung brach vorzeitig ab: Ein Crawl erreichte `max_pages`, oder einige
-Seiten konnten nicht gelesen werden. Was gefunden wurde, ist aufgenommen, und
-nichts wurde entfernt. Erhöhen Sie `max_pages` oder grenzen Sie den Crawl mit
-`path_prefix` ein, bis ein Lauf ohne diese Meldung endet.
+Die Auflistung brach vorzeitig ab: Ein Crawl erreichte `max_pages`, einige
+Seiten konnten nicht gelesen werden, oder ein SharePoint-Ordner ließ sich nicht
+auflisten. Was gefunden wurde, ist aufgenommen, und nichts wurde entfernt. Bei
+einer Website erhöhen Sie `max_pages` oder grenzen den Crawl mit `path_prefix`
+ein, bis ein Lauf ohne diese Meldung endet. Bei SharePoint siehe den Eintrag für
+diesen Ordner weiter unten.
 
 ### Git: "The repository refused the source's token" { #git-the-repository-refused-the-sources-token }
 
@@ -747,6 +898,74 @@ werden.
 Der Head-Commit des Branches ist derjenige, den der letzte saubere Lauf unter
 derselben Konfiguration gelesen hat, also gab es nichts zu tun. Stellen Sie die
 Quelle für einen Lauf auf `full`, um ungeachtet dessen wieder alles zu lesen.
+
+### SharePoint: "Microsoft Entra refused the app registration's credentials (…)" { #sharepoint-microsoft-entra-refused-the-app-registrations-credentials }
+
+Microsoft Entra hat die App nicht angemeldet. `invalid_client` bedeutet meist,
+dass das Client Secret abgelaufen ist oder der Vault die ID des Secrets statt
+seines Werts enthält. `unauthorized_client` oder `invalid_request` bedeutet meist,
+dass die Tenant-id oder die Client-id falsch ist. Prüfen Sie die drei Werte gegen
+die **Overview** und **Certificates & secrets** der App und ersetzen Sie sie im
+Vault-Secret.
+
+### SharePoint: "Microsoft Graph did not accept the app's token for …" { #sharepoint-microsoft-graph-did-not-accept-the-apps-token-for }
+
+Die App hat sich angemeldet, aber ihr Token trägt keine Microsoft-Graph-Berechtigung.
+Fügen Sie die Berechtigung `Sites.Selected` vom Typ **application** hinzu, keine
+delegierte, und erteilen Sie die Administratorzustimmung, wie in
+[Schritt 2](#2-grant-it-one-site-not-the-tenant) beschrieben.
+
+### SharePoint: "Microsoft Graph denied the app access to … (accessDenied)" { #sharepoint-microsoft-graph-denied-the-app-access-to-accessdenied }
+
+Die App hat `Sites.Selected`, aber keine Gewährung auf dieser Site. Gewähren Sie
+ihr `read` auf der Site, wie in [Schritt 2](#2-grant-it-one-site-not-the-tenant)
+beschrieben. Nennt die Meldung einen Ordner unterhalb des Ordners der Quelle, hat
+dieser Ordner eigene Berechtigungen, die die App ausschließen. Der Rest der
+Bibliothek wurde aufgenommen, und nichts wurde entfernt.
+
+### SharePoint: "There is no SharePoint site at …, or the app cannot see it" { #sharepoint-there-is-no-sharepoint-site-at-or-the-app-cannot-see-it }
+
+Prüfen Sie zuerst die Site-URL: Sie ist die eigene Adresse der Site, etwa
+`https://contoso.sharepoint.com/sites/HR`, nicht eine Bibliothek oder Seite darin.
+Mit `Sites.Selected` kann auch eine Site, auf der die App keine Gewährung hat, so
+antworten.
+
+### SharePoint: "The site has no document library named …" { #sharepoint-the-site-has-no-document-library-named }
+
+Die Meldung listet die Bibliotheken auf, die die App sehen kann. Kopieren Sie
+einen dieser Namen in `library`, oder lassen Sie `library` leer für die
+Standardbibliothek der Site. Die Standardbibliothek ist in der Sprache der Site
+benannt, etwa *Documents* oder *Dokumente*.
+
+### SharePoint: "The library has no folder …" oder "… is a file, not a folder" { #sharepoint-the-library-has-no-folder-or-is-a-file-not-a-folder }
+
+`folder_path` nennt keinen Ordner in der Bibliothek. Er ist relativ zur obersten
+Ebene der Bibliothek, etwa `Policies/HR`, und wiederholt den Namen der Bibliothek
+nicht.
+
+### SharePoint: "The folder … could not be listed: …" { #sharepoint-the-folder-could-not-be-listed }
+
+Ein Ordner unterhalb des Ordners der Quelle konnte nicht gelesen werden. Der Grund
+folgt nach dem Doppelpunkt. Die anderen Ordner wurden aufgenommen, und in diesem
+Lauf wurde nichts entfernt.
+
+### SharePoint: "Microsoft 365 stayed unavailable or kept throttling … after 4 attempts" { #sharepoint-microsoft-365-stayed-unavailable-or-kept-throttling-after-4-attempts }
+
+Graph drosselte oder scheiterte auch nach vier Versuchen noch. Der nächste Sync
+beginnt von vorn. Passiert das bei jedem Sync, planen Sie die Quelle seltener ein,
+oder teilen Sie eine sehr große Bibliothek auf mehrere Quellen mit je eigenem
+`folder_path` auf.
+
+### SharePoint: "A SharePoint source needs a Microsoft Entra app credential" { #sharepoint-a-sharepoint-source-needs-a-microsoft-entra-app-credential }
+
+Die Quelle nennt ein Secret einer anderen Art, etwa einen API key. Legen Sie die
+App als **Microsoft Entra app** im Vault ab und wählen Sie diese aus.
+
+### SharePoint: ein Sync endete ohne verarbeitete Dateien { #sharepoint-a-sync-finished-with-no-files-processed }
+
+In der Bibliothek hat sich seit dem letzten sauberen Lauf unter derselben
+Konfiguration nichts geändert, also gab es nichts zu tun. Stellen Sie die Quelle
+für einen Lauf auf `full`, um ungeachtet dessen wieder alles zu lesen.
 
 ### Geplante Syncs laufen nicht { #scheduled-syncs-are-not-running }
 

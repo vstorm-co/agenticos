@@ -1,5 +1,5 @@
 ---
-source_sha: "94e78112cffe"
+source_sha: "44dae3302f97"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1380,15 +1380,18 @@ O tym, które konektory są budowane i w jakiej kolejności, rozstrzyga
 ([#984](https://github.com/vstorm-co/agenticos/issues/984), dostarczony jako
 konektor `web` - zobacz
 [konfigurację strony internetowej](howto/configure-sync-sources.md#website-setup)),
-SharePoint i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)),
+SharePoint i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985),
+dostarczone jako konektor `sharepoint` - zobacz [konfigurację SharePoint
+i OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)),
 Confluence ([#986](https://github.com/vstorm-co/agenticos/issues/986)),
 dokumentacja repozytorium gita
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), a potem Azure Blob
 i GCS, których warunek jest spełniony: `S3Connector` jest podklasą
 `ObjectStoreConnector`, więc każdy z nich to klient i `CONNECTOR_TYPE`, a nie
 druga kopia pętli listowania
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-i archiwa poczty rozstrzygnięto na razie **przeciw**, każde z powodem zapisanym
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack i archiwa poczty rozstrzygnięto na razie **przeciw**, każde z powodem zapisanym
 tam — dwa ostatnie dlatego, że rozmowa źle się wyszukuje, a integracje kanałów
 już stawiają agenta *w* Slacku.
 

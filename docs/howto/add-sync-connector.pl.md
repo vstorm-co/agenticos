@@ -1,5 +1,5 @@
 ---
-source_sha: "f203f752d3d1"
+source_sha: "1ff020c86d59"
 ---
 
 # Dodaj konektor synchronizacji { #add-a-sync-connector }
@@ -111,11 +111,13 @@ słowami: host i kod statusu, nigdy tekst ze zdalnego systemu.
 metody mają wartości domyślne, dzięki którym konektor działa tak jak Drive i S3,
 a konektor nadpisuje którąś z nich, gdy jego źródło potrafi odpowiedzieć na
 pytanie, które ta metoda zadaje. `GitConnector` w
-`app/services/rag/connectors/git.py` nadpisuje obie.
+`app/services/rag/connectors/git.py` nadpisuje obie, podobnie jak
+`SharePointConnector` w `app/services/rag/connectors/sharepoint.py`, który
+korzysta z `previous`.
 
 | Hook | Domyślnie | Nadpisz go, gdy |
 |------|---------|------------------|
-| `remote_version(config, credential)` | `None`: każdy przebieg wypisuje listę | Źródło potrafi tanio powiedzieć, w jakim stanie jest cała jego zawartość, na przykład przez commit albo token zmian. Po przebiegu, w którym nic nie zakończyło się błędem, synchronizacja zapisuje tę wartość razem z odciskiem konfiguracji. Następny przebieg, który zastanie tę samą parę, zatrzymuje się przed `list_files()`. Wartość musi się zmienić zawsze, gdy mógł się zmienić którykolwiek wypisany plik albo sama lista. |
+| `remote_version(config, credential, previous)` | `None`: każdy przebieg wypisuje listę | Źródło potrafi tanio powiedzieć, w jakim stanie jest cała jego zawartość, na przykład przez commit albo token zmian. Po przebiegu, w którym nic nie zakończyło się błędem, synchronizacja zapisuje tę wartość razem z odciskiem konfiguracji. Następny przebieg, który zastanie tę samą parę, zatrzymuje się przed `list_files()`. Wartość musi się zmienić zawsze, gdy mógł się zmienić którykolwiek wypisany plik albo sama lista. `previous` to wartość, którą ostatni czysty przebieg zapisał przy tej samej konfiguracji, albo `None`. Źródło, które potrafi podać wyłącznie to, co się zmieniło *od* jakiegoś punktu, na przykład delta link z Graph, odpowiada z powrotem `previous`, gdy nic się nie zmieniło. |
 | `aclose()` | nic | Konektor przechowuje coś między `list_files()` a pobraniami, na przykład klon albo sesję. Jest wywoływana po zakończeniu synchronizacji, niezależnie od tego, czy się powiodła. |
 
 ## Krok po kroku: konektor do Notion { #step-by-step-a-notion-connector }

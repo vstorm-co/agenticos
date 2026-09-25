@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A SharePoint site or a OneDrive can feed a knowledge base.** A
+  `sharepoint` sync source reads one document library, or one folder in it,
+  through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
+  default, and a file deleted from the library is removed like any other the
+  source stops listing. The second sync asks Graph's change feed first and
+  stops there when nothing in the library changed. When something did, only
+  new and changed files are embedded. Throttling and outages are retried as
+  Graph's `Retry-After` asks, and a folder that still cannot be listed is
+  named on the sync log, and that run removes nothing. The setup guide tells an
+  administrator to grant the app `Sites.Selected` on one site rather than
+  `Files.Read.All` on the tenant, and says what happens otherwise (#985).
+- **A Microsoft Entra app is a vault secret kind of its own.** `entra_app`
+  holds a tenant id, a client id and a client secret, and a SharePoint source
+  takes only this kind.
+- `BaseSyncConnector.remote_version` is handed `previous`, the value the last
+  clean run stored under the same configuration, so a source that can only say
+  what changed since a point can answer that nothing did.
+
 ## [0.0.500] - 2026-09-25
 
 ### Fixed

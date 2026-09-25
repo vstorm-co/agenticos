@@ -127,5 +127,14 @@
     "help_url": "https://github.com/settings/personal-access-tokens/new",
     "description": "A token a Git sync source reads one repository's documentation with, bound to its host.",
     "icon": "github"
+  },
+  {
+    "id": "sharepoint",
+    "label": "SharePoint & OneDrive",
+    "category": "connector",
+    "kind": "entra_app",
+    "help_url": "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+    "description": "A Microsoft Entra app registration a SharePoint or OneDrive sync source reads a site with. Grant it Sites.Selected on that site, not Files.Read.All.",
+    "icon": "microsoft"
   }
 ]
