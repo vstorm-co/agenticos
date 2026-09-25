@@ -5420,6 +5420,7 @@
     "publishNoteLabel": "Release note",
     "publishNotePlaceholder": "What changed in this version?",
     "publishBlocked": "Fix the problems below before publishing.",
+    "publishSaving": "Finishing save…",
     "publishCancel": "Cancel",
     "publishConfirm": "Publish version",
     "versionsTitle": "Version history",
