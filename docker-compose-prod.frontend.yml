@@ -40,6 +40,8 @@ services:
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
       - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
       - OIDC_ICON=${OIDC_ICON:-}
+      - LDAP_DISPLAY_NAME=${LDAP_DISPLAY_NAME:-}
+      - KERBEROS_DISPLAY_NAME=${KERBEROS_DISPLAY_NAME:-}
       # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
       # `@vercel/otel` off Vercel takes its exporter from these two - so without
       # them the frontend's server-side spans are built and dropped in-process.

@@ -1,5 +1,11 @@
 import { ROUTES } from "@/lib/constants";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_GROUPS,
+  ORG_MEMBERS,
+  ORG_ROLES,
+} from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
 /**
@@ -26,6 +32,7 @@ export type FlowId =
   | "create-kb"
   | "create-mcp"
   | "create-org"
+  | "create-group"
   | "create-routine"
   | "explore-chat";
 
@@ -41,7 +48,7 @@ export type FlowId =
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
  * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "routine";
+export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -763,6 +770,23 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  // One step for create-org's reason: the dialog is a name and a description, and
+  // walking two fields would be padding. `page` is the groups identity rather than
+  // a route - the offer is made at the end of that page's own walk, so the reader
+  // is already on the organization's groups when it starts.
+  "create-group": {
+    id: "create-group",
+    permission: Perm.membersManage,
+    steps: [
+      {
+        id: "flow-group-create",
+        page: ORG_GROUPS,
+        target: "org-groups-new",
+        permission: Perm.membersManage,
+        signal: { kind: "created", resource: "group" },
+      },
+    ],
+  },
   // A guided run of the chat surface, freezing it a control at a time to show how
   // a conversation is set up. The tour itself creates nothing — every step points,
   // explains, and advances on Next, because no resource's appearance could end it
@@ -831,6 +855,8 @@ export function flowForPage(pageId: string): FlowId | null {
     case ORG_MEMBERS:
     case ORG_ROLES:
       return "create-org";
+    case ORG_GROUPS:
+      return "create-group";
     default:
       return null;
   }

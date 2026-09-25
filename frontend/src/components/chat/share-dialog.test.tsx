@@ -51,6 +51,7 @@ const member = (userId: string, email: string, fullName: string | null = null) =
     avatar_url: null,
     avatar_color: null,
     joined_at: "2026-01-01T00:00:00Z",
+    source: "manual",
   }) satisfies OrganizationMember;
 
 const MEMBERS: OrganizationMember[] = [
