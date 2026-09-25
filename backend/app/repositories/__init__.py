@@ -49,6 +49,7 @@ from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import virtual_table as virtual_table_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -118,6 +119,7 @@ __all__ = [
     "skill_repo",
     "artifact_repo",
     "context_repo",
+    "virtual_table_repo",
     "memory_repo",
     "notification_repo",
 ]

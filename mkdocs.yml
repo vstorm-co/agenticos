@@ -261,6 +261,7 @@ nav:
           - models.md
           - skills.md
           - context.md
+          - virtual-tables.md
           - file-processing.md
           - mcp.md
           - sandbox.md

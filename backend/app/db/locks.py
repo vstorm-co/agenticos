@@ -53,6 +53,11 @@ class LockScope(IntEnum):
     #: just ingested, because the older one never saw it (#987). Session-scoped,
     #: unlike the rest: a sync spans many transactions.
     SYNC_SOURCE_RUN = 7
+    #: The live table names of one organization. A name is unique among live
+    #: tables, and "is this name free" followed by an insert is two statements:
+    #: without this two creates of one name both pass the check and the second
+    #: dies on the unique index with a 500 instead of a 409 (#1782).
+    VIRTUAL_TABLE_NAMES_PER_ORG = 8
 
 
 def _key(subject: UUID) -> int:
