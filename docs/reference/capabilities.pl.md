@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a0848d1217"
+source_sha: "1c0ca646d240"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -92,6 +92,7 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | wł. / wył. |
 | `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
@@ -122,6 +123,31 @@ rozszerzenie pozostaje w obrębie własnego zakresu najemcy i kolekcji
 wywołującego. Nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
 wyników ani cytowań; cytowanie mówi `with surrounding text`, gdy fragment sięga
 poza wskazany chunk.
+
+`self_query_enabled` włącza self-query, domyślnie wyłączone. Gdy wyszukiwanie
+uruchamia się bez filtra wskazanego przez sam model, LLM czyta pytanie — „PDF-y
+z zeszłego miesiąca o onboardingu” — i wyprowadza filtry biznesowe, które ono
+implikuje: źródło, typ dokumentu, jednostkę organizacyjną, zakres dat. Własne,
+jawne filtry modelu zawsze wygrywają; self-query jedynie uzupełnia lukę. Gdy
+wywnioskowane filtry zostaną zastosowane, wynik zaczyna się od linii, która je
+wymienia, a model może powtórzyć wyszukiwanie bez nich, podając
+`infer_filters=false`.
+
+Wywnioskowany obiekt to ten sam zwalidowany filtr, który podaje wywołujący, więc
+nie niesie żadnego pola tenanta ani autoryzacji i nie może rozszerzyć dostępu —
+może jedynie zawęzić w obrębie własnego tenanta i kolekcji agenta. Jednostka
+organizacyjna zostaje tylko wtedy, gdy podpięte kolekcje faktycznie ją niosą,
+odczytane w tym samym zakresie co wyszukiwanie; kolekcje niosące łącznie ponad
+200 jednostek nie oferują żadnej do wnioskowania. Identyfikator dokumentu nigdy
+nie jest wnioskowany. Puste lub nieudane wnioskowanie wyszukuje bez filtra w
+obrębie tego wciąż egzekwowanego zakresu.
+
+**Koszt:** każde wyszukiwanie, które model uruchamia bez własnych filtrów, wykonuje
+jedno dodatkowe żądanie do modelu na wnioskowanie (dwa, jeśli jego wynik wymaga
+poprawki). Działa na własnym modelu agenta, jest rozliczane na przebiegu jak każde
+inne żądanie i zostaje odrzucone przed wysłaniem, gdy budżet jest już wyczerpany.
+Jest śledzone tak jak własne żądania agenta, więc agent ustawiony na niezapisywanie
+treści także tu nie umieszcza pytania w śladach.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze

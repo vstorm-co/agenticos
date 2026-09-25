@@ -84,6 +84,7 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | on / off |
 | `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
@@ -111,6 +112,29 @@ Chunks are read by position around the match, never the whole document, and the
 expansion stays inside the caller's own tenant and collection scope. It never
 changes which chunks matched, their scores or their citations; a citation says
 `with surrounding text` when the passage reaches past the chunk it names.
+
+`self_query_enabled` turns on self-query, off by default. When a search runs
+with no filter the model named itself, an LLM reads the question — "PDFs from
+last month about onboarding" — and derives the business filters it implies: a
+source, a document type, an organizational unit, a date range. The model's own
+explicit filters always win; self-query only fills the gap. When inferred filters
+are applied, the result starts with a line naming them, and the model can repeat
+the search without them by passing `infer_filters=false`.
+
+The inferred object is the same validated filter a caller supplies, so it carries
+no tenant or authorization field and cannot widen access — it can only narrow
+within the agent's own tenant and collections. An organizational unit is kept
+only when the bound collections actually carry it, read under the same scope as
+the search; collections carrying more than 200 units between them offer none for
+inference. A document id is never inferred. An empty or failed inference searches
+unfiltered within that still-enforced scope.
+
+**Cost:** each search the model runs without filters of its own makes one extra
+model request for the inference (two if its output needs correcting). It runs on
+the agent's own model, is billed to the run like any other request, and is
+refused before it is sent when the budget is already spent. It is traced like
+the agent's own requests, so an agent set to record no content keeps the
+question out of its traces here too.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search

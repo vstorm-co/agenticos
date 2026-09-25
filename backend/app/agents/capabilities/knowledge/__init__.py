@@ -43,6 +43,7 @@ def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
     config = ctx.config if isinstance(ctx.config, KnowledgeConfig) else KnowledgeConfig()
     return Knowledge(
         default_top_k=config.default_top_k,
+        self_query_enabled=config.self_query_enabled,
         query_analysis_mode=config.query_analysis_mode,
         query_analysis_max_variants=config.query_analysis_max_variants,
         parent_context=ParentContextMode(config.parent_context),

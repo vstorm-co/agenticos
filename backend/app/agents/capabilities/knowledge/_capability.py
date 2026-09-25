@@ -24,6 +24,16 @@ class KnowledgeConfig(BaseModel):
         le=50,
         description="Passages returned when the model does not ask for a number",
     )
+    self_query_enabled: bool = Field(
+        default=False,
+        description=(
+            "Infer FA-039 business filters (source, document type, organizational "
+            "unit, date range) from the natural-language query with an LLM when the "
+            "model searches without naming any filter itself. Off by default. Each "
+            "such search makes one extra model request, billed to the run. It can "
+            "only narrow within the agent's tenant and collections, never widen."
+        ),
+    )
     query_analysis_mode: QueryAnalysisMode = Field(
         default="off",
         description=(
@@ -93,6 +103,7 @@ class Knowledge(AbstractCapability[AgentDepsT]):
     """
 
     default_top_k: int = 5
+    self_query_enabled: bool = False
     query_analysis_mode: QueryAnalysisMode = "off"
     query_analysis_max_variants: int = 3
     parent_context: ParentContextMode = ParentContextMode.OFF
@@ -106,6 +117,7 @@ class Knowledge(AbstractCapability[AgentDepsT]):
         if self._toolset is None:
             self._toolset = build_knowledge_toolset(
                 default_top_k=self.default_top_k,
+                self_query_enabled=self.self_query_enabled,
                 query_analysis_mode=self.query_analysis_mode,
                 query_analysis_max_variants=self.query_analysis_max_variants,
                 parent_context=self.parent_context,

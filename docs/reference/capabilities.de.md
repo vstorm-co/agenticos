@@ -1,5 +1,5 @@
 ---
-source_sha: "f1a0848d1217"
+source_sha: "1c0ca646d240"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -92,6 +92,7 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | an / aus |
 | `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
 | `query_analysis_max_variants` | 3 | 1–5 |
 | `parent_context` | `off` | `off`, `window`, `parent` |
@@ -121,6 +122,32 @@ und die Erweiterung bleibt im eigenen Mandanten- und Collection-Scope des
 Aufrufers. Sie ändert nie, welche Chunks getroffen wurden, deren Scores oder
 Zitate; ein Zitat sagt `with surrounding text`, wenn die Passage über den
 genannten Chunk hinausreicht.
+
+`self_query_enabled` schaltet Self-Query ein, standardmäßig aus. Läuft eine Suche
+ohne einen vom Modell selbst genannten Filter, liest ein LLM die Frage — „PDFs
+vom letzten Monat über Onboarding“ — und leitet die geschäftlichen Filter ab, die
+sie impliziert: eine Quelle, einen Dokumenttyp, eine Organisationseinheit, einen
+Datumsbereich. Die eigenen, ausdrücklichen Filter des Modells gewinnen immer;
+Self-Query füllt nur die Lücke. Werden abgeleitete Filter angewendet, beginnt das
+Ergebnis mit einer Zeile, die sie nennt, und das Modell kann die Suche mit
+`infer_filters=false` ohne sie wiederholen.
+
+Das abgeleitete Objekt ist derselbe validierte Filter, den ein Aufrufer liefert,
+trägt also kein Tenant- oder Autorisierungsfeld und kann den Zugriff nicht
+erweitern — es kann nur innerhalb des eigenen Tenants und der Collections des
+Agenten einschränken. Eine Organisationseinheit bleibt nur erhalten, wenn die
+gebundenen Collections sie tatsächlich tragen, gelesen im selben Bereich wie die
+Suche; Collections mit zusammen mehr als 200 Einheiten bieten keine zur Ableitung
+an. Eine Dokument-ID wird nie abgeleitet. Eine leere oder fehlgeschlagene
+Ableitung sucht ungefiltert innerhalb dieses weiterhin erzwungenen Bereichs.
+
+**Kosten:** Jede Suche, die das Modell ohne eigene Filter ausführt, stellt eine
+zusätzliche Modellanfrage für die Ableitung (zwei, wenn deren Ausgabe korrigiert
+werden muss). Sie läuft auf dem eigenen Modell des Agenten, wird dem Lauf wie
+jede andere Anfrage angerechnet und vor dem Senden abgelehnt, wenn das Budget
+bereits ausgeschöpft ist. Sie wird wie die eigenen Anfragen des Agenten
+getraced, sodass ein Agent, der keine Inhalte aufzeichnet, die Frage auch hier
+aus seinen Traces heraushält.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als

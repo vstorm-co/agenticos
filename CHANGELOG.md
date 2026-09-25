@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
 - **Knowledge search can expand a question before it searches.** The knowledge
   capability's `query_analysis_mode` is off by default. `multi_query` has the
   agent's own model write up to `query_analysis_max_variants` rephrasings, searches

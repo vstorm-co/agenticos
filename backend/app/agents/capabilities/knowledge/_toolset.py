@@ -20,7 +20,15 @@ from pydantic_ai.usage import UsageLimits
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.budget import BudgetExceeded, assert_ambient_budget
-from app.agents.capabilities.knowledge._search import search_knowledge_base
+from app.agents.capabilities.knowledge._search import (
+    organizational_units_in_scope,
+    search_knowledge_base,
+)
+from app.agents.capabilities.knowledge._self_query import (
+    describe_filters,
+    has_any_filter,
+    infer_filters_from_query,
+)
 from app.agents.deps import AgentDeps
 from app.agents.observability import inherited_instrumentation
 from app.services.rag.filters import DocumentType, RetrievalFilters, Source
@@ -29,6 +37,10 @@ from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, Que
 
 logger = logging.getLogger(__name__)
 
+# A retry rather than a returned message: an error in the shape of a result reads
+# as "nothing found", and the model then answers from memory - confidently, and
+# without saying it had to.
+_UNAVAILABLE = "Knowledge base temporarily unavailable, please try again."
 # The expansion agent has no tools and a plain-text output, so it makes one
 # request - and a second only when Pydantic AI asks again for an empty answer,
 # which is its default single output retry. Anything past that is a misbehaving
@@ -101,6 +113,7 @@ def _normalize(value: list[str] | None) -> list[str] | None:
 def build_knowledge_toolset(
     *,
     default_top_k: int,
+    self_query_enabled: bool = False,
     query_analysis_mode: QueryAnalysisMode = "off",
     query_analysis_max_variants: int = 3,
     parent_context: ParentContextMode = ParentContextMode.OFF,
@@ -111,6 +124,14 @@ def build_knowledge_toolset(
     another - but that is said in the binding's `tool_overrides`, applied for
     every capability at once, not here. A rename this toolset performed itself
     would be invisible to the approval gate.
+
+    With `self_query_enabled`, a search the model runs without naming any filter
+    of its own first asks an LLM to derive the FA-039 business filters the query
+    implies (`_self_query.infer_filters_from_query`). The model's explicit filters
+    win when it supplies them, and `infer_filters=False` skips the inference. The
+    result names what was inferred on its first line, so the model can see why a
+    search came back narrow and repeat it without. An empty or failed inference
+    falls back to an unfiltered - but still tenant/collection-scoped - search.
 
     `query_analysis_mode` optionally expands the query before retrieval (#1649):
     the expansion runs through the host run's model and every produced query is
@@ -126,6 +147,7 @@ def build_knowledge_toolset(
         organizational_unit: list[str] | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
+        infer_filters: bool = True,
     ) -> str:
         """Search the organization's documents for passages relevant to a question.
 
@@ -134,6 +156,12 @@ def build_knowledge_toolset(
 
         The optional filters narrow the search; they can only narrow it, never
         widen it, and none of them can reach another organization's documents.
+
+        If this agent infers filters, a call that passes none of them may have
+        filters inferred from the query ("pdfs from last month" becomes a
+        document type and a date range). The result then starts with a line
+        naming them. If they narrowed too far, search again with
+        `infer_filters` false.
 
         Args:
             query: What to look for, phrased as the user would ask it.
@@ -144,9 +172,12 @@ def build_knowledge_toolset(
             organizational_unit: Restrict to these organizational-unit tags.
             date_from: Only documents dated on or after this date (YYYY-MM-DD).
             date_to: Only documents dated on or before this date (YYYY-MM-DD).
+            infer_filters: Whether filters may be inferred from the query when you
+                pass none. Set false to search the query as written.
 
         Returns:
-            Formatted passages with their source documents and relevance scores.
+            Formatted passages with their source documents and relevance scores,
+            preceded by a line naming any filters inferred from the query.
         """
         try:
             filters = RetrievalFilters(
@@ -173,11 +204,40 @@ def build_knowledge_toolset(
             )
             return steer(ctx, f"Those search filters are not valid: {problems}. Adjust and retry.")
 
+        notice = ""
+        if self_query_enabled and infer_filters and not has_any_filter(filters):
+            # Only when the model named no filter itself - its explicit intent
+            # wins. The inferred object is a `RetrievalFilters`, so it carries no
+            # tenant or authorization field and runs through the same validation;
+            # a `None` result leaves the search unfiltered within the still-enforced
+            # scope, never widened.
+            try:
+                units = await organizational_units_in_scope(
+                    ctx.deps.kb_collection_names, ctx.deps.organization_id
+                )
+            except Exception:
+                logger.exception("knowledge_facet_lookup_failed")
+                return steer(ctx, _UNAVAILABLE)
+            # Outside any broad `except`: `BudgetExceeded` and a defect in the
+            # inference must reach the runner, not read as an unavailable search.
+            inferred = await infer_filters_from_query(
+                ctx.model,
+                query,
+                organizational_units=units,
+                instrument=inherited_instrumentation(ctx.agent),
+            )
+            if inferred is not None:
+                filters = inferred
+                notice = (
+                    f"Filters inferred from the question: {describe_filters(inferred)}. "
+                    "To search without them, call again with infer_filters=false.\n\n"
+                )
+
         # Built only when a mode will call the model, so `off` never constructs
         # one. `plan_queries` degrades to the plain query if this is None.
         generate = _model_generate(ctx) if query_analysis_mode != "off" else None
         try:
-            return await search_knowledge_base(
+            return notice + await search_knowledge_base(
                 query=query,
                 # Resolved server-side from the agent's bound collections. The
                 # model chooses *what* to search, never *where*.
@@ -195,11 +255,8 @@ def build_knowledge_toolset(
                 parent_context=parent_context,
             )
         except Exception:
-            # A retry rather than a returned message: an error in the shape of a
-            # result reads as "nothing found", and the model then answers from
-            # memory - confidently, and without saying it had to.
             logger.exception("knowledge_search_failed")
-            return steer(ctx, "Knowledge base temporarily unavailable, please try again.")
+            return steer(ctx, _UNAVAILABLE)
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     toolset.add_function(search_documents, takes_ctx=True)
