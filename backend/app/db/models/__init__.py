@@ -57,6 +57,8 @@ from app.db.models.virtual_table import (
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.models.group import Group, GroupMember
+from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -93,6 +95,7 @@ __all__ = [
     "CollectionTeardown",
     "UserSlashCommand",
     "DeploymentSettings",
+    "DirectoryGroupMapping",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
@@ -138,6 +141,8 @@ __all__ = [
     "SkillResource",
     "ResourceGrant",
     "GrantLevel",
+    "Group",
+    "GroupMember",
     "Visibility",
     "Notification",
     "NotificationChannel",

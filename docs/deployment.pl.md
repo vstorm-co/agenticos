@@ -1,5 +1,5 @@
 ---
-source_sha: "31e3e2845403"
+source_sha: "11e8f02699df"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -150,6 +150,13 @@ listą** — ktoś, kto ma `members:invite`, wskazał ten adres celowo, a lista 
 jest polityką wdrożenia wobec obcych, a nie prawem weta wobec świadomej decyzji.
 `closed` nie jest omijane przez nic, bo „zamknięte”, które przepuszcza część
 rejestracji, nie jest zamknięte.
+
+**Mapowanie grupy katalogowej liczy się jako zaproszenie.** Pierwsze logowanie
+przez katalog (LDAP albo Kerberos) albo przez OIDC z claimem grup, którego grupy
+pasują do mapowania jakiejś organizacji, jest wpuszczane przez `invite_only` i
+przez listę domen: ktokolwiek napisał mapowanie, trzymał `members:manage` i
+`roles:manage` i zdecydował, że każdy w tej grupie tu należy. `closed` nadal go
+odrzuca. Zobacz [Mapowania grup katalogowych](directory.md#directory-group-mappings).
 
 **`closed` znaczy zamknięte i nie ma ścieżki, w której administrator tworzy
 konto.** Celowo: konto potrzebuje hasła wybranego przez właściciela, więc dodanie
