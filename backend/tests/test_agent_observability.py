@@ -7,18 +7,75 @@ write token never leaves the vault path it came in on.
 """
 
 import uuid
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.models.instrumented import InstrumentationSettings
+from pydantic_ai._run_context import RunContext
+from pydantic_ai.models.instrumented import InstrumentationSettings, InstrumentedModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.agents.factory import _instrument
-from app.agents.observability import inherited_instrumentation, instrument_agent, suppress_content
+from app.agents.observability import (
+    auxiliary_model,
+    inherited_instrumentation,
+    instrument_agent,
+    suppress_content,
+)
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.secret_kinds import ApiKeySecret
 
 MODULE = "app.agents.factory"
+
+
+def _ctx(*, model: Any, host: PydanticAgent[None, str] | None) -> RunContext[None]:
+    return RunContext(deps=None, model=model, usage=RunUsage(), agent=host)
+
+
+def _host(instrument: InstrumentationSettings | None) -> PydanticAgent[None, str]:
+    host = PydanticAgent(TestModel())
+    host.instrument = instrument
+    return host
+
+
+class TestAuxiliaryModel:
+    """The model a code-built auxiliary agent runs on carries the host's trace
+    policy, so an auxiliary call neither leaks content a run keeps out of its
+    traces (agenticos#1809) nor lands in a different project than the run's."""
+
+    def test_a_content_free_host_wraps_the_model_in_its_own_settings(self):
+        model = TestModel()
+        settings = InstrumentationSettings(include_content=False)
+        result = auxiliary_model(_ctx(model=model, host=_host(settings)))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings is settings
+        assert result.wrapped is model
+
+    def test_a_host_routed_to_its_own_project_keeps_that_route_with_content(self):
+        """A per-agent exporter traces with content to the client's project; the
+        auxiliary call must follow it there rather than fall to the global
+        default, which is the operator's project."""
+        model = TestModel()
+        routed = InstrumentationSettings(include_content=True)
+        result = auxiliary_model(_ctx(model=model, host=_host(routed)))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings is routed
+
+    def test_a_host_on_the_global_default_leaves_the_model_untouched(self):
+        model = TestModel()
+        assert auxiliary_model(_ctx(model=model, host=_host(None))) is model
+
+    def test_with_no_host_the_model_is_traced_without_content(self):
+        result = auxiliary_model(_ctx(model=TestModel(), host=None))
+        assert isinstance(result, InstrumentedModel)
+        assert result.instrumentation_settings.include_content is False
+
+    def test_a_non_request_response_model_is_returned_unchanged(self):
+        """A realtime model cannot be wrapped and does not run an auxiliary agent,
+        so it is handed back as-is for the caller to reject."""
+        realtime = object()
+        assert auxiliary_model(_ctx(model=realtime, host=None)) is realtime
 
 
 def _secret(token: str = "pylf_v1_eu_secret") -> ApiKeySecret:

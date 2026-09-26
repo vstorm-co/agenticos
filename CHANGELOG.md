@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Auxiliary model calls obey the run's budget, trace policy and settings.**
+  A system reminder, a compaction summary and a tool-output summary now
+  re-check the organization and agent caps before they spend and fall back to
+  their model-free path at a cap. The runner opens the run's budget guard, which
+  also makes the existing checks in knowledge search and browser automation
+  take effect. Reminders and compaction summaries are traced the way the run
+  is, so `content: none` holds and a run routed to its own Logfire project keeps
+  them there, and they run under the run's model settings. Concurrent reminders
+  no longer double-count their spend. The tool-output summary gets the budget
+  check only; its trace policy and settings are tracked in #1809 and #1810
+  (#1818).
+
 ## [0.0.506] - 2026-09-26
 
 ### Added
