@@ -155,7 +155,14 @@ describe("useWorkflowAutosave", () => {
   it("keeps the draft dirty when the graph changed while the save was in flight", async () => {
     seedLoaded(0);
     const gate = deferred<WorkflowDetail>();
-    const saveDraft = vi.fn().mockReturnValueOnce(gate.promise).mockResolvedValue(detail(2));
+    // The follow-up save is held open too. Left to resolve on its own it clears the
+    // dirty flag within a debounce, and whether that happens before or after the
+    // assertion below depends on how loaded the machine is.
+    const followUp = deferred<WorkflowDetail>();
+    const saveDraft = vi
+      .fn()
+      .mockReturnValueOnce(gate.promise)
+      .mockReturnValueOnce(followUp.promise);
     renderHook(() => useWorkflowAutosave({ saveDraft, debounceMs: 5 }));
 
     act(() => useWorkflowEditorStore.getState().markDirty());
@@ -173,6 +180,12 @@ describe("useWorkflowAutosave", () => {
     // The newer graph then saves against the revision the first write produced.
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
     expect(saveDraft.mock.calls[1]![0].expected_revision).toBe(1);
+
+    await act(async () => {
+      followUp.resolve(detail(2));
+      await followUp.promise;
+    });
+    await waitFor(() => expect(useWorkflowEditorStore.getState().isDirty).toBe(false));
   });
 
   it("raises the conflict banner on a 409 and pauses autosave", async () => {
