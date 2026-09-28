@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.513] - 2026-09-28
+
 ### Changed
 
 - **An artifact's link opens the page itself.** `/artifacts/<id>` - the link
