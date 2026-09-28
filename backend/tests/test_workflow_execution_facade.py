@@ -25,6 +25,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
+    WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
@@ -93,6 +94,7 @@ def _run_row(**overrides: object) -> MagicMock:
     run.deadline_at = None
     run.paused_reason = None
     run.error = None
+    run.output = None
     run.root_run_id = run.id
     run.causation_run_id = None
     run.depth = 0
@@ -114,6 +116,19 @@ def _no_dispatch_trigger():
 
 @pytest.mark.usefixtures("_no_dispatch_trigger")
 class TestStart:
+    @pytest.mark.security
+    async def test_an_input_over_the_limit_is_refused_before_anything_is_read(self, monkeypatch):
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", 10)
+        service = WorkflowExecutionService(MagicMock())
+        get = AsyncMock()
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=get),
+            pytest.raises(WorkflowRunInputTooLargeError) as refused,
+        ):
+            await service.start(_ctx(), uuid.uuid4(), run_input={"text": "eleven bytes"})
+        assert refused.value.details == {"limit_bytes": 10, "size_bytes": 23}
+        get.assert_not_awaited()
+
     @pytest.mark.security
     async def test_starting_an_unreachable_workflow_is_not_found(self):
         service = WorkflowExecutionService(MagicMock())

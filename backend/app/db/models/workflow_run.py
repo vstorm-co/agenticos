@@ -255,6 +255,17 @@ class WorkflowRun(Base, TimestampMixin):
     # needs it: a truly absent error must be SQL NULL, not a stored JSON
     # `null`, for any future `error IS NULL` query to mean what it says.
     error: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    # What the invoking surface started the run with - an API body, a chat
+    # message, a webhook's JSON - as `core.input` hands it to the graph. Frozen at
+    # admission like the principal: a node that runs after a restart reads the
+    # same payload the run was admitted with.
+    input: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    # The run's answer, as `core.output` recorded it - `WorkflowOutputPayload`'s
+    # shape. SQL NULL, not JSON `null`, for a run that has not answered (or never
+    # does: a graph with no output node), for the same reason `error` needs it.
+    output: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     # This run's own id if it is the root of its causal chain, else the
     # originating run's `root_run_id`. Always set - a root run points at
     # itself - which is what lets every consumer that needs "the run this

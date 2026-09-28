@@ -76,6 +76,7 @@ def _run_row(**overrides: object):
     run.deadline_at = None
     run.paused_reason = None
     run.error = None
+    run.output = None
     run.root_run_id = run.id
     run.causation_run_id = None
     run.depth = 0

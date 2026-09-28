@@ -41,7 +41,11 @@ async def start_workflow_run(
     Rate-limited per caller like `POST /agents/{id}/run`; over the allowance
     answers 429 with `Retry-After`."""
     return await service.start(
-        ctx, data.workflow_id, mode=data.mode, deadline_seconds=data.deadline_seconds
+        ctx,
+        data.workflow_id,
+        mode=data.mode,
+        run_input=data.input,
+        deadline_seconds=data.deadline_seconds,
     )
 
 

@@ -14,12 +14,14 @@ Two directions, both scoped to one dispatch call by `dispatching_as`:
 - **In** - `current()` is what a handler is executing *as*: which run, which
   node, which attempt, and the `AuthContext` to act with (built from
   `WorkflowRun.execution_principal_user_id`, never a request that no longer
-  exists by the time a parked node wakes).
+  exists by the time a parked node wakes), plus what the run was started with
+  (`run_input`, `triggered_by`) for `core.input` to hand the graph.
 - **Out** - `report_waiting_agent_run` is how a handler that parks on
   `ApprovalGate` tells the dispatcher which `agent_runs` row `NodeRun.
-  waiting_agent_run_id` must point at, and `report_cost` is how a handler
-  that spends money says how much. `NodeResult` (#1786's frozen contract)
-  carries neither, so both travel beside the return value rather than in it.
+  waiting_agent_run_id` must point at, `report_cost` is how a handler
+  that spends money says how much, and `report_run_output` is how
+  `core.output` names the run's answer. `NodeResult` (#1786's frozen contract)
+  carries none of them, so they travel beside the return value rather than in it.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from app.core.permissions import AuthContext
@@ -64,6 +67,14 @@ class DispatchContext:
     `run` again on a wake would silently drop an approved call by re-sending
     the original prompt to a fresh agent."""
     claim: ClaimState = field(default_factory=ClaimState)
+    run_input: dict[str, Any] = field(default_factory=dict)
+    """What the run was admitted with - `WorkflowRun.input`, frozen at start."""
+    triggered_by: str = "api"
+    """Which surface admitted the run - `WorkflowRun.triggered_by`."""
+    arrived_output: dict[str, Any] | None = None
+    """For a `control` node, the output of the one predecessor whose edge
+    brought the run here - what `logic.merge` passes on, since it may bind to
+    neither of its branches. `None` for every other node."""
 
 
 @dataclass(slots=True)
@@ -73,6 +84,7 @@ class _Outbox:
     waiting_agent_run_id: UUID | None = None
     cost: Decimal = Decimal(0)
     cost_is_partial: bool = False
+    run_output: dict[str, Any] | None = None
 
 
 _current: ContextVar[DispatchContext | None] = ContextVar("workflow_dispatch_context", default=None)
@@ -118,6 +130,10 @@ class DispatchScope:
     @property
     def cost_is_partial(self) -> bool:
         return self._outbox.cost_is_partial
+
+    @property
+    def run_output(self) -> dict[str, Any] | None:
+        return self._outbox.run_output
 
 
 def dispatching_as(context: DispatchContext) -> DispatchScope:
@@ -182,3 +198,17 @@ def report_cost(amount: Decimal, *, partial: bool = False) -> None:
     if outbox is not None:
         outbox.cost, capped = budget.saturating_add(outbox.cost, amount)
         outbox.cost_is_partial = outbox.cost_is_partial or partial or capped
+
+
+def report_run_output(output: dict[str, Any]) -> None:
+    """Name `output` as the run's answer - what `core.output` does with its input.
+
+    Recorded on the run only if this attempt completes and is accepted: a
+    result that arrives after the claim was lost, or a node that fails after
+    calling this, leaves the run's output as it was. A later call in the same
+    attempt replaces an earlier one. A no-op outside `dispatching_as`, like
+    the other reports.
+    """
+    outbox = _outbox.get()
+    if outbox is not None:
+        outbox.run_output = output

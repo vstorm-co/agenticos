@@ -622,11 +622,21 @@ async def test_a_binding_to_a_node_on_every_path_publishes(mock_db_session, regi
 # Rule 5 - exclusive merge
 
 
+def _leg() -> NodeInstance:
+    """A branch step with an untyped `in`, so a `logic.if` port may lead into it."""
+    return NodeInstance(
+        id=uuid4(),
+        definition_id="data.map",
+        definition_version=1,
+        config={"mappings": [{"target_field": "a", "source_path": "'x'"}]},
+        layout=_pos(),
+    )
+
+
 async def test_a_merges_branches_not_from_one_if_are_refused(mock_db_session, registered_node):
-    merge = registered_node(_action_definition("logic.merge", requires_input=False))
     a, b = _echo_node(), _echo_node()
     c = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     # Two independent predecessors, no shared `logic.if` ancestor at all.
     edges = (_edge(a.id, "out", c.id, "in"), _edge(b.id, "out", c.id, "in"))
@@ -637,40 +647,23 @@ async def test_a_merges_branches_not_from_one_if_are_refused(mock_db_session, re
 
 
 async def test_a_merge_from_one_logic_if_publishes(mock_db_session, registered_node):
-    branch_if = registered_node(
-        NodeDefinition(
-            id="logic.if",
-            version=1,
-            name="If",
-            category="logic",
-            description="branches",
-            kind="control",
-            config_schema=None,
-            input_schema=None,
-            output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="then", label="Then", kind="output"),
-                Port(id="otherwise", label="Otherwise", kind="output"),
-            ),
-            effect_kind="pure",
-            retry_guarantee="idempotent",
-        )
-    )
-    merge = registered_node(_action_definition("logic.merge", requires_input=False))
     entry = _echo_node()
     branch_node = NodeInstance(
-        id=uuid4(), definition_id=branch_if.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id="logic.if",
+        definition_version=1,
+        config={"condition": "value"},
+        layout=_pos(),
     )
-    then_leg = _echo_node()
-    else_leg = _echo_node()
+    then_leg = _leg()
+    else_leg = _leg()
     merge_node = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     edges = (
         _edge(entry.id, "out", branch_node.id, "in"),
-        _edge(branch_node.id, "then", then_leg.id, "in"),
-        _edge(branch_node.id, "otherwise", else_leg.id, "in"),
+        _edge(branch_node.id, "true", then_leg.id, "in"),
+        _edge(branch_node.id, "false", else_leg.id, "in"),
         _edge(then_leg.id, "out", merge_node.id, "in"),
         _edge(else_leg.id, "out", merge_node.id, "in"),
     )
@@ -687,42 +680,25 @@ async def test_a_merges_branches_from_the_same_if_port_are_refused(
     mock_db_session, registered_node
 ):
     """Rule 8 lets a control node fan one port out to more than one target,
-    so both legs here share `logic.if`'s `then` port - they run together or
+    so both legs here share `logic.if`'s `true` port - they run together or
     not at all, never exclusively, even though they share a dominator."""
-    branch_if = registered_node(
-        NodeDefinition(
-            id="logic.if",
-            version=1,
-            name="If",
-            category="logic",
-            description="branches",
-            kind="control",
-            config_schema=None,
-            input_schema=None,
-            output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="then", label="Then", kind="output"),
-                Port(id="otherwise", label="Otherwise", kind="output"),
-            ),
-            effect_kind="pure",
-            retry_guarantee="idempotent",
-        )
-    )
-    merge = registered_node(_action_definition("logic.merge", requires_input=False))
     entry = _echo_node()
     branch_node = NodeInstance(
-        id=uuid4(), definition_id=branch_if.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id="logic.if",
+        definition_version=1,
+        config={"condition": "value"},
+        layout=_pos(),
     )
-    then_leg = _echo_node()
-    other_leg = _echo_node()
+    then_leg = _leg()
+    other_leg = _leg()
     merge_node = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     edges = (
         _edge(entry.id, "out", branch_node.id, "in"),
-        _edge(branch_node.id, "then", then_leg.id, "in"),
-        _edge(branch_node.id, "then", other_leg.id, "in"),
+        _edge(branch_node.id, "true", then_leg.id, "in"),
+        _edge(branch_node.id, "true", other_leg.id, "in"),
         _edge(then_leg.id, "out", merge_node.id, "in"),
         _edge(other_leg.id, "out", merge_node.id, "in"),
     )
@@ -742,10 +718,9 @@ async def test_a_merges_branches_from_the_same_if_port_are_refused(
 async def test_a_merge_with_two_edges_from_the_same_branch_is_refused(
     mock_db_session, registered_node
 ):
-    merge = registered_node(_action_definition("logic.merge", requires_input=False))
     a = _echo_node()
     c = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     edges = (_edge(a.id, "out", c.id, "in"), _edge(a.id, "out", c.id, "in"))
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, c), edges=edges)
@@ -760,46 +735,29 @@ async def test_a_merge_with_two_edges_from_the_same_branch_is_refused(
 async def test_a_merge_branch_reconverged_from_both_if_arms_is_refused(
     mock_db_session, registered_node
 ):
-    """`a` is downstream of *both* `then` (via `t`) and `otherwise` (via `e`)
+    """`a` is downstream of *both* `true` (via `t`) and `false` (via `e`)
     - it runs on either outcome, so it is not exclusive with `b`, which only
-    runs on `then`. Neither of `logic.if`'s own children dominates `a` alone
+    runs on `true`. Neither of `logic.if`'s own children dominates `a` alone
     (`t` and `e` each dominate only their own leg), so `a`'s dominator set
     stops at `logic.if` itself and no single feeding port can be named for
     it - the gap a bare "do the sets overlap" check missed entirely."""
-    branch_if = registered_node(
-        NodeDefinition(
-            id="logic.if",
-            version=1,
-            name="If",
-            category="logic",
-            description="branches",
-            kind="control",
-            config_schema=None,
-            input_schema=None,
-            output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="then", label="Then", kind="output"),
-                Port(id="otherwise", label="Otherwise", kind="output"),
-            ),
-            effect_kind="pure",
-            retry_guarantee="idempotent",
-        )
-    )
-    merge = registered_node(_action_definition("logic.merge", requires_input=False))
     entry = _echo_node()
     branch_node = NodeInstance(
-        id=uuid4(), definition_id=branch_if.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id="logic.if",
+        definition_version=1,
+        config={"condition": "value"},
+        layout=_pos(),
     )
-    t, e, a, b = _echo_node(), _echo_node(), _echo_node(), _echo_node()
+    t, e, a, b = _leg(), _leg(), _leg(), _leg()
     merge_node = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     edges = (
         _edge(entry.id, "out", branch_node.id, "in"),
-        _edge(branch_node.id, "then", t.id, "in"),
-        _edge(branch_node.id, "then", b.id, "in"),
-        _edge(branch_node.id, "otherwise", e.id, "in"),
+        _edge(branch_node.id, "true", t.id, "in"),
+        _edge(branch_node.id, "true", b.id, "in"),
+        _edge(branch_node.id, "false", e.id, "in"),
         _edge(t.id, "out", a.id, "in"),
         _edge(e.id, "out", a.id, "in"),
         _edge(a.id, "out", merge_node.id, "in"),

@@ -8,6 +8,7 @@ anything about the run itself is touched.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -17,6 +18,7 @@ from uuid import UUID
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
@@ -40,6 +42,7 @@ from app.services.workflow_execution import admission, events
 from app.services.workflow_execution.exceptions import (
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
+    WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
 from app.services.workflow_registry import WorkflowArchivedError
@@ -64,6 +67,7 @@ def _read(run: WorkflowRun) -> WorkflowRunRead:
         deadline_at=run.deadline_at,
         paused_reason=run.paused_reason,
         error=run.error,
+        output=run.output,
         root_run_id=run.root_run_id,
         causation_run_id=run.causation_run_id,
         depth=run.depth,
@@ -87,10 +91,15 @@ class WorkflowExecutionService:
         *,
         mode: WorkflowRunMode = WorkflowRunMode.REAL,
         triggered_by: WorkflowRunTrigger = WorkflowRunTrigger.API,
+        run_input: dict[str, Any] | None = None,
         deadline_seconds: int | None = None,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
+
+        `run_input` is what `core.input` hands the graph, frozen on the run
+        row; it is refused before anything else is checked when it is over
+        `WORKFLOW_RUN_MAX_INPUT_BYTES`.
 
         `deadline_seconds` sets the run's wall-clock deadline from now: a node
         not yet dispatched when it passes is refused and the run fails with
@@ -106,10 +115,18 @@ class WorkflowExecutionService:
                 ones, in both `real` and `test` mode.
             WorkflowNotRunnableError: `real` mode with no published version,
                 or `test` mode with no valid, structurally sound draft graph.
+            WorkflowRunInputTooLargeError: `run_input` is over
+                `WORKFLOW_RUN_MAX_INPUT_BYTES`.
             WorkflowAdmissionQuotaError: Admitting this run would push the
                 organization's or the caller's outstanding node work past its
                 ceiling; retried once running work drains.
         """
+        payload = run_input or {}
+        size = len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode())
+        if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
+            raise WorkflowRunInputTooLargeError(
+                limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=size
+            )
         workflow = await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_RUN)
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
@@ -161,6 +178,7 @@ class WorkflowExecutionService:
             visited_trigger_ids=[],
             depth=0,
             started_at=now,
+            run_input=payload,
         )
         await self._record_resource_refs(run, graph)
         entry_node_run = await workflow_run_repo.create_node_run(

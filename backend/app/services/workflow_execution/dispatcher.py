@@ -22,14 +22,13 @@ so no database connection is ever held across a handler's own external call:
    transactional outbox for exactly this reason: "the result is durable" and
    "the next step is scheduled" can never disagree.
 
-Every valid graph in this module's practical scope is a single linear chain:
-#1786 ships no `control`-kind node, and rule 8 (`app.workflows.graph.validate.
-_rule_8_no_parallel_fanout`) forbids a non-control node from fanning its
-output out to more than one edge - so "advance the graph" here never needs to
-reason about branch/skip semantics. That is #1790's `control.foreach`/
-`logic.if` machinery, co-designed with the concrete nodes it dispatches; this
-module implements the DAG-general mechanism those nodes will run on top of,
-not their branch-local skip rules.
+Advancing is branch-aware (`_advance`): a node that branches names the port
+it left by (`NodeDefinition.routes` - `logic.if`'s `true` or `false`), only
+edges leaving that port are followed, and a node every one of whose incoming
+edges is dead is recorded `skipped` without an attempt, which propagates the
+skip down an untaken branch to the `logic.merge` that rejoins it. Everything
+here still runs at the top-level scope (`scope_path=[]`); iterating a
+`control.foreach` body is #1790's.
 """
 
 from __future__ import annotations
@@ -135,6 +134,7 @@ class HandlerOutcome:
     waiting_agent_run_id: UUID | None = None
     cost: Decimal = Decimal(0)
     cost_is_partial: bool = False
+    run_output: dict[str, Any] | None = None
 
 
 async def claim(
@@ -325,8 +325,11 @@ async def _completed_outputs(
     """The stored `Completed.output` of each named node, for `NodeOutputRef` binding sources.
 
     Looked up by `(workflow_run_id, node_instance_id, scope_path=[])` - every
-    graph this module dispatches is a single top-level chain (see the module
-    docstring), so there is never more than one live scope to disambiguate.
+    node this module dispatches runs at the top-level scope (see the module
+    docstring), so there is never more than one live scope to disambiguate. A
+    skipped source has no completed attempt and reads as `None`, which a
+    publish-valid graph never binds to: rule 4 only lets a node bind to what
+    dominates it, and a dominator of a node that runs cannot have been skipped.
     """
     outputs: dict[UUID, dict[str, Any] | None] = {}
     for node_id in node_ids:
@@ -357,6 +360,7 @@ class _ResolvedCall:
     handler: NodeHandler
     config: BaseModel | None
     input: BaseModel | None
+    arrived_output: dict[str, Any] | None
 
 
 async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun) -> _ResolvedCall:
@@ -392,12 +396,18 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
         # `FileRef`/`TableIORef` source is never checked against the target
         # field's own type, so this can fail on a published graph too.
         raise InvalidBindingError(node_instance_id=node.id) from exc
+    arrived_output = (
+        await _AdvanceState(db, run=run, graph=graph).arrived_output(node.id)
+        if definition.kind == "control"
+        else None
+    )
     return _ResolvedCall(
         node=node,
         definition=definition,
         handler=definition.handler,
         config=config_obj,
         input=input_obj,
+        arrived_output=arrived_output,
     )
 
 
@@ -619,6 +629,9 @@ async def begin_attempt(
         auth=auth,
         resumed_agent_run_id=node_run.waiting_agent_run_id,
         claim=claim if claim is not None else context.ClaimState(),
+        run_input=run.input,
+        triggered_by=run.triggered_by,
+        arrived_output=call.arrived_output,
     )
     return BegunAttempt(
         workflow_run_id=run.id,
@@ -671,6 +684,7 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
         waiting_agent_run_id=scope.waiting_agent_run_id,
         cost=scope.cost,
         cost_is_partial=scope.cost_is_partial,
+        run_output=scope.run_output,
     )
 
 
@@ -1025,6 +1039,10 @@ async def settle(
     await _record_attempt(db, attempt=attempt, outcome=outcome, now=now)
 
     if isinstance(result, Completed):
+        if outcome.run_output is not None:
+            run = await workflow_run_repo.update_run(
+                db, run=run, update_data={"output": outcome.run_output}
+            )
         return await _settle_completed(db, run=run, node_run=node_run, now=now)
     if isinstance(result, Waiting):
         await _settle_waiting(
@@ -1312,76 +1330,167 @@ async def _settle_uncertain(
 async def _advance(
     db: AsyncSession, *, run: WorkflowRun, completed_node_instance_id: UUID
 ) -> list[tuple[UUID, UUID]]:
-    """After a node succeeds: queue what is now ready, or close out the run.
+    """After a node succeeds: queue what is now ready, skip what is now
+    unreachable, and close out the run once nothing is left.
 
-    Every graph this dispatches is a single chain (module docstring), so
-    "ready" reduces to "every predecessor of this edge's target has
-    succeeded" - no branch, no fan-in beyond a chain's own single edge.
+    An edge is **live** when its source succeeded *and* left through that
+    edge's port - every output port of an ordinary node, only the one a
+    branching node chose (`NodeDefinition.routes`, read off the stored
+    output). A target is decided once every one of its predecessors is
+    terminal: it runs when at least one incoming edge is live, and is
+    `skipped` - with no attempt and no outbox row - when none is. A skip is
+    terminal too, so it is decided onward the same way, which is how an
+    untaken `logic.if` branch is skipped node by node until it reaches the
+    `logic.merge` that rejoins the taken one. Called under the run's lock, so
+    two settles of one run never decide the same target at once.
+
     Returns what it queued, for the caller to submit after commit.
     """
-    ready_pairs: list[tuple[UUID, UUID]] = []
     graph = await resolve_graph(db, run)
-    downstream_edges = [
-        edge for edge in graph.edges if edge.source_node_id == completed_node_instance_id
-    ]
-    if not downstream_edges:
-        await _succeed_if_finished(db, run=run, graph=graph)
-        return ready_pairs
-
-    for edge in downstream_edges:
-        target = graph.node_by_id.get(edge.target_node_id)
-        if target is None:
-            continue
-        if await workflow_run_repo.get_node_run_by_identity(
-            db, workflow_run_id=run.id, node_instance_id=target.id, scope_path=[]
-        ):
-            continue  # already created by a concurrent settle of a sibling edge
-        predecessor_ids = {e.source_node_id for e in graph.edges if e.target_node_id == target.id}
-        ready = True
-        for predecessor_id in predecessor_ids:
-            predecessor_run = await workflow_run_repo.get_node_run_by_identity(
-                db, workflow_run_id=run.id, node_instance_id=predecessor_id, scope_path=[]
-            )
-            if predecessor_run is None or predecessor_run.status not in (
-                NodeRunStatus.SUCCEEDED.value,
-                NodeRunStatus.SKIPPED.value,
-            ):
-                ready = False
-                break
-        if not ready:
-            continue
-        # A target with more than one predecessor can be found "ready" by two
-        # sibling settle transactions at once - each already checked the row
-        # does not exist yet, above, in its own snapshot. The unique index on
-        # `(workflow_run_id, node_instance_id, scope_path)` is what actually
-        # decides; the loser reads its own `IntegrityError` back as "the other
-        # transaction already created it" inside a savepoint, the same shape
-        # `UserService.confirm_email_change` uses for its own insert race,
-        # rather than letting it escape and abort this whole settle.
-        try:
-            async with db.begin_nested():
-                node_run = await workflow_run_repo.create_node_run(
+    decided = _AdvanceState(db, run=run, graph=graph)
+    ready_pairs: list[tuple[UUID, UUID]] = []
+    frontier = [completed_node_instance_id]
+    while frontier:
+        source_id = frontier.pop()
+        targets = dict.fromkeys(
+            edge.target_node_id for edge in graph.edges if edge.source_node_id == source_id
+        )
+        for target_id in targets:
+            if target_id not in graph.node_by_id or await decided.node_run(target_id) is not None:
+                continue
+            runs = await decided.runs_target(target_id)
+            if runs is None:
+                continue
+            node_run = await _create_decided_node_run(db, run=run, target_id=target_id, runs=runs)
+            if node_run is None:
+                continue
+            decided.remember(target_id, node_run)
+            if runs:
+                # Stamped submitted: the settling flow submits it straight after
+                # this transaction commits, so the next node starts as soon as
+                # its predecessor settles instead of waiting out the poll - and
+                # the poll does not submit it a second time.
+                await workflow_run_repo.create_outbox(
                     db,
                     organization_id=run.organization_id,
                     workflow_run_id=run.id,
-                    node_instance_id=target.id,
-                    scope_path=[],
+                    node_run_id=node_run.id,
+                    submitted=True,
                 )
-        except IntegrityError:
-            continue
-        # Stamped submitted: the settling flow submits it straight after this
-        # transaction commits, so a chain's next node starts as soon as its
-        # predecessor settles instead of waiting out the poll - and the poll
-        # does not submit it a second time.
-        await workflow_run_repo.create_outbox(
-            db,
-            organization_id=run.organization_id,
-            workflow_run_id=run.id,
-            node_run_id=node_run.id,
-            submitted=True,
-        )
-        ready_pairs.append((run.id, node_run.id))
+                ready_pairs.append((run.id, node_run.id))
+            else:
+                await events.append(
+                    db, run=run, kind=events.EventKind.NODE_SKIPPED, node_run_id=node_run.id
+                )
+                frontier.append(target_id)
+    await _succeed_if_finished(db, run=run, graph=graph)
     return ready_pairs
+
+
+class _AdvanceState:
+    """One `_advance` call's reads of the run's node rows and their chosen ports.
+
+    Cached for the call, not beyond it: a target reached from several edges,
+    or a predecessor shared by several targets, is read once, and a row this
+    call just created is known without reading it back.
+    """
+
+    def __init__(self, db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph) -> None:
+        self._db = db
+        self._run = run
+        self._graph = graph
+        self._node_runs: dict[UUID, NodeRun | None] = {}
+        self._ports: dict[UUID, frozenset[str] | None] = {}
+
+    def remember(self, node_id: UUID, node_run: NodeRun) -> None:
+        self._node_runs[node_id] = node_run
+
+    async def node_run(self, node_id: UUID) -> NodeRun | None:
+        if node_id not in self._node_runs:
+            self._node_runs[node_id] = await workflow_run_repo.get_node_run_by_identity(
+                self._db, workflow_run_id=self._run.id, node_instance_id=node_id, scope_path=[]
+            )
+        return self._node_runs[node_id]
+
+    async def runs_target(self, target_id: UUID) -> bool | None:
+        """Whether `target_id` runs (`True`), is skipped (`False`), or cannot be
+        decided yet (`None`) because a predecessor is still to finish."""
+        live = False
+        for edge in self._graph.edges:
+            if edge.target_node_id != target_id:
+                continue
+            predecessor = await self.node_run(edge.source_node_id)
+            if predecessor is None or predecessor.status not in (
+                NodeRunStatus.SUCCEEDED.value,
+                NodeRunStatus.SKIPPED.value,
+            ):
+                return None
+            if predecessor.status == NodeRunStatus.SUCCEEDED.value:
+                chosen = await self._chosen_ports(predecessor)
+                live = live or chosen is None or edge.source_port in chosen
+        return live
+
+    async def arrived_output(self, target_id: UUID) -> dict[str, Any] | None:
+        """The output carried by the one live edge `target_id` was reached through.
+
+        What a `logic.merge` passes on: of its incoming branches exactly one
+        ran, and rule 4 lets it bind to neither (neither dominates it), so the
+        value has to come from the edge rather than a binding. `None` when no
+        edge, or more than one, is live.
+        """
+        outputs: list[dict[str, Any] | None] = []
+        for edge in self._graph.edges:
+            if edge.target_node_id != target_id:
+                continue
+            predecessor = await self.node_run(edge.source_node_id)
+            if predecessor is None or predecessor.status != NodeRunStatus.SUCCEEDED.value:
+                continue
+            chosen = await self._chosen_ports(predecessor)
+            if chosen is None or edge.source_port in chosen:
+                outputs.append(await self._output(predecessor))
+        return outputs[0] if len(outputs) == 1 else None
+
+    async def _output(self, node_run: NodeRun) -> dict[str, Any] | None:
+        latest = await workflow_run_repo.get_latest_attempt(self._db, node_run_id=node_run.id)
+        return latest.result.get("output") if latest and latest.result else None
+
+    async def _chosen_ports(self, node_run: NodeRun) -> frozenset[str] | None:
+        """The ports a succeeded node left by, or `None` for all of them."""
+        node_id = node_run.node_instance_id
+        if node_id not in self._ports:
+            node = self._graph.node_by_id[node_id]
+            definition = _registry.get(node.definition_id, node.definition_version)
+            self._ports[node_id] = (
+                None
+                if definition.routes is None
+                else definition.routes(await self._output(node_run))
+            )
+        return self._ports[node_id]
+
+
+async def _create_decided_node_run(
+    db: AsyncSession, *, run: WorkflowRun, target_id: UUID, runs: bool
+) -> NodeRun | None:
+    """Create `target_id`'s `NodeRun`, `pending` or already `skipped`.
+
+    The unique index on `(workflow_run_id, node_instance_id, scope_path)` is
+    what finally decides a race to create it; the loser reads its own
+    `IntegrityError` back as "already created" inside a savepoint, the shape
+    `UserService.confirm_email_change` uses for its own insert race, rather
+    than letting it abort the whole settle. `None` means somebody else did.
+    """
+    try:
+        async with db.begin_nested():
+            return await workflow_run_repo.create_node_run(
+                db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                node_instance_id=target_id,
+                scope_path=[],
+                skipped_at=None if runs else datetime.now(UTC),
+            )
+    except IntegrityError:
+        return None
 
 
 async def _succeed_if_finished(

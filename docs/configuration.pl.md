@@ -1,5 +1,5 @@
 ---
-source_sha: "fe31cd457ddf"
+source_sha: "e7b5b27a1e7e"
 ---
 
 # Konfiguracja { #configuration }
@@ -484,6 +484,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Największy ładunek, z jakim można uruchomić run, jako zwarty JSON. Jest przechowywany w runie dla jego węzła `core.input`, więc większy zostaje odrzucony z `413`, zanim run zostanie przyjęty |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
 | `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |

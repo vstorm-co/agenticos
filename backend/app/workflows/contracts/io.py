@@ -96,3 +96,54 @@ class Binding(BaseModel):
     target_node_id: UUID
     target_field: str
     source: BindingSource
+
+
+class SourceRef(BaseModel):
+    """One retrieved passage, as a node hands it on rather than as a model reads it.
+
+    What `knowledge.search` produces and `agent.run`/`core.output` carry:
+    typed fields a later node can bind to, not a formatted citation string.
+    `content` is the matched chunk; the page and chunk locate it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    document_id: str | None = None
+    filename: str
+    collection: str
+    page: int | None = None
+    chunk: int | None = None
+    score: float
+    content: str
+
+
+class WorkflowInputPayload(BaseModel):
+    """What a run was started with, as `core.input` hands it to the graph.
+
+    `payload` is whatever the invoking surface supplied - an API body, a chat
+    message, a webhook's JSON, a table record's snapshot - untyped here because
+    the graph, not the node, decides its shape: a binding reads a field out of
+    it by path and is checked against the target when the run dispatches.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    payload: dict[str, Any] = Field(default_factory=dict)
+    triggered_by: str
+
+
+class WorkflowOutputPayload(BaseModel):
+    """What a run answers with, as `core.output` records it.
+
+    The same fields `agent.run` produces, so the common case - an agent feeding
+    the workflow's answer - type-checks with nothing in between. Every field is
+    optional: a workflow that only writes to a table still ends, with nothing
+    to say.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    text: str | None = None
+    sources: tuple[SourceRef, ...] = ()
+    artifacts: tuple[FileRef, ...] = ()
+    structured: dict[str, Any] | None = None

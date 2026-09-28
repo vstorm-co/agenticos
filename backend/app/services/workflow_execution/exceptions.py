@@ -128,3 +128,14 @@ class PrincipalRevokedError(WorkflowDispatchRefusedError):
 
     def __init__(self) -> None:
         super().__init__(details={})
+
+
+class WorkflowRunInputTooLargeError(AppException):
+    """The payload a run was started with is larger than the deployment allows (413)."""
+
+    message = "The run's input is too large"
+    code = "WORKFLOW_RUN_INPUT_TOO_LARGE"
+    status_code = 413
+
+    def __init__(self, *, limit: int, size: int) -> None:
+        super().__init__(details={"limit_bytes": limit, "size_bytes": size})

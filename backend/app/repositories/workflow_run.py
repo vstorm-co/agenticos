@@ -56,6 +56,7 @@ async def create_run(
     visited_trigger_ids: list[str],
     depth: int,
     started_at: datetime,
+    run_input: dict[str, Any] | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -79,6 +80,7 @@ async def create_run(
         root_run_id=root_run_id or run_id,
         causation_run_id=causation_run_id,
         visited_trigger_ids=visited_trigger_ids,
+        input=run_input or {},
         depth=depth,
         started_at=started_at,
     )
@@ -187,13 +189,19 @@ async def create_node_run(
     workflow_run_id: UUID,
     node_instance_id: UUID,
     scope_path: list[dict[str, Any]],
+    skipped_at: datetime | None = None,
 ) -> NodeRun:
+    """A `NodeRun` for one node in one scope - `pending`, or `skipped` when
+    `skipped_at` says when the dispatcher found it unreachable."""
     node_run = NodeRun(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_instance_id=node_instance_id,
         scope_path=scope_path,
     )
+    if skipped_at is not None:
+        node_run.status = NodeRunStatus.SKIPPED.value
+        node_run.ended_at = skipped_at
     db.add(node_run)
     await db.flush()
     await db.refresh(node_run)

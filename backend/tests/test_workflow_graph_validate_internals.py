@@ -493,28 +493,9 @@ async def test_a_node_unreachable_because_it_is_in_a_cycle_gets_no_dominator_ver
 async def test_a_merge_with_a_single_predecessor_is_not_a_merge_rule_5_cares_about(
     mock_db_session, registered_node
 ):
-    merge = registered_node(
-        NodeDefinition(
-            id="logic.merge",
-            version=1,
-            name="Merge",
-            category="logic",
-            description="test",
-            kind="action",
-            config_schema=None,
-            input_schema=None,
-            output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="out", label="Out", kind="output"),
-            ),
-            effect_kind="pure",
-            retry_guarantee="idempotent",
-        )
-    )
     a = _echo_node()
     b = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(_edge(a.id, "out", b.id, "in"),))
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
@@ -702,32 +683,13 @@ async def test_a_merges_common_dominator_that_is_not_logic_if_is_refused(
             retry_guarantee="idempotent",
         )
     )
-    merge = registered_node(
-        NodeDefinition(
-            id="logic.merge",
-            version=1,
-            name="Merge",
-            category="logic",
-            description="test",
-            kind="action",
-            config_schema=None,
-            input_schema=None,
-            output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="out", label="Out", kind="output"),
-            ),
-            effect_kind="pure",
-            retry_guarantee="idempotent",
-        )
-    )
     entry = _echo_node()
     switch_node = NodeInstance(
         id=uuid4(), definition_id=switch.id, definition_version=1, config={}, layout=_pos()
     )
     branch_a, branch_b = _echo_node(), _echo_node()
     merge_node = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
     edges = (
         _edge(entry.id, "out", switch_node.id, "in"),

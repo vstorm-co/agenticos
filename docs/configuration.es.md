@@ -1,5 +1,5 @@
 ---
-source_sha: "fe31cd457ddf"
+source_sha: "e7b5b27a1e7e"
 ---
 
 # Configuración { #configuration }
@@ -496,6 +496,7 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | La carga más grande con la que se puede iniciar un run, como JSON compacto. Se guarda en el run para su nodo `core.input`, así que una mayor se rechaza con `413` antes de admitir el run |
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Cuánto dura el claim de un worker sobre un nodo de workflow antes de darlo por abandonado. El worker lo renueva cada tercio de ese tiempo mientras el nodo se ejecuta, así que acota cuánto tarda en notarse un worker muerto, no cuánto puede durar un nodo |
 | `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |

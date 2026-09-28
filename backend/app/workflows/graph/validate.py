@@ -61,8 +61,9 @@ could not be expressed against at all.
 
 from __future__ import annotations
 
+import types
 from collections import deque
-from typing import Any
+from typing import Any, Union, get_args, get_origin
 from uuid import UUID
 
 from pydantic import BaseModel, TypeAdapter
@@ -669,6 +670,8 @@ def _resolve_field_path(
         return _UNKNOWN if schema is _UNKNOWN else schema
     current: Any = schema
     for part in field_path:
+        if _is_dynamic(current):
+            return Any
         if not (isinstance(current, type) and issubclass(current, BaseModel)):
             return _UNKNOWN
         if part not in current.model_fields:
@@ -677,8 +680,31 @@ def _resolve_field_path(
     return current
 
 
+def _is_dynamic(annotation: Any) -> bool:
+    """Whether a path may reach into `annotation` with no schema to follow.
+
+    `Any`, or a `dict` whose values are `Any` (optionally `| None`): a
+    trigger's payload, a mapped record, an agent's structured answer. What
+    such a path finds is only known once the run has it, so it resolves to
+    `Any` here and is validated against the target field when the node is
+    dispatched - `_resolve_io` refuses a value that does not fit, which fails
+    the run rather than handing a handler the wrong type.
+    """
+    if annotation is Any:
+        return True
+    origin = get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        members = [arg for arg in get_args(annotation) if arg is not type(None)]
+        return len(members) == 1 and _is_dynamic(members[0])
+    if origin is dict:
+        args = get_args(annotation)
+        return len(args) == 2 and args[1] is Any
+    return False
+
+
 def _types_compatible(source: Any, target: Any) -> bool:
-    if source is target:
+    # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
+    if source is target or source is Any or target is Any:
         return True
     return _type_name(source) == _type_name(target)
 

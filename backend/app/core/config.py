@@ -690,6 +690,11 @@ class Settings(BaseSettings):
     WORKFLOW_GRAPH_MAX_NODES: int = Field(default=500, gt=0)
     WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
     WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
+    # The largest payload a run may be started with, as compact JSON. It is stored
+    # on the run's row and read at every `core.input` dispatch, and the surfaces
+    # that supply it are open to API keys and webhooks (#1792), so an unbounded one
+    # is a row anyone who may start a run can grow without limit.
+    WORKFLOW_RUN_MAX_INPUT_BYTES: int = Field(default=262_144, gt=0)
 
     # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
     # before `workflow-reconcile` treats it as abandoned and reclaims it. Long

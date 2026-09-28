@@ -183,6 +183,10 @@ dependencies = [
     # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
     # decision is recorded in `licenses/policy.toml`.
     "ldap3>=2.9.1",
+    # The expression language workflow `data.map` and `logic.if` nodes evaluate:
+    # declarative JSON queries with no assignment, loops or user functions, so a
+    # graph never executes code (#1789). MIT; already installed through boto3.
+    "jmespath>=1.1.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's

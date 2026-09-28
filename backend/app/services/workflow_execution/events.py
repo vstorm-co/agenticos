@@ -39,6 +39,7 @@ class EventKind:
     NODE_WAITING = "node_waiting"
     NODE_UNCERTAIN = "node_uncertain"
     NODE_RETRYING = "node_retrying"
+    NODE_SKIPPED = "node_skipped"
     ATTEMPT_RECLAIMED = "attempt_reclaimed"
 
 

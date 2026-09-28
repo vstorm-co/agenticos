@@ -25,6 +25,13 @@ class WorkflowRunStart(BaseSchema):
 
     workflow_id: UUID
     mode: WorkflowRunMode = WorkflowRunMode.REAL
+    input: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "What the run starts with, handed to the graph's `core.input` node. At most "
+            "`WORKFLOW_RUN_MAX_INPUT_BYTES` as compact JSON; a larger one answers 413."
+        ),
+    )
     deadline_seconds: int | None = Field(
         default=None,
         ge=1,
@@ -50,6 +57,10 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
     deadline_at: datetime | None
     paused_reason: str | None
     error: dict[str, Any] | None
+    output: dict[str, Any] | None = Field(
+        default=None,
+        description="What the run answered through its `core.output` node, once it has.",
+    )
     root_run_id: UUID
     causation_run_id: UUID | None
     depth: int

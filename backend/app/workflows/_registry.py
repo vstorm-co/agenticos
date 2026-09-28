@@ -99,8 +99,13 @@ def load_builtins() -> None:
         return
 
     from app.workflows.nodes import (  # noqa: F401 - imported for side effects
+        core_input,
+        core_output,
+        data_map,
         debug_echo,
         debug_relay,
+        logic_if,
+        logic_merge,
     )
 
     _builtins_loaded = True

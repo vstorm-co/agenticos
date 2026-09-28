@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -43,6 +43,18 @@ complete catalog entry, since the catalog only describes shape.
 """
 
 
+RouteSelector = Callable[[dict[str, Any] | None], frozenset[str]]
+"""Which output ports a completed node leaves by, read off its stored output.
+
+`None` on a definition means every output port - an action node's one `out`.
+A branching node answers with the port its output chose: `logic.if` the
+`true` or `false` it evaluated. The dispatcher follows only edges leaving a
+chosen port and skips whatever becomes unreachable, so the choice has to be
+recoverable from the stored result alone - a node settled before a restart is
+advanced from its row, not from a handler call still in memory.
+"""
+
+
 @dataclass(frozen=True)
 class NodeDefinition:
     """A node type, as `_registry.get()` returns it and the catalog serializes it.
@@ -69,3 +81,4 @@ class NodeDefinition:
     retry_guarantee: Literal["none", "idempotent", "at_least_once"]
     scopes: frozenset[str] = frozenset()
     handler: NodeHandler | None = None
+    routes: RouteSelector | None = None

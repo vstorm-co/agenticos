@@ -2393,3 +2393,82 @@ class TestAdvanceMoreBranches:
         await dispatcher._advance(object(), run=run, completed_node_instance_id=source.id)
 
         repo.create_node_run.assert_not_called()
+
+
+class TestArrivedOutput:
+    """What a `control` node is handed from the edge it was reached through."""
+
+    def _state(self, graph: WorkflowGraph, run: WorkflowRun) -> dispatcher._AdvanceState:
+        return dispatcher._AdvanceState(MagicMock(), run=run, graph=graph)
+
+    async def test_an_edge_leaving_a_port_its_source_did_not_choose_carries_nothing(self):
+        """A merge wired straight from both of an if's ports: only the chosen one arrives."""
+        decide = _node_instance("logic.if", config={"condition": "value"})
+        merge = _node_instance("logic.merge")
+        graph = _graph(
+            decide,
+            merge,
+            edges=(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=decide.id,
+                    source_port="true",
+                    target_node_id=merge.id,
+                    target_port="in",
+                ),
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=decide.id,
+                    source_port="false",
+                    target_node_id=merge.id,
+                    target_port="in",
+                ),
+            ),
+        )
+        run = _run()
+        decided = _node_run(
+            workflow_run_id=run.id,
+            node_instance_id=decide.id,
+            status=NodeRunStatus.SUCCEEDED.value,
+        )
+        stored = _attempt(
+            node_run_id=decided.id,
+            status=NodeAttemptStatus.COMPLETED.value,
+            result={"status": "completed", "output": {"branch": "false", "value": 3}},
+        )
+        with (
+            patch(
+                f"{DISPATCHER_PATH}.workflow_run_repo.get_node_run_by_identity",
+                new=AsyncMock(return_value=decided),
+            ),
+            patch(
+                f"{DISPATCHER_PATH}.workflow_run_repo.get_latest_attempt",
+                new=AsyncMock(return_value=stored),
+            ),
+        ):
+            arrived = await self._state(graph, run).arrived_output(merge.id)
+
+        # One edge is live (`false`) and the other is not, so exactly one output arrives.
+        assert arrived == {"branch": "false", "value": 3}
+
+    async def test_a_predecessor_that_has_not_succeeded_carries_nothing(self):
+        source = _node_instance("core.input")
+        merge = _node_instance("logic.merge")
+        graph = _graph(
+            source,
+            merge,
+            edges=(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=source.id,
+                    source_port="out",
+                    target_node_id=merge.id,
+                    target_port="in",
+                ),
+            ),
+        )
+        with patch(
+            f"{DISPATCHER_PATH}.workflow_run_repo.get_node_run_by_identity",
+            new=AsyncMock(return_value=None),
+        ):
+            assert await self._state(graph, _run()).arrived_output(merge.id) is None
