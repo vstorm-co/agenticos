@@ -88,11 +88,14 @@ from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.workflow import WorkflowDraftUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
 # a service, three call frames from either end. `None` is a claim as much as a
-# model is - `AgentDraftUpdate` writes a JSONB spec, `VisibilityUpdate` writes
+# model is - `AgentDraftUpdate` and `WorkflowDraftUpdate` write a JSONB spec or
+# graph directly (their service builds `update_data` itself; neither ever dumps
+# the schema), `VisibilityUpdate` writes
 # a column plus grant rows, and `NotificationPreferenceUpdate` writes one exact
 # `(user_id, event_type, channel)` upsert whose three fields are all required
 # (#1598, Decision 4) rather than an optional-field partial patch through
@@ -133,6 +136,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,
+    WorkflowDraftUpdate: None,
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic
@@ -212,6 +216,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "RecordUpdate",
             "SchemaUpdate",
             "VisibilityUpdate",
+            "WorkflowDraftUpdate",
         }
 
 

@@ -144,6 +144,7 @@ _SERVICE_DEPS = (
     deps.get_rag_document_service,
     deps.get_stats_service,
     deps.get_ml_service,
+    deps.get_workflow_registry_service,
 )
 
 Provider = Callable[[], object]
@@ -327,6 +328,9 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/tables", Perm.TABLES_VIEW),
     Call("POST", "/tables", Perm.TABLES_CREATE, body={"name": "orders"}),
+    Call("GET", "/workflows/node-catalog", Perm.WORKFLOWS_VIEW),
+    Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
+    Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -740,6 +744,11 @@ _PLATFORM_PREFIXES = (
     # tables:view and tables:create, every per-table route resolves the table's
     # visibility and grants in the service.
     "/tables",
+    # Workflows, shaped the same way again: the collection routes (list,
+    # create, the node catalog) gate on workflows:view/create, every
+    # per-workflow route resolves the workflow's visibility and grants in
+    # the service.
+    "/workflows",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -884,6 +893,10 @@ RESOURCE_AWARE_SERVICES = (
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
+    # A workflow is a shared resource shaped the same way: who may read, edit the
+    # draft or publish it is its grants' answer, resolved inside the service.
+    # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.
+    deps.get_workflow_registry_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,
