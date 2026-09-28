@@ -4368,6 +4368,8 @@
       "prefAgentUsageReportTrigger": "One agent's own weekly or monthly spend, if it has asked for its own report under Limits.",
       "prefAnnouncement": "Announcements",
       "prefAnnouncementTrigger": "An app admin sends a message to a chosen audience across the deployment.",
+      "prefWorkflowNotification": "Workflow notifications",
+      "prefWorkflowNotificationTrigger": "A workflow you can see sends you a message from one of its steps.",
       "prefIngestionCompleted": "Document ingested",
       "prefIngestionCompletedTrigger": "A file finishes parsing and indexing into a knowledge base.",
       "prefIngestionFailed": "Ingestion failed",

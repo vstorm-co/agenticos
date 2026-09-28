@@ -108,6 +108,7 @@ def load_builtins() -> None:
         knowledge_search,
         logic_if,
         logic_merge,
+        notification_send,
     )
 
     _builtins_loaded = True

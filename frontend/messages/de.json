@@ -4163,6 +4163,8 @@
       "prefAgentUsageReportTrigger": "Die wöchentlichen oder monatlichen Ausgaben eines einzelnen Agents, wenn er unter Limits einen eigenen Bericht angefordert hat.",
       "prefAnnouncement": "Ankündigungen",
       "prefAnnouncementTrigger": "Ein App-Admin sendet eine Nachricht an einen gewählten Empfängerkreis im ganzen Deployment.",
+      "prefWorkflowNotification": "Workflow-Benachrichtigungen",
+      "prefWorkflowNotificationTrigger": "Ein Workflow, den Sie sehen können, sendet Ihnen aus einem seiner Schritte eine Nachricht.",
       "prefIngestionCompleted": "Dokument eingelesen",
       "prefIngestionCompletedTrigger": "Eine Datei ist fertig geparst und in eine Wissensdatenbank indexiert.",
       "prefIngestionFailed": "Einlesen fehlgeschlagen",

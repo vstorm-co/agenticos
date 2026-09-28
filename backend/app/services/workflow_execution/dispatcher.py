@@ -628,6 +628,7 @@ async def begin_attempt(
         auth=auth,
         resumed_agent_run_id=node_run.waiting_agent_run_id,
         claim=claim if claim is not None else context.ClaimState(),
+        workflow_id=run.workflow_id,
         run_input=run.input,
         triggered_by=run.triggered_by,
         arrived_output=call.arrived_output,
