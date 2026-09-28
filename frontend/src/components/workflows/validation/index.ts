@@ -48,6 +48,7 @@ export type { ResolvedType } from "./schema";
 export {
   portShapesCompatible,
   portSchema,
+  outputFieldNames,
   resolveFieldType,
   fieldType,
   typesCompatible,

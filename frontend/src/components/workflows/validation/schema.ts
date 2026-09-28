@@ -199,6 +199,31 @@ export function resolveFieldType(
 }
 
 /**
+ * The names a `field_path` can step into next: the properties of the object at
+ * `fieldPath` under an output port's schema. Empty for a scalar, a control port, an
+ * unknown port or a path the schema does not declare. The enumeration counterpart of
+ * {@link resolveFieldType}, which the binding picker uses to offer each field of an
+ * output rather than only the whole port.
+ */
+export function outputFieldNames(
+  definition: NodeDefinition,
+  portId: string,
+  fieldPath: readonly string[],
+): string[] {
+  const schema = portSchema(definition, portId, "output");
+  if (schema === UNKNOWN || schema === null) return [];
+  const defs = defsOf(schema);
+  let current: JsonSchema = schema;
+  for (const part of fieldPath) {
+    const properties = resolveRef(current, defs)["properties"];
+    if (!isObject(properties) || !isObject(properties[part])) return [];
+    current = properties[part] as JsonSchema;
+  }
+  const properties = resolveRef(current, defs)["properties"];
+  return isObject(properties) ? Object.keys(properties) : [];
+}
+
+/**
  * The declared type of a target field — its `input_schema` field, or its
  * `config_schema` field, in that order. The analog of `_field_type`. {@link UNKNOWN}
  * when neither schema declares it.

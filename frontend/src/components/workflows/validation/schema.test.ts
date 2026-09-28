@@ -21,6 +21,7 @@ import {
 import {
   UNKNOWN,
   fieldType,
+  outputFieldNames,
   portSchema,
   portShapesCompatible,
   resolveFieldType,
@@ -170,6 +171,41 @@ describe("resolveFieldType", () => {
     };
     const nested = makeDefinition({ id: "test.nested", ports: [port("out", "output", wrapper)] });
     expect(schemaTypeToken(resolveFieldType(nested, "out", ["inner", "leaf"]))).toBe("integer");
+  });
+});
+
+describe("outputFieldNames", () => {
+  const wrapper = {
+    type: "object",
+    title: "Wrapper",
+    properties: { inner: { $ref: "#/$defs/Inner" }, note: STRING },
+    required: ["inner"],
+    $defs: { Inner: objectSchema("Inner", { leaf: INTEGER }, ["leaf"]) },
+  };
+  const nested = makeDefinition({
+    id: "test.nested_names",
+    ports: [port("out", "output", wrapper)],
+  });
+
+  it("lists the properties of a port's output, in schema order", () => {
+    expect(outputFieldNames(DEBUG_ECHO, "out", [])).toEqual(["echoed", "received_at"]);
+  });
+
+  it("follows a path, resolving a $ref against the schema's own $defs", () => {
+    expect(outputFieldNames(nested, "out", [])).toEqual(["inner", "note"]);
+    expect(outputFieldNames(nested, "out", ["inner"])).toEqual(["leaf"]);
+  });
+
+  it("is empty for a scalar, a missing field, an unknown port and a control port", () => {
+    expect(outputFieldNames(nested, "out", ["note"])).toEqual([]);
+    expect(outputFieldNames(nested, "out", ["nope"])).toEqual([]);
+    expect(outputFieldNames(nested, "out", ["inner", "leaf"])).toEqual([]);
+    expect(outputFieldNames(DEBUG_ECHO, "missing", [])).toEqual([]);
+    const control = makeDefinition({
+      id: "test.control_names",
+      ports: [port("out", "output", null)],
+    });
+    expect(outputFieldNames(control, "out", [])).toEqual([]);
   });
 });
 

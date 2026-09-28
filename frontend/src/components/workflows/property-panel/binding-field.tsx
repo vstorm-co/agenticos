@@ -107,13 +107,21 @@ export function BindingField({
     const candidate = candidateByKey(candidates, key);
     // The `Select` only emits a candidate's own key, so a lookup always resolves.
     if (candidate !== undefined) {
-      onUpsert(nodeOutputBinding(targetNodeId, targetField, candidate.nodeId, candidate.port));
+      onUpsert(
+        nodeOutputBinding(
+          targetNodeId,
+          targetField,
+          candidate.nodeId,
+          candidate.port,
+          candidate.fieldPath,
+        ),
+      );
     }
   };
 
   const currentKey =
     binding !== undefined && binding.source.kind === "node_output"
-      ? candidateKey(binding.source.node_id, binding.source.port)
+      ? candidateKey(binding.source.node_id, binding.source.port, binding.source.field_path)
       : "";
 
   const changeLiteral = (next: Record<string, unknown>) => {
@@ -152,11 +160,18 @@ export function BindingField({
               <SelectContent>
                 {candidates.map((candidate) => (
                   <SelectItem key={candidate.key} value={candidate.key}>
-                    {t("bindingSourceOption", {
-                      node: candidate.nodeLabel,
-                      port: candidate.portLabel,
-                      type: candidate.typeToken,
-                    })}
+                    {candidate.fieldPath.length === 0
+                      ? t("bindingSourceOption", {
+                          node: candidate.nodeLabel,
+                          port: candidate.portLabel,
+                          type: candidate.typeToken,
+                        })
+                      : t("bindingSourceFieldOption", {
+                          node: candidate.nodeLabel,
+                          port: candidate.portLabel,
+                          field: candidate.fieldPath.join("."),
+                          type: candidate.typeToken,
+                        })}
                   </SelectItem>
                 ))}
               </SelectContent>

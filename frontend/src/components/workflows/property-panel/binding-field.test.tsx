@@ -6,7 +6,7 @@ import type { Binding } from "@/lib/workflows/types";
 import {
   DEBUG_ECHO,
   DEBUG_ECHO_OUTPUT,
-  STRING,
+  INTEGER,
   echo,
   edge,
   graph,
@@ -132,9 +132,39 @@ describe("BindingField binding mode", () => {
   });
 
   it("says so when no upstream output is compatible", async () => {
-    mount({ schema: STRING });
+    mount({ schema: INTEGER });
     await userEvent.click(screen.getByRole("switch", { name: "Bind Message to another node" }));
     expect(screen.getByText("No compatible upstream outputs")).toBeVisible();
+  });
+
+  it("offers a field of an upstream output for a scalar input and stores it with its path", async () => {
+    // Echo's `out` carries an object; a string input can only take one of its fields.
+    const { onUpsert } = mount({ schema: { type: "string", title: "Message" } });
+    await userEvent.click(screen.getByRole("switch", { name: "Bind Message to another node" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Source for Message" }));
+    await userEvent.click(screen.getByRole("option", { name: "Echo · A · out → echoed (string)" }));
+    expect(onUpsert).toHaveBeenCalledWith({
+      target_node_id: "B",
+      target_field: "message",
+      source: { kind: "node_output", node_id: "A", port: "out", field_path: ["echoed"] },
+    });
+  });
+
+  it("shows a bound field as the selected source, not as an empty picker", () => {
+    mount({
+      schema: { type: "string", title: "Message" },
+      bindings: [
+        {
+          target_node_id: "B",
+          target_field: "message",
+          source: { kind: "node_output", node_id: "A", port: "out", field_path: ["echoed"] },
+        },
+      ],
+    });
+    expect(screen.getByRole("combobox", { name: "Source for Message" })).toHaveTextContent(
+      "Echo · A · out → echoed (string)",
+    );
+    expect(screen.queryByText("No compatible upstream outputs")).toBeNull();
   });
 
   it("shows a field error under the source picker", async () => {

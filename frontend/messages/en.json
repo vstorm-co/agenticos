@@ -5550,7 +5550,8 @@
     "bindingNoSources": "No compatible upstream outputs",
     "bindingSourceLabel": "Source for {field}",
     "bindingSourcePlaceholder": "Select a source",
-    "bindingSourceOption": "{node} · {port} ({type})"
+    "bindingSourceOption": "{node} · {port} ({type})",
+    "bindingSourceFieldOption": "{node} · {port} → {field} ({type})"
   },
   "artifacts": {
     "title": "Artifacts",

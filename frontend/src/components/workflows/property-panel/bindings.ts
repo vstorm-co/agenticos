@@ -18,6 +18,7 @@
 
 import {
   availableSourceNodes,
+  outputFieldNames,
   resolveDefinitions,
   resolveFieldType,
   schemaTypeToken,
@@ -30,6 +31,7 @@ import {
   parseBindingFieldPath,
   type Binding,
   type NodeCatalog,
+  type NodeDefinition,
   type Uuid,
   type WorkflowGraph,
 } from "@/lib/workflows/types";
@@ -68,46 +70,86 @@ export function literalBinding(targetNodeId: Uuid, targetField: string, value: u
   };
 }
 
-/** A binding that reads one upstream node's output port into one field. */
+/**
+ * A binding that reads one upstream node's output port - or one field inside it,
+ * when `fieldPath` is given - into one field.
+ */
 export function nodeOutputBinding(
   targetNodeId: Uuid,
   targetField: string,
   nodeId: Uuid,
   port: string,
+  fieldPath: readonly string[] = [],
 ): Binding {
   return {
     target_node_id: targetNodeId,
     target_field: targetField,
-    source: { kind: "node_output", node_id: nodeId, port, field_path: [] },
+    source: { kind: "node_output", node_id: nodeId, port, field_path: [...fieldPath] },
   };
 }
 
 /** How a candidate `(node, port)` is keyed as one `Select` value, and split back. */
 const CANDIDATE_SEP = "::";
 
-/** The `Select` value naming one candidate source. */
-export function candidateKey(nodeId: Uuid, port: string): string {
-  return `${nodeId}${CANDIDATE_SEP}${port}`;
+/**
+ * The `Select` value naming one candidate source: `node::port` for a whole output
+ * port, with `::` and the URI-encoded, `/`-joined field path appended for a field
+ * inside it.
+ */
+export function candidateKey(
+  nodeId: Uuid,
+  port: string,
+  fieldPath: readonly string[] = [],
+): string {
+  const whole = `${nodeId}${CANDIDATE_SEP}${port}`;
+  if (fieldPath.length === 0) return whole;
+  return `${whole}${CANDIDATE_SEP}${fieldPath.map(encodeURIComponent).join("/")}`;
 }
 
-/** One offered binding source — an upstream node's output port, type-compatible with the field. */
+/**
+ * One offered binding source - an upstream node's output port, or a field inside it,
+ * type-compatible with the target field.
+ */
 export interface SourceCandidate {
-  /** The `Select` value — `(node, port)` encoded. */
+  /** The `Select` value - `(node, port, field path)` encoded. */
   key: string;
   nodeId: Uuid;
   port: string;
+  /** The field inside the port, or empty when the candidate is the whole port. */
+  fieldPath: string[];
   /** The source node's catalog name, disambiguated by a short id. */
   nodeLabel: string;
   /** The output port's own label. */
   portLabel: string;
-  /** The port's declared output type, shown to disambiguate same-named ports. */
+  /** The declared type of the port or field, shown to disambiguate same-named ports. */
   typeToken: string;
+}
+
+/** How deep into a nested output the picker offers fields; deeper is left to the schema. */
+const MAX_FIELD_DEPTH = 3;
+
+/** Every field path under an output port, depth first, down to {@link MAX_FIELD_DEPTH}. */
+function outputFieldPaths(
+  definition: NodeDefinition,
+  portId: string,
+  prefix: readonly string[] = [],
+): string[][] {
+  if (prefix.length >= MAX_FIELD_DEPTH) return [];
+  return outputFieldNames(definition, portId, prefix).flatMap((name) => {
+    const path = [...prefix, name];
+    return [path, ...outputFieldPaths(definition, portId, path)];
+  });
 }
 
 /**
  * Every upstream output a field may bind to: the nodes that dominate the target
- * (rule 4), each output port whose declared type matches the field's (rule 3).
- * Graph order is preserved so the list is stable across renders.
+ * (rule 4), each output port - and each field inside one - whose declared type
+ * matches the field's (rule 3). A port comes before its fields, and graph order is
+ * preserved so the list is stable across renders.
+ *
+ * Fields are offered because most ports carry an object while most inputs are
+ * scalars: a string input could never be bound to `debug.echo`'s `out` as a whole,
+ * only to its `echoed` field.
  */
 export function sourceCandidates(
   graph: WorkflowGraph,
@@ -125,16 +167,19 @@ export function sourceCandidates(
     if (definition === undefined || definition === null) continue;
     for (const port of definition.ports) {
       if (port.kind !== "output") continue;
-      const sourceType = resolveFieldType(definition, port.id, []);
-      if (!typesCompatible(sourceType, target)) continue;
-      candidates.push({
-        key: candidateKey(node.id, port.id),
-        nodeId: node.id,
-        port: port.id,
-        nodeLabel: nodeDisplayName(definition.name, node.id, true),
-        portLabel: port.label,
-        typeToken: schemaTypeToken(sourceType),
-      });
+      for (const fieldPath of [[], ...outputFieldPaths(definition, port.id)]) {
+        const sourceType = resolveFieldType(definition, port.id, fieldPath);
+        if (!typesCompatible(sourceType, target)) continue;
+        candidates.push({
+          key: candidateKey(node.id, port.id, fieldPath),
+          nodeId: node.id,
+          port: port.id,
+          fieldPath,
+          nodeLabel: nodeDisplayName(definition.name, node.id, true),
+          portLabel: port.label,
+          typeToken: schemaTypeToken(sourceType),
+        });
+      }
     }
   }
   return candidates;

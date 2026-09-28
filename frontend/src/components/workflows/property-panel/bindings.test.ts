@@ -4,12 +4,16 @@ import type { Binding } from "@/lib/workflows/types";
 import {
   DEBUG_ECHO,
   DEBUG_ECHO_OUTPUT,
+  INTEGER,
   STRING,
   echo,
   edge,
   graph,
   makeCatalog,
+  makeDefinition,
   node,
+  objectSchema,
+  port,
 } from "@/components/workflows/validation/fixtures";
 
 import {
@@ -70,6 +74,12 @@ describe("binding accessors", () => {
       target_field: "f",
       source: { kind: "node_output", node_id: "A", port: "out", field_path: [] },
     });
+    expect(nodeOutputBinding("N", "f", "A", "out", ["echoed"]).source).toEqual({
+      kind: "node_output",
+      node_id: "A",
+      port: "out",
+      field_path: ["echoed"],
+    });
   });
 });
 
@@ -80,25 +90,39 @@ describe("candidateKey / candidateByKey", () => {
     expect(candidateByKey(candidates, "A::out")).toBeDefined();
     expect(candidateByKey(candidates, "nope")).toBeUndefined();
   });
+
+  it("appends an encoded field path, so a field of a port has its own key", () => {
+    expect(candidateKey("A", "out", ["echoed"])).toBe("A::out::echoed");
+    expect(candidateKey("A", "out", ["usage", "input tokens"])).toBe(
+      "A::out::usage/input%20tokens",
+    );
+    expect(candidateKey("A", "out", ["a/b"])).not.toBe(candidateKey("A", "out", ["a", "b"]));
+  });
 });
 
 describe("sourceCandidates", () => {
+  const label = { nodeLabel: "Echo · A", portLabel: "out", nodeId: "A", port: "out" };
+
   it("offers a reachable, type-compatible upstream output port", () => {
     const candidates = sourceCandidates(chain, catalog, "B", DEBUG_ECHO_OUTPUT);
     expect(candidates).toEqual([
-      {
-        key: "A::out",
-        nodeId: "A",
-        port: "out",
-        nodeLabel: "Echo · A",
-        portLabel: "out",
-        typeToken: "DebugEchoOutput",
-      },
+      { ...label, key: "A::out", fieldPath: [], typeToken: "DebugEchoOutput" },
     ]);
   });
 
-  it("drops a port whose type does not match the field", () => {
-    expect(sourceCandidates(chain, catalog, "B", STRING)).toEqual([]);
+  it("offers each field of an output whose type matches, since a scalar cannot take the whole port", () => {
+    expect(sourceCandidates(chain, catalog, "B", STRING)).toEqual([
+      { ...label, key: "A::out::echoed", fieldPath: ["echoed"], typeToken: "string" },
+    ]);
+    expect(
+      sourceCandidates(chain, catalog, "B", { type: "string", format: "date-time" }).map(
+        (candidate) => candidate.fieldPath,
+      ),
+    ).toEqual([["received_at"]]);
+  });
+
+  it("drops a port and fields whose types do not match the target", () => {
+    expect(sourceCandidates(chain, catalog, "B", INTEGER)).toEqual([]);
   });
 
   it("skips a reachable node whose definition is unknown", () => {
@@ -108,6 +132,56 @@ describe("sourceCandidates", () => {
       edges: [edge("e", "X", "out", "B", "in")],
     });
     expect(sourceCandidates(broken, catalog, "B", DEBUG_ECHO_OUTPUT)).toEqual([]);
+  });
+
+  describe("a nested output", () => {
+    const deep = (levels: number) => {
+      let schema = objectSchema("Leaf", { value: STRING }, ["value"]);
+      for (let level = 1; level < levels; level += 1) {
+        schema = objectSchema(`Level${level}`, { next: schema }, ["next"]);
+      }
+      return schema;
+    };
+    const producer = makeDefinition({
+      id: "test.producer",
+      output_schema: deep(1),
+      ports: [port("in", "input", null), port("out", "output", deep(5))],
+    });
+    const consumer = makeDefinition({ id: "test.consumer", ports: [port("in", "input", null)] });
+    const g = graph({
+      entry: "P",
+      nodes: [node("P", "test.producer"), node("C", "test.consumer")],
+      edges: [edge("e", "P", "out", "C", "in")],
+    });
+    const both = makeCatalog([producer, consumer]);
+
+    it("offers a nested object at the third level and nothing at the fourth", () => {
+      // `deep(5)` nests Level4 > Level3 > Level2 > Level1 > Leaf, each under `next`.
+      const at = (title: string) =>
+        sourceCandidates(g, both, "C", objectSchema(title, {}, [])).map((c) => c.fieldPath);
+      expect(at("Level1")).toEqual([["next", "next", "next"]]);
+      expect(at("Leaf")).toEqual([]);
+    });
+
+    it("reaches a scalar at the depth limit but not beyond it", () => {
+      // Five levels deep, the scalar sits at next/next/next/next/value: past the limit.
+      expect(sourceCandidates(g, both, "C", STRING)).toEqual([]);
+
+      const shallow = makeDefinition({
+        id: "test.shallow",
+        ports: [port("out", "output", deep(3))],
+      });
+      const reads = graph({
+        entry: "S",
+        nodes: [node("S", "test.shallow"), node("C", "test.consumer")],
+        edges: [edge("e", "S", "out", "C", "in")],
+      });
+      expect(
+        sourceCandidates(reads, makeCatalog([shallow, consumer]), "C", STRING).map(
+          (c) => c.fieldPath,
+        ),
+      ).toEqual([["next", "next", "value"]]);
+    });
   });
 });
 
