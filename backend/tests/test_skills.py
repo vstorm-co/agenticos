@@ -263,6 +263,22 @@ class TestSkillManagement:
         assert "edit it" in refused.value.message
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("name", ["Refund Policy", "planning"])
+    async def test_the_service_refuses_a_name_the_schema_would(self, name):
+        """An applied skill proposal creates a skill from an agent's directory
+        name with no `SkillCreate` in between, so the service checks it too."""
+        create = AsyncMock()
+        with (
+            patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch("app.services.skills.skill_repo.create", new=create),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await SkillService(_db()).create(_ctx(), name=name, description="x", content="")
+
+        assert refused.value.details == {"name": name}
+        create.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_creation_is_audited(self):
         with (
             patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),

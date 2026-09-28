@@ -20,6 +20,30 @@ ended the turn (#1911).
 """
 
 
+def skill_name_refusal(name: str) -> str | None:
+    """Why `name` cannot be a skill's name, or None when it can.
+
+    A skill is a deferred capability, filed under its name in the same namespace
+    as `knowledge`, `planning` and the rest - so a skill called `planning` bound
+    to an agent that also has the planning capability is a duplicate id the
+    library refuses before the first token. Checked on the request schema and
+    again in `SkillService.create`, which an applied skill proposal reaches
+    without one, and at publish for the skills that predate this (#1704 review).
+    """
+    if not SKILL_NAME_PATTERN.fullmatch(name):
+        return (
+            "Use lowercase letters, digits and hyphens, such as 'refund-policy' - "
+            "the name is the id a model loads the skill by, and it writes names in "
+            "that form"
+        )
+    if name in {definition.id for definition in all_capabilities()}:
+        return (
+            f"'{name}' is the name of a capability this platform offers, and a skill "
+            "is a capability too - pick another name"
+        )
+    return None
+
+
 class SkillResourceRead(BaseSchema):
     """One file a skill can hand the model when it needs the detail."""
 
@@ -133,26 +157,9 @@ class SkillCreate(BaseSchema):
     @field_validator("name")
     @classmethod
     def _not_a_capability_name(cls, name: str) -> str:
-        """Refuse a name the platform's own capabilities already answer to.
-
-        A skill is a deferred capability, filed under its name in the same
-        namespace as `knowledge`, `planning` and the rest - so a skill called
-        `planning` bound to an agent that also has the planning capability is a
-        duplicate id the library refuses before the first token. Caught here so
-        it cannot be created, and again at publish for the skills that predate
-        this (#1704 review).
-        """
-        if not SKILL_NAME_PATTERN.fullmatch(name):
-            raise ValueError(
-                "Use lowercase letters, digits and hyphens, such as 'refund-policy' - "
-                "the name is the id a model loads the skill by, and it writes names in "
-                "that form"
-            )
-        if name in {definition.id for definition in all_capabilities()}:
-            raise ValueError(
-                f"'{name}' is the name of a capability this platform offers, and a skill "
-                "is a capability too - pick another name"
-            )
+        refusal = skill_name_refusal(name)
+        if refusal is not None:
+            raise ValueError(refusal)
         return name
 
     description: str = Field(
