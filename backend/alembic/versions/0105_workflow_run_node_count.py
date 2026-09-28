@@ -13,8 +13,13 @@ moment it reaches a terminal status. The sum reads the existing
 Added `NOT NULL` with a temporary `0` default, then existing rows are backfilled
 with their real graph node count - from the published version's graph for a real
 run, from the frozen snapshot for a test run - so a run already in flight when
-this lands still holds its reservation rather than reading as zero work. The
-default is then dropped: the service always stamps a real count on new runs.
+this lands still holds its reservation rather than reading as zero work.
+
+The `0` server default is kept, not dropped: this is the expand half of an
+expand/contract change, so a writer that does not yet know the column (a
+not-yet-upgraded instance during a rolling deploy) can still insert a row without
+violating `NOT NULL`. The service always stamps a real count; a later change may
+drop the default once every writer supplies one.
 
 Revision ID: 0105_workflow_run_node_count
 Revises: 0104_workflow_runs
@@ -56,7 +61,7 @@ def upgrade() -> None:
         WHERE draft_graph_snapshot IS NOT NULL
         """
     )
-    op.alter_column("workflow_runs", "node_count", server_default=None)
+    # The server default is intentionally left in place (expand/contract).
 
 
 def downgrade() -> None:

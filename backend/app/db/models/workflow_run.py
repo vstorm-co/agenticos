@@ -235,12 +235,14 @@ class WorkflowRun(Base, TimestampMixin):
     )
     budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # The run's graph node count, stamped at creation. It is the run's worst-case
-    # node work, and the admission quota (#1907) sums it over an organization's
-    # live runs to bound queued work per organization and principal - a run that
-    # has barely started still holds its whole reservation, and a run that ends
-    # frees it, without counting node rows that materialize only as the graph
-    # fans out.
-    node_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # node work, and the admission quota (#1907) sums it over live runs to bound
+    # queued work per organization and principal - a run that has barely started
+    # still holds its whole reservation, and a run that ends frees it, without
+    # counting node rows that materialize only as the graph fans out. The `0`
+    # server default is the expand half of an expand/contract migration, so a
+    # writer that predates the column can still insert; the service always stamps
+    # a real count.
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
