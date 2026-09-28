@@ -149,7 +149,7 @@ class TestStartRoute:
                 ),
             ),
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                f"{FACADE_PATH}.workflow_run_repo.sum_reserved_node_work",
                 new=AsyncMock(return_value=0),
             ),
             patch(
@@ -186,7 +186,7 @@ class TestStartRoute:
                 ),
             ),
             patch(
-                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                f"{FACADE_PATH}.workflow_run_repo.sum_reserved_node_work",
                 new=AsyncMock(return_value=settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG),
             ),
         ):

@@ -154,6 +154,7 @@ class WorkflowExecutionService:
             triggered_by=triggered_by.value,
             execution_principal_user_id=ctx.subject_id,
             budget_limit=budget_limit,
+            node_count=len(graph.nodes),
             deadline_at=deadline_at,
             root_run_id=None,
             causation_run_id=None,

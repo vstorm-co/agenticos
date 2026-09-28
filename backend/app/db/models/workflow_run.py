@@ -234,6 +234,13 @@ class WorkflowRun(Base, TimestampMixin):
         index=True,
     )
     budget_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    # The run's graph node count, stamped at creation. It is the run's worst-case
+    # node work, and the admission quota (#1907) sums it over an organization's
+    # live runs to bound queued work per organization and principal - a run that
+    # has barely started still holds its whole reservation, and a run that ends
+    # frees it, without counting node rows that materialize only as the graph
+    # fans out.
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False)
     spent_cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
     deadline_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
@@ -357,10 +364,6 @@ class NodeRun(Base, TimestampMixin):
             "('approval', 'external_event', 'retry_backoff')",
             name="ck_node_run_waiting_reason",
         ),
-        # The admission quota (#1907) counts an organization's queued/running
-        # node runs on every start; without this the count fans out over every
-        # node run the organization ever had. Mirrors `ix_workflow_run_org_status`.
-        Index("ix_node_run_org_status", "organization_id", "status"),
     )
 
     def __repr__(self) -> str:

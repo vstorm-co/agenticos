@@ -25,7 +25,7 @@ _PRINCIPAL = uuid.uuid4()
 
 
 def _counts(*, org: int, principal: int = 0) -> AsyncMock:
-    """A `count_active_node_runs` that answers per-org then per-principal.
+    """A `sum_reserved_node_work` that answers per-org then per-principal.
 
     The quota calls it with no `principal_user_id` first (the org count) and
     with one second (the caller count), so the two return values arrive in that
@@ -35,7 +35,7 @@ def _counts(*, org: int, principal: int = 0) -> AsyncMock:
 
 
 async def test_a_start_within_both_ceilings_is_admitted():
-    with patch(f"{MODULE}.workflow_run_repo.count_active_node_runs", _counts(org=10, principal=5)):
+    with patch(f"{MODULE}.workflow_run_repo.sum_reserved_node_work", _counts(org=10, principal=5)):
         await enforce_admission_quota(
             AsyncMock(),
             organization_id=_ORG,
@@ -49,7 +49,7 @@ async def test_the_boundary_is_inclusive():
     org_ceiling = settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG
     principal_ceiling = settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL
     with patch(
-        f"{MODULE}.workflow_run_repo.count_active_node_runs",
+        f"{MODULE}.workflow_run_repo.sum_reserved_node_work",
         _counts(org=org_ceiling - 4, principal=principal_ceiling - 4),
     ):
         await enforce_admission_quota(
@@ -63,7 +63,7 @@ async def test_the_boundary_is_inclusive():
 async def test_a_start_over_the_org_ceiling_is_refused_before_the_caller_is_counted():
     count = _counts(org=settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG)
     with (
-        patch(f"{MODULE}.workflow_run_repo.count_active_node_runs", count),
+        patch(f"{MODULE}.workflow_run_repo.sum_reserved_node_work", count),
         pytest.raises(WorkflowAdmissionQuotaError) as refused,
     ):
         await enforce_admission_quota(
@@ -81,7 +81,7 @@ async def test_a_start_over_the_org_ceiling_is_refused_before_the_caller_is_coun
 async def test_a_start_over_the_caller_ceiling_is_refused():
     with (
         patch(
-            f"{MODULE}.workflow_run_repo.count_active_node_runs",
+            f"{MODULE}.workflow_run_repo.sum_reserved_node_work",
             _counts(org=0, principal=settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL),
         ),
         pytest.raises(WorkflowAdmissionQuotaError) as refused,
@@ -101,7 +101,7 @@ async def test_the_graph_node_count_is_reserved_not_just_one():
     # is charged, which is the point of charging by node work rather than starts.
     org_ceiling = settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG
     with (
-        patch(f"{MODULE}.workflow_run_repo.count_active_node_runs", _counts(org=org_ceiling - 1)),
+        patch(f"{MODULE}.workflow_run_repo.sum_reserved_node_work", _counts(org=org_ceiling - 1)),
         pytest.raises(WorkflowAdmissionQuotaError),
     ):
         await enforce_admission_quota(
@@ -114,7 +114,7 @@ async def test_the_graph_node_count_is_reserved_not_just_one():
 
 async def test_a_start_with_no_principal_is_bounded_by_the_org_alone():
     count = _counts(org=0)
-    with patch(f"{MODULE}.workflow_run_repo.count_active_node_runs", count):
+    with patch(f"{MODULE}.workflow_run_repo.sum_reserved_node_work", count):
         await enforce_admission_quota(
             AsyncMock(),
             organization_id=_ORG,

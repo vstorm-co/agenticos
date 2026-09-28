@@ -49,6 +49,7 @@ async def create_run(
     triggered_by: str,
     execution_principal_user_id: UUID | None,
     budget_limit: Decimal | None,
+    node_count: int,
     deadline_at: datetime | None,
     root_run_id: UUID | None,
     causation_run_id: UUID | None,
@@ -73,6 +74,7 @@ async def create_run(
         triggered_by=triggered_by,
         execution_principal_user_id=execution_principal_user_id,
         budget_limit=budget_limit,
+        node_count=node_count,
         deadline_at=deadline_at,
         root_run_id=root_run_id or run_id,
         causation_run_id=causation_run_id,
@@ -198,34 +200,30 @@ async def create_node_run(
     return node_run
 
 
-# The node-run statuses that occupy, or are queued for, a runner slot. `waiting`
-# (parked on an approval or an agent run) and the terminal statuses hold no slot,
-# so the admission quota (#1907) does not count them against a caller's ceiling.
-_ACTIVE_NODE_RUN_STATUSES = (NodeRunStatus.PENDING.value, NodeRunStatus.RUNNING.value)
+# A run's node work is outstanding until the run reaches a terminal status.
+# Summing `node_count` over these - not counting materialized `node_runs` -
+# is what makes the admission reservation durable: a wide graph holds its whole
+# count the moment it is admitted, long before its downstream nodes exist.
+_LIVE_RUN_STATUSES = tuple(status.value for status in WorkflowRunStatus if not status.is_terminal)
 
 
-async def count_active_node_runs(
+async def sum_reserved_node_work(
     db: AsyncSession, *, organization_id: UUID, principal_user_id: UUID | None = None
 ) -> int:
-    """How many of an organization's node runs are queued or running right now.
+    """The graph node work an organization's live runs still hold in reserve.
 
-    The measure the admission quota bounds: `pending` (queued for the runner)
-    and `running` (executing on it) node runs. With `principal_user_id`, narrows
-    to the runs one caller admitted, joining `workflow_runs` for the principal
-    the node run has no column of its own for.
+    The sum of `node_count` over every non-terminal run in the organization -
+    each run's whole worst-case node work, counted from the instant it is
+    admitted and released when it ends, whether or not its nodes have
+    materialized yet. With `principal_user_id`, narrows to the runs one caller
+    admitted. Reads `ix_workflow_run_org_status`.
     """
-    stmt = (
-        select(func.count())
-        .select_from(NodeRun)
-        .where(
-            NodeRun.organization_id == organization_id,
-            NodeRun.status.in_(_ACTIVE_NODE_RUN_STATUSES),
-        )
+    stmt = select(func.coalesce(func.sum(WorkflowRun.node_count), 0)).where(
+        WorkflowRun.organization_id == organization_id,
+        WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
     )
     if principal_user_id is not None:
-        stmt = stmt.join(WorkflowRun, NodeRun.workflow_run_id == WorkflowRun.id).where(
-            WorkflowRun.execution_principal_user_id == principal_user_id
-        )
+        stmt = stmt.where(WorkflowRun.execution_principal_user_id == principal_user_id)
     return int(await db.scalar(stmt) or 0)
 
 
