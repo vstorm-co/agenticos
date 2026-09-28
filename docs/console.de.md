@@ -1,5 +1,5 @@
 ---
-source_sha: "5b981aaf60d8"
+source_sha: "6cababc00add"
 ---
 
 # Die Konsole { #the-console }
@@ -178,7 +178,8 @@ es, bleibt es für diesen Durchlauf geschlossen.
 
 Der **Agents**-Katalog lässt sich nach **Category** und **Tag** filtern — den
 editierbaren, organisationslokalen Labels, die auf der Karte jedes Agents
-erscheinen. Die Categories und Tags eines Agents pflegen Sie auf seiner
+erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
+kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
 

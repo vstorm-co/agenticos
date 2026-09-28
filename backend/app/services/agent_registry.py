@@ -751,6 +751,51 @@ class AgentRegistryService:
         """
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
 
+    async def _visible_scope(
+        self, ctx: AuthContext, *, shared_with_me: bool
+    ) -> tuple[bool, list[UUID]]:
+        """Whether the caller's role reaches every agent, and the ids granted to them."""
+        # `None` is `visible_resource_ids` saying the role already reaches every
+        # agent, which is exactly what `see_all` tells the query - so both come
+        # from the one call rather than from the scope being read twice and the
+        # two answers being trusted to agree.
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+        )
+        if shared is not None:
+            return False, shared
+        if not shared_with_me:
+            return True, []
+        # A role that reaches everything never looks its grants up - but
+        # "shared with me" is a question about grants and visibility, not
+        # reach, and without them a Builder's answer would degenerate into
+        # "the whole organization minus mine".
+        grant_ids = await resource_grant_repo.list_shared_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            subject_user_id=ctx.subject_id,
+            resource_type=AGENT.key,
+        )
+        return True, grant_ids
+
+    async def list_labels(
+        self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
+    ) -> tuple[list[str], list[str]]:
+        """The categories and tags the listing can be filtered to, for the caller.
+
+        Scoped exactly like `list_agents` and unaffected by its filter and paging.
+        """
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
+        return await agent_repo.list_visible_labels(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=grant_ids,
+            shared_with_me=shared_with_me,
+            include_archived=include_archived,
+        )
+
     async def list_agents(
         self,
         ctx: AuthContext,
@@ -782,30 +827,12 @@ class AgentRegistryService:
         norm_tags = normalize_labels_query(list(tags), max_items=MAX_TAGS)
         if norm_categories is None or norm_tags is None:
             return [], 0
-        # `None` is `visible_resource_ids` saying the role already reaches every
-        # agent, which is exactly what `see_all` tells the query - so both come
-        # from the one call rather than from the scope being read twice and the
-        # two answers being trusted to agree.
-        shared = await visible_resource_ids(
-            self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
-        )
-        grant_ids = [] if shared is None else shared
-        if shared_with_me and shared is None:
-            # A role that reaches everything never looks its grants up - but
-            # "shared with me" is a question about grants and visibility, not
-            # reach, and without them a Builder's answer would degenerate into
-            # "the whole organization minus mine".
-            grant_ids = await resource_grant_repo.list_shared_ids(
-                self.db,
-                organization_id=ctx.organization_id,
-                subject_user_id=ctx.subject_id,
-                resource_type=AGENT.key,
-            )
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
         agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
-            see_all=shared is None,
+            see_all=see_all,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,

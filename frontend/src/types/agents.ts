@@ -390,6 +390,10 @@ export interface AgentDetail extends Agent {
 export interface AgentList {
   items: Agent[];
   total: number;
+  /** Every distinct category on the agents the caller may list - the filter's choices. */
+  categories: string[];
+  /** Every distinct tag on the agents the caller may list. */
+  tags: string[];
 }
 
 /**

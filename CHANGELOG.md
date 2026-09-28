@@ -58,6 +58,12 @@ Two things are versioned separately from this file and worth knowing about:
   no tier. A workspace's empty preview shows a blank page, and the memory
   settings tab stops drawing a second page title. The agent, knowledge base,
   organization and MCP grids rise in like the others.
+- **The agents catalog filters by picking, not typing.** Category and tag are
+  now menus of the labels on the agents you can see - tick several to widen
+  the filter - rather than free-text boxes that matched nothing on a typo.
+  `GET /api/v1/agents` returns those choices as `categories` and `tags`,
+  drawn from the same visibility as the listing, so a private agent's labels
+  never appear in someone else's menu.
 
 ## [0.0.513] - 2026-09-28
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4af3be1ca985"
+source_sha: "e7531729ae8e"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -97,6 +97,11 @@ Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschr
 (ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
 ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
 überschreitet nie eine Tenant- oder Grant-Grenze.
+
+Die Antwort trägt außerdem
+`categories` und `tags`: jedes eindeutige Label auf den Agents, die Sie auflisten
+können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü anbietet.
+Ein privater Agent, den Sie nicht sehen, trägt keines bei.
 ## Die ML-Dienste { #the-ml-services }
 
 Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne
