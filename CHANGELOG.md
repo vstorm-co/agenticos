@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.508] - 2026-09-28
+
 ### Added
 
 - **A library of 29 use-case tutorials.** The use-case index now groups
@@ -31,7 +33,8 @@ Two things are versioned separately from this file and worth knowing about:
   repurposing, product descriptions, glossary-driven translation and code review.
   Each has a synthetic fixture, the exact configuration and prompt, reference
   checks including a refusal or edge case, and the usual failures. The index says
-  which ones the maintainers ran on v0.0.504; the rest need a third-party account.
+  which ones the maintainers ran on v0.0.504; the rest need a third-party account
+  (#1909).
 
 ## [0.0.507] - 2026-09-26
 
