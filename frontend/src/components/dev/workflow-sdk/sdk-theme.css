@@ -1,0 +1,39 @@
+/*
+ * The SDK's tokens, pointed at AgenticOS's.
+ *
+ * Unlayered on purpose. The SDK ships its rules inside `@layer` blocks and its
+ * token declarations bare on `:root`; a declaration outside every layer beats any
+ * layered one, and this file is imported after the SDK's stylesheet, so it also
+ * wins the bare `:root` ties on source order.
+ *
+ * The SDK's stylesheet also restyles `body` directly: a background, and
+ * `overflow: hidden`. The background is a token and is mapped below; the overflow
+ * is not, so the `body` rule at the end undoes it. That is a second global rule
+ * to undo a first one, which is the cost the decision record counts.
+ */
+:root {
+  --wb-background-color: var(--color-background);
+  --wb-font-family: var(--font-body), "Inter", system-ui, sans-serif;
+
+  --ax-colors-acc1-50: var(--brand-50);
+  --ax-colors-acc1-100: var(--brand-100);
+  --ax-colors-acc1-200: var(--brand-200);
+  --ax-colors-acc1-300: var(--brand-300);
+  --ax-colors-acc1-400: var(--brand-400);
+  --ax-colors-acc1-500: var(--brand-500);
+  --ax-colors-acc1-600: var(--brand-600);
+  --ax-colors-acc1-700: var(--brand-700);
+  --ax-colors-acc1-800: var(--brand-800);
+  --ax-colors-acc1-900: var(--brand-900);
+  --ax-colors-acc1-950: var(--brand-950);
+
+  --ax-colors-acc1-500-10: color-mix(in oklch, var(--brand-500) 10%, transparent);
+  --ax-colors-acc1-500-20: color-mix(in oklch, var(--brand-500) 20%, transparent);
+  --ax-colors-acc1-500-30: color-mix(in oklch, var(--brand-500) 30%, transparent);
+  --ax-colors-acc1-500-40: color-mix(in oklch, var(--brand-500) 40%, transparent);
+  --ax-colors-acc1-500-50: color-mix(in oklch, var(--brand-500) 50%, transparent);
+}
+
+body {
+  overflow: visible;
+}
