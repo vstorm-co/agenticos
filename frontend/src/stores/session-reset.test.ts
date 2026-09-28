@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetSessionState, resetTenantState } from "./session-reset";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
+import { useTableViewStore } from "./table-view-store";
 
 describe("resetTenantState", () => {
   beforeEach(() => {
@@ -30,6 +31,19 @@ describe("resetTenantState", () => {
 
     expect(useOnboardingStore.getState().isOpen).toBe(false);
     expect(useOnboardingStore.getState().offer).toBeNull();
+  });
+
+  it("drops a conflict banner naming a record from the previous organization", () => {
+    useTableViewStore.getState().setConflict({
+      recordId: "rec-1",
+      pendingValues: { "col-1": "x" },
+      fieldId: "col-1",
+    });
+    expect(useTableViewStore.getState().conflicts["rec-1"]).toBeDefined();
+
+    resetTenantState();
+
+    expect(useTableViewStore.getState().conflicts).toEqual({});
   });
 });
 

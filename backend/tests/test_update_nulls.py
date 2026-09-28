@@ -57,6 +57,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
+from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.virtual_table import VirtualTable
@@ -85,6 +86,7 @@ from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
+from app.schemas.table_view import TableViewUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
@@ -129,6 +131,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
     TableUpdate: VirtualTable,
+    TableViewUpdate: TableView,
     TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,

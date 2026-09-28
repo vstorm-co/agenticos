@@ -136,9 +136,17 @@ async def test_a_table_is_created_with_201_and_listed_with_its_total(client, ser
     assert service.list_tables.await_args.kwargs == {
         "include_archived": True,
         "search": "ord",
+        "sort": "name",
         "skip": 0,
         "limit": 50,
     }
+
+
+async def test_the_listing_can_be_asked_to_sort_by_most_recently_changed(client, service):
+    async with client() as http:
+        await http.get(_url(), params={"sort": "updated_at"})
+
+    assert service.list_tables.await_args.kwargs["sort"] == "updated_at"
 
 
 async def test_the_per_table_routes_answer_with_the_table(client):

@@ -507,4 +507,36 @@ export const qk = {
     // so it never enters the query cache at all.
     notice: () => ["branding", "notice"] as const,
   },
+  tables: {
+    all: () => ["tables"] as const,
+    // The whole query object as the key, matching `skills.list`/`context.list`:
+    // the server applies `search`/`includeArchived`/paging, so two filters are
+    // two cache entries rather than one list narrowed on the client.
+    list: (query: {
+      search: string;
+      includeArchived: boolean;
+      sort: string;
+      skip: number;
+      limit: number;
+    }) => ["tables", "list", query] as const,
+    // Every `list(...)` page at once: what creating, renaming or archiving a
+    // table invalidates, without refetching every cached table's records.
+    lists: () => ["tables", "list"] as const,
+    detail: (id: string) => ["tables", id] as const,
+    schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
+    // A table's records under one query - the active view's filters/sort/page,
+    // or a kanban lane's own narrowed one. Keyed on the whole query object so a
+    // lane's filtered fetch and the grid's unfiltered one never collide.
+    records: (tableId: string, query: unknown) => ["tables", tableId, "records", query] as const,
+    // Every `records(tableId, …)` query at once: what a record write invalidates,
+    // without also refetching the table itself, its views and its schema versions.
+    recordsAll: (tableId: string) => ["tables", tableId, "records"] as const,
+    // One record, as "reload and reapply" refetches it after a conflict.
+    record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    views: (tableId: string) => ["tables", tableId, "views"] as const,
+    // One kind's views, as the picker for that tab reads them; under `views` so
+    // one invalidation refreshes every kind.
+    viewsOfKind: (tableId: string, kind: string | null) =>
+      ["tables", tableId, "views", kind ?? "all"] as const,
+  },
 } as const;

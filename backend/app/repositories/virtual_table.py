@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -142,10 +142,11 @@ async def list_tables_visible(
     shared_ids: list[UUID],
     include_archived: bool = False,
     search: str | None = None,
+    sort: Literal["name", "updated_at"] = "name",
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[VirtualTable], int]:
-    """The tables one member may see, by name, with the unpaged total.
+    """The tables one member may see, by name or by most recently changed, with the unpaged total.
 
     `see_all` is true when the caller's role reaches the whole organization; the
     ownership predicate is then skipped. Otherwise a member sees their own, the
@@ -169,12 +170,19 @@ async def list_tables_visible(
                 contains_ci(VirtualTable.description, search),
             )
         )
+    if sort == "updated_at":
+        # `updated_at` is set only by `onupdate`, so a table never touched since
+        # creation has it `NULL` - falling back to `created_at` is what keeps
+        # such a table ranked by when it actually last changed, rather than
+        # sorting before or after every table that has an `updated_at` at all.
+        order_by = (
+            func.coalesce(VirtualTable.updated_at, VirtualTable.created_at).desc(),
+            VirtualTable.id.asc(),
+        )
+    else:
+        order_by = (VirtualTable.name.asc(), VirtualTable.id.asc())
     items = await db.execute(
-        select(VirtualTable)
-        .where(*where)
-        .order_by(VirtualTable.name.asc(), VirtualTable.id.asc())
-        .offset(skip)
-        .limit(limit)
+        select(VirtualTable).where(*where).order_by(*order_by).offset(skip).limit(limit)
     )
     total = await db.scalar(select(func.count(VirtualTable.id)).where(*where))
     return list(items.scalars().all()), total or 0

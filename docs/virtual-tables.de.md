@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "efe600e397d7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -97,10 +97,14 @@ dann an dem gemessen, was sie committet hat, sodass ein Datensatz nie in einer T
 landet, die einen Moment zuvor archiviert wurde.
 
 Beim Archivieren einer Spalte oder der ganzen Tabelle wird zuerst jeder registrierte
-Dependency-Checker gefragt, ob etwas sie noch verwendet. Workflows, Views und Trigger
-gibt es noch nicht, daher ist keiner registriert und nichts blockiert;
-`app/services/virtual_tables/dependencies.py` ist der Ort, an dem ein Feature einen
-registriert, und eine Ablehnung nennt die Abhängigen in `SCHEMA_DEPENDENCY`.
+Dependency-Checker gefragt, ob etwas, das der Aufrufer sowohl sehen als auch ändern
+kann, sie noch verwendet.
+Heute sind gespeicherte Ansichten registriert (siehe
+[Gespeicherte Ansichten](#saved-views)); Workflows und Trigger werden ihre in
+`app/services/virtual_tables/dependencies.py` registrieren. Eine Ablehnung nennt die
+Abhängigen in `SCHEMA_DEPENDENCY`. Jeder andere Abhängige wird nie genannt und
+blockiert den Aufrufer nie: sein Feature kommt stattdessen selbst mit der Änderung
+zurecht.
 
 ## Datensätze und Revisions { #records-and-revisions }
 
@@ -173,6 +177,63 @@ bearbeitet hat, nach ihrer Erstellungszeit sortieren.
 Es gibt kein `total`, weil das Zählen einer gefilterten Tabelle nicht billig ist.
 `has_more` sagt, ob eine weitere Seite folgt.
 
+## Gespeicherte Ansichten { #saved-views }
+
+Eine **Ansicht** ist ein gespeicherter Filter, eine Sortierung und eine Gruppierung
+über die Datensätze einer Tabelle - was die Tabellen-/Kanban-/Listenansichten der
+Konsole speichern, damit niemand bei jedem Besuch dasselbe Board neu aufbaut. Sie
+ist eine Unterressource der Tabelle, keine eigene teilbare Ressource: Eine Ansicht
+hat keinen eigenen Besitzer und keine eigenen Grants ihrer Art, und `shared`
+bedeutet nur "sichtbar für jeden, der bereits `tables:view` auf der übergeordneten
+Tabelle hält" - sie erweitert den Zugriff nie über das hinaus, was die Tabelle
+selbst erlaubt.
+
+`GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
+listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
+und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
+dann die geteilten, jeweils nach Name; `total` zählt alle. `config` ist `{filters,
+sort, visible_columns, group_by}` - eine `RecordQuery` plus die zwei Felder, die
+nur die Darstellung der Konsole braucht: `visible_columns` (`null` bedeutet jede
+lebende Spalte) und `group_by` (eine lebende `single_select`-Spalte, für die
+Spalten eines Kanban-Boards).
+
+| Feld | Bedeutung |
+|---|---|
+| `kind` | `table`, `kanban` oder `list` - eine Ansicht wird *für* eine Art gespeichert |
+| `visibility` | `private` (nur ihr Besitzer) oder `shared` (jeder, der die Tabelle sehen kann) |
+| `can_manage` | Ob dieser Aufrufer sie umbenennen, umkonfigurieren oder teilen darf |
+| `can_delete` | Ob dieser Aufrufer sie löschen darf |
+
+Auflisten, Lesen und Löschen lösen sich gegen die Tabelle auf (`tables:view`); eine
+Ansicht zu erstellen oder zu ändern braucht `tables:edit` auf der Tabelle, sodass ein
+Besitzer, dem das Bearbeitungsrecht entzogen wurde, seine Ansichten noch löschen,
+aber nicht mehr umbauen oder teilen kann.
+
+Eine Ansicht zu ändern oder zu löschen ist
+enger: nur ihr Besitzer, oder ein Aufrufer, dessen
+[Scope](permissions.md) für `tables:edit` `ALL` ist - nicht "jeder, der die Tabelle
+bearbeiten darf" - sodass ein geteilter Bearbeiter nicht stillschweigend den
+gespeicherten Filter eines anderen Mitglieds umbiegen kann. Die Ablehnung
+funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
+hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
+würde, dass die Ansicht existiert. `can_manage` und `can_delete` sagen, welches von
+beidem dieser Aufrufer darf.
+
+Das Archivieren einer Spalte wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die
+Ansicht, wenn eine Ansicht, die der Aufrufer sowohl sehen als auch ändern kann, sie
+noch zum Filtern, Sortieren oder Gruppieren nutzt: eine seiner eigenen oder - für
+einen Aufrufer, dessen Scope für `tables:edit` `ALL` ist - eine geteilte. Jede andere
+Ansicht blockiert das Archivieren nicht und wird nicht genannt, weil der Aufrufer sie
+nicht aus dem Weg räumen könnte; das gilt für jede private Ansicht eines anderen
+Mitglieds, die selbst einem Aufrufer mit Scope `ALL` nicht offengelegt wird. Eine
+Spalte nur in `visible_columns` anzuzeigen blockiert ebenfalls nicht.
+
+Was eine Ansicht noch von einer Spalte nennt, die nicht mehr lebt, wird beim Lesen
+der Ansicht weggelassen: ein Filter darauf entfällt, eine Sortierung danach fällt auf
+`created_at` zurück, eine Gruppierung danach wird geleert, und sie verlässt
+`visible_columns` - eine Ansicht, die keine ihrer gewählten Spalten mehr zeigt, zeigt
+alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
+
 ## Was gemeinsam committet { #what-commits-together }
 
 Ein Schreibzugriff auf einen Datensatz, seine Historienzeile, seine
@@ -218,6 +279,14 @@ keine Tabelle eines anderen Tenants nennen.
 Die Tabelle einer anderen Organisation und eine, die der Aufrufer nicht erreichen darf,
 sind beide ein 404. Ein Kontext ohne angemeldetes Subjekt erreicht nichts.
 
+Ob ein bestimmter Aufrufer eine bestimmte Tabelle bearbeiten darf, steht auch
+direkt auf dem Wire: `TableSummary.can_edit` und `TableRead.can_edit` werden
+serverseitig aufgelöst (Rollen-Scope oder ein expliziter Grant) und bei jedem
+Lesen mitgeschickt, genau wie `Agent.can_run` - sodass eine Katalogzeile oder eine
+Detailseite nie raten muss, ob ihre Bearbeitungskontrollen abgelehnt würden. Das
+eigene `can_manage` und `can_delete` einer gespeicherten Ansicht sind dieselbe Idee,
+eine Ebene tiefer (siehe [Gespeicherte Ansichten](#saved-views)).
+
 ## Fehler { #errors }
 
 Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und der
@@ -230,7 +299,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `SCHEMA_VERSION_CONFLICT` | 409 | Das Schema hat sich seit dem Lesen geändert |
 | `SCHEMA_DEPENDENCY` | 409 | Etwas hängt von dem ab, was die Änderung entfernt |
 | `TABLE_ARCHIVED` | 409 | Die Tabelle lehnt Schreibzugriffe ab |
-| `ALREADY_EXISTS` | 409 | Der Tabellenname oder die external id ist vergeben |
+| `ALREADY_EXISTS` | 409 | Der Tabellenname, ein Ansichtsname oder die external id ist vergeben |
 | `INVALID_RECORD` | 422 | Ein Wert passt nicht zu seiner Spalte; `details.fields` nennt jeden |
 | `ARCHIVED_COLUMN` | 422 | Ein Wert nennt eine archivierte Spalte |
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
@@ -271,8 +340,15 @@ Session-Scope.
 - **Ein Principal für API-Keys.** Zugriff, Quittungen und Historie nennen einen
   angemeldeten Benutzer. Wie ein API-Key für die externe API auf eine Tabelle wirkt,
   muss noch abgestimmt werden.
-- Agent-Tools, Workflow-Knoten und die Konsolenansichten, die diesen Service aufrufen
-  werden.
-- Konsumenten der Outbox und Dependency-Checker für Workflows, Views und Trigger.
+- Agent-Tools und typisierte Workflow-Knoten über Tabellen sowie Trigger beim
+  Erstellen eines Datensatzes. Die Konsolenansichten (Tabelle erstellen, Schema
+  bearbeiten, die Zellen eines Datensatzes bearbeiten und die gespeicherten
+  Tabellen-/Kanban-/Listenansichten aus dem Abschnitt
+  [Gespeicherte Ansichten](#saved-views)) gibt es bereits; den Zugriff auf denselben
+  Service für Agenten und Workflows noch nicht, ebenso wenig das Erstellen und
+  Löschen von Datensätzen in der Konsole.
+- Konsumenten der Outbox und Dependency-Checker für Workflows und Trigger -
+  gespeicherte Ansichten registrieren ihren bereits (siehe
+  [Gespeicherte Ansichten](#saved-views)).
 - Kontingente oder Rate-Limits pro Tenant für das Wachstum von Historie und Receipts sowie
   das Speichern nur der Änderungen.

@@ -51,6 +51,23 @@ class Operations:
             raise NotFoundError(message="Table not found", details={"table_id": table_id})
         return table
 
+    async def _can_edit(self, ctx: AuthContext, table: VirtualTable) -> bool:
+        """Whether this caller may edit this specific table, resolved server-side.
+
+        Read routes only require `tables:view`, so a table description on its own
+        says nothing about whether the caller may change it - a Viewer holding an
+        explicit `edit` grant on one table is exactly the case `TableSummary.can_edit`
+        exists to surface, the same way `Agent.can_run` does.
+
+        An archived table answers `False` regardless of the caller's grant: schema
+        and record writes call `_ensure_live` and always refuse with `TABLE_ARCHIVED`,
+        so a wire value that ignored `archived_at` would offer editing controls no
+        write behind them could ever succeed.
+        """
+        if table.archived_at is not None:
+            return False
+        return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
+
     async def _columns(self, table: VirtualTable) -> list[ColumnDef]:
         """The columns of the table's current schema version."""
         version = await virtual_table_repo.get_schema_version(
@@ -64,7 +81,7 @@ class Operations:
             raise TableArchivedError(table_id=table.id)
 
     @staticmethod
-    def _read(table: VirtualTable, columns: list[ColumnDef]) -> TableRead:
+    def _read(table: VirtualTable, columns: list[ColumnDef], *, can_edit: bool) -> TableRead:
         return TableRead(
             id=table.id,
             name=table.name,
@@ -75,5 +92,6 @@ class Operations:
             archived_at=table.archived_at,
             created_at=table.created_at,
             updated_at=table.updated_at,
+            can_edit=can_edit,
             columns=columns,
         )

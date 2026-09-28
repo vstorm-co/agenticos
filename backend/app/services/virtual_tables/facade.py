@@ -1,6 +1,7 @@
 """The public face of Virtual Tables: one class, whatever surface calls it."""
 
 from app.services.virtual_tables.records import RecordOperations
+from app.services.virtual_tables.table_views import TableViewOperations
 from app.services.virtual_tables.tables import TableOperations
 
 
@@ -32,4 +33,16 @@ class VirtualTableService(TableOperations, RecordOperations):
             RecordUpsert(values={column_id: "Acme Ltd"}, expected_revision=written.record.revision),
         )
         ```
+    """
+
+
+class TableViewService(TableViewOperations):
+    """Saved table/kanban/list views over one table's records.
+
+    A sibling of `VirtualTableService` rather than a mixin folded into it: a view is
+    not a table operation, it is a console-only convenience layered over the record
+    query the table service already exposes, and keeping it a separate class is what
+    lets `app/services/virtual_tables/table_views.py` register its own
+    `DependencyChecker` at import time without the table service needing to know
+    views exist.
     """

@@ -8,6 +8,7 @@ import { useFilePreviewStore } from "./file-preview-store";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
+import { useTableViewStore } from "./table-view-store";
 
 /**
  * Empty every store holding something that belonged to one organization.
@@ -46,6 +47,9 @@ export function resetTenantState(): void {
   // it, an offer minted from this org's caches having no meaning in the next.
   useOnboardingStore.getState().close();
   useOnboardingStore.getState().dismissOffer();
+  // A conflict banner names a record id and holds its values, both of another
+  // tenant's table once the switch has happened.
+  useTableViewStore.getState().reset();
 }
 
 /**

@@ -54,6 +54,7 @@ from app.db.models.virtual_table import (
     VirtualTableRecordHistory,
     VirtualTableSchemaVersion,
 )
+from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -135,6 +136,7 @@ __all__ = [
     "VirtualTableRecord",
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
+    "TableView",
     "Skill",
     "SkillProposal",
     "ProposalStatus",

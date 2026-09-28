@@ -884,6 +884,11 @@ RESOURCE_AWARE_SERVICES = (
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
+    # A saved view is a sub-resource of one table: listing and reading resolve
+    # against the table's own grants, and changing or deleting one additionally
+    # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
+    # the service rather than at a route gate.
+    deps.get_table_view_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

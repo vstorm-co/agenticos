@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-six cards exist. You will not see all of them: **a card is gated on the
+Thirty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -145,6 +145,7 @@ closed for that browse.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Tables** | Typed records and their columns, seen as a table, a kanban board or a list | [Virtual Tables](virtual-tables.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Isolated file-and-shell sessions an agent worked in | [The sandbox](sandbox.md) |
@@ -171,7 +172,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-six widgets** you arrange yourself, saved per
+- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

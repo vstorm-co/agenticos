@@ -1849,6 +1849,14 @@
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
+      },
+      "tables": {
+        "title": "Tabellen",
+        "description": "Ihre Tabellen, zuletzt umbenannte oder umgebaute zuerst.",
+        "empty": {
+          "title": "Noch keine Tabellen",
+          "description": "Erstellen Sie eine, und sie erscheint hier."
+        }
       }
     },
     "edit": {
@@ -2630,7 +2638,8 @@
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "artifacts": "Artefakte"
+    "artifacts": "Artefakte",
+    "tables": "Tabellen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3154,6 +3163,46 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "tables-catalog": {
+        "title": "Ihre Tabellen",
+        "body": "Jede Tabelle, die Sie öffnen können: Ihre eigenen und die mit Ihnen geteilten. Jede enthält typisierte Datensätze, die Menschen, Agents und Integrationen lesen und schreiben."
+      },
+      "tables-new": {
+        "title": "Strukturierte Datensätze",
+        "body": "Eine Tabelle ist eine Menge von Datensätzen mit benannten, typisierten Spalten. Erstellen Sie hier eine, bearbeiten Sie dann ihre Datensätze in der Konsole, oder lassen Sie Agents und die API sie lesen und schreiben."
+      },
+      "table-columns": {
+        "title": "Ihre Spalten",
+        "body": "Fügen Sie eine Spalte hinzu, benennen Sie eine um, wählen Sie ihren Typ und ob sie optional ist, oder archivieren Sie eine, die Sie nicht mehr nutzen. Jedes Speichern ist eine neue Schemaversion, und Datensätze behalten ihre Werte."
+      },
+      "table-view-tabs": {
+        "title": "Drei Ansichten",
+        "body": "Dieselben Datensätze als Tabelle, als Kanban-Board, gruppiert nach einer Einzelauswahl-Spalte, oder als Liste. Speichern Sie eine Ansicht, um ihre Filter, Sortierung und Gruppierung zu behalten."
+      },
+      "flow-table-create": {
+        "title": "Die Tabelle erstellen",
+        "body": "Wählen Sie Neue Tabelle — das Formular öffnet sich, und wir gehen es gemeinsam Feld für Feld durch."
+      },
+      "flow-table-field-name": {
+        "title": "Benennen Sie sie",
+        "body": "Benennen Sie sie nach dem, was ein Datensatz ist — Bestellungen, Leads, Support-Tickets — damit jeder, der sie liest oder schreibt, weiß, was hineingehört. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-columns": {
+        "title": "Spalten hinzufügen",
+        "body": "Wählen Sie Spalte hinzufügen für jedes Feld eines Datensatzes und wählen Sie seinen Typ — Text, eine Zahl, ein Datum, eine Auswahl. Sie können sie später ändern. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-visibility": {
+        "title": "Wer sie sieht",
+        "body": "Privat behält sie für Sie; Team und Organisation öffnen sie für mehr Personen. Sie können sie später auch mit einzelnen Personen teilen. Wählen Sie dann Weiter."
+      },
+      "flow-table-field-create": {
+        "title": "Erstellen Sie sie",
+        "body": "Wählen Sie Tabelle erstellen. Wir machen weiter, sobald sie besteht."
+      },
+      "flow-routine-create": {
+        "title": "Eine Routine erstellen",
+        "body": "Wählen Sie Neuer Zeitplan, um einen Agent nach der Uhr laufen zu lassen, oder Neuer Ereignis-Trigger, um ihn laufen zu lassen, wenn etwas passiert. Wir machen weiter, sobald sie besteht."
       }
     }
   },
@@ -4240,6 +4289,66 @@
     "routines": {
       "title": "Routinen",
       "description": "Alles, was Ihre Agents von allein tun — nach Zeitplan oder auf ein Ereignis."
+    },
+    "tables": {
+      "title": "Tabellen",
+      "description": "Typisierte Datensätze, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
+      "newTable": "Neue Tabelle",
+      "catalog": "Tabellen",
+      "shownCount": "{count, plural, one {1 Tabelle} other {# Tabellen}}",
+      "searchPlaceholder": "Tabellen durchsuchen…",
+      "empty": {
+        "title": "Noch keine Tabellen",
+        "description": "Eine Tabelle ist eine typisierte Menge von Datensätzen, die Ihre Agents, Workflows und Integrationen lesen und schreiben können.",
+        "filteredTitle": "Keine passende Tabelle"
+      },
+      "created": "{name} erstellt",
+      "archived": "Tabelle archiviert",
+      "saved": "Gespeichert",
+      "schemaSaved": "Spalten gespeichert",
+      "visibility": {
+        "private": "Privat",
+        "team": "Team",
+        "org": "Organisation"
+      },
+      "detail": {
+        "columns": "Spalten",
+        "share": "Teilen",
+        "tabs": {
+          "table": "Tabelle",
+          "kanban": "Kanban",
+          "list": "Liste"
+        },
+        "kanbanNeedsView": "Speichern Sie eine Kanban-Ansicht mit einer Gruppierungsspalte, um dieses Board zu nutzen.",
+        "shareTitle": "Zugriff auf {name}",
+        "shareDescription": "Wer diese Tabelle sehen und bearbeiten kann.",
+        "visibility": {
+          "private": "Privat",
+          "team": "Team",
+          "org": "Organisation"
+        },
+        "emptyRecords": {
+          "title": "Noch keine Datensätze",
+          "description": "Hier, von einem Agent oder über die API erstellte Datensätze erscheinen in jeder passenden Ansicht."
+        }
+      },
+      "views": {
+        "created": "Ansicht gespeichert",
+        "deleted": "Ansicht gelöscht",
+        "selectViewFor": "{kind, select, table {Tabellenansicht wählen} kanban {Kanban-Ansicht wählen} list {Listenansicht wählen} other {Ansicht wählen}}",
+        "unsavedView": "Ungespeicherte Ansicht",
+        "newView": "Neue Ansicht",
+        "rename": "Umbenennen",
+        "delete": "Löschen",
+        "namePlaceholder": "Name der Ansicht",
+        "visibilityLabel": "Sichtbarkeit",
+        "private": "Privat",
+        "shared": "Geteilt",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "deleteTitle": "Ansicht löschen",
+        "deleteDescription": "„{name}“ löschen? Dies kann nicht rückgängig gemacht werden."
+      }
     }
   },
   "profile": {
@@ -5280,6 +5389,92 @@
     "latestVersion": "Neueste Version",
     "versionOption": "Version {version} · {when}",
     "publicUpdated": "Aktualisiert {when}"
+  },
+  "tables": {
+    "cells": {
+      "notSet": "Nicht gesetzt",
+      "true": "Wahr",
+      "false": "Falsch",
+      "noneSelected": "Nichts ausgewählt",
+      "noOptions": "Keine Optionen"
+    },
+    "create": {
+      "title": "Neue Tabelle",
+      "namePlaceholder": "Tabellenname",
+      "nameLabel": "Name",
+      "descriptionPlaceholder": "Beschreibung (optional)",
+      "descriptionLabel": "Beschreibung",
+      "visibilityLabel": "Sichtbarkeit",
+      "visibility": {
+        "private": "Privat",
+        "team": "Team",
+        "org": "Organisation"
+      },
+      "columnPlaceholder": "Spaltenbeschriftung",
+      "columnLabel": "Spaltenbeschriftung",
+      "columnType": "Spaltentyp",
+      "removeColumn": "Spalte entfernen",
+      "addColumn": "Spalte hinzufügen",
+      "cancel": "Abbrechen",
+      "submit": "Tabelle erstellen",
+      "types": {
+        "text": "Text",
+        "long_text": "Langer Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Wahrheitswert",
+        "date": "Datum",
+        "datetime": "Datum & Uhrzeit",
+        "single_select": "Einzelauswahl",
+        "multi_select": "Mehrfachauswahl"
+      }
+    },
+    "schema": {
+      "title": "Spalten",
+      "labelPlaceholder": "Spaltenbeschriftung",
+      "columnLabel": "Spaltenbeschriftung",
+      "columnType": "Spaltentyp",
+      "nullable": "Optional",
+      "archived": "Archiviert",
+      "removeColumn": "Spalte entfernen",
+      "optionPlaceholder": "Optionsbeschriftung",
+      "optionLabel": "Optionsbeschriftung",
+      "removeOption": "Option entfernen",
+      "addOption": "Option hinzufügen",
+      "addColumn": "Spalte hinzufügen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "types": {
+        "text": "Text",
+        "long_text": "Langer Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Wahrheitswert",
+        "date": "Datum",
+        "datetime": "Datum & Uhrzeit",
+        "single_select": "Einzelauswahl",
+        "multi_select": "Mehrfachauswahl"
+      }
+    },
+    "sheet": {
+      "title": "Datensatz",
+      "conflict": "Jemand anderes hat dieses Feld geändert.",
+      "reloadAndReapply": "Neu laden und erneut anwenden",
+      "discard": "Verwerfen",
+      "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen."
+    },
+    "kanban": {
+      "moveTo": "Verschieben nach",
+      "moveToShort": "Verschieben…",
+      "conflict": "Jemand anderes hat diesen Datensatz geändert.",
+      "reloadAndReapply": "Neu laden und erneut anwenden",
+      "discard": "Verwerfen",
+      "empty": "Keine Datensätze",
+      "moreAvailable": "Weitere Datensätze verfügbar",
+      "needsGroupingColumn": "Diese Ansicht benötigt eine Einzelauswahl-Gruppierungsspalte, um ein Board anzuzeigen.",
+      "noValue": "Kein Wert",
+      "archivedLane": "Archiviert"
+    }
   },
   "groups": {
     "title": "Gruppen",
