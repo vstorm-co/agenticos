@@ -92,3 +92,8 @@ def test_a_refusal_without_a_known_remedy_is_said_plainly():
 def test_a_call_outside_a_run_has_no_operation_key():
     ctx = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage(), tool_call_id="c1")
     assert _operation_key(ctx) is None
+
+
+def test_the_toolset_is_built_once_per_run():
+    built = _build(VirtualTablesConfig(allow_create=True))
+    assert built is not None and built.get_toolset() is built.get_toolset()

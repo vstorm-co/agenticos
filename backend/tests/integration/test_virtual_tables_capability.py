@@ -375,3 +375,62 @@ async def test_a_table_the_agent_creates_is_usable_for_the_rest_of_the_run(world
     assert [column["label"] for column in created["columns"]] == ["Email"]
     assert written["values"]["Email"] == "ada@example.com"
     assert set(capability.grants[uuid.UUID(created["id"])]) == set(TableOperation)
+
+
+async def test_a_granted_table_that_is_gone_is_neither_listed_nor_said_to_exist(world: _World):
+    gone = uuid.uuid4()
+    call, _cap, _ts = _tools({gone: {TableOperation.READ}, world.orders.id: {TableOperation.READ}})
+
+    listed = json.loads(await call("list_tables", _ctx(world.deps())))
+    exists = await call("table_exists", _ctx(world.deps(), call="e"), table_id=gone)
+
+    assert [table["name"] for table in listed] == ["Orders"]
+    assert exists == "false"
+
+
+async def test_a_table_is_described_by_its_columns(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: {TableOperation.READ}})
+
+    described = json.loads(
+        await call("describe_table", _ctx(world.deps()), table_id=world.orders.id)
+    )
+
+    assert described["name"] == "Orders"
+    assert {column["label"] for column in described["columns"]} >= {"Customer", "Quantity"}
+
+
+async def test_a_record_is_looked_up_by_exactly_one_key(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+
+    with pytest.raises(ModelRetry, match="exactly one"):
+        await call("get_record", _ctx(world.deps()), table_id=world.orders.id)
+
+
+async def test_an_upsert_creates_then_updates_the_record_its_key_names(world: _World):
+    call, _cap, _ts = _tools({world.orders.id: ALL})
+    deps = world.deps()
+    quantity_id = next(str(c.id) for c in world.orders.columns if c.label == "Quantity")
+
+    created = json.loads(
+        await call(
+            "upsert_record",
+            _ctx(deps, call="u1"),
+            table_id=world.orders.id,
+            external_id="A-1",
+            values={quantity_id: 1},
+        )
+    )
+    updated = json.loads(
+        await call(
+            "upsert_record",
+            _ctx(deps, call="u2"),
+            table_id=world.orders.id,
+            external_id="A-1",
+            values={"Quantity": 5},
+            expected_revision=created["revision"],
+        )
+    )
+
+    assert created["created"] is True and updated["created"] is False
+    assert updated["id"] == created["id"] and updated["values"]["Quantity"] == 5
+    assert await _count(world) == 1

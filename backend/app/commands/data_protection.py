@@ -145,6 +145,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "thinking",
         "tool_output_limits",
         "tool_search",
+        # Records are rows in this deployment's own database.
+        "virtual_tables",
     }
 )
 
