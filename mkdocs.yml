@@ -256,9 +256,42 @@ nav:
   - Features: features.md
   - Use cases:
       - use-cases.md
-      - howto/slack-handbook-assistant.md
-      - howto/csv-chart.md
-      - howto/scheduled-report.md
+      - Documents and knowledge:
+          - howto/first-document-agent.md
+          - howto/knowledge-base-assistant.md
+          - howto/llm-wiki.md
+          - howto/contract-review.md
+          - howto/document-extraction.md
+          - howto/meeting-summary.md
+      - Customer support and service:
+          - howto/support-widget.md
+          - howto/slack-handbook-assistant.md
+          - howto/support-ticket-triage.md
+          - howto/email-triage.md
+          - howto/onboarding-helpdesk.md
+      - Research and analysis:
+          - howto/deep-research-subagents.md
+          - howto/account-research.md
+          - howto/competitor-monitoring.md
+          - howto/database-questions.md
+          - howto/csv-chart.md
+          - howto/excel-report.md
+      - Automation and teams of agents:
+          - howto/scheduled-report.md
+          - howto/github-issue-triage.md
+          - howto/meeting-to-tasks.md
+          - howto/specialist-team.md
+          - howto/agent-api.md
+      - Personal productivity:
+          - howto/personal-assistant.md
+          - howto/notion-agent.md
+      - Content and communication:
+          - howto/content-repurposing.md
+          - howto/product-descriptions.md
+          - howto/translation-glossary.md
+      - Engineering and safety:
+          - howto/code-review.md
+          - howto/pii-guardrails.md
   - Comparisons:
       - about/comparison.md
       - about/claude-apps.md

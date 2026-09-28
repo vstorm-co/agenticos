@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A library of 29 use-case tutorials.** The use-case index now groups
+  tutorials by documents and knowledge, customer support, research, automation
+  and teams of agents, personal productivity, content, and engineering and
+  safety: a document library with citations, an LLM wiki the agent maintains in
+  a sandbox, contract review, invoice extraction, meeting summaries, a website
+  support widget, ticket and email triage, onboarding, PII guardrails, research
+  with subagents, account briefs, page monitoring, database questions, Excel and
+  slide reports, GitHub issue triage, meeting action items to tasks, a team of
+  specialist agents, the HTTP API, a personal assistant, a Notion agent, content
+  repurposing, product descriptions, glossary-driven translation and code review.
+  Each has a synthetic fixture, the exact configuration and prompt, reference
+  checks including a refusal or edge case, and the usual failures. The index says
+  which ones the maintainers ran on v0.0.504; the rest need a third-party account.
+
 ## [0.0.507] - 2026-09-26
 
 ### Fixed

@@ -5,7 +5,7 @@ description: "Give an agent a small handbook, ask a question and check the answe
 
 # Build your first document agent
 
-Build an assistant that answers equipment-policy questions from one document. This synthetic fixture gives you a fact to check and a deliberate information gap. It is a procedure to run, not a report of a measured deployment result.
+Build an assistant that answers equipment-policy questions from one document. This synthetic fixture gives you a fact to check and a deliberate information gap. This is a procedure to run, with one recorded run as a reference.
 
 ## Prepare the source
 
@@ -45,6 +45,14 @@ Do not invent policies or submit equipment requests.
 Ask in a fresh test conversation. Inspect the answer and the retrieved material in [Activity](../governance.md). Keep incorrect or incomplete answers as well as successful ones. If retrieval is empty, check collection binding, permissions and processing before changing the prompt.
 
 Change the owner to the facilities team in the test file. In the [collection document list](../file-processing.md), delete the original test document and wait for deletion to finish before uploading the edited file. Uploading the same filename alone does not replace the old vectors. Wait for processing and repeat in a fresh conversation. Check that obsolete material is not still being retrieved.
+
+!!! example "Recorded on v0.0.504, 25 September 2026"
+
+    Model: Claude Sonnet 4.6 through OpenRouter, knowledge search bound to the one collection. "Who handles an equipment request?" called `search_documents` once and answered "equipment requests go to the office manager," with the three details, citing `equipment-handbook.md`. "How much can I spend?" called `search_documents` twice and answered that the handbook "does not contain any information about spending limits or purchase approval thresholds." Cost across the three questions and one retry below: 0.043 USD.
+
+    "Which details should I include?" first returned a clarifying question ("could you clarify what you're referring to?") instead of searching — asked alone in a fresh conversation, the phrase does not carry the equipment-request topic. A second attempt of the same question called `search_documents` and answered correctly. Word it with the subject named if you want the search to run on the first try.
+
+    After deleting the original document, confirming the list was empty, and uploading the edited file, the same first question in a new conversation answered "equipment requests go to the facilities team" with no mention of the office manager. Total cost for the five turns: 0.055 USD.
 
 ## Share the next step
 

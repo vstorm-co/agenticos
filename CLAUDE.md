@@ -237,7 +237,7 @@ retranslated is how a stale translation stops being visible.
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 | What the platform does, on one page | `docs/features.md` |
-| Choosing a first task, and the use-case tutorials | `docs/use-cases.md`, `docs/howto/slack-handbook-assistant.md`, `docs/howto/csv-chart.md`, `docs/howto/scheduled-report.md` |
+| Choosing a first task, and the 29 use-case tutorials it indexes | `docs/use-cases.md` (tutorials live in `docs/howto/`) |
 | The Learn track's own landing | `docs/learn/index.md` |
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |
