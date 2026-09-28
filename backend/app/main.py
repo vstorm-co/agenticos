@@ -8,6 +8,7 @@ from typing import TypedDict
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
@@ -45,6 +46,18 @@ from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
 logger = logging.getLogger(__name__)
+
+# Starlette's list plus what the byte-serving routes answer with. PDFs and OOXML
+# files are already compressed, and gzipping a download drops its `Content-Length`
+# and with it the browser's progress bar.
+UNCOMPRESSED_CONTENT_TYPES = (
+    *DEFAULT_EXCLUDED_CONTENT_TYPES,
+    "application/octet-stream",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+)
 
 
 class LifespanState(TypedDict, total=False):
@@ -346,6 +359,18 @@ OS for your agents.
     # idempotent via a module-level guard in logfire_setup.py.
     setup_logfire()
     instrument_app(app)
+
+    # Innermost, so it sees a response as the route produced it. The
+    # `BaseHTTPMiddleware` layers above re-emit every body as a stream, and
+    # Starlette skips `minimum_size` for a stream. Level 5 rather than 9: on JSON
+    # the last levels buy a few percent for several times the CPU, and the load
+    # test already found a deployment CPU-bound (`docs/load-testing.md`).
+    app.add_middleware(
+        GZipMiddleware,
+        minimum_size=1024,
+        compresslevel=5,
+        exclude_content_types=UNCOMPRESSED_CONTENT_TYPES,
+    )
 
     # Outermost of the three, because it exists to answer before anything reads the
     # body - a middleware under CORS or the session would run after the request had

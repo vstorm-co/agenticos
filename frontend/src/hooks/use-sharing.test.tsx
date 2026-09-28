@@ -27,6 +27,8 @@ const SHARING: ResourceSharing = {
       id: "g1",
       subject_user_id: "u-sam",
       subject_email: "sam@example.com",
+      subject_group_id: null,
+      subject_group_name: null,
       resource_type: "agent",
       resource_id: "a1",
       level: "read",
@@ -86,12 +88,30 @@ describe("useSharing", () => {
     const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await result.current.revoke.mutateAsync("u-sam");
+    await result.current.revoke.mutateAsync({ kind: "user", id: "u-sam" });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1/sharing/grants/u-sam");
     // Visibility and the grant list move together on the server; refetching is
     // what keeps the panel from showing a share that no longer exists.
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("shares with a group by its own key, and revokes it at the group endpoint", async () => {
+    // A user id and a group id are both bare UUIDs, so the kind is in the key and
+    // the path - never guessed from the id.
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_group_id: "g-fin", level: "use" });
+    await result.current.revoke.mutateAsync({ kind: "group", id: "g-fin" });
+
+    expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/sharing/grants", {
+      subject_group_id: "g-fin",
+      level: "use",
+    });
+    expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1/sharing/group-grants/g-fin");
   });
 
   it("changes visibility and re-reads the sharing state it affects", async () => {
@@ -129,7 +149,9 @@ describe("useSharing", () => {
     const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await expect(result.current.revoke.mutateAsync("u-sam")).rejects.toThrow(refused);
+    await expect(result.current.revoke.mutateAsync({ kind: "user", id: "u-sam" })).rejects.toThrow(
+      refused,
+    );
     await expect(result.current.setVisibility.mutateAsync("org")).rejects.toThrow(refused);
 
     expect(toast.error).toHaveBeenCalledTimes(2);

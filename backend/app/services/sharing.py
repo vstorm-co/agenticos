@@ -1,4 +1,4 @@
-"""Sharing service - owner, visibility and per-member grants on one resource.
+"""Sharing service - owner, visibility and grants to members or groups on one resource.
 
 Only someone who can already edit a resource may change who else reaches it,
 which keeps the rule simple: sharing is an edit. Every change is audited,
@@ -8,6 +8,7 @@ incident and the last thing anyone remembers.
 
 from __future__ import annotations
 
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +17,16 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
-from app.repositories import member_repo, resource_grant_repo
+from app.repositories import group_repo, member_repo, resource_grant_repo
 from app.services.access import OwnedResource, ResourceType, resolve_access
+
+
+class SharingState(NamedTuple):
+    """Who a resource is shared with, and the names to show for them."""
+
+    grants: list[ResourceGrant]
+    emails: dict[UUID, str | None]
+    group_names: dict[UUID, str]
 
 
 class SharingService:
@@ -47,11 +56,11 @@ class SharingService:
         resource: OwnedResource,
         *,
         resource_type: ResourceType,
-    ) -> tuple[list[ResourceGrant], dict[UUID, str | None]]:
-        """Grants on a resource plus a user-id → email map for display.
+    ) -> SharingState:
+        """Grants on a resource, with the addresses and group names to display them by.
 
         Seeing the share list requires being able to view the resource; the
-        email lookup is a convenience so the UI does not fan out one request
+        name lookups are a convenience so the UI does not fan out one request
         per grant.
         """
         allowed = await resolve_access(
@@ -71,9 +80,14 @@ class SharingService:
         emails = await member_repo.get_emails_for_users(
             self.db,
             organization_id=ctx.organization_id,
-            user_ids=[grant.subject_user_id for grant in grants],
+            user_ids=[grant.subject_user_id for grant in grants if grant.subject_user_id],
         )
-        return grants, emails
+        group_names = await group_repo.get_names(
+            self.db,
+            organization_id=ctx.organization_id,
+            group_ids=[grant.subject_group_id for grant in grants if grant.subject_group_id],
+        )
+        return SharingState(grants=grants, emails=emails, group_names=group_names)
 
     async def share(
         self,
@@ -121,6 +135,89 @@ class SharingService:
             details={"subject_user_id": str(subject_user_id), "level": level.value},
         )
         return grant
+
+    async def share_with_group(
+        self,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        *,
+        resource_type: ResourceType,
+        group_id: UUID,
+        level: GrantLevel,
+    ) -> ResourceGrant:
+        """Grant every member of a group access to one resource.
+
+        The grant reaches whoever is in the group when access is resolved, so
+        people joining later reach the resource and people leaving stop - there
+        is no per-person row to keep in step.
+
+        Raises:
+            BadRequestError: If the group is not one of this organization's. The
+                same refusal as sharing with an outsider, for the same reason: a
+                grant naming another tenant's group would be a latent hole.
+        """
+        await self._require_edit(ctx, resource, resource_type)
+
+        group = await group_repo.get(
+            self.db, organization_id=ctx.organization_id, group_id=group_id
+        )
+        if group is None:
+            raise BadRequestError(
+                message="Cannot share with a group outside this organization",
+                details={"subject_group_id": str(group_id)},
+            )
+
+        grant = await resource_grant_repo.upsert_for_group(
+            self.db,
+            organization_id=ctx.organization_id,
+            subject_group_id=group.id,
+            resource_type=resource_type.key,
+            resource_id=resource.id,
+            level=level,
+            created_by_user_id=ctx.user_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="resource.share",
+            target_type=resource_type.key,
+            target_id=str(resource.id),
+            details={"subject_group_id": str(group.id), "level": level.value},
+        )
+        return grant
+
+    async def revoke_group(
+        self,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        *,
+        resource_type: ResourceType,
+        group_id: UUID,
+    ) -> None:
+        """Stop sharing a resource with a group."""
+        await self._require_edit(ctx, resource, resource_type)
+        removed = await resource_grant_repo.revoke_for_group(
+            self.db,
+            organization_id=ctx.organization_id,
+            subject_group_id=group_id,
+            resource_type=resource_type.key,
+            resource_id=resource.id,
+        )
+        if not removed:
+            raise NotFoundError(
+                message="Share not found",
+                details={"subject_group_id": str(group_id)},
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="resource.unshare",
+            target_type=resource_type.key,
+            target_id=str(resource.id),
+            details={"subject_group_id": str(group_id)},
+        )
 
     async def revoke(
         self,

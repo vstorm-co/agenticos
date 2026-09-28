@@ -142,6 +142,13 @@ named the address on purpose, and a domain list is deployment policy for strange
 rather than a veto over a deliberate act. `closed` is overridden by nothing,
 because "closed" that lets some registrations through is not closed.
 
+A **directory group mapping counts as an invitation.** A first sign-in through
+the directory (LDAP or Kerberos), or through OIDC with a groups claim, whose
+groups match some organization's mapping is admitted by `invite_only` and by the
+domain list: whoever wrote the mapping held `members:manage` and `roles:manage`
+and decided everyone in that group belongs. `closed` still refuses it. See
+[Directory group mappings](directory.md#directory-group-mappings).
+
 **`closed` means closed, and there is no administrator-creates-an-account path.**
 Deliberately: an account needs a password its owner chose, so adding somebody means
 opening registration *to them* — which is what `invite_only` is for. A mode that

@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "44dae3302f97"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1439,9 +1439,12 @@ eine Überraschung statt einer Funktion:
   kann - der Web-Crawler an seiner Seitenobergrenze oder nach einer Seite mit
   Zeitüberschreitung -, sagt `complete=False`, und dieser Lauf entfernt nichts
   ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Das Entfernen ist
-  über `rag_documents.sync_source_id` eingegrenzt, nicht über `source_path`: Zwei
-  Sources können eine Collection speisen, und keine darf entfernen, was die andere
-  eingebracht hat.
+  über `rag_document_claims` eingegrenzt, nicht über `source_path`: Zwei Sources
+  können eine Collection speisen und dasselbe Dokument auflisten, deshalb
+  beansprucht jede Source, die ein Dokument auflistet, es für sich. Eine Source,
+  die es nicht mehr auflistet, gibt ihren Anspruch auf, und das Dokument wird erst
+  entfernt, wenn keine Source, die die Collection speist, es noch beansprucht
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Ein Sync-Connector ist kein MCP-Server.** MCP ist, wie ein Agent ein Produkt
 *live* erreicht, mitten im Run; eine Sync-Source ist ein geplanter Massenabzug mit
@@ -1456,15 +1459,18 @@ Web-Crawler ([#984](https://github.com/vstorm-co/agenticos/issues/984),
 ausgeliefert als der `web`-Connector - siehe
 [eine Website einrichten](howto/configure-sync-sources.md#website-setup)),
 SharePoint und OneDrive
-([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#985](https://github.com/vstorm-co/agenticos/issues/985), ausgeliefert als der
+`sharepoint`-Connector - siehe [SharePoint und OneDrive
+einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), die Dokumentation
 eines Git-Repositories
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), und dann Azure Blob
 und GCS, deren Bedingung erfüllt ist: `S3Connector` ist eine Unterklasse von
 `ObjectStoreConnector`, jeder davon ist also ein Client und ein `CONNECTOR_TYPE`
 statt einer zweiten Kopie der Auflistungsschleife
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Gegen Notion, Slack
-und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Gegen Notion, Slack und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
 festgehaltenen Grund — die letzten beiden, weil eine Unterhaltung sich schlecht
 abrufen lässt und die Kanal-Integrationen einen Agent bereits *in* Slack setzen.
 

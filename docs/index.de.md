@@ -1,5 +1,5 @@
 ---
-source_sha: "43f1f48849f0"
+source_sha: "89439dd9f4e7"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,9 +9,7 @@ source_sha: "43f1f48849f0"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Ein Ort, um die KI-Agents Ihres Unternehmens zu bauen, zu betreiben und zu steuern. Selbst gehostet, Open Source und Ihres.
-Warum es ein Betriebssystem heißt, steht
-<a href="#why-it-is-called-an-operating-system">sieben Funktionen weiter unten</a>.
+Geben Sie KI-Agents konkrete Aufgaben in Ihrem Team. Erstellen Sie Agents im Browser, verbinden Sie Dokumente und Werkzeuge und betreiben Sie sie auf Infrastruktur unter Ihrer Kontrolle.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -27,6 +25,13 @@ Warum es ein Betriebssystem heißt, steht
 </p>
 
 </div>
+
+**[Den ersten Dokumenten-Agent bauen](howto/first-document-agent.md)** · [Eine Aufgabe wählen](use-cases.md) · [Plattformen vergleichen](about/comparison.md) · [Bereitstellung und Betrieb](rollout.md) · [Hilfe](help.md)
+
+Beginnen Sie mit einer überprüfbaren Antwort aus einem Handbuch. Testen Sie danach einen Antragsentwurf oder ein CSV-Diagramm und bewahren Sie Quelle und tatsächliches Ergebnis zusammen auf.
+
+Ihr Team verantwortet den Betrieb. Modelle, Parsing, Embeddings, Werkzeuge und Tracing können je nach Konfiguration externe Dienste nutzen.
+
 
 ---
 
@@ -117,10 +122,9 @@ um ihn herum.
     verzeichnet trotzdem, was er gekostet hat, denn ein Budget, das Fehlschläge
     ignoriert, ist kein Budget.
 
-- :material-hand-back-right:{ .lg .middle } **Approval für alles mit Nebenwirkung**
+- :material-hand-back-right:{ .lg .middle } **Konfigurierbare Freigaben für unterstützte Werkzeuge**
 
-    Ein Tool, das auf die Außenwelt wirkt, parkt den Run und wartet auf einen
-    Menschen. Pro Capability gesetzt, pro Tool überschreibbar.
+    Eine konfigurierte Freigabe hält den Run für eine berechtigte Person an. Die Abdeckung hängt von Capability, Werkzeug und Richtlinie ab.
 
 - :material-account-key:{ .lg .middle } **Permissions in Code, Rollen daraus zusammengesetzt**
 
@@ -246,7 +250,7 @@ Frage kam.
 |---|---|
 | **Agents** | In einer UI gebaut, beim Veröffentlichen versioniert, als YAML in Ihr eigenes git-Repository exportierbar |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, Websuche und Abruf, ein echter Browser, Python, eine Sandbox mit Dateien und Shell, Diagramme, Bilder, Delegation, Planung, Guardrails — pro Agent eingeschaltet |
-| **[Integrationen](mcp.md)** | Jeder MCP-Server per URL, mit 59 gängigen im Picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
+| **[Integrationen](mcp.md)** | Kompatible MCP-Server, mit 59 gängigen im Picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
 | **[Modelle](models.md)** | 27 Provider, Schlüssel pro Organisation, Fallbacks und selbst gehostetes Ollama oder ein LiteLLM-Proxy |
 | **[Wissen](file-processing.md)** | Retrieval über Ihre Dokumente mit drei PDF-Parsern, Ihrem eigenen Chunking, OCR und Bildbeschreibung — pro Collection, pro Upload überschreibbar. Google-Drive- und S3-Sync |
 | **[Skills](skills.md)** | Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält |
@@ -304,8 +308,7 @@ FastAPI und Pydantic v2 auf PostgreSQL, [Pydantic AI](https://ai.pydantic.dev)
 für die Agent-Laufzeit, pgvector für Retrieval, Prefect für Hintergrundarbeit und
 Next.js 15 für die Konsole.
 
-Nichts hier telefoniert nach Hause: Modellpreise stammen aus einem beiliegenden
-Snapshot, und die einzigen ausgehenden Aufrufe sind die, die Ihre Agents machen.
+Externe Ziele hängen von Modell-, Parser-, Embedding-, Werkzeug-, Kanal-, Sandbox- und Tracing-Konfiguration ab. Prüfen Sie den [Datenfluss](security.md).
 
 ## Lizenz { #licence }
 

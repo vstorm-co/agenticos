@@ -7,6 +7,8 @@ import { useDetailTargets } from "./detail-targets";
 import {
   AGENT_BUILDER,
   KB_DETAIL,
+  ORG_DIRECTORY,
+  ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
   SETTINGS_DETAIL,
@@ -68,6 +70,8 @@ describe("useDetailTargets", () => {
     expect(result.current[KB_DETAIL]?.href).toBe("/rag/kb-1");
     expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/org-1/members");
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/org-1/roles");
+    expect(result.current[ORG_GROUPS]?.href).toBe("/orgs/org-1/groups");
+    expect(result.current[ORG_DIRECTORY]?.href).toBe("/orgs/org-1/directory");
     // The two "?"-only sections need no fetch: settings resolves to its first
     // page, a workspace to nothing to open, and neither is ever pending.
     expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
@@ -108,6 +112,8 @@ describe("useDetailTargets", () => {
     expect(result.current[KB_DETAIL]?.href).toBeNull();
     expect(result.current[ORG_MEMBERS]?.href).toBeNull();
     expect(result.current[ORG_ROLES]?.href).toBeNull();
+    expect(result.current[ORG_GROUPS]?.href).toBeNull();
+    expect(result.current[ORG_DIRECTORY]?.href).toBeNull();
   });
 
   it("resolves both organization routes from the active org, list untouched", () => {

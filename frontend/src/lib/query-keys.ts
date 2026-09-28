@@ -27,6 +27,12 @@ export const qk = {
     roleCatalog: () => ["organizations", "role-catalog"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
     retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
+    // One group's members sit beneath the list, so invalidating the list after a
+    // change also refetches every member list - a member count moves with them.
+    groups: (orgId: string) => ["organizations", orgId, "groups"] as const,
+    groupMembers: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "members"] as const,
+    directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
     all: () => ["agents"] as const,

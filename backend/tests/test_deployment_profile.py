@@ -313,9 +313,29 @@ class TestWhoGetsIn:
         assert "provider" in detail
 
     async def test_passwords_alone_are_unmet(self, monkeypatch) -> None:
-        sheet = await _sheet(_db(), monkeypatch, issuer="")
+        sheet = await _sheet(_db(), monkeypatch, issuer="", KERBEROS_ENABLED=False, LDAP_URL="")
 
-        assert sheet["sso"][0] == "unmet"
+        assert sheet["sso"] == (
+            "unmet",
+            "no OIDC_ISSUER: people sign in with passwords this deployment stores",
+        )
+
+    async def test_a_domains_kerberos_ticket_satisfies_authentication(self, monkeypatch) -> None:
+        sheet = await _sheet(_db(), monkeypatch, issuer="", KERBEROS_ENABLED=True)
+
+        assert sheet["sso"][0] == "met"
+
+    async def test_a_directory_password_is_unmet_but_not_called_a_stored_one(
+        self, monkeypatch
+    ) -> None:
+        """The password is the directory's; the sheet must not claim this deployment stores it."""
+        sheet = await _sheet(
+            _db(), monkeypatch, issuer="", KERBEROS_ENABLED=False, LDAP_URL="ldaps://dc"
+        )
+
+        outcome, detail = sheet["sso"]
+        assert outcome == "unmet"
+        assert "checked by the directory" in detail
 
     async def test_open_registration_is_unmet(self, monkeypatch) -> None:
         db = _db(deployment=_settings(signup_mode="open"))

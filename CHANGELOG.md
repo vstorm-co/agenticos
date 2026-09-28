@@ -45,8 +45,211 @@ Two things are versioned separately from this file and worth knowing about:
   `Idempotency-Key` header makes a retry return the first answer. Access is
   visibility plus grants like context files, with new `tables:view`, `tables:edit`
   and `tables:create` permissions, and every route answers refusals in one typed
-  error envelope. Migration `0092_virtual_tables.py`; see
+  error envelope. Migration `0101_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
+
+## [0.0.507] - 2026-09-26
+
+### Fixed
+
+- **Auxiliary model calls obey the run's budget, trace policy and settings.**
+  A system reminder, a compaction summary and a tool-output summary now
+  re-check the organization and agent caps before they spend and fall back to
+  their model-free path at a cap. The runner opens the run's budget guard, which
+  also makes the existing checks in knowledge search and browser automation
+  take effect. Reminders and compaction summaries are traced the way the run
+  is, so `content: none` holds and a run routed to its own Logfire project keeps
+  them there, and they run under the run's model settings. Concurrent reminders
+  no longer double-count their spend. The tool-output summary gets the budget
+  check only; its trace policy and settings are tracked in #1809 and #1810
+  (#1818).
+
+## [0.0.506] - 2026-09-26
+
+### Added
+
+- **Three use-case tutorials you can repeat.** The docs now cover a handbook
+  question answered in Slack, a CSV turned into a chart you can reconcile with
+  its rows, and a weekly report published as an artifact on a schedule. Each
+  gives a synthetic fixture, the configuration, the exact prompt, reference
+  checks, the usual failures and what to record. The CSV and report tutorials
+  include a run recorded on v0.0.504. The use-case index says which tutorials
+  the maintainers have run (#1895).
+
+## [0.0.505] - 2026-09-26
+
+### Changed
+
+- **Comparisons cover eleven products in depth.** The comparison hub groups
+  assistant apps, cloud-suite builders, self-hosted builders, teammate
+  services, delivered platforms and coding agents, and states what AgenticOS
+  does not do yet. The Viktor, Dify and Wonderful guides now compare tenancy,
+  identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
+  guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
+  Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
+  sources checked on 25 September 2026 (#1894).
+- **Comparison guides are written for search.** Each has a search title, a
+  meta description and a frequently-asked-questions section, in all four
+  languages. The site adds Open Graph and Twitter card tags to every page and
+  publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
+  lists every comparison (#1894).
+
+## [0.0.504] - 2026-09-25
+
+### Added
+
+- **A first document task and clearer platform comparisons.** The documentation
+  includes a synthetic handbook tutorial with answer checks, use-case entry
+  points, a help route and sourced comparisons with Viktor, Dify and Wonderful.
+  Comparisons distinguish documented options from untested behavior (#1893).
+
+### Changed
+
+- **README and docs start with the work an agent can do.** Navigation connects
+  the first task, platform selection and deployment responsibilities in English,
+  Polish, German and Spanish. The operating guide explains costs, ownership and
+  separately scoped Vstorm implementation help. Statements about approvals,
+  budgets, secrets, MCP compatibility and outbound data now describe their
+  configuration-dependent limits (#1893).
+
+## [0.0.503] - 2026-09-25
+
+### Added
+
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget and traced under the agent's own
+  observability settings. An exhausted budget or a failed model call falls back
+  to the plain query. Every produced query is searched under the same tenant
+  scope and filters as the original, so expansion widens recall and never access
+  (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
+
+## [0.0.502] - 2026-09-25
+
+### Added
+
+- **Groups.** An organization can gather its members into named groups and
+  share an agent, a skill, a collection, a context file, a vault secret or an
+  artifact with a whole group at once. A group grant reaches whoever is in the
+  group when access is checked, so people joining later get access and people
+  leaving lose it with nothing to revoke. When a person reaches a resource
+  through several grants, the highest one wins. A group carries no role of its
+  own (#1773).
+- **Directory groups decide who joins an organization, with which role.** A
+  directory group mapping says "everyone in this directory group is a *builder*
+  here, in the group *Platform*". It is applied at every directory sign-in, and at
+  every OIDC sign-in once `OIDC_GROUPS_CLAIM` names the provider's groups claim.
+  The sync joins, re-roles and removes only the memberships it made itself. It
+  never demotes or removes an owner, and it cannot map a role its author could not
+  assign. A matching mapping admits a first sign-in on an invite-only deployment,
+  the way an invitation does. An Entra ID group overage is refused rather than
+  read as "no groups" (#1773).
+- **Sign in with a directory account.** With `LDAP_URL` set, people sign in to
+  Active Directory, OpenLDAP or FreeIPA with the username and password they use
+  everywhere else. The check is the standard two-step bind, over verified TLS. An
+  empty password never reaches the directory, the username is escaped into the
+  search filter, and a username matching two accounts is refused. Plaintext
+  `ldap://` is refused at startup unless explicitly allowed (#1773).
+- **Integrated Windows sign-in.** With `KERBEROS_ENABLED` set, a browser on a
+  domain-joined machine signs its user in with its Kerberos ticket (SPNEGO), and
+  nobody types a password. The ticket resolves through the directory to the same
+  account a password sign-in reaches. It needs an image built with the new
+  `kerberos` extra (#1773).
+
+## [0.0.501] - 2026-09-25
+
+### Added
+
+- **A SharePoint site or a OneDrive can feed a knowledge base.** A
+  `sharepoint` sync source reads one document library, or one folder in it,
+  through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
+  default, and a file deleted from the library is removed like any other the
+  source stops listing. The second sync asks Graph's change feed first and
+  stops there when nothing in the library changed. When something did, only
+  new and changed files are embedded. Throttling and outages are retried as
+  Graph's `Retry-After` asks, and a folder that still cannot be listed is
+  named on the sync log, and that run removes nothing. The setup guide tells an
+  administrator to grant the app `Sites.Selected` on one site rather than
+  `Files.Read.All` on the tenant, and says what happens otherwise (#985).
+- **A Microsoft Entra app is a vault secret kind of its own.** `entra_app`
+  holds a tenant id, a client id and a client secret, and a SharePoint source
+  takes only this kind.
+- `BaseSyncConnector.remote_version` is handed `previous`, the value the last
+  clean run stored under the same configuration, so a source that can only say
+  what changed since a point can answer that nothing did.
+
+## [0.0.500] - 2026-09-25
+
+### Fixed
+
+- **A document two sync sources list stays until both stop listing it.** A
+  synced document belonged only to the source that ingested it last. When two
+  sources on one collection listed the same page, the page was removed as soon
+  as that one source stopped listing it, although the other still listed it. A
+  source in `update_only` mode never ingested it again. Each source that lists a
+  document now claims it, in the new `rag_document_claims` table, which replaces
+  `rag_documents.sync_source_id` and is backfilled from it (migration
+  `0099_rag_document_claims.py`). A sync that stops listing a document drops its
+  own claim. It removes the document only when no other source feeding the
+  collection still claims it (#1879).
+
+## [0.0.499] - 2026-09-25
+
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
+
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
 
 ## [0.0.497] - 2026-09-25
 

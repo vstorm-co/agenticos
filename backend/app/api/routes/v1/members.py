@@ -37,6 +37,7 @@ async def list_members(
             avatar_url=avatar_url,
             avatar_color=avatar_color,
             joined_at=m.joined_at,
+            source=m.source,
             can_change_role=can_change_role,
         )
         for m, email, full_name, avatar_url, avatar_color, can_change_role in rows
@@ -66,6 +67,7 @@ async def update_member_role(
         avatar_url=avatar_url,
         avatar_color=avatar_color,
         joined_at=member.joined_at,
+        source=member.source,
     )
 
 

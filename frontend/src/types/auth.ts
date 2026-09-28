@@ -68,6 +68,15 @@ export interface LoginRequest {
   password: string;
 }
 
+/**
+ * A directory (LDAP) sign-in. A username rather than an email address, because
+ * the directory binds with the account's own name.
+ */
+export interface DirectoryLoginRequest {
+  username: string;
+  password: string;
+}
+
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;

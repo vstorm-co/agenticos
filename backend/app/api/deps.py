@@ -316,6 +316,48 @@ RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
+from app.services.group import GroupService
+from app.services.directory import (
+    DirectoryMappingService,
+    DirectorySignInService,
+    DirectorySyncService,
+    build_directory,
+    build_ticket_acceptor,
+)
+
+
+def get_group_service(db: DBSession) -> GroupService:
+    """Create GroupService instance with database session."""
+    return GroupService(db)
+
+
+def get_directory_mapping_service(db: DBSession) -> DirectoryMappingService:
+    """Create DirectoryMappingService instance with database session."""
+    return DirectoryMappingService(db)
+
+
+def get_directory_sign_in_service(db: DBSession) -> DirectorySignInService:
+    """The directory sign-in, with whichever adapters the deployment configured.
+
+    Built per request from the settings: constructing the LDAP adapter opens no
+    connection, and a test overriding the settings gets adapters that match.
+    """
+    return DirectorySignInService(
+        db,
+        directory=build_directory(settings),
+        acceptor=build_ticket_acceptor(settings),
+    )
+
+
+def get_directory_sync_service(db: DBSession) -> DirectorySyncService:
+    """Create DirectorySyncService instance with database session."""
+    return DirectorySyncService(db)
+
+
+GroupSvc = Annotated[GroupService, Depends(get_group_service)]
+DirectorySyncSvc = Annotated[DirectorySyncService, Depends(get_directory_sync_service)]
+DirectoryMappingSvc = Annotated[DirectoryMappingService, Depends(get_directory_mapping_service)]
+DirectorySignInSvc = Annotated[DirectorySignInService, Depends(get_directory_sign_in_service)]
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,

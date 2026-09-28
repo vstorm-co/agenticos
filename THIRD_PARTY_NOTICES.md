@@ -42,6 +42,7 @@ names no author is in the evidence column below.
 | BSD-3-Clause OR Apache-2.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
 | LGPL-2.1-or-later | 1 | 0 |
+| LGPL-3.0-only | 1 | 0 |
 | MIT AND ISC | 0 | 1 |
 | MIT AND PSF-2.0 | 1 | 0 |
 | MIT-0 | 1 | 0 |
@@ -51,7 +52,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-241 distributions.
+242 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -159,6 +160,7 @@ names no author is in the evidence column below.
 | jsonschema | 4.26.0 | MIT | https://github.com/python-jsonschema/jsonschema | License-Expression |
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
+| ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
 | liteparse | 2.14.6 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.16.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 5.1.0 | MIT | https://github.com/pydantic/logfire | License-Expression |

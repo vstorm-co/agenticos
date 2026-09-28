@@ -55,8 +55,8 @@ test.describe("Sharing", () => {
   test("shares an agent, changes the level, then revokes it", async ({ page }) => {
     const panel = await openSharing(page, SEEDED_AGENT_NAME);
 
-    await panel.getByLabel("Add someone").click();
-    // The picker offers members of this organization and nobody else — the
+    await panel.getByLabel("Add a person or group").click();
+    // The picker offers members and groups of this organization and nobody else — the
     // owner is filtered out because they already have access, which leaves
     // exactly the colleague the setup invited.
     await page.getByRole("option", { name: COLLEAGUE_EMAIL }).click();

@@ -1,5 +1,5 @@
 ---
-source_sha: "7c25dca319aa"
+source_sha: "4204964a3eae"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -184,6 +184,15 @@ ohne das sich Einladungen und Passwort-Resets nicht versenden lassen, und
 Irgendetwas muss TLS terminieren und die beiden Namen routen. Beide Optionen
 unten erreichen dieselben Container; wählen Sie danach, ob Sie bereits einen
 betreiben.
+
+!!! note "Komprimierung bleibt Sache der Anwendung"
+
+    Die API komprimiert ihre eigenen Antworten mit gzip, der `/api/*`-Proxy der
+    Konsole komprimiert für den Browser erneut, was die API komprimiert hat, und
+    Next komprimiert seine Seiten. Der Proxy braucht also kein `gzip on`, und er
+    darf das `Accept-Encoding` des Clients nicht leeren: das schaltet die
+    Komprimierung nur ab. Eine Antwort, die bereits `Content-Encoding` trägt,
+    reichen Nginx und Traefik unverändert durch.
 
 ### Option A: Traefik { #option-a-traefik }
 

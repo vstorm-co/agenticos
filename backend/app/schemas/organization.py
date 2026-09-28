@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
+from app.db.models.organization import MembershipSourceLiteral
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -108,6 +109,9 @@ class OrganizationMemberRead(BaseSchema):
     avatar_url: str | None = None
     avatar_color: int | None = None
     joined_at: datetime
+    source: MembershipSourceLiteral = "manual"
+    """`directory` when the directory sync made this membership and keeps its
+    role - changing the role by hand takes it over and makes it `manual`."""
     can_change_role: bool = False
     """Whether the caller listing may change this member's role - the server's
     own answer to `change_role`'s rule, so the client renders a selector only

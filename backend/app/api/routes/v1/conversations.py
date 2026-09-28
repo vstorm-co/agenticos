@@ -279,17 +279,11 @@ async def list_messages(
     returned any conversation in the deployment, transcript and tool
     arguments included.
     """
-    items, total = await conversation_service.list_messages(
+    items, total, cost = await conversation_service.transcript(
         conversation_id,
         skip=skip,
         limit=limit,
         include_tool_calls=True,
-        organization_id=active_org.id,
-        user_id=current_user.id,
-        ctx=ctx,
-    )
-    cost = await conversation_service.conversation_cost(
-        conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
