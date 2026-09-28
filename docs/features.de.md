@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "15cf34650ce9"
 ---
 
 # Funktionen { #features }
@@ -229,6 +229,22 @@ nicht aus Konvention. Die interessanten Tests in diesem Repository sind die, die
 eine *Ablehnung* prüfen: ein mandantenübergreifender Lesezugriff, ein nicht
 gewährter Scope, eine Budgetüberschreitung, eine zweite Entscheidung über eine
 entschiedene Approval.
+
+## Workflows, wenn eine Aufgabe mehr als ein Schritt ist { #workflows-when-a-job-is-more-than-one-step }
+
+Manche Arbeit ist eine Abfolge, keine einzelne Antwort: einen Datensatz lesen,
+einen Agent aufrufen, auf das Gesagte verzweigen, über eine Liste iterieren. Das
+bauen Sie auf einer Zeichenfläche — ziehen Sie die Schritte hinein, verdrahten Sie
+die Ausgabe eines Schritts in den nächsten und veröffentlichen Sie es als
+unveränderliche Version, dieselbe Draft-dann-Publish-Form, die ein Agent hat.
+
+Die Inputs jedes Schritts sind ein Wert, den Sie tippen, oder ein Wert, der aus
+einem früheren Schritt gelesen wird, und der Editor bietet nur eine Quelle an, die
+tatsächlich erreichbar ist und den richtigen Typ trägt. Der Draft speichert sich
+selbst, während Sie bearbeiten, und das Veröffentlichen prüft den ganzen Graphen
+erneut, bevor es eine Version einfriert.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
 
 ## Trigger, damit ein Agent ohne Sie läuft { #triggers-so-an-agent-runs-without-you }
 

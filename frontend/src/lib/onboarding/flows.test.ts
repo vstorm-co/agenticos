@@ -224,6 +224,7 @@ describe("flowForPage", () => {
     expect(flowForPage(TABLE_DETAIL)).toBe("create-table");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
+    expect(flowForPage(ROUTES.WORKFLOWS)).toBe("create-workflow");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");

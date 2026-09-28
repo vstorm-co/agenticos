@@ -1,11 +1,11 @@
 ---
-source_sha: "7442be1f76f3"
+source_sha: "fc94078e7cb3"
 ---
 
 # Virtual Tables { #virtual-tables }
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
-Organisation für ihre Agents, Workflows und Integrationen führt: abzugleichende
+Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende
 Bestellungen, zu verarbeitende Dateien, nachzufassende Leads.
 
 Tabellen sind Metadaten plus JSONB. Nichts legt eine physische SQL-Tabelle an: Eine

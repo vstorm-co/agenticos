@@ -103,6 +103,19 @@ class WorkflowVersionRead(BaseSchema):
     created_at: datetime | None = None
 
 
+class WorkflowVersionDetail(WorkflowVersionRead):
+    """One version plus its frozen graph, for viewing a past version read-only.
+
+    The list stays lean - `WorkflowVersionList` never carries a graph, the same
+    split `WorkflowList`/`WorkflowDetail` keeps - and the editor fetches this
+    detail on demand when a version is opened. Typed rather than raw because a
+    stored version graph always parsed at publish; it never round-trips back as
+    a draft write.
+    """
+
+    graph: WorkflowGraph
+
+
 class WorkflowVersionList(BaseSchema):
     items: list[WorkflowVersionRead]
 

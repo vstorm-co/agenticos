@@ -1,5 +1,5 @@
 ---
-source_sha: "3a0f2eee0058"
+source_sha: "b59d4c22327b"
 ---
 
 # La consola { #the-console }
@@ -152,6 +152,7 @@ una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 | **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
 | **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo | [Workflows](workflows.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Sesiones aisladas de archivos y shell en las que trabajó un agent | [La sandbox](sandbox.md) |
