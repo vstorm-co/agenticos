@@ -1,5 +1,5 @@
 ---
-source_sha: "a434e301f063"
+source_sha: "53546688c766"
 ---
 
 # Last- und Belastbarkeitstests { #load-and-resilience-testing }
@@ -215,6 +215,12 @@ Gesagt statt dem Zufall überlassen:
 - **Irgendetwas über einen echten Anbieter.** Jede Latenz in einem Standardlauf ist
   die der Plattform plus die genannte Verzögerung des Stubs.
 - **Die Konsole.** Das Frontend wird nicht bewegt; dies sind API-Pfade.
+- **Was es kostet, eine Antwort zu bewegen.** Der Driver läuft auf derselben
+  Maschine wie das Deployment, also ist jede Zahl hier Latenz ohne Leitung
+  darunter. Deshalb sagen die Läufe weiter unten auch nichts über die
+  Antwortkomprimierung der API: auf Loopback ist sie
+  aufgewendete CPU und nicht gesparte Bandbreite, und das Workload, das am
+  meisten davon hat - ein langes Transkript - ist im Mix nicht enthalten.
 - **Einen Cluster.** Ein Deployment, eine Datenbank. Das Ziel von NFA-006 ist
   architektonisch, und ein Lauf auf einem Host sagt dazu in keine Richtung etwas.
 

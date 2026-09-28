@@ -1,4 +1,4 @@
-<!-- source_sha: 9b8b5cecdd8d -->
+<!-- source_sha: f0776c70d819 -->
 
 <div align="center">
 
@@ -7,10 +7,8 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>Jedno miejsce, w którym budujesz, uruchamiasz i nadzorujesz agentów AI swojej firmy.</b><br>
-  Hostowany u siebie i otwarty źródłowo — na Twoim Postgresie, w Twoim Dockerze, pod
-  Twoją domeną.<br>
-  <sub>OS w nazwie to twierdzenie, z którego się wywiązujemy: <a href="#najlepszy-agentowy-os-jaki-możesz-prowadzić-u-siebie">siedem funkcji, siedem mechanizmów</a>.</sub>
+  <b>Daj agentom AI konkretne zadania w swoim zespole.</b><br>
+  Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, a następnie uruchamiaj ich na kontrolowanej przez siebie infrastrukturze.
 </p>
 
 <p>
@@ -62,6 +60,13 @@ kod, uruchamia go w zamkniętym pudełku i odpowiada.
 
 </div>
 
+**[Zbuduj pierwszego agenta z dokumentem](docs/howto/first-document-agent.pl.md)** · [Wybierz zadanie](docs/use-cases.pl.md) · [Porównaj platformy](docs/about/comparison.pl.md) · [Wdrożenie i utrzymanie](docs/rollout.pl.md) · [Pomoc](docs/help.pl.md)
+
+Zacznij od odpowiedzi na pytanie o dokument, którą możesz sprawdzić. Następnie wypróbuj szkic zgłoszenia lub wykres z CSV, zachowując źródło i rzeczywisty wynik.
+
+Twój zespół odpowiada za utrzymanie. Modele, parsowanie, embeddingi, narzędzia i tracing mogą korzystać z usług zewnętrznych zależnie od konfiguracji.
+
+
 A do tego ta sama konsola na pulpicie, w towarzystwie: opcjonalna
 [aplikacja desktopowa](#na-pulpicie-jeśli-chcesz), jej zwierzak i skrót, który
 robi zrzut ekranu prosto do nowego czatu.
@@ -84,7 +89,7 @@ Nie lubisz czytać? <a href="https://vstorm-co.github.io/agenticos/presentation/
 
 Jedna komenda, a Docker to wszystko, czego potrzeba. Pobiera jeden plik compose,
 ściąga opublikowane obrazy, zadaje cztery pytania i oddaje konsolę z działającym
-agentem w środku. Nic nie opuszcza Twojej maszyny.
+agentem w środku. Twój zespół odpowiada za utrzymanie. Modele, parsowanie, embeddingi, narzędzia i tracing mogą korzystać z usług zewnętrznych zależnie od konfiguracji.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
@@ -174,7 +179,7 @@ potrafi uruchomić agenta — a resztę ma [docs/install.pl.md](docs/install.pl.
 - 🎓 **Skille.** Procedura spisana raz, zwykłym językiem, ładowana wtedy, gdy
   agent uzna ją za istotną. Edytujesz ją; działa od następnej odpowiedzi, bez wydania.
 - 🔌 **MCP w skali rejestru.** **5802 serwery** w katalogu, do wyszukania po
-  nazwie — 99 z nich sprawdzonych ręcznie, z podpiętym OAuth. Albo dowolny URL.
+  nazwie — 99 z nich sprawdzonych ręcznie, z podpiętym OAuth. Albo zgodny endpoint.
 - 📚 **Dokumenty czytane porządnie.** Wybierz czytnik PDF per kolekcja albo dla
   jednego pliku: wbudowany PyMuPDF, LlamaParse tam, gdzie znaczenie niosą tabele,
   hostowany u siebie LiteParse OCR do skanów. Do tego sposób dzielenia i język OCR.
@@ -186,8 +191,7 @@ potrafi uruchomić agenta — a resztę ma [docs/install.pl.md](docs/install.pl.
   aplikacją webową. [Aplikacja desktopowa](docs/desktop.pl.md) to ta sama konsola we
   własnym oknie - plus zwierzak na pulpicie i skrót robiący zrzut ekranu prosto
   do nowego czatu. Dodatek, nigdy wymóg.
-- 🛡️ **Pod nadzorem.** Budżety zatrzymujące run przed żądaniem do modelu, approval
-  na wszystkim, co ma skutki uboczne, ślad audytowy, izolacja tenantów w schemacie.
+- 🛡️ Konfigurowalne zatwierdzanie obsługiwanych narzędzi, kontrola kosztu przed żądaniami modelu, audyt i dostęp ograniczony do tenanta.
 - 📊 **Dashboard, który każdy układa sobie sam.** 35 kart — runy, wydatki,
   kondycja usług, jakość odpowiedzi, pojemność sandboksów — każda bramkowana tym,
   co dany czytelnik może zobaczyć. Szef finansów i inżynier trzymają na jednym wdrożeniu inne.
@@ -329,7 +333,7 @@ trzymają na tym samym wdrożeniu inne dashboardy.
 <tr>
 <td width="50%">
 
-**Ile to kosztuje** — Wydatki w podziale na okresy i na agentów. Limit jest sprawdzany, zanim model zostanie zapytany, więc rozpędzony agent zatrzymuje się w połowie zdania, zamiast przyjść jako faktura.
+**Ile to kosztuje** — Zapisany koszt jest sprawdzany przed żądaniem do modelu. Trwające żądanie lub równoległe runy mogą przekroczyć limit. Zobacz [granice budgetu](docs/governance.pl.md#budgets).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
@@ -339,7 +343,7 @@ trzymają na tym samym wdrożeniu inne dashboardy.
 </td>
 <td width="50%">
 
-**Klucze i poświadczenia** — Każdy klucz, zaszyfrowany i oddzielony per zespół. Do wymiany, nigdy więcej do odczytania — również przez tego, kto prowadzi serwer.
+**Klucze i poświadczenia** — Klucze są szyfrowane w spoczynku i przypisane do właściciela. Zwykłe odpowiedzi konsoli/API nie zwracają jawnych wartości. Operator wdrożenia pozostaje częścią granicy zaufania.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
@@ -351,7 +355,7 @@ trzymają na tym samym wdrożeniu inne dashboardy.
 <tr>
 <td width="50%">
 
-**Narzędzia, za które już płacisz** — 5802 serwery MCP w katalogu, do wyszukania po nazwie, 99 z nich sprawdzonych ręcznie, z podpiętym OAuth. Albo dowolny serwer po URL. Żadnego konektora do napisania.
+**Narzędzia, za które już płacisz** — Podłącz zgodne serwery MCP przy użyciu obsługiwanych transportów, poświadczeń i dozwolonych adresów. Zobacz [konfigurację MCP](docs/mcp.pl.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
@@ -386,7 +390,7 @@ wiersz poniżej to mechanizm, który możesz przeczytać w źródłach, a nie ob
 | **Uruchamia i izoluje procesy** | Uruchamia agentów, zatrzymuje agenta na jego budżecie, izoluje tenantów w schemacie, a nie w kodzie serwisów, i trzyma każdy run razem z tym, ile kosztował |
 | **Egzekwuje limity zasobów** - quota, cgroups | Miesięczne budżety per agent, sprawdzane *przed* każdym żądaniem do modelu, a nie zliczane po fakcie. Run, który zakończył się błędem, i tak zapisuje, ile wydał |
 | **Kontroluje dostęp** - użytkownicy, uprawnienia, `sudo` | [Katalog uprawnień](docs/permissions.pl.md) w kodzie, role złożone z niego, granty per zasób, które poszerzają i nigdy nie zawężają. `approval: required` to właśnie `sudo`: narzędzie działające na świat zewnętrzny czeka na człowieka |
-| **Sięga do sprzętu przez sterowniki** | Jeden interfejs do [27 providerów modeli](docs/models.pl.md) i do [dowolnego serwera MCP po URL](docs/mcp.pl.md). Zmień profil modelu, a przesuną się wszyscy agenci, którzy go używają, i żaden nie musi być publikowany na nowo |
+| **Sięga do sprzętu przez sterowniki** | Jeden interfejs do [27 providerów modeli](docs/models.pl.md) i do [zgodnych serwerów MCP](docs/mcp.pl.md). Zmień profil modelu, a przesuną się wszyscy agenci, którzy go używają, i żaden nie musi być publikowany na nowo |
 | **Prowadzi system plików** | [Kolekcje, skille i dołączony kontekst](docs/file-processing.pl.md) w Twoim własnym Postgresie, z embeddingami kluczowanymi per organizacja |
 | **Daje wielu interfejsom jedną powłokę** | Jeden runner za czatem webowym, HTTP API, Slackiem, Telegramem, widgetem, hostowaną stroną i harmonogramem. Ten sam budżet, ta sama bramka approvalu, ten sam ślad audytowy |
 | **Pisze log audytowy** - syslog, auditd | Kto co uruchomił, kiedy, ile to kosztowało i kto to zatwierdził. Zapisywane nawet wtedy, gdy run zakończył się błędem |
@@ -424,7 +428,7 @@ approvalu.
 | **Wykonać pracę** | Uruchomić Pythona, prowadzić [sandbox](docs/sandbox.pl.md) z plikami i powłoką, rysować wykresy, generować obrazy |
 | **Poradzić sobie z pracą za dużą na jedną odpowiedź** | Zdelegować do subagentów, prowadzić listę zadań, pomyśleć dłużej, skompaktować długą rozmowę |
 | **Trzymać się w ryzach** | Guardraile, które redagują albo blokują, limity wyjścia per narzędzie i zegar |
-| **Cokolwiek innego** | [Dowolny serwer MCP po URL](docs/mcp.pl.md) - 5802 w katalogu, 99 z nich sprawdzonych, z podpiętymi przepływami OAuth, i żadnego konektora do napisania |
+| **Cokolwiek innego** | [Zgodne serwery MCP](docs/mcp.pl.md) - 5802 w katalogu, 99 z nich sprawdzonych, z podpiętymi przepływami OAuth, i żadnego konektora do napisania |
 
 ## Gdzie odpowiada
 
@@ -462,32 +466,16 @@ czat z tym zrzutem w załączniku.
 
 ## Porównanie z alternatywami
 
-Jedyny z nich, który da się doprowadzić do końca na infrastrukturze, którą już
-masz, z agentami, których edytuje osoba niebędąca inżynierem, a księgowy może
-zaudytować.
+Wybieraj według zadania i tego, kto będzie utrzymywał rozwiązanie. Każdy poradnik opiera się na stronach producenta, pokazuje, gdzie AgenticOS idzie dalej, i wymienia, czego jeszcze nie robi.
 
-| | **AgenticOS** | Cloudflare&nbsp;OS | Glean | Biblioteka |
-|---|:---:|:---:|:---:|:---:|
-| Otwarte źródła | ✅ Apache-2.0 | ✅ Apache-2.0 | — | ✅ |
-| **Działa na zwykłej infrastrukturze** (Postgres, Redis, Docker) | ✅ | — | — | ✅ |
-| Działa bez dostępu do sieci, bez konta u dostawcy | ✅ | — | — | ✅ |
-| Modele lokalne (Ollama, LiteLLM) | ✅ | ✅ | — | ✅ |
-| Agent zbudowany i edytowany przez osobę niebędącą inżynierem | ✅ | ~ | ✅ | — |
-| Wersjonowany przy publikacji, eksportowalny do Twojego gita | ✅ | ~ | — | — |
-| Budżet zatrzymujący run przed wywołaniem modelu | ✅ | ~ | ~ | DIY |
-| Approval od człowieka na narzędziach ze skutkami ubocznymi | ✅ | ✅ | ~ | DIY |
-| Izolacja wielotenantowa w schemacie | ✅ | ~ | ✅ | DIY |
-| Vault na sekrety per organizacja | ✅ | ✅ | ✅ | DIY |
-| **Dowolny serwer MCP po URL, 5802 w katalogu** | ✅ | ✅ | ~ | ~ |
-| **Slack, Telegram, widget, hostowana strona i API z jednego runnera** | ✅ | — | ~ | DIY |
-| Konektory świadome ACL do 275+ systemów SaaS | — | ~ | ✅ | — |
-| Harness do ewaluacji | — | — | ✅ | ~ |
-| SAML / SCIM | — | ✅ | ✅ | — |
+- **Aplikacje asystentów:** [Claude](docs/about/claude-apps.pl.md) · [ChatGPT](docs/about/chatgpt.pl.md). Licencje dla pracowników czy agenci należący do organizacji, na dowolnym modelu.
+- **Buildery w chmurach dostawców:** [Copilot Studio](docs/about/copilot-studio.pl.md) · [Gemini Enterprise](docs/about/gemini-enterprise.pl.md). Chmura i licznik dostawcy czy własna infrastruktura i ceny wybranego providera.
+- **Buildery do samodzielnego hostowania:** [Dify](docs/about/dify.pl.md) · [n8n](docs/about/n8n.pl.md). Warunki licencji i plany enterprise czy Apache-2.0 z governance w standardzie.
+- **Usługa „cyfrowego pracownika”:** [Viktor](docs/about/viktor.pl.md). Jeden wspólny asystent czy wielu agentów z własnym dostępem i budżetem.
+- **Platforma dostarczana przez dostawcę:** [Wonderful](docs/about/wonderful.pl.md). Platforma dostarczana przez dostawcę czy własna od pierwszego dnia.
+- **Agenci do programowania:** [Claude Code](docs/about/claude-code.pl.md) · [Codex](docs/about/codex.pl.md) · [OpenCode](docs/about/opencode.pl.md). Stworzone dla programistów; AgenticOS jest dla całej reszty firmy, a oni pomagają go rozwijać.
 
-<sub>✅ pierwsza klasa · ~ częściowo albo przez konfigurację · — niedostępne · DIY podpinasz to sam.
-"Biblioteka" znaczy LangGraph, Pydantic AI albo podobne. Oddaje stan każdego projektu na 2026-08;
-poprawki mile widziane przez PR. Trzy ostatnie wiersze są nasze do naprawienia i są na
-<a href="https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md">roadmapie</a>.</sub>
+[Wszystkie porównania i luki](docs/about/comparison.pl.md).
 
 ## Po co to powstało
 
@@ -518,8 +506,7 @@ odpowiedź API nigdy żadnego nie zwraca.
 
 Zbudowane na MkDocs: `make docs` serwuje dokumentację na :8001. Stack, w jednej
 linii: FastAPI + Pydantic v2, PostgreSQL z pgvector, Redis, Prefect,
-[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Nic nie dzwoni do domu —
-jedyne wychodzące wywołania to te, które robią Twoi agenci.
+[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Zewnętrzne miejsca przetwarzania zależą od konfiguracji modeli, parserów, embeddingów, narzędzi, kanałów, sandboxów i tracingu. Sprawdź [przepływ danych](docs/security.pl.md).
 
 ## Współtworzenie
 
@@ -577,13 +564,10 @@ prawny, a MIT o niej milczy.
 ### Potrzebujesz pomocy z wdrożeniem agentów na produkcję?
 
 <p>
-Jesteśmy <a href="https://vstorm.co"><b>Vstorm</b></a> — firmą inżynieryjną od stosowanego
-agentowego AI, z 30+ produkcyjnymi wdrożeniami agentów.<br>
-AgenticOS jest tym, na czym je budujemy, i wdrażamy go wewnątrz infrastruktury
-klienta: w Twojej chmurze, w Twoim centrum danych albo bez dostępu do sieci.
+Vstorm pomaga wdrażać AgenticOS w infrastrukturze klienta, tworzyć dokumentację i procesy oraz rozwijać customowe elementy. Utrzymanie i wsparcie uzgadniamy dla projektu.
 </p>
 
-<a href="https://vstorm.co/contact-us/">
+<a href="https://vstorm.co/">
   <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
 </a>
 

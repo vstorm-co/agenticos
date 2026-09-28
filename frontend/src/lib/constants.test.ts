@@ -20,6 +20,8 @@ describe("ROUTES", () => {
     expect(ROUTES.WORKFLOW_DETAIL("wf-1")).toBe("/workflows/wf-1");
     expect(ROUTES.WORKFLOW_RUNS("wf-1")).toBe("/workflows/wf-1/runs");
     expect(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-9")).toBe("/workflows/wf-1/runs/run-9");
+    expect(ROUTES.ORG_GROUPS("o1")).toBe("/orgs/o1/groups");
+    expect(ROUTES.ORG_DIRECTORY("o1")).toBe("/orgs/o1/directory");
   });
 
   it("nests each parameterised route under the listing it belongs to", () => {

@@ -60,6 +60,16 @@
   font-weight: 500;
   line-height: 1.3;
 }
+.task-progress {
+  display: block;
+  font-size: 10px;
+  color: var(--dim);
+}
+.task-progress span {
+  display: inline-block;
+  margin-left: 0.4em;
+  white-space: nowrap;
+}
 .office-field,
 .context-field {
   min-height: 0;
@@ -411,6 +421,9 @@ button:disabled {
   .meter span {
     font-size: 7px;
     letter-spacing: 0.02em;
+  }
+  .task-progress {
+    font-size: 8px;
   }
   .next-piece {
     gap: 4px;

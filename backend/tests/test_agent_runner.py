@@ -24,7 +24,13 @@ from pydantic_ai_harness.planning import PlanItem
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
-from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetScope,
+    SpendLedger,
+    assert_ambient_budget,
+    can_afford_ambient_call,
+)
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -1329,6 +1335,67 @@ class TestSkillChangesARunProposed:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
         service.proposals.record.assert_not_called()
+
+
+class TestTheRunsBudgetReachesAmbientCalls:
+    """The runner opens the run's guard around the agent, so a capability's own
+    `Agent` - a reminder, a summary, a query rewrite - is refused at a cap too.
+
+    `guarded_by` existed before anything opened it, which left every ambient
+    budget check a silent no-op (agenticos#1808); these pin both entry points.
+    """
+
+    @staticmethod
+    def _exhausted(prepared: PreparedRun) -> None:
+        prepared.built.budget.can_afford_next_request = AsyncMock(return_value=False)
+        prepared.built.budget.assert_within_budget = AsyncMock(
+            side_effect=BudgetExceeded(
+                limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.AGENT
+            )
+        )
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_execute_refuses_an_ambient_call_at_the_cap(self):
+        prepared = _prepared()
+        self._exhausted(prepared)
+        seen: dict[str, bool] = {}
+
+        async def run(*_args: Any, **_kwargs: Any) -> MagicMock:
+            seen["affordable"] = await can_afford_ambient_call()
+            with pytest.raises(BudgetExceeded):
+                await assert_ambient_budget()
+            return MagicMock()
+
+        prepared.built.agent.run = run
+        await prepared.execute("hi", message_history=None, deferred_tool_results=None)
+
+        assert seen == {"affordable": False}
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_iterate_refuses_an_ambient_call_at_the_cap(self):
+        prepared = _prepared()
+        self._exhausted(prepared)
+        seen: dict[str, bool] = {}
+
+        class _Iteration:
+            async def __aenter__(self) -> "_Iteration":
+                seen["affordable"] = await can_afford_ambient_call()
+                return self
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+        prepared.built.agent.iter = MagicMock(return_value=_Iteration())
+        async with prepared.iterate("hi", message_history=None):
+            pass
+
+        assert seen == {"affordable": False}
+
+    @pytest.mark.anyio
+    async def test_outside_a_run_an_ambient_call_is_not_refused(self):
+        assert await can_afford_ambient_call() is True
 
 
 class TestRunAccounting:

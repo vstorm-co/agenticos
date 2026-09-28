@@ -405,6 +405,12 @@
       put("score", state.score);
       put("lines", state.lines);
       put("tasks", state.tasks);
+      E.taskProgress(state).forEach(function (p) {
+        put(
+          "task" + p.type[0].toUpperCase() + p.type.slice(1),
+          " · " + letters[p.type] + " " + p.have + "/" + p.need,
+        );
+      });
       ["instruction", "document", "memory", "tool", "mcp", "skill"].forEach(
         function (type) {
           put(type, state.collected[type] + " / 4");

@@ -199,6 +199,7 @@ retranslated is how a stale translation stops being visible.
 |---|---|
 | Spec, version, exposure, run | `docs/concepts.md` |
 | The three permission layers, scopes, grants | `docs/permissions.md` |
+| Groups, directory group mappings, LDAP and Kerberos sign-in | `docs/directory.md` |
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
@@ -238,9 +239,11 @@ retranslated is how a stale translation stops being visible.
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 | What the platform does, on one page | `docs/features.md` |
+| Choosing a first task, and the use-case tutorials | `docs/use-cases.md`, `docs/howto/slack-handbook-assistant.md`, `docs/howto/csv-chart.md`, `docs/howto/scheduled-report.md` |
 | The Learn track's own landing | `docs/learn/index.md` |
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |
+| How it compares with other products, and its own gaps | `docs/about/comparison.md` |
 | The six decisions that shape the codebase | `docs/about/design.md` (repo only) |
 | Delivery state and what is left | `docs/ROADMAP.md` (repo only) |
 | Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |

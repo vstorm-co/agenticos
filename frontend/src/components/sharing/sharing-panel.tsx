@@ -1,27 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Trash2, UserPlus } from "lucide-react";
-
 import { LoadingState } from "@/components/states";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
-import { useMembers, useSharing } from "@/hooks";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Label } from "@/components/ui";
+import { useGroups, useMembers, useSharing } from "@/hooks";
 import { useOrgStore } from "@/stores";
-import type { GrantLevel, ResourceGrant, SharingResourceType, Visibility } from "@/types/sharing";
+import type { SharingResourceType, Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
+import { AddShare } from "./add-share";
+import { GrantRow } from "./grant-row";
 
 interface SharingPanelProps {
   resourceType: SharingResourceType;
@@ -74,48 +60,19 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
   collection: "collectionRuntimeNote",
 };
 
-/** Each level's word is in the catalog; `words` names the key. */
-const LEVEL_OPTIONS: { value: GrantLevel; words: string }[] = [
-  { value: "read", words: "levelRead" },
-  { value: "use", words: "levelUse" },
-  { value: "edit", words: "levelEdit" },
-];
-
-/** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
-export function toLevel(value: string): GrantLevel {
-  const option = LEVEL_OPTIONS.find((candidate) => candidate.value === value);
-  // i18n-exempt: a bug in the caller, never shown to a reader
-  if (!option) throw new Error(`Unknown grant level: ${value}`);
-  return option.value;
-}
-
-/**
- * A grant subject the server could not name is shown by id.
- *
- * Emails are resolved from the organization's members, so a subject whose
- * membership is gone has none - and printing the id is more useful than
- * printing nothing when the row still has to be revoked.
- */
-function subjectLabel(grant: ResourceGrant): string {
-  return grant.subject_email ?? grant.subject_user_id;
-}
-
 /**
  * Who reaches one agent, skill, collection or vault secret.
  *
  * Parameterised by resource type rather than built for agents: the backend
- * generates the same four endpoints per type, and a second copy of this panel
- * would drift from the first the day either one is fixed.
+ * generates the same endpoints per type, and a second copy of this panel would
+ * drift from the first the day either one is fixed.
  */
 export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
   const t = useTranslations("sharing");
-  const tc = useTranslations("common");
-  const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const { members } = useMembers(activeOrgId ?? "");
+  const activeOrgId = useOrgStore((state) => state.activeOrgId) ?? "";
+  const { members } = useMembers(activeOrgId);
+  const { groups } = useGroups(activeOrgId);
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
-
-  const [subjectUserId, setSubjectUserId] = useState("");
-  const [level, setLevel] = useState<GrantLevel>("read");
 
   // Two cards, visibility then people - the same two this renders once loaded.
   if (isLoading || !sharing)
@@ -126,18 +83,17 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       </div>
     );
 
-  const shared = new Set(sharing.grants.map((grant) => grant.subject_user_id));
+  const shared = new Set(
+    sharing.grants.map((grant) => grant.subject_user_id ?? grant.subject_group_id),
+  );
   // The owner already has full access, and a grant to someone who is not a
   // member is refused by the server - so neither belongs in the picker.
-  const candidates = members.filter(
+  const memberCandidates = members.filter(
     (member) => !shared.has(member.user_id) && member.user_id !== sharing.owner_user_id,
   );
+  const groupCandidates = groups.filter((group) => !shared.has(group.id));
   const ownerEmail = members.find((member) => member.user_id === sharing.owner_user_id)?.email;
-
-  function addShare() {
-    share.mutate({ subject_user_id: subjectUserId, level });
-    setSubjectUserId("");
-  }
+  const runtimeNote = RUNTIME_NOTE[resourceType];
 
   return (
     <div className="space-y-6">
@@ -176,11 +132,11 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("people")}</CardTitle>
+          <CardTitle>{t("peopleAndGroups")}</CardTitle>
           <CardDescription>{t("peopleReaches", { resource: resourceType })}</CardDescription>
-          {RUNTIME_NOTE[resourceType] && (
+          {runtimeNote && (
             <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
-              {t(RUNTIME_NOTE[resourceType]!)}
+              {t(runtimeNote)}
             </p>
           )}
         </CardHeader>
@@ -193,96 +149,24 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
             <p className="text-muted-foreground text-sm">{t("notSharedWithAnyone")}</p>
           )}
 
-          {sharing.grants.map((grant) => {
-            const name = subjectLabel(grant);
-            const id = `level-${grant.subject_user_id}`;
-            return (
-              <div key={grant.id} className="flex items-center gap-3 rounded-md border p-3">
-                <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
-                <Label htmlFor={id} className="sr-only">
-                  {t("accessFor", { name })}
-                </Label>
-                <Select
-                  value={grant.level}
-                  disabled={!canManage}
-                  onValueChange={(value) =>
-                    share.mutate({
-                      subject_user_id: grant.subject_user_id,
-                      level: toLevel(value),
-                    })
-                  }
-                >
-                  <SelectTrigger id={id} className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEVEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {t(option.words)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={tc("removeNamed", { name })}
-                    disabled={revoke.isPending}
-                    onClick={() => revoke.mutate(grant.subject_user_id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            );
-          })}
+          {sharing.grants.map((grant) => (
+            <GrantRow
+              key={grant.id}
+              grant={grant}
+              canManage={canManage}
+              revoking={revoke.isPending}
+              onShare={(input) => share.mutate(input)}
+              onRevoke={(subject) => revoke.mutate(subject)}
+            />
+          ))}
 
           {canManage && (
-            <div className="flex flex-wrap items-end gap-3 border-t pt-4">
-              <div className="min-w-56 flex-1 space-y-2">
-                <Label htmlFor="share-with">{t("addSomeone")}</Label>
-                <Select
-                  value={subjectUserId}
-                  onValueChange={setSubjectUserId}
-                  disabled={candidates.length === 0}
-                >
-                  <SelectTrigger id="share-with">
-                    <SelectValue
-                      placeholder={
-                        candidates.length === 0 ? t("everyoneAlreadyHasAccess") : t("chooseMember")
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {candidates.map((member) => (
-                      <SelectItem key={member.user_id} value={member.user_id}>
-                        {member.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-40 space-y-2">
-                <Label htmlFor="share-level">{t("access")}</Label>
-                <Select value={level} onValueChange={(value) => setLevel(toLevel(value))}>
-                  <SelectTrigger id="share-level">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEVEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {t(option.words)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={addShare} disabled={subjectUserId === "" || share.isPending}>
-                <UserPlus className="h-4 w-4" />
-                {t("share")}
-              </Button>
-            </div>
+            <AddShare
+              members={memberCandidates}
+              groups={groupCandidates}
+              pending={share.isPending}
+              onShare={(input) => share.mutate(input)}
+            />
           )}
         </CardContent>
       </Card>

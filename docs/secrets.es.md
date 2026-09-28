@@ -1,5 +1,5 @@
 ---
-source_sha: "4372ff3656a5"
+source_sha: "dfb14d9e1139"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -99,6 +99,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `gcp_service_account` | El JSON de la cuenta de servicio, validado al entrar |
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
+| `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
 `github_oauth_app` lo gasta la plataforma en lugar de elegirlo una persona — el
@@ -113,6 +114,14 @@ quedar atada al nombre que ordene primero.
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
 token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
 puede ocupar su lugar.
+
+`entra_app` es la identidad con la que inicia sesión una fuente de sincronización
+de SharePoint u OneDrive. Su alcance se fija en Microsoft Entra, no aquí: los
+permisos de Graph que consintió un administrador deciden qué sitios puede leer, y
+un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio que
+lee la fuente — consulta [Configurar SharePoint y
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
+son los cuatro últimos caracteres del client id, que es público, y no del secreto.
 
 `aws_credentials` es el caso más claro de por qué existen los kinds: el access key
 id no es secreto y el secret access key sí lo es, y un único campo no puede
