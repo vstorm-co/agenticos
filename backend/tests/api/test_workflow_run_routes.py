@@ -149,6 +149,10 @@ class TestStartRoute:
                 ),
             ),
             patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
                 f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
             ),
             patch(
@@ -165,6 +169,31 @@ class TestStartRoute:
                 response = await http.post(_url(), json={"workflow_id": str(workflow.id)})
         assert response.status_code == 201
         assert response.json()["id"] == str(created.id)
+
+    async def test_starting_a_run_over_the_admission_quota_is_429(self, owner_client: OpenClient):
+        workflow = _workflow()
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_repo.get_version",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        id=workflow.current_version_id,
+                        graph=_graph().model_dump(mode="json"),
+                        budget_limit=None,
+                    )
+                ),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG),
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.post(_url(), json={"workflow_id": str(workflow.id)})
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "WORKFLOW_ADMISSION_QUOTA_EXCEEDED"
 
     @pytest.mark.security
     async def test_starting_a_run_of_an_unreachable_workflow_is_not_found(

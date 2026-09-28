@@ -357,6 +357,10 @@ class NodeRun(Base, TimestampMixin):
             "('approval', 'external_event', 'retry_backoff')",
             name="ck_node_run_waiting_reason",
         ),
+        # The admission quota (#1907) counts an organization's queued/running
+        # node runs on every start; without this the count fans out over every
+        # node run the organization ever had. Mirrors `ix_workflow_run_org_status`.
+        Index("ix_node_run_org_status", "organization_id", "status"),
     )
 
     def __repr__(self) -> str:

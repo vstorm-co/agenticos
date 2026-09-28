@@ -1,5 +1,5 @@
 ---
-source_sha: "67b9a0d7a3fd"
+source_sha: "c63759f7fb0b"
 ---
 
 # Configuración { #configuration }
@@ -500,6 +500,14 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Cuánto trabajo de nodos en cola o en ejecución puede tener una organización a la vez. Un start reserva contra este límite el número de nodos de su grafo, y uno que lo supere se rechaza con `429` hasta que el trabajo en ejecución se drene. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | El mismo tope para un único llamante dentro de una organización, para que una sola persona no consuma todo el margen de la organización. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
+
+El límite de runs por llamante (`RATE_LIMIT_RUN_PER_MINUTE`) cobra un token por
+start y no distingue un grafo de un nodo de uno de quinientos. Estos dos topes sí:
+acotan el trabajo de nodos en cola y en ejecución detrás del runner compartido,
+para que un llamante no pueda arrancar muchos grafos anchos por debajo del límite
+de tasa y hacer crecer una cola que deje sin recursos a otros inquilinos.
 
 Un run de workflow pasa por tres deployments de Prefect. `workflow-dispatch-node`
 ejecuta un intento de un nodo y se envía bajo demanda; `workflow-dispatch-poll`

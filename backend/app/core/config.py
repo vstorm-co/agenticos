@@ -659,6 +659,42 @@ class Settings(BaseSettings):
     WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
     WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
 
+    # A ceiling on how much workflow node work one organization, and one caller
+    # within it, may have queued or running on the shared runner at once. Each
+    # start reserves its graph's node count against these, and a start that
+    # would push the organization or the caller past its ceiling is refused
+    # (429) until running work drains. This is what the per-minute run limit
+    # cannot do on its own: a limiter that charges one token per start lets an
+    # authenticated caller start many wide graphs below the rate limit and grow
+    # a persistent backlog on the runner shared with ingestion, triggers,
+    # approvals and notifications, starving other tenants (#1907). Both must be
+    # at least `WORKFLOW_GRAPH_MAX_NODES`, so a single largest-possible run from
+    # an otherwise idle caller is always admissible (enforced below).
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG: int = Field(default=5000, gt=0)
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL: int = Field(default=2000, gt=0)
+
+    @model_validator(mode="after")
+    def validate_workflow_admission_quota(self) -> "Settings":
+        """A ceiling below one graph's worth of nodes would refuse every run.
+
+        Each start reserves `WORKFLOW_GRAPH_MAX_NODES` in the worst case, so a
+        ceiling under that turns the admission quota into a workflow-wide outage
+        the moment nothing else is running - the failure the limiter exists to
+        prevent, inverted. Refuse the misconfiguration at startup rather than at
+        the first refused run.
+        """
+        for name in (
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG",
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL",
+        ):
+            if getattr(self, name) < self.WORKFLOW_GRAPH_MAX_NODES:
+                raise ValueError(
+                    f"{name} must be at least WORKFLOW_GRAPH_MAX_NODES "
+                    f"({self.WORKFLOW_GRAPH_MAX_NODES}), or a single largest-possible run "
+                    "could never be admitted"
+                )
+        return self
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and

@@ -48,6 +48,19 @@ Two things are versioned separately from this file and worth knowing about:
   error envelope. Migration `0101_virtual_tables.py`; see
   [Virtual Tables](docs/virtual-tables.md). (#1782)
 
+### Security
+
+- **Workflow starts are bounded by node work, not just start count.** The
+  per-minute run limit charges one token per start, which let an authenticated
+  caller start many wide graphs below the limit and grow a persistent backlog on
+  the runner shared with ingestion, triggers, approvals and notifications -
+  starving other tenants. A run now reserves its graph's node count against a
+  ceiling on the queued and running node work one organization, and one caller
+  within it, may hold at once (`WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` and
+  `…_PER_PRINCIPAL`), and a start over the ceiling is refused with `429`
+  `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until running work drains. Migration
+  `0105_node_run_org_status_idx.py`. (#1907)
+
 ## [0.0.507] - 2026-09-26
 
 ### Fixed

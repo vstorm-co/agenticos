@@ -41,7 +41,7 @@ from app.repositories import workflow_run as workflow_run_repo
 pytestmark = pytest.mark.anyio
 
 
-async def _org(db: AsyncSession) -> Organization:
+async def _user(db: AsyncSession) -> User:
     user = User(
         id=uuid.uuid4(),
         email=f"{uuid.uuid4().hex}@example.com",
@@ -50,6 +50,11 @@ async def _org(db: AsyncSession) -> Organization:
     )
     db.add(user)
     await db.flush()
+    return user
+
+
+async def _org(db: AsyncSession) -> Organization:
+    user = await _user(db)
     org = Organization(
         id=uuid.uuid4(),
         name="Acme",
@@ -896,6 +901,60 @@ class TestStaleClaims:
         )
         # Stamped when it was taken, so the next sweep leaves it to that submission.
         assert again == []
+
+
+class TestCountActiveNodeRuns:
+    """The count the admission quota reads: only `pending`/`running` node runs,
+    scoped to the organization and, optionally, to one principal within it."""
+
+    async def test_counts_only_pending_and_running_node_runs(self, db: AsyncSession):
+        org = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        for status in (
+            NodeRunStatus.PENDING.value,
+            NodeRunStatus.RUNNING.value,
+            NodeRunStatus.WAITING.value,  # parked, holds no runner slot
+            NodeRunStatus.NEEDS_ATTENTION.value,
+            NodeRunStatus.SUCCEEDED.value,  # terminal
+            NodeRunStatus.FAILED.value,  # terminal
+        ):
+            await _node_run(db, run, status=status)
+        assert await workflow_run_repo.count_active_node_runs(db, organization_id=org.id) == 2
+
+    async def test_another_organizations_live_node_runs_are_not_counted(self, db: AsyncSession):
+        org = await _org(db)
+        other = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        other_run = await _run(db, other, await _workflow(db, other))
+        await _node_run(db, run, status=NodeRunStatus.PENDING.value)
+        await _node_run(db, other_run, status=NodeRunStatus.PENDING.value)
+        await _node_run(db, other_run, status=NodeRunStatus.RUNNING.value)
+        assert await workflow_run_repo.count_active_node_runs(db, organization_id=org.id) == 1
+        assert await workflow_run_repo.count_active_node_runs(db, organization_id=other.id) == 2
+
+    async def test_narrows_to_one_principal_within_the_org(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        user_a = await _user(db)
+        user_b = await _user(db)
+        run_a = await _run(db, org, workflow, execution_principal_user_id=user_a.id)
+        run_b = await _run(db, org, workflow, execution_principal_user_id=user_b.id)
+        await _node_run(db, run_a, status=NodeRunStatus.PENDING.value)
+        await _node_run(db, run_a, status=NodeRunStatus.RUNNING.value)
+        await _node_run(db, run_b, status=NodeRunStatus.PENDING.value)
+        assert await workflow_run_repo.count_active_node_runs(db, organization_id=org.id) == 3
+        assert (
+            await workflow_run_repo.count_active_node_runs(
+                db, organization_id=org.id, principal_user_id=user_a.id
+            )
+            == 2
+        )
+        assert (
+            await workflow_run_repo.count_active_node_runs(
+                db, organization_id=org.id, principal_user_id=user_b.id
+            )
+            == 1
+        )
 
     async def test_a_claim_with_an_in_flight_attempt_is_not_a_stale_claim(self, db: AsyncSession):
         # It is an orphaned *attempt* instead - `list_orphaned_in_flight`'s job.

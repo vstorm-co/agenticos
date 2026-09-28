@@ -36,7 +36,7 @@ from app.schemas.workflow_run import (
     WorkflowRunRead,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
-from app.services.workflow_execution import events
+from app.services.workflow_execution import admission, events
 from app.services.workflow_execution.exceptions import (
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
@@ -106,6 +106,9 @@ class WorkflowExecutionService:
                 ones, in both `real` and `test` mode.
             WorkflowNotRunnableError: `real` mode with no published version,
                 or `test` mode with no valid, structurally sound draft graph.
+            WorkflowAdmissionQuotaError: Admitting this run would push the
+                organization's or the caller's outstanding node work past its
+                ceiling; retried once running work drains.
         """
         workflow = await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_RUN)
         if workflow.status == WorkflowStatus.ARCHIVED.value:
@@ -125,6 +128,16 @@ class WorkflowExecutionService:
             raise NotFoundError(message="Workflow not found", details={"workflow_id": workflow_id})
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
             ctx, workflow, mode=mode
+        )
+        # Charge this run's node work against the organization's and the caller's
+        # outstanding-node-work ceilings before anything is written, so a caller
+        # cannot start many wide graphs below the per-minute run limit and grow a
+        # backlog on the shared runner that starves other tenants (#1907).
+        await admission.enforce_admission_quota(
+            self.db,
+            organization_id=ctx.organization_id,
+            principal_user_id=ctx.subject_id,
+            requested_node_count=len(graph.nodes),
         )
 
         now = datetime.now(UTC)

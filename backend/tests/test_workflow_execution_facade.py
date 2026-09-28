@@ -15,12 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunNotFoundError,
@@ -209,6 +211,10 @@ class TestStart:
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
             patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
                 f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
             ) as create_run,
             patch(
@@ -240,6 +246,10 @@ class TestStart:
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
                 f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
             ) as create_run,
             patch(
@@ -257,6 +267,30 @@ class TestStart:
         assert result.mode == WorkflowRunMode.TEST.value
         assert create_run.await_args.kwargs["workflow_version_id"] is None
         assert create_run.await_args.kwargs["draft_graph_snapshot"] is not None
+
+    async def test_a_start_over_the_admission_quota_writes_nothing(self):
+        # The quota is charged after the graph resolves but before any row is
+        # written, so a refused start leaves no run, node run or outbox behind.
+        workflow = _workflow()
+        version = _version()
+
+        db = MagicMock()
+        service = WorkflowExecutionService(db)
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG),
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+            pytest.raises(WorkflowAdmissionQuotaError) as refused,
+        ):
+            await service.start(_ctx(), workflow.id)
+        assert refused.value.status_code == 429
+        assert refused.value.details["scope"] == "organization"
+        create_run.assert_not_awaited()
 
     @pytest.mark.parametrize(
         "make_source,expected_kind",
@@ -296,6 +330,10 @@ class TestStart:
         with (
             patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.count_active_node_runs",
+                new=AsyncMock(return_value=0),
+            ),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
             ),
