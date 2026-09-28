@@ -77,10 +77,11 @@ export function ArtifactViewerBar({
       </div>
       {artifact !== null && (
         <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden sm:block">{children}</div>
+          {children}
           <Button size="sm" onClick={onShare}>
             <UserPlus className="h-3.5 w-3.5" />
-            {t("share")}
+            {/* The word goes on a phone, where the version it shares would not fit beside it. */}
+            <span className="sr-only sm:not-sr-only">{t("share")}</span>
           </Button>
           {artifact.can_edit && (
             <DropdownMenu>

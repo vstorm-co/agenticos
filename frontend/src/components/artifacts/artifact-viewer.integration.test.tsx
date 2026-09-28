@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ArtifactViewer } from "./artifact-viewer";
 import { ApiError } from "@/lib/api-error";
+import { useOrgStore } from "@/stores";
 import type { ArtifactDetail as ArtifactDetailData } from "@/types/artifact";
 
 /**
@@ -16,6 +17,7 @@ import type { ArtifactDetail as ArtifactDetailData } from "@/types/artifact";
  */
 
 const useArtifactMock = vi.fn();
+const orgs = vi.fn(() => [{ id: "o1", name: "Acme" }]);
 const push = vi.fn();
 const sharingPanel = vi.fn();
 
@@ -24,6 +26,10 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactView: () => ({ isLoading: false, data: { url: "https://api/c/t" } }),
 }));
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/hooks", () => ({ useOrganizations: () => ({ orgs: orgs() }) }));
+vi.mock("@/components/teams", () => ({
+  OrganizationMenuItems: () => <div role="menuitem">Globex</div>,
+}));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: (props: { canManage: boolean; resourceType: string }) => {
     sharingPanel(props);
@@ -73,7 +79,11 @@ async function openShare() {
 }
 
 describe("ArtifactViewer", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useOrgStore.setState({ activeOrgId: null });
+    orgs.mockReturnValue([{ id: "o1", name: "Acme" }]);
+  });
 
   it("opens the page itself, with the console reduced to one strip", () => {
     useArtifactMock.mockReturnValue(state(detail()));
@@ -117,6 +127,17 @@ describe("ArtifactViewer", () => {
     expect(within(dialog).queryByRole("button", { name: "Create a public link" })).toBeNull();
     expect(sharingPanel).toHaveBeenCalledWith(
       expect.objectContaining({ resourceType: "artifact", resourceId: "a1", canManage: false }),
+    );
+  });
+
+  it("names the organization in the page's address, so a member of two lands in the right one", async () => {
+    useOrgStore.setState({ activeOrgId: "o1" });
+    useArtifactMock.mockReturnValue(state(detail()));
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    const dialog = await openShare();
+    expect(within(dialog).getByLabelText("Link to this page")).toHaveValue(
+      `${window.location.origin}/artifacts/a1?org=o1`,
     );
   });
 
@@ -175,6 +196,22 @@ describe("ArtifactViewer", () => {
     // The way back stays, and nothing that acts on an artifact it could not load.
     expect(screen.getByRole("link", { name: "Back to artifacts" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    // Nowhere else to look for somebody in one organization.
+    expect(screen.queryByRole("button", { name: "Switch organization" })).toBeNull();
+  });
+
+  it("offers another organization when the reader has one, since that is a 404 too", async () => {
+    orgs.mockReturnValue([
+      { id: "o1", name: "Acme" },
+      { id: "o2", name: "Globex" },
+    ]);
+    useArtifactMock.mockReturnValue(
+      state(null, { error: new ApiError(404, "Artifact not found") }),
+    );
+    render(<ArtifactViewer artifactId="elsewhere" initialVersionId={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Switch organization" }));
+    expect(await screen.findByRole("menuitem", { name: "Globex" })).toBeInTheDocument();
   });
 
   it("offers a retry for a failed request rather than calling the artifact gone", async () => {

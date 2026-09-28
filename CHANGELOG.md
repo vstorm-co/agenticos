@@ -24,8 +24,10 @@ Two things are versioned separately from this file and worth knowing about:
   public link does, under one strip with the title, how far it reaches, the
   version and **Share**, instead of a console page with the page in a card
   beside two panels. It still opens only for a signed-in member the artifact's
-  rules let in. **Share** holds the page's own address, the public link,
-  visibility and grants; delete moves into the strip's menu.
+  rules let in, and names its organization (`?org=`) so a member of several
+  lands in the right one; a link without it offers the organization switcher
+  under "not available". **Share** holds the page's own address, the public
+  link, visibility and grants; delete moves into the strip's menu.
 - **Page headers wrap their actions instead of squeezing the title.** On the
   agent page five buttons broke the name over two lines and every status pill
   over two more; the name now stays on one line, the pills sit above the
@@ -35,7 +37,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - The sharing panel on an artifact called it "this secret"; it names an
   artifact now, in every language. The public link's copy button, hidden until
-  a hover that could never happen outside the chat, is visible.
+  a hover that could never happen outside the chat, is visible. Changing a
+  resource's visibility refreshes the resource itself, not only the panel, so
+  a list or page showing its reach no longer shows the old one.
 
 ## [0.0.512] - 2026-09-28
 

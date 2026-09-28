@@ -194,7 +194,7 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
             name=published.name,
             title=published.title,
             url=f"{settings.FRONTEND_URL.rstrip('/')}"
-            f"{artifacts.console_url_for(published.artifact_id)}",
+            f"{artifacts.console_url_for(published.artifact_id, published.organization_id)}",
             created=published.created,
             unchanged=published.unchanged,
             visibility=published.visibility,

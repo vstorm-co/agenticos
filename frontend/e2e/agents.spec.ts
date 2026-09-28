@@ -19,6 +19,7 @@ import {
   openAgent,
   openBuilderTab,
   pageHeading,
+  pageStatus,
   saveDraft,
   selectSavedModel,
   unsaved,
@@ -263,7 +264,7 @@ test.describe("Agents", () => {
     // model will actually be given, and the named model a run bills against. A
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
-    await expect(pageHeading(page)).toContainText("published");
+    await expect(pageStatus(page)).toContainText("published");
     await expect(page.getByText("Explains what this platform does")).toBeVisible();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
@@ -290,7 +291,7 @@ test.describe("Agents", () => {
     // agent happens to be first would pass or fail on the seed rather than on
     // the behaviour. `seed.setup.ts` creates one, so this never has to skip.
     await openAgent(page, DRAFT_AGENT_NAME);
-    await expect(pageHeading(page)).toContainText("draft");
+    await expect(pageStatus(page)).toContainText("draft");
 
     // The chat runs the published version and its picker offers nothing else, so
     // a draft has nothing to open — and the control says what unlocks it rather
@@ -302,7 +303,7 @@ test.describe("Agents", () => {
 
   test("a published agent opens in a chat addressed to it", async ({ page }) => {
     await openAgent(page, SEEDED_AGENT_NAME);
-    await expect(pageHeading(page)).toContainText("published");
+    await expect(pageStatus(page)).toContainText("published");
 
     await page.getByRole("button", { name: "Open in chat" }).click();
     // Generous, because the client router commits the URL only once /chat has

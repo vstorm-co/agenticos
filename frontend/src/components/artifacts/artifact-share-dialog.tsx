@@ -17,6 +17,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { useOrgStore } from "@/stores";
 import type { ArtifactDetail } from "@/types/artifact";
 
 interface ArtifactShareDialogProps {
@@ -34,11 +35,17 @@ interface ArtifactShareDialogProps {
  * The page's own address, for pasting into a message.
  *
  * Inside the dialog's content, which mounts only while it is open, so the origin
- * is read in the browser that shows it and never during a server render.
+ * is read in the browser that shows it and never during a server render. It
+ * names the organization as the agent's own link does (`?org=`), which the
+ * console adopts on arrival.
  */
 function PageLinkField({ artifactId }: { artifactId: string }) {
   const t = useTranslations("artifacts");
-  const pageUrl = `${window.location.origin}${ROUTES.ARTIFACT_DETAIL(artifactId)}`;
+  // The organization it was opened in, which is the one it lives in: a reader
+  // last working in another would otherwise be told it is not available.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const org = activeOrgId === null ? "" : `?org=${activeOrgId}`;
+  const pageUrl = `${window.location.origin}${ROUTES.ARTIFACT_DETAIL(artifactId)}${org}`;
   return (
     <div className="space-y-2">
       <Label htmlFor="artifact-page-link">{t("pageLink")}</Label>

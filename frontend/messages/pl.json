@@ -1281,7 +1281,8 @@
       "oneAgent": "Jeden agent",
       "onePerson": "Jedna osoba",
       "reset": "Wróć do filtra strony"
-    }
+    },
+    "pageStatus": "Status"
   },
   "ui": {
     "nextMonths": "Następne miesiące",
@@ -3069,7 +3070,9 @@
     "shareTitle": "Udostępnij {title}",
     "shareWhy": "Kto może otworzyć tę stronę. Agent nigdy tego nie poszerza - robi to tylko człowiek, stąd.",
     "pageLink": "Link do tej strony",
-    "pageLinkWhy": "Otwiera stronę każdemu, kto ma już dostęp, po zalogowaniu. Samo wysłanie linku nikomu dostępu nie daje."
+    "pageLinkWhy": "Otwiera stronę każdemu, kto ma już dostęp, po zalogowaniu. Samo wysłanie linku nikomu dostępu nie daje.",
+    "maybeOtherOrganization": "Jeśli udostępniono go w innej organizacji, przełącz się na nią.",
+    "switchOrganization": "Przełącz organizację"
   },
   "groups": {
     "title": "Grupy",

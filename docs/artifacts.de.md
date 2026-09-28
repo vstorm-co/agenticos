@@ -1,5 +1,5 @@
 ---
-source_sha: "8a00f95ffe04"
+source_sha: "aa172e0664f3"
 ---
 
 # Artefakte { #artifacts }
@@ -92,11 +92,16 @@ in die eine Datei ein.
 ## Wer es öffnen kann { #who-can-open-it }
 
 Ein neues Artefakt ist **privat** für die Person, für die der veröffentlichende
-Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers. Sein
-Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen - öffnet
-die Seite selbst, fensterfüllend unter einer Leiste mit Titel, Version und
-**Share**. Der Link allein lässt niemanden hinein: Er öffnet sich nur für ein
-angemeldetes Mitglied, das die Regeln unten bereits hereinlassen. Unter **Share**
+Run gehandelt hat: die Person im Chat oder der Ersteller eines Triggers.
+
+Sein Link - der, auf den die Karte im Chat und die Antwort des Agents zeigen -
+öffnet die Seite selbst, fensterfüllend unter einer Leiste mit Titel, Version
+und **Share**. Der Link allein lässt niemanden hinein: Er öffnet sich nur für
+ein angemeldetes Mitglied, das die Regeln unten bereits hereinlassen. Er nennt
+die Organisation, in der das Artefakt liegt (`?org=`), sodass ein Mitglied
+mehrerer Organisationen in der richtigen landet.
+
+Unter **Share**
 kann jeder, der es verwalten darf, es auf drei Wegen teilen:
 
 | Reichweite | Wie | Wer |

@@ -59,6 +59,7 @@ def _tool(workspace: Any = None) -> Any:
 def _published(**overrides: Any) -> PublishedArtifact:
     values: dict[str, Any] = {
         "artifact_id": uuid.uuid4(),
+        "organization_id": uuid.uuid4(),
         "version_id": uuid.uuid4(),
         "version_number": 1,
         "name": "weekly-report",
@@ -100,7 +101,9 @@ class TestPublishing:
         parsed = parse_published_artifact(result)
         assert parsed is not None
         assert parsed.artifact_id == published.artifact_id
-        assert parsed.url.endswith(f"/artifacts/{published.artifact_id}")
+        assert parsed.url.endswith(
+            f"/artifacts/{published.artifact_id}?org={published.organization_id}"
+        )
 
     @pytest.mark.security
     async def test_a_name_somebody_else_s_page_holds_is_a_refusal_not_a_retry(self) -> None:

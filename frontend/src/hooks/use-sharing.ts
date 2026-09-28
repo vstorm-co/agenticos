@@ -35,6 +35,22 @@ const SHARING_ROOT = {
 } as const satisfies Record<SharingResourceType, string>;
 
 /**
+ * The resource's own queries, which carry its visibility too.
+ *
+ * A list row and a detail page both read `visibility` from the resource, not
+ * from the sharing endpoint, so a change made in the panel left them showing
+ * the old reach until they happened to refetch - an artifact's page kept saying
+ * "only people with access" over a page the whole organization could open.
+ */
+const RESOURCE_KEYS = {
+  agent: qk.agents.all,
+  skill: qk.skills.all,
+  collection: qk.kb.all,
+  secret: qk.secrets.all,
+  artifact: qk.artifacts.all,
+} as const satisfies Record<SharingResourceType, () => readonly string[]>;
+
+/**
  * Who reaches one resource: its owner, its visibility, and its explicit grants.
  *
  * Mutations invalidate rather than patch. Changing a visibility can change the
@@ -94,6 +110,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       apiClient.patch<ResourceSharing>(`${base}/visibility`, { visibility }),
     onSuccess: async () => {
       await invalidate();
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("visibilityUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

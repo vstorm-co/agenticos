@@ -85,7 +85,11 @@ export function PageHeader({
         </div>
         <div className="flex max-w-full min-w-0 flex-col items-start gap-2 sm:items-end">
           {badges && (
-            <div className="flex flex-wrap items-center gap-2 whitespace-nowrap sm:justify-end">
+            <div
+              role="group"
+              aria-label={t("pageStatus")}
+              className="flex flex-wrap items-center gap-2 whitespace-nowrap sm:justify-end"
+            >
               {badges}
             </div>
           )}

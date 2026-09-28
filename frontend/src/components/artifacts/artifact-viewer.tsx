@@ -6,6 +6,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
 import { ArtifactFrame } from "@/components/artifacts/artifact-frame";
+import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
 import { VersionPicker } from "@/components/artifacts/version-picker";
@@ -68,7 +69,10 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
           {isLoading ? (
             <LoadingState variant="skeleton-panel" rows={6} />
           ) : unavailable ? (
-            <EmptyState icon={FileX} title={t("unavailable")} description={t("unavailableWhy")} />
+            <div className="flex flex-col items-center gap-4">
+              <EmptyState icon={FileX} title={t("unavailable")} description={t("unavailableWhy")} />
+              <OtherOrganizations />
+            </div>
           ) : (
             <ErrorState
               title={t("couldNotLoad")}
@@ -87,7 +91,12 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         onShare={() => setSharing(true)}
         onDelete={() => setConfirming(true)}
       >
-        <VersionPicker versions={versions} value={versionId} onChange={setVersionId} />
+        <VersionPicker
+          versions={versions}
+          value={versionId}
+          onChange={setVersionId}
+          className="w-32 sm:w-56"
+        />
       </ArtifactViewerBar>
       <div className="flex min-h-0 flex-1 flex-col">
         <ArtifactFrame

@@ -1971,7 +1971,8 @@
       "oneAgent": "One agent",
       "onePerson": "One person",
       "reset": "Follow the page again"
-    }
+    },
+    "pageStatus": "Status"
   },
   "errors": {
     "authorizationFailed": "Authorization failed",
@@ -5421,7 +5422,9 @@
     "shareTitle": "Share {title}",
     "shareWhy": "Who can open this page. An agent never widens it - only a person, from here.",
     "pageLink": "Link to this page",
-    "pageLinkWhy": "Opens the page for anyone who already has access, after they sign in. Sending it gives nobody access by itself."
+    "pageLinkWhy": "Opens the page for anyone who already has access, after they sign in. Sending it gives nobody access by itself.",
+    "maybeOtherOrganization": "If it was shared with you in another organization, switch to it.",
+    "switchOrganization": "Switch organization"
   },
   "groups": {
     "title": "Groups",

@@ -127,6 +127,25 @@ describe("useSharing", () => {
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
 
+  it("marks the resource's own queries stale, since they carry the visibility too", async () => {
+    // An artifact's page reads its reach from the artifact, not from the panel:
+    // re-reading only the sharing state left it naming the old one.
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["artifacts", "r1"], { id: "r1", visibility: "private" });
+    client.setQueryData(["agents", "a1"], { id: "a1" });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("artifact", "r1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    expect(client.getQueryState(["artifacts", "r1"])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
+  });
+
   it("surfaces the server's refusal instead of leaving the panel silent", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.put).mockRejectedValue(new Error("You cannot change sharing"));

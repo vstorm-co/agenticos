@@ -3,6 +3,7 @@
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { ArtifactVersion } from "@/types/artifact";
 
 /** Stands for "whatever is newest" in the select, which a version id never is. */
@@ -14,6 +15,7 @@ interface VersionPickerProps {
   /** The version shown, or null for the current one. */
   value: string | null;
   onChange: (versionId: string | null) => void;
+  className?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ interface VersionPickerProps {
  * publication; a number pins what a conversation pointed at. A version that was
  * pruned since the link was made is not in the list, and the frame says so.
  */
-export function VersionPicker({ versions, value, onChange }: VersionPickerProps) {
+export function VersionPicker({ versions, value, onChange, className }: VersionPickerProps) {
   const t = useTranslations("artifacts");
   const format = useFormatter();
   if (versions.length < 2 && value === null) return null;
@@ -32,7 +34,7 @@ export function VersionPicker({ versions, value, onChange }: VersionPickerProps)
       value={value ?? CURRENT}
       onValueChange={(next) => onChange(next === CURRENT ? null : next)}
     >
-      <SelectTrigger className="w-56" aria-label={t("version")}>
+      <SelectTrigger className={cn("w-56", className)} aria-label={t("version")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

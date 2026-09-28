@@ -578,6 +578,9 @@ class TestUnlinking:
         storage.delete_prefix.assert_awaited_once_with("artifacts/x/")
 
 
-def test_the_console_address_is_the_artifact_s_page() -> None:
-    artifact_id = uuid.uuid4()
-    assert artifacts.console_url_for(artifact_id) == f"/artifacts/{artifact_id}"
+def test_the_console_address_is_the_artifact_s_page_in_its_organization() -> None:
+    artifact_id, organization_id = uuid.uuid4(), uuid.uuid4()
+    assert (
+        artifacts.console_url_for(artifact_id, organization_id)
+        == f"/artifacts/{artifact_id}?org={organization_id}"
+    )

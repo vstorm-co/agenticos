@@ -159,6 +159,7 @@ class PublishedArtifact:
     """What a publication did, for the tool to report."""
 
     artifact_id: UUID
+    organization_id: UUID
     version_id: UUID
     version_number: int
     name: str
@@ -406,6 +407,7 @@ def _published(
 ) -> PublishedArtifact:
     return PublishedArtifact(
         artifact_id=artifact.id,
+        organization_id=artifact.organization_id,
         version_id=version.id,
         version_number=version.number,
         name=artifact.name,
@@ -424,9 +426,15 @@ def public_url_for(artifact: Artifact) -> str | None:
     return f"{settings.FRONTEND_URL.rstrip('/')}/a/{artifact.public_key}"
 
 
-def console_url_for(artifact_id: UUID) -> str:
-    """Where a member opens it in the console - the path the chat card links to."""
-    return f"/artifacts/{artifact_id}"
+def console_url_for(artifact_id: UUID, organization_id: UUID) -> str:
+    """Where a member opens it in the console, naming the organization it is in.
+
+    The console scopes every request to the reader's last-used organization, so
+    somebody in two of them following a link into the other would be told the
+    page is not available. `?org=` is the parameter the console adopts for that,
+    the same one alert links carry.
+    """
+    return f"/artifacts/{artifact_id}?org={organization_id}"
 
 
 def _content_origin() -> str:

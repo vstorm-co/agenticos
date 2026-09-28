@@ -1,5 +1,5 @@
 ---
-source_sha: "8a00f95ffe04"
+source_sha: "aa172e0664f3"
 ---
 
 # Artefakty { #artifacts }
@@ -86,11 +86,16 @@ stylów, skrypt i obrazy (jako URI `data:`) do tego jednego pliku.
 ## Kto może go otworzyć { #who-can-open-it }
 
 Nowy artefakt jest **prywatny** dla osoby, w imieniu której działał publikujący
-run: dla osoby na czacie albo dla twórcy triggera. Jego link - ten, na który
-wskazują karta w czacie i odpowiedź agenta - otwiera samą stronę, na całe okno,
-pod jednym paskiem z tytułem, wersją i przyciskiem **Share**. Sam link nikogo nie
-wpuszcza: otwiera się tylko zalogowanemu członkowi, którego wpuszczają już
-poniższe zasady. Pod **Share** każdy, kto może nim zarządzać, może go udostępnić
+run: dla osoby na czacie albo dla twórcy triggera.
+
+Jego link - ten, na który wskazują karta w czacie i odpowiedź agenta - otwiera
+samą stronę, na całe okno, pod jednym paskiem z tytułem, wersją i przyciskiem
+**Share**. Sam link nikogo nie wpuszcza: otwiera się tylko zalogowanemu
+członkowi, którego wpuszczają już poniższe zasady. Link wskazuje organizację, w
+której jest artefakt (`?org=`), więc członek kilku organizacji trafia do
+właściwej.
+
+Pod **Share** każdy, kto może nim zarządzać, może go udostępnić
 na trzy sposoby:
 
 | Zasięg | Jak | Kto |

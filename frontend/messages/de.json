@@ -1958,7 +1958,8 @@
       "oneAgent": "Ein Agent",
       "onePerson": "Eine Person",
       "reset": "Wieder der Seite folgen"
-    }
+    },
+    "pageStatus": "Status"
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",
@@ -5287,7 +5288,9 @@
     "shareTitle": "{title} teilen",
     "shareWhy": "Wer diese Seite öffnen kann. Ein Agent erweitert das nie - nur eine Person, von hier aus.",
     "pageLink": "Link zu dieser Seite",
-    "pageLinkWhy": "Öffnet die Seite für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff."
+    "pageLinkWhy": "Öffnet die Seite für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff.",
+    "maybeOtherOrganization": "Wenn es Ihnen in einer anderen Organisation freigegeben wurde, wechseln Sie dorthin.",
+    "switchOrganization": "Organisation wechseln"
   },
   "groups": {
     "title": "Gruppen",
