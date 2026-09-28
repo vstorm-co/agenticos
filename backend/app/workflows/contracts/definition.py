@@ -112,3 +112,12 @@ class NodeDefinition:
     `http.request` is `at_least_once` as a kind, but a `GET` - or a write sent
     with an idempotency header the far side honours - is `idempotent`. Called
     with the resolved config when an attempt is created, before the handler."""
+    ports_for: Callable[[BaseModel | None], tuple[Port, ...]] | None = None
+    """This instance's ports, when its config declares some of them.
+
+    `error.handle`'s branches are the author's, one output port each, so they
+    cannot live in `ports`, which is fixed per kind. Called with the validated
+    config (`None` if it does not validate); `ports` is what the catalog shows."""
+    loop_body_only: bool = False
+    """Whether the node exists only inside a `control.foreach` body - `loop.item`
+    and `loop.yield`, which mean nothing outside an iteration."""

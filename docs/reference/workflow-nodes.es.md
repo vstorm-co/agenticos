@@ -1,5 +1,5 @@
 ---
-source_sha: "b554c0542c76"
+source_sha: "754fb0b1c66f"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -27,7 +27,9 @@ Algunas reglas valen para todos los nodos:
   el acceso puede retirarse entre medias.
 - **El tipo de efecto y los reintentos** deciden qué puede hacer el motor tras
   un fallo. Un paso `pure` o `idempotent` se reintenta. Un paso que puede haber
-  actuado ya y no da ninguna garantía se detiene para una persona.
+  actuado ya y no da ninguna garantía se detiene para una persona. La
+  [política](#error-handling) propia de un nodo fija cuántas veces se reintenta,
+  cuánto puede durar una llamada y adónde va un fallo.
 
 ## core.input { #core-input }
 
@@ -157,6 +159,81 @@ escribe una segunda notificación.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## Gestión de errores { #error-handling }
+
+Cada nodo acepta una `policy` opcional junto a su configuración.
+
+| Campo | Por defecto | Efecto |
+|---|---|---|
+| `timeout_seconds` | ninguno | Una llamada que sigue en marcha pasado ese tiempo se corta. Un paso sin escritura externa, o cuya llamada es idempotente, falla con `NODE_TIMEOUT` y puede reintentarse. Una escritura que puede haber llegado queda incierta y se detiene para una persona |
+| `retry.max_attempts` | `WORKFLOW_RETRY_CEILING` | Intentos en total, el primero incluido. Solo se reintenta un fallo que el nodo marca como `retryable`, y publicar rechaza más de un intento para un paso cuya llamada no es seguro repetir |
+| `retry.backoff`, `base_delay_seconds`, `max_delay_seconds` | `exponential`, `2`, `60` | La espera entre intentos: fija, o duplicándose hasta el techo |
+| `on_error` | `fail_run` | `route` envía un fallo que los reintentos no resolvieron por el puerto `error` del nodo en lugar de hacer fallar el run |
+
+Un nodo cuya política encamina sus errores tiene un puerto de salida `error`
+adicional. Lleva el `WorkflowError`: `code`, `message`, `details` y
+`retryable`. La salida normal del nodo solo existe en sus otros puertos, así
+que publicar rechaza un binding que lee la salida en el camino de error, o el
+error en el camino de éxito. El puerto de error tiene que llevar a algún sitio,
+y los dos caminos pueden volver a unirse en un `logic.merge`.
+
+`error.handle` recibe ese error en su puerto `in` y sale por la primera rama
+cuyos `code` y `retryable` coinciden, o por `default`, que debe estar
+conectada. `error.raise` hace fallar su rama con un código, un mensaje y unos
+detalles que fija el autor.
+
+Algunos fallos nunca se encaminan. Un acceso revocado, un budget agotado (del
+run o de un agent), un run cancelado, un plazo vencido, el límite de nodos por
+run y un efecto de resultado desconocido terminan el run se conecte como se
+conecte el grafo. Un conflicto de revisión o un error de validación se puede
+encaminar, pero nunca se reintenta a ciegas, porque la misma entrada vuelve a
+fallar igual.
+
+::: app.workflows.contracts.policy.NodePolicy
+
+::: app.workflows.contracts.policy.RetryPolicy
+
+::: app.workflows.nodes.error_handle._handler.ErrorHandleConfig
+
+::: app.workflows.nodes.error_handle._handler.HandledError
+
+::: app.workflows.nodes.error_raise._handler.ErrorRaiseConfig
+
+## Bucles { #loops }
+
+`control.foreach` ejecuta su cuerpo una vez por cada elemento de una lista
+`items` enlazada, un elemento cada vez y en orden. Después continúa por su
+puerto `done` con `results` en el orden de entrada, `errors` y `count`. El
+cuerpo empieza en `loop.item`, conectado desde el puerto `body` del bucle, que
+ofrece `item`, `index` y `count`. Termina en `loop.yield`, cuyo `value` enlazado
+es el resultado de la iteración. Ninguna arista vuelve al bucle. Un paso del
+cuerpo puede enlazarse a cualquier cosa que se ejecutara antes del bucle, y nada
+fuera del cuerpo puede enlazarse a su interior.
+
+La lista se congela cuando arranca el bucle, así que una iteración nunca ve una
+fuente que cambió durante el run. Una lista más larga que
+`WORKFLOW_FOREACH_MAX_ITEMS`, o más grande que
+`WORKFLOW_FOREACH_MAX_MANIFEST_BYTES`, se rechaza en lugar de truncarse. Una
+lista vacía da `results: []` sin ejecutar el cuerpo. Los pasos de cada
+iteración se ejecutan en su propio ámbito, con sus propios intentos, claves de
+idempotencia y costes. La siguiente iteración se programa en la transacción que
+termina la anterior, así que un reinicio continúa en el índice correcto y nunca
+repite una escritura confirmada. Una aprobación dentro de una iteración reanuda
+esa iteración.
+
+Con `item_error_policy: stop`, el valor por defecto, el bucle falla en la
+primera iteración fallida y los detalles del error llevan el `scope_path` de esa
+iteración. Con `collect`, el resultado del elemento es `null`, el error se añade
+a `errors` y el bucle sigue. Los bucles se anidan como mucho
+`WORKFLOW_FOREACH_MAX_DEPTH` niveles, y cada ejecución de nodo que crea un run
+cuenta para `WORKFLOW_RUN_MAX_NODE_RUNS`. No hay bucle `while` ni map paralelo.
+
+::: app.workflows.nodes.control_foreach._handler.ForeachConfig
+
+::: app.workflows.nodes.control_foreach._handler.ForeachOutput
+
+::: app.workflows.nodes.loop_item._handler.LoopItemOutput
+
 ## Virtual Tables { #virtual-tables }
 
 Siete nodos leen y escriben [Virtual Tables](../virtual-tables.md) a través del
@@ -184,7 +261,8 @@ columna viva falla con `UNKNOWN_COLUMN`.
 Una escritura lleva la clave de operación del paso, así que un paso reintentado
 repite su primera escritura. Un update, upsert o delete sin revisión enlazada escribe
 en la revisión actual del registro. Una revisión que se movió es
-`REVISION_CONFLICT`, que se reintenta. Un registro que falta es `found: false` de
+`REVISION_CONFLICT`, que no se reintenta: la misma revisión volvería a
+chocar, así que encamínalo con `error.handle` hacia una lectura nueva. Un registro que falta es `found: false` de
 `table.record.get`, no un fallo. `table.record.query` lee como mucho 100 registros
 por página e indica `has_more`. Nunca lee por su cuenta una tabla grande entera.
 

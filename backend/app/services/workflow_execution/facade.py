@@ -23,6 +23,7 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import (
+    NodeRunStatus,
     ResourceRefKind,
     WorkflowRun,
     WorkflowRunMode,
@@ -256,12 +257,30 @@ class WorkflowExecutionService:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 
         await workflow_run_repo.cancel_live_outbox_for_run(self.db, workflow_run_id=run.id)
+        # A loop mid-iteration has no outbox row of its own to cancel - its row
+        # is `running` until its last iteration ends - so it is ended here, with
+        # every other row nothing will now settle.
+        ended_at = datetime.now(UTC)
+        for live in await workflow_run_repo.list_live_node_runs(self.db, workflow_run_id=run.id):
+            await workflow_run_repo.update_node_run(
+                self.db,
+                node_run=live,
+                update_data={
+                    "status": NodeRunStatus.CANCELLED.value,
+                    "ended_at": ended_at,
+                    "waiting_reason": None,
+                    "waiting_agent_run_id": None,
+                },
+            )
+            await events.append(
+                self.db, run=run, kind=events.EventKind.NODE_CANCELLED, node_run_id=live.id
+            )
         run = await workflow_run_repo.update_run(
             self.db,
             run=run,
             update_data={
                 "status": WorkflowRunStatus.CANCELLED.value,
-                "ended_at": datetime.now(UTC),
+                "ended_at": ended_at,
                 "paused_reason": None,
             },
         )

@@ -64,6 +64,7 @@ from __future__ import annotations
 import json
 import types
 from collections import deque
+from collections.abc import Callable
 from typing import Any, Union, get_args, get_origin
 from uuid import UUID
 
@@ -80,13 +81,22 @@ from app.schemas.virtual_table import ColumnDef
 from app.services.access import TABLE, resolve_access
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
-from app.workflows.contracts.definition import NodeDefinition
+from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.policy import ERROR_PORT
+from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
+from app.workflows.nodes.control_foreach._handler import BODY_PORT, DONE_PORT
 
 Problems = list[tuple[str, str]]
 DefinitionMap = dict[UUID, NodeDefinition | None]
+PortMap = dict[UUID, tuple[Port, ...]]
+
+FOREACH = "control.foreach"
+LOOP_ITEM = "loop.item"
+LOOP_YIELD = "loop.yield"
+ERROR_HANDLE = "error.handle"
 
 
 def graph_size_problems(graph: WorkflowGraph) -> Problems:
@@ -144,20 +154,24 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += await _table_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
 
-    node_scope = _node_scope_map(graph)
+    node_scope = node_scope_map(graph)
+    ports = instance_ports(graph, definitions)
     outer_predecessors, cycle_problems, outer_order = _rule_7_no_cycles(graph, node_scope)
     problems += cycle_problems
 
     problems += _rule_1_single_entry(graph)
     problems += _rule_2_reachable_outputs(graph, node_scope, outer_order)
-    problems += _rule_3_type_compatibility(graph, definitions)
+    problems += _rule_3_type_compatibility(graph, definitions, ports)
 
     dominators = _all_dominators(graph, node_scope, outer_predecessors, outer_order)
-    problems += _rule_4_branch_local_availability(graph, dominators)
+    problems += _rule_4_branch_local_availability(graph, dominators, node_scope)
     problems += _rule_5_exclusive_merge(graph, definitions, dominators)
     problems += _rule_6_nested_scope_boundaries(graph, node_scope)
     problems += _rule_8_no_parallel_fanout(graph, definitions)
     problems += _rule_9_required_inputs_bound(graph, definitions)
+    problems += _rule_10_error_routes(graph, definitions)
+    problems += _rule_11_loop_bodies(graph, definitions, node_scope)
+    problems += _rule_12_policies(graph, definitions)
 
     if problems:
         raise GraphValidationError(problems)
@@ -254,7 +268,7 @@ def _forward_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
     return adjacency
 
 
-def _node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
+def node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
     """Which scope owns each node, for nodes inside one at all.
 
     Nested scopes overlap: an outer scope's body BFS (`_body_reachable_from`)
@@ -277,6 +291,49 @@ def _node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
                 owner[node_id] = scope.scope_node_id
                 owner_body_size[node_id] = body_size
     return owner
+
+
+def owner_chain(node_id: UUID, node_scope: dict[UUID, UUID]) -> list[UUID]:
+    """The loops enclosing `node_id`, innermost first - empty at the top level."""
+    chain: list[UUID] = []
+    owner = node_scope.get(node_id)
+    while owner is not None:
+        chain.append(owner)
+        owner = node_scope.get(owner)
+    return chain
+
+
+def instance_ports(graph: WorkflowGraph, definitions: DefinitionMap) -> PortMap:
+    """Every node's ports as this graph configures it.
+
+    The definition's own, or those its config declares (`ports_for` -
+    `error.handle`'s branches), plus an `error` output port carrying the
+    `WorkflowError` on a node whose policy routes its failures.
+    """
+    result: PortMap = {}
+    for node in graph.nodes:
+        definition = definitions.get(node.id)
+        if definition is None:
+            continue
+        ports = definition.ports
+        if definition.ports_for is not None:
+            ports = definition.ports_for(_validated_config(node, definition))
+        if node.routes_errors:
+            ports = (
+                *ports,
+                Port(id=ERROR_PORT, label="Error", kind="output", schema=WorkflowError),
+            )
+        result[node.id] = ports
+    return result
+
+
+def _validated_config(node: NodeInstance, definition: NodeDefinition) -> BaseModel | None:
+    if definition.config_schema is None:
+        return None
+    try:
+        return definition.config_schema.model_validate(node.config)
+    except PydanticValidationError:
+        return None
 
 
 def _scope_exit_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
@@ -561,7 +618,9 @@ def _scope_owner(graph: WorkflowGraph, scope_node_id: UUID) -> UUID:
 # Rule 3 - type compatibility
 
 
-def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+def _rule_3_type_compatibility(
+    graph: WorkflowGraph, definitions: DefinitionMap, ports: PortMap
+) -> Problems:
     problems: Problems = []
     for edge in graph.edges:
         source_definition = definitions.get(edge.source_node_id)
@@ -570,13 +629,13 @@ def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap)
             # Unresolvable definition is already reported by
             # `_missing_version_problems`; nothing more to say here.
             continue
-        source_schema = _port_schema(source_definition, edge.source_port, "output")
+        source_schema = _port_schema(ports[edge.source_node_id], edge.source_port, "output")
         if source_schema is _UNKNOWN:
             problems.append(
                 (f"edges.{edge.id}", "This edge's source port does not exist on that node")
             )
             continue
-        target_schema = _port_schema(target_definition, edge.target_port, "input")
+        target_schema = _port_schema(ports[edge.target_node_id], edge.target_port, "input")
         if target_schema is _UNKNOWN:
             problems.append(
                 (f"edges.{edge.id}", "This edge's target port does not exist on that node")
@@ -594,7 +653,7 @@ def _rule_3_type_compatibility(graph: WorkflowGraph, definitions: DefinitionMap)
         if source_definition is None or target_definition is None:
             continue
         source_type = _resolve_field_path(
-            source_definition, binding.source.port, binding.source.field_path
+            ports[binding.source.node_id], binding.source.port, binding.source.field_path
         )
         if source_type is _UNKNOWN:
             problems.append(
@@ -661,8 +720,8 @@ def _binding_target_field_problems(graph: WorkflowGraph, definitions: Definition
 _UNKNOWN = object()
 
 
-def _port_schema(definition: NodeDefinition, port_id: str, kind: str) -> Any:
-    for port in definition.ports:
+def _port_schema(ports: tuple[Port, ...], port_id: str, kind: str) -> Any:
+    for port in ports:
         if port.id == port_id and port.kind == kind:
             return port.schema
     return _UNKNOWN
@@ -700,10 +759,8 @@ def _field_type(definition: NodeDefinition, field_name: str) -> Any:
     return _UNKNOWN
 
 
-def _resolve_field_path(
-    definition: NodeDefinition, port_id: str, field_path: tuple[str, ...]
-) -> Any:
-    schema = _port_schema(definition, port_id, "output")
+def _resolve_field_path(ports: tuple[Port, ...], port_id: str, field_path: tuple[str, ...]) -> Any:
+    schema = _port_schema(ports, port_id, "output")
     if schema is _UNKNOWN or schema is None:
         return _UNKNOWN if schema is _UNKNOWN else schema
     current: Any = schema
@@ -885,11 +942,14 @@ def _all_dominators(
         body_dominators = _dominators(
             body_order_with_root, body_predecessors, root=scope.scope_node_id
         )
+        # Only the nodes this scope owns directly: an outer body's walk also
+        # passes through a nested loop's body, and which of the two answers
+        # stood would otherwise depend on the order the scopes are listed in.
         dominators.update(
             {
                 node_id: doms
                 for node_id, doms in body_dominators.items()
-                if node_id in scope.body_node_ids
+                if node_scope.get(node_id) == scope.scope_node_id
             }
         )
     return dominators
@@ -916,14 +976,23 @@ def _dominators(
 
 
 def _rule_4_branch_local_availability(
-    graph: WorkflowGraph, dominators: dict[UUID, frozenset[UUID]]
+    graph: WorkflowGraph, dominators: dict[UUID, frozenset[UUID]], node_scope: dict[UUID, UUID]
 ) -> Problems:
+    """A node binds only to what has certainly run before it.
+
+    Inside a loop body that includes what ran before the loop: a binding to a node
+    of an enclosing scope is checked at that scope's level, against the loop the
+    target sits in - the source must dominate the loop itself.
+    """
     problems: Problems = []
     for index, binding in enumerate(graph.bindings):
         if not isinstance(binding.source, NodeOutputRef):
             continue
         source_id = binding.source.node_id
-        target_id = binding.target_node_id
+        target_id = _at_level_of(binding.target_node_id, node_scope.get(source_id), node_scope)
+        if target_id is None:
+            # Not an enclosing scope's node - rule 6 says so.
+            continue
         if source_id == target_id:
             # A node dominates itself (`_dominators` always folds `node_id`
             # into its own set), so the membership check below would call
@@ -943,6 +1012,14 @@ def _rule_4_branch_local_availability(
                 )
             )
     return problems
+
+
+def _at_level_of(node_id: UUID, level: UUID | None, node_scope: dict[UUID, UUID]) -> UUID | None:
+    """`node_id`, or the loop enclosing it that sits directly in scope `level`."""
+    current: UUID | None = node_id
+    while current is not None and node_scope.get(current) != level:
+        current = node_scope.get(current)
+    return current
 
 
 # Rule 5 - exclusive merge
@@ -973,25 +1050,40 @@ def _rule_5_exclusive_merge(
         if common is None:
             problems.append((f"nodes.{node.id}", "This merge's branches share no common dominator"))
             continue
-        common_definition = definitions.get(common)
-        if common_definition is None or common_definition.id != "logic.if":
-            problems.append(
-                (f"nodes.{node.id}", "A merge's branches must come from one logic.if's branches")
-            )
-            continue
-        if not _branches_diverge_at(common, distinct_branches, graph, dominators):
+        if not _branches_exclusively(graph.node_by_id[common], definitions.get(common)):
             problems.append(
                 (
                     f"nodes.{node.id}",
-                    "This merge's branches are not mutually exclusive - they leave the "
-                    "logic.if through the same port",
+                    "A merge's branches must come from one logic.if, error handler or "
+                    "error-routing step",
+                )
+            )
+            continue
+        if not _branches_diverge_at(common, node.id, distinct_branches, graph, dominators):
+            problems.append(
+                (
+                    f"nodes.{node.id}",
+                    "This merge's branches are not mutually exclusive - they leave their "
+                    "branching step through the same port",
                 )
             )
     return problems
 
 
+def _branches_exclusively(node: NodeInstance, definition: NodeDefinition | None) -> bool:
+    """Whether exactly one of this node's output ports is ever taken per run.
+
+    `logic.if` takes `true` or `false`, `error.handle` one branch, and a node that
+    routes its errors leaves by `out` or by `error` - never both.
+    """
+    return node.routes_errors or (
+        definition is not None and definition.id in ("logic.if", ERROR_HANDLE)
+    )
+
+
 def _branches_diverge_at(
     common: UUID,
+    merge: UUID,
     branches: set[UUID],
     graph: WorkflowGraph,
     dominators: dict[UUID, frozenset[UUID]],
@@ -1013,10 +1105,17 @@ def _branches_diverge_at(
     seen_ports: set[str] = set()
     for branch in branches:
         branch_dom = dominators.get(branch, frozenset())
+        # A branch that is the branching step itself - its port wired straight
+        # to the merge - is fed by that edge's port.
         feeding_ports = {
             edge.source_port
             for edge in graph.edges
-            if edge.source_node_id == common and edge.target_node_id in branch_dom
+            if edge.source_node_id == common
+            and (
+                edge.target_node_id == merge
+                if branch == common
+                else edge.target_node_id in branch_dom
+            )
         }
         if not feeding_ports or feeding_ports & seen_ports:
             return False
@@ -1063,7 +1162,22 @@ def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID,
     for index, binding in enumerate(graph.bindings):
         if not isinstance(binding.source, NodeOutputRef):
             continue
-        if node_scope.get(binding.source.node_id) != node_scope.get(binding.target_node_id):
+        source_id = binding.source.node_id
+        chain = owner_chain(binding.target_node_id, node_scope)
+        source_scope = node_scope.get(source_id)
+        if source_id in chain:
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "This binding reads the loop it runs inside; the loop's results exist "
+                    "only once it ends",
+                )
+            )
+        elif source_scope != node_scope.get(binding.target_node_id) and (
+            source_scope is not None and source_scope not in chain
+        ):
+            # Reading into a body from outside it: which iteration's value would
+            # it be? What leaves a loop is its `results`.
             problems.append((f"bindings.{index}", "This binding crosses a scope boundary"))
     return problems
 
@@ -1101,7 +1215,8 @@ def _rule_8_no_parallel_fanout(graph: WorkflowGraph, definitions: DefinitionMap)
         definition = definitions.get(node_id)
         if definition is not None and definition.kind == "control":
             continue
-        ports_with_edges = [port for port, edges in by_port.items() if edges]
+        # A routed failure leaves by `error` instead of `out`, never beside it.
+        ports_with_edges = [port for port, edges in by_port.items() if edges and port != ERROR_PORT]
         if len(ports_with_edges) > 1:
             problems.append(
                 (f"nodes.{node_id}", "A non-control node may only send output through one port")
@@ -1144,4 +1259,196 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
                 problems.append(
                     (f"nodes.{node.id}.{field_name}", "This required input is not bound")
                 )
+    return problems
+
+
+# Rule 10 - routed errors go somewhere, and stay on their own path
+
+
+def _rule_10_error_routes(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A failure a graph claims to handle must reach a handler, and only a handler.
+
+    A node routing its errors needs its `error` port connected - otherwise a
+    failure would end the node, skip everything after it and let the run succeed.
+    An `error.handle` needs its `default` connected, so an error no branch matches
+    has somewhere to go. And a binding keeps to its side: nothing reachable only
+    through `error` may read the node's output (there is none on that path), and
+    nothing reachable through `out` may read its error.
+    """
+    problems: Problems = []
+    for node in graph.nodes:
+        definition = definitions.get(node.id)
+        if node.routes_errors and not _port_edges(graph, node.id, ERROR_PORT):
+            problems.append(
+                (
+                    f"nodes.{node.id}",
+                    "This step routes its errors, but its error port leads nowhere",
+                )
+            )
+        if (
+            definition is not None
+            and definition.id == ERROR_HANDLE
+            and not _port_edges(graph, node.id, "default")
+        ):
+            problems.append(
+                (f"nodes.{node.id}", "An error handler's default branch must lead somewhere")
+            )
+
+    for index, binding in enumerate(graph.bindings):
+        if not isinstance(binding.source, NodeOutputRef):
+            continue
+        source = graph.node_by_id.get(binding.source.node_id)
+        if source is None or not source.routes_errors:
+            continue
+        on_error_path = _reached_through(graph, source.id, lambda port: port == ERROR_PORT)
+        on_success_path = _reached_through(graph, source.id, lambda port: port != ERROR_PORT)
+        target = binding.target_node_id
+        if binding.source.port == ERROR_PORT and target in on_success_path:
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "This binding reads the step's error on a path where it may have succeeded",
+                )
+            )
+        elif binding.source.port != ERROR_PORT and target in on_error_path:
+            problems.append(
+                (
+                    f"bindings.{index}",
+                    "This binding reads the step's output on its error path, where there is none",
+                )
+            )
+    return problems
+
+
+def _port_edges(graph: WorkflowGraph, node_id: UUID, port: str) -> list[Edge]:
+    return [
+        edge for edge in graph.edges if edge.source_node_id == node_id and edge.source_port == port
+    ]
+
+
+def _reached_through(
+    graph: WorkflowGraph, node_id: UUID, port_matches: Callable[[str], bool]
+) -> set[UUID]:
+    """Every node reachable from `node_id` through an edge leaving a matching port."""
+    adjacency = _forward_edges(graph)
+    queue: deque[UUID] = deque(
+        edge.target_node_id for edge in adjacency.get(node_id, ()) if port_matches(edge.source_port)
+    )
+    seen: set[UUID] = set()
+    while queue:
+        current = queue.popleft()
+        if current in seen or current == node_id:
+            continue
+        seen.add(current)
+        queue.extend(edge.target_node_id for edge in adjacency.get(current, ()))
+    return seen
+
+
+# Rule 11 - loop bodies have one way in and one way out
+
+
+def _rule_11_loop_bodies(
+    graph: WorkflowGraph, definitions: DefinitionMap, node_scope: dict[UUID, UUID]
+) -> Problems:
+    """A `control.foreach` body starts at one `loop.item` and ends at one `loop.yield`.
+
+    `loop.item` is what the dispatcher writes as each iteration starts, and
+    `loop.yield` is what it reads back as the iteration's result, so a body with
+    neither, or two, has no defined start or result. Both mean nothing outside a
+    body. The loop continues through `done`, never through a step inside its own
+    body, and loops nest only so deep.
+    """
+    problems: Problems = []
+    by_id = {node.id: definitions.get(node.id) for node in graph.nodes}
+    for node in graph.nodes:
+        definition = by_id[node.id]
+        if definition is None:
+            continue
+        if definition.loop_body_only:
+            owner = node_scope.get(node.id)
+            owner_definition = by_id.get(owner) if owner is not None else None
+            if owner_definition is None or owner_definition.id != FOREACH:
+                problems.append(
+                    (f"nodes.{node.id}", "This step only works inside a for-each loop's body")
+                )
+        if definition.id != FOREACH:
+            continue
+        problems += _foreach_body_problems(graph, node.id, by_id, node_scope)
+        depth = len(owner_chain(node.id, node_scope)) + 1
+        if depth > settings.WORKFLOW_FOREACH_MAX_DEPTH:
+            problems.append(
+                (
+                    f"nodes.{node.id}",
+                    f"Loops nest at most {settings.WORKFLOW_FOREACH_MAX_DEPTH} deep; "
+                    f"this one is {depth} deep",
+                )
+            )
+    return problems
+
+
+def _foreach_body_problems(
+    graph: WorkflowGraph,
+    loop_id: UUID,
+    by_id: dict[UUID, NodeDefinition | None],
+    node_scope: dict[UUID, UUID],
+) -> Problems:
+    problems: Problems = []
+    field = f"nodes.{loop_id}"
+    entries = _port_edges(graph, loop_id, BODY_PORT)
+    direct = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+
+    def _count(definition_id: str) -> int:
+        return sum(
+            1
+            for node_id in direct
+            if (definition := by_id.get(node_id)) is not None and definition.id == definition_id
+        )
+
+    entry_definition = by_id.get(entries[0].target_node_id) if len(entries) == 1 else None
+    if entry_definition is None or entry_definition.id != LOOP_ITEM or _count(LOOP_ITEM) != 1:
+        problems.append((field, "A loop's body must start at exactly one loop item step"))
+    if _count(LOOP_YIELD) != 1:
+        problems.append((field, "A loop's body must end at exactly one loop result step"))
+    body = {node_id for node_id in node_scope if loop_id in owner_chain(node_id, node_scope)}
+    for edge in _port_edges(graph, loop_id, DONE_PORT):
+        if edge.target_node_id in body:
+            problems.append(
+                (f"edges.{edge.id}", "A loop continues through done to a step outside its body")
+            )
+    return problems
+
+
+# Rule 12 - a policy only promises what the step can keep
+
+
+def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """Retries only where a repeat is safe, and no policy where nothing runs.
+
+    The retry guarantee is the call's own when the definition decides it per
+    configuration - an `http.request` `GET` may retry, a `POST` without an
+    idempotency header may not.
+    """
+    problems: Problems = []
+    for node in graph.nodes:
+        definition = definitions.get(node.id)
+        if definition is None or node.policy is None:
+            continue
+        if definition.handler is None:
+            problems.append(
+                (f"nodes.{node.id}.policy", "This step never runs, so it takes no policy")
+            )
+            continue
+        retry = node.policy.retry
+        if retry is None or retry.max_attempts == 1:
+            continue
+        guarantee = definition.retry_guarantee
+        if definition.retry_guarantee_for is not None:
+            guarantee = definition.retry_guarantee_for(_validated_config(node, definition))
+        if guarantee == "none":
+            problems.append(
+                (
+                    f"nodes.{node.id}.policy.retry",
+                    "Repeating this step's call is not safe, so it cannot retry",
+                )
+            )
     return problems

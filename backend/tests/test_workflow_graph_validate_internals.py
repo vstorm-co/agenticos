@@ -14,16 +14,23 @@ from pydantic import BaseModel, ConfigDict
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import virtual_table_repo
+from app.workflows import _registry
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.policy import NodePolicy, RetryPolicy
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import (
+    _UNKNOWN,
     _kahn,
     _nearest_common_dominator,
-    _node_scope_map,
+    _reached_through,
+    _resolve_field_path,
+    _rule_12_policies,
     derive_scopes,
+    instance_ports,
+    node_scope_map,
     validate_graph,
 )
 
@@ -116,7 +123,7 @@ def test_a_scope_body_with_a_diamond_and_a_loop_back_edge_is_derived_once_each(r
     re-enter `scope_node_id`."""
     loop_def = registered_node(
         NodeDefinition(
-            id="control.foreach",
+            id="control.synthetic_loop",
             version=1,
             name="For each",
             category="control",
@@ -214,7 +221,7 @@ def test_nested_scope_ownership_resolves_to_the_innermost_regardless_of_node_ord
     ):
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=nodes, edges=edges)
         derived = derive_scopes(graph)
-        owner = _node_scope_map(derived)
+        owner = node_scope_map(derived)
         assert owner[inner_body.id] == inner.id
         assert owner[inner.id] == outer.id
 
@@ -505,7 +512,7 @@ async def test_a_merge_with_a_single_predecessor_is_not_a_merge_rule_5_cares_abo
 async def test_a_binding_crossing_out_of_a_scope_body_is_refused(mock_db_session, registered_node):
     loop_def = registered_node(
         NodeDefinition(
-            id="control.foreach",
+            id="control.synthetic_loop",
             version=1,
             name="For each",
             category="control",
@@ -616,7 +623,7 @@ async def test_a_scope_with_a_cyclic_body_gets_no_dominators_for_its_members(
     simply contributing no verdict for that binding."""
     loop_def = registered_node(
         NodeDefinition(
-            id="control.foreach",
+            id="control.synthetic_loop",
             version=1,
             name="For each",
             category="control",
@@ -721,3 +728,92 @@ def test_kahn_ignores_an_edge_whose_endpoint_is_outside_the_given_node_set():
     assert order == [a, b]
     assert cyclic == set()
     assert predecessors[b] == {a}
+
+
+# #1790: ports an instance's own config or policy decides
+
+
+def test_ports_a_definition_derives_are_asked_with_no_config_when_it_takes_none(registered_node):
+    asked: list[object] = []
+
+    def ports_for(config: object) -> tuple[Port, ...]:
+        asked.append(config)
+        return (Port(id="in", label="In", kind="input"),)
+
+    definition = registered_node(
+        NodeDefinition(
+            id="test.derived_ports",
+            version=1,
+            name="Derived ports",
+            category="test",
+            description="ports from config",
+            kind="action",
+            config_schema=None,
+            input_schema=None,
+            output_schema=None,
+            ports=(),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+            ports_for=ports_for,
+        )
+    )
+    node = NodeInstance(
+        id=uuid4(), definition_id=definition.id, definition_version=1, config={}, layout=_pos()
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+
+    ports = instance_ports(graph, {node.id: definition})
+
+    assert asked == [None] and [port.id for port in ports[node.id]] == ["in"]
+
+
+def test_an_error_handler_whose_branches_do_not_validate_offers_only_default():
+    handle = NodeInstance(
+        id=uuid4(),
+        definition_id="error.handle",
+        definition_version=1,
+        config={"branches": [{"name": "same"}, {"name": "same"}]},
+        layout=_pos(),
+    )
+    graph = WorkflowGraph(entry_node_id=handle.id, nodes=(handle,))
+
+    ports = instance_ports(graph, {handle.id: _registry.get("error.handle", 1)})
+
+    assert [port.id for port in ports[handle.id]] == ["in", "default"]
+
+
+def test_a_path_through_a_union_of_two_types_leads_nowhere():
+    class _Choice(BaseModel):
+        value: int | str
+
+    ports = (Port(id="out", label="Out", kind="output", schema=_Choice),)
+    assert _resolve_field_path(ports, "out", ("value", "deeper")) is _UNKNOWN
+
+
+def test_a_node_reached_along_two_edges_is_counted_once():
+    source, left, right, joined = (_echo_node() for _ in range(4))
+    graph = WorkflowGraph(
+        entry_node_id=source.id,
+        nodes=(source, left, right, joined),
+        edges=(
+            _edge(source.id, "out", left.id, "in"),
+            _edge(source.id, "out", right.id, "in"),
+            _edge(left.id, "out", joined.id, "in"),
+            _edge(right.id, "out", joined.id, "in"),
+            _edge(joined.id, "out", source.id, "in"),
+        ),
+    )
+    assert _reached_through(graph, source.id, lambda port: True) == {left.id, right.id, joined.id}
+
+
+def test_a_read_that_is_safe_to_repeat_may_retry():
+    node = NodeInstance(
+        id=uuid4(),
+        definition_id="http.request",
+        definition_version=1,
+        config={"url": "https://api.example.com/v1/orders", "method": "GET"},
+        policy=NodePolicy(retry=RetryPolicy(max_attempts=4)),
+        layout=_pos(),
+    )
+    graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
+    assert _rule_12_policies(graph, {node.id: _registry.get("http.request", 1)}) == []

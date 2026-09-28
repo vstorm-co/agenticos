@@ -301,6 +301,7 @@ class WorkflowRegistryService:
                 effect_kind=definition.effect_kind,
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
+                loop_body_only=definition.loop_body_only,
             )
             for definition in all_node_definitions()
         ]

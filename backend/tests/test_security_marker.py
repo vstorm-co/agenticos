@@ -43,6 +43,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",
+    "tests/test_workflow_node_guards.py::TestHttpConfig::test_a_step_without_a_credential_has_no_secret_to_check": "no credential configured means nothing to check, not a refusal",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
     "tests/integration/test_virtual_table_retention.py::test_a_smaller_table_sweep_budget_leaves_the_remainder_for_the_next_pass": "retention sweep batch budget, not a security refusal, keyword coincidental",
     "tests/integration/test_virtual_table_retention.py::test_the_table_sweep_budget_scales_with_the_write_rate_and_member_count": "retention sweep batch budget, not a security refusal, keyword coincidental",

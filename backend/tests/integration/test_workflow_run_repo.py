@@ -1303,3 +1303,61 @@ class TestSumReservedNodeWork:
         assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=other.id) == 8
         # The organization ceiling still reads one organization only.
         assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org_a.id) == 108
+
+
+class TestLoopScopes:
+    """The reads a `control.foreach` is decided by (#1790)."""
+
+    async def test_iterations_are_read_by_scope_and_the_top_level_alone_decides_the_run(
+        self, db: AsyncSession
+    ):
+        org = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        loop, body = uuid.uuid4(), uuid.uuid4()
+        first = [{"loop_node_id": str(loop), "index": 0}]
+        second = [{"loop_node_id": str(loop), "index": 1}]
+        await _node_run(db, run, node_instance_id=loop, status=NodeRunStatus.RUNNING.value)
+        in_first = await _node_run(db, run, node_instance_id=body, scope_path=first)
+        await _node_run(
+            db,
+            run,
+            node_instance_id=body,
+            scope_path=second,
+            status=NodeRunStatus.SUCCEEDED.value,
+        )
+
+        at_first = await workflow_run_repo.list_node_runs_at(
+            db, workflow_run_id=run.id, scope_path=first
+        )
+        of_body = await workflow_run_repo.list_node_runs_of(
+            db, workflow_run_id=run.id, node_instance_ids=[body]
+        )
+        live = await workflow_run_repo.list_live_node_runs(db, workflow_run_id=run.id)
+
+        assert [row.id for row in at_first] == [in_first.id]
+        assert len(of_body) == 2
+        assert {row.node_instance_id for row in live} == {loop, body}
+        assert await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id) == 3
+        assert await workflow_run_repo.list_node_run_statuses(db, workflow_run_id=run.id) == [
+            NodeRunStatus.RUNNING.value
+        ]
+
+    async def test_the_latest_attempt_of_each_node_run_is_read_in_one_query(self, db: AsyncSession):
+        org = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        node_run = await _node_run(db, run)
+        for attempt_no in (1, 2):
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=org.id,
+                node_run_id=node_run.id,
+                attempt_no=attempt_no,
+                idempotency_key="k",
+                retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+                started_at=datetime.now(UTC),
+            )
+
+        latest = await workflow_run_repo.get_latest_attempts(db, node_run_ids=[node_run.id])
+
+        assert latest[node_run.id].attempt_no == 2
+        assert await workflow_run_repo.get_latest_attempts(db, node_run_ids=[]) == {}

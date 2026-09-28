@@ -44,6 +44,7 @@ from app.repositories import agent_run as agent_run_repo
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_execution import context
+from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.io import FileRef, SourceRef
 from app.workflows.contracts.results import (
     Completed,
@@ -198,6 +199,7 @@ def _settled(
                 code="AGENT_BUDGET_EXCEEDED",
                 message=run.error or "The agent's budget is spent",
                 details={"agent_run_id": str(run.id)},
+                bypassable=False,
             )
         )
     if status is RunStatus.GUARDRAIL_BLOCKED:
@@ -258,9 +260,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     version_id=config.agent.version_id,
                 )
     except AppException as exc:
-        return Failed(
-            error=WorkflowError(code=exc.code, message=exc.message, details=exc.details or {})
-        )
+        return Failed(error=workflow_error(exc))
     except Exception:
         # A model provider's own text can carry a request URL with a key in it.
         logger.exception(

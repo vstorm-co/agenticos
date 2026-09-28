@@ -480,7 +480,11 @@ write — so set it well past your longest legitimate run and no closer. See
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
 | `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
-| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to. These three apply to a node whose `policy.retry` sets none |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | The longest list a `control.foreach` iterates. A longer one fails the loop with `FOREACH_TOO_MANY_ITEMS` instead of being truncated |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | The largest list a loop freezes, as JSON. A larger one fails the loop with `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | How deep loops may nest. A graph with deeper loops cannot be published |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | The most node runs one run may create, loop iterations included. An iteration that would pass it fails the run with `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | The most queued or running node work one organization may hold at once. A start reserves its graph's node count against this, and one over it is refused with `429` until running work drains. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | The same ceiling for a single caller, counted across every organization they run in, so a person who can create organizations cannot multiply their allowance by spreading runs across them. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
 

@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows can loop over a list and handle their own errors.**
+  `control.foreach` runs its body once per item, in order and one at a time,
+  from `loop.item` to `loop.yield`, and hands on every result in input order.
+  The list is frozen when the loop starts, each iteration runs in its own
+  scope, and the next one is scheduled in the transaction that ends the last,
+  so a restart resumes the right iteration without repeating a confirmed
+  write; an approval inside an iteration resumes that iteration.
+  `item_error_policy` chooses between stopping at the first failed item and
+  collecting its error in place. Every node takes a `policy` with a timeout, a
+  retry schedule and `on_error: route`, which sends a failure out of the
+  node's `error` port to `error.handle`, whose branches match on error code.
+  `error.raise` fails a branch with an error the author defines. Revoked
+  access, a spent budget, a cancelled run and an uncertain effect are never
+  routed. Loops are bounded in items, stored size, nesting and total node runs
+  (`WORKFLOW_FOREACH_MAX_ITEMS`, `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES`,
+  `WORKFLOW_FOREACH_MAX_DEPTH`, `WORKFLOW_RUN_MAX_NODE_RUNS`). Cancelling a run
+  now ends every node still live in it (#1790).
 - **Agents and workflows can read and write Virtual Tables.** A new **Tables**
   capability gives an agent eleven tools over the tables its binding grants,
   with read, add, update and delete chosen per table in the Builder, and
@@ -143,6 +160,13 @@ Two things are versioned separately from this file and worth knowing about:
   serialized per organization and per principal so it cannot be raced. A start
   over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
   running work drains. Migration `0107_workflow_run_node_count.py`. (#1907)
+
+### Changed
+
+- **A stale revision on a workflow table step is no longer retried.**
+  `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
+  the step at once, because the same revision would conflict on every retry;
+  route it with `error.handle` to a fresh read instead (#1790).
 
 ## [0.0.513] - 2026-09-28
 

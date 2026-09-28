@@ -9,6 +9,7 @@ thing most worth proving wrong.
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
@@ -38,6 +39,7 @@ from app.services.workflow_execution.exceptions import (
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.policy import NodePolicy
 from app.workflows.contracts.results import (
     Completed,
     Failed,
@@ -258,9 +260,22 @@ class TestResolveSource:
 
     def test_a_node_output_ref_walks_its_field_path(self):
         source_id = uuid.uuid4()
-        outputs = {source_id: {"echoed": "hi", "nested": {"deep": "value"}}}
+        outputs = {
+            source_id: {
+                "status": "completed",
+                "output": {"echoed": "hi", "nested": {"deep": "value"}},
+            }
+        }
         ref = NodeOutputRef(node_id=source_id, port="out", field_path=("nested", "deep"))
         assert dispatcher._resolve_source(ref, outputs) == "value"
+
+    def test_the_error_port_reads_the_error_and_only_of_a_failed_node(self):
+        source_id = uuid.uuid4()
+        failed = {source_id: {"status": "failed", "error": {"code": "GONE", "message": "x"}}}
+        on_error = NodeOutputRef(node_id=source_id, port="error", field_path=("code",))
+        on_out = NodeOutputRef(node_id=source_id, port="out", field_path=("code",))
+        assert dispatcher._resolve_source(on_error, failed) == "GONE"
+        assert dispatcher._resolve_source(on_out, failed) is None
 
     def test_a_node_output_ref_to_a_source_with_no_output_yet_is_none(self):
         ref = NodeOutputRef(node_id=uuid.uuid4(), port="out")
@@ -491,6 +506,11 @@ def repo():
     mocked = create_autospec(workflow_run_repo_module, instance=False)
     # This attempt is the node's first failure unless a test says otherwise.
     mocked.count_failed_attempts.return_value = 1
+    # Nothing else is live, and no loop is iterating, unless a test says so.
+    mocked.list_live_node_runs.return_value = []
+    mocked.list_node_runs_at.return_value = []
+    mocked.count_node_runs.return_value = 0
+    mocked.get_latest_attempts.return_value = {}
     with patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked):
         yield mocked
 
@@ -944,6 +964,7 @@ def _begun(
     node_run_id=None,
     workflow_run_id=None,
     dispatch_token=None,
+    timeout_seconds=None,
 ) -> dispatcher.BegunAttempt:
     org = uuid.uuid4()
     wf_run = workflow_run_id or uuid.uuid4()
@@ -968,6 +989,8 @@ def _begun(
             auth=MagicMock(),
             resumed_agent_run_id=None,
         ),
+        timeout_seconds=timeout_seconds,
+        retry_guarantee=definition.retry_guarantee,
         dispatch_token=dispatch_token or uuid.uuid4(),
     )
 
@@ -1893,7 +1916,7 @@ class TestAdvance:
         repo.create_node_run.return_value = created
 
         ready = await dispatcher._advance(
-            _nested_txn_db(), run=run, completed_node_instance_id=source.id
+            _nested_txn_db(), run=run, completed_node_instance_id=source.id, scope_path=[]
         )
 
         repo.create_node_run.assert_awaited_once()
@@ -1950,7 +1973,9 @@ class TestAdvance:
 
         repo.get_node_run_by_identity.side_effect = _by_identity
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=source_a.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=source_a.id, scope_path=[]
+        )
 
         repo.create_node_run.assert_not_called()
 
@@ -1999,7 +2024,9 @@ class TestAdvance:
             workflow_run_id=run.id, node_instance_id=target.id
         )
 
-        await dispatcher._advance(_nested_txn_db(), run=run, completed_node_instance_id=source_a.id)
+        await dispatcher._advance(
+            _nested_txn_db(), run=run, completed_node_instance_id=source_a.id, scope_path=[]
+        )
 
         repo.create_node_run.assert_awaited_once()
 
@@ -2034,7 +2061,9 @@ class TestAdvance:
         repo.get_node_run_by_identity.side_effect = _by_identity
         repo.create_node_run.side_effect = IntegrityError("insert", {}, Exception("dup"))
 
-        await dispatcher._advance(_nested_txn_db(), run=run, completed_node_instance_id=source.id)
+        await dispatcher._advance(
+            _nested_txn_db(), run=run, completed_node_instance_id=source.id, scope_path=[]
+        )
 
         repo.create_outbox.assert_not_called()
 
@@ -2052,7 +2081,9 @@ class TestAdvance:
         repo.list_node_run_statuses.return_value = [NodeRunStatus.SUCCEEDED.value]
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=node.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=node.id, scope_path=[]
+        )
 
         assert run.status == WorkflowRunStatus.SUCCEEDED.value
 
@@ -2077,7 +2108,9 @@ class TestAdvance:
         repo.has_live_outbox.return_value = False
         repo.list_node_run_statuses.return_value = statuses
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=node.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=node.id, scope_path=[]
+        )
 
         assert run.status == WorkflowRunStatus.RUNNING.value
 
@@ -2093,7 +2126,9 @@ class TestAdvance:
         )
         repo.has_live_outbox.return_value = True
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=node.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=node.id, scope_path=[]
+        )
 
         repo.update_run.assert_not_called()
 
@@ -2108,9 +2143,13 @@ class TestResolveOrphanedAttempt:
         outbox = _outbox(node_run_id=node_run.id)
         repo.settle_attempt.side_effect = _settle_effect
 
-        await dispatcher.resolve_orphaned_attempt(
-            object(), run=run, node_run=node_run, attempt=attempt, outbox=outbox
-        )
+        with patch(
+            f"{DISPATCHER_PATH}.resolve_graph",
+            new=AsyncMock(side_effect=WorkflowGraphUnresolvableError(run_id=run.id)),
+        ):
+            await dispatcher.resolve_orphaned_attempt(
+                object(), run=run, node_run=node_run, attempt=attempt, outbox=outbox
+            )
 
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
         repo.mark_outbox_done.assert_awaited_once()
@@ -2322,7 +2361,11 @@ class TestCompletedOutputsMore:
     async def test_a_source_with_no_node_run_yet_reports_no_output(self, repo):
         repo.get_node_run_by_identity.return_value = None
         outputs = await dispatcher._completed_outputs(
-            object(), workflow_run_id=uuid.uuid4(), node_ids={uuid.uuid4()}
+            object(),
+            workflow_run_id=uuid.uuid4(),
+            node_ids={uuid.uuid4()},
+            scope_path=[],
+            node_scope={},
         )
         assert list(outputs.values()) == [None]
 
@@ -2331,7 +2374,11 @@ class TestCompletedOutputsMore:
         repo.get_node_run_by_identity.return_value = source_run
         repo.get_latest_attempt.return_value = None
         outputs = await dispatcher._completed_outputs(
-            object(), workflow_run_id=uuid.uuid4(), node_ids={source_run.node_instance_id}
+            object(),
+            workflow_run_id=uuid.uuid4(),
+            node_ids={source_run.node_instance_id},
+            scope_path=[],
+            node_scope={},
         )
         assert outputs[source_run.node_instance_id] is None
 
@@ -2342,7 +2389,11 @@ class TestCompletedOutputsMore:
             node_run_id=source_run.id, status=NodeAttemptStatus.IN_FLIGHT.value
         )
         outputs = await dispatcher._completed_outputs(
-            object(), workflow_run_id=uuid.uuid4(), node_ids={source_run.node_instance_id}
+            object(),
+            workflow_run_id=uuid.uuid4(),
+            node_ids={source_run.node_instance_id},
+            scope_path=[],
+            node_scope={},
         )
         assert outputs[source_run.node_instance_id] is None
 
@@ -2365,7 +2416,9 @@ class TestAdvanceMoreBranches:
             draft_graph_snapshot=graph_with_dangling_edge.model_dump(mode="json"),
         )
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=source.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=source.id, scope_path=[]
+        )
 
         repo.create_node_run.assert_not_called()
 
@@ -2390,7 +2443,9 @@ class TestAdvanceMoreBranches:
             workflow_run_id=run.id, node_instance_id=target.id
         )
 
-        await dispatcher._advance(object(), run=run, completed_node_instance_id=source.id)
+        await dispatcher._advance(
+            object(), run=run, completed_node_instance_id=source.id, scope_path=[]
+        )
 
         repo.create_node_run.assert_not_called()
 
@@ -2399,7 +2454,7 @@ class TestArrivedOutput:
     """What a `control` node is handed from the edge it was reached through."""
 
     def _state(self, graph: WorkflowGraph, run: WorkflowRun) -> dispatcher._AdvanceState:
-        return dispatcher._AdvanceState(MagicMock(), run=run, graph=graph)
+        return dispatcher._AdvanceState(MagicMock(), run=run, graph=graph, scope_path=[])
 
     async def test_an_edge_leaving_a_port_its_source_did_not_choose_carries_nothing(self):
         """A merge wired straight from both of an if's ports: only the chosen one arrives."""
@@ -2472,3 +2527,159 @@ class TestArrivedOutput:
             new=AsyncMock(return_value=None),
         ):
             assert await self._state(graph, _run()).arrived_output(merge.id) is None
+
+
+class TestLoopsWithoutADatabase:
+    """The loop paths `tests/integration/test_workflow_error_foreach.py` drives end
+    to end, pinned here too: behind a real session's greenlet switches the
+    coverage tracer loses some of the lines they run."""
+
+    @staticmethod
+    def _loop_graph() -> tuple[WorkflowGraph, dict[str, NodeInstance]]:
+        nodes = {
+            "entry": _node_instance("core.input"),
+            "loop": _node_instance("control.foreach"),
+            "item": _node_instance("loop.item"),
+            "plain": _node_instance("data.map"),
+            "routed": NodeInstance(
+                id=uuid.uuid4(),
+                definition_id="data.map",
+                definition_version=1,
+                policy=NodePolicy(on_error="route"),
+                layout=NodePosition(x=0, y=0),
+            ),
+            "yield": _node_instance("loop.yield"),
+        }
+
+        def edge(a: str, b: str, port: str = "out") -> Edge:
+            return Edge(
+                id=uuid.uuid4(),
+                source_node_id=nodes[a].id,
+                source_port=port,
+                target_node_id=nodes[b].id,
+                target_port="in",
+            )
+
+        graph = WorkflowGraph(
+            entry_node_id=nodes["entry"].id,
+            nodes=tuple(nodes.values()),
+            edges=(
+                edge("entry", "loop"),
+                edge("loop", "item", "body"),
+                edge("item", "plain"),
+                edge("plain", "routed"),
+                edge("routed", "yield"),
+            ),
+        )
+        return dispatcher.derive_scopes(graph), nodes
+
+    async def test_ending_a_run_ends_the_loops_still_running_around_it(self, repo, event_log):
+        run = _run()
+        failing = _node_run(workflow_run_id=run.id, node_instance_id=uuid.uuid4(), status="running")
+        loop = _node_run(workflow_run_id=run.id, node_instance_id=uuid.uuid4(), status="running")
+        repo.list_live_node_runs.return_value = [loop]
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        await dispatcher._fail_node_and_run(
+            object(),
+            run=run,
+            node_run=failing,
+            error=WorkflowError(code="X", message="x"),
+            now=datetime.now(UTC),
+        )
+
+        assert failing.status == NodeRunStatus.FAILED.value
+        assert loop.status == NodeRunStatus.CANCELLED.value
+        assert run.status == WorkflowRunStatus.FAILED.value
+
+    async def test_what_a_node_with_no_stored_result_carries_is_nothing(self, repo):
+        graph, nodes = self._loop_graph()
+        state = dispatcher._AdvanceState(MagicMock(), run=_run(), graph=graph, scope_path=[])
+        repo.get_latest_attempt.return_value = None
+        row = _node_run(workflow_run_id=uuid.uuid4(), node_instance_id=nodes["plain"].id)
+        assert await state._carried(row) is None
+
+    async def test_an_iteration_past_the_node_run_ceiling_fails_the_run(
+        self, repo, event_log, monkeypatch
+    ):
+        monkeypatch.setattr(dispatcher.settings, "WORKFLOW_RUN_MAX_NODE_RUNS", 5)
+        graph, nodes = self._loop_graph()
+        run = _run()
+        loop_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=nodes["loop"].id, status="running"
+        )
+        repo.count_node_runs.return_value = 4
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
+
+        ready = await dispatcher._start_iteration(
+            object(), run=run, graph=graph, loop_run=loop_run, index=1, items=[1, 2]
+        )
+
+        assert ready == []
+        assert run.error is not None and run.error["code"] == "NODE_RUN_LIMIT"
+        assert run.error["bypassable"] is False
+        repo.create_node_run.assert_not_called()
+
+    async def test_closing_a_loop_collects_its_results_in_order_and_its_unrouted_failures(
+        self, repo, event_log
+    ):
+        graph, nodes = self._loop_graph()
+        run = _run()
+        loop_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=nodes["loop"].id, status="running"
+        )
+        loop_key = str(nodes["loop"].id)
+
+        def row(name: str, index: int, status: str, **extra: Any) -> NodeRun:
+            return _node_run(
+                workflow_run_id=run.id,
+                node_instance_id=nodes[name].id,
+                scope_path=[{"loop_node_id": loop_key, "index": index}, *extra.pop("deeper", [])],
+                status=status,
+            )
+
+        rows = [
+            row("yield", 2, "succeeded"),
+            row("yield", 0, "succeeded"),
+            row("plain", 1, "failed"),
+            row("routed", 2, "failed"),
+            # A nested loop's own iteration: not one of this loop's.
+            row("yield", 1, "succeeded", deeper=[{"loop_node_id": "x", "index": 0}]),
+        ]
+        stored = {
+            rows[0].id: {"status": "completed", "output": {"value": "c"}},
+            rows[1].id: {"status": "completed", "output": {"value": "a"}},
+            rows[2].id: {"status": "failed", "error": {"code": "BAD", "message": "m"}},
+            rows[3].id: {"status": "failed", "error": {"code": "ROUTED", "message": "m"}},
+        }
+        repo.list_node_runs_of.return_value = rows
+        repo.get_latest_attempts.return_value = {
+            node_run_id: _attempt(node_run_id=node_run_id, result=result)
+            for node_run_id, result in stored.items()
+        }
+        repo.get_latest_attempt.return_value = _attempt(node_run_id=loop_run.id, attempt_no=1)
+        repo.create_attempt.return_value = _attempt(node_run_id=loop_run.id, attempt_no=2)
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+
+        with patch(f"{DISPATCHER_PATH}._advance", new=AsyncMock(return_value=[])) as advance:
+            await dispatcher._close_loop(object(), run=run, graph=graph, loop_run=loop_run, count=3)
+
+        assert repo.create_attempt.await_args.kwargs["attempt_no"] == 2
+        assert repo.settle_attempt.await_args.kwargs["result"] == {
+            "status": "completed",
+            "output": {
+                "results": ["a", None, "c"],
+                "errors": [{"index": 1, "code": "BAD", "message": "m", "details": {}}],
+                "count": 3,
+            },
+        }
+        assert loop_run.status == NodeRunStatus.SUCCEEDED.value
+        assert advance.await_args.kwargs["completed_node_instance_id"] == nodes["loop"].id

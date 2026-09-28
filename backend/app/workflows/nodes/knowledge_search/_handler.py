@@ -30,6 +30,7 @@ from app.repositories import knowledge_base_repo
 from app.services.collection_access import readable_kb
 from app.services.rag.models import SearchResult
 from app.services.workflow_execution import context
+from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.io import SourceRef
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 
@@ -131,6 +132,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 code="COLLECTION_NOT_ACCESSIBLE",
                 message="A collection this search names is gone or no longer accessible",
                 details={"collection_ids": [str(config.collection_ids[i]) for i in refused]},
+                # Access revoked since publishing: not a failure to route around.
+                bypassable=False,
             )
         )
     service = get_retrieval_service()
@@ -152,9 +155,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     except AppException as exc:
         # Already an account of what is wrong - an embedding key not configured
         # names the setting - and its details are this codebase's own.
-        return Failed(
-            error=WorkflowError(code=exc.code, message=exc.message, details=exc.details or {})
-        )
+        return Failed(error=workflow_error(exc))
     except Exception:
         # A vector store or embedding client's own text can carry a request URL
         # with a key in it, so it stays in the log.

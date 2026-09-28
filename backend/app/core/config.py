@@ -702,15 +702,24 @@ class Settings(BaseSettings):
     # itself; short enough that a worker that dies mid-call is noticed within
     # one reconcile tick rather than stalling the run indefinitely.
     WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
-    # #1790 owns the real retry ceiling and backoff schedule; this is the
-    # minimum fixed policy #1788 needs so #1789/#1792 have somewhere to run in
-    # the meantime. The ceiling counts failed and interrupted attempts only -
-    # an attempt that waits (an approval, a backoff the node asked for) does
-    # not use it up - and the backoff doubles from the base per such attempt,
-    # capped at the max.
+    # The retry schedule of a node whose `policy` sets none - a node's own
+    # `policy.retry` replaces all three. The ceiling counts failed and
+    # interrupted attempts only - an attempt that waits (an approval, a backoff
+    # the node asked for) does not use it up - and the backoff doubles from the
+    # base per such attempt, capped at the max.
     WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
     WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
     WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
+
+    # What one `control.foreach` may iterate. The list is frozen into the
+    # loop's first attempt before any iteration starts, so it is bounded in
+    # count and in stored size - a longer list is refused, never truncated.
+    # Nesting is bounded at publish, and every node run a run creates, loop
+    # iterations included, counts against the per-run ceiling.
+    WORKFLOW_FOREACH_MAX_ITEMS: int = Field(default=1000, gt=0)
+    WORKFLOW_FOREACH_MAX_MANIFEST_BYTES: int = Field(default=1_048_576, gt=0)
+    WORKFLOW_FOREACH_MAX_DEPTH: int = Field(default=3, gt=0)
+    WORKFLOW_RUN_MAX_NODE_RUNS: int = Field(default=10_000, gt=0)
 
     # A ceiling on how much workflow node work one organization, and one caller
     # (across every organization they run in), may have queued or running on the

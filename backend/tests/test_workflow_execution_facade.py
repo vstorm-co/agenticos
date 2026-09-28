@@ -499,12 +499,20 @@ class TestCancel:
         ):
             await service.cancel(_ctx(), run.id)
 
-    async def test_cancelling_a_live_run_marks_it_cancelled(self):
+    async def test_cancelling_a_live_run_marks_it_and_every_live_node_cancelled(self):
         run = _run_row(status=WorkflowRunStatus.RUNNING.value)
         workflow = _workflow(id=run.workflow_id)
         cancelled = _run_row(id=run.id, status=WorkflowRunStatus.CANCELLED.value)
+        # A loop mid-iteration: `running`, with no outbox row of its own.
+        loop_row = MagicMock(id=uuid.uuid4(), status="running")
         service = WorkflowExecutionService(MagicMock())
+        update_node_run = AsyncMock()
         with (
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_live_node_runs",
+                new=AsyncMock(return_value=[loop_row]),
+            ),
+            patch(f"{FACADE_PATH}.workflow_run_repo.update_node_run", new=update_node_run),
             patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
@@ -521,6 +529,8 @@ class TestCancel:
             result = await service.cancel(_ctx(), run.id)
 
         assert result.status == WorkflowRunStatus.CANCELLED.value
+        assert update_node_run.await_args.kwargs["node_run"] is loop_row
+        assert update_node_run.await_args.kwargs["update_data"]["status"] == "cancelled"
 
     async def test_a_run_gone_between_the_read_and_the_lock_is_not_found(self):
         run = _run_row()

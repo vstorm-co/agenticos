@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b5b27a1e7e"
+source_sha: "b4f139953b89"
 ---
 
 # Konfiguration { #configuration }
@@ -512,7 +512,11 @@ legitimen Run und nicht knapper. Siehe
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Wie lange der Claim eines Workers auf einen Workflow-Knoten hält, bevor er als aufgegeben gilt. Der Worker erneuert ihn jedes Drittel dieser Zeit, solange der Knoten läuft; der Wert begrenzt also, wie lange ein toter Worker unbemerkt bleibt, nicht wie lange ein Knoten dauern darf |
 | `WORKFLOW_RETRY_CEILING` | `3` | Die Höchstzahl an fehlgeschlagenen oder unterbrochenen Versuchen, die ein Knoten bekommt: Versuche, die fehlgeschlagen sind, und Versuche, die der Tod eines Workers abgebrochen hat. Ein Versuch, der wartet - auf eine Freigabe oder auf einen Backoff, den der Knoten verlangt hat -, zählt nicht; wie oft ein Knoten wartet, begrenzen also nur Deadline, Budget oder ein Abbruch des Runs |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |
-| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf. Diese drei gelten für einen Knoten, dessen `policy.retry` keine eigenen setzt |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Die längste Liste, über die ein `control.foreach` iteriert. Eine längere lässt die Schleife mit `FOREACH_TOO_MANY_ITEMS` fehlschlagen, statt gekürzt zu werden |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Die größte Liste, die eine Schleife einfriert, als JSON. Eine größere lässt die Schleife mit `FOREACH_LIST_TOO_LARGE` fehlschlagen |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Wie tief Schleifen verschachtelt sein dürfen. Ein Graph mit tieferen Schleifen kann nicht veröffentlicht werden |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Die meisten Knotenläufe, die ein Run anlegen darf, Schleifeniterationen eingeschlossen. Eine Iteration, die darüber hinausginge, lässt den Run mit `NODE_RUN_LIMIT` fehlschlagen |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Wie viel wartende oder laufende Knotenarbeit eine Organisation gleichzeitig halten darf. Ein Start reserviert die Knotenzahl seines Graphen dagegen, und ein Start darüber wird mit `429` abgewiesen, bis laufende Arbeit abfließt. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Dieselbe Obergrenze für eine einzelne aufrufende Seite, gezählt über alle Organisationen, in denen sie Runs startet, damit eine Person, die Organisationen anlegen kann, ihr Kontingent nicht durch Verteilen der Runs auf mehrere Organisationen vervielfacht. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
 

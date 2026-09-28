@@ -267,7 +267,9 @@ async def test_a_record_that_is_not_there_is_an_answer_not_a_failure(engine: Asy
     assert run.output is not None and run.output["structured"] == {"found": False, "record": None}
 
 
-async def test_a_stale_revision_is_a_retryable_conflict(engine: AsyncEngine):
+async def test_a_stale_revision_fails_without_a_blind_retry(engine: AsyncEngine):
+    """The same stale revision would conflict on every retry, so it is the
+    author's to route - to a fresh read - never the retry policy's."""
     member, table = await _world(engine)
     async with async_sessionmaker(engine)() as db:
         written = await VirtualTableService(db).create_record(
@@ -290,7 +292,9 @@ async def test_a_stale_revision_is_a_retryable_conflict(engine: AsyncEngine):
 
     run = await drive(await _run(engine, member, graph))
 
-    assert run.status == WorkflowRunStatus.WAITING_RETRY.value
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "REVISION_CONFLICT"
+    assert run.error["retryable"] is False
 
 
 async def test_a_value_for_a_column_the_table_does_not_have_fails_typed(engine: AsyncEngine):

@@ -29,6 +29,10 @@ class WorkflowError(BaseModel):
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
     retryable: bool = False
+    bypassable: bool = True
+    """Whether an `error.handle` may take this failure over. `False` for what no
+    fallback may route around - a principal whose access was revoked, a budget
+    that is spent: the run fails however the graph is wired."""
 
 
 class Completed[T: BaseModel](BaseModel):

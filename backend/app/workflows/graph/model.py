@@ -18,6 +18,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.workflows.contracts.io import Binding
+from app.workflows.contracts.policy import NodePolicy
 
 
 class NodePosition(BaseModel):
@@ -46,7 +47,13 @@ class NodeInstance(BaseModel):
     definition_id: str
     definition_version: int
     config: dict[str, Any] = Field(default_factory=dict)
+    policy: NodePolicy | None = None
     layout: NodePosition
+
+    @property
+    def routes_errors(self) -> bool:
+        """Whether a failure leaves this node by its `error` port rather than failing the run."""
+        return self.policy is not None and self.policy.on_error == "route"
 
 
 class Edge(BaseModel):

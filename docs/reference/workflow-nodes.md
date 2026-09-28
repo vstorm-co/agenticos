@@ -21,7 +21,9 @@ A few rules hold for every node:
   withdrawn in between.
 - **Effect kind and retries** decide what the engine may do after a failure. A
   `pure` or `idempotent` step is retried. A step that may already have acted
-  and gives no guarantee stops for a person instead.
+  and gives no guarantee stops for a person instead. A node's own
+  [policy](#error-handling) sets how often it is retried, how long a call may
+  take and where a failure goes.
 
 ## core.input { #core-input }
 
@@ -149,6 +151,77 @@ A retried step writes no second notification.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## Error handling { #error-handling }
+
+Every node takes an optional `policy` beside its config.
+
+| Field | Default | Effect |
+|---|---|---|
+| `timeout_seconds` | none | A call still running after this long is cut off. A step with no external write, or one whose call is idempotent, fails with `NODE_TIMEOUT` and may be retried. A write that may have landed becomes uncertain and stops for a person |
+| `retry.max_attempts` | `WORKFLOW_RETRY_CEILING` | Tries in total, the first included. Only a failure the node marks retryable is tried again, and publishing refuses more than one try for a step whose call is not safe to repeat |
+| `retry.backoff`, `base_delay_seconds`, `max_delay_seconds` | `exponential`, `2`, `60` | The wait between tries: fixed, or doubling up to the ceiling |
+| `on_error` | `fail_run` | `route` sends a failure that retries did not settle out of the node's `error` port instead of failing the run |
+
+A node whose policy routes its errors has an extra `error` output port. It
+carries the `WorkflowError`: `code`, `message`, `details` and `retryable`. The
+node's normal output exists only on its other ports, so publishing refuses a
+binding that reads the output on the error path, or the error on the success
+path. The error port has to lead somewhere, and the two paths may rejoin at a
+`logic.merge`.
+
+`error.handle` takes that error on its `in` port and leaves by the first branch
+whose `code` and `retryable` both match, or by `default`, which must be
+connected. `error.raise` fails its branch with a code, a message and details
+that the author sets.
+
+Some failures are never routed. Revoked access, a spent budget (the run's or an
+agent's), a cancelled run, a passed deadline, the per-run node ceiling and an
+effect of unknown outcome end the run however the graph is wired. A revision
+conflict or a validation error can be routed but is never retried blindly,
+because the same input fails the same way again.
+
+::: app.workflows.contracts.policy.NodePolicy
+
+::: app.workflows.contracts.policy.RetryPolicy
+
+::: app.workflows.nodes.error_handle._handler.ErrorHandleConfig
+
+::: app.workflows.nodes.error_handle._handler.HandledError
+
+::: app.workflows.nodes.error_raise._handler.ErrorRaiseConfig
+
+## Loops { #loops }
+
+`control.foreach` runs its body once for every element of a bound `items` list,
+one element at a time and in order. It then continues through its `done` port
+with `results` in input order, `errors` and `count`. The body starts at
+`loop.item`, wired from the loop's `body` port, which provides `item`, `index`
+and `count`. It ends at `loop.yield`, whose bound `value` is the iteration's
+result. No edge leads back to the loop. A step in the body may bind to anything
+that ran before the loop, and nothing outside the body may bind into it.
+
+The list is frozen when the loop starts, so an iteration never sees a source
+that changed during the run. A list longer than `WORKFLOW_FOREACH_MAX_ITEMS`, or
+larger than `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES`, is refused rather than
+truncated. An empty list gives `results: []` without running the body. Each
+iteration's steps run in their own scope, with their own attempts, idempotency
+keys and costs. The next iteration is scheduled in the transaction that ends the
+previous one, so a restart resumes at the right index and never repeats a
+confirmed write. An approval inside an iteration resumes that iteration.
+
+With `item_error_policy: stop`, the default, the loop fails at the first failed
+iteration and the error's details carry that iteration's `scope_path`. With
+`collect`, the item's result is `null`, the error is added to `errors` and the
+loop carries on. Loops nest at most `WORKFLOW_FOREACH_MAX_DEPTH` deep, and
+every node run a run creates counts against `WORKFLOW_RUN_MAX_NODE_RUNS`. There
+is no `while` loop and no parallel map.
+
+::: app.workflows.nodes.control_foreach._handler.ForeachConfig
+
+::: app.workflows.nodes.control_foreach._handler.ForeachOutput
+
+::: app.workflows.nodes.loop_item._handler.LoopItemOutput
+
 ## Virtual Tables { #virtual-tables }
 
 Seven nodes read and write [Virtual Tables](../virtual-tables.md) through the same
@@ -173,7 +246,8 @@ that names no live column fails with `UNKNOWN_COLUMN`.
 
 A write carries the step's operation key, so a retried step replays its first write.
 An update, upsert or delete with no revision bound writes at the record's current
-revision. A revision that moved is `REVISION_CONFLICT`, which is retried. A missing
+revision. A revision that moved is `REVISION_CONFLICT`, which is not retried: the same revision would
+conflict again, so route it to a fresh read with `error.handle`. A missing
 record is `found: false` from `table.record.get`, not a failure. `table.record.query`
 reads at most 100 records a page and says `has_more`. It never reads a whole large
 table on its own.

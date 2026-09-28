@@ -13,7 +13,9 @@ only what a workflow step needs around it:
   idempotency key, the same across retries of this step and distinct in every
   loop iteration, so a redispatched step replays its first write.
 - **The errors**: a domain refusal becomes the node's typed failure, field for
-  field; a revision conflict is marked retryable, since a fresh read settles it.
+  field. Only a concurrent change is retryable: a revision conflict repeats
+  for as long as the step is handed the same stale revision, so it is the
+  author's to route - to a fresh read, say - not the retry policy's.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ from app.services.virtual_tables.facade import VirtualTableService
 from app.services.virtual_tables.presentation import UnknownColumnError, labelled
 from app.services.virtual_tables.receipts import derived_operation_key
 from app.services.workflow_execution import context
+from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.results import Failed, NodeResult, WorkflowError
 from app.workflows.graph.validate import table_ref_problems
@@ -44,7 +47,7 @@ TABLE_FIELD = Field(
     description="The table this step works on, pinned when the workflow is published.",
 )
 
-_RETRYABLE = frozenset({"REVISION_CONFLICT", "CONCURRENT_CHANGE"})
+_RETRYABLE = frozenset({"CONCURRENT_CHANGE"})
 
 
 class TableRecordOutput(BaseModel):
@@ -80,14 +83,7 @@ def operation_key() -> str:
 
 def refused(exc: AppException) -> Failed:
     """A domain refusal as this node's typed failure."""
-    return Failed(
-        error=WorkflowError(
-            code=exc.code,
-            message=exc.message,
-            details=exc.details or {},
-            retryable=exc.code in _RETRYABLE,
-        )
-    )
+    return Failed(error=workflow_error(exc, retryable=exc.code in _RETRYABLE))
 
 
 def unknown_column(exc: UnknownColumnError) -> Failed:

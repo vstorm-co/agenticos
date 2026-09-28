@@ -328,11 +328,67 @@ async def get_node_run_by_identity(
 
 
 async def list_node_run_statuses(db: AsyncSession, *, workflow_run_id: UUID) -> list[str]:
-    """The status of every `NodeRun` of a run - what deciding "has it finished" reads."""
+    """The status of every top-level `NodeRun` of a run - what deciding "has it
+    finished" reads. A loop body's rows are its loop's to account for."""
     result = await db.execute(
-        select(NodeRun.status).where(NodeRun.workflow_run_id == workflow_run_id)
+        select(NodeRun.status).where(
+            NodeRun.workflow_run_id == workflow_run_id, NodeRun.scope_path == []
+        )
     )
     return list(result.scalars().all())
+
+
+async def list_node_runs_at(
+    db: AsyncSession, *, workflow_run_id: UUID, scope_path: list[dict[str, Any]]
+) -> list[NodeRun]:
+    """Every `NodeRun` of one loop iteration (or of the top level, for `[]`)."""
+    result = await db.execute(
+        select(NodeRun).where(
+            NodeRun.workflow_run_id == workflow_run_id, NodeRun.scope_path == scope_path
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_node_runs_of(
+    db: AsyncSession, *, workflow_run_id: UUID, node_instance_ids: Sequence[UUID]
+) -> list[NodeRun]:
+    """Every `NodeRun` of the named nodes, in every loop iteration."""
+    result = await db.execute(
+        select(NodeRun).where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.node_instance_id.in_(node_instance_ids),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_live_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
+    """A run's `NodeRun`s not yet ended - what ending the run has to close."""
+    result = await db.execute(
+        select(NodeRun).where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.status.in_(
+                [
+                    NodeRunStatus.PENDING.value,
+                    NodeRunStatus.RUNNING.value,
+                    NodeRunStatus.WAITING.value,
+                ]
+            ),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def count_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> int:
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(NodeRun)
+            .where(NodeRun.workflow_run_id == workflow_run_id)
+        )
+        or 0
+    )
 
 
 async def find_node_run_waiting_on_agent_run(
@@ -487,6 +543,21 @@ async def get_latest_attempt(db: AsyncSession, *, node_run_id: UUID) -> NodeAtte
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def get_latest_attempts(
+    db: AsyncSession, *, node_run_ids: Sequence[UUID]
+) -> dict[UUID, NodeAttempt]:
+    """The latest attempt of each named node run, keyed by node run."""
+    if not node_run_ids:
+        return {}
+    result = await db.execute(
+        select(NodeAttempt)
+        .where(NodeAttempt.node_run_id.in_(node_run_ids))
+        .order_by(NodeAttempt.attempt_no)
+    )
+    # Ascending, so each node run's last write wins.
+    return {attempt.node_run_id: attempt for attempt in result.scalars().all()}
 
 
 async def settle_attempt(

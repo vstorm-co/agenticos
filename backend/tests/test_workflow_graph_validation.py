@@ -779,7 +779,7 @@ async def test_a_merge_branch_reconverged_from_both_if_arms_is_refused(
 
 def _loop_definition() -> NodeDefinition:
     return NodeDefinition(
-        id="control.foreach",
+        id="control.synthetic_loop",
         version=1,
         name="For each",
         category="control",
@@ -858,7 +858,7 @@ def _yield_definition() -> NodeDefinition:
     reading `1786-node-contracts.md` and `1790-error-foreach.md` agree on.
     """
     return NodeDefinition(
-        id="loop.yield",
+        id="loop.synthetic_yield",
         version=1,
         name="Yield",
         category="control",
@@ -879,12 +879,12 @@ def _yield_definition() -> NodeDefinition:
 async def test_a_scope_exit_owned_by_a_body_interior_node_publishes(
     mock_db_session, registered_node, monkeypatch
 ):
-    """#1790's actual shape: `loop.yield`'s own outgoing edge is the scope's
-    exit, not `control.foreach`'s. No real `control.foreach` ships in #1786,
-    so `derive_scopes` cannot discover this on its own yet - this hand-builds
-    the `ScopeBoundary` it will eventually derive and confirms every rule
-    that reads `exit_port` already honors `exit_node_id` naming a
-    body-interior node, not only `scope_node_id` itself.
+    """A scope whose exit is a body-interior node's own outgoing edge.
+
+    `control.foreach` exits through its own `done` port, so `derive_scopes`
+    never produces this shape; `ScopeBoundary` still allows it, and this
+    hand-built boundary confirms every rule that reads `exit_port` honors
+    `exit_node_id` naming a body-interior node, not only `scope_node_id`.
     """
     loop_def = registered_node(_loop_definition())
     yield_def = registered_node(_yield_definition())

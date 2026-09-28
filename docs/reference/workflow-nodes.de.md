@@ -1,5 +1,5 @@
 ---
-source_sha: "b554c0542c76"
+source_sha: "754fb0b1c66f"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -28,7 +28,9 @@ Einige Regeln gelten für jeden Knoten:
 - **Effektart und Wiederholungen** entscheiden, was die Engine nach einem Fehler
   tun darf. Ein `pure`- oder `idempotent`-Schritt wird wiederholt. Ein Schritt,
   der bereits gewirkt haben kann und keine Garantie gibt, hält für einen
-  Menschen an.
+  Menschen an. Die eigene [Policy](#error-handling) eines Knotens legt fest, wie
+  oft er wiederholt wird, wie lange ein Aufruf dauern darf und wohin ein Fehler
+  geht.
 
 ## core.input { #core-input }
 
@@ -161,6 +163,84 @@ zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## Fehlerbehandlung { #error-handling }
+
+Jeder Knoten nimmt neben seiner Konfiguration eine optionale `policy` an.
+
+| Feld | Standard | Wirkung |
+|---|---|---|
+| `timeout_seconds` | keiner | Ein Aufruf, der länger läuft, wird abgebrochen. Ein Schritt ohne externen Schreibzugriff oder mit idempotentem Aufruf schlägt mit `NODE_TIMEOUT` fehl und darf wiederholt werden. Ein Schreibzugriff, der schon angekommen sein kann, wird unsicher und hält für einen Menschen an |
+| `retry.max_attempts` | `WORKFLOW_RETRY_CEILING` | Versuche insgesamt, der erste eingeschlossen. Wiederholt wird nur ein Fehler, den der Knoten als `retryable` markiert, und das Veröffentlichen lehnt mehr als einen Versuch für einen Schritt ab, dessen Aufruf nicht sicher wiederholbar ist |
+| `retry.backoff`, `base_delay_seconds`, `max_delay_seconds` | `exponential`, `2`, `60` | Die Wartezeit zwischen Versuchen: fest oder verdoppelt bis zur Obergrenze |
+| `on_error` | `fail_run` | `route` schickt einen Fehler, den die Wiederholungen nicht erledigt haben, über den `error`-Port des Knotens, statt den Run fehlschlagen zu lassen |
+
+Ein Knoten, dessen Policy Fehler umleitet, hat einen zusätzlichen Ausgangsport
+`error`. Er trägt den `WorkflowError`: `code`, `message`, `details` und
+`retryable`. Die normale Ausgabe des Knotens gibt es nur auf seinen anderen
+Ports, daher lehnt das Veröffentlichen ein Binding ab, das auf dem Fehlerpfad
+die Ausgabe oder auf dem Erfolgspfad den Fehler liest. Der Fehlerport muss
+irgendwohin führen, und beide Pfade dürfen sich in einem `logic.merge` wieder
+treffen.
+
+`error.handle` nimmt diesen Fehler an seinem Port `in` an und verlässt ihn über
+den ersten Zweig, dessen `code` und `retryable` beide passen, oder über
+`default`, der verbunden sein muss. `error.raise` lässt seinen Zweig mit Code,
+Meldung und Details fehlschlagen, die der Autor festlegt.
+
+Manche Fehler werden nie umgeleitet. Entzogener Zugriff, ein aufgebrauchtes
+Budget (des Runs oder eines Agenten), ein abgebrochener Run, eine verstrichene
+Deadline, die Knotengrenze pro Run und ein Effekt mit unbekanntem Ausgang
+beenden den Run, wie auch immer der Graph verdrahtet ist. Ein Revisionskonflikt
+oder ein Validierungsfehler kann umgeleitet werden, wird aber nie blind
+wiederholt, weil dieselbe Eingabe genauso scheitert.
+
+::: app.workflows.contracts.policy.NodePolicy
+
+::: app.workflows.contracts.policy.RetryPolicy
+
+::: app.workflows.nodes.error_handle._handler.ErrorHandleConfig
+
+::: app.workflows.nodes.error_handle._handler.HandledError
+
+::: app.workflows.nodes.error_raise._handler.ErrorRaiseConfig
+
+## Schleifen { #loops }
+
+`control.foreach` führt seinen Rumpf einmal für jedes Element einer gebundenen
+Liste `items` aus, ein Element nach dem anderen und in Reihenfolge. Danach geht
+es über seinen Port `done` weiter, mit `results` in Eingabereihenfolge, `errors`
+und `count`. Der Rumpf beginnt bei `loop.item`, verbunden vom Port `body` der
+Schleife, das `item`, `index` und `count` bereitstellt. Er endet bei
+`loop.yield`, dessen gebundenes `value` das Ergebnis der Iteration ist. Keine
+Kante führt zur Schleife zurück. Ein Schritt im Rumpf darf an alles binden, was
+vor der Schleife lief, und nichts außerhalb des Rumpfs darf in ihn hinein
+binden.
+
+Die Liste wird beim Start der Schleife eingefroren, daher sieht eine Iteration
+nie eine Quelle, die sich während des Runs geändert hat. Eine Liste, die länger
+als `WORKFLOW_FOREACH_MAX_ITEMS` oder größer als
+`WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` ist, wird abgelehnt statt gekürzt. Eine
+leere Liste ergibt `results: []`, ohne den Rumpf auszuführen. Die Schritte jeder
+Iteration laufen in einem eigenen Scope, mit eigenen Versuchen,
+Idempotenzschlüsseln und Kosten. Die nächste Iteration wird in der Transaktion
+geplant, die die vorige beendet, daher setzt ein Neustart beim richtigen Index
+fort und wiederholt nie einen bestätigten Schreibzugriff. Eine Freigabe innerhalb
+einer Iteration setzt diese Iteration fort.
+
+Mit `item_error_policy: stop`, dem Standard, schlägt die Schleife bei der
+ersten fehlgeschlagenen Iteration fehl, und die Details des Fehlers tragen den
+`scope_path` dieser Iteration. Mit `collect` ist das Ergebnis des Elements
+`null`, der Fehler kommt zu `errors`, und die Schleife läuft weiter. Schleifen
+verschachteln sich höchstens `WORKFLOW_FOREACH_MAX_DEPTH` tief, und jeder
+Knotenlauf, den ein Run anlegt, zählt gegen `WORKFLOW_RUN_MAX_NODE_RUNS`. Es
+gibt keine `while`-Schleife und kein paralleles Map.
+
+::: app.workflows.nodes.control_foreach._handler.ForeachConfig
+
+::: app.workflows.nodes.control_foreach._handler.ForeachOutput
+
+::: app.workflows.nodes.loop_item._handler.LoopItemOutput
+
 ## Virtual Tables { #virtual-tables }
 
 Sieben Knoten lesen und schreiben [Virtual Tables](../virtual-tables.md) über
@@ -188,7 +268,8 @@ lebende Spalte nennt, schlägt mit `UNKNOWN_COLUMN` fehl.
 Ein Schreibzugriff trägt den Operationsschlüssel des Schritts, daher spielt ein
 wiederholter Schritt seinen ersten Schreibzugriff erneut ab. Ein Update, Upsert oder
 Delete ohne gebundene Revision schreibt bei der aktuellen Revision des Datensatzes.
-Eine verschobene Revision ist `REVISION_CONFLICT`, der wiederholt wird. Ein fehlender
+Eine verschobene Revision ist `REVISION_CONFLICT`, der nicht wiederholt wird: Dieselbe Revision
+würde erneut kollidieren, also leite ihn mit `error.handle` zu einem frischen Lesen um. Ein fehlender
 Datensatz ist `found: false` aus `table.record.get`, kein Fehler.
 `table.record.query` liest höchstens 100 Datensätze pro Seite und meldet `has_more`.
 Es liest nie von sich aus eine ganze große Tabelle.

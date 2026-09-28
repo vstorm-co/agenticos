@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b5b27a1e7e"
+source_sha: "b4f139953b89"
 ---
 
 # Configuración { #configuration }
@@ -500,7 +500,11 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Cuánto dura el claim de un worker sobre un nodo de workflow antes de darlo por abandonado. El worker lo renueva cada tercio de ese tiempo mientras el nodo se ejecuta, así que acota cuánto tarda en notarse un worker muerto, no cuánto puede durar un nodo |
 | `WORKFLOW_RETRY_CEILING` | `3` | El máximo de intentos fallidos o interrumpidos de un nodo: los que fallaron y los que cortó la muerte de un worker. Un intento que espera - una aprobación, o un backoff que pidió el nodo - no cuenta, así que solo el plazo, el budget o una cancelación del run limitan cuántas veces espera un nodo |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
-| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera. Estos tres se aplican a un nodo cuya `policy.retry` no fija los suyos |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | La lista más larga que recorre un `control.foreach`. Una más larga hace fallar el bucle con `FOREACH_TOO_MANY_ITEMS` en lugar de truncarse |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | La lista más grande que congela un bucle, como JSON. Una mayor hace fallar el bucle con `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Cuánto pueden anidarse los bucles. Un grafo con bucles más profundos no se puede publicar |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | El máximo de ejecuciones de nodo que puede crear un run, iteraciones de bucle incluidas. Una iteración que lo superaría hace fallar el run con `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Cuánto trabajo de nodos en cola o en ejecución puede tener una organización a la vez. Un start reserva contra este límite el número de nodos de su grafo, y uno que lo supere se rechaza con `429` hasta que el trabajo en ejecución se drene. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | El mismo tope para un único llamante, contado a través de todas las organizaciones en las que ejecuta runs, para que una persona que puede crear organizaciones no multiplique su margen repartiendo runs entre ellas. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
 

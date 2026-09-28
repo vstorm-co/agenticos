@@ -1,5 +1,5 @@
 ---
-source_sha: "b554c0542c76"
+source_sha: "754fb0b1c66f"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -26,7 +26,9 @@ Kilka zasad obowiązuje każdy węzeł:
   zostać odebrany w międzyczasie.
 - **Rodzaj efektu i ponowienia** decydują, co silnik może zrobić po błędzie.
   Krok `pure` albo `idempotent` jest ponawiany. Krok, który mógł już zadziałać
-  i nie daje żadnej gwarancji, zatrzymuje się dla człowieka.
+  i nie daje żadnej gwarancji, zatrzymuje się dla człowieka. Własna
+  [polityka](#error-handling) węzła ustala, jak często jest ponawiany, jak długo
+  może trwać wywołanie i dokąd trafia błąd.
 
 ## core.input { #core-input }
 
@@ -155,6 +157,79 @@ powiadomienia.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## Obsługa błędów { #error-handling }
+
+Każdy węzeł przyjmuje opcjonalną `policy` obok swojej konfiguracji.
+
+| Pole | Domyślnie | Skutek |
+|---|---|---|
+| `timeout_seconds` | brak | Wywołanie, które trwa dłużej, zostaje przerwane. Krok bez zewnętrznego zapisu albo z idempotentnym wywołaniem kończy się błędem `NODE_TIMEOUT` i może zostać ponowiony. Zapis, który mógł już dojść, staje się niepewny i zatrzymuje się dla człowieka |
+| `retry.max_attempts` | `WORKFLOW_RETRY_CEILING` | Łączna liczba prób, łącznie z pierwszą. Ponawiany jest tylko błąd, który węzeł oznacza jako `retryable`, a publikacja odrzuca więcej niż jedną próbę dla kroku, którego wywołania nie da się bezpiecznie powtórzyć |
+| `retry.backoff`, `base_delay_seconds`, `max_delay_seconds` | `exponential`, `2`, `60` | Odstęp między próbami: stały albo podwajany aż do sufitu |
+| `on_error` | `fail_run` | `route` wysyła błąd, którego ponowienia nie rozwiązały, portem `error` węzła, zamiast kończyć run błędem |
+
+Węzeł, którego polityka kieruje błędy, ma dodatkowy port wyjściowy `error`.
+Niesie on `WorkflowError`: `code`, `message`, `details` i `retryable`. Zwykłe
+wyjście węzła istnieje tylko na pozostałych portach, więc publikacja odrzuca
+binding, który czyta wyjście na ścieżce błędu albo błąd na ścieżce sukcesu. Port
+błędu musi dokądś prowadzić, a obie ścieżki mogą się połączyć w `logic.merge`.
+
+`error.handle` przyjmuje ten błąd na porcie `in` i wychodzi pierwszą gałęzią,
+której `code` i `retryable` pasują, albo gałęzią `default`, która musi być
+podłączona. `error.raise` kończy swoją gałąź błędem o kodzie, komunikacie i
+szczegółach ustalonych przez autora.
+
+Niektórych błędów nigdy się nie kieruje. Odebrany dostęp, wyczerpany budżet
+(runa albo agenta), anulowany run, miniony termin, limit węzłów na run i efekt o
+nieznanym wyniku kończą run bez względu na to, jak połączono graf. Konflikt
+rewizji albo błąd walidacji można skierować, ale nigdy nie jest ponawiany na
+ślepo, bo te same dane wejściowe zawiodą tak samo.
+
+::: app.workflows.contracts.policy.NodePolicy
+
+::: app.workflows.contracts.policy.RetryPolicy
+
+::: app.workflows.nodes.error_handle._handler.ErrorHandleConfig
+
+::: app.workflows.nodes.error_handle._handler.HandledError
+
+::: app.workflows.nodes.error_raise._handler.ErrorRaiseConfig
+
+## Pętle { #loops }
+
+`control.foreach` uruchamia swoje ciało raz dla każdego elementu zbindowanej
+listy `items`, po jednym elemencie i po kolei. Potem idzie dalej portem `done` z
+`results` w kolejności wejścia, `errors` i `count`. Ciało zaczyna się od
+`loop.item`, podłączonego z portu `body` pętli, który udostępnia `item`, `index`
+i `count`. Kończy się na `loop.yield`, którego zbindowane `value` jest wynikiem
+iteracji. Żadna krawędź nie prowadzi z powrotem do pętli. Krok w ciele może
+bindować do wszystkiego, co działało przed pętlą, a nic spoza ciała nie może
+bindować do jego wnętrza.
+
+Lista zostaje zamrożona, gdy pętla startuje, więc iteracja nigdy nie widzi
+źródła, które zmieniło się w trakcie runa. Lista dłuższa niż
+`WORKFLOW_FOREACH_MAX_ITEMS` albo większa niż
+`WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` jest odrzucana, a nie przycinana. Pusta
+lista daje `results: []` bez uruchamiania ciała. Kroki każdej iteracji działają
+we własnym zakresie, z własnymi próbami, kluczami idempotencji i kosztami.
+Następna iteracja jest planowana w transakcji, która kończy poprzednią, więc
+restart wznawia od właściwego indeksu i nigdy nie powtarza potwierdzonego zapisu.
+Zatwierdzenie wewnątrz iteracji wznawia tę samą iterację.
+
+Przy `item_error_policy: stop`, domyślnym, pętla kończy się błędem przy
+pierwszej nieudanej iteracji, a szczegóły błędu niosą `scope_path` tej
+iteracji. Przy `collect` wynik elementu to `null`, błąd trafia do `errors`, a
+pętla działa dalej. Pętle zagnieżdżają się najwyżej na
+`WORKFLOW_FOREACH_MAX_DEPTH` poziomów, a każdy przebieg węzła, który tworzy run,
+liczy się do `WORKFLOW_RUN_MAX_NODE_RUNS`. Nie ma pętli `while` ani
+równoległego map.
+
+::: app.workflows.nodes.control_foreach._handler.ForeachConfig
+
+::: app.workflows.nodes.control_foreach._handler.ForeachOutput
+
+::: app.workflows.nodes.loop_item._handler.LoopItemOutput
+
 ## Virtual Tables { #virtual-tables }
 
 Siedem węzłów czyta i zapisuje [Virtual Tables](../virtual-tables.md) przez ten sam
@@ -180,7 +255,8 @@ do czytania. Klucz, który nie wskazuje żywej kolumny, kończy się błędem
 
 Zapis niesie klucz operacji kroku, więc ponowiony krok odtwarza swój pierwszy zapis.
 Update, upsert albo delete bez zbindowanej rewizji zapisuje przy bieżącej rewizji
-rekordu. Rewizja, która się przesunęła, to `REVISION_CONFLICT`, który jest ponawiany.
+rekordu. Rewizja, która się przesunęła, to `REVISION_CONFLICT`, który nie jest ponawiany: ta sama rewizja
+skonfliktowałaby się znowu, więc skieruj go przez `error.handle` do świeżego odczytu.
 Brakujący rekord to `found: false` z `table.record.get`, a nie błąd.
 `table.record.query` czyta najwyżej 100 rekordów na stronę i podaje `has_more`.
 Nigdy sam nie czyta całej dużej tabeli.

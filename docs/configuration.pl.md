@@ -1,5 +1,5 @@
 ---
-source_sha: "e7b5b27a1e7e"
+source_sha: "b4f139953b89"
 ---
 
 # Konfiguracja { #configuration }
@@ -488,7 +488,11 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Jak długo trzyma się claim, który worker bierze na węzeł workflowu, zanim zostanie uznany za porzucony. Worker odnawia go co jedną trzecią tego czasu, dopóki węzeł działa, więc ta wartość ogranicza, jak długo martwy worker pozostaje niezauważony, a nie jak długo może działać węzeł |
 | `WORKFLOW_RETRY_CEILING` | `3` | Największa liczba nieudanych lub przerwanych prób węzła: prób zakończonych błędem i prób przerwanych śmiercią workera. Próba, która czeka - na zatwierdzenie albo na backoff, o który poprosił węzeł - się nie liczy, więc to, jak często węzeł czeka, ogranicza tylko termin runa, jego budżet albo anulowanie |
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
-| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie. Te trzy ustawienia dotyczą węzła, którego `policy.retry` nie ustala własnych |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Najdłuższa lista, po której iteruje `control.foreach`. Dłuższa kończy pętlę błędem `FOREACH_TOO_MANY_ITEMS` zamiast zostać przycięta |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Największa lista, jaką pętla zamraża, jako JSON. Większa kończy pętlę błędem `FOREACH_LIST_TOO_LARGE` |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Jak głęboko mogą się zagnieżdżać pętle. Grafu z głębszymi pętlami nie da się opublikować |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Najwięcej przebiegów węzłów, jakie może utworzyć jeden run, łącznie z iteracjami pętli. Iteracja, która by go przekroczyła, kończy run błędem `NODE_RUN_LIMIT` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Ile oczekującej lub działającej pracy węzłów może naraz trzymać jedna organizacja. Start rezerwuje na poczet tego limitu liczbę węzłów swojego grafu, a start ponad limit jest odrzucany z `429`, dopóki działająca praca nie zejdzie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Ten sam limit dla pojedynczego wołającego, liczony we wszystkich organizacjach, w których uruchamia runy, żeby osoba mogąca tworzyć organizacje nie zwielokrotniła swojego przydziału, rozkładając runy między nie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
 

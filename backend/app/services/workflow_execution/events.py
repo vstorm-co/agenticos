@@ -40,6 +40,8 @@ class EventKind:
     NODE_UNCERTAIN = "node_uncertain"
     NODE_RETRYING = "node_retrying"
     NODE_SKIPPED = "node_skipped"
+    LOOP_STARTED = "loop_started"
+    ITERATION_STARTED = "iteration_started"
     ATTEMPT_RECLAIMED = "attempt_reclaimed"
 
 

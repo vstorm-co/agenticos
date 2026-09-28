@@ -26,13 +26,23 @@ Advancing is branch-aware (`_advance`): a node that branches names the port
 it left by (`NodeDefinition.routes` - `logic.if`'s `true` or `false`), only
 edges leaving that port are followed, and a node every one of whose incoming
 edges is dead is recorded `skipped` without an attempt, which propagates the
-skip down an untaken branch to the `logic.merge` that rejoins it. Everything
-here still runs at the top-level scope (`scope_path=[]`); iterating a
-`control.foreach` body is #1790's.
+skip down an untaken branch to the `logic.merge` that rejoins it. A node whose
+policy routes its errors leaves by its `error` port when it fails for good, and
+by its other ports only when it succeeds.
+
+A `control.foreach` iterates its body one element at a time, each iteration in
+its own scope path (`[..., {"loop_node_id", "index"}]`): the loop's handler
+freezes the list into its first attempt, the dispatcher writes each iteration's
+`loop.item` row already succeeded and advances from it, and the settle that ends
+an iteration starts the next - or, after the last, collects every `loop.yield`
+into the loop's output and advances the loop itself. Everything is decided under
+the run's lock in the settle's own transaction, so a restart resumes at the
+iteration that was next and never repeats one that ended.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -78,6 +88,7 @@ from app.services.workflow_execution.exceptions import (
 )
 from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler
+from app.workflows.contracts.definition import RetryGuarantee as CallGuarantee
 from app.workflows.contracts.io import (
     BindingSource,
     FileRef,
@@ -85,6 +96,7 @@ from app.workflows.contracts.io import (
     NodeOutputRef,
     TableIORef,
 )
+from app.workflows.contracts.policy import ERROR_PORT, RetryPolicy
 from app.workflows.contracts.results import (
     Completed,
     Failed,
@@ -94,6 +106,21 @@ from app.workflows.contracts.results import (
     WorkflowError,
 )
 from app.workflows.graph.model import NodeInstance, WorkflowGraph
+from app.workflows.graph.validate import (
+    FOREACH,
+    LOOP_YIELD,
+    derive_scopes,
+    node_scope_map,
+    owner_chain,
+)
+from app.workflows.nodes.control_foreach import (
+    BODY_PORT,
+    ForeachConfig,
+    ForeachItemError,
+    ForeachManifest,
+    ForeachOutput,
+)
+from app.workflows.nodes.loop_item import LoopItemOutput
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +128,27 @@ logger = logging.getLogger(__name__)
 _DISPATCHABLE = frozenset(
     {NodeRunStatus.PENDING.value, NodeRunStatus.RUNNING.value, NodeRunStatus.WAITING.value}
 )
+# A node that will not run again and did not end the run: it succeeded, was
+# skipped, or failed through its `error` port (or, in a loop, under `collect`).
+_SETTLED = frozenset(
+    {NodeRunStatus.SUCCEEDED.value, NodeRunStatus.SKIPPED.value, NodeRunStatus.FAILED.value}
+)
+
+ScopePath = list[dict[str, Any]]
+
+
+def _loop_of(scope_path: ScopePath) -> UUID | None:
+    """The loop whose iteration `scope_path` names - `None` at the top level."""
+    return UUID(scope_path[-1]["loop_node_id"]) if scope_path else None
+
+
+def _source_path(node_id: UUID, scope_path: ScopePath, node_scope: dict[UUID, UUID]) -> ScopePath:
+    """Where a binding's source ran, read from inside `scope_path`.
+
+    Publishing only lets a node bind to its own scope or an enclosing one, so the
+    source's path is the reader's, cut to the source's depth.
+    """
+    return scope_path[: len(owner_chain(node_id, node_scope))]
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +166,8 @@ class BegunAttempt:
     definition: NodeDefinition
     handler: NodeHandler
     dispatch_context: context.DispatchContext
+    timeout_seconds: float | None
+    retry_guarantee: CallGuarantee
     dispatch_token: UUID
     """The fencing token this attempt was dispatched under - `claim()`'s own
     `DispatchOutbox.claimed_by`, re-checked by `settle()` before it accepts
@@ -186,9 +236,12 @@ async def resolve_graph(db: AsyncSession, run: WorkflowRun) -> WorkflowGraph:
     if raw is None:
         raise WorkflowGraphUnresolvableError(run_id=run.id)
     try:
-        return WorkflowGraph.model_validate(raw)
+        graph = WorkflowGraph.model_validate(raw)
     except PydanticValidationError as exc:
         raise WorkflowGraphUnresolvableError(run_id=run.id) from exc
+    # Which loop owns which node is derived from the topology, never read off
+    # the stored copy - the same rule publishing follows.
+    return derive_scopes(graph)
 
 
 async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
@@ -270,10 +323,20 @@ def _field_owner(definition: NodeDefinition, field_name: str) -> str | None:
 
 
 def _resolve_source(source: BindingSource, outputs: dict[UUID, dict[str, Any] | None]) -> Any:
+    """A binding's value, from the stored result of each source node.
+
+    A `NodeOutputRef` on a node's `error` port reads the error it failed with;
+    on any other port, the output it completed with. Publishing keeps each to its
+    own path, so the other half is simply absent.
+    """
     if isinstance(source, LiteralValue):
         return source.value
     if isinstance(source, NodeOutputRef):
-        value: Any = outputs.get(source.node_id)
+        stored = outputs.get(source.node_id) or {}
+        wanted = "failed" if source.port == ERROR_PORT else "completed"
+        value: Any = stored.get("error" if wanted == "failed" else "output")
+        if stored.get("status") != wanted:
+            value = None
         for part in source.field_path:
             value = None if value is None else value.get(part)
         return value
@@ -320,34 +383,34 @@ def _resolve_io(
 
 
 async def _completed_outputs(
-    db: AsyncSession, *, workflow_run_id: UUID, node_ids: set[UUID]
+    db: AsyncSession,
+    *,
+    workflow_run_id: UUID,
+    node_ids: set[UUID],
+    scope_path: ScopePath,
+    node_scope: dict[UUID, UUID],
 ) -> dict[UUID, dict[str, Any] | None]:
-    """The stored `Completed.output` of each named node, for `NodeOutputRef` binding sources.
+    """The stored result of each named node, for `NodeOutputRef` binding sources.
 
-    Looked up by `(workflow_run_id, node_instance_id, scope_path=[])` - every
-    node this module dispatches runs at the top-level scope (see the module
-    docstring), so there is never more than one live scope to disambiguate. A
-    skipped source has no completed attempt and reads as `None`, which a
-    publish-valid graph never binds to: rule 4 only lets a node bind to what
-    dominates it, and a dominator of a node that runs cannot have been skipped.
+    Looked up in the scope each source ran in - the reader's own iteration, or
+    an enclosing one (`_source_path`). A skipped source has no stored result and
+    reads as `None`, which a publish-valid graph never binds to: rule 4 only lets
+    a node bind to what dominates it, and a dominator of a node that runs cannot
+    have been skipped.
     """
     outputs: dict[UUID, dict[str, Any] | None] = {}
     for node_id in node_ids:
         source_run = await workflow_run_repo.get_node_run_by_identity(
-            db, workflow_run_id=workflow_run_id, node_instance_id=node_id, scope_path=[]
+            db,
+            workflow_run_id=workflow_run_id,
+            node_instance_id=node_id,
+            scope_path=_source_path(node_id, scope_path, node_scope),
         )
         if source_run is None:
             outputs[node_id] = None
             continue
         latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=source_run.id)
-        if (
-            latest is None
-            or latest.status != NodeAttemptStatus.COMPLETED.value
-            or latest.result is None
-        ):
-            outputs[node_id] = None
-            continue
-        outputs[node_id] = latest.result.get("output")
+        outputs[node_id] = latest.result if latest is not None else None
     return outputs
 
 
@@ -355,6 +418,7 @@ async def _completed_outputs(
 class _ResolvedCall:
     """Everything a node's call needs that the run's own rows decide."""
 
+    graph: WorkflowGraph
     node: NodeInstance
     definition: NodeDefinition
     handler: NodeHandler
@@ -388,7 +452,13 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
         for binding in graph.bindings
         if binding.target_node_id == node.id and isinstance(binding.source, NodeOutputRef)
     }
-    outputs = await _completed_outputs(db, workflow_run_id=run.id, node_ids=referenced_nodes)
+    outputs = await _completed_outputs(
+        db,
+        workflow_run_id=run.id,
+        node_ids=referenced_nodes,
+        scope_path=node_run.scope_path,
+        node_scope=node_scope_map(graph),
+    )
     try:
         config_obj, input_obj = _resolve_io(graph, node, definition, outputs=outputs)
     except PydanticValidationError as exc:
@@ -397,11 +467,14 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
         # field's own type, so this can fail on a published graph too.
         raise InvalidBindingError(node_instance_id=node.id) from exc
     arrived_output = (
-        await _AdvanceState(db, run=run, graph=graph).arrived_output(node.id)
+        await _AdvanceState(
+            db, run=run, graph=graph, scope_path=node_run.scope_path
+        ).arrived_output(node.id)
         if definition.kind == "control"
         else None
     )
     return _ResolvedCall(
+        graph=graph,
         node=node,
         definition=definition,
         handler=definition.handler,
@@ -646,6 +719,8 @@ async def begin_attempt(
         definition=definition,
         handler=call.handler,
         dispatch_context=dispatch_context,
+        timeout_seconds=node.policy.timeout_seconds if node.policy else None,
+        retry_guarantee=guarantee,
         dispatch_token=token,
     )
 
@@ -661,7 +736,10 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
     result: NodeResult
     try:
         with scope:
-            result = await begun.handler(begun.handler_config, begun.handler_input)
+            async with asyncio.timeout(begun.timeout_seconds):
+                result = await begun.handler(begun.handler_config, begun.handler_input)
+    except TimeoutError:
+        result = _timed_out(begun)
     except Exception:
         # A handler is meant to return `Failed`, never raise; one that raises
         # anyway settles as a failure here rather than crashing the flow and
@@ -686,6 +764,28 @@ async def call_handler(begun: BegunAttempt) -> HandlerOutcome:
         cost=scope.cost,
         cost_is_partial=scope.cost_is_partial,
         run_output=scope.run_output,
+    )
+
+
+def _timed_out(begun: BegunAttempt) -> NodeResult:
+    """A call past its policy's time limit, read by what repeating it could do.
+
+    A step with no external write, or one whose call is idempotent, failed and
+    may be tried again. A write that is not may have landed before the limit
+    cut it off, so its outcome is unknown - never assumed either way.
+    """
+    limit = begun.timeout_seconds
+    if begun.definition.effect_kind != "write" or begun.retry_guarantee == "idempotent":
+        return Failed(
+            error=WorkflowError(
+                code="NODE_TIMEOUT",
+                message=f"The step did not finish within {limit:g} seconds",
+                details={"timeout_seconds": limit},
+                retryable=True,
+            )
+        )
+    return Uncertain(
+        detail=f"The step did not finish within {limit:g} seconds; its write may have landed"
     )
 
 
@@ -748,6 +848,10 @@ async def _end_run(
     nothing else is claimed for it afterwards.
     """
     await _end_node(db, run=run, node_run=node_run, status=node_status, now=now, error=error)
+    # The loops enclosing a node that ends the run are still `running` - they
+    # end with it.
+    for live in await workflow_run_repo.list_live_node_runs(db, workflow_run_id=run.id):
+        await _end_node(db, run=run, node_run=live, status=NodeRunStatus.CANCELLED, now=now)
     await workflow_run_repo.update_run(
         db,
         run=run,
@@ -821,10 +925,31 @@ async def _close_node_of_ended_run(
         await _end_node(db, run=run, node_run=node_run, status=NodeRunStatus.CANCELLED, now=now)
 
 
-def _backoff_seconds(step: int) -> float:
-    """The wait before the next attempt: the base, doubled per `step` after the first."""
+def _backoff_seconds(step: int, retry: RetryPolicy | None = None) -> float:
+    """The wait before the next attempt: the node's own schedule, or the base
+    doubled per `step` after the first."""
+    if retry is not None:
+        return retry.delay_seconds(step)
     seconds = settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS * (2 ** (max(step, 1) - 1))
     return min(seconds, settings.WORKFLOW_RETRY_BACKOFF_MAX_SECONDS)
+
+
+def _retry_policy(graph: WorkflowGraph | None, node_run: NodeRun) -> RetryPolicy | None:
+    node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
+    return node.policy.retry if node is not None and node.policy is not None else None
+
+
+def _attempt_ceiling(retry: RetryPolicy | None) -> int:
+    return retry.max_attempts if retry is not None else settings.WORKFLOW_RETRY_CEILING
+
+
+async def _graph_or_none(db: AsyncSession, run: WorkflowRun) -> WorkflowGraph | None:
+    """The run's graph, or `None` if it no longer resolves - then a failure
+    cannot be routed and ends the run, which is what a dispatch would do too."""
+    try:
+        return await resolve_graph(db, run)
+    except WorkflowGraphUnresolvableError:
+        return None
 
 
 async def resolve_orphaned_attempt(
@@ -890,11 +1015,16 @@ async def resolve_orphaned_attempt(
         # The same ceiling and backoff a `Failed` result gets: a node whose
         # every attempt dies mid-call (a handler that crashes its worker) must
         # end, not be redispatched on every reconcile tick for ever.
+        graph = await _graph_or_none(db, run)
+        retry = _retry_policy(graph, node_run)
         failures = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
-        if failures >= settings.WORKFLOW_RETRY_CEILING:
-            await _fail_node_and_run(
+        if failures >= _attempt_ceiling(retry):
+            # What this makes ready is submitted by the dispatch poll: this
+            # path runs from a reclaim or the reconcile sweep, not a settle.
+            await _fail_for_good(
                 db,
                 run=run,
+                graph=graph,
                 node_run=node_run,
                 error=WorkflowError(
                     code="ATTEMPTS_INTERRUPTED",
@@ -912,7 +1042,7 @@ async def resolve_orphaned_attempt(
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(failures)),
+            available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
         )
         return
 
@@ -1044,7 +1174,13 @@ async def settle(
             run = await workflow_run_repo.update_run(
                 db, run=run, update_data={"output": outcome.run_output}
             )
-        return await _settle_completed(db, run=run, node_run=node_run, now=now)
+        return await _settle_completed(
+            db, run=run, node_run=node_run, definition=begun.definition, result=result, now=now
+        )
+    if isinstance(result, Failed):
+        return await _settle_failed(
+            db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
+        )
     if isinstance(result, Waiting):
         await _settle_waiting(
             db,
@@ -1054,10 +1190,6 @@ async def settle(
             result=result,
             waiting_agent_run_id=outcome.waiting_agent_run_id,
             now=now,
-        )
-    elif isinstance(result, Failed):
-        await _settle_failed(
-            db, run=run, node_run=node_run, attempt=attempt, result=result, now=now
         )
     elif isinstance(result, Uncertain):
         await _settle_uncertain(db, run=run, node_run=node_run, result=result)
@@ -1110,8 +1242,19 @@ async def _record_attempt(
 
 
 async def _settle_completed(
-    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, now: datetime
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    definition: NodeDefinition,
+    result: Completed[Any],
+    now: datetime,
 ) -> list[tuple[UUID, UUID]]:
+    if definition.id == FOREACH:
+        # The loop's handler only froze its list: the loop itself stays
+        # `running` until its last iteration ends (`_close_loop`).
+        manifest = ForeachManifest.model_validate(result.output.model_dump(mode="json"))
+        return await _enter_loop(db, run=run, loop_run=node_run, items=manifest.items)
     await workflow_run_repo.update_node_run(
         db,
         node_run=node_run,
@@ -1124,7 +1267,12 @@ async def _settle_completed(
         },
     )
     await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
-    return await _advance(db, run=run, completed_node_instance_id=node_run.node_instance_id)
+    return await _advance(
+        db,
+        run=run,
+        completed_node_instance_id=node_run.node_instance_id,
+        scope_path=node_run.scope_path,
+    )
 
 
 async def _settle_waiting(
@@ -1244,18 +1392,21 @@ async def _settle_failed(
     attempt: NodeAttempt,
     result: Failed,
     now: datetime,
-) -> None:
-    # #1790 owns the real policy; the minimal placeholder this design calls
-    # for is "idempotent/at_least_once nodes get a fixed small ceiling of
-    # backoff retries, none gets zero" - narrowed further by the node's own
-    # `WorkflowError.retryable`, since a node is in a better position than
-    # this generic dispatcher to say a given failure (a validation error, say)
-    # is not worth trying again even when its kind usually is.
+) -> list[tuple[UUID, UUID]]:
+    """Retry a failure the node's schedule still allows, or fail the node for good.
+
+    Retried only when the call is safe to repeat (`retry_guarantee` not `none`)
+    and the node says this failure is worth another try (`retryable`) - a
+    validation error or a revision conflict is not, however patient the policy -
+    up to the node's own `policy.retry`, or the deployment's schedule without one.
+    """
+    graph = await _graph_or_none(db, run)
+    retry = _retry_policy(graph, node_run)
     retryable = attempt.retry_guarantee != RetryGuarantee.NONE.value and result.error.retryable
     # Counted over failed and interrupted attempts only (this one included,
     # recorded before this runs): a wait is not a failure.
     failures = await workflow_run_repo.count_failed_attempts(db, node_run_id=node_run.id)
-    if retryable and failures < settings.WORKFLOW_RETRY_CEILING:
+    if retryable and failures < _attempt_ceiling(retry):
         await workflow_run_repo.update_node_run(
             db,
             node_run=node_run,
@@ -1291,14 +1442,73 @@ async def _settle_failed(
             organization_id=run.organization_id,
             workflow_run_id=run.id,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(failures)),
+            available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
         )
-        return
+        return []
 
-    # Retries exhausted, or this failure was never retryable in the first
-    # place - #1790 owns the real ceiling and any error-routing policy; this
-    # is the minimal placeholder the design calls for.
-    await _fail_node_and_run(db, run=run, node_run=node_run, error=result.error, now=now)
+    return await _fail_for_good(
+        db, run=run, graph=graph, node_run=node_run, error=result.error, now=now
+    )
+
+
+async def _fail_for_good(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    graph: WorkflowGraph | None,
+    node_run: NodeRun,
+    error: WorkflowError,
+    now: datetime,
+) -> list[tuple[UUID, UUID]]:
+    """A node that will not run again failed: route it, let its loop absorb it, or end the run.
+
+    In that order. A node whose policy routes its errors leaves by its `error`
+    port and the run goes on. Inside a loop, the loop's item-error policy decides:
+    `collect` records the failure in that item's place and starts the next
+    iteration; `stop` fails the loop itself with this error - naming the
+    iteration's scope path - which is then decided the same way one level up.
+    Anything else fails the run. A failure that is not `bypassable` - revoked
+    access, a spent budget - ends the run however the graph is wired.
+    """
+    node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
+    if graph is None or node is None or not error.bypassable:
+        await _fail_node_and_run(db, run=run, node_run=node_run, error=error, now=now)
+        return []
+    if node.routes_errors:
+        await _end_node(
+            db, run=run, node_run=node_run, status=NodeRunStatus.FAILED, now=now, error=error
+        )
+        return await _advance(
+            db,
+            run=run,
+            completed_node_instance_id=node.id,
+            scope_path=node_run.scope_path,
+            graph=graph,
+        )
+    loop_id = _loop_of(node_run.scope_path)
+    if loop_id is None:
+        await _fail_node_and_run(db, run=run, node_run=node_run, error=error, now=now)
+        return []
+    await _end_node(
+        db, run=run, node_run=node_run, status=NodeRunStatus.FAILED, now=now, error=error
+    )
+    loop_config = ForeachConfig.model_validate(graph.node_by_id[loop_id].config)
+    if loop_config.item_error_policy == "collect":
+        return await _iteration_ended(db, run=run, graph=graph, scope_path=node_run.scope_path)
+    loop_run = await _loop_run(db, run=run, scope_path=node_run.scope_path)
+    details = (
+        error.details
+        if "scope_path" in error.details
+        else {**error.details, "scope_path": node_run.scope_path}
+    )
+    return await _fail_for_good(
+        db,
+        run=run,
+        graph=graph,
+        node_run=loop_run,
+        error=error.model_copy(update={"details": details}),
+        now=now,
+    )
 
 
 async def _fail_node_and_run(
@@ -1329,32 +1539,45 @@ async def _settle_uncertain(
 
 
 async def _advance(
-    db: AsyncSession, *, run: WorkflowRun, completed_node_instance_id: UUID
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    completed_node_instance_id: UUID,
+    scope_path: ScopePath,
+    graph: WorkflowGraph | None = None,
 ) -> list[tuple[UUID, UUID]]:
-    """After a node succeeds: queue what is now ready, skip what is now
-    unreachable, and close out the run once nothing is left.
+    """After a node settles: queue what is now ready, skip what is now
+    unreachable, and close out its iteration - or the run - once nothing is left.
 
-    An edge is **live** when its source succeeded *and* left through that
-    edge's port - every output port of an ordinary node, only the one a
-    branching node chose (`NodeDefinition.routes`, read off the stored
-    output). A target is decided once every one of its predecessors is
-    terminal: it runs when at least one incoming edge is live, and is
-    `skipped` - with no attempt and no outbox row - when none is. A skip is
-    terminal too, so it is decided onward the same way, which is how an
-    untaken `logic.if` branch is skipped node by node until it reaches the
-    `logic.merge` that rejoins the taken one. Called under the run's lock, so
-    two settles of one run never decide the same target at once.
+    An edge is **live** when its source left through that edge's port: every
+    output port but `error` of a node that succeeded, only the one a branching
+    node chose (`NodeDefinition.routes`, read off the stored output), and only
+    `error` of a node that failed through it. A target is decided once every one
+    of its predecessors has settled: it runs when at least one incoming edge is
+    live, and is `skipped` - with no attempt and no outbox row - when none is. A
+    skip settles too, so it is decided onward the same way, which is how an
+    untaken branch is skipped node by node until it reaches the `logic.merge`
+    that rejoins the taken one.
+
+    Only targets in the same scope are decided here - within one iteration, or at
+    the top level. A loop's body is entered by iteration (`_start_iteration`),
+    never by following its `body` edge. Called under the run's lock, so two
+    settles of one run never decide the same target at once.
 
     Returns what it queued, for the caller to submit after commit.
     """
-    graph = await resolve_graph(db, run)
-    decided = _AdvanceState(db, run=run, graph=graph)
+    graph = graph or await resolve_graph(db, run)
+    node_scope = node_scope_map(graph)
+    level = _loop_of(scope_path)
+    decided = _AdvanceState(db, run=run, graph=graph, scope_path=scope_path)
     ready_pairs: list[tuple[UUID, UUID]] = []
     frontier = [completed_node_instance_id]
     while frontier:
         source_id = frontier.pop()
         targets = dict.fromkeys(
-            edge.target_node_id for edge in graph.edges if edge.source_node_id == source_id
+            edge.target_node_id
+            for edge in graph.edges
+            if edge.source_node_id == source_id and node_scope.get(edge.target_node_id) == level
         )
         for target_id in targets:
             if target_id not in graph.node_by_id or await decided.node_run(target_id) is not None:
@@ -1362,7 +1585,9 @@ async def _advance(
             runs = await decided.runs_target(target_id)
             if runs is None:
                 continue
-            node_run = await _create_decided_node_run(db, run=run, target_id=target_id, runs=runs)
+            node_run = await _create_decided_node_run(
+                db, run=run, target_id=target_id, runs=runs, scope_path=scope_path
+            )
             if node_run is None:
                 continue
             decided.remember(target_id, node_run)
@@ -1384,22 +1609,29 @@ async def _advance(
                     db, run=run, kind=events.EventKind.NODE_SKIPPED, node_run_id=node_run.id
                 )
                 frontier.append(target_id)
+    if scope_path:
+        return ready_pairs + await _end_iteration_if_settled(
+            db, run=run, graph=graph, scope_path=scope_path
+        )
     await _succeed_if_finished(db, run=run, graph=graph)
     return ready_pairs
 
 
 class _AdvanceState:
-    """One `_advance` call's reads of the run's node rows and their chosen ports.
+    """One `_advance` call's reads of one scope's node rows and their chosen ports.
 
     Cached for the call, not beyond it: a target reached from several edges,
     or a predecessor shared by several targets, is read once, and a row this
     call just created is known without reading it back.
     """
 
-    def __init__(self, db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph) -> None:
+    def __init__(
+        self, db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph, scope_path: ScopePath
+    ) -> None:
         self._db = db
         self._run = run
         self._graph = graph
+        self._scope_path = scope_path
         self._node_runs: dict[UUID, NodeRun | None] = {}
         self._ports: dict[UUID, frozenset[str] | None] = {}
 
@@ -1409,54 +1641,63 @@ class _AdvanceState:
     async def node_run(self, node_id: UUID) -> NodeRun | None:
         if node_id not in self._node_runs:
             self._node_runs[node_id] = await workflow_run_repo.get_node_run_by_identity(
-                self._db, workflow_run_id=self._run.id, node_instance_id=node_id, scope_path=[]
+                self._db,
+                workflow_run_id=self._run.id,
+                node_instance_id=node_id,
+                scope_path=self._scope_path,
             )
         return self._node_runs[node_id]
 
     async def runs_target(self, target_id: UUID) -> bool | None:
         """Whether `target_id` runs (`True`), is skipped (`False`), or cannot be
-        decided yet (`None`) because a predecessor is still to finish."""
+        decided yet (`None`) because a predecessor is still to settle."""
         live = False
         for edge in self._graph.edges:
             if edge.target_node_id != target_id:
                 continue
             predecessor = await self.node_run(edge.source_node_id)
-            if predecessor is None or predecessor.status not in (
-                NodeRunStatus.SUCCEEDED.value,
-                NodeRunStatus.SKIPPED.value,
-            ):
+            if predecessor is None or predecessor.status not in _SETTLED:
                 return None
-            if predecessor.status == NodeRunStatus.SUCCEEDED.value:
-                chosen = await self._chosen_ports(predecessor)
-                live = live or chosen is None or edge.source_port in chosen
+            live = live or await self._leaves_by(predecessor, edge.source_port)
         return live
 
     async def arrived_output(self, target_id: UUID) -> dict[str, Any] | None:
-        """The output carried by the one live edge `target_id` was reached through.
+        """What the one live edge `target_id` was reached through carries.
 
-        What a `logic.merge` passes on: of its incoming branches exactly one
-        ran, and rule 4 lets it bind to neither (neither dominates it), so the
-        value has to come from the edge rather than a binding. `None` when no
-        edge, or more than one, is live.
+        What a `logic.merge` passes on - of its incoming branches exactly one ran,
+        and rule 4 lets it bind to neither - and what an `error.handle` handles:
+        the `WorkflowError` of the node that failed through its `error` port.
+        `None` when no edge, or more than one, is live.
         """
-        outputs: list[dict[str, Any] | None] = []
+        arrived: list[dict[str, Any] | None] = []
         for edge in self._graph.edges:
             if edge.target_node_id != target_id:
                 continue
             predecessor = await self.node_run(edge.source_node_id)
-            if predecessor is None or predecessor.status != NodeRunStatus.SUCCEEDED.value:
+            if predecessor is None or predecessor.status not in _SETTLED:
                 continue
-            chosen = await self._chosen_ports(predecessor)
-            if chosen is None or edge.source_port in chosen:
-                outputs.append(await self._output(predecessor))
-        return outputs[0] if len(outputs) == 1 else None
+            if await self._leaves_by(predecessor, edge.source_port):
+                arrived.append(await self._carried(predecessor))
+        return arrived[0] if len(arrived) == 1 else None
 
-    async def _output(self, node_run: NodeRun) -> dict[str, Any] | None:
+    async def _leaves_by(self, node_run: NodeRun, port: str) -> bool:
+        """Whether a settled node left through `port`."""
+        if node_run.status == NodeRunStatus.FAILED.value:
+            return port == ERROR_PORT
+        if node_run.status != NodeRunStatus.SUCCEEDED.value:
+            return False
+        chosen = await self._chosen_ports(node_run)
+        return port != ERROR_PORT if chosen is None else port in chosen
+
+    async def _carried(self, node_run: NodeRun) -> dict[str, Any] | None:
         latest = await workflow_run_repo.get_latest_attempt(self._db, node_run_id=node_run.id)
-        return latest.result.get("output") if latest and latest.result else None
+        if latest is None or latest.result is None:
+            return None
+        key = "error" if node_run.status == NodeRunStatus.FAILED.value else "output"
+        return latest.result.get(key)
 
     async def _chosen_ports(self, node_run: NodeRun) -> frozenset[str] | None:
-        """The ports a succeeded node left by, or `None` for all of them."""
+        """The ports a succeeded node left by, or `None` for all but `error`."""
         node_id = node_run.node_instance_id
         if node_id not in self._ports:
             node = self._graph.node_by_id[node_id]
@@ -1464,15 +1705,15 @@ class _AdvanceState:
             self._ports[node_id] = (
                 None
                 if definition.routes is None
-                else definition.routes(await self._output(node_run))
+                else definition.routes(await self._carried(node_run))
             )
         return self._ports[node_id]
 
 
 async def _create_decided_node_run(
-    db: AsyncSession, *, run: WorkflowRun, target_id: UUID, runs: bool
+    db: AsyncSession, *, run: WorkflowRun, target_id: UUID, runs: bool, scope_path: ScopePath
 ) -> NodeRun | None:
-    """Create `target_id`'s `NodeRun`, `pending` or already `skipped`.
+    """Create `target_id`'s `NodeRun` in `scope_path`, `pending` or already `skipped`.
 
     The unique index on `(workflow_run_id, node_instance_id, scope_path)` is
     what finally decides a race to create it; the loser reads its own
@@ -1487,7 +1728,7 @@ async def _create_decided_node_run(
                 organization_id=run.organization_id,
                 workflow_run_id=run.id,
                 node_instance_id=target_id,
-                scope_path=[],
+                scope_path=scope_path,
                 skipped_at=None if runs else datetime.now(UTC),
             )
     except IntegrityError:
@@ -1497,7 +1738,12 @@ async def _create_decided_node_run(
 async def _succeed_if_finished(
     db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph | None = None
 ) -> None:
-    """Mark `run` succeeded if every node of its graph has, and nothing is left to dispatch.
+    """Mark `run` succeeded once every top-level node has settled and nothing is
+    left to dispatch.
+
+    A loop body's rows are not counted here: a loop settles only once its last
+    iteration has. A node that failed through its `error` port settled too - a
+    failure that was not routed ended the run before this is ever asked.
 
     Called under the run's lock, both when the last node settles and when a
     stray outbox row is closed, so whichever of the two happens last ends
@@ -1506,10 +1752,251 @@ async def _succeed_if_finished(
     if await workflow_run_repo.has_live_outbox(db, workflow_run_id=run.id):
         return
     graph = graph or await resolve_graph(db, run)
+    node_scope = node_scope_map(graph)
+    top_level = sum(1 for node in graph.nodes if node.id not in node_scope)
     statuses = await workflow_run_repo.list_node_run_statuses(db, workflow_run_id=run.id)
-    finished = {NodeRunStatus.SUCCEEDED.value, NodeRunStatus.SKIPPED.value}
-    if len(statuses) == len(graph.nodes) and all(status in finished for status in statuses):
+    if len(statuses) == top_level and all(status in _SETTLED for status in statuses):
         await _succeed_run(db, run=run)
+
+
+# Loops
+
+
+async def _enter_loop(
+    db: AsyncSession, *, run: WorkflowRun, loop_run: NodeRun, items: list[Any]
+) -> list[tuple[UUID, UUID]]:
+    """A loop froze its list: start its first iteration, or finish at once when empty."""
+    graph = await resolve_graph(db, run)
+    await events.append(
+        db,
+        run=run,
+        kind=events.EventKind.LOOP_STARTED,
+        node_run_id=loop_run.id,
+        payload={"count": len(items)},
+    )
+    if not items:
+        return await _close_loop(db, run=run, graph=graph, loop_run=loop_run, count=0)
+    return await _start_iteration(db, run=run, graph=graph, loop_run=loop_run, index=0, items=items)
+
+
+async def _start_iteration(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    graph: WorkflowGraph,
+    loop_run: NodeRun,
+    index: int,
+    items: list[Any],
+) -> list[tuple[UUID, UUID]]:
+    """Write iteration `index`'s `loop.item` already succeeded, and advance from it.
+
+    Refused - failing the loop's run - once the iteration would take the run past
+    `WORKFLOW_RUN_MAX_NODE_RUNS`, a ceiling no graph can route around.
+    """
+    loop_id = loop_run.node_instance_id
+    node_scope = node_scope_map(graph)
+    body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+    existing = await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id)
+    limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
+    if existing + len(body) > limit:
+        await _fail_node_and_run(
+            db,
+            run=run,
+            node_run=loop_run,
+            error=WorkflowError(
+                code="NODE_RUN_LIMIT",
+                message=f"This run would take more than {limit} steps",
+                details={"limit": limit, "index": index},
+                bypassable=False,
+            ),
+            now=datetime.now(UTC),
+        )
+        return []
+    scope_path = [*loop_run.scope_path, {"loop_node_id": str(loop_id), "index": index}]
+    item_id = next(
+        edge.target_node_id
+        for edge in graph.edges
+        if edge.source_node_id == loop_id and edge.source_port == BODY_PORT
+    )
+    item_run = await _create_decided_node_run(
+        db, run=run, target_id=item_id, runs=True, scope_path=scope_path
+    )
+    if item_run is None:  # pragma: no cover - the run's lock serializes every iteration start
+        return []
+    await events.append(
+        db,
+        run=run,
+        kind=events.EventKind.ITERATION_STARTED,
+        node_run_id=loop_run.id,
+        payload={"index": index, "count": len(items)},
+    )
+    await _settle_synthetic(
+        db,
+        run=run,
+        node_run=item_run,
+        output=LoopItemOutput(item=items[index], index=index, count=len(items)),
+    )
+    return await _advance(
+        db, run=run, completed_node_instance_id=item_id, scope_path=scope_path, graph=graph
+    )
+
+
+async def _end_iteration_if_settled(
+    db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph, scope_path: ScopePath
+) -> list[tuple[UUID, UUID]]:
+    """End the iteration once every node its loop owns directly has settled in it."""
+    loop_id = _loop_of(scope_path)
+    body = {node_id for node_id, owner in node_scope_map(graph).items() if owner == loop_id}
+    rows = await workflow_run_repo.list_node_runs_at(
+        db, workflow_run_id=run.id, scope_path=scope_path
+    )
+    if len(rows) < len(body) or any(row.status not in _SETTLED for row in rows):
+        return []
+    return await _iteration_ended(db, run=run, graph=graph, scope_path=scope_path)
+
+
+async def _iteration_ended(
+    db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph, scope_path: ScopePath
+) -> list[tuple[UUID, UUID]]:
+    """Start the next iteration, or close the loop after its last."""
+    loop_run = await _loop_run(db, run=run, scope_path=scope_path)
+    items = await _frozen_items(db, loop_run)
+    index = int(scope_path[-1]["index"]) + 1
+    if index < len(items):
+        return await _start_iteration(
+            db, run=run, graph=graph, loop_run=loop_run, index=index, items=items
+        )
+    return await _close_loop(db, run=run, graph=graph, loop_run=loop_run, count=len(items))
+
+
+async def _close_loop(
+    db: AsyncSession, *, run: WorkflowRun, graph: WorkflowGraph, loop_run: NodeRun, count: int
+) -> list[tuple[UUID, UUID]]:
+    """Collect every iteration's result in input order, settle the loop, and advance it.
+
+    An iteration's result is what its `loop.yield` handed back - `null` if its
+    branch never reached one - and an iteration that failed under `collect` adds
+    its error to `errors`. A failure a node routed through its own `error` port
+    was handled inside the iteration and is not one of them.
+    """
+    loop_id = loop_run.node_instance_id
+    node_scope = node_scope_map(graph)
+    body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+    depth = len(loop_run.scope_path)
+    rows = [
+        row
+        for row in await workflow_run_repo.list_node_runs_of(
+            db, workflow_run_id=run.id, node_instance_ids=body
+        )
+        if row.scope_path[:depth] == loop_run.scope_path and len(row.scope_path) == depth + 1
+    ]
+    attempts = await workflow_run_repo.get_latest_attempts(
+        db, node_run_ids=[row.id for row in rows if row.status in _SETTLED]
+    )
+    results: list[Any] = [None] * count
+    errors: list[ForeachItemError] = []
+    for row in rows:
+        index = int(row.scope_path[-1]["index"])
+        stored = attempts.get(row.id)
+        stored_result = stored.result if stored is not None and stored.result else {}
+        definition_id = graph.node_by_id[row.node_instance_id].definition_id
+        if definition_id == LOOP_YIELD and row.status == NodeRunStatus.SUCCEEDED.value:
+            results[index] = (stored_result.get("output") or {}).get("value")
+        elif (
+            row.status == NodeRunStatus.FAILED.value
+            and not graph.node_by_id[row.node_instance_id].routes_errors
+        ):
+            error = WorkflowError.model_validate(stored_result.get("error"))
+            errors.append(
+                ForeachItemError(
+                    index=index, code=error.code, message=error.message, details=error.details
+                )
+            )
+    errors.sort(key=lambda error: error.index)
+    await _settle_synthetic(
+        db,
+        run=run,
+        node_run=loop_run,
+        output=ForeachOutput(results=results, errors=errors, count=count),
+    )
+    return await _advance(
+        db,
+        run=run,
+        completed_node_instance_id=loop_id,
+        scope_path=loop_run.scope_path,
+        graph=graph,
+    )
+
+
+async def _loop_run(db: AsyncSession, *, run: WorkflowRun, scope_path: ScopePath) -> NodeRun:
+    """The row of the loop whose iteration `scope_path` names."""
+    loop_id = _loop_of(scope_path)
+    loop_run = (
+        await workflow_run_repo.get_node_run_by_identity(
+            db, workflow_run_id=run.id, node_instance_id=loop_id, scope_path=scope_path[:-1]
+        )
+        if loop_id is not None
+        else None
+    )
+    if loop_run is None:  # pragma: no cover - an iteration is only ever started from its loop's row
+        raise WorkflowGraphUnresolvableError(run_id=run.id)
+    return loop_run
+
+
+async def _frozen_items(db: AsyncSession, loop_run: NodeRun) -> list[Any]:
+    """The list the loop froze into its first attempt - never the source it was bound from."""
+    latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=loop_run.id)
+    output = (latest.result or {}).get("output") if latest is not None else None
+    return ForeachManifest.model_validate(output).items
+
+
+async def _settle_synthetic(
+    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, output: BaseModel
+) -> None:
+    """Record an output the dispatcher itself produced, as a completed attempt.
+
+    A `loop.item`'s element, a loop's collected results: nothing is called, but
+    the value is stored where every binding reads one - the node's latest
+    attempt - so a body node resolves `loop.item` and a node after the loop
+    resolves its `results` through the ordinary lookup.
+    """
+    now = datetime.now(UTC)
+    latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=node_run.id)
+    attempt = await workflow_run_repo.create_attempt(
+        db,
+        organization_id=run.organization_id,
+        node_run_id=node_run.id,
+        attempt_no=(latest.attempt_no if latest is not None else 0) + 1,
+        idempotency_key=idempotency_key(
+            organization_id=run.organization_id,
+            workflow_run_id=run.id,
+            node_instance_id=node_run.node_instance_id,
+            scope_path=node_run.scope_path,
+        ),
+        retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+        started_at=now,
+    )
+    await workflow_run_repo.settle_attempt(
+        db,
+        attempt=attempt,
+        status=NodeAttemptStatus.COMPLETED.value,
+        # Dumped from the concrete model: `Completed[BaseModel]` would serialize
+        # through the base class and store `{}`.
+        result={"status": "completed", "output": output.model_dump(mode="json")},
+        cost=Decimal(0),
+        cost_is_partial=False,
+        ended_at=now,
+    )
+    await workflow_run_repo.update_node_run(
+        db,
+        node_run=node_run,
+        update_data={
+            "status": NodeRunStatus.SUCCEEDED.value,
+            "started_at": node_run.started_at or now,
+            "ended_at": now,
+        },
+    )
+    await events.append(db, run=run, kind=events.EventKind.NODE_COMPLETED, node_run_id=node_run.id)
 
 
 async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:

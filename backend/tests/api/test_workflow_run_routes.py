@@ -279,6 +279,10 @@ class TestCancelRoute:
             patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{FACADE_PATH}.workflow_run_repo.cancel_live_outbox_for_run", new=AsyncMock()),
             patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_live_node_runs",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=cancelled)
             ),
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),

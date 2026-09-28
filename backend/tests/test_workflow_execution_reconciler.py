@@ -170,7 +170,13 @@ class TestResolveOrphanedAttempts:
         repo.settle_attempt.side_effect = _settle_effect
 
         service = WorkflowReconcilerService(object())
-        resolved = await service.resolve_orphaned_attempts()
+        # The node's retry policy is read off the run's graph, which this
+        # unit has none of - the deployment's schedule applies.
+        with patch(
+            "app.services.workflow_execution.dispatcher._graph_or_none",
+            new=AsyncMock(return_value=None),
+        ):
+            resolved = await service.resolve_orphaned_attempts()
 
         assert resolved == 1
         assert attempt.status == NodeAttemptStatus.UNCERTAIN.value
