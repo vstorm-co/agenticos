@@ -273,7 +273,10 @@ export function AddSecretDialog({
               <Label htmlFor="secret-purpose">
                 {category === "other" ? t("service") : t("whichOne")}
               </Label>
-              <Select value={purpose} onValueChange={choosePurpose}>
+              {/* The entry that is in force, fallback included - the raw choice
+                  is empty until somebody picks, and a trigger bound to it read as
+                  blank while the hint under it already named the first service. */}
+              <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
                 <SelectTrigger id="secret-purpose">
                   <SelectValue />
                 </SelectTrigger>
