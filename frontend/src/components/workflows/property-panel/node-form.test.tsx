@@ -49,13 +49,56 @@ vi.mock("@/components/workflows/pickers", () => ({
       <span>{value === null ? "table-none" : "table-set"}</span>
     </div>
   ),
-  SecretPicker: ({ value, onChange }: { value: string | null; onChange: (v: unknown) => void }) => (
+  SecretPicker: ({
+    value,
+    onChange,
+    kind,
+  }: {
+    value: string | null;
+    onChange: (v: unknown) => void;
+    kind?: string;
+  }) => (
     <div>
       <button type="button" aria-label="set-secret" onClick={() => onChange("sec")} />
       <button type="button" aria-label="clear-secret" onClick={() => onChange(null)} />
       <span>{value ?? "secret-none"}</span>
+      <span>{`secret-kind:${kind ?? "any"}`}</span>
     </div>
   ),
+  CollectionPicker: ({
+    selectedIds,
+    onToggle,
+  }: {
+    selectedIds: string[];
+    onToggle: (id: string) => void;
+  }) => (
+    <div>
+      <button type="button" aria-label="toggle-kb-a" onClick={() => onToggle("kb-a")} />
+      <span>{`collections:${selectedIds.join(",") || "none"}`}</span>
+    </div>
+  ),
+}));
+
+vi.mock("@/components/orgs/member-picker", () => ({
+  MemberPicker: ({
+    selected,
+    onToggle,
+    label,
+  }: {
+    selected: string[];
+    onToggle: (id: string) => void;
+    label: (count: number) => string;
+  }) => (
+    <div>
+      <button type="button" aria-label="toggle-member-u1" onClick={() => onToggle("u1")} />
+      <span>{label(selected.length)}</span>
+    </div>
+  ),
+}));
+
+vi.mock("@/hooks", () => ({
+  useKnowledgeBases: () => ({ kbs: [] }),
+  useMembers: () => ({ members: [] }),
 }));
 
 const CONFIG_SCHEMA: Schema = {
@@ -65,6 +108,9 @@ const CONFIG_SCHEMA: Schema = {
     agent: { "x-resource": "agent", title: "Agent" },
     secret: { "x-resource": "secret", title: "Secret" },
     table: { "x-resource": "table", title: "Table" },
+    credential: { "x-resource": "secret", "x-secret-kind": "http_credential", title: "Credential" },
+    collections: { "x-resource": "collection", title: "Collections" },
+    recipients: { "x-resource": "member", title: "Recipients" },
     dynamic: { type: "string", "x-bindable": true, title: "Dynamic" },
     nested: {
       type: "object",
@@ -206,10 +252,44 @@ describe("config leaves", () => {
 
   it("pins and clears a secret", async () => {
     const { updateNodeConfig } = renderForm();
-    await userEvent.click(screen.getByLabelText("set-secret"));
+    // The first of the form's two secret leaves: `secret`, then `credential`.
+    const [setSecret] = screen.getAllByLabelText("set-secret");
+    const [clearSecret] = screen.getAllByLabelText("clear-secret");
+    await userEvent.click(setSecret as HTMLElement);
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { secret: "sec" });
-    await userEvent.click(screen.getByLabelText("clear-secret"));
+    await userEvent.click(clearSecret as HTMLElement);
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("narrows a secret leaf to the vault kind it names", () => {
+    renderForm();
+    expect(screen.getByText("secret-kind:http_credential")).toBeVisible();
+    expect(screen.getByText("secret-kind:any")).toBeVisible();
+  });
+
+  it("adds and removes collections as a list of ids", async () => {
+    const { updateNodeConfig } = renderForm({ config: { collections: ["kb-b"] } });
+    expect(screen.getByText("collections:kb-b")).toBeVisible();
+    await userEvent.click(screen.getByLabelText("toggle-kb-a"));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { collections: ["kb-b", "kb-a"] });
+  });
+
+  it("removes a collection already chosen, and ignores what is not an id", async () => {
+    const { updateNodeConfig } = renderForm({ config: { collections: ["kb-a", 7] } });
+    await userEvent.click(screen.getByLabelText("toggle-kb-a"));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { collections: [] });
+  });
+
+  it("chooses recipients by member and counts them on the trigger", async () => {
+    const { updateNodeConfig } = renderForm({ config: { recipients: "not-a-list" } });
+    expect(screen.getByText("Choose members")).toBeVisible();
+    await userEvent.click(screen.getByLabelText("toggle-member-u1"));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { recipients: ["u1"] });
+  });
+
+  it("shows a field-scoped error under a collection pin", () => {
+    renderForm({ errors: new Map([["collections", "Not accessible"]]) });
+    expect(screen.getByText("Not accessible")).toBeVisible();
   });
 
   it("renders an x-bindable config leaf as a binding, writing bindings not config", async () => {

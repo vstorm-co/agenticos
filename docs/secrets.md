@@ -91,6 +91,7 @@ decides which fields exist.
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
+| `http_credential` | A token a workflow's HTTP step sends, an optional username, and the origins it may be sent to |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
@@ -104,6 +105,14 @@ sorts first.
 whoever edits the source chooses. Bound to the host the token was added with, the
 token cannot be aimed at another server by editing the source, and no other key
 can stand in for it.
+
+`http_credential` is `git_token`'s rule for a workflow's
+[`http.request`](reference/workflow-nodes.md#http-request) step: the step's URL is
+typed by whoever edits the workflow, and may be bound from a run's input, so the
+origins the token may go to are sealed with it, such as `https://api.example.com`.
+The step checks the origin of the URL it is about to call, and of every redirect it
+follows, and sends the token nowhere else. No other kind of secret can stand in for
+it.
 
 `entra_app` is what a SharePoint or OneDrive sync source signs in as. Its reach is
 set in Microsoft Entra, not here: the Graph permissions an administrator consented

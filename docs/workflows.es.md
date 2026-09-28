@@ -1,5 +1,5 @@
 ---
-source_sha: "41af1261124c"
+source_sha: "4c0274482af7"
 ---
 
 # Workflows { #workflows }
@@ -68,6 +68,9 @@ añadir en el scope que estás editando.
     sin cambio alguno en un workflow que ya construiste.
 
 ## Configurar un nodo { #configuring-a-node }
+
+Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
+[referencia de nodos](reference/workflow-nodes.md).
 
 Selecciona un nodo y el panel **Properties** se abre a la derecha. Sus campos caen en
 dos secciones. **Configuration** contiene ajustes estáticos — las opciones fijas que

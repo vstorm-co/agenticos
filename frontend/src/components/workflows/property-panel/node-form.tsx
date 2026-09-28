@@ -13,12 +13,16 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { MemberPicker } from "@/components/orgs/member-picker";
 import {
   AgentVersionPicker,
+  CollectionPicker,
   SecretPicker,
   TableColumnPicker,
   type AgentVersionRef,
 } from "@/components/workflows/pickers";
+import { useKnowledgeBases, useMembers } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import {
   bindingFieldPath,
   type Binding,
@@ -40,6 +44,7 @@ import {
   labelOf,
   objectFields,
   resourceKind,
+  secretKind,
   singleFieldSchema,
   type Defs,
   type ResourceKind,
@@ -112,15 +117,75 @@ function Fieldset({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
+/** The ids a multi-select leaf holds, in order, ignoring anything that is not one. */
+function idList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+}
+
+/** `ids` with `id` added at the end, or removed if it was there. */
+function toggled(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((one) => one !== id) : [...ids, id];
+}
+
+/** Knowledge collections a step searches, chosen on what is in them. */
+function CollectionPin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const { kbs } = useKnowledgeBases();
+  const selected = idList(value);
+  return (
+    <CollectionPicker
+      collections={kbs}
+      selectedIds={selected}
+      onToggle={(id) => onChange(toggled(selected, id))}
+      disabled={disabled}
+    />
+  );
+}
+
+/** Members of the organization a step addresses, chosen by name, stored by id. */
+function MemberPin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { members } = useMembers(activeOrgId ?? "");
+  const selected = idList(value);
+  return (
+    <MemberPicker
+      members={members}
+      selected={selected}
+      onToggle={(id) => onChange(toggled(selected, id))}
+      label={(count) => t("pickerMembersChosen", { count })}
+      scope={t("pickerMembersScope")}
+      disabled={disabled}
+    />
+  );
+}
+
 /** A static config leaf whose value is a pinned resource, edited through a picker. */
 function ResourcePin({
   kind,
+  schema,
   value,
   error,
   disabled,
   onChange,
 }: {
   kind: ResourceKind;
+  schema: Schema;
   value: unknown;
   error?: string;
   disabled?: boolean;
@@ -148,10 +213,20 @@ function ResourcePin({
       />
     );
   }
+  if (kind === "collection" || kind === "member") {
+    const Pin = kind === "collection" ? CollectionPin : MemberPin;
+    return (
+      <div className="space-y-1.5">
+        <Pin value={value} disabled={disabled} onChange={onChange} />
+        {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+      </div>
+    );
+  }
   return (
     <SecretPicker
       value={strOrNull(value)}
       onChange={(next) => onChange(next ?? undefined)}
+      kind={secretKind(schema)}
       disabled={disabled}
       error={error}
     />
@@ -179,6 +254,7 @@ function ConfigLeaf({
         <Label>{label}</Label>
         <ResourcePin
           kind={resource}
+          schema={schema}
           value={value}
           error={error}
           disabled={ctx.disabled}

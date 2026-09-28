@@ -5675,6 +5675,8 @@
     "pickerSecretsEmpty": "No secrets stored yet.",
     "pickerSecretOrphaned": "The referenced secret is no longer available.",
     "pickerSecretStore": "Store a secret in the vault",
+    "pickerMembersChosen": "{count, plural, =0 {Choose members} =1 {1 member} other {# members}}",
+    "pickerMembersScope": "Recipients",
     "panelMultiTitle": "Multiple nodes",
     "panelMultiSelected": "{count, plural, =1 {1 node selected} other {# nodes selected}}",
     "panelBulkDelete": "Delete selected",

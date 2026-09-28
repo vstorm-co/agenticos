@@ -66,6 +66,9 @@ you are editing.
 
 ## Configuring a node { #configuring-a-node }
 
+What each node does, what it is configured with and what its failures mean is in
+the [node reference](reference/workflow-nodes.md).
+
 Select a node and the **Properties** panel opens on the right. Its fields fall
 into two sections. **Configuration** holds static settings — the fixed choices
 that do not change from one run to the next, including the resources a step is

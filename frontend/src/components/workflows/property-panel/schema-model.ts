@@ -224,12 +224,26 @@ export function objectFields(schema: Schema, defs: Defs): FieldEntry[] {
 }
 
 /** Which resource picker a config leaf pins, from its `x-resource` keyword, or null. */
-export type ResourceKind = "agent" | "table" | "secret";
+export type ResourceKind = "agent" | "table" | "secret" | "collection" | "member";
+
+const RESOURCE_KINDS: readonly ResourceKind[] = [
+  "agent",
+  "table",
+  "secret",
+  "collection",
+  "member",
+];
 
 /** The resource a leaf pins through a picker, or null for an ordinary literal leaf. */
 export function resourceKind(schema: Schema): ResourceKind | null {
   const value = schema["x-resource"];
-  return value === "agent" || value === "table" || value === "secret" ? value : null;
+  return RESOURCE_KINDS.find((kind) => kind === value) ?? null;
+}
+
+/** The vault kind a secret leaf accepts, from its `x-secret-kind` keyword, if it names one. */
+export function secretKind(schema: Schema): string | undefined {
+  const value = schema["x-secret-kind"];
+  return typeof value === "string" ? value : undefined;
 }
 
 /** Whether a `config_schema` leaf opts into binding via `x-bindable: true`. */

@@ -1,5 +1,5 @@
 ---
-source_sha: "ed1daca5c676"
+source_sha: "04049240d780"
 ---
 
 # API HTTP { #the-http-api }
@@ -99,18 +99,18 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
 ```
 
 To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
-węzły działają w tle. `"mode": "test"` uruchamia zamiast tego bieżący draft i
+węzły działają w tle. `input` to to, co przekazuje dalej węzeł [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). `"mode": "test"` uruchamia zamiast tego bieżący draft i
 wymaga `workflows:edit`. `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
 po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
 albo run czekający na zatwierdzenie nie są przez niego przerywane. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
 po przekroczeniu limitu odpowiada `429` z `Retry-After`.
 
-`GET /api/v1/workflow-runs/{id}` zwraca status runa, `spent_cost` i `error`, a
+`GET /api/v1/workflow-runs/{id}` zwraca status runa, `spent_cost`, `error` oraz, gdy jego węzeł [`core.output`](reference/workflow-nodes.md#core-output) już się wykonał, `output`, a
 `POST /api/v1/workflow-runs/{id}/cancel` go zatrzymuje. `GET
 /api/v1/workflow-runs/{id}/events?after=<cursor>` zwraca strumień zdarzeń runa
 od najstarszego, z `next_cursor` do odesłania jako `after`: pozostaje taki sam,

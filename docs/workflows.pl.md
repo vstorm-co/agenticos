@@ -1,5 +1,5 @@
 ---
-source_sha: "41af1261124c"
+source_sha: "4c0274482af7"
 ---
 
 # Workflows { #workflows }
@@ -68,6 +68,9 @@ zawsze możliwa do dodania w edytowanym scope.
     workflow, który już zbudowałeś.
 
 ## Konfigurowanie węzła { #configuring-a-node }
+
+Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
+[referencja węzłów](reference/workflow-nodes.md).
 
 Zaznacz węzeł, a po prawej otworzy się panel **Properties**. Jego pola dzielą się na
 dwie sekcje. **Configuration** trzyma statyczne ustawienia — stałe wybory, które nie

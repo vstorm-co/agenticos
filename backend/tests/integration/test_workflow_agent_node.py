@@ -23,16 +23,25 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRunStatus
 from app.services.agent_registry import AgentRegistryService
+from app.services.rag.models import SearchResult
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
-from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
+from app.workflows.nodes.knowledge_search import _handler as search_handler
+from tests.integration.workflow_run_support import (
+    SeededRun,
+    drive,
+    node_statuses,
+    seed_member,
+    seed_run,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -294,7 +303,9 @@ async def test_an_answer_of_the_wrong_shape_fails_before_the_next_step(
     assert run.error is not None and run.error["code"] == "STRUCTURED_OUTPUT_MISMATCH"
     # The answer itself is not repeated in the error a viewer of the workflow reads.
     assert "high" not in str(run.error) and "warm" not in str(run.error)
+    # Nothing downstream ran: the output step never got a node run at all.
     assert run.output is None
+    assert seeded.graph.nodes[2].id not in await node_statuses(seeded)
 
 
 async def test_sources_ground_the_prompt_as_numbered_context(engine: AsyncEngine, model):
@@ -356,3 +367,88 @@ async def test_a_version_of_another_agent_cannot_be_pinned(engine: AsyncEngine, 
 
     ask = graph.nodes[1]
     assert f"nodes.{ask.id}.config.agent" in {p["field"] for p in refused.value.details["fields"]}
+
+
+async def test_a_question_is_answered_through_retrieval_and_an_agent(
+    engine: AsyncEngine, model, monkeypatch: pytest.MonkeyPatch
+):
+    """The acceptance journey: input -> knowledge.search -> agent.run -> output."""
+
+    class _Retrieval:
+        async def resolve_scope(self, name: str, organization_id: uuid.UUID) -> str:
+            return name
+
+        async def retrieve(self, **_kwargs: Any) -> list[SearchResult]:
+            return [
+                SearchResult(
+                    content="Refunds are accepted within thirty days.",
+                    score=0.93,
+                    metadata={"filename": "policy.pdf", "page_num": 4},
+                )
+            ]
+
+    monkeypatch.setattr(search_handler, "get_retrieval_service", lambda: _Retrieval())
+    recorder = model("Within thirty days [1].")
+    member = await _tenant(engine)
+    profile_id = await _profile(engine, member[1])
+    ctx_run = await seed_run(
+        engine,
+        WorkflowGraph(entry_node_id=uuid.uuid4(), nodes=(_node("core.input"),)),
+        member=member,
+    )
+    agent_id, version_id = await _published(engine, ctx_run.ctx, profile_id, "Answer from context.")
+    name = f"kb_{uuid.uuid4().hex[:8]}"
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name=name,
+            scope=KBScope.ORG.value,
+            collection_name=name,
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            organization_id=member[1].id,
+            owner_user_id=member[0].id,
+            visibility="org",
+        )
+        db.add(kb)
+        await db.commit()
+
+    entry = _node("core.input")
+    search = _node("knowledge.search", {"collection_ids": [str(kb.id)]})
+    ask = _node("agent.run", {"agent": {"agent_id": str(agent_id), "version_id": str(version_id)}})
+    output = _node("core.output")
+
+    def ref(node: NodeInstance, *path: str) -> NodeOutputRef:
+        return NodeOutputRef(node_id=node.id, port="out", field_path=path)
+
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, search, ask, output),
+        edges=(_edge(entry, search), _edge(search, ask), _edge(ask, output)),
+        bindings=(
+            Binding(
+                target_node_id=search.id, target_field="query", source=ref(entry, "payload", "q")
+            ),
+            Binding(
+                target_node_id=ask.id, target_field="prompt", source=ref(entry, "payload", "q")
+            ),
+            Binding(target_node_id=ask.id, target_field="sources", source=ref(search, "sources")),
+            Binding(target_node_id=output.id, target_field="text", source=ref(ask, "text")),
+            Binding(target_node_id=output.id, target_field="sources", source=ref(ask, "sources")),
+        ),
+    )
+    seeded = await seed_run(
+        engine, graph, run_input={"q": "How long do refunds take?"}, member=member
+    )
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    assert run.output["text"] == "Within thirty days [1]."
+    assert [source["filename"] for source in run.output["sources"]] == ["policy.pdf"]
+    (prompt,) = recorder.prompts
+    assert "Refunds are accepted within thirty days." in prompt

@@ -1,5 +1,5 @@
 ---
-source_sha: "ed1daca5c676"
+source_sha: "04049240d780"
 ---
 
 # La API HTTP { #the-http-api }
@@ -101,7 +101,7 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
 ```
 
 Esto inicia un run de la versión publicada del workflow y responde `201` de
@@ -113,8 +113,12 @@ despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con
 una aprobación, no se interrumpe por ello. La ruta tiene un límite por llamante como
 la de runs de agents, y responde `429` con `Retry-After` al superarlo.
 
-`GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost` y
-`error`, y `POST /api/v1/workflow-runs/{id}/cancel` lo detiene. `GET
+`input` es lo que el nodo [`core.input`](reference/workflow-nodes.md#core-input)
+del grafo pasa adelante, como mucho `WORKFLOW_RUN_MAX_INPUT_BYTES` en JSON (`413`
+si lo supera).
+
+`GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost`,
+`error` y, cuando su nodo [`core.output`](reference/workflow-nodes.md#core-output) ya se ha ejecutado, su `output`, y `POST /api/v1/workflow-runs/{id}/cancel` lo detiene. `GET
 /api/v1/workflow-runs/{id}/events?after=<cursor>` devuelve el flujo de eventos
 del run del más antiguo al más reciente, con un `next_cursor` que se devuelve
 como `after`: se mantiene igual mientras no exista nada más nuevo, así que

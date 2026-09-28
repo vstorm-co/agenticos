@@ -22,8 +22,12 @@ export interface SecretPickerProps {
   value: string | null;
   onChange: (secretId: string | null) => void;
   disabled?: boolean;
-  /** Offer only secrets of this kind, where the config field needs a specific one. */
-  kind?: StorableSecretKind;
+  /**
+   * Offer only secrets of this kind, where the config field needs a specific one.
+   * A kind name as the node catalog serves it (`x-secret-kind`), so a kind this
+   * build has no type for simply offers nothing rather than everything.
+   */
+  kind?: StorableSecretKind | (string & {});
   /** A validation message from the property panel, shown under the control. */
   error?: string;
 }

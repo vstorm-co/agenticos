@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows can do real work: agents, knowledge, data, branches, HTTP and
+  notifications.** Nine nodes join the palette. `core.input` and `core.output`
+  carry a run's `input` and `output` (`POST /workflow-runs` takes `input`, and
+  the run returns what the graph answered). `agent.run` asks a published agent
+  at the exact version the step pins, parks on its approvals and resumes the
+  same run, and can require a JSON answer that matches a schema before
+  anything downstream runs. `knowledge.search` returns typed sources an agent
+  can cite. `data.map` and `logic.if` evaluate JMESPath limited to pure
+  functions, so a graph never executes code. `logic.if` sends a run down one
+  branch and skips the other, node by node, to the `logic.merge` that rejoins
+  them. `http.request` calls APIs through the SSRF-pinned client, and
+  `notification.send` notifies members who can see the workflow. Every node
+  is in the new [node reference](docs/reference/workflow-nodes.md).
+  Migrations `0108_workflow_run_io.py` and `0109_workflow_notification.py`
+  (#1789).
 - **Restore a published workflow version to the draft.** **Restore to draft** in
   a version's preview replaces the draft with that version's graph, after a
   confirmation that unpublished draft changes are discarded. The version is not
@@ -95,6 +110,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- **An HTTP credential only goes where its secret says.** A workflow's HTTP step
+  authenticates with a new `http_credential` vault kind: a token sealed with
+  the origins it may be sent to. The origin is checked on the URL about to be
+  dialled, after binding and on every redirect, so a URL typed by an editor or
+  taken from a run's input cannot aim the organization's credential at
+  another server. The response never carries it back (#1789).
 - **Workflow starts are bounded by node work, not just start count.** The
   per-minute run limit charges one token per start, which let an authenticated
   caller start many wide graphs below the limit and grow a persistent backlog on

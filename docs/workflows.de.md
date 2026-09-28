@@ -1,5 +1,5 @@
 ---
-source_sha: "41af1261124c"
+source_sha: "4c0274482af7"
 ---
 
 # Workflows { #workflows }
@@ -75,6 +75,9 @@ Liste, die Sie sehen, im gerade bearbeiteten Scope immer hinzufügbar ist.
     Workflow, den Sie bereits gebaut haben.
 
 ## Einen Knoten konfigurieren { #configuring-a-node }
+
+Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten,
+steht in der [Knotenreferenz](reference/workflow-nodes.md).
 
 Wählen Sie einen Knoten, und das Panel **Properties** öffnet sich rechts. Seine
 Felder fallen in zwei Abschnitte. **Configuration** hält statische Einstellungen —

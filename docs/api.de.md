@@ -1,5 +1,5 @@
 ---
-source_sha: "ed1daca5c676"
+source_sha: "04049240d780"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -105,11 +105,11 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
 ```
 
 Das startet einen Run der veröffentlichten Version des Workflows und antwortet
-sofort mit `201`; die Knoten laufen im Hintergrund. `"mode": "test"` führt
+sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Knoten [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). `"mode": "test"` führt
 stattdessen den aktuellen Entwurf aus und verlangt `workflows:edit`.
 `deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
 geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
@@ -119,7 +119,7 @@ unterbrochen wird. Die
 Route ist wie die Agent-Run-Route je Aufrufer begrenzt und antwortet jenseits des
 Kontingents mit `429` und `Retry-After`.
 
-`GET /api/v1/workflow-runs/{id}` liefert Status, `spent_cost` und `error` des
+`GET /api/v1/workflow-runs/{id}` liefert Status, `spent_cost`, `error` und, sobald sein Knoten [`core.output`](reference/workflow-nodes.md#core-output) gelaufen ist, `output` des
 Runs, und `POST /api/v1/workflow-runs/{id}/cancel` stoppt ihn. `GET
 /api/v1/workflow-runs/{id}/events?after=<cursor>` liefert den Ereignisstrom des
 Runs, älteste zuerst, mit einem `next_cursor`, den Sie als `after` zurückgeben:

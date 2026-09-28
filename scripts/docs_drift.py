@@ -43,6 +43,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/sandbox_", "docs/sandbox.md"),
     ("backend/app/core/catalog/sandbox_runtimes.json", "docs/sandbox.md"),
     ("backend/app/agents/capabilities/", "docs/reference/capabilities.md"),
+    ("backend/app/workflows/nodes/", "docs/reference/workflow-nodes.md"),
     ("backend/app/services/agent_templates.py", "docs/first-agent.md"),
     ("backend/app/core/catalog/agent_templates/", "docs/first-agent.md"),
     ("backend/app/agents/mcp", "docs/mcp.md"),
