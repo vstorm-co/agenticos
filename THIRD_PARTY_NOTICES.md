@@ -267,7 +267,7 @@ names no author is in the evidence column below.
 | slack-sdk | 3.44.1 | MIT | https://github.com/slackapi/python-slack-sdk | License field |
 | sniffio | 1.3.1 | Apache-2.0 | https://github.com/python-trio/sniffio | licence file text |
 | soupsieve | 2.9.2 | MIT | https://github.com/facelessuser/soupsieve | License-Expression |
-| sqlalchemy | 2.0.54 | MIT | https://docs.sqlalchemy.org | License field |
+| sqlalchemy | 2.1.0 | MIT | https://github.com/sqlalchemy/sqlalchemy | License-Expression |
 | sse-starlette | 3.4.11 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.6.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
 | subagents-pydantic-ai | 0.2.22 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
