@@ -437,7 +437,7 @@ function FlatFiles() {
            suffix and the size;
            the line under it carries what only this view knows: the agent holding
            the file and who else can see it. */
-        <ul className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="rise-in grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {list.visible.map((file) => (
             <li key={key(file)} className="space-y-1">
               <FileCard

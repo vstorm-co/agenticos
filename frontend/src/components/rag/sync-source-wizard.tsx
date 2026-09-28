@@ -330,7 +330,7 @@ export function SyncSourceWizard({
           )}
         </DialogHeader>
 
-        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {mode === "clone" ? (
             <CloneStep
               integrations={orgIntegrations}

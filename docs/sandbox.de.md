@@ -1,5 +1,5 @@
 ---
-source_sha: "f3295524890a"
+source_sha: "32ecd84a00b7"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -527,6 +527,10 @@ und ein Request zeichnet höchstens 24. Darüber hinaus behält eine Kachel das 
 
 Ein *gespeicherter* Workspace zahlt keines von beidem — seine Dateien und deren Bytes
 sind eine Spalte der Zeile, die die Auflistung ohnehin gelesen hat.
+
+Das **Files**-Panel im Chat und die eigene Liste eines Workspace zeichnen ihre
+Kacheln wie **All files**: die ersten Zeilen einer gespeicherten Textdatei und
+ein Bild als Vorschau innerhalb derselben Grenze.
 
 ## Wie lange irgendetwas überlebt { #how-long-anything-survives }
 

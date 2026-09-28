@@ -77,6 +77,8 @@ export default defineConfig({
         // moving them out of the list would have been a coverage regression
         // dressed up as a refactor.
         "src/components/files/**/*.tsx",
+        "src/components/ui/doc-peek.tsx",
+        "src/components/ui/text-peek.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",

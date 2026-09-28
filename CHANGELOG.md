@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Skill, context, artifact and file cards show what is inside them.** Each
+  card opens on a sheet of paper with the document's first lines on it: a
+  skill's body with one sheet stacked behind for each file it carries, a
+  context file's opening, an artifact's current page as a live sandboxed
+  thumbnail with its earlier versions stacked behind, and a file's first lines
+  or picture in Workspaces and in the chat's Files panel. Hovering a card lifts
+  the page and fans the stack. The skills and context listings return the
+  opening as `excerpt`, and the chat's and a workspace's file listings now
+  carry `preview` and `thumbnail`, as All files already did.
+- **A streaming answer flows onto the page.** Chat text is revealed at a steady
+  pace instead of in network bursts, and each new paragraph, list or table
+  fades up as it arrives. Anyone who asked the system for less motion gets the
+  text as it arrives.
+- **Dialogs, menus, selects and popovers animate.** Their enter and exit
+  classes compiled to nothing, so every overlay appeared and vanished in a
+  single frame. A dialog now rises onto a lighter, blurred veil. A wizard's
+  steps slide in, and its progress rail fills as it advances.
+- **The Activity table keeps one row to a line.** Agent and person names,
+  costs and durations no longer wrap, and token counts are grouped by digit.
+
 ## [0.0.513] - 2026-09-28
 
 ### Changed

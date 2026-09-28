@@ -83,6 +83,7 @@ describe("the frame", () => {
 
 describe("the list card", () => {
   it("says who else can read it", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
     render(
       <ArtifactCard artifact={artifact({ visibility: "org", public_url: "https://x/a/k" })} />,
     );
@@ -90,6 +91,14 @@ describe("the list card", () => {
     expect(screen.getByText("Public link")).toBeInTheDocument();
     expect(screen.getByRole("link").getAttribute("href")).toBe("/artifacts/a1");
     expect(screen.getByText(/Version 3/)).toBeInTheDocument();
+  });
+
+  it("stacks one sheet per earlier version and names the version on the page", () => {
+    useArtifactViewMock.mockReturnValue({ isLoading: false, data: undefined });
+    const { container } = render(<ArtifactCard artifact={artifact()} />);
+
+    expect(container.querySelectorAll(".peek-sheet")).toHaveLength(2);
+    expect(screen.getByText("v3")).toBeInTheDocument();
   });
 
   it("shows no reach badge for a private page", () => {

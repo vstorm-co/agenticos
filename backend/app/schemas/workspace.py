@@ -24,6 +24,24 @@ class WorkspaceFileRead(BaseSchema):
             "does not, and null is the honest answer there - never 'just now'."
         ),
     )
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "The first lines of a stored text file, so a tile can hint at its "
+            "content. Null for binary content and for container-backed workspaces, "
+            "whose bytes live on a host a listing does not visit per file."
+        ),
+    )
+    thumbnail: str | None = Field(
+        default=None,
+        description=(
+            "A stored image scaled down to a `data:` URI, so a tile draws the "
+            "picture rather than a glyph. A URI rather than an address because the "
+            "bytes are already in this listing's hand - an address would be a "
+            "request per tile. Null for anything that is not a small image, and for "
+            "a host's images past the listing's fetch budget."
+        ),
+    )
 
 
 class WorkspaceListing(BaseSchema):
@@ -208,23 +226,6 @@ class FlatFileRead(WorkspaceFileRead):
             "application's own convention and the only signal there is - a host "
             "records no author. So it is a fact about where the file is, stated as "
             "what that means."
-        ),
-    )
-    preview: str | None = Field(
-        default=None,
-        description=(
-            "The first lines of a stored text file, so a tile can hint at its "
-            "content. Null for binary content and for container-backed workspaces, "
-            "whose bytes live on a host the flat listing does not visit per file."
-        ),
-    )
-    thumbnail: str | None = Field(
-        default=None,
-        description=(
-            "A stored image scaled down to a `data:` URI, so a tile draws the "
-            "picture rather than a glyph. A URI rather than an address because the "
-            "bytes are already in this listing's hand - an address would be a "
-            "request per tile. Null for everything that is not a small stored image."
         ),
     )
 

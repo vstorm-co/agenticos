@@ -631,7 +631,9 @@ export function TriggerFormDialog({
           <WizardSteps steps={steps} current={step} />
         </DialogHeader>
 
-        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        {/* Keyed on the step, so each one slides in rather than swapping in place -
+            the eye follows the wizard forward instead of re-reading the frame. */}
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -646,7 +648,9 @@ export function TriggerFormDialog({
           )}
 
           {step === "configure" && (
-            <div className="space-y-4">
+            // Side by side: the dialog is sized for the message step's editor,
+            // and two fields stretched across it read as a form nobody finished.
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               {agentId === null && (
                 <FormField label={t("agent")} htmlFor="trigger-agent">
                   <Select

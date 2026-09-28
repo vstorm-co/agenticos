@@ -4733,7 +4733,8 @@
         "legal": "Recht und freie Berufe",
         "manufacturing": "Produktion und Logistik"
       }
-    }
+    },
+    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}"
   },
   "states": {
     "loading": "Wird geladen"
@@ -5290,7 +5291,8 @@
     "pageLink": "Link zu dieser Seite",
     "pageLinkWhy": "Öffnet die Seite für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff.",
     "maybeOtherOrganization": "Wenn es Ihnen in einer anderen Organisation freigegeben wurde, wechseln Sie dorthin.",
-    "switchOrganization": "Organisation wechseln"
+    "switchOrganization": "Organisation wechseln",
+    "versionBadge": "v{version}"
   },
   "groups": {
     "title": "Gruppen",

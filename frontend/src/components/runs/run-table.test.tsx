@@ -77,7 +77,7 @@ describe("a run history row", () => {
   it("adds both halves of the token count, which is what a run cost in tokens", () => {
     render(<RunTable runs={[run({ input_tokens: 1000, output_tokens: 100 })]} />);
 
-    expect(within(row()).getByText("1100")).toBeVisible();
+    expect(within(row()).getByText("1,100")).toBeVisible();
   });
 
   it("draws the vendor's mark beside the model it ran", () => {

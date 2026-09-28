@@ -100,6 +100,12 @@ class WorkspaceContents:
     workspace holding a checkout or a `node_modules` it is not.
     """
 
+    previews: dict[str, str] = field(default_factory=dict)
+    """The first lines of each stored text file, by path - what its tile peeks at."""
+
+    thumbnails: dict[str, str] = field(default_factory=dict)
+    """Each small image scaled to a `data:` URI, by path, within the fetch budget."""
+
 
 @dataclass(frozen=True)
 class WorkspaceOverview:
@@ -986,27 +992,13 @@ class SandboxWorkspaceService:
                 unreadable += 1
                 continue
             entries = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
-            if overview.row.backend == "state":
-                stored = dict(overview.row.files or {})
-                files.extend(
-                    FlatEntry(
-                        overview=overview,
-                        info=entry,
-                        preview=stored_preview(stored.get(str(entry.get("path")))),
-                        thumbnail=stored_thumbnail(
-                            str(entry.get("path")), stored.get(str(entry.get("path")))
-                        ),
-                    )
-                    for entry in entries
-                )
-                continue
-            drawn, budget = await self._host_thumbnails(ctx, overview.row, entries, budget)
+            previews, thumbnails, budget = await self._tiles(ctx, overview.row, entries, budget)
             files.extend(
                 FlatEntry(
                     overview=overview,
                     info=entry,
-                    preview=None,
-                    thumbnail=drawn.get(str(entry.get("path"))),
+                    preview=previews.get(str(entry.get("path"))),
+                    thumbnail=thumbnails.get(str(entry.get("path"))),
                 )
                 for entry in entries
             )
@@ -1082,12 +1074,48 @@ class SandboxWorkspaceService:
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
+        return row, await self._browsable(ctx, row)
+
+    async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
+        """A workspace's browsable entries, with what each file's tile draws."""
         contents = await self._entries(ctx, row)
-        return row, WorkspaceContents(
-            entries=browsable(contents.entries),
+        entries = browsable(contents.entries)
+        previews, thumbnails, _budget = await self._tiles(
+            ctx, row, [entry for entry in entries if not entry.get("is_dir")], HOST_THUMBNAIL_BUDGET
+        )
+        return WorkspaceContents(
+            entries=entries,
             unreadable_reason=contents.unreadable_reason,
             truncated=contents.truncated,
+            previews=previews,
+            thumbnails=thumbnails,
         )
+
+    async def _tiles(
+        self, ctx: AuthContext, row: AgentWorkspace, files: list[FileInfo], budget: int
+    ) -> tuple[dict[str, str], dict[str, str], int]:
+        """Each file's preview and thumbnail, by path, and what is left of the budget.
+
+        A stored workspace's bytes are in the row already, so every text file gets
+        its first lines and every image its thumbnail at no cost. A host's are a
+        round trip per file, so only images are drawn, within `budget` - see
+        :meth:`_host_thumbnails`.
+        """
+        if row.backend == "state":
+            stored = dict(row.files or {})
+            previews: dict[str, str] = {}
+            thumbnails: dict[str, str] = {}
+            for entry in files:
+                path = str(entry.get("path"))
+                preview = stored_preview(stored.get(path))
+                if preview is not None:
+                    previews[path] = preview
+                thumbnail = stored_thumbnail(path, stored.get(path))
+                if thumbnail is not None:
+                    thumbnails[path] = thumbnail
+            return previews, thumbnails, budget
+        drawn, budget = await self._host_thumbnails(ctx, row, files, budget)
+        return {}, drawn, budget
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -1243,12 +1271,7 @@ class SandboxWorkspaceService:
         if not rows:
             return None
         row = rows[0]
-        contents = await self._entries(ctx, row)
-        return row, WorkspaceContents(
-            entries=browsable(contents.entries),
-            unreadable_reason=contents.unreadable_reason,
-            truncated=contents.truncated,
-        )
+        return row, await self._browsable(ctx, row)
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":

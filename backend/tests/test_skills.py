@@ -67,6 +67,7 @@ def _row(name: str) -> Skill:
         organization_id=uuid.uuid4(),
         name=name,
         description="How refunds are handled.",
+        content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
         enabled=True,
         resources=[],
@@ -366,6 +367,9 @@ class TestSkillManagement:
             listing = await SkillService(_db()).list_readable(ctx)
 
         assert [item.built_in for item in listing.items] == [True, False]
+        # The card peeks at the body without the listing carrying it: front
+        # matter is dropped, because the card already shows the name.
+        assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."
 
     @pytest.mark.anyio
     async def test_the_listing_carries_the_filters_the_page_cannot(self):

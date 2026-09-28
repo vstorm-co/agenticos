@@ -2098,7 +2098,8 @@
         "legal": "Prawo i doradztwo",
         "manufacturing": "Produkcja i logistyka"
       }
-    }
+    },
+    "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}"
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -3072,7 +3073,8 @@
     "pageLink": "Link do tej strony",
     "pageLinkWhy": "Otwiera stronę każdemu, kto ma już dostęp, po zalogowaniu. Samo wysłanie linku nikomu dostępu nie daje.",
     "maybeOtherOrganization": "Jeśli udostępniono go w innej organizacji, przełącz się na nią.",
-    "switchOrganization": "Przełącz organizację"
+    "switchOrganization": "Przełącz organizację",
+    "versionBadge": "v{version}"
   },
   "groups": {
     "title": "Grupy",

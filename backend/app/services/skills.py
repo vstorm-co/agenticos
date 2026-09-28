@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
@@ -73,6 +74,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         enabled=skill.enabled,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
+        excerpt=excerpt(skill.content),
     )
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "f3295524890a"
+source_sha: "32ecd84a00b7"
 ---
 
 # La sandbox { #the-sandbox }
@@ -511,6 +511,10 @@ dibuja 24 como mucho. Pasado eso una tarjeta se queda con el glifo.
 
 Un workspace *almacenado* no paga ninguna de las dos cosas: sus archivos y sus
 bytes son una columna de la fila que el listado ya leyó.
+
+El panel **Files** del chat y el listado propio de un workspace dibujan sus
+mosaicos como **All files**: las primeras líneas de un archivo de texto
+almacenado, y una imagen como miniatura dentro del mismo límite.
 
 ## Cuánto sobrevive cada cosa { #how-long-anything-survives }
 

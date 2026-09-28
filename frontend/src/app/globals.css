@@ -185,6 +185,14 @@
   --color-card-foreground: oklch(17.5% 0.004 265);
   --color-popover: oklch(100% 0 0);
   --color-popover-foreground: oklch(17.5% 0.004 265);
+  /* The document peek: a card's content drawn as a sheet of paper resting in a
+     well, with the rest of it stacked behind. The paper is always the lightest
+     of the three, in both themes, which is why these are their own tokens
+     rather than card-on-muted - in the dark theme a card is *darker* than
+     muted, and the sheet would read as a hole. */
+  --color-peek-well: oklch(95.5% 0.002 265);
+  --color-peek-sheet: oklch(88.5% 0.004 265);
+  --color-peek-paper: oklch(100% 0 0);
   /* `primary` is INK, not the accent: the platform's primary action is a
      near-black button (white in dark themes), the way OpenAI's and
      ElevenLabs' consoles draw theirs. The accent keeps the quieter jobs -
@@ -283,6 +291,9 @@
     --color-card-foreground: oklch(94.5% 0.003 265);
     --color-popover: oklch(28.5% 0.0025 265);
     --color-popover-foreground: oklch(94.5% 0.003 265);
+    --color-peek-well: oklch(21.5% 0.0025 265);
+    --color-peek-sheet: oklch(25.5% 0.0025 265);
+    --color-peek-paper: oklch(29.5% 0.003 265);
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
@@ -327,6 +338,9 @@
   --color-card-foreground: oklch(94.5% 0.003 265);
   --color-popover: oklch(28.5% 0.0025 265);
   --color-popover-foreground: oklch(94.5% 0.003 265);
+  --color-peek-well: oklch(21.5% 0.0025 265);
+  --color-peek-sheet: oklch(25.5% 0.0025 265);
+  --color-peek-paper: oklch(29.5% 0.003 265);
   /* Keep in sync with the `prefers-color-scheme: dark` block above and with
      `.theme-dark` below - three places, one mapping. */
   --color-primary: oklch(96% 0.003 250);
@@ -1644,3 +1658,274 @@
    was a page whose corners were a different shade from its middle, which is
    the "why is the background a gradient" every flat console avoids. The page
    is `--color-background`, one value, everywhere. */
+
+/* =========================================================================
+   Document peek - the content of a skill, a context file, an artifact or a
+   file, as a sheet of paper in a well. `DocPeek` draws the markup and the
+   colours (as `bg-peek-*` utilities, so Tailwind keeps the tokens); the
+   geometry and motion live here so they have one definition, and the
+   reduced-motion block above strips the motion with everything else.
+   ========================================================================= */
+
+.peek-sheet,
+.peek-paper {
+  position: absolute;
+  border-radius: 7px 7px 0 0;
+  transition:
+    transform var(--duration-slow) var(--ease-out),
+    box-shadow var(--duration-slow) var(--ease-out);
+  will-change: transform;
+}
+
+/* The pages behind. Offset up and inward, so each shows a sliver of edge
+   above the one in front - a stack you count at a glance rather than a
+   number you read. */
+.peek-sheet {
+  box-shadow:
+    0 0 0 1px oklch(0% 0 0 / 0.06),
+    0 1px 2px oklch(0% 0 0 / 0.04);
+}
+.peek-sheet-1 {
+  inset: 7px 23px auto 25px;
+  height: 100%;
+}
+.peek-sheet-2 {
+  inset: 1px 31px auto 33px;
+  height: 100%;
+}
+
+.peek-paper {
+  inset: 14px 16px auto 16px;
+  height: calc(100% + 8px);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px oklch(0% 0 0 / 0.05),
+    0 1px 3px oklch(0% 0 0 / 0.06);
+  /* The page runs on past the card: fade it out rather than clip it, so it
+     reads as the top of something longer. */
+  mask-image: linear-gradient(to bottom, black 58%, transparent 96%);
+}
+
+/* A small file tile: the page sits closer to the well's edges. */
+.peek-compact .peek-paper {
+  inset: 7px 7px auto 7px;
+  border-radius: 5px 5px 0 0;
+}
+
+/* Hovering the card lifts the page toward the reader and fans the stack.
+   Pointer devices only - on touch a hover state sticks after the tap. */
+@media (hover: hover) {
+  .group:hover .peek-paper,
+  .group:focus-within .peek-paper {
+    transform: translateY(-4px);
+    box-shadow:
+      0 0 0 1px oklch(0% 0 0 / 0.05),
+      0 8px 18px -6px oklch(0% 0 0 / 0.16);
+  }
+  .group:hover .peek-sheet-1,
+  .group:focus-within .peek-sheet-1 {
+    transform: translate(6px, -5px) rotate(1.6deg);
+  }
+  .group:hover .peek-sheet-2,
+  .group:focus-within .peek-sheet-2 {
+    transform: translate(-7px, -7px) rotate(-2.2deg);
+  }
+}
+
+/* A card lifts a hair on hover, the one motion every card in a grid shares. */
+.peek-card {
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+@media (hover: hover) {
+  .peek-card:hover,
+  .peek-card:focus-within {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+/* A card's secondary action - delete, mostly - stays out of the way until the
+   card is pointed at or reached by keyboard, so a grid is not a column of
+   bins. Always shown where there is no hover to reveal it. */
+@media (hover: hover) {
+  .hover-reveal {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal,
+  .hover-reveal:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* A dashboard card answers the pointer with depth rather than movement: it is
+   read, not pressed, and a grid of cards that shifted under the cursor would
+   make the numbers on them hard to hold. */
+.dash-widget {
+  transition:
+    box-shadow var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+@media (hover: hover) {
+  .dash-widget:hover {
+    border-color: color-mix(in oklch, var(--color-foreground) 16%, transparent);
+    box-shadow: var(--shadow-float);
+  }
+}
+
+/* A live thumbnail fades in once its frame has painted, rather than popping
+   from the placeholder to the page. */
+.peek-frame {
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+.peek-frame[data-loaded="true"] {
+  opacity: 1;
+}
+
+/* A grid of cards arriving: each rises into place a beat after the one before,
+   so a page of twelve reads as twelve things rather than one block. Capped at
+   the ninth, past which a delay is waiting rather than rhythm. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise-in > * {
+  animation: rise-in 420ms var(--ease-out) both;
+}
+.rise-in > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.rise-in > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.rise-in > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.rise-in > :nth-child(5) {
+  animation-delay: 160ms;
+}
+.rise-in > :nth-child(6) {
+  animation-delay: 200ms;
+}
+.rise-in > :nth-child(7) {
+  animation-delay: 240ms;
+}
+.rise-in > :nth-child(8) {
+  animation-delay: 280ms;
+}
+.rise-in > :nth-child(n + 9) {
+  animation-delay: 320ms;
+}
+
+/* A streaming answer: each block the markdown grows - a paragraph, a list, a
+   heading, a table - fades up as it mounts. Blocks already on screen keep their
+   element, so they never replay; the class comes off when the turn ends. The
+   letters themselves are paced by `useSmoothText`. */
+@keyframes stream-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+    filter: blur(1.5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.stream-in > :not(.stream-cursor) {
+  animation: stream-block-in 420ms var(--ease-out) both;
+}
+
+/* A wizard's step arriving: the body is keyed on the step, so each one slides
+   in from the side it is heading toward rather than swapping in place. */
+@keyframes wizard-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wizard-step-in {
+  animation: wizard-step-in 320ms var(--ease-out) both;
+}
+
+/* =========================================================================
+   Enter and exit motion for overlays - dialogs, menus, selects, popovers,
+   sheets. The primitives were written against the `tw-animate-css` class
+   vocabulary (`data-[state=open]:animate-in fade-in-0 zoom-in-95 …`), and that
+   plugin was never installed, so every one of those classes compiled to
+   nothing: a dialog, a dropdown and a select all appeared in a single frame
+   and vanished in one. These are the same names, so the ten call sites need
+   no edits: `animate-in`/`animate-out` run the keyframe, and the modifiers
+   set where it starts or ends. Radix waits for the exit animation before it
+   unmounts, so closing is animated too. The reduced-motion block above
+   collapses all of it.
+   ========================================================================= */
+
+@keyframes overlay-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale(var(--tw-enter-scale, 1));
+  }
+}
+@keyframes overlay-exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
+      scale(var(--tw-exit-scale, 1));
+  }
+}
+
+@utility animate-in {
+  animation: overlay-enter var(--tw-duration, 180ms) var(--tw-ease, var(--ease-out)) both;
+}
+@utility animate-out {
+  animation: overlay-exit var(--tw-duration, 130ms) cubic-bezier(0.4, 0, 1, 1) both;
+}
+@utility fade-in-* {
+  --tw-enter-opacity: calc(--value(integer) * 1%);
+}
+@utility fade-out-* {
+  --tw-exit-opacity: calc(--value(integer) * 1%);
+}
+@utility zoom-in-* {
+  --tw-enter-scale: calc(--value(integer) * 1%);
+}
+@utility zoom-out-* {
+  --tw-exit-scale: calc(--value(integer) * 1%);
+}
+@utility slide-in-from-top-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-bottom-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer));
+}
+@utility slide-in-from-left-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-right-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer));
+}
+/* A sheet comes in from off-screen: the whole of its own width. */
+@utility slide-in-from-left {
+  --tw-enter-translate-x: -100%;
+}
+@utility slide-in-from-right {
+  --tw-enter-translate-x: 100%;
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "aa172e0664f3"
+source_sha: "95e0b53485c2"
 ---
 
 # Artefakte { #artifacts }
@@ -169,6 +169,13 @@ nichts, was es tut, die Konsole oder die Person erreichen kann, die es ansieht:
   öffentliche Seite stellen jedes Mal eine frische Adresse aus, wenn sie den
   Frame zeichnen, und das Ausstellen über einen öffentlichen Link ist selbst pro
   Link begrenzt.
+
+Die Liste **Artifacts** zeichnet die aktuelle Seite jeder Karte als
+Live-Vorschau, durch denselben Frame und mit derselben `sandbox`-Liste. Die
+Vorschau ist inert — keine Zeigerereignisse, nicht in der Tab-Reihenfolge, vor
+assistiven Technologien verborgen — und ihre Adresse wird erst ausgestellt, wenn
+die Karte in die Nähe des Sichtbereichs kommt, sodass eine lange Liste nicht
+vorab eine Adresse pro Artefakt ausstellt.
 
 Darüber hinaus kann ein Deployment Inhalte von einer **separaten registrierbaren
 Domain** ausliefern, indem es `ARTIFACT_ORIGIN` setzt — zum Beispiel

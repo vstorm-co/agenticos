@@ -77,6 +77,28 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
+  it("draws each file's first lines on its tile, as All files does", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          {
+            path: "/report.csv",
+            size: 2048,
+            is_dir: false,
+            modified_at: null,
+            preview: "month,total",
+            thumbnail: null,
+          },
+        ],
+        total: 1,
+      }),
+    );
+    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    await openPanel();
+
+    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+  });
+
   it("says whose files these are", async () => {
     draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
     await openPanel();

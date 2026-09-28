@@ -29,6 +29,10 @@ cause of an agent that either ignores what it was told or reads nothing at all.
 The rule of thumb: **if it is short and always relevant, it is a context file.
 If it is long, it is knowledge. If it is a procedure, it is a skill.**
 
+The **Context** page shows the opening of each file on its card. `GET
+/api/v1/context` returns it as `excerpt`: a few bounded lines, never the whole
+body.
+
 ## Two modes, and the difference is cost
 
 Every context file carries a mode, and it decides how the file reaches the

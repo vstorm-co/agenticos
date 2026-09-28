@@ -13,6 +13,7 @@ const SKILL: SkillSummary = {
   enabled: true,
   file_count: 2,
   built_in: false,
+  excerpt: "# Refunds\n\n1. Check the order\n- Use **the** `refund` tool",
 };
 
 function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {}) {
@@ -90,5 +91,31 @@ describe("SkillCard", () => {
     await userEvent.click(screen.getByText("refund-policy"));
     expect(onOpen).toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("shows the body's opening on a page, with a sheet behind it per file", () => {
+    const { container } = render(
+      <SkillCard skill={SKILL} canEdit={false} onOpen={vi.fn()} onDelete={vi.fn()} />,
+    );
+
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    expect(screen.getByText("Use the refund tool")).toBeInTheDocument();
+    expect(screen.getByText("+2 files")).toBeInTheDocument();
+    expect(container.querySelectorAll(".peek-sheet")).toHaveLength(2);
+  });
+
+  it("draws a blank page, not the description twice, for a skill with no body", () => {
+    const { container } = render(
+      <SkillCard
+        skill={{ ...SKILL, excerpt: "", file_count: 0 }}
+        canEdit={false}
+        onOpen={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(SKILL.description)).toHaveLength(1);
+    expect(screen.queryByText("+2 files")).toBeNull();
+    expect(container.querySelectorAll(".peek-sheet")).toHaveLength(0);
   });
 });

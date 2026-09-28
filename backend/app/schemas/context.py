@@ -30,7 +30,8 @@ class ContextFileSummary(BaseSchema):
 
     The body is the whole point of an injected file (it becomes prompt) and of a
     linked one (the model loads it on demand). A listing that carried every body
-    would ship an agent's entire standing context to draw one picker.
+    would ship an agent's entire standing context to draw one picker, so it
+    carries a bounded excerpt instead - enough for a card to show the opening.
     """
 
     id: UUID
@@ -40,6 +41,10 @@ class ContextFileSummary(BaseSchema):
     mode: ContextModeLiteral
     enabled: bool
     size_bytes: int = Field(description="The body's size, so the listing can hint at its weight")
+    excerpt: str = Field(
+        default="",
+        description="The body's first lines, front matter dropped and bounded, for a card",
+    )
 
 
 class ContextFileList(BaseSchema):

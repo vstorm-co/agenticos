@@ -69,7 +69,7 @@ export function WidgetFrame({
       // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "dash-widget group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
         className,
       )}
     >

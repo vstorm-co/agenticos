@@ -216,7 +216,9 @@ describe("the hosted page", () => {
     act(() => socket().deliver({ type: "text_delta", data: { content: "days" } }));
     act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.getByText("30 days")).toBeInTheDocument();
+    // The streamed answer is paced onto the page over a few frames rather than
+    // painted in bursts, so it is awaited rather than read synchronously.
+    expect(await screen.findByText("30 days")).toBeInTheDocument();
     expect(screen.queryByText("Working on it…")).toBeNull();
   });
 
@@ -414,13 +416,13 @@ describe("what the page does with the frames it is sent", () => {
     expect(screen.getByText("Checking policy.")).toBeInTheDocument();
   });
 
-  it("keeps one bubble for a turn rather than one per frame", () => {
+  it("keeps one bubble for a turn rather than one per frame", async () => {
     render(<HostedChat config={config()} />);
 
     act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty " } }));
     act(() => socket().deliver({ type: "text_delta", data: { content: "days." } }));
 
-    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(await screen.findByText("Thirty days.")).toBeInTheDocument();
   });
 
   it("starts a new bubble once a turn is over", () => {

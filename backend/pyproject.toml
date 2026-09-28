@@ -625,6 +625,8 @@ include = [
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
     "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -983,6 +985,8 @@ include = [
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
     "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",

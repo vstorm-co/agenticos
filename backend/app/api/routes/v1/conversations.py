@@ -448,6 +448,8 @@ async def list_workspace_files(
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
             modified_at=entry.get("modified_at"),
+            preview=contents.previews.get(str(entry.get("path"))),
+            thumbnail=contents.thumbnails.get(str(entry.get("path"))),
         )
         for entry in contents.entries
     ]

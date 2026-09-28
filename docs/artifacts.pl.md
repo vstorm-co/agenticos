@@ -1,5 +1,5 @@
 ---
-source_sha: "aa172e0664f3"
+source_sha: "95e0b53485c2"
 ---
 
 # Artefakty { #artifacts }
@@ -158,6 +158,12 @@ ani osoby, która go ogląda:
   per adres, zanim cokolwiek zostanie odczytane. Konsola i strona publiczna
   wydają świeży adres za każdym razem, gdy rysują ramkę, a wydanie go przez
   publiczny link samo jest ograniczone per link.
+
+Lista **Artifacts** rysuje na każdej karcie bieżącą stronę jako żywą miniaturę,
+przez tę samą ramkę i z tą samą listą `sandbox`. Miniatura jest bezczynna — bez
+zdarzeń wskaźnika, poza kolejnością tabulacji, ukryta przed technologiami
+asystującymi — a jej adres powstaje dopiero, gdy karta zbliża się do widoku,
+więc długa lista nie wybija z góry adresu dla każdego artefaktu.
 
 Ponadto wdrożenie może serwować treść z **osobnej domeny rejestrowalnej**,
 ustawiając `ARTIFACT_ORIGIN` — na przykład

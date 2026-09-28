@@ -1,5 +1,5 @@
 ---
-source_sha: "14e5585228ca"
+source_sha: "854111718543"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -32,6 +32,10 @@ agenta, który albo ignoruje to, co mu powiedziano, albo nie czyta niczego.
 
 Zasada praktyczna: **jeśli coś jest krótkie i zawsze istotne, to plik
 kontekstowy. Jeśli jest długie, to wiedza. Jeśli to procedura, to skill.**
+
+Strona **Context** pokazuje na karcie początek każdego pliku. `GET
+/api/v1/context` zwraca go jako `excerpt`: kilka ograniczonych linii, nigdy całą
+treść.
 
 ## Dwa tryby, a różnica między nimi to koszt { #two-modes-and-the-difference-is-cost }
 

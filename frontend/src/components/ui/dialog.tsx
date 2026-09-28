@@ -18,7 +18,10 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80",
+      // A veil rather than a blackout: the page stays legible enough to say where
+      // the dialog came from, and the blur takes its detail out of competition
+      // with the form on top.
+      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/45 backdrop-blur-[3px] duration-200",
       className,
     )}
     {...props}
@@ -61,13 +64,15 @@ const DialogContent = React.forwardRef<
           // Solid, unlike the drawers and menus: a centred modal sits directly
           // over the dimmed page, and any translucency reads as a stain of
           // whatever happens to be behind it - the wrong place for panel.
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 shadow-float fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 duration-200 sm:rounded-2xl",
+          // Rises a few pixels as it scales in, and settles with a spring - the
+          // motion of something placed in front of the page, not faded onto it.
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-[0_24px_64px_-24px_oklch(0%_0_0/0.35),0_2px_6px_oklch(0%_0_0/0.06)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:rounded-2xl",
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none">
+        <DialogPrimitive.Close className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring absolute top-3.5 right-3.5 rounded-lg p-1.5 transition-colors duration-150 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none">
           <X className="h-4 w-4" />
           <span className="sr-only">{t("close")}</span>
         </DialogPrimitive.Close>

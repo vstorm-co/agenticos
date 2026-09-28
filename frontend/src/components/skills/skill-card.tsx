@@ -2,7 +2,7 @@
 
 import { FileText, Tag, Trash2 } from "lucide-react";
 
-import { Badge, Button, Card, CardContent } from "@/components/ui";
+import { Badge, BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import { categoryLabel } from "@/components/skills/category-input";
 import type { SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -27,10 +27,20 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
   const t = useTranslations("skills");
   const tc = useTranslations("common");
   return (
-    <Card className="hover:border-foreground/20 h-full transition-colors">
-      <CardContent className="flex items-start justify-between gap-3 p-5">
-        <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
-          <span className="flex items-center gap-2">
+    <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
+      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col text-left">
+        {/* The body's opening on the front page, and one page behind it per file
+            the skill carries - a skill with scripts and references looks like
+            more than a single instruction before anyone opens it. */}
+        <DocPeek
+          sheets={skill.file_count}
+          badge={skill.file_count > 0 ? t("moreFiles", { count: skill.file_count }) : undefined}
+          className="h-32"
+        >
+          {skill.excerpt ? <TextPeek source={skill.excerpt} /> : <BlankPeek />}
+        </DocPeek>
+        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5">
+          <span className="flex items-center gap-2 pr-8">
             <span className="text-foreground truncate font-mono text-sm font-medium">
               {skill.name}
             </span>
@@ -40,7 +50,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
           <span className="text-muted-foreground line-clamp-2 block text-sm">
             {skill.description}
           </span>
-          <span className="text-muted-foreground flex items-center gap-3 text-xs">
+          <span className="text-muted-foreground mt-auto flex items-center gap-3 pt-1 text-xs">
             <span className="flex items-center gap-1">
               <FileText className="h-3.5 w-3.5 shrink-0" />
               {t("fileCount", { count: skill.file_count })}
@@ -52,18 +62,21 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
               </span>
             )}
           </span>
-        </button>
-        {canEdit && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={tc("deleteNamed", { name: skill.name })}
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </CardContent>
+        </span>
+      </button>
+      {canEdit && (
+        // Outside the open button - a button cannot hold another - and quiet until
+        // the card is pointed at, so a grid of skills is not a column of bins.
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={tc("deleteNamed", { name: skill.name })}
+          onClick={onDelete}
+          className="hover-reveal absolute right-2 bottom-2"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
     </Card>
   );
 }

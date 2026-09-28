@@ -71,6 +71,9 @@ export function RunTable({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  // Grouped digits: `245037` beside `2550` in one column is a length to compare,
+  // `245,037` beside `2,550` is a number to read.
+  const tokenCount = new Intl.NumberFormat(locale);
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
 
@@ -120,7 +123,9 @@ export function RunTable({
                 return <span className="text-muted-foreground text-xs">-</span>;
               }
               return (
-                <span className="flex items-center gap-2 text-xs">
+                // One line: a two-word agent name wrapping made its row taller
+                // than every row around it, and the list stopped reading as one.
+                <span className="flex items-center gap-2 text-xs whitespace-nowrap">
                   <span aria-hidden>
                     <AgentAvatar
                       agentId={run.agent_id}
@@ -130,7 +135,9 @@ export function RunTable({
                       className="h-5 w-5"
                     />
                   </span>
-                  {agent.name}
+                  <span className="max-w-[10rem] truncate" title={agent.name}>
+                    {agent.name}
+                  </span>
                 </span>
               );
             },
@@ -148,7 +155,7 @@ export function RunTable({
                 return <span className="text-muted-foreground text-xs">-</span>;
               }
               return (
-                <span className="flex items-center gap-2 text-xs">
+                <span className="flex items-center gap-2 text-xs whitespace-nowrap">
                   <EntityAvatar
                     seed={member.user_id}
                     name={member.full_name || member.email}
@@ -156,7 +163,9 @@ export function RunTable({
                     className="h-5 w-5 shrink-0 text-[9px]"
                     ariaHidden
                   />
-                  {displayName(member)}
+                  <span className="max-w-[10rem] truncate" title={displayName(member)}>
+                    {displayName(member)}
+                  </span>
                 </span>
               );
             },
@@ -169,7 +178,7 @@ export function RunTable({
       // The mark and the name together: the mark is what makes a column of
       // fifty rows scannable, the name is what a screen reader hears.
       cell: (run) => (
-        <span className="text-muted-foreground flex items-center gap-1.5">
+        <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
           <SurfaceIcon surface={run.surface} />
           {surfaceLabel(run.surface, t)}
         </span>
@@ -188,7 +197,7 @@ export function RunTable({
           {run.provider !== null && (
             <ProviderIcon provider={run.provider} className="h-3.5 w-3.5 shrink-0" />
           )}
-          <span className="max-w-[16rem] truncate" title={run.model_label ?? undefined}>
+          <span className="max-w-[11rem] truncate" title={run.model_label ?? undefined}>
             {run.model_label ?? "-"}
           </span>
         </span>
@@ -200,7 +209,9 @@ export function RunTable({
       align: "right",
       sortable,
       cell: (run) => (
-        <span className="font-mono text-xs">{run.input_tokens + run.output_tokens}</span>
+        <span className="font-mono text-xs">
+          {tokenCount.format(run.input_tokens + run.output_tokens)}
+        </span>
       ),
     },
     {
@@ -209,7 +220,7 @@ export function RunTable({
       align: "right",
       sortable,
       cell: (run) => (
-        <span className="font-mono text-xs">
+        <span className="font-mono text-xs whitespace-nowrap">
           ${Number(run.cost_usd).toFixed(4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
@@ -228,7 +239,7 @@ export function RunTable({
       // duration sort places last in both directions - it has no
       // duration yet, which is a different fact from having been fast.
       cell: (run) => (
-        <span className="text-muted-foreground font-mono text-xs">
+        <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
           {formatRunDuration(run.started_at, run.ended_at)}
         </span>
       ),

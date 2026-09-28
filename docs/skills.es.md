@@ -1,5 +1,5 @@
 ---
-source_sha: "157f22ede691"
+source_sha: "14be638e2c6f"
 ---
 
 # Skills { #skills }
@@ -63,6 +63,11 @@ category: support
 
 Most refund questions are decided by the order date and one exception. Check
 those before escalating anything.
+
+La página **Skills** muestra en cada tarjeta el comienzo del cuerpo — sin front
+matter, unas pocas líneas — con una hoja apilada detrás por cada archivo que
+lleva el skill. `GET /api/v1/skills` devuelve ese comienzo como `excerpt`; el
+cuerpo en sí se carga al abrir el skill.
 
 ## Decide without asking
 ...

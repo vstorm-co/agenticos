@@ -4867,7 +4867,8 @@
         "legal": "Legal and professional services",
         "manufacturing": "Manufacturing and logistics"
       }
-    }
+    },
+    "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}"
   },
   "states": {
     "loading": "Loading"
@@ -5424,7 +5425,8 @@
     "pageLink": "Link to this page",
     "pageLinkWhy": "Opens the page for anyone who already has access, after they sign in. Sending it gives nobody access by itself.",
     "maybeOtherOrganization": "If it was shared with you in another organization, switch to it.",
-    "switchOrganization": "Switch organization"
+    "switchOrganization": "Switch organization",
+    "versionBadge": "v{version}"
   },
   "groups": {
     "title": "Groups",

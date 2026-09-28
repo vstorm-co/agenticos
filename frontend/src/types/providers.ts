@@ -118,6 +118,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** The body's first lines, front matter dropped - what the card's page shows. */
+  excerpt: string;
 }
 
 export interface SkillList {
@@ -158,6 +160,8 @@ export interface ContextFileSummary {
   mode: ContextMode;
   enabled: boolean;
   size_bytes: number;
+  /** The body's first lines, front matter dropped - what the card's page shows. */
+  excerpt: string;
 }
 
 export interface ContextFileList {

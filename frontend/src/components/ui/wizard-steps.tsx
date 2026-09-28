@@ -38,9 +38,11 @@ export function WizardSteps({ steps, current }: WizardStepsProps) {
           <li key={step.id} className="flex flex-1 items-center gap-2">
             <div
               className={cn(
-                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-[background-color,color,box-shadow,transform] duration-300",
                 done && "bg-foreground text-background",
-                active && "bg-brand text-brand-foreground",
+                // The step on screen carries a soft halo, so it reads as "here"
+                // from across the dialog rather than as one more coloured dot.
+                active && "bg-brand text-brand-foreground ring-brand/15 scale-110 ring-4",
                 !done && !active && "bg-foreground/8 text-foreground/55",
               )}
             >
@@ -48,16 +50,23 @@ export function WizardSteps({ steps, current }: WizardStepsProps) {
             </div>
             <span
               className={cn(
-                "hidden font-mono text-[10px] tracking-wider uppercase sm:inline",
+                "hidden font-mono text-[10px] tracking-wider uppercase transition-colors duration-300 sm:inline",
                 active || done ? "text-foreground" : "text-foreground/45",
               )}
             >
               {step.label}
             </span>
             {i < steps.length - 1 && (
-              <span
-                className={cn("h-px flex-1", i < currentIdx ? "bg-foreground" : "bg-foreground/15")}
-              />
+              // The rail fills toward the next step as the wizard advances, and
+              // drains when it goes back - progress drawn as motion, not a swap.
+              <span className="bg-foreground/15 relative h-px flex-1 overflow-hidden">
+                <span
+                  className={cn(
+                    "bg-foreground absolute inset-0 origin-left transition-transform duration-500 ease-[var(--ease-out)]",
+                    i < currentIdx ? "scale-x-100" : "scale-x-0",
+                  )}
+                />
+              </span>
             )}
           </li>
         );

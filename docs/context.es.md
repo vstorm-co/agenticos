@@ -1,5 +1,5 @@
 ---
-source_sha: "14e5585228ca"
+source_sha: "854111718543"
 ---
 
 # Archivos de contexto { #context-files }
@@ -33,6 +33,10 @@ un agent que o ignora lo que se le dijo o no lee nada en absoluto.
 
 La regla práctica: **si es corto y siempre relevante, es un archivo de contexto.
 Si es largo, es conocimiento. Si es un procedimiento, es un skill.**
+
+La página **Context** muestra en cada tarjeta el comienzo del archivo. `GET
+/api/v1/context` lo devuelve como `excerpt`: unas pocas líneas acotadas, nunca
+el cuerpo entero.
 
 ## Dos modos, y la diferencia es el coste { #two-modes-and-the-difference-is-cost }
 

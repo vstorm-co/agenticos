@@ -1,5 +1,5 @@
 ---
-source_sha: "157f22ede691"
+source_sha: "14be638e2c6f"
 ---
 
 # Skille { #skills }
@@ -62,6 +62,11 @@ category: support
 
 Most refund questions are decided by the order date and one exception. Check
 those before escalating anything.
+
+Strona **Skills** pokazuje na karcie początek treści każdego skilla — bez front
+matter, kilka linii — a za nim po jednym arkuszu na każdy plik, który skill ze
+sobą niesie. `GET /api/v1/skills` zwraca ten początek jako `excerpt`; samą treść
+wczytuje dopiero otwarcie skilla.
 
 ## Decide without asking
 ...

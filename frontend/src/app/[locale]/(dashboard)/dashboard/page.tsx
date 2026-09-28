@@ -334,7 +334,7 @@ export default function DashboardPage() {
                   </h2>
                 ) : null}
                 {collapsed ? null : (
-                  <div className={cn(ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
+                  <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
                     {section.entries.map((entry, index) => {
                       const Widget = WIDGET_COMPONENTS[entry.widget];
                       // Width and height, both from the placement. The shipped

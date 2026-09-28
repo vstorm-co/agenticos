@@ -3,7 +3,9 @@
 import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { cn } from "@/lib/utils";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
@@ -206,6 +208,7 @@ export function TextBubble({
   isUser: boolean;
   onCiteClick?: (index: number) => void;
 }) {
+  const visible = useSmoothText(text, showCursor && !isUser);
   if (isUser) {
     // A panel rather than the inverted slab this was. `bg-foreground` made the
     // question the brightest object on the page, louder than the answer under
@@ -220,10 +223,15 @@ export function TextBubble({
   }
 
   return (
-    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
-      <MarkdownContent content={text} onCiteClick={onCiteClick} />
+    // While the turn streams, each new block - a paragraph, a list, a table - rises
+    // into place instead of appearing; the class comes off when the turn ends, so
+    // nothing already read ever animates again.
+    <div
+      className={cn("prose-sm max-w-none text-[15px] leading-relaxed", showCursor && "stream-in")}
+    >
+      <MarkdownContent content={visible} onCiteClick={onCiteClick} />
       {showCursor && (
-        <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
+        <span className="stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
   );
