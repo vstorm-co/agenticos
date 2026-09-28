@@ -149,6 +149,8 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "tables:read",
+        "tables:write",
     }
 )
 

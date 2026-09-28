@@ -1,5 +1,5 @@
 ---
-source_sha: "fc94078e7cb3"
+source_sha: "23726d155d3b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -376,14 +376,13 @@ robi go sesja żądania, a worker ma własny zakres sesji.
 - **Podmiot dla kluczy API.** Dostęp, potwierdzenia i historia wskazują zalogowanego
   użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
   uzgodnione.
-- Narzędzia agenta i typowane węzły workflow nad tabelami oraz triggery przy
-  tworzeniu rekordu. Ekrany konsoli (tworzenie tabeli, edycja schematu, edycja
-  komórek rekordu i zapisane widoki table/kanban/list opisane w sekcji
-  [Zapisane widoki](#saved-views)) już istnieją; dostęp do tego samego serwisu po
-  stronie agentów i workflow jeszcze nie, podobnie jak tworzenie i usuwanie
-  rekordów z konsoli.
+- Triggery przy tworzeniu rekordu oraz tworzenie i usuwanie rekordów z konsoli.
+  Agenci sięgają do tabel przez
+  [capability Tables](reference/capabilities.md#tables), a workflow przez
+  [węzły tabel](reference/workflow-nodes.md#virtual-tables).
 - Konsument outbox. Dopóki nie powstanie, każde zdarzenie utworzenia rekordu dociera do
   `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` i jest odrzucane zamiast dostarczone - jawny
   dead letter, a nie kolejka, którą coś dziś opróżnia.
-- Checkery zależności dla workflow i triggerów - zapisane widoki już rejestrują
-  swój (zobacz [Zapisane widoki](#saved-views)).
+- Checker zależności dla triggerów. Zapisane widoki rejestrują swój (zobacz
+  [Zapisane widoki](#saved-views)), tak samo workflow: tabeli albo przypiętej
+  kolumny, której używa bieżąca wersja żywego workflow, nie da się zarchiwizować.

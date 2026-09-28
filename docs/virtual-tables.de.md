@@ -1,5 +1,5 @@
 ---
-source_sha: "fc94078e7cb3"
+source_sha: "23726d155d3b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -400,15 +400,14 @@ Session-Scope.
 - **Ein Principal für API-Keys.** Zugriff, Quittungen und Historie nennen einen
   angemeldeten Benutzer. Wie ein API-Key für die externe API auf eine Tabelle wirkt,
   muss noch abgestimmt werden.
-- Agent-Tools und typisierte Workflow-Knoten über Tabellen sowie Trigger beim
-  Erstellen eines Datensatzes. Die Konsolenansichten (Tabelle erstellen, Schema
-  bearbeiten, die Zellen eines Datensatzes bearbeiten und die gespeicherten
-  Tabellen-/Kanban-/Listenansichten aus dem Abschnitt
-  [Gespeicherte Ansichten](#saved-views)) gibt es bereits; den Zugriff auf denselben
-  Service für Agenten und Workflows noch nicht, ebenso wenig das Erstellen und
-  Löschen von Datensätzen in der Konsole.
+- Trigger beim Erstellen eines Datensatzes sowie das Erstellen und Löschen von
+  Datensätzen in der Konsole. Agents erreichen Tabellen über die
+  [Tables-Capability](reference/capabilities.md#tables), Workflows über die
+  [Tabellen-Knoten](reference/workflow-nodes.md#virtual-tables).
 - Ein Konsument der Outbox. Bis es einen gibt, erreicht jedes Created-Record-Ereignis
   `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` und wird verworfen statt zugestellt - ein
   offengelegter Dead Letter, keine Warteschlange, die heute irgendetwas leert.
-- Dependency-Checker für Workflows und Trigger - gespeicherte Ansichten
-  registrieren ihren bereits (siehe [Gespeicherte Ansichten](#saved-views)).
+- Ein Dependency-Checker für Trigger. Gespeicherte Ansichten registrieren einen
+  (siehe [Gespeicherte Ansichten](#saved-views)), Workflows ebenso: Eine Tabelle oder
+  festgelegte Spalte, die die aktuelle Version eines lebenden Workflows nutzt, kann
+  nicht archiviert werden.

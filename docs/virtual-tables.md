@@ -355,14 +355,13 @@ commits: the request's session does, and a worker owns its own session scope.
 
 - **A principal for API keys.** Access, receipts and history all name a signed-in
   user. How an API key acts on a table for the external API is still to be agreed.
-- Agent tools and typed workflow nodes over tables, and triggers on record
-  creation. The console screens (table creation, schema editing, editing a
-  record's cells and the saved table/kanban/list views this page's
-  [Saved views](#saved-views) section describes) exist; agent- and workflow-side
-  access to the same service does not yet, and nor does creating or deleting a
-  record from the console.
+- Triggers on record creation, and creating or deleting a record from the
+  console. Agents reach tables through the
+  [Tables capability](reference/capabilities.md#tables), and workflows through the
+  [table nodes](reference/workflow-nodes.md#virtual-tables).
 - A consumer of the outbox. Until one exists, every created-record event reaches
   `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` and is discarded rather than delivered - a
   disclosed dead letter, not a queue anything can drain today.
-- Dependency checkers for workflows and triggers - saved views already register
-  one (see [Saved views](#saved-views)).
+- A dependency checker for triggers. Saved views register one (see
+  [Saved views](#saved-views)), and so do workflows: a table or pinned column that a
+  live workflow's current version uses cannot be archived.

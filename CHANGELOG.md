@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Agents and workflows can read and write Virtual Tables.** A new **Tables**
+  capability gives an agent eleven tools over the tables its binding grants,
+  with read, add, update and delete chosen per table in the Builder, and
+  `create_table` only when **Allow create** is on and the member holds
+  `tables:create`. A table or operation outside the grant is refused before
+  anything is read, and each call runs as the member's current membership.
+  Seven workflow nodes, `table.record.create`, `.upsert`, `.update`,
+  `.delete`, `.get`, `.query` and `table.create`, write through the same
+  service. A retried step or tool call replays its first write, and a table
+  or pinned column a live workflow uses cannot be archived. Creating a table
+  is now idempotent under an operation key; migration
+  `0110_table_create_receipts.py` (#1784).
 - **Workflows can do real work: agents, knowledge, data, branches, HTTP and
   notifications.** Nine nodes join the palette. `core.input` and `core.output`
   carry a run's `input` and `output` (`POST /workflow-runs` takes `input`, and

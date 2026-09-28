@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { TablesSection } from "@/components/agents/tables-section";
 import {
   CapabilityResources,
   resourceTabKey,
@@ -17,6 +18,7 @@ import { SearchInput, Switch } from "@/components/ui";
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
+  VIRTUAL_TABLES_ID,
   MEMORY_FILES_ID,
   MEMORY_MEM0_ID,
   readSubagentsConfig,
@@ -265,6 +267,16 @@ export function CapabilityWorkbench({
                and the server says which. */
             focused.id === IMAGE_GENERATION_ID ? (
               <ImageGenerationSection
+                definition={focused}
+                binding={bound ?? unboundBinding(focused.id)}
+                onToggleEnabled={() => onToggle(focused.id)}
+                onChange={onChange}
+                configProblems={configProblems}
+                disabled={disabled || !isOn}
+                readOnly={disabled}
+              />
+            ) : focused.id === VIRTUAL_TABLES_ID ? (
+              <TablesSection
                 definition={focused}
                 binding={bound ?? unboundBinding(focused.id)}
                 onToggleEnabled={() => onToggle(focused.id)}

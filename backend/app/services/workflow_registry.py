@@ -37,7 +37,9 @@ from app.schemas.workflow import (
     WorkflowVersionRestore,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
+from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.workflows._registry import all_node_definitions
+from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
@@ -196,6 +198,66 @@ def _detail(workflow: Workflow) -> WorkflowDetail:
         **_read(workflow).model_dump(),
         draft_graph=_parse_draft_graph(workflow),
     )
+
+
+def _table_references(graph: dict[str, Any]) -> list[tuple[UUID, tuple[UUID, ...] | None]]:
+    """Every table a stored graph names - a node's pinned `table`, or a table
+    binding - with the columns it pins, `None` meaning all of them."""
+    refs: list[dict[str, Any]] = [
+        node.get("config", {}).get("table")
+        for node in graph.get("nodes", [])
+        if isinstance(node.get("config", {}).get("table"), dict)
+    ]
+    refs += [
+        binding.get("source")
+        for binding in graph.get("bindings", [])
+        if isinstance(binding.get("source"), dict) and binding["source"].get("kind") == "table"
+    ]
+    found: list[tuple[UUID, tuple[UUID, ...] | None]] = []
+    for ref in refs:
+        try:
+            parsed = TableIORef.model_validate(ref)
+        except PydanticValidationError:
+            continue
+        found.append((parsed.table_id, parsed.column_ids))
+    return found
+
+
+async def workflow_table_dependents(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    column_ids: frozenset[UUID] | None,
+    caller: AuthContext,
+) -> list[Dependent]:
+    """The published workflows that would break if this table, or these columns, went.
+
+    Only a version that can still run counts - each live workflow's current one;
+    a superseded version is history, and letting it block a change would make one
+    old reference a permanent lock nobody could clear. Archiving the whole table
+    is blocked by any reference to it; archiving columns only by a reference that
+    pins one of them. A workflow the caller cannot edit is neither reported nor
+    blocking: it is not theirs to fix, and its step fails with a typed error at
+    run time instead.
+    """
+    dependents: list[Dependent] = []
+    for workflow, version in await workflow_repo.list_runnable_versions(
+        db, organization_id=organization_id
+    ):
+        hit = any(
+            ref_table == table_id
+            and (column_ids is None or (pinned is not None and bool(set(pinned) & column_ids)))
+            for ref_table, pinned in _table_references(version.graph)
+        )
+        if hit and await resolve_access(
+            db, caller, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        ):
+            dependents.append(Dependent(kind="workflow", id=workflow.id))
+    return dependents
+
+
+register_dependency_checker(workflow_table_dependents)
 
 
 class WorkflowRegistryService:

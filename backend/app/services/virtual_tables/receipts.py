@@ -49,6 +49,19 @@ class DeleteOutcome(BaseModel):
     record_id: UUID
 
 
+def derived_operation_key(*parts: str) -> str:
+    """An operation key derived from a caller's own stable identity for one write.
+
+    What an agent tool call (`run id`, `tool call id`) or a workflow step (its
+    attempt's idempotency key) passes, so a retry of the same logical write
+    replays it while two different writes never collide. Hashed because those
+    parts can run past an operation key's 128 characters - a step inside a
+    loop carries its whole scope path - and a digest keeps the same key for the
+    same parts whatever their length.
+    """
+    return "d-" + hashlib.sha256(":".join(parts).encode()).hexdigest()
+
+
 def payload_hash(payload: dict[str, Any]) -> str:
     """A stable digest of the request: same content, same hash, whatever the key order."""
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)

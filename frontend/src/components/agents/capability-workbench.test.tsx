@@ -24,6 +24,11 @@ vi.mock("@/hooks/use-memory", () => ({
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
+  // The tables panel lists the organization's tables; `tables-section` covers it.
+  useTables: () => ({
+    tables: [{ id: "t-1", name: "Leads", description: null }],
+    isLoading: false,
+  }),
   // The workspace section reads both: where sandboxes may run, and what the
   // chosen host allows. Neither is this file's subject - `workspace-section`
   // covers them - so both answer empty, which is a deployment that registered
@@ -745,5 +750,36 @@ describe("image generation, whose model is a provider and a model", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("image_generation");
+  });
+});
+
+describe("tables, whose grants are a table and its operations", () => {
+  const TABLES: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "virtual_tables",
+    name: "Tables",
+    category: "data",
+    description: "Read and write the Virtual Tables this agent is granted.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Tables/ }));
+
+    expect(screen.getByRole("checkbox", { name: "Let the agent use Leads" })).toBeVisible();
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [TABLES, CHARTS], onToggle });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Tables/ }));
+    await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("virtual_tables");
   });
 });

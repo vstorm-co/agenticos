@@ -89,6 +89,8 @@ class RevisionRequiredError(AppException):
         super().__init__(
             details={"record_id": record_id, "current_revision": current_revision},
         )
+        self.current_revision = current_revision
+        """Typed, for a caller that retries against it rather than reading `details`."""
 
 
 class SchemaVersionConflictError(AppException):

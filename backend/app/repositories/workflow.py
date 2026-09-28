@@ -12,7 +12,7 @@ from sqlalchemy import ColumnElement, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
-from app.db.models.workflow import Workflow, WorkflowVersion
+from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 
 
 async def get(db: AsyncSession, workflow_id: UUID, *, organization_id: UUID) -> Workflow | None:
@@ -197,3 +197,23 @@ async def list_versions(
         .order_by(WorkflowVersion.version.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_runnable_versions(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[tuple[Workflow, WorkflowVersion]]:
+    """Each live workflow with the published version it runs.
+
+    What a table change must not break: an archived workflow runs nothing, and a
+    superseded version is kept for its history, not run - only the version a
+    workflow currently points at can still start.
+    """
+    result = await db.execute(
+        select(Workflow, WorkflowVersion)
+        .join(WorkflowVersion, WorkflowVersion.id == Workflow.current_version_id)
+        .where(
+            Workflow.organization_id == organization_id,
+            Workflow.status != WorkflowStatus.ARCHIVED.value,
+        )
+    )
+    return [(workflow, version) for workflow, version in result.all()]

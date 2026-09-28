@@ -149,6 +149,50 @@ A retried step writes no second notification.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## Virtual Tables { #virtual-tables }
+
+Seven nodes read and write [Virtual Tables](../virtual-tables.md) through the same
+service the console, the API and an agent's table tools use. Validation, revision
+conflicts, quotas, history, receipts and audit are the same on every surface.
+
+| Node | Does | Effect |
+|---|---|---|
+| `table.record.create` | Adds a record | write |
+| `table.record.upsert` | Creates or updates the record with an external id | write |
+| `table.record.update` | Changes some of a record's cells | write |
+| `table.record.delete` | Deletes a record, keeping its history | write |
+| `table.record.get` | Finds one record by id or external id | read |
+| `table.record.query` | Reads one page of records, filtered and sorted | read |
+| `table.create` | Creates a new table with a typed schema | write |
+
+Each record node pins its table in its config, checked at publish against the
+graph's author, and checked again as the run's principal on every run. Values are
+bound and keyed by column id or by column label. A record comes back with its values
+twice: `values` by column id, for bindings, and `fields` by label, to read. A key
+that names no live column fails with `UNKNOWN_COLUMN`.
+
+A write carries the step's operation key, so a retried step replays its first write.
+An update, upsert or delete with no revision bound writes at the record's current
+revision. A revision that moved is `REVISION_CONFLICT`, which is retried. A missing
+record is `found: false` from `table.record.get`, not a failure. `table.record.query`
+reads at most 100 records a page and says `has_more`. It never reads a whole large
+table on its own.
+
+`table.create` is its own node and needs `tables:create`. Its output carries the
+new table as a reference a later node's `table` can be bound to, and each column's
+id by label. A table that a live workflow reads or writes, or a column it pins,
+cannot be archived while that workflow's current version uses it.
+
+::: app.workflows.nodes._tables.TableRecordOutput
+
+::: app.workflows.nodes.table_record_get._handler.TableRecordLookup
+
+::: app.workflows.nodes.table_record_query._handler.TableRecordQueryConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreateConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
 ## Adding a node { #adding-a-node }
 
 A node is a package under `backend/app/workflows/nodes/`: `__init__.py`

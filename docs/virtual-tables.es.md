@@ -1,5 +1,5 @@
 ---
-source_sha: "fc94078e7cb3"
+source_sha: "23726d155d3b"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -380,14 +380,13 @@ sesión.
 - **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
   a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
   está aún por acordar.
-- Las herramientas del agent y los nodos tipados de workflow sobre tablas, y los
-  triggers al crear un registro. Las pantallas de la consola (crear tabla, editar
-  esquema, editar las celdas de un registro y las vistas guardadas de
-  tabla/kanban/lista que describe la sección [Vistas guardadas](#saved-views)) ya
-  existen; el acceso al mismo servicio desde agents y workflows, todavía no, y
-  tampoco crear ni borrar registros desde la consola.
+- Los triggers al crear un registro, y crear o borrar registros desde la consola.
+  Los agents llegan a las tablas a través de la
+  [capability Tables](reference/capabilities.md#tables), y los workflows a través de
+  los [nodos de tablas](reference/workflow-nodes.md#virtual-tables).
 - Un consumidor del outbox. Hasta que exista uno, cada evento de registro creado llega a
   `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` y se descarta en vez de entregarse - una
   carta muerta declarada, no una cola que algo vacíe hoy.
-- Comprobadores de dependencias para workflows y triggers - las vistas guardadas ya
-  registran el suyo (ver [Vistas guardadas](#saved-views)).
+- Un comprobador de dependencias para los triggers. Las vistas guardadas registran
+  uno (ver [Vistas guardadas](#saved-views)), y también los workflows: una tabla o una
+  columna fijada que usa la versión actual de un workflow vivo no se puede archivar.

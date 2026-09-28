@@ -1,5 +1,5 @@
 ---
-source_sha: "bfbaa450f360"
+source_sha: "b554c0542c76"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -156,6 +156,53 @@ notificación queda escrita, y el email se entrega después. Un paso reintentado
 escribe una segunda notificación.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## Virtual Tables { #virtual-tables }
+
+Siete nodos leen y escriben [Virtual Tables](../virtual-tables.md) a través del
+mismo servicio que usan la consola, la API y las herramientas de tablas de un agent.
+La validación, los conflictos de revisión, las cuotas, el historial, los recibos y
+la auditoría son los mismos en cada superficie.
+
+| Nodo | Hace | Efecto |
+|---|---|---|
+| `table.record.create` | Añade un registro | write |
+| `table.record.upsert` | Crea o actualiza el registro con un external id | write |
+| `table.record.update` | Cambia algunas celdas de un registro | write |
+| `table.record.delete` | Borra un registro y conserva su historial | write |
+| `table.record.get` | Busca un registro por id o external id | read |
+| `table.record.query` | Lee una página de registros, filtrada y ordenada | read |
+| `table.create` | Crea una tabla nueva con un esquema tipado | write |
+
+Cada nodo de registros fija su tabla en la configuración. Al publicar se comprueba
+contra el autor del grafo, y en cada run se vuelve a comprobar como el principal del
+run. Los valores se enlazan y se indican por id o por etiqueta de columna. Un
+registro vuelve con sus valores dos veces: `values` por id de columna, para los
+bindings, y `fields` por etiqueta, para leer. Una clave que no nombra ninguna
+columna viva falla con `UNKNOWN_COLUMN`.
+
+Una escritura lleva la clave de operación del paso, así que un paso reintentado
+repite su primera escritura. Un update, upsert o delete sin revisión enlazada escribe
+en la revisión actual del registro. Una revisión que se movió es
+`REVISION_CONFLICT`, que se reintenta. Un registro que falta es `found: false` de
+`table.record.get`, no un fallo. `table.record.query` lee como mucho 100 registros
+por página e indica `has_more`. Nunca lee por su cuenta una tabla grande entera.
+
+`table.create` es un nodo propio y necesita `tables:create`. Su salida lleva la
+tabla nueva como una referencia a la que se puede enlazar el `table` de un nodo
+posterior, y el id de cada columna por etiqueta. Una tabla que lee o escribe un
+workflow vivo, o una columna que fija, no se puede archivar mientras la versión
+actual de ese workflow la use.
+
+::: app.workflows.nodes._tables.TableRecordOutput
+
+::: app.workflows.nodes.table_record_get._handler.TableRecordLookup
+
+::: app.workflows.nodes.table_record_query._handler.TableRecordQueryConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreateConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreatedOutput
 
 ## Añadir un nodo { #adding-a-node }
 

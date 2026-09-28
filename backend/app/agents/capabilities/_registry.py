@@ -670,6 +670,7 @@ def load_builtins() -> None:
         thinking,
         tool_output_limits,
         tool_search,
+        virtual_tables,
         web_fetch,
         web_research,
     )

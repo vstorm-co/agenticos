@@ -458,13 +458,19 @@ async def _table_binding_problems(
     for index, binding in enumerate(graph.bindings):
         if not isinstance(binding.source, TableIORef):
             continue
-        problems += await _table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
+        problems += await table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
     return problems
 
 
-async def _table_ref_problems(
+async def table_ref_problems(
     db: AsyncSession, ctx: AuthContext, ref: TableIORef, *, field: str
 ) -> Problems:
+    """Whether `ref` still names a table `ctx` can read, at a schema that fits it.
+
+    For a binding's source and a table node's own config alike: the table must
+    exist and be readable, its schema must not have moved since the reference was
+    made, and every column it pins must still be live.
+    """
     table = await virtual_table_repo.get_table(
         db, ref.table_id, organization_id=ctx.organization_id
     )
@@ -702,6 +708,12 @@ def _resolve_field_path(
     for part in field_path:
         if _is_dynamic(current):
             return Any
+        # A path may pass through an optional model (`record: Record | None`); at
+        # run time a `None` there resolves the rest of the path to `None`, which
+        # the target field then accepts or refuses on its own terms.
+        members = _members(current)
+        if len(members) == 1:
+            current = members[0]
         if not (isinstance(current, type) and issubclass(current, BaseModel)):
             return _UNKNOWN
         if part not in current.model_fields:

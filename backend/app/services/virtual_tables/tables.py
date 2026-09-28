@@ -4,6 +4,9 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
+
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, AuthorizationError
 from app.core.permissions import AuthContext, Perm
@@ -13,6 +16,7 @@ from app.db.updates import writable
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import (
     ColumnDef,
+    OperationKey,
     SchemaUpdate,
     SchemaVersionList,
     SchemaVersionRead,
@@ -31,7 +35,22 @@ from app.services.virtual_tables.exceptions import (
     SchemaVersionConflictError,
 )
 from app.services.virtual_tables.quotas import enforce_table_count
+from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.schema import build_columns, diff
+
+_OPERATION_KEY = TypeAdapter(OperationKey)
+
+
+def _checked_key(value: str | None) -> str | None:
+    """An operation key held to the limits a route puts on one, for a direct caller."""
+    if value is None:
+        return None
+    try:
+        return _OPERATION_KEY.validate_python(value)
+    except PydanticValidationError as invalid:
+        raise InvalidSchemaError(
+            "operation_key", invalid.errors(include_url=False, include_input=False)[0]["msg"]
+        ) from None
 
 
 def _dump(columns: list[ColumnDef]) -> list[dict[str, object]]:
@@ -41,47 +60,69 @@ def _dump(columns: list[ColumnDef]) -> list[dict[str, object]]:
 class TableOperations(Operations):
     """Everything about a table that is not one of its records."""
 
-    async def create_table(self, ctx: AuthContext, data: TableCreate) -> TableRead:
+    async def create_table(
+        self, ctx: AuthContext, data: TableCreate, *, operation_key: str | None = None
+    ) -> TableRead:
         """Create a table with its first schema version.
+
+        With an `operation_key` a retry returns the table the first call made
+        rather than making a second one - what an agent tool call re-sent after a
+        timeout, or a workflow step redispatched after a crash, needs. The key is
+        the caller's, scoped to them like a record write's, and reusing it with a
+        different table is refused.
 
         Raises:
             AuthorizationError: The caller lacks `tables:create`.
             AlreadyExistsError: A live table already has this name.
             QuotaExceededError: The organization already has as many tables as it may.
             InvalidSchemaError: The columns are inconsistent.
+            IdempotencyKeyReuseError: The key was used before for a different table.
         """
         if not ctx.has(Perm.TABLES_CREATE):
             raise AuthorizationError(
                 message="You cannot create tables", details={"required": [Perm.TABLES_CREATE.value]}
             )
-        columns = build_columns(data.columns, [])
-        await self._claim_name(ctx, data.name)
-        await enforce_table_count(self.db, ctx)
-        table = await virtual_table_repo.create_table(
+
+        async def action() -> TableRead:
+            columns = build_columns(data.columns, [])
+            await self._claim_name(ctx, data.name)
+            await enforce_table_count(self.db, ctx)
+            table = await virtual_table_repo.create_table(
+                self.db,
+                organization_id=ctx.organization_id,
+                owner_user_id=ctx.subject_id,
+                name=data.name,
+                description=data.description,
+                visibility=data.visibility,
+            )
+            await virtual_table_repo.add_schema_version(
+                self.db,
+                table_id=table.id,
+                version=1,
+                columns=_dump(columns),
+                created_by=ctx.subject_id,
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="table.created",
+                target_type="table",
+                target_id=str(table.id),
+                details={"name": table.name, "columns": len(columns)},
+            )
+            return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
+
+        created, _replayed = await run_once(
             self.db,
-            organization_id=ctx.organization_id,
-            owner_user_id=ctx.subject_id,
-            name=data.name,
-            description=data.description,
-            visibility=data.visibility,
+            ctx,
+            operation="table.create",
+            operation_key=_checked_key(operation_key),
+            payload=data.model_dump(mode="json"),
+            outcome_type=TableRead,
+            action=action,
         )
-        await virtual_table_repo.add_schema_version(
-            self.db,
-            table_id=table.id,
-            version=1,
-            columns=_dump(columns),
-            created_by=ctx.subject_id,
-        )
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="table.created",
-            target_type="table",
-            target_id=str(table.id),
-            details={"name": table.name, "columns": len(columns)},
-        )
-        return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
+        return created
 
     async def list_tables(
         self,

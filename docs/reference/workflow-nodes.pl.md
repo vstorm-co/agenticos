@@ -1,5 +1,5 @@
 ---
-source_sha: "bfbaa450f360"
+source_sha: "b554c0542c76"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -154,6 +154,52 @@ zapisane, a mail wychodzi później. Ponowiony krok nie zapisuje drugiego
 powiadomienia.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## Virtual Tables { #virtual-tables }
+
+Siedem węzłów czyta i zapisuje [Virtual Tables](../virtual-tables.md) przez ten sam
+serwis, którego używają konsola, API i narzędzia tabel agenta. Walidacja, konflikty
+rewizji, limity, historia, paragony i audyt są takie same na każdej powierzchni.
+
+| Węzeł | Co robi | Efekt |
+|---|---|---|
+| `table.record.create` | Dodaje rekord | write |
+| `table.record.upsert` | Tworzy albo aktualizuje rekord z external id | write |
+| `table.record.update` | Zmienia część komórek rekordu | write |
+| `table.record.delete` | Usuwa rekord, zachowując jego historię | write |
+| `table.record.get` | Znajduje jeden rekord po id albo external id | read |
+| `table.record.query` | Czyta jedną stronę rekordów, z filtrem i sortowaniem | read |
+| `table.create` | Tworzy nową tabelę z typowanym schematem | write |
+
+Każdy węzeł rekordów przypina swoją tabelę w konfiguracji. Przy publikacji jest ona
+sprawdzana względem autora grafu, a przy każdym runie ponownie jako principal runa.
+Wartości są bindowane i podawane po id albo etykiecie kolumny. Rekord wraca z
+wartościami dwa razy: `values` po id kolumny, do bindingów, i `fields` po etykiecie,
+do czytania. Klucz, który nie wskazuje żywej kolumny, kończy się błędem
+`UNKNOWN_COLUMN`.
+
+Zapis niesie klucz operacji kroku, więc ponowiony krok odtwarza swój pierwszy zapis.
+Update, upsert albo delete bez zbindowanej rewizji zapisuje przy bieżącej rewizji
+rekordu. Rewizja, która się przesunęła, to `REVISION_CONFLICT`, który jest ponawiany.
+Brakujący rekord to `found: false` z `table.record.get`, a nie błąd.
+`table.record.query` czyta najwyżej 100 rekordów na stronę i podaje `has_more`.
+Nigdy sam nie czyta całej dużej tabeli.
+
+`table.create` to osobny węzeł i wymaga `tables:create`. Jego wyjście niesie nową
+tabelę jako referencję, do której można zbindować `table` kolejnego węzła, oraz id
+każdej kolumny po etykiecie. Tabeli, którą czyta albo zapisuje żywy workflow, ani
+kolumny, którą przypina, nie da się zarchiwizować, dopóki używa jej bieżąca wersja
+tego workflow.
+
+::: app.workflows.nodes._tables.TableRecordOutput
+
+::: app.workflows.nodes.table_record_get._handler.TableRecordLookup
+
+::: app.workflows.nodes.table_record_query._handler.TableRecordQueryConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreateConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreatedOutput
 
 ## Dodawanie węzła { #adding-a-node }
 

@@ -267,6 +267,18 @@ class TestToolDeclarations:
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
+        # Builds `None` with no table granted and creation off, and offers
+        # `create_table` only with `allow_create`: the widest shape grants a table
+        # every operation and turns creation on.
+        "virtual_tables": {
+            "tables": [
+                {
+                    "table_id": "00000000-0000-0000-0000-000000000001",
+                    "operations": ["read", "create", "update", "delete"],
+                }
+            ],
+            "allow_create": True,
+        },
     }
     """Configurations a capability needs before it offers anything.
 

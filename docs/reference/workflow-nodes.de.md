@@ -1,5 +1,5 @@
 ---
-source_sha: "bfbaa450f360"
+source_sha: "b554c0542c76"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -160,6 +160,54 @@ abgeschlossen, wenn die Benachrichtigung geschrieben ist, die E-Mail wird danach
 zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## Virtual Tables { #virtual-tables }
+
+Sieben Knoten lesen und schreiben [Virtual Tables](../virtual-tables.md) über
+denselben Service, den die Konsole, die API und die Tabellen-Tools eines Agents
+nutzen. Validierung, Revisionskonflikte, Kontingente, Historie, Receipts und Audit
+sind auf jeder Oberfläche dieselben.
+
+| Knoten | Tut | Effekt |
+|---|---|---|
+| `table.record.create` | Fügt einen Datensatz hinzu | write |
+| `table.record.upsert` | Legt den Datensatz mit einer External ID an oder ändert ihn | write |
+| `table.record.update` | Ändert einige Zellen eines Datensatzes | write |
+| `table.record.delete` | Löscht einen Datensatz und behält seine Historie | write |
+| `table.record.get` | Findet einen Datensatz per ID oder External ID | read |
+| `table.record.query` | Liest eine Seite Datensätze, gefiltert und sortiert | read |
+| `table.create` | Legt eine neue Tabelle mit typisiertem Schema an | write |
+
+Jeder Datensatz-Knoten legt seine Tabelle in der Konfiguration fest. Beim
+Veröffentlichen wird sie gegen den Autor des Graphen geprüft und bei jedem Run erneut
+als Principal des Runs. Werte werden gebunden und per Spalten-ID oder Spalten-Label
+angegeben. Ein Datensatz kommt mit seinen Werten zweimal zurück: `values` nach
+Spalten-ID für Bindings und `fields` nach Label zum Lesen. Ein Schlüssel, der keine
+lebende Spalte nennt, schlägt mit `UNKNOWN_COLUMN` fehl.
+
+Ein Schreibzugriff trägt den Operationsschlüssel des Schritts, daher spielt ein
+wiederholter Schritt seinen ersten Schreibzugriff erneut ab. Ein Update, Upsert oder
+Delete ohne gebundene Revision schreibt bei der aktuellen Revision des Datensatzes.
+Eine verschobene Revision ist `REVISION_CONFLICT`, der wiederholt wird. Ein fehlender
+Datensatz ist `found: false` aus `table.record.get`, kein Fehler.
+`table.record.query` liest höchstens 100 Datensätze pro Seite und meldet `has_more`.
+Es liest nie von sich aus eine ganze große Tabelle.
+
+`table.create` ist ein eigener Knoten und braucht `tables:create`. Seine Ausgabe
+trägt die neue Tabelle als Referenz, an die das `table` eines späteren Knotens
+gebunden werden kann, und die ID jeder Spalte nach Label. Eine Tabelle, die ein
+lebender Workflow liest oder schreibt, oder eine Spalte, die er festlegt, kann nicht
+archiviert werden, solange die aktuelle Version dieses Workflows sie nutzt.
+
+::: app.workflows.nodes._tables.TableRecordOutput
+
+::: app.workflows.nodes.table_record_get._handler.TableRecordLookup
+
+::: app.workflows.nodes.table_record_query._handler.TableRecordQueryConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreateConfig
+
+::: app.workflows.nodes.table_create._handler.TableCreatedOutput
 
 ## Einen Knoten hinzufügen { #adding-a-node }
 

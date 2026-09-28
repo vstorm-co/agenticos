@@ -110,6 +110,13 @@ def load_builtins() -> None:
         logic_if,
         logic_merge,
         notification_send,
+        table_create,
+        table_record_create,
+        table_record_delete,
+        table_record_get,
+        table_record_query,
+        table_record_update,
+        table_record_upsert,
     )
 
     _builtins_loaded = True
