@@ -1,5 +1,5 @@
 ---
-source_sha: "f96569e0069d"
+source_sha: "1af02bfb2ef7"
 ---
 
 # Workflows { #workflows }
@@ -81,9 +81,10 @@ alterna entre ellas:
   que exige el tipo del campo.
 - **Un binding** — lees el valor de la salida de otro paso. **Bind** convierte el
   campo en un selector **Source** cuyas opciones son las salidas previas realmente
-  alcanzables aquí y que llevan un tipo compatible, cada una mostrada como *{node} ·
-  {port} ({type})*. Un campo sin nada compatible antes dice **No compatible upstream
-  outputs**, en vez de ofrecer una elección no válida.
+  alcanzables aquí y que llevan un tipo compatible — la salida entera de un paso o un
+  campo dentro de ella —, cada una mostrada como *{node} · {port} ({type})*, y un campo
+  como *{node} · {port} → {field} ({type})*. Un campo sin nada compatible antes dice
+  **No compatible upstream outputs**, en vez de ofrecer una elección no válida.
 
 Un input obligatorio sin valor es un problema de validación, señalado en el nodo y no
 rellenado con un valor por defecto silencioso. Algunos campos contienen valores
@@ -237,9 +238,10 @@ Copiar y pegar tienen tres límites:
   pasos para copiar el par, y la copia leerá de su propio paso anterior.
 - **Una conexión viaja solo con sus dos pasos.** Seleccionar solo una conexión y copiar
   no hace nada.
-- **Los atajos necesitan el foco dentro del lienzo.** Hacer clic en el lienzo vacío saca
-  el foco, y también cortar un paso, porque el paso que tenía el foco desaparece. Pegar
-  no hace nada hasta que hagas clic en un paso.
+- **Los atajos pertenecen al lienzo.** Funcionan mientras el foco está en el lienzo, y
+  hacer clic en cualquier parte de él — un paso, el lienzo vacío, una conexión — lo
+  mantiene ahí. Con el foco en el panel **Properties** o en la paleta, las teclas son de
+  esos campos, así que haz clic en el lienzo antes de pulsarlas.
 
 ## Resumen { #recap }
 

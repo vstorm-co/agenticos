@@ -1,5 +1,5 @@
 ---
-source_sha: "f96569e0069d"
+source_sha: "1af02bfb2ef7"
 ---
 
 # Workflows { #workflows }
@@ -90,9 +90,10 @@ dem Feld wechselt zwischen ihnen:
 - **Ein Binding** — Sie lesen den Wert aus der Ausgabe eines anderen Schritts.
   **Bind** verwandelt das Feld in eine **Source**-Auswahl, deren Optionen die
   vorgelagerten Ausgaben sind, die hier tatsächlich erreichbar sind und einen
-  kompatiblen Typ tragen, jede angezeigt als *{node} · {port} ({type})*. Ein Feld
-  ohne etwas Kompatibles davor sagt **No compatible upstream outputs**, statt eine
-  ungültige Auswahl anzubieten.
+  kompatiblen Typ tragen — die ganze Ausgabe eines Schritts oder ein Feld darin —,
+  jede angezeigt als *{node} · {port} ({type})*, ein Feld als
+  *{node} · {port} → {field} ({type})*. Ein Feld ohne etwas Kompatibles davor sagt
+  **No compatible upstream outputs**, statt eine ungültige Auswahl anzubieten.
 
 Ein Pflicht-Input ohne Wert ist ein Validierungsproblem, das am Knoten markiert und
 nicht mit einem stillen Standardwert gefüllt wird. Einige Felder halten
@@ -263,10 +264,11 @@ Kopieren und Einfügen haben drei Grenzen:
   Schritt.
 - **Eine Verbindung reist nur mit ihren beiden Schritten.** Eine Verbindung allein
   auszuwählen und zu kopieren bewirkt nichts.
-- **Die Kürzel brauchen den Fokus in der Zeichenfläche.** Ein Klick auf die leere
-  Zeichenfläche nimmt den Fokus heraus, ebenso das Ausschneiden eines Schritts, denn
-  der Schritt mit dem Fokus ist weg. Einfügen bewirkt nichts, bis Sie einen Schritt
-  anklicken.
+- **Die Kürzel gehören zur Zeichenfläche.** Sie wirken, solange der Fokus auf der
+  Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
+  Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus im Panel **Properties** oder
+  in der Palette, bleiben die Tasten diesen Feldern, klicken Sie also die
+  Zeichenfläche an, bevor Sie sie drücken.
 
 ## Zusammenfassung { #recap }
 

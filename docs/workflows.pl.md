@@ -1,5 +1,5 @@
 ---
-source_sha: "f96569e0069d"
+source_sha: "1af02bfb2ef7"
 ---
 
 # Workflows { #workflows }
@@ -81,9 +81,10 @@ przełącza między nimi:
   którego wymaga typ pola.
 - **Binding** — odczytujesz wartość z wyjścia innego kroku. **Bind** zmienia pole w
   wybór **Source**, którego opcjami są wyjścia wcześniejszych kroków rzeczywiście
-  osiągalne tutaj i niosące zgodny typ, każde pokazane jako *{node} · {port}
-  ({type})*. Pole bez niczego zgodnego wcześniej mówi **No compatible upstream
-  outputs**, zamiast oferować nieprawidłowy wybór.
+  osiągalne tutaj i niosące zgodny typ — całe wyjście kroku albo jedno pole w nim —
+  każde pokazane jako *{node} · {port} ({type})*, a pole jako
+  *{node} · {port} → {field} ({type})*. Pole bez niczego zgodnego wcześniej mówi
+  **No compatible upstream outputs**, zamiast oferować nieprawidłowy wybór.
 
 Wymagany input bez wartości to problem walidacji, oznaczony na węźle, a nie
 wypełniany cichą wartością domyślną. Niektóre pola trzymają ustrukturyzowane
@@ -237,9 +238,10 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   kroku poprzedzającego.
 - **Połączenie podróżuje tylko ze swoimi dwoma krokami.** Zaznaczenie samego połączenia
   i skopiowanie niczego nie robi.
-- **Skróty wymagają fokusu wewnątrz kanwy.** Kliknięcie pustej kanwy przenosi fokus poza
-  nią, tak samo jak wycięcie kroku, bo krok, który miał fokus, znika. Wklejanie nic nie
-  robi, dopóki nie klikniesz kroku.
+- **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
+  jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w panelu
+  **Properties** lub w palecie zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
+  ich użyjesz.
 
 ## Podsumowanie { #recap }
 

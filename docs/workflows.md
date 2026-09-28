@@ -78,9 +78,11 @@ switches between them:
   the field's type calls for.
 - **A binding** — you read the value from another step's output. **Bind** turns
   the field into a **Source** picker whose options are the upstream outputs that
-  are actually reachable here and carry a compatible type, each shown as
-  *{node} · {port} ({type})*. A field with nothing compatible upstream says **No
-  compatible upstream outputs** rather than offering an invalid pick.
+  are actually reachable here and carry a compatible type — a step's whole output,
+  or one field inside it — each shown as *{node} · {port} ({type})*, or
+  *{node} · {port} → {field} ({type})* for a field. A field with nothing compatible
+  upstream says **No compatible upstream outputs** rather than offering an invalid
+  pick.
 
 A required input with no value yet is a validation problem, flagged on the node
 rather than filled with a silent default. Some fields hold structured values: a
@@ -236,9 +238,10 @@ Copy and paste have three limits:
   own upstream step.
 - **A connection travels only with its two steps.** Selecting a connection alone and
   copying does nothing.
-- **The shortcuts need focus inside the canvas.** Clicking empty canvas moves focus
-  out of it, and so does cutting a step, since the step that had focus is gone. Paste
-  does nothing until you click a step.
+- **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
+  clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus
+  in the **Properties** panel or the palette keeps the keys for those fields, so click
+  the canvas before pressing them.
 
 ## Recap
 
