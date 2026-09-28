@@ -1,11 +1,11 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "411672fee17e"
 ---
 
 # Virtual Tables { #virtual-tables }
 
 Una **virtual table** es una tabla tipada de registros que una organización mantiene
-para sus agents, workflows e integraciones: pedidos por conciliar, archivos por
+para sus agents, [workflows](workflows.md) e integraciones: pedidos por conciliar, archivos por
 procesar, leads a los que dar seguimiento.
 
 Las tablas son metadatos más JSONB. Nada crea una tabla SQL física, así que crear una

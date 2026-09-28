@@ -23,6 +23,7 @@ from app.schemas.workflow import (
     WorkflowList,
     WorkflowPublish,
     WorkflowRead,
+    WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRead,
 )
@@ -70,8 +71,16 @@ async def get_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Aut
 
 @router.get("/{workflow_id}/versions", response_model=WorkflowVersionList)
 async def list_workflow_versions(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
-    """Every published version of this workflow, newest first."""
+    """Every published version of this workflow, newest first. Lean - no graphs."""
     return await service.list_versions(ctx, workflow_id)
+
+
+@router.get("/{workflow_id}/versions/{version_id}", response_model=WorkflowVersionDetail)
+async def get_workflow_version(
+    workflow_id: UUID, version_id: UUID, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """One published version with its frozen graph, for a read-only preview."""
+    return await service.get_version(ctx, workflow_id, version_id)
 
 
 @router.patch("/{workflow_id}/draft", response_model=WorkflowDetail)

@@ -1,11 +1,11 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "411672fee17e"
 ---
 
 # Virtual Tables { #virtual-tables }
 
 **Virtual table** to typowana tabela rekordów, którą organizacja trzyma dla swoich
-agentów, workflow i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,
+agentów, [workflow](workflows.md) i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,
 leady do obsłużenia.
 
 Tabele to metadane plus JSONB. Nic nie tworzy fizycznej tabeli SQL, więc założenie

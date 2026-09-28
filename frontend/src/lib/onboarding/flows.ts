@@ -34,6 +34,7 @@ export type FlowId =
   | "create-org"
   | "create-group"
   | "create-routine"
+  | "create-workflow"
   | "explore-chat";
 
 /**
@@ -770,6 +771,24 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  // Starting a workflow. One step: point at "New workflow" and end when its
+  // dialog opens — from there the reader picks a blank canvas or a template, and
+  // either lands them in the editor, which is the visual editor leaf's to teach,
+  // not this list's. An `opened` signal keeps the flow to the one thing this page
+  // owns and needs no new creatable-resource count in the coach's snapshot.
+  "create-workflow": {
+    id: "create-workflow",
+    permission: Perm.workflowsCreate,
+    steps: [
+      {
+        id: "flow-workflow-create",
+        page: ROUTES.WORKFLOWS,
+        target: "workflows-new",
+        permission: Perm.workflowsCreate,
+        signal: { kind: "opened" },
+      },
+    ],
+  },
   // One step for create-org's reason: the dialog is a name and a description, and
   // walking two fields would be padding. `page` is the groups identity rather than
   // a route - the offer is made at the end of that page's own walk, so the reader
@@ -851,6 +870,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-mcp";
     case ROUTES.ROUTINES:
       return "create-routine";
+    case ROUTES.WORKFLOWS:
+      return "create-workflow";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:
