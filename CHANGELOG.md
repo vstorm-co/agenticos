@@ -32,7 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
   Runs, their events and cancel have routes of their own; see
   [the HTTP API](docs/api.md#running-a-workflow) and
   [Permissions](docs/permissions.md#workflow-runs). Migration
-  `0095_workflow_runs.py`. (#1788)
+  `0104_workflow_runs.py`. (#1788)
 
 - **Virtual Tables: typed records behind one service and an HTTP API.** A table is
   metadata plus JSONB, never a physical SQL table, with immutable schema versions,

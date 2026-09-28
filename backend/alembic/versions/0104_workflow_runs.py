@@ -18,8 +18,8 @@ handed to a worker. `workflow_events` is an
 append-only stream with a per-run monotonic `seq`. `resource_refs` holds the
 `FileRef`/`TableIORef` bindings a run resolved once at start.
 
-Revision ID: 0095_workflow_runs
-Revises: 0093_workflows
+Revision ID: 0104_workflow_runs
+Revises: 0103_workflows
 Create Date: 2026-09-23
 """
 
@@ -30,8 +30,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0095_workflow_runs"
-down_revision: str | Sequence[str] | None = "0093_workflows"
+revision: str = "0104_workflow_runs"
+down_revision: str | Sequence[str] | None = "0103_workflows"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
