@@ -10,7 +10,8 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
@@ -24,6 +25,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     SchemaUpdate,
     TableCreate,
+    TableRead,
     TableUpdate,
 )
 from app.services.access import TABLE
@@ -132,6 +134,95 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     shared = await service.list_tables(stranger)
     assert [item.id for item in shared.items] == [mine.id]
     assert owner.id
+
+
+async def test_sort_by_updated_at_puts_the_most_recently_changed_table_first(engine: AsyncEngine):
+    # The default listing is alphabetical, which a "most recently changed"
+    # dashboard card cannot re-derive from a truncated page of it - a table
+    # that changed recently but sorts late alphabetically would never be
+    # fetched at all. `sort="updated_at"` asks the server to order by that
+    # instead.
+    #
+    # Each write commits in its own session/transaction, the same reasoning
+    # `test_virtual_table_ordering.py` documents: Postgres's `now()` is frozen
+    # for the life of one transaction, so writes sharing the `db` fixture's
+    # single transaction would all land on the same instant and this could
+    # not tell "changed later" from "changed in the same transaction".
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as setup:
+        owner = await make_user(setup)
+        org = await make_org(setup, owner=owner)
+        ctx = ctx_for(owner, org)
+        await setup.commit()
+
+    async def _create(name: str) -> TableRead:
+        async with factory() as session:
+            created = await VirtualTableService(session).create_table(ctx, TableCreate(name=name))
+            await session.commit()
+            return created
+
+    await _create("Bravo")
+    alpha = await _create("Alpha")
+    await _create("Charlie")
+
+    async with factory() as session:
+        by_name = await VirtualTableService(session).list_tables(ctx)
+    assert [item.name for item in by_name.items] == ["Alpha", "Bravo", "Charlie"]
+
+    # Only "Alpha" has ever been touched since creation, so it is the only one
+    # with a real `updated_at` - the other two fall back to `created_at`,
+    # which is why "Charlie" (created last) still outranks "Bravo".
+    async with factory() as session:
+        await VirtualTableService(session).update_table(
+            ctx, alpha.id, TableUpdate(description="Touched")
+        )
+        await session.commit()
+
+    async with factory() as session:
+        by_recency = await VirtualTableService(session).list_tables(ctx, sort="updated_at")
+    assert [item.name for item in by_recency.items] == ["Alpha", "Charlie", "Bravo"]
+
+
+async def test_listing_resolves_can_edit_for_every_row_in_one_grant_query(db, engine: AsyncEngine):
+    """`_can_edit` is right for one table, but `list_tables` used to call it once
+    per row - for a Builder, whose `TABLES_EDIT` scope alone does not reach a
+    table it does not own, that was one `resource_grants` query per row. This
+    pins the batched replacement: one query for the whole page, and `can_edit`
+    still correct per row - true only for the table an explicit grant opens."""
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    owner_ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    granted = await service.create_table(owner_ctx, TableCreate(name="Granted"))
+    await service.create_table(owner_ctx, TableCreate(name="Ungranted A"))
+    await service.create_table(owner_ctx, TableCreate(name="Ungranted B"))
+
+    builder = await make_user(db)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=builder.id,
+        resource_type=TABLE.key,
+        resource_id=granted.id,
+        level=GrantLevel.EDIT,
+    )
+    builder_ctx = ctx_for(builder, org, "builder")
+
+    grant_queries: list[str] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany) -> None:
+        if "resource_grants" in statement.lower():
+            grant_queries.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        listed = await service.list_tables(builder_ctx)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+
+    assert len(grant_queries) == 1, grant_queries
+    can_edit_by_name = {item.name: item.can_edit for item in listed.items}
+    assert can_edit_by_name == {"Granted": True, "Ungranted A": False, "Ungranted B": False}
 
 
 @pytest.mark.security
@@ -387,6 +478,30 @@ async def test_an_archived_table_keeps_its_records_readable_and_refuses_every_wr
 
 
 @pytest.mark.security
+async def test_an_archived_table_reports_can_edit_false_even_with_an_edit_grant(db):
+    """`archive_table` and every write past it refuse with `TABLE_ARCHIVED`, so a
+    `can_edit: true` on an archived table - reached directly or through a listing
+    with `include_archived` - would offer editing controls no write behind them
+    could ever succeed. `describe_table`'s per-row resolution and `list_tables`'s
+    batched one must both agree with `_ensure_live`, not only the row-at-a-time
+    path.
+    """
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(ctx, TableCreate(name="People"))
+    assert (await service.describe_table(ctx, table.id)).can_edit is True
+
+    archived = await service.archive_table(ctx, table.id)
+
+    # The archive's own answer, and the idempotent second archive's, agree too.
+    assert archived.can_edit is False
+    assert (await service.archive_table(ctx, table.id)).can_edit is False
+    assert (await service.describe_table(ctx, table.id)).can_edit is False
+    listed = await service.list_tables(ctx, include_archived=True)
+    archived_summary = next(item for item in listed.items if item.id == table.id)
+    assert archived_summary.can_edit is False
+
+
+@pytest.mark.security
 async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
@@ -395,7 +510,9 @@ async def test_a_registered_dependency_blocks_archiving_and_dropping_a_column(db
     workflow = uuid.uuid4()
     seen: list[frozenset[uuid.UUID] | None] = []
 
-    async def checker(db, *, organization_id, table_id, column_ids):
+    async def checker(db, *, organization_id, table_id, column_ids, caller):
+        # Asked on behalf of the caller, who is who a dependent must be visible to.
+        assert caller is ctx
         seen.append(column_ids)
         return [Dependent(kind="workflow", id=workflow)]
 

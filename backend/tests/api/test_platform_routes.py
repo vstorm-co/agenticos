@@ -910,6 +910,11 @@ RESOURCE_AWARE_SERVICES = (
     # indirection `get_agent_exposure_service` uses for a binding and its
     # agent. `POST /workflow-runs`, `GET/POST .../{id}...` all depend on it.
     deps.get_workflow_execution_service,
+    # A saved view is a sub-resource of one table: listing and reading resolve
+    # against the table's own grants, and changing or deleting one additionally
+    # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
+    # the service rather than at a route gate.
+    deps.get_table_view_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

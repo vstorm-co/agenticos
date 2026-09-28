@@ -176,11 +176,17 @@ class TableSummary(_Schema):
     schema_version: int
     archived_at: datetime | None = None
     created_at: datetime
+    updated_at: datetime | None = None
+    can_edit: bool = Field(
+        default=False,
+        description="Whether this caller may edit this table: role scope or an "
+        "explicit grant, resolved server-side so a catalog row never shows a "
+        "control the write would refuse.",
+    )
 
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
-    updated_at: datetime | None = None
 
 
 class TableList(_Schema):
