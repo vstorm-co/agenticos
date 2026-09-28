@@ -1,5 +1,5 @@
 ---
-source_sha: "d14d12848d84"
+source_sha: "fe31cd457ddf"
 ---
 
 # Konfiguration { #configuration }
@@ -1195,7 +1195,7 @@ diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
-| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes sowie Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes, Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle sowie Speichern, Ändern oder Löschen einer gespeicherten Ansicht. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

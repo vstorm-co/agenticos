@@ -9,7 +9,7 @@ its own routes.
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
@@ -139,3 +139,56 @@ async def test_a_taken_name_is_a_409(client, service):
         response = await http.post(_url(), json={"name": "Board", "kind": "table"})
 
     assert response.status_code == 409
+
+
+class _CountingLimiter:
+    """The shared Redis' fixed-window counter, per key, in memory."""
+
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+
+    async def count_in_window(self, key: str, *, ttl: int) -> int:
+        self.counts[key] = self.counts.get(key, 0) + 1
+        return self.counts[key]
+
+
+@pytest.fixture
+def limiter(monkeypatch: pytest.MonkeyPatch) -> Iterator[_CountingLimiter]:
+    from app.services import rate_limit
+
+    counter = _CountingLimiter()
+    monkeypatch.setattr(settings, "RATE_LIMIT_TABLE_WRITES_PER_MINUTE", 3)
+    rate_limit.configure(counter)
+    yield counter
+    rate_limit.configure(None)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("method", "suffix", "body"),
+    [
+        ("post", "", {"name": "Board", "kind": "kanban"}),
+        ("patch", f"/{_VIEW}", {"name": "Renamed"}),
+        ("delete", f"/{_VIEW}", None),
+    ],
+    ids=["create-view", "update-view", "delete-view"],
+)
+async def test_every_view_write_spends_the_table_write_allowance(
+    client, limiter, method, suffix, body
+):
+    # A saved view is a row a table's members could otherwise create without bound,
+    # so it is metered by the same per-member allowance as a record write (#1823).
+    async with client() as http:
+        answers = [await http.request(method, _url(suffix), json=body) for _ in range(4)]
+
+    assert [a.status_code == 429 for a in answers] == [False, False, False, True]
+    assert answers[-1].json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+
+
+@pytest.mark.security
+async def test_reading_views_does_not_spend_the_allowance(client, limiter):
+    async with client() as http:
+        answers = [await http.get(_url()) for _ in range(4)] + [await http.get(_url(f"/{_VIEW}"))]
+
+    assert {a.status_code for a in answers} == {200}
+    assert limiter.counts == {}

@@ -1,5 +1,5 @@
 ---
-source_sha: "d14d12848d84"
+source_sha: "fe31cd457ddf"
 ---
 
 # Konfiguracja { #configuration }
@@ -1119,7 +1119,7 @@ API powinno nosić sufit, to osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
-| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu oraz create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli oraz zapisanie, zmiana lub usunięcie zapisanego widoku. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

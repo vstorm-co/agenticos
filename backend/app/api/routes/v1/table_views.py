@@ -9,14 +9,18 @@ deleting a view additionally requires being its owner or holding a `tables:edit`
 scope of `ALL`; see `TableViewRead.can_manage`. That refusal is a 404, not a 403:
 whether a view exists and who may touch it are not disclosed to a caller who may
 not, matching every other per-resource write in this package.
+
+Every write here spends the same per-member table-write allowance a record write
+does (`limit_table_write`, #1823): a saved view is a row the table's members can
+create without bound otherwise.
 """
 
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, TableViewSvc
+from app.api.deps import Auth, TableViewSvc, limit_table_write
 from app.schemas.table_view import (
     TableViewCreate,
     TableViewList,
@@ -35,6 +39,13 @@ _REFUSALS: dict[int | str, dict[str, Any]] = {
     },
     409: {"model": ErrorEnvelope, "description": "A view with this name already exists"},
     422: {"model": ErrorEnvelope, "description": "The request does not fit"},
+}
+_WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_REFUSALS,
+    429: {
+        "model": ErrorEnvelope,
+        "description": "Too many table writes in the last minute; see `Retry-After`",
+    },
 }
 
 
@@ -59,7 +70,8 @@ async def list_views(
     "/{table_id}/views",
     response_model=TableViewRead,
     status_code=status.HTTP_201_CREATED,
-    responses=_REFUSALS,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
 )
 async def create_view(
     table_id: UUID, data: TableViewCreate, service: TableViewSvc, ctx: Auth
@@ -74,7 +86,12 @@ async def get_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Au
     return await service.get_view(ctx, table_id, view_id)
 
 
-@router.patch("/{table_id}/views/{view_id}", response_model=TableViewRead, responses=_REFUSALS)
+@router.patch(
+    "/{table_id}/views/{view_id}",
+    response_model=TableViewRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
 async def update_view(
     table_id: UUID, view_id: UUID, data: TableViewUpdate, service: TableViewSvc, ctx: Auth
 ) -> Any:
@@ -89,7 +106,8 @@ async def update_view(
     "/{table_id}/views/{view_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    responses=_REFUSALS,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
 )
 async def delete_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Auth) -> None:
     """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`."""

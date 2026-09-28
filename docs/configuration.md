@@ -1096,7 +1096,7 @@ whole API should carry a ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
-| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, and a table create, rename, archive or schema change. Applies to the console as much as to a script. Reads are not counted |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Writes to [Virtual Tables](virtual-tables.md), **per member and organization**: a record create, update, upsert or delete, a table create, rename, archive or schema change, and saving, changing or deleting a saved view. Applies to the console as much as to a script. Reads are not counted |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
