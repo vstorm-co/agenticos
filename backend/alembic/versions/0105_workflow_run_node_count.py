@@ -10,8 +10,11 @@ reservation durable - counted the moment a run is admitted and released the
 moment it reaches a terminal status. The sum reads the existing
 `ix_workflow_run_org_status` index, so no new index is needed.
 
-Added `NOT NULL` with a temporary `0` default to backfill any existing rows,
-then the default is dropped: the service always stamps a real count.
+Added `NOT NULL` with a temporary `0` default, then existing rows are backfilled
+with their real graph node count - from the published version's graph for a real
+run, from the frozen snapshot for a test run - so a run already in flight when
+this lands still holds its reservation rather than reading as zero work. The
+default is then dropped: the service always stamps a real count on new runs.
 
 Revision ID: 0105_workflow_run_node_count
 Revises: 0104_workflow_runs
@@ -34,6 +37,24 @@ def upgrade() -> None:
     op.add_column(
         "workflow_runs",
         sa.Column("node_count", sa.Integer(), nullable=False, server_default="0"),
+    )
+    # Backfill real graph sizes. The run's graph source is exactly one of these
+    # (a CHECK guarantees it), so the two updates are disjoint. `jsonb_array_length`
+    # of a missing or non-array `nodes` is coalesced to 0.
+    op.execute(
+        """
+        UPDATE workflow_runs AS r
+        SET node_count = COALESCE(jsonb_array_length(v.graph -> 'nodes'), 0)
+        FROM workflow_versions AS v
+        WHERE r.workflow_version_id = v.id
+        """
+    )
+    op.execute(
+        """
+        UPDATE workflow_runs
+        SET node_count = COALESCE(jsonb_array_length(draft_graph_snapshot -> 'nodes'), 0)
+        WHERE draft_graph_snapshot IS NOT NULL
+        """
     )
     op.alter_column("workflow_runs", "node_count", server_default=None)
 

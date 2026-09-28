@@ -19,6 +19,16 @@ run that reaches a terminal status frees its reservation with no bookkeeping.
 Two racing starts can both read below a ceiling and both be admitted, the same
 boundary overshoot the fixed-window rate limiter accepts; the ceiling is a
 defensive bound on sustained abuse, not an exact quota.
+
+Cancelling a run releases its reservation the moment it goes terminal, before an
+attempt already executing has settled. That does not reopen the backlog this
+bounds: `cancel` drains every pending and claimed outbox row, `begin_attempt`
+refuses to start a new attempt on a terminal run, and `settle` short-circuits
+without enqueuing successors - so no new queued work appears. The one attempt
+still in flight is bounded by `PREFECT_RUNNER_LIMIT` (global concurrency), and
+how fast start-then-cancel can be cycled is bounded by the per-minute run limit.
+So the queue-depth guarantee holds; only in-flight concurrency, already capped
+elsewhere, is briefly held past a cancel.
 """
 
 from __future__ import annotations
