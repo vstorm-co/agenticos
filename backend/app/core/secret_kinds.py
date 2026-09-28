@@ -610,6 +610,26 @@ def unseal_secret(
     return value
 
 
+def unseal_kind[Kind: _SecretBase](
+    ciphertext: str, *, model: type[Kind], scope: VaultScope, key_version: int = 1
+) -> Kind:
+    """Open an envelope as one specific kind - for a caller that only takes that kind.
+
+    `unseal_secret` answers with the union of every kind, which a caller holding a
+    row it already filtered by kind would otherwise have to narrow again. The same
+    refusal, and the same care that the plaintext reaches no message.
+
+    Raises:
+        BadRequestError: The envelope cannot be opened or does not hold that kind.
+    """
+    try:
+        return model.model_validate_json(unseal(ciphertext, scope=scope, key_version=key_version))
+    except ValidationError:
+        raise BadRequestError(
+            message="Stored secret is not a usable payload", details={"recorded": model.__name__}
+        ) from None
+
+
 class SecretKindInfo(BaseModel):
     """One kind as the Builder and the Settings forms render it.
 

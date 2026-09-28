@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import AuthContext, Perm
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import HttpCredentialSecret, SecretKind, unseal_secret
+from app.core.secret_kinds import HttpCredentialSecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.session import get_worker_db_context
@@ -302,17 +302,12 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 "SECRET_NOT_USABLE",
                 "The credential this step sends is gone, of the wrong kind, or no longer usable",
             )
-        opened = unseal_secret(
+        secret = unseal_kind(
             row.sealed_secret,
-            kind=SecretKind.HTTP_CREDENTIAL,
+            model=HttpCredentialSecret,
             scope=VaultScope.organization(current.organization_id),
             key_version=row.key_version,
         )
-        if not isinstance(opened, HttpCredentialSecret):
-            # `unseal_secret` already refuses an envelope whose kind is not the
-            # row's; this only narrows the union for the type checker.
-            raise TypeError("An http_credential row opened as another kind")
-        secret = opened
         if not secret.allows(config.url):
             return _failed(
                 "SECRET_ORIGIN_DENIED",
