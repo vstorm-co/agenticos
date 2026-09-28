@@ -8,8 +8,11 @@
  * publishes from here — so they only have to parse as a `WorkflowGraph`, not pass
  * the publish-time validator.
  *
- * Everything is built on `debug.echo`, the one node #1786 ships; richer templates
- * arrive as #1789–#1792 populate the catalog. Each template's node ids are fixed
+ * Everything is built on the two debug nodes #1786 ships, `debug.echo` and
+ * `debug.relay`; richer templates arrive as #1789–#1792 populate the catalog. Two
+ * echoes cannot be joined - an edge needs both ports to carry the same shape and
+ * Echo's output is not Echo's input - so a chain goes Echo → Relay. Each
+ * template's node ids are fixed
  * UUIDs: unique *within* a graph is all the model asks, and two workflows seeded
  * from the same template hold independent drafts, so reusing the ids across
  * workflows is harmless.
@@ -19,20 +22,35 @@
  * because a module constant has no translator to reach (see `.claude/rules/frontend.md`).
  */
 
-import type { Uuid, WorkflowGraph } from "@/lib/workflows/types";
+import type { Binding, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
-/** The node definition every v1 template is built from — the one node #1786 ships. */
-const ECHO_DEFINITION_ID = "debug.echo";
-const ECHO_DEFINITION_VERSION = 1;
-
-/** A `debug.echo` node instance at a fixed canvas position. */
-function echoNode(id: Uuid, x: number) {
+/** A debug node instance at a fixed canvas position; both are version 1. */
+function debugNode(id: Uuid, definitionId: string, x: number, config: Record<string, unknown>) {
   return {
     id,
-    definition_id: ECHO_DEFINITION_ID,
-    definition_version: ECHO_DEFINITION_VERSION,
-    config: {},
+    definition_id: definitionId,
+    definition_version: 1,
+    config,
     layout: { x, y: 0 },
+  };
+}
+
+/** A `debug.echo` node: it reads a `message` and emits `{echoed, received_at}`. */
+function echoNode(id: Uuid, x: number, message = "") {
+  return debugNode(id, "debug.echo", x, { message });
+}
+
+/** A `debug.relay` node: it takes an echo's output and emits a plain `message`. */
+function relayNode(id: Uuid, x: number) {
+  return debugNode(id, "debug.relay", x, {});
+}
+
+/** Bind one of a relay's required inputs to the same-named field of an echo's output. */
+function relayInput(relayId: Uuid, echoId: Uuid, field: string): Binding {
+  return {
+    target_node_id: relayId,
+    target_field: field,
+    source: { kind: "node_output", node_id: echoId, port: "out", field_path: [field] },
   };
 }
 
@@ -51,8 +69,9 @@ const SEQUENCE_EDGE_ID = "d4444444-4444-4444-8444-444444444444";
 /**
  * The templates offered in the create dialog, in the order they appear.
  *
- * `starter` is a single step to rename and wire up; `sequence` is two steps
- * already connected, a starting point for a linear flow.
+ * `starter` is a single step to rename and wire up; `sequence` is an Echo already
+ * connected to a Relay that reads its output, a starting point for a linear flow.
+ * Both validate as they stand, so `sequence` publishes without an edit.
  */
 export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
   {
@@ -69,7 +88,7 @@ export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
     id: "sequence",
     graph: {
       entry_node_id: SEQUENCE_NODE_A,
-      nodes: [echoNode(SEQUENCE_NODE_A, 0), echoNode(SEQUENCE_NODE_B, 280)],
+      nodes: [echoNode(SEQUENCE_NODE_A, 0, "Hello"), relayNode(SEQUENCE_NODE_B, 280)],
       edges: [
         {
           id: SEQUENCE_EDGE_ID,
@@ -79,7 +98,10 @@ export const WORKFLOW_TEMPLATES: readonly WorkflowTemplate[] = [
           target_port: "in",
         },
       ],
-      bindings: [],
+      bindings: [
+        relayInput(SEQUENCE_NODE_B, SEQUENCE_NODE_A, "echoed"),
+        relayInput(SEQUENCE_NODE_B, SEQUENCE_NODE_A, "received_at"),
+      ],
       scopes: [],
     },
   },

@@ -120,6 +120,16 @@ export const DEBUG_ECHO: NodeDefinition = makeDefinition({
   ports: [port("in", "input", DEBUG_ECHO_CONFIG), port("out", "output", DEBUG_ECHO_OUTPUT)],
 });
 
+/** `debug.relay`, exactly as `backend/app/workflows/nodes/debug_relay` registers it. */
+export const DEBUG_RELAY: NodeDefinition = makeDefinition({
+  id: "debug.relay",
+  name: "Relay",
+  category: "debug",
+  input_schema: DEBUG_ECHO_OUTPUT,
+  output_schema: DEBUG_ECHO_CONFIG,
+  ports: [port("in", "input", DEBUG_ECHO_OUTPUT), port("out", "output", DEBUG_ECHO_CONFIG)],
+});
+
 export function makeCatalog(items: NodeDefinition[]): NodeCatalog {
   return { items, total: items.length };
 }
