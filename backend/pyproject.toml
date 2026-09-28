@@ -120,7 +120,7 @@ dependencies = [
     "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.4",
-    "pydantic-monty>=0.0.23",
+    "pydantic-monty>=1.0.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only

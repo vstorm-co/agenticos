@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The code-execution sandbox runs on `pydantic-monty` 1.0.** 1.0 splits the
+  single time limit into one per feed and one per host round trip; a
+  `run_python` call is one feed with no host calls, so its timeout is now the
+  per-feed limit. The old key is unknown to 1.0, which the weekly
+  newest-release check caught before a release did (#1919).
+
 ## [0.0.511] - 2026-09-28
 
 ### Changed

@@ -96,7 +96,7 @@ async def run_python(
         failure - with `fixable` saying whether the program was the problem.
     """
     limits: ResourceLimits = {
-        "max_duration_secs": timeout_secs,
+        "max_feed_duration_secs": timeout_secs,
         "max_memory": max_memory_mb * 1024 * 1024,
     }
     collector = CollectString()
