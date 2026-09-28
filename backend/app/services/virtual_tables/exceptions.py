@@ -7,7 +7,7 @@ messages are written for the person reading them; `details` carries the ids and
 numbers a program needs and never a row or the caller's own values.
 """
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from app.core.exceptions import AppException, ValidationError
@@ -134,3 +134,24 @@ class IdempotencyKeyReuseError(ValidationError):
 
     def __init__(self, *, operation: str) -> None:
         super().__init__(details={"operation": operation})
+
+
+Quota = Literal["tables", "records", "record_bytes"]
+"""Which ceiling a write ran into. Stable: a client branches on it."""
+
+
+class QuotaExceededError(AppException):
+    """A write would take the organization past a storage limit (402).
+
+    402 because this codebase already reads it as "a usage limit was reached"
+    (`PaymentRequiredError`, and a spent budget): the caller cannot fix the request,
+    only raise the deployment's setting or free something up. Nothing was written.
+    `details` names the quota and its ceiling and never the content that was refused.
+    """
+
+    message = "This would exceed a storage limit"
+    code = "QUOTA_EXCEEDED"
+    status_code = 402
+
+    def __init__(self, *, quota: Quota, limit: int, message: str) -> None:
+        super().__init__(message=message, details={"quota": quota, "limit": limit})

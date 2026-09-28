@@ -1,4 +1,4 @@
-<!-- source_sha: c911383112ac -->
+<!-- source_sha: 471d6c338ae3 -->
 
 # Seguridad
 
@@ -44,7 +44,12 @@ componentes que envían las imágenes y sus licencias, en
 - [ ] Revisa los límites de frecuencia de cada superficie pública — el límite de
       mensajes por visitante del widget embed y el `rate_limit_rpm` por
       remitente de cada bot de canal. Las rutas de la propia consola no se
-      miden.
+      miden, salvo las escrituras en Virtual Tables, que cuentan contra
+      `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`.
+- [ ] Revisa los límites de Virtual Tables (`TABLES_MAX_PER_ORGANIZATION`,
+      `TABLES_MAX_RECORDS_PER_TABLE`, `TABLES_MAX_RECORD_BYTES`) y la retención de sus
+      receipts, outbox e history (`TABLES_RECEIPT_TTL_HOURS`,
+      `TABLES_OUTBOX_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`).
 - [ ] Detrás de un proxy o de una CDN, pon `RATE_LIMIT_TRUST_FORWARDED_FOR=true`
       **y** asegúrate de que la API no sea además alcanzable directamente — si
       no, todos los visitantes comparten un mismo cubo, o la cabecera se puede

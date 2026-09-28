@@ -44,6 +44,11 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_every_gated_route_is_named_in_the_permission_table": "meta test that the CALLS gate fixture is complete, no runtime refusal",
+    "tests/integration/test_virtual_table_retention.py::test_a_smaller_table_sweep_budget_leaves_the_remainder_for_the_next_pass": "retention sweep batch budget, not a security refusal, keyword coincidental",
+    "tests/integration/test_virtual_table_retention.py::test_the_table_sweep_budget_scales_with_the_write_rate_and_member_count": "retention sweep batch budget, not a security refusal, keyword coincidental",
+    "tests/integration/test_virtual_table_retention.py::test_an_organizations_active_member_count_reaches_the_sweep_budget": "retention sweep batch budget, not a security refusal, keyword coincidental",
+    "tests/integration/test_virtual_table_retention.py::test_the_member_count_actually_queried_is_what_the_budget_is_sized_by": "retention sweep batch budget, not a security refusal, keyword coincidental",
+    "tests/integration/test_virtual_table_retention.py::test_a_deactivated_members_membership_does_not_count_toward_the_budget": "retention sweep batch budget, not a security refusal, keyword coincidental",
     "tests/api/test_platform_routes.py::TestEveryPlatformRouteIsGuarded::test_the_permission_table_has_no_stale_entries": "meta test of gate-fixture hygiene, no runtime refusal",
     "tests/api/test_platform_routes.py::TestPermissionIntrospectionIsOpenToEveryMember::test_every_role_can_read_its_own_permissions": "permission introspection is open to every role, no refusal",
     "tests/api/test_platform_routes.py::TestReadingWhatARunIsParkedOn::test_the_parked_calls_come_back_with_the_approval_to_decide": "reads parked approvals for an authorized caller, display/read",

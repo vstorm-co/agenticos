@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "f28d8933fd03"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -126,7 +126,7 @@ no se escribe fila de historial ni receipt, y se devuelve el registro actual. Un
 `expected_revision` obsoleta sigue siendo un conflicto, porque se comprueba primero. Un
 upsert que encuentra el registro sigue la misma regla.
 
-Un borrado es un borrado definitivo. El historial del registro se conserva.
+Un borrado es un borrado definitivo. El historial del registro se conserva hasta que su retención lo elimina.
 
 ## Reintentos seguros { #safe-retries }
 
@@ -146,6 +146,12 @@ reintentas con la misma clave.
 
 Una repetición solo se responde a un llamante que aún pueda editar la tabla. Una vez
 revocado el acceso, el mismo reintento es un 404.
+
+Un receipt dura 24 horas. Después la clave se olvida, y la misma clave con el mismo cuerpo
+es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respuesta.
+Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva. La duración se aplica al usar la
+clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
+receipts que nadie reintentó.
 
 ## Listar y filtrar { #listing-and-filtering }
 
@@ -169,24 +175,72 @@ Una escritura de registro, su fila de historial, su recibo de idempotencia y, en
 create, una fila de outbox `table.record.created` se escriben en una transacción y se
 confirman o se revierten juntas. Un fallo en cualquier paso no deja ninguna. Los cambios
 de tabla y de esquema se registran en el [audit log](governance.md); los cambios de
-registros, en el historial por registro, que conserva los valores antes y después de cada
-cambio.
+registros, en el historial por registro, que conserva las celdas que tocó cada cambio.
 
-Tres de estos almacenes conservan datos sin retención. El historial por registro y los
-receipts guardan los valores, así que borrar un registro elimina la fila actual y deja
-ambos. Un receipt guarda el registro completo tal como lo devolvió la escritura y solo
-desaparece con su cuenta o su organización. Las filas de outbox guardan ids y no se purgan
-tras la entrega. Trátalos como datos personales si lo son las celdas; consulta
-[protección de datos](data-protection.md#the-database).
-
-Estos almacenes guardan instantáneas completas, y una edición real de un registro grande
-sigue escribiendo una en el historial y, si se envía una clave, otra en un receipt. Las
-cuotas o límites de tasa por tenant para ese crecimiento y guardar solo lo que cambió aún
-no están implementados.
+Dos de estos almacenes guardan copias de lo escrito. Un receipt guarda el registro completo
+tal como lo devolvió la escritura, y el historial guarda lo que cambió, así que borrar un
+registro elimina la fila actual y deja ambos hasta que su retención los elimina. Las filas
+de outbox guardan ids. Trátalos a los tres como datos personales si lo son las celdas;
+consulta [protección de datos](data-protection.md#the-database) y
+[límites y retención](#limits-and-retention).
 
 La fila de outbox es el traspaso a lo que reaccione a un registro nuevo. Por ahora nada
-la consume. Un consumidor reclama las filas sin entregar en su propia sesión y las marca
-como entregadas.
+la consume, así que nada la marca nunca como entregada - un futuro consumidor reclamará las
+filas sin despachar en su propia sesión y las marcará como despachadas. Hasta entonces, una
+fila sin despachar solo se elimina por su propia ventana de retención, mucho más larga (más
+abajo) - un corte de carta muerta, no una afirmación de que el evento llegó a recogerse.
+
+## Límites y retención { #limits-and-retention }
+
+Un tenant solo puede hacer crecer la base compartida hasta donde el deployment lo permita.
+Cada límite es un ajuste del deployment, se aplica **por organización**, de modo que el uso
+de un tenant nunca cuenta contra otro, y se rechaza con `QUOTA_EXCEEDED` (402) cuando una
+escritura lo superaría.
+
+| Ajuste | Por defecto | Limita |
+|---|---|---|
+| `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
+| `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
+| `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
+
+El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
+100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el
+[audit log](governance.md) con esos mismos dos campos. La solicitud rechazada no escribe
+nada. Las escrituras están además limitadas a `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) por
+miembro y organización, en la consola igual que por la API; un miembro por encima recibe un
+429 con `Retry-After`. Consulta [configuración](configuration.md#rate-limiting).
+
+**Qué guarda el historial.** Un create guarda el registro completo en `after`, y un delete
+guarda el registro completo en `before`; el límite del registro acota ambos. Un registro
+anterior al límite, o escrito antes de que se bajara `TABLES_MAX_RECORD_BYTES`, puede seguir
+superándolo - su delete guarda entonces `before` como
+`{"omitted": {"bytes": <su tamaño>, "limit": <el límite>}}` en vez de los valores, y aun así
+se completa. Un update guarda solo las celdas que cambiaron: `before` contiene sus valores
+anteriores y `after` los nuevos, y una columna ausente de un lado estaba vacía allí. Editar
+una celda de un registro grande cuesta por tanto una celda, por muchas veces que se repita.
+
+**Retención.** El [barrido de retención](governance.md#retention) diario elimina también los
+datos de las tablas, de verdad y por lotes, para cada organización:
+
+| Qué | Se elimina cuando | Ajuste |
+|---|---|---|
+| Receipts | Más antiguos de 24 horas | `TABLES_RECEIPT_TTL_HOURS` |
+| Filas de outbox | Despachadas hace más de 3 días | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Filas de outbox sin despachar | Nunca despachadas y con 30 días. Nada consume aún este outbox, así que toda fila llega tarde o temprano a esta ventana - ver más abajo | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Historial | Más antiguo de 365 días, para un registro borrado igual que para uno vivo | `TABLES_HISTORY_RETENTION_DAYS` |
+
+El barrido escribe una entrada de auditoría por organización, que nombra la clase
+(`table_receipts`, `table_outbox`, `table_history`) y el recuento. Son ajustes del
+deployment, no por organización. Los registros y las tablas nunca los elimina.
+
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` es una cuota *por miembro*, así que el presupuesto de
+un barrido para cada una de las tres clases escala tanto con ese límite como con el número
+de miembros activos de la organización, con margen para que un rezago existente se reduzca
+en vez de solo mantenerse plano - cada miembro que escribe sin parar a la vez nunca adelanta
+al barrido, hasta un límite generoso de para cuántos miembros se dimensiona el barrido de una
+organización. Las cifras están en
+[configuración](configuration.md#virtual-tables-limits-and-retention). Un rezago mayor se
+trabaja en varios barridos más, igual que en cualquier otra clase.
 
 ## Quién puede hacer qué { #who-can-do-what }
 
@@ -224,6 +278,8 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`) y su techo |
+| `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
 | `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |
 | `AUTHORIZATION_ERROR` | 403 | Al llamante le falta la permission que exige una ruta de colección (`tables:view`, `tables:create`) |
 | `CONCURRENT_CHANGE` | 409 | Un upsert perdió una carrera con el borrado del mismo registro. Reinténtalo |
@@ -261,7 +317,7 @@ sesión.
   está aún por acordar.
 - Las herramientas del agent, los nodos de workflow y las pantallas de la consola, que
   llamarán a este servicio.
-- Consumidores del outbox y comprobadores de dependencias para workflows, vistas y
-  triggers.
-- Cuotas o límites de tasa por tenant para el crecimiento de historial y receipts, y guardar
-  solo los cambios.
+- Un consumidor del outbox. Hasta que exista uno, cada evento de registro creado llega a
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` y se descarta en vez de entregarse - una
+  carta muerta declarada, no una cola que algo vacíe hoy.
+- Comprobadores de dependencias para workflows, vistas y triggers.

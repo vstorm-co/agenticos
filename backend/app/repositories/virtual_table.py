@@ -32,6 +32,7 @@ from sqlalchemy import (
     Numeric,
     and_,
     cast,
+    delete,
     false,
     func,
     or_,
@@ -256,6 +257,39 @@ async def list_schema_versions(
         .order_by(VirtualTableSchemaVersion.version.asc())
     )
     return list(result.scalars().all())
+
+
+async def count_tables(db: AsyncSession, *, organization_id: UUID) -> int:
+    """Every table the organization has, archived ones included.
+
+    Archived ones count because nothing deletes a table: its records and history stay,
+    so it goes on costing what it cost.
+    """
+    count = await db.scalar(
+        select(func.count(VirtualTable.id)).where(VirtualTable.organization_id == organization_id)
+    )
+    return count or 0
+
+
+async def count_records_up_to(
+    db: AsyncSession, *, table_id: UUID, organization_id: UUID, ceiling: int
+) -> int:
+    """How many records the table holds, counting no further than `ceiling`.
+
+    Bounded so a create against a table at its limit reads `ceiling` index entries
+    and not the whole table, which is all the answer "is there room" needs.
+    """
+    capped = (
+        select(VirtualTableRecord.id)
+        .where(
+            VirtualTableRecord.table_id == table_id,
+            VirtualTableRecord.organization_id == organization_id,
+        )
+        .limit(ceiling)
+        .subquery()
+    )
+    count = await db.scalar(select(func.count()).select_from(capped))
+    return count or 0
 
 
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:
@@ -543,6 +577,33 @@ async def add_outbox(
     db.add(row)
     await db.flush()
     return row
+
+
+async def delete_expired_receipt(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    principal_id: UUID,
+    operation: str,
+    operation_key: str,
+    cutoff: datetime,
+) -> None:
+    """Remove this exact key's receipt if it was created before `cutoff`.
+
+    A receipt past its lifetime must not answer a retry, whether or not the retention
+    sweep has reached it yet, so a claim clears its own key's expired receipt first and
+    then claims as if there had never been one. Only this key's row: the sweep is what
+    reclaims the rest.
+    """
+    await db.execute(
+        delete(VirtualTableReceipt).where(
+            VirtualTableReceipt.organization_id == organization_id,
+            VirtualTableReceipt.principal_id == principal_id,
+            VirtualTableReceipt.operation == operation,
+            VirtualTableReceipt.operation_key == operation_key,
+            VirtualTableReceipt.created_at < cutoff,
+        )
+    )
 
 
 async def claim_receipt(

@@ -38,7 +38,12 @@ the images ship and their licences are [Licences](docs/licenses.md).
 - [ ] Tune `RATE_LIMIT_RUN_PER_MINUTE` / `RATE_LIMIT_EMBED_PER_MINUTE` in `.env`.
 - [ ] Review the rate limits on every public surface — the embed widget's
       messages-per-visitor limit and each channel bot's per-sender
-      `rate_limit_rpm`. The console's own routes are not metered.
+      `rate_limit_rpm`. The console's own routes are not metered, except writes to
+      Virtual Tables, which count against `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`.
+- [ ] Review the Virtual Tables limits (`TABLES_MAX_PER_ORGANIZATION`,
+      `TABLES_MAX_RECORDS_PER_TABLE`, `TABLES_MAX_RECORD_BYTES`) and the retention of
+      their receipts, outbox and history (`TABLES_RECEIPT_TTL_HOURS`,
+      `TABLES_OUTBOX_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`).
 - [ ] Behind a proxy or CDN, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and**
       make sure the API is not also reachable directly — otherwise every
       visitor shares one bucket, or the header can be forged. The limiter reads
