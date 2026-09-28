@@ -1904,6 +1904,7 @@ class AgentRunnerService:
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        version_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
     ) -> PreparedRun:
@@ -1945,6 +1946,9 @@ class AgentRunnerService:
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
                 and then to the default environment's version.
+            version_id: Run exactly this published version, whatever any
+                environment pins - a workflow step built against it. Takes
+                precedence over `environment_id`.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -1953,9 +1957,12 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
-        agent, spec, version_id = await self.registry.get_runnable_spec(
-            ctx, agent_id, environment_id=effective_environment_id
-        )
+        if version_id is not None:
+            agent, spec, version_id = await self.registry.get_pinned_spec(ctx, agent_id, version_id)
+        else:
+            agent, spec, version_id = await self.registry.get_runnable_spec(
+                ctx, agent_id, environment_id=effective_environment_id
+            )
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -3556,6 +3563,7 @@ class AgentRunnerService:
         message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
+        version_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
@@ -3569,7 +3577,8 @@ class AgentRunnerService:
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
 
         `environment_id` runs the version that environment pins - the API's way
-        of exercising a dev environment before promoting it.
+        of exercising a dev environment before promoting it. `version_id` runs
+        one named version instead, as a workflow step does.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -3606,6 +3615,7 @@ class AgentRunnerService:
             acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
+            version_id=version_id,
             on_compaction=on_compaction,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as

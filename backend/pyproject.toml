@@ -187,6 +187,10 @@ dependencies = [
     # declarative JSON queries with no assignment, loops or user functions, so a
     # graph never executes code (#1789). MIT; already installed through boto3.
     "jmespath>=1.1.0",
+    # Checks an `agent.run` step's structured answer against the JSON Schema the
+    # step declares, before anything downstream reads it (#1789). MIT; already
+    # installed through the MCP SDK.
+    "jsonschema>=4.23.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's

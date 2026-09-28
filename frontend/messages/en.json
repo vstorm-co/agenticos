@@ -4252,6 +4252,7 @@
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
       "surfaceSchedule": "Schedule",
+      "surfaceWorkflow": "Workflow",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
       "surfaceTrigger": "Trigger",

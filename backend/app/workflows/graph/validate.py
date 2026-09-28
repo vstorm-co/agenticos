@@ -61,6 +61,7 @@ could not be expressed against at all.
 
 from __future__ import annotations
 
+import json
 import types
 from collections import deque
 from typing import Any, Union, get_args, get_origin
@@ -619,7 +620,10 @@ def _literal_binding_type_problems(graph: WorkflowGraph, definitions: Definition
         if target_type is _UNKNOWN:
             continue
         try:
-            TypeAdapter(target_type).validate_python(binding.source.value, strict=True)
+            # As JSON, because that is what a literal is: the graph is stored as
+            # JSON, so a tuple arrives as a list and a UUID as a string, and strict
+            # JSON validation accepts exactly those spellings and nothing looser.
+            TypeAdapter(target_type).validate_json(json.dumps(binding.source.value), strict=True)
         except PydanticValidationError:
             problems.append(
                 (f"bindings.{index}", "This literal value does not match the target field's type")
@@ -728,6 +732,13 @@ def _is_dynamic(annotation: Any) -> bool:
     return False
 
 
+def _members(annotation: Any) -> list[Any]:
+    """A union's members without `None`, or the annotation alone."""
+    if get_origin(annotation) in (Union, types.UnionType):
+        return [arg for arg in get_args(annotation) if arg is not type(None)]
+    return [annotation]
+
+
 def _types_compatible(source: Any, target: Any) -> bool:
     # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
     if source is target or source is Any or target is Any:
@@ -738,7 +749,17 @@ def _types_compatible(source: Any, target: Any) -> bool:
         _is_dynamic(source) or (isinstance(source, type) and issubclass(source, BaseModel))
     ):
         return True
-    return _type_name(source) == _type_name(target)
+    source_members, target_members = _members(source), _members(target)
+    if source_members == [source] and target_members == [target]:
+        return _type_name(source) == _type_name(target)
+    # A union on either side, `None` set aside: an optional target takes what it
+    # holds (a `str` binds to `str | None`), and a source fits if every one of its
+    # members fits some member of the target. A source that is `None` at run
+    # time fills an optional field with `None`, which is what optional means.
+    return all(
+        any(_types_compatible(member, candidate) for candidate in target_members)
+        for member in source_members
+    )
 
 
 # Rule 7 - no cycles (run first; rules 4/5 need a topological order)

@@ -99,6 +99,7 @@ def load_builtins() -> None:
         return
 
     from app.workflows.nodes import (  # noqa: F401 - imported for side effects
+        agent_run,
         core_input,
         core_output,
         data_map,

@@ -111,6 +111,9 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # A workflow's `agent.run` step: the run a graph asked for, at the version the
+    # step pins, as the workflow run's principal (#1789).
+    WORKFLOW = "workflow"
 
 
 class RunOrder(enum.StrEnum):
