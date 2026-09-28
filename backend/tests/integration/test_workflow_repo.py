@@ -102,6 +102,33 @@ async def test_get_by_slug_finds_the_row(db: AsyncSession):
     assert await workflow_repo.get_by_slug(db, "nope", organization_id=org.id) is None
 
 
+async def test_slugs_with_prefix_returns_the_base_and_numbered_variants_in_the_org(
+    db: AsyncSession,
+):
+    org, owner = await _org(db)
+    other, other_owner = await _org(db)
+    for org_id, user_id, slug in (
+        (org.id, owner.id, "untitled-workflow"),
+        (org.id, owner.id, "untitled-workflow-2"),
+        (org.id, owner.id, "untitled-workflow-sidecar"),  # `-<suffix>`, still a match
+        (org.id, owner.id, "unrelated"),  # different prefix, excluded
+        (other.id, other_owner.id, "untitled-workflow"),  # another org, excluded
+    ):
+        await workflow_repo.create(
+            db,
+            organization_id=org_id,
+            slug=slug,
+            name=slug,
+            description=None,
+            owner_user_id=user_id,
+            created_by_user_id=user_id,
+            visibility=Visibility.PRIVATE.value,
+        )
+    taken = await workflow_repo.slugs_with_prefix(db, "untitled-workflow", organization_id=org.id)
+    assert taken == {"untitled-workflow", "untitled-workflow-2", "untitled-workflow-sidecar"}
+    assert await workflow_repo.slugs_with_prefix(db, "absent", organization_id=org.id) == set()
+
+
 async def test_a_duplicate_slug_in_one_organization_is_refused(db: AsyncSession):
     org, owner = await _org(db)
     await workflow_repo.create(

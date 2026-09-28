@@ -43,6 +43,11 @@ from app.workflows.graph.validate import derive_scopes, graph_size_problems, val
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
 
+# `WorkflowCreate.name`'s ceiling. The numbering suffix eats into it rather than
+# growing past it, so the suffix - the part that says which one this is - always
+# survives, and the base is what gets truncated.
+_NAME_LIMIT = 128
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +63,20 @@ def slugify(name: str) -> str:
     slug = _SLUG_ALLOWED.sub("-", name.strip().lower())
     slug = _SLUG_TRIM.sub("-", slug).strip("-")
     return slug[:64] or "workflow"
+
+
+def _numbered_name(base: str, n: int) -> str:
+    """The nth default name derived from `base`: `base`, then `base 2`, `base 3`.
+
+    Creation offers no name field - the name is a fixed default ("Untitled
+    workflow") or a template's title - so a second blank or a reused template
+    has nothing to rename with. Numbering the name here is what lets it be
+    created at all, the same reason `agent_registry` numbers a clone's name.
+    """
+    if n == 1:
+        return base
+    suffix = f" {n}"
+    return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
 
 
 class WorkflowArchivedError(AppException):
@@ -226,29 +245,26 @@ class WorkflowRegistryService:
     async def create(self, ctx: AuthContext, data: WorkflowCreate) -> WorkflowRead:
         """Create a workflow in draft, with an empty graph.
 
+        The handle is derived from the name, and the name at creation is a fixed
+        default or a template title with no field to change it, so a taken handle
+        is disambiguated by numbering the name (`Untitled workflow 2`) rather
+        than refused - a second blank or a reused template must be creatable.
+
         Raises:
             AuthorizationError: The caller lacks `workflows:create`.
-            AlreadyExistsError: The derived slug is taken.
+            AlreadyExistsError: The handle and every numbered variant are taken.
         """
         if not ctx.has(Perm.WORKFLOWS_CREATE):
             raise AuthorizationError(
                 message="You cannot create workflows",
                 details={"required": [Perm.WORKFLOWS_CREATE.value]},
             )
-        slug = slugify(data.name)
-        if await workflow_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
-            raise AlreadyExistsError(
-                message=(
-                    f"The handle '{slug}' is already taken. It is derived from the name, "
-                    "so give this workflow a name that produces a different handle."
-                ),
-                details={"slug": slug},
-            )
+        name, slug = await self._available_name(ctx, data.name)
         workflow = await workflow_repo.create(
             self.db,
             organization_id=ctx.organization_id,
             slug=slug,
-            name=data.name,
+            name=name,
             description=data.description,
             owner_user_id=ctx.subject_id,
             created_by_user_id=ctx.subject_id,
@@ -264,6 +280,33 @@ class WorkflowRegistryService:
             details={"name": workflow.name},
         )
         return _read(workflow)
+
+    async def _available_name(self, ctx: AuthContext, base_name: str) -> tuple[str, str]:
+        """A `(name, slug)` whose handle nobody in the org has taken yet.
+
+        One query reads every handle that could collide - the base and its
+        numbered variants - and the first free number wins, so the common case
+        of a handful of `Untitled workflow`s costs a single round trip. Distinct
+        numbers give distinct handles until the 64-char slug ceiling truncates
+        them together; only then, with every candidate genuinely colliding, is
+        the handle reported taken - the honest answer at that point.
+        """
+        base_slug = slugify(base_name)
+        taken = await workflow_repo.slugs_with_prefix(
+            self.db, base_slug, organization_id=ctx.organization_id
+        )
+        for n in range(1, len(taken) + 2):
+            name = _numbered_name(base_name, n)
+            slug = slugify(name)
+            if slug not in taken:
+                return name, slug
+        raise AlreadyExistsError(
+            message=(
+                f"The handle '{base_slug}' and its numbered variants are all taken. "
+                "Give this workflow a name that produces a different handle."
+            ),
+            details={"slug": base_slug},
+        )
 
     async def list(self, ctx: AuthContext, *, skip: int = 0, limit: int = 50) -> WorkflowList:
         """The workflows this caller may see: their own, org-visible ones and those shared."""
