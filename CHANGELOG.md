@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.511] - 2026-09-28
+
 ### Changed
 
 - **SQLAlchemy 2.1.** The sync URL Alembic migrates with names its driver,
