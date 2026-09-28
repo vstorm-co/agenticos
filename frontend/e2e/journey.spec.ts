@@ -7,6 +7,7 @@ import {
   nowListed,
   nowMatching,
   pageHeading,
+  pageStatus,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -226,7 +227,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // Publishing validates the draft first, so this is also the assertion that the
   // spec the Builder wrote is one the API accepts. The status badge lives in the
   // page title, and it is the only thing that unlocks the chat action below.
-  await expect(pageHeading(page)).toContainText("published", { timeout: 30_000 });
+  await expect(pageStatus(page)).toContainText("published", { timeout: 30_000 });
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
 
   // 6. running it
