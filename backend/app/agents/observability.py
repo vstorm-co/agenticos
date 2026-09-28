@@ -24,6 +24,9 @@ from typing import Any
 import logfire
 from opentelemetry import trace
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models import AbstractModel, Model
+from pydantic_ai.models.instrumented import InstrumentationSettings, instrument_model
+from pydantic_ai.tools import RunContext
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +125,51 @@ def suppress_content(agent: PydanticAgent[Any, Any]) -> None:
         logfire.instrument_pydantic_ai(agent, include_content=False)
     except Exception:
         logger.exception("agent_content_suppress_failed")
+
+
+def inherited_instrumentation(
+    host: PydanticAgent[Any, Any] | None,
+) -> InstrumentationSettings | bool | None:
+    """The trace policy for an auxiliary agent a tool runs inside `host`'s run.
+
+    A tool that makes its own model call through a fresh `Agent` - query
+    expansion, for one - would otherwise take the deployment's global
+    instrumentation, content on, whatever the host was set to: the prompt it
+    builds from the caller's question would reach the operator's project past an
+    agent whose spec says `content: none`, or miss the client project its traces
+    are routed to. Passing the host's own setting keeps both the destination and
+    the content decision `_instrument` made for it; `None` there means the global
+    default, the same as the host gets.
+
+    With no host to read (`RunContext.agent` unset) the policy is unknown, so the
+    answer is the one that cannot leak: the default tracer, without content.
+    """
+    if host is None:
+        return InstrumentationSettings(include_content=False)
+    return host.instrument
+
+
+def auxiliary_model(ctx: RunContext[Any]) -> AbstractModel:
+    """The run's model for an auxiliary call, traced the way the run is.
+
+    A capability that writes through an `Agent` it builds itself - a system
+    reminder, a compaction summary - inherits the run's model. `ctx.model` is the
+    bare model (the run's own instrumentation is a capability on the host, not a
+    wrapper on the model), so an agent built on it falls back to the deployment's
+    global instrumentation: content on and the operator's project, whatever the
+    host was set to. An agent published with `content="none"` would leak the
+    auxiliary call's text (agenticos#1809), and an agent whose traces go to a
+    client's project would send that text to the operator's instead.
+
+    So the model is wrapped in the host's own policy, read by
+    :func:`inherited_instrumentation`: an `InstrumentedModel` passed to an `Agent`
+    wins over its instrumentation settings, which is what makes this reach even
+    an agent a library builds from nothing but the model. A host on the global
+    default gets the model unchanged - the auxiliary agent takes the same default.
+    A realtime model (not a request-response :class:`Model`) is returned unchanged
+    too, since it cannot be wrapped and does not run an auxiliary agent.
+    """
+    settings = inherited_instrumentation(ctx.agent)
+    if not isinstance(settings, InstrumentationSettings) or not isinstance(ctx.model, Model):
+        return ctx.model
+    return instrument_model(ctx.model, settings)

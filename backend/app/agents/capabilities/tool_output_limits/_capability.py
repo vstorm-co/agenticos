@@ -20,7 +20,16 @@ when it does not; see :mod:`._store` and :func:`_build_store`.
 **A budget that can see a summary.** The `summarize` action writes through an
 `Agent` the harness builds itself, so that request never passes `BudgetGuard` -
 the same #16 hole `compaction` closes. Its tokens land in `ctx.usage` and nowhere
-else, so :class:`MeteredToolOutputLimits` books the delta against the run's ledger.
+else, so :class:`MeteredToolOutputLimits` books the delta against the run's ledger,
+and skips the reduction outright at a budget cap so the summary cannot spend past
+it (agenticos#1808).
+
+One thing this site does *not* yet do that `compaction` and `system_reminders` do:
+make the summary content-free and give it the run's model settings. The harness's
+`ToolOutputLimits._summarize` neither passes `model_settings` to its summary
+`agent.run` nor takes a per-request content-free model without mutating shared band
+config, so those two are a noted follow-up rather than a hack here; the branches
+that add the RAG auxiliary sites are where the shared runner earns its keep.
 
 One knob the harness offers is deliberately not exposed: the `bands` list. The
 Builder renders a form from the config's JSON schema and cannot draw a nested list
@@ -54,7 +63,12 @@ from pydantic_ai_harness.tool_output_limits import (
 )
 
 from app.agents.capabilities._tool_text import ToolText
-from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
+from app.agents.capabilities.budget import (
+    can_afford_ambient_call,
+    record_ambient_usage,
+    usage_counts,
+    usage_delta,
+)
 from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
 
 DEFAULT_THRESHOLD = 10_000
@@ -272,8 +286,14 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
 
     Booked in a `finally`: a summary that raised after its model call still spent
     the tokens, and a run that failed is exactly the one whose cost is argued about
-    later. What this cannot do is *stop* the spend - `BudgetGuard` refuses on the
-    request after it, the same as for compaction.
+    later.
+
+    At a budget cap the reduction is skipped before the wrapped capability runs, so
+    a `summarize` band cannot spend its own request past the cap (agenticos#1808);
+    the return passes through un-reduced. Content-suppression (agenticos#1809) and
+    the run's model settings (agenticos#1810) for this summary are the follow-up the
+    module docstring names - the harness exposes no clean knob for either here.
+    `BudgetGuard` still refuses the next real request the same as for compaction.
     """
 
     def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
@@ -318,6 +338,12 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
         args: dict[str, Any],
         result: Any,
     ) -> Any:
+        if not await can_afford_ambient_call():
+            # At a budget cap a `summarize` band's own request would spend past it,
+            # so the reduction is skipped and the return passes through un-reduced
+            # (agenticos#1808). Content-suppression and the run's model settings for
+            # this summary are a noted follow-up - see the class docstring.
+            return result
         before = usage_counts(ctx.usage)
         try:
             return await self.wrapped.after_tool_execute(
