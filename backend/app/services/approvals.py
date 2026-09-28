@@ -21,13 +21,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.repositories import agent_run_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.services.transcript import TranscriptService
+from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +182,17 @@ class ApprovalService:
             note=note,
         )
         await self._record_decision(approval, status, actor_user_id=ctx.subject_id, note=note)
+        # The workflow wake-up (#1788): a no-op for the overwhelming majority
+        # of decisions, which are not about a run a workflow node is parked
+        # on. Queued for after this transaction commits, since the run it
+        # looks for is only real once this decision is - and it needs a
+        # session of its own regardless, `agent_run_id`/`organization_id`
+        # being the only things it is handed.
+        spawn_after_commit(
+            self.db,
+            wake_after_approval_decision(decided.run_id, organization_id=decided.organization_id),
+            name="workflow-approval-wake",
+        )
         return decided
 
     async def expire_stale(self) -> int:
@@ -308,6 +322,20 @@ class ApprovalService:
             # un-resumable: state left on an ended run is state somebody replays.
             paused_state=None,
         )
+        # A workflow node parked on this run wakes the same way a decision
+        # wakes it (#1788): its handler sees the run ended and fails the node,
+        # instead of the node waiting for ever on a run nothing will resume.
+        # Looked up here, in the sweep's own transaction, so a backlog of
+        # expiries spawns a wake - and opens a connection - only for the runs
+        # a workflow actually waits on.
+        if await workflow_run_repo.find_node_run_waiting_on_agent_run(
+            self.db, run_id, organization_id=organization_id
+        ):
+            spawn_after_commit(
+                self.db,
+                wake_after_approval_decision(run_id, organization_id=organization_id),
+                name="workflow-approval-wake",
+            )
         return 1
 
     async def _record_decision(

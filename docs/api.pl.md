@@ -1,5 +1,5 @@
 ---
-source_sha: "4af3be1ca985"
+source_sha: "ed1daca5c676"
 ---
 
 # API HTTP { #the-http-api }
@@ -91,6 +91,32 @@ grantem edycji na jednym agencie może go otagować.
 między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
 zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
 to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
+
+## Uruchamianie workflowu { #running-a-workflow }
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+```
+
+To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
+węzły działają w tle. `"mode": "test"` uruchamia zamiast tego bieżący draft i
+wymaga `workflows:edit`. `deadline_seconds` (do trzydziestu dni) ustawia termin
+sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
+po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
+albo run czekający na zatwierdzenie nie są przez niego przerywane. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
+po przekroczeniu limitu odpowiada `429` z `Retry-After`.
+
+`GET /api/v1/workflow-runs/{id}` zwraca status runa, `spent_cost` i `error`, a
+`POST /api/v1/workflow-runs/{id}/cancel` go zatrzymuje. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` zwraca strumień zdarzeń runa
+od najstarszego, z `next_cursor` do odesłania jako `after`: pozostaje taki sam,
+dopóki nie ma nic nowszego, więc odpytywanie z nim śledzi trwający run. Kto może
+robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workflow-runs).
+
 ## Usługi ML { #the-ml-services }
 
 Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za
