@@ -19,6 +19,8 @@ from app.core.secret_kinds import (
 )
 from app.core.vault import VaultScope
 
+pytestmark = pytest.mark.security
+
 _TOKEN = "tok-abcdef-123456"
 
 

@@ -452,3 +452,27 @@ async def test_a_question_is_answered_through_retrieval_and_an_agent(
     assert [source["filename"] for source in run.output["sources"]] == ["policy.pdf"]
     (prompt,) = recorder.prompts
     assert "Refunds are accepted within thirty days." in prompt
+
+
+@pytest.mark.security
+async def test_a_version_of_an_archived_agent_cannot_be_pinned(engine: AsyncEngine, model):
+    model("x")
+    member = await _tenant(engine)
+    profile_id = await _profile(engine, member[1])
+    ctx_run = await seed_run(
+        engine,
+        WorkflowGraph(entry_node_id=uuid.uuid4(), nodes=(_node("core.input"),)),
+        member=member,
+    )
+    agent_id, version_id = await _published(engine, ctx_run.ctx, profile_id, "a")
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        await AgentRegistryService(db).archive(ctx_run.ctx, agent_id)
+        await db.commit()
+    graph = _graph(agent_id, version_id)
+    seeded = await seed_run(engine, graph, member=member)
+
+    with pytest.raises(GraphValidationError) as refused:
+        async with async_sessionmaker(engine)() as db:
+            await validate_graph(db, seeded.ctx, graph)
+
+    assert any("archived" in problem["message"] for problem in refused.value.details["fields"])

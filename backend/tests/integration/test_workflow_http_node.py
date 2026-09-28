@@ -184,6 +184,7 @@ async def test_a_get_sends_the_credential_and_hands_back_a_redacted_response(
     graph, _call = _graph(
         {
             "url": "https://api.example.com/v1/items",
+            "headers": {"X-Trace": "t-1"},
             "auth": {"kind": "bearer", "secret_id": str(secret_id)},
         }
     )
@@ -195,6 +196,7 @@ async def test_a_get_sends_the_credential_and_hands_back_a_redacted_response(
     assert run.status == WorkflowRunStatus.SUCCEEDED.value
     (sent,) = wire.sent
     assert sent.headers["Authorization"] == f"Bearer {_TOKEN}"
+    assert sent.headers["X-Trace"] == "t-1"
     assert sent.url.host == _PUBLIC and sent.headers["Host"] == "api.example.com"
     assert run.output is not None
     response = run.output["structured"]
@@ -457,3 +459,69 @@ async def test_a_config_that_could_smuggle_or_lose_a_credential_cannot_publish(
         or problem["field"] == f"nodes.{call.id}.config"
         for problem in refused.value.details["fields"]
     )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("auth", "header", "expected"),
+    [
+        ({"kind": "basic"}, "Authorization", "Basic YWRhOnRvay1hYmNkZWYtMTIzNDU2"),
+        ({"kind": "header", "header_name": "X-Api-Key"}, "X-Api-Key", _TOKEN),
+    ],
+    ids=["basic", "header"],
+)
+async def test_the_credential_is_sent_the_way_the_step_says(
+    engine: AsyncEngine, network, auth: dict[str, Any], header: str, expected: str
+):
+    member = await _member(engine)
+    secret_id = await _secret(
+        engine,
+        member,
+        HttpCredentialSecret(token=_TOKEN, username="ada", origins=("https://api.example.com",)),
+    )
+    wire = network()
+    graph, _call = _graph(
+        {"url": "https://api.example.com/x", "auth": {**auth, "secret_id": str(secret_id)}}
+    )
+
+    run = await drive(await seed_run(engine, graph, member=member))
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    (sent,) = wire.sent
+    assert sent.headers[header] == expected
+
+
+@pytest.mark.security
+async def test_a_redirect_to_something_other_than_http_is_not_followed(
+    engine: AsyncEngine, network
+):
+    wire = network(lambda _r: httpx2.Response(302, headers={"Location": "file:///etc/passwd"}))
+    graph, _call = _graph({"url": "https://api.example.com/x"})
+
+    run = await drive(await seed_run(engine, graph))
+
+    assert run.error is not None and run.error["code"] == "URL_REFUSED"
+    assert len(wire.sent) == 1
+
+
+async def test_a_redirect_loop_stops(engine: AsyncEngine, network):
+    wire = network(lambda _r: httpx2.Response(302, headers={"Location": "/again"}))
+    graph, _call = _graph({"url": "https://api.example.com/x"})
+
+    run = await drive(await seed_run(engine, graph))
+
+    assert run.error is not None and run.error["code"] == "TOO_MANY_REDIRECTS"
+    assert len(wire.sent) == http_handler.MAX_REDIRECTS + 1
+
+
+async def test_a_body_that_claims_json_and_is_not_comes_back_as_text(engine: AsyncEngine, network):
+    network(
+        lambda _r: httpx2.Response(
+            200, content=b"{not json", headers={"Content-Type": "application/json"}
+        )
+    )
+    graph, _call = _graph({"url": "https://api.example.com/x"})
+
+    run = await drive(await seed_run(engine, graph))
+
+    assert run.output is not None and run.output["structured"]["body"] == "{not json"

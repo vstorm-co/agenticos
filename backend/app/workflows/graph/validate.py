@@ -438,9 +438,11 @@ async def _resource_problems(
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions[node.id]
-        if definition is None or definition.resource_check is None:
-            continue
-        if definition.config_schema is None:
+        if (
+            definition is None
+            or definition.resource_check is None
+            or definition.config_schema is None
+        ):
             continue
         try:
             config = definition.config_schema.model_validate(node.config)

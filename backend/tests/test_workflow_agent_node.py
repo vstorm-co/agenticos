@@ -77,6 +77,7 @@ async def _call(config: dict[str, Any] | None = None, *, resumed: uuid.UUID | No
     return result, scope
 
 
+@pytest.mark.security
 async def test_an_approval_parks_the_node_on_the_agent_run(runner):
     parked = _run(RunStatus.AWAITING_APPROVAL, cost="0.01")
     runner.execute.return_value = ("", parked)
