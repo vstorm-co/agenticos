@@ -58,6 +58,8 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/core/permissions.py", "docs/permissions.md"),
     ("backend/app/services/access.py", "docs/permissions.md"),
     ("backend/app/services/virtual_tables/", "docs/virtual-tables.md"),
+    ("backend/app/services/retention.py", "docs/governance.md"),
+    ("backend/app/services/rate_limit.py", "docs/configuration.md"),
     ("backend/app/repositories/virtual_table.py", "docs/virtual-tables.md"),
     ("backend/app/schemas/virtual_table.py", "docs/virtual-tables.md"),
     ("backend/app/api/routes/v1/virtual_tables.py", "docs/virtual-tables.md"),

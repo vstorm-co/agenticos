@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, case, delete, func, literal, select
+from sqlalchemy import CursorResult, and_, case, delete, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +37,11 @@ from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.virtual_table import (
+    VirtualTableOutbox,
+    VirtualTableReceipt,
+    VirtualTableRecordHistory,
+)
 
 #: The statuses a retention sweep may retire.
 #:
@@ -414,3 +419,101 @@ async def set_retention(
     await db.flush()
     await db.refresh(organization)
     return organization
+
+
+async def delete_table_receipts(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest idempotency receipts created before `cutoff`.
+
+    A receipt holds a whole copy of a record and answers a retry only while its key
+    can plausibly still be retried, so what leaves here is the copy and the promise.
+    """
+    expiring = (
+        select(VirtualTableReceipt.id)
+        .where(
+            VirtualTableReceipt.organization_id == organization_id,
+            VirtualTableReceipt.created_at < cutoff,
+        )
+        .order_by(VirtualTableReceipt.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableReceipt).where(VirtualTableReceipt.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_outbox(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    cutoff: datetime,
+    undispatched_cutoff: datetime,
+    limit: int,
+) -> int:
+    """Drop the oldest outbox rows: dispatched before `cutoff`, or never dispatched and
+    older than `undispatched_cutoff`.
+
+    The second half is a dead-letter cutoff, not a claim the event was delivered: no
+    consumer of this outbox exists yet (#1785), so nothing sets `dispatched_at`, and
+    without it an undispatched row would sit here for as long as the record that created
+    it did not - one permanent row per create, for an event nobody will ever collect.
+    `undispatched_cutoff` is ordinarily far later than `cutoff`, so this reaches an
+    undispatched row only long after a dispatched one of the same age would already be
+    gone; sorting by `created_at` (rather than `dispatched_at`, which an undispatched row
+    has none of) still takes the oldest of whichever kind a batch happens to find.
+    """
+    expiring = (
+        select(VirtualTableOutbox.id)
+        .where(
+            VirtualTableOutbox.organization_id == organization_id,
+            or_(
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_not(None),
+                    VirtualTableOutbox.dispatched_at < cutoff,
+                ),
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_(None),
+                    VirtualTableOutbox.created_at < undispatched_cutoff,
+                ),
+            ),
+        )
+        .order_by(VirtualTableOutbox.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableOutbox).where(VirtualTableOutbox.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_history(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest record history written before `cutoff`.
+
+    By the change's own date, for a live record and a deleted one alike: a delete
+    leaves its history behind on purpose, and this is what eventually removes it.
+    """
+    expiring = (
+        select(VirtualTableRecordHistory.id)
+        .where(
+            VirtualTableRecordHistory.organization_id == organization_id,
+            VirtualTableRecordHistory.created_at < cutoff,
+        )
+        .order_by(VirtualTableRecordHistory.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            delete(VirtualTableRecordHistory).where(VirtualTableRecordHistory.id.in_(expiring))
+        ),
+    )
+    return result.rowcount or 0

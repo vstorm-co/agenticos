@@ -15,9 +15,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import (
@@ -504,3 +505,95 @@ async def test_an_upsert_that_would_change_nothing_writes_nothing_either(db):
     assert await _history(db) == 1
     assert await _rows(db, VirtualTableReceipt) == 0
     assert await _rows(db, VirtualTableOutbox) == 1
+
+
+async def _age_receipts(db, hours: int) -> None:
+    """Move every receipt's creation back in time, which is how a clock moving on is shown."""
+    await db.execute(
+        text(
+            "UPDATE virtual_table_receipts SET created_at = created_at - make_interval(hours => :h)"
+        ),
+        {"h": hours},
+    )
+
+
+async def test_a_retry_inside_the_receipt_lifetime_replays(db):
+    service, ctx, table, _org = await _setup(db)
+    body = RecordCreate(values={})
+    first = await service.create_record(ctx, table.id, body, operation_key="k")
+    await _age_receipts(db, settings.TABLES_RECEIPT_TTL_HOURS - 1)
+
+    retry = await service.create_record(ctx, table.id, body, operation_key="k")
+
+    assert retry.replayed and retry.record.id == first.record.id
+    assert await _rows(db, VirtualTableRecord) == 1
+
+
+async def test_a_retry_after_the_lifetime_is_a_new_write_with_a_receipt_of_its_own(db):
+    """Enforced when the key is used, before any sweep has run."""
+    service, ctx, table, _org = await _setup(db)
+    body = RecordCreate(values={})
+    first = await service.create_record(ctx, table.id, body, operation_key="k")
+    await _age_receipts(db, settings.TABLES_RECEIPT_TTL_HOURS + 1)
+
+    again = await service.create_record(ctx, table.id, body, operation_key="k")
+
+    assert not again.replayed and again.record.id != first.record.id
+    assert await _rows(db, VirtualTableRecord) == 2
+    assert await _rows(db, VirtualTableReceipt) == 1
+    fresh = await service.create_record(ctx, table.id, body, operation_key="k")
+    assert fresh.replayed and fresh.record.id == again.record.id
+
+
+async def test_reusing_an_expired_key_for_a_different_body_is_not_refused(db):
+    service, ctx, table, _org = await _setup(db)
+    customer = cid(table, "Customer")
+    await service.create_record(
+        ctx, table.id, RecordCreate(values={customer: "one"}), operation_key="k"
+    )
+    await _age_receipts(db, settings.TABLES_RECEIPT_TTL_HOURS + 1)
+
+    other = await service.create_record(
+        ctx, table.id, RecordCreate(values={customer: "two"}), operation_key="k"
+    )
+
+    assert not other.replayed and other.record.values == {customer: "two"}
+
+
+async def test_only_the_expired_key_is_cleared_not_other_keys_receipts(db):
+    service, ctx, table, _org = await _setup(db)
+    await service.create_record(ctx, table.id, RecordCreate(values={}), operation_key="old")
+    await _age_receipts(db, settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    await service.create_record(ctx, table.id, RecordCreate(values={}), operation_key="live")
+
+    await service.create_record(ctx, table.id, RecordCreate(values={}), operation_key="live")
+
+    # The sweep, not a claim, reclaims an expired receipt nobody retried.
+    keys = set(await db.scalars(select(VirtualTableReceipt.operation_key)))
+    assert keys == {"old", "live"}
+
+
+async def test_concurrent_retries_after_the_lifetime_execute_once(engine: AsyncEngine):
+    factory, ctx, table = await _committed_table(engine)
+    body = RecordCreate(values={})
+    await _in_own_session(
+        factory, lambda s: s.create_record(ctx, table.id, body, operation_key="k")
+    )
+    async with factory() as aging:
+        await _age_receipts(aging, settings.TABLES_RECEIPT_TTL_HOURS + 1)
+        await aging.commit()
+
+    results = await asyncio.gather(
+        *(
+            _in_own_session(
+                factory, lambda s: s.create_record(ctx, table.id, body, operation_key="k")
+            )
+            for _ in range(6)
+        )
+    )
+
+    assert sum(1 for r in results if not r.replayed) == 1
+    assert len({r.record.id for r in results}) == 1
+    async with factory() as check:
+        assert await _rows(check, VirtualTableRecord) == 2
+        assert await _rows(check, VirtualTableReceipt) == 1

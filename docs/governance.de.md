@@ -1,5 +1,5 @@
 ---
-source_sha: "d12dda296e9f"
+source_sha: "048eca92259d"
 ---
 
 # Governance { #governance }
@@ -1666,6 +1666,12 @@ Klasse**, und beide Pflichten bekommen eine Einstellung.
 Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahrung**,
 abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
 **hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
+
+Daten der [Virtual Tables](virtual-tables.md#limits-and-retention) gehören zum selben Sweep,
+mit Fristen für das ganze Deployment, die keine Organisation setzt: Idempotenz-Receipts nach
+24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History eines Datensatzes nach
+365 Tagen, wodurch auch die History eines gelöschten Datensatzes entfernt wird. Der Eintrag,
+den er schreibt, nennt `table_receipts`, `table_outbox` oder `table_history` und eine Zahl.
 
 Die drei eigenen Zahlen des Deployments - `retention_defaults`,
 `retention_max_days` und `audit_retention_floor_days` - sind Felder der

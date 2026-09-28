@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "eec2418794f5"
 ---
 
 # Konfiguracja { #configuration }
@@ -1082,8 +1082,9 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
 powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
-trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
-osobna decyzja, nie ta.
+trasy konsoli są za sesją i nie są mierzone, z jednym wyjątkiem: zapisami do
+[Virtual Tables](virtual-tables.md), które przechowują migawkę każdej zmiany. Czy całe
+API powinno nosić sufit, to osobna decyzja, nie ta.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
@@ -1093,6 +1094,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Zapisy do [Virtual Tables](virtual-tables.md), **na członka i organizację**: create, update, upsert lub delete rekordu oraz create, zmiana nazwy, archiwizacja lub zmiana schematu tabeli. Dotyczy konsoli tak samo jak skryptu. Odczyty nie są liczone |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z
@@ -1212,6 +1214,37 @@ współdzielony.
 
     Przy dwóch proxy z przodu zwiń nagłówek do jednego przeskoku na swojej krawędzi
     — wiarygodny jest tylko ostatni przeskok.
+
+## Limity i retencja Virtual Tables { #virtual-tables-limits-and-retention }
+
+Ile jedna organizacja może przechowywać w [Virtual Tables](virtual-tables.md#limits-and-retention)
+i jak długo trzymane są kopie, które zostawia zapis. Zapis ponad limit jest odrzucany
+kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Jak długo idempotentny receipt odpowiada na ponowienie. Potem ten sam klucz to nowy zapis |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Jak długo trzymany jest wysłany wiersz outbox |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Jak długo trzymany jest niewysłany wiersz outbox. Nie ma jeszcze konsumenta (#1785), więc to jest dead-letter cutoff, a nie deklaracja, że zdarzenie zostało dostarczone - po tym czasie wiersz i zdarzenie, które niósł, znikają |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Jak długo trzymana jest history rekordu, liczona od zmiany, także dla usuniętego rekordu |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Ile wpisów audytu odmowy limitu ten proces zapisuje naraz, żeby seria odmów nie otwierała nieograniczonej liczby połączeń do bazy. Reszta serii czeka na to ograniczenie |
+
+Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention), dla
+każdej organizacji; nie są ustawieniami per organizacja.
+
+Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
+zamiast ze stałej liczby batchy - ale ten limit jest per *członek* (`limit_table_write` liczy
+zapisy każdego członka na jego własnym koncie), więc budżet skaluje się też z liczbą aktywnych
+członków organizacji: aż do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` wierszy na
+aktywnego członka dziennie, w batchach po 500.
+
+Ta liczba jest podwajana dla zapasu, żeby istniejąca zaległość się kurczyła, a nie tylko
+utrzymywała na stałym poziomie, i ograniczona do 50 członków, żeby jedna nietypowo duża
+organizacja nie rozrastała własnego przebiegu bez końca - nadal się drenuje, tylko w kilku
+przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie swój budżet.
 
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 

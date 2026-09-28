@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "eec2418794f5"
 ---
 
 # Konfiguration { #configuration }
@@ -1155,8 +1155,10 @@ Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
 Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page und den
 Upload einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
-Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
-sollte, ist eine eigene Entscheidung und nicht diese.
+Session und werden nicht gemessen, mit einer Ausnahme: Schreibzugriffe auf
+[Virtual Tables](virtual-tables.md), die je Änderung einen Schnappschuss speichern. Ob
+die ganze API eine Obergrenze tragen sollte, ist eine eigene Entscheidung und nicht
+diese.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
@@ -1166,6 +1168,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes sowie Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag
@@ -1291,6 +1294,40 @@ Grenze sicher, aber geteilt.
 
     Mit zwei Proxys davor falten Sie den Header an Ihrer Kante auf einen Hop
     zusammen — nur der letzte Hop ist vertrauenswürdig.
+
+## Limits und Aufbewahrung der Virtual Tables { #virtual-tables-limits-and-retention }
+
+Was eine Organisation in [Virtual Tables](virtual-tables.md#limits-and-retention)
+speichern darf und wie lange die Kopien aufbewahrt werden, die ein Schreibzugriff
+hinterlässt. Ein Schreibzugriff über einem Limit wird mit `QUOTA_EXCEEDED` (402) und
+einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabellen je Organisation. Archivierte zählen mit, weil nichts eine Tabelle löscht |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Datensätze in einer Tabelle |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten; ein bereits über dem Limit liegender Datensatz wird trotzdem gelöscht und behält nur eine Größenmarkierung statt der Werte |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Wie lange eine nicht zugestellte Outbox-Zeile aufbewahrt wird. Es gibt noch keinen Konsumenten (#1785), also ist dies eine Dead-Letter-Frist, keine Behauptung, das Ereignis sei zugestellt worden - danach sind die Zeile und das Ereignis, das sie trug, weg |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Wie lange die History eines Datensatzes aufbewahrt wird, ab der Änderung gezählt, auch für einen gelöschten Datensatz |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Wie viele Quota-Ablehnungs-Audit-Einträge dieser Prozess gleichzeitig schreibt, damit ein Schub an Ablehnungen keine unbegrenzte Zahl an Datenbankverbindungen öffnet. Der Rest eines Schubs wartet stattdessen auf diese Grenze |
+
+Die drei Fristen wendet der tägliche [Aufbewahrungs-Sweep](governance.md#retention) für
+jede Organisation an; es sind keine Einstellungen je Organisation.
+
+Das Budget eines Durchlaufs für diese drei Klassen skaliert mit
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` statt mit einer festen Anzahl Batches - aber dieses Limit
+gilt je *Mitglied* (`limit_table_write` zählt die Schreibzugriffe jedes Mitglieds auf sein
+eigenes Kontingent), sodass das Budget auch mit der Anzahl der aktiven Mitglieder der
+Organisation skaliert: bis zu `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` Zeilen je aktivem
+Mitglied und Tag, in Batches von 500.
+
+Dieser Wert wird für Spielraum verdoppelt, sodass ein bestehender Rückstand schrumpft statt
+nur gehalten zu werden, und bei 50 Mitgliedern gedeckelt, damit eine ungewöhnlich große
+Organisation ihren eigenen Durchlauf nicht unbegrenzt wachsen lässt - er wird trotzdem
+abgearbeitet, nur über mehr Durchläufe, genau wie bei jeder anderen Aufbewahrungsklasse, wenn
+ein Rückstand ihr Budget übersteigt.
 
 ## Ein Worker, dessen Event Loop sich nicht mehr dreht { #a-worker-whose-event-loop-has-stopped-turning }
 

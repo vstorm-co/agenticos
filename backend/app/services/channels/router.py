@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -52,7 +51,7 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
-from app.services.rate_limit import Limit
+from app.services.rate_limit import Limit, LocalWindows
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
@@ -110,42 +109,10 @@ class _ChatLocks:
 _chat_locks = _ChatLocks()
 
 
-class _LocalWindows:
-    """A per-process fixed window, for the turns the shared limiter could not count.
-
-    `rate_limit.consume` is the limit that holds across workers, and it fails
-    open when Redis is down or nobody configured one. For a public widget that
-    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
-    is a production control (`SECURITY.md`), and a limiter that vanishes for
-    the length of a Redis outage lets a permitted participant run the model as
-    fast as they can type until it recovers. So this stands in for exactly that
-    stretch: wrong by the worker count, which is the defect the shared limiter
-    exists to fix, and still a floor where there would have been none.
-
-    Bounded: every write drops the windows that have expired, so the map is the
-    size of the callers seen in the last minute, not of every caller since the
-    process started - which is what the dict this replaces did.
-    """
-
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._windows: dict[str, tuple[int, float]] = {}
-        self._clock = clock
-
-    def __len__(self) -> int:
-        return len(self._windows)
-
-    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
-        now = self._clock()
-        for key in [
-            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
-        ]:
-            del self._windows[key]
-        count, opened = self._windows.get(caller, (0, now))
-        self._windows[caller] = (count + 1, opened)
-        return count < attempts
-
-
-_fallback_windows = _LocalWindows()
+#: A per-process floor for the turns the shared limiter could not count. The
+#: primitive lives in `rate_limit` (it is a rate-limiting concept, not a channel
+#: one); this instance holds the channel bot's own fallback windows.
+_fallback_windows = LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)

@@ -1,5 +1,5 @@
 ---
-source_sha: "48a8b9fe7002"
+source_sha: "f28d8933fd03"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -133,7 +133,7 @@ keine Historienzeile und kein Receipt geschrieben, und der aktuelle Datensatz wi
 zurückgegeben. Eine veraltete `expected_revision` ist weiterhin ein Konflikt, weil sie
 zuerst geprüft wird. Ein Upsert, der den Datensatz findet, folgt derselben Regel.
 
-Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt.
+Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt, bis ihre Aufbewahrung sie entfernt.
 
 ## Sichere Wiederholungen { #safe-retries }
 
@@ -154,6 +154,13 @@ Schlüssel.
 
 Eine Wiederholung wird nur einem Aufrufer beantwortet, der die Tabelle noch bearbeiten
 darf. Nach dem Entzug des Zugriffs ist dieselbe Wiederholung ein 404.
+
+Ein Receipt hält 24 Stunden. Danach ist der Schlüssel vergessen, und derselbe Schlüssel mit
+demselben Body ist ein neuer Schreibzugriff: Er wird erneut ausgeführt, statt die erste
+Antwort zurückzugeben. Wiederholen Sie innerhalb des Fensters und behandeln Sie eine
+längere Pause als neue Anfrage. Die Lebensdauer wird beim Verwenden des Schlüssels
+durchgesetzt und gilt daher auf die Stunde genau; der tägliche Sweep gibt nur den Platz
+von Receipts frei, die niemand wiederholt hat.
 
 ## Auflisten und Filtern { #listing-and-filtering }
 
@@ -180,24 +187,75 @@ Idempotenz-Quittung und bei einem Create eine Outbox-Zeile `table.record.created
 werden in einer Transaktion geschrieben und gemeinsam committet oder zurückgerollt. Ein
 Fehler in irgendeinem Schritt hinterlässt keines davon. Änderungen an Tabelle und
 Schema werden im [Audit-Log](governance.md) festgehalten; Änderungen an Datensätzen in
-der Historie pro Datensatz, die die Werte vor und nach jeder Änderung aufbewahrt.
+der Historie pro Datensatz, die die von jeder Änderung berührten Zellen aufbewahrt.
 
-Drei dieser Speicher halten Daten ohne Aufbewahrungsfrist. Die Historie pro Datensatz und
-die Receipts enthalten die Werte, ein Löschen des Datensatzes entfernt also die aktuelle
-Zeile und lässt beide zurück. Ein Receipt enthält den ganzen Datensatz, wie ihn der
-Schreibzugriff zurückgab, und verschwindet nur mit seinem Konto oder seiner Organisation.
-Outbox-Zeilen enthalten ids und werden nach der Zustellung nie bereinigt. Behandeln Sie sie
-als personenbezogene Daten, wenn es die Zellen sind; siehe
-[Datenschutz](data-protection.md#the-database).
-
-Diese Speicher halten vollständige Schnappschüsse, und eine echte Bearbeitung eines großen
-Datensatzes schreibt weiterhin einen in die Historie und, wenn ein Schlüssel gesendet
-wird, einen in ein Receipt. Kontingente oder Rate-Limits pro Tenant für dieses Wachstum
-und das Speichern nur der Änderungen sind noch nicht implementiert.
+Zwei dieser Speicher halten Kopien dessen, was geschrieben wurde. Ein Receipt enthält den
+ganzen Datensatz, wie ihn der Schreibzugriff zurückgab, und die Historie enthält, was sich
+geändert hat. Ein Löschen des Datensatzes entfernt also die aktuelle Zeile und lässt beide
+zurück, bis ihre Aufbewahrung sie entfernt. Outbox-Zeilen enthalten ids. Behandeln Sie alle
+drei als personenbezogene Daten, wenn es die Zellen sind; siehe
+[Datenschutz](data-protection.md#the-database) und
+[Limits und Aufbewahrung](#limits-and-retention).
 
 Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert.
-Bisher konsumiert sie nichts. Ein Konsument holt sich nicht zugestellte Zeilen in einer
-eigenen Session und markiert sie als zugestellt.
+Bisher konsumiert sie nichts, also markiert auch nichts eine Zeile als zugestellt - ein
+künftiger Konsument holt sich nicht zugestellte Zeilen in einer eigenen Session und
+markiert sie als versendet. Bis dahin wird eine nicht zugestellte Zeile nur durch ihr
+eigenes, viel längeres Aufbewahrungsfenster entfernt (unten) - eine Dead-Letter-Frist, keine
+Behauptung, das Ereignis sei je abgeholt worden.
+
+## Limits und Aufbewahrung { #limits-and-retention }
+
+Ein Tenant kann die gemeinsame Datenbank nur so weit wachsen lassen, wie das Deployment es
+zulässt. Jedes Limit ist eine Einstellung des Deployments, gilt **je Organisation**, sodass
+die Nutzung eines Tenants nie auf einen anderen angerechnet wird, und wird mit
+`QUOTA_EXCEEDED` (402) abgelehnt, wenn ein Schreibzugriff es überschreiten würde.
+
+| Einstellung | Standard | Begrenzt |
+|---|---|---|
+| `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabellen einer Organisation. Archivierte zählen mit, weil eine Tabelle nie gelöscht wird |
+| `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Datensätze in einer Tabelle. Ein Update eines Datensatzes in einer vollen Tabelle ist erlaubt |
+| `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Die serialisierten Werte eines Datensatzes in Bytes |
+
+Die Ablehnung nennt das Limit und seine Obergrenze in `details` (`{"quota": "records",
+"limit": 100000}`), nie den Inhalt, und schreibt einen Eintrag `table.quota_refused` in das
+[Audit-Log](governance.md) mit denselben zwei Feldern. Die abgelehnte Anfrage schreibt
+nichts. Schreibzugriffe sind außerdem auf `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) je
+Mitglied und Organisation begrenzt, in der Konsole ebenso wie über die API; ein Mitglied
+darüber erhält ein 429 mit `Retry-After`. Siehe [Konfiguration](configuration.md#rate-limiting).
+
+**Was die Historie aufbewahrt.** Ein Create hält den ganzen Datensatz in `after`, ein Delete
+den ganzen Datensatz in `before`; das Datensatzlimit begrenzt beides. Ein Datensatz, der
+älter als das Limit ist oder geschrieben wurde, bevor `TABLES_MAX_RECORD_BYTES` gesenkt
+wurde, kann immer noch darüber liegen - sein Delete hält `before` dann als
+`{"omitted": {"bytes": <seine Größe>, "limit": <das Limit>}}` statt der Werte, und gelingt
+trotzdem. Ein Update hält nur die Zellen, die sich geändert haben: `before` enthält ihre
+früheren Werte und `after` die neuen, und eine Spalte, die auf einer Seite fehlt, war dort
+leer. Das Bearbeiten einer Zelle eines großen Datensatzes kostet daher eine Zelle, wie oft
+es auch wiederholt wird.
+
+**Aufbewahrung.** Der tägliche [Aufbewahrungs-Sweep](governance.md#retention) entfernt auch
+Tabellendaten, hart und in Batches, für jede Organisation:
+
+| Was | Entfernt, wenn | Einstellung |
+|---|---|---|
+| Receipts | Älter als 24 Stunden | `TABLES_RECEIPT_TTL_HOURS` |
+| Outbox-Zeilen | Vor mehr als 3 Tagen zugestellt | `TABLES_OUTBOX_RETENTION_DAYS` |
+| Nicht zugestellte Outbox-Zeilen | Nie zugestellt und 30 Tage alt. Bisher konsumiert nichts diese Outbox, also erreicht jede Zeile irgendwann dieses Fenster - siehe unten | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Historie | Älter als 365 Tage, für einen gelöschten Datensatz ebenso wie für einen lebenden | `TABLES_HISTORY_RETENTION_DAYS` |
+
+Der Sweep schreibt einen Audit-Eintrag je Organisation, der die Klasse (`table_receipts`,
+`table_outbox`, `table_history`) und die Anzahl nennt. Es sind Einstellungen des Deployments,
+keine je Organisation. Die Datensätze selbst und die Tabellen entfernt er nie.
+
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` ist ein Kontingent je *Mitglied*, daher skaliert das
+Budget eines Durchlaufs für jede der drei Klassen sowohl damit als auch mit der Anzahl der
+aktiven Mitglieder der Organisation, mit Spielraum, damit ein bestehender Rückstand schrumpft
+statt nur gehalten zu werden - jedes Mitglied, das gleichzeitig ununterbrochen schreibt, läuft
+dem Sweep nie davon, bis zu einer großzügigen Grenze, für wie viele Mitglieder sich der
+Durchlauf einer Organisation bemisst. Die Zahlen stehen in der
+[Konfiguration](configuration.md#virtual-tables-limits-and-retention). Ein Rückstand darüber
+hinaus wird wie bei jeder anderen Klasse über mehrere Durchläufe abgearbeitet.
 
 ## Wer was darf { #who-can-do-what }
 
@@ -236,6 +294,8 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
+| `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`) und seine Obergrenze |
+| `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Tabellenschreibzugriffe in der letzten Minute; siehe `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |
 | `AUTHORIZATION_ERROR` | 403 | Dem Aufrufer fehlt die Permission, die eine Collection-Route verlangt (`tables:view`, `tables:create`) |
 | `CONCURRENT_CHANGE` | 409 | Ein Upsert hat ein Rennen mit dem Löschen desselben Datensatzes verloren. Wiederholen Sie ihn |
@@ -273,6 +333,7 @@ Session-Scope.
   muss noch abgestimmt werden.
 - Agent-Tools, Workflow-Knoten und die Konsolenansichten, die diesen Service aufrufen
   werden.
-- Konsumenten der Outbox und Dependency-Checker für Workflows, Views und Trigger.
-- Kontingente oder Rate-Limits pro Tenant für das Wachstum von Historie und Receipts sowie
-  das Speichern nur der Änderungen.
+- Ein Konsument der Outbox. Bis es einen gibt, erreicht jedes Created-Record-Ereignis
+  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` und wird verworfen statt zugestellt - ein
+  offengelegter Dead Letter, keine Warteschlange, die heute irgendetwas leert.
+- Dependency-Checker für Workflows, Views und Trigger.
