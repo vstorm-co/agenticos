@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.512] - 2026-09-28
+
 ### Changed
 
 - **The code-execution sandbox runs on `pydantic-monty` 1.0.** 1.0 splits the
