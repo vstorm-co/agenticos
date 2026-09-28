@@ -34,6 +34,7 @@ import logging
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from copy import copy
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from enum import StrEnum
@@ -45,7 +46,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapModelRequestHandler
 from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import ModelRequestContext
-from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 logger = logging.getLogger(__name__)
 
@@ -419,6 +420,15 @@ def metered_by(ledger: SpendLedger) -> Iterator[None]:
 
 
 _active_guard: ContextVar[BudgetGuard | None] = ContextVar("active_budget_guard", default=None)
+"""The guard whose caps an ambient call inside this block must re-check.
+
+The companion to :data:`_active_ledger`. A ledger says *where* ambient spend is
+booked; a guard says *whether* it may be spent at all. Both are context variables
+for the same reason: the run that owns them is one task, while the ambient call
+that must consult them - a system reminder, a compaction summary - runs deeper in
+the same task tree and cannot be handed the guard as an argument through the
+library it borrows.
+"""
 
 
 @contextmanager
@@ -469,6 +479,65 @@ def record_ambient_usage(
     ledger = _active_ledger.get()
     if ledger is not None:
         ledger.record(model_name, usage, provider)
+
+
+async def can_afford_ambient_call() -> bool:
+    """Whether an auxiliary model call may be made under the active guard.
+
+    `True` when no guard is active - a preview, the CLI, an ingestion warmup -
+    so those paths keep the unchanged behaviour of spending whatever they need.
+    Under a run's guard it defers to :meth:`BudgetGuard.can_afford_next_request`,
+    so an ambient call is refused before it spends past a cap the way a real
+    request would be (agenticos#1808). The caller degrades to its own model-free
+    fallback rather than raising the run.
+    """
+    guard = _active_guard.get()
+    if guard is None:
+        return True
+    return await guard.can_afford_next_request()
+
+
+def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
+    """The run's limits with one request held back for an ambient call's own request.
+
+    An ambient call runs after the parent request already cleared its own limit
+    check, so a nested run spending the last slot would let that approved request
+    push the run one past `request_limit`. Holding the slot back makes the nested
+    run raise first; the caller falls back to its model-free path, which costs no
+    request, and the budget holds.
+    """
+    if limits is None or limits.request_limit is None:
+        return limits
+    return replace(limits, request_limit=max(0, limits.request_limit - 1))
+
+
+@contextmanager
+def metered_nested_run(usage: RunUsage, model_name: str) -> Iterator[RunUsage]:
+    """A private usage for a nested ambient run, booked concurrency-safely.
+
+    Yields a *copy* of `usage` for the nested `Agent.run` to spend into, and folds
+    only that run's own spend back into the shared `usage` on exit. The obvious
+    alternative - letting the nested run spend into the shared `ctx.usage` and
+    booking the snapshot/delta around it - double-counts under a concurrent
+    fan-out: two ambient runs sharing one `ctx.usage` each read the other's
+    increments inside their own before/after window and book the sum twice
+    (agenticos#1811). Spending into a private copy makes each run's delta its own.
+
+    The copy carries the run's running totals, so :func:`reserved_limits` and the
+    request, token and cost caps still meter the nested run against where the run
+    already is rather than from zero. On exit the own-spend is added to the shared
+    `usage` and booked once through :func:`record_ambient_usage`; a run that spent
+    nothing books nothing.
+    """
+    private = copy(usage)
+    start = copy(private)
+    try:
+        yield private
+    finally:
+        own = private - start
+        if own != RunUsage():
+            usage.incr(own)
+            record_ambient_usage(model_name, own)
 
 
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
@@ -630,8 +699,13 @@ class BudgetGuard(AbstractCapability[Any]):
             self.run_state.baselines[limit.scope] = await limit.period_spend()
         return self.run_state.baselines[limit.scope]
 
-    async def assert_within_budget(self) -> None:
-        """Refuse the next request if the run has already reached a ceiling.
+    async def _first_exceeded(self) -> SpendLimit | None:
+        """The first ceiling the run has already reached, or `None` if it is clear.
+
+        The non-raising core of the budget check: the under-lock baseline+total
+        loop, so both the refusing form (:meth:`assert_within_budget`) and the
+        predicate an ambient call asks (:meth:`can_afford_next_request`) decide off
+        one piece of arithmetic and cannot disagree about when a cap binds.
 
         Under `run_state.check`, because `_baseline_for` may query the database on
         a session that several concurrent delegations are sharing. The lock is
@@ -642,9 +716,34 @@ class BudgetGuard(AbstractCapability[Any]):
             for limit in self.limits:
                 spent = await self._baseline_for(limit) + run_total
                 if spent >= limit.limit_usd:
-                    raise BudgetExceeded(
-                        limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope
-                    )
+                    return limit
+        return None
+
+    async def assert_within_budget(self) -> None:
+        """Refuse the next request if the run has already reached a ceiling.
+
+        The refusing form of the check, used both by :meth:`wrap_model_request`
+        before the host agent's request and by :func:`assert_ambient_budget` for a
+        capability that runs its own `Agent` outside that wrapper.
+
+        Raises:
+            BudgetExceeded: A ceiling this run is under has been reached.
+        """
+        limit = await self._first_exceeded()
+        if limit is not None:
+            spent = await self._baseline_for(limit) + self.ledger.total_usd
+            raise BudgetExceeded(limit_usd=limit.limit_usd, spent_usd=spent, scope=limit.scope)
+
+    async def can_afford_next_request(self) -> bool:
+        """Whether the run may issue another model request under every cap.
+
+        The non-raising form of the check :meth:`wrap_model_request` makes before a
+        request. An ambient call that constructs its own `Agent` - a system
+        reminder, a compaction summary - asks this before it spends, because it
+        does not pass through the wrapper that would otherwise refuse it
+        (agenticos#1808).
+        """
+        return await self._first_exceeded() is None
 
     async def wrap_model_request(
         self,

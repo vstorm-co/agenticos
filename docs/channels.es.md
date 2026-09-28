@@ -1,5 +1,5 @@
 ---
-source_sha: "b7e986f50dc1"
+source_sha: "e5fd7d3d2206"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -753,7 +753,7 @@ solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
    Token** (`xoxb-…`).
 4. **Event Subscriptions → Enable Events → Subscribe to bot events**, y añade los
    cinco events de abajo.
-5. Registra el bot: **Channels → Add bot**, plataforma `slack`, pega el token del
+5. Registra el bot: **Channels → Add channel**, plataforma `slack`, pega el token del
    bot.
 6. Elige un transporte — Socket Mode no necesita nada expuesto y es la elección
    correcta en un portátil:
@@ -953,7 +953,7 @@ por dos cosas distintas en un DM obtiene dos, por la misma razón.
 ## Telegram { #telegram }
 
 1. Crea un bot con @BotFather y copia el token.
-2. **Channels → Add bot**, plataforma `telegram`.
+2. **Channels → Add channel**, plataforma `telegram`.
 3. Registra el webhook desde la UI, o ejecuta polling en desarrollo — no hace falta
    ninguna URL pública.
 
@@ -977,7 +977,7 @@ Dos formas de entrar; elige según si tu Mattermost puede alcanzar este desplieg
 
 1. En Mattermost, *Integrations → Bot Accounts → Add Bot Account*. Copia el token
    que muestra una sola vez — ese es el **token del bot**.
-2. Regístralo: **Channels → Add bot**, plataforma `mattermost`, pega el token y fija
+2. Regístralo: **Channels → Add channel**, plataforma `mattermost`, pega el token y fija
    **Server URL** a tu Mattermost, por ejemplo
    `https://mattermost.acme.internal` o `http://mattermost:8065` dentro de compose.
    Deja vacío el token del webhook.
