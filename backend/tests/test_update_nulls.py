@@ -59,6 +59,7 @@ from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.virtual_table import VirtualTable
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
@@ -86,16 +87,22 @@ from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
+from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.workflow import WorkflowDraftUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
 # a service, three call frames from either end. `None` is a claim as much as a
-# model is - `AgentDraftUpdate` writes a JSONB spec, `VisibilityUpdate` writes
+# model is - `AgentDraftUpdate` and `WorkflowDraftUpdate` write a JSONB spec or
+# graph directly (their service builds `update_data` itself; neither ever dumps
+# the schema), `VisibilityUpdate` writes
 # a column plus grant rows, and `NotificationPreferenceUpdate` writes one exact
 # `(user_id, event_type, channel)` upsert whose three fields are all required
 # (#1598, Decision 4) rather than an optional-field partial patch through
 # `writable` - so a schema whose fields *are* columns must not be parked there
-# to silence the gate.
+# to silence the gate. `RecordUpdate` writes cells of one JSONB document, merged
+# and validated per column type by the table service, and `SchemaUpdate` appends
+# a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ArtifactUpdate: Artifact,
@@ -116,16 +123,20 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    RecordUpdate: None,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
+    SchemaUpdate: None,
     SecretUpdate: OrganizationSecret,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
+    TableUpdate: VirtualTable,
     TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,
+    WorkflowDraftUpdate: None,
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic
@@ -202,7 +213,10 @@ class TestEveryUpdateSchemaIsAccountedFor:
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
             "NotificationPreferenceUpdate",
+            "RecordUpdate",
+            "SchemaUpdate",
             "VisibilityUpdate",
+            "WorkflowDraftUpdate",
         }
 
 

@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Workflow runs execute durably.** `POST /workflow-runs` starts a run of a
+  workflow's published version, or of its draft in `test` mode, and the nodes
+  run on Prefect workers one attempt at a time: each attempt commits `in_flight`
+  before its handler runs, its result commits together with the next node's
+  dispatch, a worker that dies mid-call is recovered without assuming either
+  outcome, and a node parked on an approval is woken when the approval is
+  decided or expires. Nodes report cost into the run, and a run whose version
+  carries a budget cap ends once it is spent - though publishing does not set a
+  version's cap yet, so no run has one today. A run can carry a deadline, is
+  rate-limited on start, and re-checks the person it acts as at every node.
+  Runs, their events and cancel have routes of their own; see
+  [the HTTP API](docs/api.md#running-a-workflow) and
+  [Permissions](docs/permissions.md#workflow-runs). Migration
+  `0104_workflow_runs.py`. (#1788)
+- **Virtual Tables: typed records behind one service and an HTTP API.** A table is
+  metadata plus JSONB, never a physical SQL table, with immutable schema versions,
+  stable table, column and option ids, and nine column types (text, long text,
+  number, integer, boolean, date, datetime, single and multi select). Records carry
+  a revision: an update or delete must send `expected_revision` and a stale one is
+  a typed `REVISION_CONFLICT`. Upsert by external id is atomic, so concurrent
+  upserts create one record. Every record write commits its history row, its
+  created-event outbox row and its idempotency receipt with the change, and an
+  `Idempotency-Key` header makes a retry return the first answer. Access is
+  visibility plus grants like context files, with new `tables:view`, `tables:edit`
+  and `tables:create` permissions, and every route answers refusals in one typed
+  error envelope. Migration `0101_virtual_tables.py`; see
+  [Virtual Tables](docs/virtual-tables.md). (#1782)
+
+### Security
+
+- **Workflow starts are bounded by node work, not just start count.** The
+  per-minute run limit charges one token per start, which let an authenticated
+  caller start many wide graphs below the limit and grow a persistent backlog on
+  the runner shared with ingestion, triggers, approvals and notifications -
+  starving other tenants. A run now reserves its graph's node count against a
+  ceiling on the queued and running node work one organization
+  (`WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG`), and one caller across every
+  organization they run in (`…_PER_PRINCIPAL`), may hold at once - so a person
+  who can create organizations cannot multiply their allowance across them. Each
+  run reserves its whole graph node count on its row, and the ceiling is measured
+  against the sum of those over live runs, so a wide graph holds its reservation
+  from the instant it is admitted - not once its nodes fan out - and the check is
+  serialized per organization and per principal so it cannot be raced. A start
+  over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
+  running work drains. Migration `0105_workflow_run_node_count.py`. (#1907)
+
 ## [0.0.513] - 2026-09-28
 
 ### Changed

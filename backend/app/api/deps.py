@@ -627,6 +627,16 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.virtual_tables import VirtualTableService
+
+
+def get_virtual_table_service(db: DBSession) -> VirtualTableService:
+    """Create VirtualTableService instance with database session."""
+    return VirtualTableService(db)
+
+
+VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
+
 from app.services.artifact import ArtifactService
 
 
@@ -653,6 +663,25 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.workflow_registry import WorkflowRegistryService
+
+
+def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
+    """Create WorkflowRegistryService instance with database session."""
+    return WorkflowRegistryService(db)
+
+
+WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
+
+from app.services.workflow_execution import WorkflowExecutionService
+
+
+def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
+    return WorkflowExecutionService(db)
+
+
+WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
@@ -737,6 +766,25 @@ async def limit_agent_run(ctx: Auth) -> None:
         limit=rate_limit.run_limit(),
     )
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
+
+
+async def limit_workflow_run(ctx: Auth) -> None:
+    """Refuse a caller starting more workflow runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    each start queues dispatch work - outbox rows, worker flow runs, events -
+    and a run's nodes can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_workflow_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="workflow_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
 
 
 async def limit_ml_call(ctx: Auth) -> None:

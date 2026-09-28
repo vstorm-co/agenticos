@@ -635,6 +635,83 @@ class Settings(BaseSettings):
     # it should be able to run something over the file. The ceiling is where
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
+
+    # A hard ceiling on one workflow graph. `_dominators` (app.workflows.graph.validate)
+    # retains a full dominator set per node - up to O(n^2) total memberships for a
+    # linear chain of n nodes, ~330 MiB of traced allocation at 4,000 nodes in an
+    # isolated benchmark - and the console routes that accept a graph are explicitly
+    # unmetered (SECURITY.md's hardening checklist), so an unbounded graph is a
+    # resource-exhaustion vector rather than only a slow request. Checked before a
+    # draft is even persisted, not only at publish.
+    WORKFLOW_GRAPH_MAX_NODES: int = Field(default=500, gt=0)
+    WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
+    WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
+
+    # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
+    # before `workflow-reconcile` treats it as abandoned and reclaims it. Long
+    # enough that an ordinary node call is never reclaimed out from under
+    # itself; short enough that a worker that dies mid-call is noticed within
+    # one reconcile tick rather than stalling the run indefinitely.
+    WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
+    # #1790 owns the real retry ceiling and backoff schedule; this is the
+    # minimum fixed policy #1788 needs so #1789/#1792 have somewhere to run in
+    # the meantime. The ceiling counts failed and interrupted attempts only -
+    # an attempt that waits (an approval, a backoff the node asked for) does
+    # not use it up - and the backoff doubles from the base per such attempt,
+    # capped at the max.
+    WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
+    WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
+    WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
+
+    # A ceiling on how much workflow node work one organization, and one caller
+    # (across every organization they run in), may have queued or running on the
+    # shared runner at once. Each start reserves its graph's node count against
+    # these, and a start that would push past its ceiling is refused (429) until
+    # running work drains. This is what the per-minute run limit cannot do on its
+    # own: a limiter that charges one token per start lets an authenticated caller
+    # start many wide graphs below the rate limit and grow a persistent backlog on
+    # the runner shared with ingestion, triggers, approvals and notifications,
+    # starving other tenants (#1907).
+    #
+    # Left unset, each derives from `WORKFLOW_GRAPH_MAX_NODES` - a multiple of it
+    # (see the validator) - so raising the graph cap raises these with it rather
+    # than leaving a fixed default below a single largest run and refusing every
+    # start. The defaults below are those multiples at the default 500-node cap.
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG: int = Field(default=5000, gt=0)
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL: int = Field(default=2000, gt=0)
+
+    @model_validator(mode="after")
+    def validate_workflow_admission_quota(self) -> "Settings":
+        """Keep each admission ceiling at least one graph's worth of nodes.
+
+        A ceiling below `WORKFLOW_GRAPH_MAX_NODES` turns the quota into a
+        workflow-wide outage the moment nothing else is running, since each start
+        reserves the whole graph in the worst case. So a ceiling left at its
+        default is derived from the graph cap - a multiple of it, reproducing the
+        5000/2000 defaults at the default 500-node cap - which keeps a deployment
+        that only raised the graph cap starting up instead of failing on a fixed
+        default that is now too low. An *explicit* ceiling below the graph cap is
+        a real misconfiguration and is refused at startup rather than at the first
+        refused run.
+        """
+        multiples = {
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG": 10,
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL": 4,
+        }
+        for name, multiple in multiples.items():
+            if name in self.model_fields_set:
+                if getattr(self, name) < self.WORKFLOW_GRAPH_MAX_NODES:
+                    raise ValueError(
+                        f"{name} must be at least WORKFLOW_GRAPH_MAX_NODES "
+                        f"({self.WORKFLOW_GRAPH_MAX_NODES}), or a single largest-possible run "
+                        "could never be admitted"
+                    )
+            else:
+                object.__setattr__(
+                    self, name, max(getattr(self, name), multiple * self.WORKFLOW_GRAPH_MAX_NODES)
+                )
+        return self
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and

@@ -1,5 +1,5 @@
 ---
-source_sha: "4af3be1ca985"
+source_sha: "ed1daca5c676"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -97,6 +97,36 @@ Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschr
 (ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
 ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
 überschreitet nie eine Tenant- oder Grant-Grenze.
+
+## Einen Workflow ausführen { #running-a-workflow }
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "deadline_seconds": 3600}'
+```
+
+Das startet einen Run der veröffentlichten Version des Workflows und antwortet
+sofort mit `201`; die Knoten laufen im Hintergrund. `"mode": "test"` führt
+stattdessen den aktuellen Entwurf aus und verlangt `workflows:edit`.
+`deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
+geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
+Knoten lässt den Run mit `DEADLINE_EXCEEDED` fehlschlagen, während ein bereits
+laufender Knoten oder ein Run, der auf eine Freigabe wartet, davon nicht
+unterbrochen wird. Die
+Route ist wie die Agent-Run-Route je Aufrufer begrenzt und antwortet jenseits des
+Kontingents mit `429` und `Retry-After`.
+
+`GET /api/v1/workflow-runs/{id}` liefert Status, `spent_cost` und `error` des
+Runs, und `POST /api/v1/workflow-runs/{id}/cancel` stoppt ihn. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` liefert den Ereignisstrom des
+Runs, älteste zuerst, mit einem `next_cursor`, den Sie als `after` zurückgeben:
+Er bleibt gleich, solange nichts Neueres existiert, sodass Abfragen damit einem
+laufenden Run folgen. Wer was davon darf, steht unter
+[Berechtigungen](permissions.md#workflow-runs).
+
 ## Die ML-Dienste { #the-ml-services }
 
 Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne

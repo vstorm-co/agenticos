@@ -119,3 +119,30 @@ class TestStoreTls:
 
     def test_a_plaintext_redis_url_carries_no_tls_parameters(self):
         assert "?" not in Settings(REDIS_SSL=False, REDIS_PASSWORD="pw").REDIS_URL
+
+
+class TestWorkflowAdmissionQuota:
+    """The admission ceilings must never sit below one graph's worth of nodes,
+    and a deployment that only raised the graph cap must still start."""
+
+    def test_the_defaults_hold_at_the_default_graph_cap(self):
+        settings = Settings()
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG == 5000
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 2000
+
+    def test_a_raised_graph_cap_scales_the_unset_ceilings(self):
+        # Only the graph cap is set; the ceilings derive above it rather than
+        # failing startup on a fixed default that is now too low.
+        settings = Settings(WORKFLOW_GRAPH_MAX_NODES=3000)
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG == 30000
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 12000
+
+    def test_an_explicit_ceiling_below_the_graph_cap_is_refused(self):
+        with pytest.raises(ValidationError):
+            Settings(WORKFLOW_GRAPH_MAX_NODES=500, WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG=100)
+
+    def test_an_explicit_ceiling_at_or_above_the_cap_is_kept(self):
+        settings = Settings(
+            WORKFLOW_GRAPH_MAX_NODES=500, WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL=600
+        )
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 600

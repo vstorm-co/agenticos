@@ -132,6 +132,7 @@ _SERVICE_DEPS = (
     deps.get_approval_service,
     deps.get_skill_service,
     deps.get_context_service,
+    deps.get_virtual_table_service,
     deps.get_memory_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
@@ -143,6 +144,7 @@ _SERVICE_DEPS = (
     deps.get_rag_document_service,
     deps.get_stats_service,
     deps.get_ml_service,
+    deps.get_workflow_registry_service,
 )
 
 Provider = Callable[[], object]
@@ -324,6 +326,12 @@ CALLS: tuple[Call, ...] = (
         Perm.CONTEXT_EDIT,
         body={"name": "glossary", "description": "What the words mean"},
     ),
+    Call("GET", "/tables", Perm.TABLES_VIEW),
+    Call("POST", "/tables", Perm.TABLES_CREATE, body={"name": "orders"}),
+    Call("GET", "/workflows/node-catalog", Perm.WORKFLOWS_VIEW),
+    Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
+    Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
+    Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -733,6 +741,22 @@ _PLATFORM_PREFIXES = (
     # Context files, shaped exactly like skills: the collection routes gate on
     # context:view/edit, the per-file routes resolve grants in the service.
     "/context",
+    # Virtual tables, shaped the same way: the collection routes gate on
+    # tables:view and tables:create, every per-table route resolves the table's
+    # visibility and grants in the service.
+    "/tables",
+    # Workflows, shaped the same way again: the collection routes (list,
+    # create, the node catalog) gate on workflows:view/create, every
+    # per-workflow route resolves the workflow's visibility and grants in
+    # the service.
+    "/workflows",
+    # Workflow runs (#1788): `POST`/`GET` a run names an existing workflow -
+    # in the body or the path - and every one of these routes resolves
+    # access against *that* workflow rather than gating on a role, the same
+    # split `/workflows` itself uses. `GET /workflow-runs` (the true
+    # collection: it can list across every workflow the caller may see) is
+    # the one exception and keeps a `workflows:view` gate.
+    "/workflow-runs",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -874,6 +898,18 @@ RESOURCE_AWARE_SERVICES = (
     # or delete one is its grants' answer, resolved inside the service. Every
     # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
     deps.get_context_service,
+    # A table is a shared resource like a context file: who may read or write it
+    # (and every record in it) is its grants' answer, resolved inside the service.
+    deps.get_virtual_table_service,
+    # A workflow is a shared resource shaped the same way: who may read, edit the
+    # draft or publish it is its grants' answer, resolved inside the service.
+    # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.
+    deps.get_workflow_registry_service,
+    # A workflow run has no grants of its own: `WorkflowExecutionService`
+    # resolves access against the *workflow* it belongs to, the same
+    # indirection `get_agent_exposure_service` uses for a binding and its
+    # agent. `POST /workflow-runs`, `GET/POST .../{id}...` all depend on it.
+    deps.get_workflow_execution_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

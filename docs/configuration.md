@@ -472,6 +472,31 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
+### Workflow runs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | How long a worker's claim on a workflow node holds before it is treated as abandoned. The worker renews it every third of a lease while the node runs, so it bounds how long a dead worker goes unnoticed, not how long a node may take |
+| `WORKFLOW_RETRY_CEILING` | `3` | The most failed or interrupted attempts a node gets: attempts that failed, and attempts cut short by a worker dying. An attempt that waits - on an approval, or a backoff the node asked for - does not count, so only the run's deadline, budget or a cancel bounds how often a node waits |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | The wait before a node's first retry; the wait before each later retry doubles |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | The longest any one wait may grow to |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | The most queued or running node work one organization may hold at once. A start reserves its graph's node count against this, and one over it is refused with `429` until running work drains. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | The same ceiling for a single caller, counted across every organization they run in, so a person who can create organizations cannot multiply their allowance by spreading runs across them. Must be at least `WORKFLOW_GRAPH_MAX_NODES` |
+
+The per-caller run limit (`RATE_LIMIT_RUN_PER_MINUTE`) charges one token per
+start, which cannot tell a one-node graph from a five-hundred-node one. These two
+ceilings do: they bound the queued and running node work behind the shared runner
+so one caller cannot start many wide graphs below the rate limit and grow a
+backlog that starves other tenants.
+
+A workflow run moves through three Prefect deployments. `workflow-dispatch-node`
+runs one node's attempt and is submitted on demand; `workflow-dispatch-poll`
+runs every 10 seconds and submits any node that is due and was not submitted
+within the last lease; `workflow-reconcile` runs every 30 seconds and recovers
+claims and attempts a dead worker left behind. Even idle, the two schedules
+create about 11,500 flow runs a day, so size the Prefect server's database and
+its flow-run retention for that.
+
 ## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own

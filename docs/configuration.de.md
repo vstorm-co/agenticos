@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "c3e7814f5681"
 ---
 
 # Konfiguration { #configuration }
@@ -503,6 +503,33 @@ Run, den der Durchlauf trotzdem umstellt, wird durch seinen eigenen abschließen
 Schreibvorgang zurückgestellt —, setzen Sie sie also deutlich über Ihren längsten
 legitimen Run und nicht knapper. Siehe
 [Governance](governance.md#a-run-whose-process-died).
+
+### Workflow-Runs { #workflow-runs }
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Wie lange der Claim eines Workers auf einen Workflow-Knoten hält, bevor er als aufgegeben gilt. Der Worker erneuert ihn jedes Drittel dieser Zeit, solange der Knoten läuft; der Wert begrenzt also, wie lange ein toter Worker unbemerkt bleibt, nicht wie lange ein Knoten dauern darf |
+| `WORKFLOW_RETRY_CEILING` | `3` | Die Höchstzahl an fehlgeschlagenen oder unterbrochenen Versuchen, die ein Knoten bekommt: Versuche, die fehlgeschlagen sind, und Versuche, die der Tod eines Workers abgebrochen hat. Ein Versuch, der wartet - auf eine Freigabe oder auf einen Backoff, den der Knoten verlangt hat -, zählt nicht; wie oft ein Knoten wartet, begrenzen also nur Deadline, Budget oder ein Abbruch des Runs |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Wie viel wartende oder laufende Knotenarbeit eine Organisation gleichzeitig halten darf. Ein Start reserviert die Knotenzahl seines Graphen dagegen, und ein Start darüber wird mit `429` abgewiesen, bis laufende Arbeit abfließt. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Dieselbe Obergrenze für eine einzelne aufrufende Seite, gezählt über alle Organisationen, in denen sie Runs startet, damit eine Person, die Organisationen anlegen kann, ihr Kontingent nicht durch Verteilen der Runs auf mehrere Organisationen vervielfacht. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
+
+Das Run-Limit pro aufrufender Seite (`RATE_LIMIT_RUN_PER_MINUTE`) verrechnet ein
+Token pro Start und kann einen Graphen mit einem Knoten nicht von einem mit
+fünfhundert unterscheiden. Diese beiden Obergrenzen können es: Sie begrenzen die
+wartende und laufende Knotenarbeit hinter dem gemeinsam genutzten Runner, damit
+nicht eine aufrufende Seite viele breite Graphen unterhalb des Rate-Limits
+startet und einen Rückstau aufbaut, der andere Tenants aushungert.
+
+Ein Workflow-Run läuft über drei Prefect-Deployments. `workflow-dispatch-node`
+führt einen Versuch eines Knotens aus und wird bei Bedarf eingereicht;
+`workflow-dispatch-poll` läuft alle 10 Sekunden und reicht jeden fälligen
+Knoten ein, der nicht innerhalb der letzten Claim-Dauer eingereicht wurde;
+`workflow-reconcile` läuft alle 30 Sekunden und holt Claims und Versuche zurück,
+die ein toter Worker hinterlassen hat. Selbst ohne Arbeit erzeugen die beiden
+Zeitpläne rund 11.500 Flow-Runs am Tag - bemessen Sie die Datenbank des
+Prefect-Servers und die Aufbewahrung der Flow-Runs danach.
 
 ## KI-Modelle — in der App konfiguriert, nicht hier { #ai-models-configured-in-the-app-not-here }
 
