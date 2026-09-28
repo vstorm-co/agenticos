@@ -7,8 +7,20 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, literal, or_, select, tuple_
+from sqlalchemy import (
+    ColumnElement,
+    DateTime,
+    and_,
+    case,
+    func,
+    literal,
+    or_,
+    select,
+    tuple_,
+    type_coerce,
+)
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -550,8 +562,10 @@ async def down_rated_run_ids(
     """
     if not run_ids:
         return set()
+    # `type_coerce` states what the join guarantees and the nullable column
+    # cannot: a message joined to its run has a run.
     result = await db.execute(
-        select(Message.run_id)
+        select(type_coerce(Message.run_id, PG_UUID(as_uuid=True)))
         .join(MessageRating, MessageRating.message_id == Message.id)
         .join(AgentRun, AgentRun.id == Message.run_id)
         .where(
@@ -1436,6 +1450,8 @@ async def usage_by_user(
         organization_id=organization_id, start=start, end=end, where=where
     )
     runs = func.count(AgentRun.id)
+    # `started_at` is nullable, but the window bounds it, so every group's
+    # latest is a time - `type_coerce` says so to the type checker.
     result = await db.execute(
         select(
             User.id,
@@ -1443,7 +1459,7 @@ async def usage_by_user(
             User.full_name,
             runs,
             func.coalesce(func.sum(AgentRun.cost_usd), 0),
-            func.max(AgentRun.started_at),
+            type_coerce(func.max(AgentRun.started_at), DateTime(timezone=True)),
         )
         .join(User, User.id == AgentRun.user_id)
         .where(*conditions)

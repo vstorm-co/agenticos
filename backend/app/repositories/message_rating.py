@@ -5,7 +5,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, select, type_coerce
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -321,9 +322,11 @@ async def rating_counts_by_version(
     caller supplies the version ids it is comparing, which is also the tenant
     bound - version ids come off that organization's own version rows.
     """
+    # The `in_` filter excludes a null version, which the nullable column cannot
+    # say by itself - `type_coerce` does.
     result = await db.execute(
         select(
-            Message.agent_version_id,
+            type_coerce(Message.agent_version_id, PG_UUID(as_uuid=True)),
             func.sum(case((MessageRating.rating == 1, 1), else_=0)),
             func.count(MessageRating.id),
         )

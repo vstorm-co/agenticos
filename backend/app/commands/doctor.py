@@ -240,17 +240,13 @@ async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
     from app.db.models.sandbox_connection import SandboxConnection
 
     rows = (
-        (
-            await db.execute(
-                select(SandboxConnection, OrganizationSecret)
-                .outerjoin(OrganizationSecret, OrganizationSecret.id == SandboxConnection.secret_id)
-                .where(SandboxConnection.is_active.is_(True))
-                .where(SandboxConnection.kind == "docker")
-            )
+        await db.execute(
+            select(SandboxConnection, OrganizationSecret)
+            .outerjoin(OrganizationSecret, OrganizationSecret.id == SandboxConnection.secret_id)
+            .where(SandboxConnection.is_active.is_(True))
+            .where(SandboxConnection.kind == "docker")
         )
-        .tuples()
-        .all()
-    )
+    ).all()
     if not rows:
         return "unconfigured", "no sandbox connection registered - only 'state' workspaces run"
 

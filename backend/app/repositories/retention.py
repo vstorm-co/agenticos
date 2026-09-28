@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, case, delete, func, literal, select
+from sqlalchemy import CursorResult, DateTime, case, delete, func, literal, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -153,7 +153,13 @@ async def delete_runs_keeping_their_spend(
     removed = await db.execute(
         delete(AgentRun)
         .where(AgentRun.id.in_(expiring))
-        .returning(AgentRun.started_at, AgentRun.cost_usd, AgentRun.parent_run_id)
+        # `expiring` compares `started_at` with the cutoff, so a deleted row has
+        # one; `type_coerce` carries that past the nullable column.
+        .returning(
+            type_coerce(AgentRun.started_at, DateTime(timezone=True)),
+            AgentRun.cost_usd,
+            AgentRun.parent_run_id,
+        )
     )
     rows = removed.all()
 

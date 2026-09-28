@@ -233,9 +233,13 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL_SYNC(self) -> str:
-        """Build sync PostgreSQL connection URL (for Alembic)."""
+        """Build sync PostgreSQL connection URL (for Alembic).
+
+        The driver is named because SQLAlchemy 2.1 resolves a bare `postgresql://`
+        to psycopg 3, which this project does not install.
+        """
         url = (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
         # psycopg2 speaks libpq, whose parameter is `sslmode`.

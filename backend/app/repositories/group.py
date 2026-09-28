@@ -80,7 +80,7 @@ async def get_names(
             Group.organization_id == organization_id, Group.id.in_(group_ids)
         )
     )
-    return dict(result.tuples().all())
+    return dict(result.all())
 
 
 async def update(db: AsyncSession, group: Group, *, name: str, description: str | None) -> Group:

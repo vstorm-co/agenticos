@@ -82,6 +82,15 @@ class TestVaultMasterKeyValidation:
             Settings(ENVIRONMENT="local", VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={0: KEY})
 
 
+class TestAlembicDriver:
+    def test_the_sync_url_selects_the_installed_psycopg2(self):
+        """SQLAlchemy 2.1 resolves a bare `postgresql://` to psycopg 3, which is not
+        installed, and every migration failed to import it (#1906)."""
+        from sqlalchemy.engine import make_url
+
+        assert make_url(Settings().DATABASE_URL_SYNC).get_dialect().driver == "psycopg2"
+
+
 class TestStoreTls:
     """Encrypted transport to the two stores, off by default (#1418)."""
 

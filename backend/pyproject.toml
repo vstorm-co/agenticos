@@ -26,13 +26,12 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.1.0",
-    "sqlalchemy[asyncio]>=2.0.54",
+    "sqlalchemy[asyncio]>=2.1.0",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
-    # builds a *sync* engine from `DATABASE_URL_SYNC`, which is bare
-    # `postgresql://`, and SQLAlchemy resolves that to psycopg2. Removing it
-    # breaks every migration (#155).
+    # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
+    # `postgresql+psycopg2://`. Removing it breaks every migration (#155).
     "psycopg2-binary>=2.9.13",
     "alembic>=1.19.2",
     "greenlet>=3.5.5",
@@ -369,7 +368,7 @@ ignore = ["DEP001", "DEP003"]
 DEP002 = [
     "python-multipart", # Starlette parses uploads with it; FastAPI refuses `File(...)` without it
     "asyncpg",          # selected by the `postgresql+asyncpg://` URL
-    "psycopg2-binary",  # selected by Alembic's bare `postgresql://` URL
+    "psycopg2-binary",  # selected by Alembic's `postgresql+psycopg2://` URL
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
     "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does

@@ -279,7 +279,9 @@ async def _credentials(db: AsyncSession) -> Section:
         .join(Organization, Organization.id == OrganizationSecret.organization_id)
         .order_by(Organization.name, OrganizationSecret.purpose, OrganizationSecret.name)
     )
-    rows = [[org, purpose, kind, name] for org, purpose, kind, name in result.all()]
+    rows: list[list[str | int]] = [
+        [org, purpose, kind, name] for org, purpose, kind, name in result.all()
+    ]
 
     # A sealed credential does not have to live in `organization_secrets`: a bot
     # token, an MCP connection's OAuth material and the rest are sealed in place,

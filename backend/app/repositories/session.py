@@ -1,7 +1,6 @@
 """Session repository (PostgreSQL async)."""
 
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Select, func, select, update
@@ -60,7 +59,7 @@ async def get_by_previous_refresh_token_hash(
     return result.scalar_one_or_none()
 
 
-def _own(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
+def _own[*Ts](query: Select[*Ts]) -> Select[*Ts]:
     """Narrow a user's sessions to the ones that are theirs.
 
     An impersonation is a row under the user's id that an administrator holds,
@@ -79,7 +78,7 @@ def _own(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
     return query.where(Session.impersonator_user_id.is_(None))
 
 
-def _open(query: Select[tuple[Any]], *, now: datetime) -> Select[tuple[Any]]:
+def _open[*Ts](query: Select[*Ts], *, now: datetime) -> Select[*Ts]:
     """Narrow a session query to the ones actually still usable.
 
     `is_active` alone is not that. A session is deactivated when somebody signs

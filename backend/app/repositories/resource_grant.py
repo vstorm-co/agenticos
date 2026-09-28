@@ -286,4 +286,4 @@ async def count_for_resources(
     # dict() over the rows rather than `row.count` attribute reads: a column
     # named `count` shadows the Row sequence method as far as a type checker
     # can tell, even though SQLAlchemy resolves it to the value at run time.
-    return dict(result.tuples().all())
+    return dict(result.all())

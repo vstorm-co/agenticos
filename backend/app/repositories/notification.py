@@ -78,7 +78,7 @@ async def get_channel_preferences(
             NotificationChannelPreference.channel == channel,
         )
     )
-    return dict(result.tuples().all())
+    return dict(result.all())
 
 
 async def get_legacy_email_preferences(
@@ -91,7 +91,7 @@ async def get_legacy_email_preferences(
     if not user_ids:
         return {}
     result = await db.execute(select(User.id, getattr(User, column)).where(User.id.in_(user_ids)))
-    return dict(result.tuples().all())
+    return dict(result.all())
 
 
 async def list_channel_preferences(

@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, distinct, func, or_, select
+from sqlalchemy import ColumnElement, Integer, Numeric, distinct, func, or_, select, type_coerce
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -713,11 +713,13 @@ async def conversation_cost(
     floor. It stays `None` where no turn recorded the flag at all, which is the
     honest "nobody knows" rather than "exact".
     """
+    # `type_coerce` states what `coalesce(..., 0)` guarantees: the column is
+    # nullable, the total is not.
     result = await db.execute(
         select(
-            func.coalesce(func.sum(Message.input_tokens), 0),
-            func.coalesce(func.sum(Message.output_tokens), 0),
-            func.coalesce(func.sum(Message.cost_usd), 0),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
             func.bool_or(Message.cost_is_partial),
             func.count(Message.input_tokens),
         ).where(Message.conversation_id == conversation_id)
@@ -742,9 +744,9 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
     """
     result = await db.execute(
         select(
-            func.coalesce(func.sum(Message.input_tokens), 0),
-            func.coalesce(func.sum(Message.output_tokens), 0),
-            func.coalesce(func.sum(Message.cost_usd), 0),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
         ).where(Message.run_id == run_id)
     )
     input_tokens, output_tokens, cost_usd = result.one()
@@ -764,7 +766,7 @@ async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     result = await db.execute(
         select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
     )
-    return dict(result.tuples().all())
+    return dict(result.all())
 
 
 async def get_recent_messages(

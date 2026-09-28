@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
@@ -130,7 +131,7 @@ async def member_counts_for(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID,
         .where(OrganizationMember.organization_id.in_(org_ids))
         .group_by(OrganizationMember.organization_id)
     )
-    return dict(result.tuples().all())
+    return dict(result.all())
 
 
 async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
@@ -334,14 +335,14 @@ async def admin_list_with_counts(
         )
         .join(User, User.id == OrganizationMember.user_id)
         .where(OrganizationMember.role == OrgRole.OWNER.value)
-        .distinct(OrganizationMember.organization_id)
+        .ext(distinct_on(OrganizationMember.organization_id))
         .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
         .subquery()
     )
     member_count = func.coalesce(member_counts.c.member_count, 0).label("member_count")
     agent_count = func.coalesce(agent_counts.c.agent_count, 0).label("agent_count")
 
-    def joined[T: tuple](stmt: Select[T]) -> Select[T]:
+    def joined[*Ts](stmt: Select[*Ts]) -> Select[*Ts]:
         # The count query carries the same joins as the page query because the
         # search reaches the owner's address through one of them. None of the
         # three can multiply a row: each yields at most one per organization.
@@ -438,7 +439,7 @@ async def admin_get_with_counts(db: AsyncSession, org_id: UUID) -> AdminOrganiza
             OrganizationMember.organization_id == org_id,
             OrganizationMember.role == OrgRole.OWNER.value,
         )
-        .distinct(OrganizationMember.organization_id)
+        .ext(distinct_on(OrganizationMember.organization_id))
         .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
         .subquery()
     )

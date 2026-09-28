@@ -20,6 +20,7 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_identity import ChannelIdentity
@@ -188,7 +189,7 @@ async def search(
         .join(Conversation, Conversation.id == Message.conversation_id)
         .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
         .where(*matches, Message.conversation_id.in_(list(hits)))
-        .distinct(Message.conversation_id)
+        .ext(distinct_on(Message.conversation_id))
         .order_by(
             Message.conversation_id,
             _rank(tsquery).desc(),

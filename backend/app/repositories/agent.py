@@ -283,7 +283,7 @@ async def list_current_versions(db: AsyncSession) -> list[tuple[Agent, AgentVers
         .where(Agent.status == AgentStatus.PUBLISHED.value)
         .order_by(Agent.organization_id, Agent.slug)
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
@@ -306,7 +306,7 @@ async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, Agent
         .where(Agent.status == AgentStatus.PUBLISHED.value)
         .order_by(Agent.organization_id, Agent.slug)
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
@@ -349,7 +349,7 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
             )
         )
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def get_versions_with_agents(
@@ -372,7 +372,7 @@ async def get_versions_with_agents(
         .join(Agent, Agent.id == AgentVersion.agent_id)
         .where(AgentVersion.id.in_(list(version_ids)))
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def create(

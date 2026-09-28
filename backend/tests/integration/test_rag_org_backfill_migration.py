@@ -51,7 +51,7 @@ def _load_migration():
 
 
 def _sync_url(schema_url: str) -> str:
-    return schema_url.replace("+asyncpg", "")
+    return schema_url.replace("+asyncpg", "+psycopg2")
 
 
 async def _org(session, name: str) -> uuid.UUID:

@@ -92,7 +92,7 @@ def _secret(value: Any = None) -> MagicMock:
 def _db(rows: list[tuple[Any, Any]]) -> MagicMock:
     db = MagicMock()
     result = MagicMock()
-    result.tuples.return_value.all.return_value = rows
+    result.all.return_value = rows
     db.execute = AsyncMock(return_value=result)
     return db
 
