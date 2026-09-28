@@ -1,5 +1,5 @@
 ---
-source_sha: "c63759f7fb0b"
+source_sha: "c3e7814f5681"
 ---
 
 # Konfiguracja { #configuration }
@@ -489,7 +489,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Czas oczekiwania przed pierwszym ponowieniem węzła; oczekiwanie przed każdym kolejnym ponowieniem jest dwa razy dłuższe |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Najdłuższe, do jakiego może urosnąć pojedyncze oczekiwanie |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Ile oczekującej lub działającej pracy węzłów może naraz trzymać jedna organizacja. Start rezerwuje na poczet tego limitu liczbę węzłów swojego grafu, a start ponad limit jest odrzucany z `429`, dopóki działająca praca nie zejdzie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
-| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Ten sam limit dla pojedynczego wołającego w obrębie organizacji, żeby jedna osoba nie zużyła całego zapasu organizacji. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Ten sam limit dla pojedynczego wołającego, liczony we wszystkich organizacjach, w których uruchamia runy, żeby osoba mogąca tworzyć organizacje nie zwielokrotniła swojego przydziału, rozkładając runy między nie. Musi wynosić co najmniej `WORKFLOW_GRAPH_MAX_NODES` |
 
 Limit runów na wołającego (`RATE_LIMIT_RUN_PER_MINUTE`) nalicza jeden token na
 start i nie odróżni grafu z jednym węzłem od grafu z pięciuset. Te dwa limity to

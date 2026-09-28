@@ -1,5 +1,5 @@
 ---
-source_sha: "c63759f7fb0b"
+source_sha: "c3e7814f5681"
 ---
 
 # Konfiguration { #configuration }
@@ -513,7 +513,7 @@ legitimen Run und nicht knapper. Siehe
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Wie viel wartende oder laufende Knotenarbeit eine Organisation gleichzeitig halten darf. Ein Start reserviert die Knotenzahl seines Graphen dagegen, und ein Start darüber wird mit `429` abgewiesen, bis laufende Arbeit abfließt. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
-| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Dieselbe Obergrenze für eine einzelne aufrufende Seite innerhalb einer Organisation, damit nicht eine Person den gesamten Spielraum der Organisation aufbraucht. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Dieselbe Obergrenze für eine einzelne aufrufende Seite, gezählt über alle Organisationen, in denen sie Runs startet, damit eine Person, die Organisationen anlegen kann, ihr Kontingent nicht durch Verteilen der Runs auf mehrere Organisationen vervielfacht. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
 
 Das Run-Limit pro aufrufender Seite (`RATE_LIMIT_RUN_PER_MINUTE`) verrechnet ein
 Token pro Start und kann einen Graphen mit einem Knoten nicht von einem mit

@@ -44,6 +44,24 @@ async def test_a_start_within_both_ceilings_is_admitted():
         )
 
 
+async def test_the_org_check_is_scoped_but_the_principal_check_is_across_orgs():
+    # The org ceiling reads one organization; the principal ceiling reads across
+    # every organization, so the second call must not carry an organization_id -
+    # otherwise a caller who can create organizations gets a fresh allowance in
+    # each of them.
+    count = _counts(org=0, principal=0)
+    with patch(f"{MODULE}.workflow_run_repo.sum_reserved_node_work", count):
+        await enforce_admission_quota(
+            AsyncMock(),
+            organization_id=_ORG,
+            principal_user_id=_PRINCIPAL,
+            requested_node_count=1,
+        )
+    org_call, principal_call = count.await_args_list
+    assert org_call.kwargs == {"organization_id": _ORG}
+    assert principal_call.kwargs == {"principal_user_id": _PRINCIPAL}
+
+
 async def test_the_boundary_is_inclusive():
     # outstanding + requested == ceiling is allowed; only strictly over is refused.
     org_ceiling = settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG

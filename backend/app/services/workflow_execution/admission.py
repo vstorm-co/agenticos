@@ -16,9 +16,10 @@ its single entry node, the one row that exists before the graph fans out - so
 many wide graphs cannot slip in before their work materializes. The count is
 authoritative (Postgres, not a Redis gauge a lost decrement would drift), and a
 run that reaches a terminal status frees its reservation with no bookkeeping.
-Concurrent starts in one organization are serialized by a transaction-scoped
-advisory lock taken before the sum is read, so the check and the reservation are
-atomic and the ceiling cannot be overshot by racing reads.
+Concurrent starts are serialized by transaction-scoped advisory locks (per
+organization, and per principal across organizations) taken before the sums are
+read, so each check and its reservation are atomic and neither ceiling can be
+overshot by racing reads.
 
 Cancelling a run releases its reservation the moment it goes terminal, before an
 attempt already executing has settled. That does not reopen the backlog this
@@ -54,19 +55,24 @@ async def enforce_admission_quota(
     Reserves `requested_node_count` - the run's graph node count, its worst-case
     node work - against the organization's ceiling first, then the caller's. The
     organization is checked first so one caller cannot spend another tenant's
-    headroom by racing under their own. A start with no principal (a triggered
-    run acting as no interactive caller) is bounded by the organization ceiling
-    alone.
+    headroom by racing under their own. The caller's ceiling is counted across
+    *every* organization, not just this one: on a deployment that lets a signed-in
+    user create organizations, an org-scoped principal check would hand them a
+    fresh allowance in each. A start with no principal (a triggered run acting as
+    no interactive caller) is bounded by the organization ceiling alone.
 
     Raises:
         WorkflowAdmissionQuotaError: Admitting this run would exceed the
             organization's or the caller's outstanding-node-work ceiling.
     """
-    # Serialize admission for this organization first: the check reads a sum and
-    # then a new run is inserted, so without this two concurrent starts could
-    # both read below the ceiling and both be admitted. The lock is held to the
-    # request's commit, by which point this run's reservation is visible.
-    await workflow_run_repo.lock_admission(db, organization_id=organization_id)
+    # Serialize admission first: each check reads a sum and then a new run is
+    # inserted, so without this two concurrent starts could both read below a
+    # ceiling and both be admitted. The locks (per organization, and per
+    # principal across organizations) are held to the request's commit, by which
+    # point this run's reservation is visible.
+    await workflow_run_repo.lock_admission(
+        db, organization_id=organization_id, principal_user_id=principal_user_id
+    )
     org_outstanding = await workflow_run_repo.sum_reserved_node_work(
         db, organization_id=organization_id
     )
@@ -80,7 +86,7 @@ async def enforce_admission_quota(
     if principal_user_id is None:
         return
     principal_outstanding = await workflow_run_repo.sum_reserved_node_work(
-        db, organization_id=organization_id, principal_user_id=principal_user_id
+        db, principal_user_id=principal_user_id
     )
     if (
         principal_outstanding + requested_node_count

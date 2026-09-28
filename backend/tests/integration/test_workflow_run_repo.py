@@ -1222,11 +1222,18 @@ class TestSumReservedNodeWork:
 
     async def test_lock_admission_holds_and_still_reads_the_reservation(self, db: AsyncSession):
         org = await _org(db)
-        # A transaction-scoped advisory lock: taking it (even twice - it is
-        # re-entrant within one session) does not block the same transaction
-        # from going on to read its reservation.
-        await workflow_run_repo.lock_admission(db, organization_id=org.id)
-        await workflow_run_repo.lock_admission(db, organization_id=org.id)
+        user = await _user(db)
+        # Transaction-scoped advisory locks (org, then principal): taking them
+        # (even twice - they are re-entrant within one session) does not block the
+        # same transaction from going on to read its reservation.
+        await workflow_run_repo.lock_admission(
+            db, organization_id=org.id, principal_user_id=user.id
+        )
+        await workflow_run_repo.lock_admission(
+            db, organization_id=org.id, principal_user_id=user.id
+        )
+        # A start with no interactive caller takes only the organization lock.
+        await workflow_run_repo.lock_admission(db, organization_id=org.id, principal_user_id=None)
         assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 0
 
     async def test_sums_node_count_over_live_runs_only(self, db: AsyncSession):
@@ -1261,24 +1268,38 @@ class TestSumReservedNodeWork:
         )
         assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 0
 
-    async def test_narrows_to_one_principal_within_the_org(self, db: AsyncSession):
-        org = await _org(db)
-        workflow = await _workflow(db, org)
-        user_a = await _user(db)
-        user_b = await _user(db)
-        await _run(db, org, workflow, node_count=100, execution_principal_user_id=user_a.id)
-        await _run(db, org, workflow, node_count=25, execution_principal_user_id=user_a.id)
-        await _run(db, org, workflow, node_count=8, execution_principal_user_id=user_b.id)
-        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 133
-        assert (
-            await workflow_run_repo.sum_reserved_node_work(
-                db, organization_id=org.id, principal_user_id=user_a.id
-            )
-            == 125
+    async def test_a_principals_reservation_is_summed_across_every_organization(
+        self, db: AsyncSession
+    ):
+        # The principal ceiling is global: a caller who spreads runs across
+        # organizations they own must not get a fresh allowance in each.
+        org_a = await _org(db)
+        org_b = await _org(db)
+        user = await _user(db)
+        other = await _user(db)
+        await _run(
+            db,
+            org_a,
+            await _workflow(db, org_a),
+            node_count=100,
+            execution_principal_user_id=user.id,
         )
-        assert (
-            await workflow_run_repo.sum_reserved_node_work(
-                db, organization_id=org.id, principal_user_id=user_b.id
-            )
-            == 8
+        await _run(
+            db,
+            org_b,
+            await _workflow(db, org_b),
+            node_count=25,
+            execution_principal_user_id=user.id,
         )
+        await _run(
+            db,
+            org_a,
+            await _workflow(db, org_a),
+            node_count=8,
+            execution_principal_user_id=other.id,
+        )
+        # Across all organizations, this principal holds 100 + 25.
+        assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=user.id) == 125
+        assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=other.id) == 8
+        # The organization ceiling still reads one organization only.
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org_a.id) == 108

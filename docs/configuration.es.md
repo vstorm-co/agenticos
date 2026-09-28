@@ -1,5 +1,5 @@
 ---
-source_sha: "c63759f7fb0b"
+source_sha: "c3e7814f5681"
 ---
 
 # Configuración { #configuration }
@@ -501,7 +501,7 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 | `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | La espera antes del primer reintento de un nodo; la espera antes de cada reintento posterior se duplica |
 | `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Lo más que puede crecer una sola espera |
 | `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Cuánto trabajo de nodos en cola o en ejecución puede tener una organización a la vez. Un start reserva contra este límite el número de nodos de su grafo, y uno que lo supere se rechaza con `429` hasta que el trabajo en ejecución se drene. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
-| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | El mismo tope para un único llamante dentro de una organización, para que una sola persona no consuma todo el margen de la organización. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | El mismo tope para un único llamante, contado a través de todas las organizaciones en las que ejecuta runs, para que una persona que puede crear organizaciones no multiplique su margen repartiendo runs entre ellas. Debe ser al menos `WORKFLOW_GRAPH_MAX_NODES` |
 
 El límite de runs por llamante (`RATE_LIMIT_RUN_PER_MINUTE`) cobra un token por
 start y no distingue un grafo de un nodo de uno de quinientos. Estos dos topes sí:
