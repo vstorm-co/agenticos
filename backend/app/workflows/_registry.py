@@ -104,6 +104,8 @@ def load_builtins() -> None:
         data_map,
         debug_echo,
         debug_relay,
+        http_request,
+        knowledge_search,
         logic_if,
         logic_merge,
     )

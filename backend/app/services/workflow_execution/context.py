@@ -71,6 +71,10 @@ class DispatchContext:
     """What the run was admitted with - `WorkflowRun.input`, frozen at start."""
     triggered_by: str = "api"
     """Which surface admitted the run - `WorkflowRun.triggered_by`."""
+    idempotency_key: str = ""
+    """This attempt's `NodeAttempt.idempotency_key` - stable across retries of the
+    same logical operation, distinct across loop iterations. What a node sends
+    as its call's dedup header, or writes as its own row's unique key."""
     arrived_output: dict[str, Any] | None = None
     """For a `control` node, the output of the one predecessor whose edge
     brought the run here - what `logic.merge` passes on, since it may bind to

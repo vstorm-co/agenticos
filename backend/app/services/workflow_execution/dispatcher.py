@@ -572,24 +572,23 @@ async def begin_attempt(
         node_instance_id=node.id,
         scope_path=node_run.scope_path,
     )
-    # Always the definition's own static value: `NodeAttempt.retry_guarantee`
-    # is nullable in the schema for a per-*call* override the design allows
-    # ("a guarantee is sometimes a property of the call, not the node kind" -
-    # `http.request`'s safety to retry depends on the method actually bound,
-    # not on `http.request` as a node kind) - but writing one needs a channel
-    # from the handler back to this row that no #1788-scope node (`debug.echo`,
-    # always `idempotent`) exercises, and the frozen `NodeHandler`/`NodeResult`
-    # contract (#1786) has no field to carry it. Left for whichever future
-    # node first needs it to add, the same way `context.report_waiting_agent_run`
-    # added a channel for `Waiting(reason="approval")` without touching that
-    # contract - not stubbed speculatively here.
+    # Per call, not only per node kind: whether `http.request` may be retried
+    # depends on the method and headers this instance was configured with, so a
+    # definition may answer from the resolved config. Decided here, before the
+    # handler runs, and committed with the `in_flight` row, because it is what
+    # the reconciler reads to decide an orphaned attempt it cannot ask about.
+    guarantee = (
+        definition.retry_guarantee_for(call.config)
+        if definition.retry_guarantee_for is not None
+        else definition.retry_guarantee
+    )
     attempt = await workflow_run_repo.create_attempt(
         db,
         organization_id=run.organization_id,
         node_run_id=node_run.id,
         attempt_no=attempt_no,
         idempotency_key=key,
-        retry_guarantee=definition.retry_guarantee,
+        retry_guarantee=guarantee,
         started_at=now,
     )
     await workflow_run_repo.update_node_run(
@@ -632,6 +631,7 @@ async def begin_attempt(
         run_input=run.input,
         triggered_by=run.triggered_by,
         arrived_output=call.arrived_output,
+        idempotency_key=key,
     )
     return BegunAttempt(
         workflow_run_id=run.id,

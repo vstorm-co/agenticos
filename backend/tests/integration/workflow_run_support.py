@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext
@@ -161,7 +161,10 @@ async def tick(seeded: SeededRun, node_run_id: uuid.UUID) -> None:
 
 
 async def drive(seeded: SeededRun, *, max_ticks: int = 200) -> WorkflowRun:
-    """Tick every waiting node until none is left, and return the run as it ended.
+    """Tick every node that is due until none is left, and return the run as it stands.
+
+    A row held back for a retry's backoff is not due, so a run waiting to retry
+    comes back `waiting_retry` rather than being ticked past its own schedule.
 
     Raises:
         AssertionError: More than `max_ticks` ticks - a graph that never settles.
@@ -174,6 +177,7 @@ async def drive(seeded: SeededRun, *, max_ticks: int = 200) -> WorkflowRun:
                     .where(
                         DispatchOutbox.workflow_run_id == seeded.run.id,
                         DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
+                        DispatchOutbox.available_at <= func.now(),
                     )
                     .order_by(DispatchOutbox.created_at)
                     .limit(1)

@@ -141,6 +141,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
+    problems += await _resource_problems(db, ctx, graph, definitions)
 
     node_scope = _node_scope_map(graph)
     outer_predecessors, cycle_problems, outer_order = _rule_7_no_cycles(graph, node_scope)
@@ -421,6 +422,31 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
             ]
             for problem in field_problems(errors, root=root):
                 problems.append((problem["field"], problem["message"]))
+    return problems
+
+
+async def _resource_problems(
+    db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph, definitions: DefinitionMap
+) -> Problems:
+    """What each node's config names, checked against the graph's author.
+
+    Only for a config that validates on its own: a config with a field still to
+    be bound at run time, or one already refused above, has nothing settled to
+    check yet, and a second refusal about the same field would only repeat it.
+    """
+    problems: Problems = []
+    for node in graph.nodes:
+        definition = definitions[node.id]
+        if definition is None or definition.resource_check is None:
+            continue
+        if definition.config_schema is None:
+            continue
+        try:
+            config = definition.config_schema.model_validate(node.config)
+        except PydanticValidationError:
+            continue
+        for field, message in await definition.resource_check(db, ctx, config):
+            problems.append((f"nodes.{node.id}.config.{field}", message))
     return problems
 
 
@@ -705,6 +731,12 @@ def _is_dynamic(annotation: Any) -> bool:
 def _types_compatible(source: Any, target: Any) -> bool:
     # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
     if source is target or source is Any or target is Any:
+        return True
+    # A free-form object field takes any structured value: a model's output
+    # reaches it as the dict it is stored as.
+    if _is_dynamic(target) and (
+        _is_dynamic(source) or (isinstance(source, type) and issubclass(source, BaseModel))
+    ):
         return True
     return _type_name(source) == _type_name(target)
 
