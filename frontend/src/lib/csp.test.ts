@@ -43,6 +43,20 @@ describe("the console's content security policy", () => {
     expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain("frame-src 'self' blob:");
   });
 
+  it("frames the origin artifact pages are served from, and only that one", () => {
+    // An artifact is agent-authored script, so it is framed from its own origin
+    // under a `sandbox` policy the backend sets - never minted into a blob here.
+    const moved: PublicConfig = {
+      ...SPLIT_ORIGIN,
+      artifactUrl: "https://content.acme-pages.example/path",
+    };
+    expect(cspDirectives(moved, NONCE)["frame-src"]).toEqual([
+      "'self'",
+      "blob:",
+      "https://content.acme-pages.example",
+    ]);
+  });
+
   it("does not frame a data URL", () => {
     // A document of somebody else's choosing, running as this origin. A blob URL
     // can only be minted by this origin's own script; a data URL is whatever was

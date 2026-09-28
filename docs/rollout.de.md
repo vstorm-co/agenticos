@@ -1,184 +1,44 @@
 ---
-source_sha: "c4345a034178"
+source_sha: "6ff659040810"
+title: "AgenticOS bereitstellen und betreiben"
+description: "Verantwortung zuweisen, Betriebskosten verstehen und Implementierungshilfe vereinbaren."
 ---
 
-# Die Einführung { #rolling-it-out }
+# AgenticOS bereitstellen und betreiben { #deploy-and-operate-agenticos }
 
-Diese Seite ist für alle, die für die Entscheidung verantwortlich sind und nicht
-für die Installation: was sich in einem Unternehmen ändert, das dies betreibt,
-wer was macht, was es kostet und die drei Arten, wie es üblicherweise schiefgeht.
+AgenticOS ist eine Anwendung, die Ihre Organisation betreibt. Beginnen Sie mit [einer prüfbaren Aufgabe](howto/first-document-agent.md) und bestimmen Sie die Verantwortung für Deployment und Agent-Aufgabe.
 
-Nichts hier braucht ein Terminal. [Die Installation](install.md) ist die andere
-Hälfte.
+## Wer was betreut { #who-maintains-what }
 
-## Was es ersetzt { #what-it-replaces }
+| Bereich | Verantwortung |
+| --- | --- |
+| Hosting und Updates | Dienste bereitstellen, Kapazität überwachen, Releases prüfen und Updates planen |
+| Backup und Wiederherstellung | Datenbanken und benötigte Workspace-Daten sichern, Schlüssel schützen, Wiederherstellung testen |
+| Quellen und Verhalten | Dokumente, Instruktionen, Skills und veröffentlichte Versionen aktuell halten |
+| Zugriff und Geheimnisse | Identitäten, Berechtigungen, Anbieterzugänge und Rotation verwalten |
+| Fehler und Freigaben | Runs prüfen, Vorfälle zuordnen und berechtigte Entscheider benennen |
+| Externe Dienste | Modelle, Parser, Embeddings, Werkzeuge, Sandbox, Kanäle und Tracing prüfen |
 
-Keinen Menschen. **Einen Rückstau.**
+Details: [Installation](install.md), [Deployment](deployment.md), [Geheimnisse](secrets.md), [Berechtigungen](permissions.md) und [Sicherheit](security.md). Bewahren Sie Wiederherstellungsnachweise und Betriebskontakte beim Deployment auf. Ein veröffentlichter Agent ersetzt diese Arbeit nicht.
 
-Jedes Unternehmen hat eine Schlange kleiner Automatisierungen, die nie gebaut
-werden: die Antwort auf dieselbe Kundenfrage, die Wochenübersicht, die jemand von
-Hand zusammenstellt, das aus einer E-Mail befüllte Formular, die interne Frage,
-die beantwortet wird, indem man die eine Person stört, die es weiß.
+## Kosten und Liefermodelle { #costs-and-delivery-options }
 
-Jede ist zu klein, um ein Projekt zu rechtfertigen, und es gibt vierzig davon.
-Sie bleiben liegen, weil der einzige Weg, eine zu bauen, bisher ein Entwickler,
-ein Repository und ein Release war — und die Zeit eines Entwicklers ist am
-Produkt besser aufgehoben.
+Berücksichtigen Sie Modelle, Infrastruktur, externe Dienste, Implementierung und Betriebszeit. Aufgezeichnete Run-Kosten sind nur ein Teil. Prüfen Sie [Projekt- und Komponentenlizenzen](licenses.md).
 
-AgenticOS macht aus jeder davon ein Dokument, das jemand schreibt, statt Software,
-die jemand ausliefert.
+Sie können AgenticOS selbst betreiben. Vstorm kann separat bei Kundeninfrastruktur, Dokumentation, Prozessgestaltung und individueller Entwicklung helfen. Laufende Wartung erfordert einen vereinbarten Umfang. Installation beinhaltet keinen Standardpreis, Support oder SLA.
 
-## Wer was macht { #who-does-what }
+Kontaktieren Sie [Vstorm](https://vstorm.co/) oder Kacper mit Aufgabe, Quellentypen, Infrastrukturvorgaben und Betriebsverantwortung. Private Dokumente sind für das erste Gespräch nicht nötig.
 
-Drei Rollen, und die Aufteilung zählt mehr als das Werkzeug.
+<span id="what-your-security-review-will-ask"></span>
 
-| | Wer das ist | Wofür sie zuständig sind |
-|---|---|---|
-| **Der Builder** | Die Person, die die Antwort kennt — Support-Leitung, Ops-Manager, Analyst | Schreibt die Instruktionen des Agents, wählt, was er darf, zeigt ihm die richtigen Dokumente, testet ihn, veröffentlicht ihn |
-| **Der Owner** | Wer für die Ausgaben und das Verhalten verantwortlich ist | Setzt Budgets, entscheidet, welche Aktionen eine menschliche Approval brauchen, liest die Audit-Spur |
-| **Der Entwickler** | Eine Person, nach der ersten Woche in Teilzeit | Führt die Installation durch, verbindet die Systeme, fügt eine Capability hinzu, wenn wirklich etwas Neues gebraucht wird |
+## Grenzen prüfen { #boundaries-to-verify }
 
-Der Sinn der Aufteilung ist, dass der Builder nicht auf den Entwickler warten
-muss. Wenn jede Änderung an dem, was ein Agent sagt, über die Person mit
-Commit-Zugang laufen muss, haben Sie eine langsamere Fassung dessen gekauft, was
-Sie schon hatten.
+Self-Hosting bedeutet keinen Offline-Betrieb. Ein lokales Chatmodell verändert einen Datenpfad; Parsing, Embeddings, Werkzeuge, gehostete Sandboxes, Kanäle und Tracing können externe Dienste nutzen. Prüfen Sie den [Datenfluss](security.md).
 
-!!! info "Die Last des Entwicklers sinkt nach dem Aufsetzen"
+Freigaben hängen von Capability und Konfiguration ab. Budgets prüfen erfasste Kosten vor Modellaufrufen und garantieren keine überschreitungsfreie Begrenzung. Sammlungsberechtigungen beweisen keine Übernahme aller Quell-ACLs. Testen Sie Identitäten und Aufgabe anhand von [Governance](governance.md) und [Sammlungszugriff](file-processing.md).
 
-    Ein System anzubinden ist [ein MCP-Server per URL](mcp.md), kein Connector,
-    den jemand schreibt. Verhalten zu ändern ist eine Bearbeitung und ein
-    Veröffentlichen, kein Release. In den meisten Wochen sind die
-    Entwicklungskosten null.
+## Den Pilot bewerten { #evaluate-the-pilot }
 
-## Realistische erste neunzig Tage { #a-realistic-first-ninety-days }
+Erfassen Sie bisherigen Ablauf, Abnahmefragen, Quellversion, Modell, Werkzeuge und tatsächliche Ergebnisse. Berücksichtigen Sie Lücken, Fehler, Prüfaufwand und Nutzung. Ändern Sie einen Quellenfakt und wiederholen Sie vor einer Erweiterung.
 
-| | | Wie "fertig" aussieht |
-|---|---|---|
-| **Woche 1** | Installieren, einen Modell-Provider anbinden, drei Personen einladen | Ein Agent beantwortet eine echte Frage aus einem echten Dokument |
-| **Wochen 2–4** | Ein Agent, ein Team, eine wiederkehrende Aufgabe. Budget absichtlich niedrig gesetzt | Das Team nutzt ihn, ohne dazu aufgefordert zu werden |
-| **Wochen 5–8** | Bringen Sie ihn dorthin, wo die Arbeit ohnehin passiert — [Slack, ein Widget, E-Mail-getriebene Routines](channels.md) | Jemand außerhalb des Pilotteams nutzt ihn ohne Schulung |
-| **Wochen 9–12** | Zweiter und dritter Agent, von einer anderen Person gebaut | Ein Nicht-Entwickler hat einen Agent von Anfang bis Ende veröffentlicht |
-
-Der Meilenstein, auf den es ankommt, ist der letzte. **Ein Agent beweist die
-Technik; der zweite Agent, von jemand anderem gebaut, beweist das Modell.** Wenn
-jeder Agent weiterhin von derselben Person kommt, haben Sie ein Werkzeug, keine
-Plattform.
-
-## Was es kostet { #what-it-costs }
-
-Drei Posten, und nur einer davon überrascht.
-
-- **Infrastruktur.** Postgres, Redis und ein Container-Host. Eine kleine VM trägt
-  einen Piloten; das ist der günstigste Posten und bleibt es.
-- **Modellnutzung.** Pro Run und pro Agent gemessen und vor der Rechnung
-  sichtbar. Das ist der Posten, den man im Auge behält, und der, für den es
-  [Budgets](governance.md#budgets) gibt — geprüft *vor* jeder Modellanfrage,
-  sodass ein Agent über Budget anhält, statt zu viel auszugeben.
-- **Menschen.** Ein Entwickler für das Aufsetzen, danach in Teilzeit. Ein
-  Builder pro Team, als Teil seiner bisherigen Aufgabe statt als neue.
-
-Es gibt keine Lizenz pro Arbeitsplatz, weil es keine Lizenz gibt: Es ist
-Apache-2.0, und Sie betreiben es. Das ändert die Form der Entscheidung — der elfte
-Agent und der hundertste Nutzer kosten nichts außer den Token, die sie
-verbrauchen.
-
-!!! tip "Setzen Sie das erste Budget niedriger, als Sie denken"
-
-    Ein Budget, das einen Run stoppt, lehrt viel besser als eine Rechnung. Fangen
-    Sie mit einer Zahl an, die erreicht wird, schauen Sie, wohin es geht, und
-    erhöhen Sie sie dann bewusst. [Ein Modell wählen](choosing-models.md)
-    behandelt, was die Rechnung wirklich treibt.
-
-## Was Ihre Sicherheitsprüfung fragen wird { #what-your-security-review-will-ask }
-
-Die Fragen kommen in einer vorhersehbaren Reihenfolge, und die Antworten sind der
-Grund, warum diese Architektur gewählt wurde.
-
-| Sie fragen | Die Antwort |
-|---|---|
-| Wohin gehen unsere Daten? | In Ihr Postgres, auf Ihrer Infrastruktur. Nichts telefoniert nach Hause. Die einzigen ausgehenden Aufrufe gehen an Modell-Provider, die Sie konfiguriert haben — und [gar keine](choosing-models.md#closed-models-or-open-weights), wenn Sie das Modell selbst betreiben |
-| Wer kann was sehen? | [Drei Schichten](permissions.md): ein Deployment-Admin, eine Organisationsrolle und Grants pro Ressource. Ein Bedienelement, das jemand nicht nutzen darf, wird nicht gerendert — nicht gerendert und dann abgelehnt |
-| Was hindert einen Agent daran, Schaden anzurichten? | Nichts mit Nebenwirkung läuft ohne [Approval](governance.md#approvals), wenn Sie sie verlangen, und eine Approval wird genau einmal entschieden |
-| Können wir beweisen, was passiert ist? | Jeder Run, jede Approval, jede Schlüsselrotation steht in der [Audit-Spur](governance.md#audit) — auch fehlgeschlagene Runs |
-| Wo liegen die Zugangsdaten? | In [einem Vault](secrets.md), pro Organisation versiegelt. Keine API-Antwort, keine Logzeile und kein Audit-Eintrag trägt je einen Schlüssel im Klartext |
-| Ist es DSGVO-konform? | Ein Deployment ist es oder ist es nicht; der Code lässt sich innerhalb eines solchen betreiben. [Datenschutz](data-protection.md) bildet jeden Speicherort, jedes Ziel und jede Kontrolle auf einen Mechanismus, einen Test oder ein offenes Issue ab und führt auf, was das Deployment selbst entscheiden muss |
-| Können wir den Code lesen? | Ja. Damit endet das Gespräch meistens |
-| Was steckt darin, und unter welchen Lizenzen? | Apache-2.0, aufgesetzt auf rund fünfhundert Pakete, die fast alle MIT, Apache-2.0 oder BSD sind. [Jedes einzelne ist mit seinem Nachweis aufgeführt](licenses.md), und die noch offenen Befunde stehen zuerst, statt weggemittelt zu werden. Eine Komponente, der PDF-Parser, ist AGPL-3.0: Ein Deployment, das die Plattform verändert und über ein Netzwerk ausliefert, schuldet seinen Nutzern den veränderten Quellcode, und [diese Entscheidung hat einen eigenen Abschnitt](licenses.md#the-agpl-component) |
-
-Die Langfassung, die eine Prüfung im Zuschnitt von HIPAA oder SOC 2 ausgehändigt
-bekommt — das Bedrohungsmodell, welche Daten das Deployment verlassen, was wo
-verschlüsselt ist, und eine Kontrollmatrix, die jede Kontrolle auf ihren
-Mechanismus und ihren Test abbildet — steht in [Sicherheit](security.md).
-
-## Drei Arten, wie das schiefgeht { #three-ways-this-goes-wrong }
-
-Jede wurde schon gesehen; jede ist vermeidbar.
-
-**Eine Person baut jeden Agent.** Die Plattform wird zur Warteschlange dieser
-Person, und Sie sind wieder da, wo Sie angefangen haben. Abhilfe: Machen Sie den
-zweiten Agent zur Sache von jemand anderem und setzen Sie sich dazu, während
-diese Person ihn baut.
-
-**Der erste Agent ist zu ehrgeizig.** Ein Agent, der vier Systeme berührt und
-Entscheidungen trifft, scheitert auf eine Weise, die niemand debuggen kann, und
-der Fehlschlag bleibt als "KI funktioniert hier nicht" in Erinnerung. Abhilfe:
-Der erste Agent beantwortet Fragen aus Dokumenten. Er ist langweilig, er
-funktioniert, und er verdient sich den zweiten.
-
-**Niemand hat ein Budget oder eine Approval gesetzt.** Der Run, der jemanden
-überrascht, ist der ohne Obergrenze und ohne Gate, und er kostet mehr Vertrauen
-als Geld. Abhilfe: Setzen Sie beides am ersten Tag, bei jedem Agent, bevor
-irgendwer sonst Zugang hat.
-
-## Was zu messen ist { #what-to-measure }
-
-Widerstehen Sie dem Zählen von Unterhaltungen. Messen Sie die vier Dinge, die
-entscheiden, ob sich das gelohnt hat:
-
-| | Warum das die richtige Zahl ist |
-|---|---|
-| **Ohne Menschen beantwortete Fragen** | Das eigentliche Ergebnis. Alles andere ist nur ein Stellvertreter dafür |
-| **Kosten pro erledigter Aufgabe** | Sinken, während Sie Retrieval tunen und eine Modellstufe tiefer gehen — und sie sind pro Run sichtbar, nicht pro Monat |
-| **Wie viele Personen einen Agent veröffentlicht haben** | Die Adoptionszahl, die vorhersagt, ob das seinen Fürsprecher überlebt |
-| **Wartende Approvals** | Eine wachsende Schlange heißt, das Gate sitzt an der falschen Aktion, oder dem Agent wird noch nicht vertraut. Beides lohnt sich früh zu wissen |
-
-## Hilfe bekommen { #getting-help }
-
-Sie können das vollständig selbst betreiben. Es ist Apache-2.0, die Dokumentation
-ist die ganze Geschichte statt eines Häppchens, und nichts hier steht hinter
-einem Supportvertrag.
-
-Zwei Orte zum Fragen, wenn etwas nicht abgedeckt ist:
-[GitHub Issues und Discussions](https://github.com/vstorm-co/agenticos) für das
-Projekt und [Ressourcen](resources/index.md) für die Leitfäden für Beitragende.
-
-**[Vstorm](https://vstorm.co) baut AgenticOS und führt es auch ein.** Das ist
-gut zu wissen, wenn die Arbeit, die vor Ihnen liegt, eine von diesen ist:
-
-| | |
-|---|---|
-| **Es in Ihrer Infrastruktur in den Produktivbetrieb bringen** | Ihre Cloud, Ihr Rechenzentrum oder air-gapped, verdrahtet mit den Systemen, die Sie schon betreiben |
-| **Lokale Modelle aufsetzen** | Damit Inferenz das Haus nie verlässt — die Hardware, die Laufzeit und die Profile, die darauf zeigen |
-| **Die Plattform an einen Prozess anpassen** | Eine Capability, die noch niemand geschrieben hat, ein Ingestion-Pfad für Ihre Dokumentform, ein Channel, den Sie nutzen und sonst niemand |
-| **Die ersten Agents mit Ihrem Team bauen** | Eingebettet, damit der zweite ihrer ist statt unserer |
-
-Nichts davon ist eine Lizenz — die Plattform ist so oder so dieselbe Open Source,
-und ein Deployment, das jemand anderes gemacht hat, bleibt Ihres zum Lesen,
-Ändern und Weiterbetreiben.
-
-[Sprechen Sie mit uns →](https://vstorm.co/contact-us/)
-
-## Fazit { #recap }
-
-- Es ersetzt **einen Rückstau kleiner Automatisierungen**, keinen Menschen.
-- Die Aufteilung, die es funktionieren lässt: **der Builder wartet nicht auf den
-  Entwickler.**
-- Der Meilenstein, auf den es ankommt, ist der **zweite Agent, von jemand anderem
-  gebaut.**
-- **Keine Lizenz pro Arbeitsplatz** — der elfte Agent kostet nur die Token, die
-  er verbraucht.
-- Setzen Sie **am ersten Tag ein Budget und eine Approval**, bei jedem Agent,
-  bevor irgendwer sonst Zugang hat.
-
-[Installieren →](install.md) · [Den ersten Agent bauen →](first-agent.md) ·
-[Was es verweigert →](about/index.md)
+Nutzen Sie [Vergleiche](about/comparison.md) zur Auswahl und [Hilfe](help.md) bei reproduzierbaren Problemen. Ein Pilot kann Erweiterung, Reparatur oder Abbruch begründen; er verspricht kein Geschäftsergebnis.

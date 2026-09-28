@@ -16,16 +16,27 @@ import type { AuthProvider } from "@/lib/auth-glyphs.generated";
  * A button the sign-in page can offer.
  *
  * `AuthProvider` is the *glyph* table - the brand marks those pages ship - and
- * `oidc` deliberately is not in it: a generic OpenID Connect provider has no
- * brand, which is the point of it being generic.
+ * the rest deliberately are not in it: a generic OpenID Connect provider has no
+ * brand, which is the point of it being generic, and neither has a company's own
+ * directory, signed in to with an LDAP password or a Kerberos ticket (#1773).
  */
-export type SignInProvider = AuthProvider | "oidc";
+export type SignInProvider = AuthProvider | "oidc" | "ldap" | "kerberos";
+
+/** The providers with no brand of their own, which the deployment names instead. */
+const UNBRANDED: readonly SignInProvider[] = ["oidc", "ldap", "kerberos"];
 
 export interface PublicConfig {
   /** The API origin the browser calls directly: OAuth login, embed uploads, `/docs`. */
   apiUrl: string;
   /** The WebSocket origin the browser opens for chat and the hosted embed. */
   wsUrl: string;
+  /**
+   * Where a published artifact's page is framed from: `ARTIFACT_ORIGIN` when the
+   * deployment moved it to a domain of its own, the API's origin otherwise.
+   * The same variable the backend reads, so the address it signs and the origin
+   * `frame-src` allows cannot name two places.
+   */
+  artifactUrl: string;
   /** This app's own canonical origin, for metadata, robots and the sitemap. */
   siteUrl: string;
   /**
@@ -57,16 +68,27 @@ export interface PublicConfig {
    * than a generic glyph.
    */
   oidcIcon: AuthProvider | null;
+  /**
+   * What the LDAP sign-in calls the directory behind it - "Active Directory",
+   * "Acme accounts" - on its button and in its form. The protocol name until the
+   * deployment names it, for the reason the OIDC default gives.
+   */
+  ldapDisplayName: string;
+  /** What the Kerberos button calls the domain sign-in, the same way. */
+  kerberosDisplayName: string;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   apiUrl: "http://localhost:8000",
   wsUrl: "ws://localhost:8000",
+  artifactUrl: "http://localhost:8000",
   siteUrl: "http://localhost:3000",
   chatMaxUploadSizeMb: 10,
   oauthProviders: ["google"],
   oidcDisplayName: "SSO",
   oidcIcon: null,
+  ldapDisplayName: "LDAP",
+  kerberosDisplayName: "Kerberos",
 };
 
 const AUTH_PROVIDERS: readonly AuthProvider[] = ["google", "github", "microsoft"];
@@ -76,7 +98,7 @@ function isAuthProvider(value: string): value is AuthProvider {
 }
 
 function isSignInProvider(value: string): value is SignInProvider {
-  return value === "oidc" || isAuthProvider(value);
+  return (UNBRANDED as readonly string[]).includes(value) || isAuthProvider(value);
 }
 
 function origin(value: string | undefined, fallback: string): string {
@@ -118,6 +140,10 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
   return {
     apiUrl: origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.apiUrl),
     wsUrl: origin(env.PUBLIC_WS_URL, DEFAULT_PUBLIC_CONFIG.wsUrl),
+    artifactUrl: origin(
+      env.ARTIFACT_ORIGIN,
+      origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.artifactUrl),
+    ),
     siteUrl: origin(env.PUBLIC_SITE_URL, DEFAULT_PUBLIC_CONFIG.siteUrl),
     chatMaxUploadSizeMb: megabytes(
       env.CHAT_MAX_UPLOAD_SIZE_MB,
@@ -126,5 +152,8 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
     oauthProviders: providers(env.OAUTH_PROVIDERS, DEFAULT_PUBLIC_CONFIG.oauthProviders),
     oidcDisplayName: env.OIDC_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.oidcDisplayName,
     oidcIcon: icon(env.OIDC_ICON),
+    ldapDisplayName: env.LDAP_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.ldapDisplayName,
+    kerberosDisplayName:
+      env.KERBEROS_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.kerberosDisplayName,
   };
 }

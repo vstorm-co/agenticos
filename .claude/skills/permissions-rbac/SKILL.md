@@ -56,7 +56,8 @@ extra = await visible_resource_ids(db, ctx, resource_type=AGENT, perm=Perm.AGENT
    `uv run agenticos cmd create-app-admin <email> [--revoke]`.
 2. **The organization role** — `owner`, `admin`, `builder`, `operator`, `member`,
    `viewer`. Composed from permissions in `app/core/permissions.py`.
-3. **Visibility and grants** — a grant on one row. `effective = max(role scope,
+3. **Visibility and grants** — a grant on one row, to a person or to a group
+   (`docs/directory.md#groups`). `effective = max(role scope,
    grant on this resource)`.
 
 Capability **scopes** (`knowledge:read`, `web:read`, `code:execute`) are a separate

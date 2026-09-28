@@ -115,6 +115,17 @@ class IngestionService:
             return StoredDocument()
         return _stored(doc) if doc is not None else StoredDocument()
 
+    async def document_ids_at(self, collection_name: str, source_path: str) -> list[str]:
+        """Every stored document at exactly this address, in the ingester's tenant.
+
+        Unlike `existing_document`, a store that refuses the lookup raises: this
+        answers what may be deleted, and "none" on the strength of a failed query
+        would delete a row whose vectors are still searchable.
+        """
+        return await self.store.document_ids_at(
+            collection_name, source_path=source_path, tenant=self._tenant
+        )
+
     async def ingest_file(
         self,
         filepath: Path,

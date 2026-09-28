@@ -167,6 +167,54 @@ describe("the OAuth buttons", () => {
     expect(links[1]).toHaveAccessibleName("signUpWithProvider:Keycloak");
   });
 
+  it("starts a Kerberos sign-in through the same same-origin hop, invitation and all", () => {
+    // A domain sign-in ends the way an OIDC one does, so it is a link like one;
+    // the hop is what sends it to the backend's Kerberos route (#1773).
+    renderWith(["kerberos"], {
+      returnTo: "/invitations/pending?flow=0123456789abcdef0123456789abcdef",
+    });
+
+    expect(screen.getByRole("link", { name: "continueWithProvider:Kerberos" })).toHaveAttribute(
+      "href",
+      "/api/oauth/kerberos/login?flow=0123456789abcdef0123456789abcdef",
+    );
+  });
+
+  it("calls the Kerberos sign-in what the deployment calls it", () => {
+    renderWith(["kerberos"], {}, { kerberosDisplayName: "Acme domain" });
+
+    expect(screen.getByRole("link")).toHaveAccessibleName("continueWithProvider:Acme domain");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/kerberos/login");
+  });
+
+  it("turns the form to the directory for LDAP rather than leaving the page", async () => {
+    // A directory password is typed here, not at a provider, so nothing redirects.
+    const onDirectorySignIn = vi.fn();
+    renderWith(["ldap", "google"], { onDirectorySignIn }, { ldapDisplayName: "Active Directory" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "continueWithProvider:Active Directory" }),
+    );
+
+    expect(onDirectorySignIn).toHaveBeenCalledOnce();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("offers no LDAP button where there is no directory form to open", () => {
+    // The register page: a directory account is created on its first sign-in,
+    // from the sign-in page, so signing up has nothing to offer for it.
+    renderWith(["ldap", "google"], { variant: "signup" });
+
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
+  });
+
+  it("draws nothing at all when LDAP is the only provider and there is no form for it", () => {
+    const { container } = renderWith(["ldap"], { variant: "signup" });
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("ships exactly the three identity-provider marks", () => {
     expect(Object.keys(AUTH_GLYPHS).sort()).toEqual(["github", "google", "microsoft"]);
   });

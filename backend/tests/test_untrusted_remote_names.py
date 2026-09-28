@@ -26,7 +26,12 @@ from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, GcpServiceAccountSecret
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, RemoteFile
+from app.services.rag.connectors import (
+    CONNECTOR_REGISTRY,
+    BaseSyncConnector,
+    RemoteFile,
+    RemoteListing,
+)
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
 from app.services.rag.filters import Source
@@ -43,8 +48,8 @@ class _RecordingConnector(BaseSyncConnector):
 
     CONNECTOR_TYPE = "recording"
 
-    async def list_files(self, config: dict, credential: object = None) -> list[RemoteFile]:
-        return []
+    async def list_files(self, config: dict, credential: object = None) -> RemoteListing:
+        return RemoteListing(files=[])
 
     async def _fetch(
         self, file: RemoteFile, dest_path: Path, config: dict, credential: object = None

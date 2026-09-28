@@ -1,5 +1,5 @@
 ---
-source_sha: "a434e301f063"
+source_sha: "53546688c766"
 ---
 
 # Testy obciążeniowe i odpornościowe { #load-and-resilience-testing }
@@ -207,6 +207,11 @@ Powiedziane wprost, a nie zostawione do odkrycia:
 - **Niczego o prawdziwym dostawcy.** Każde opóźnienie w domyślnym przebiegu to
   platforma plus podane opóźnienie stuba.
 - **Konsoli.** Frontend nie jest ćwiczony; to są ścieżki API.
+- **Tego, ile kosztuje przeniesienie odpowiedzi.** Driver działa na tej samej
+  maszynie co wdrożenie, więc każda liczba tutaj to opóźnienie bez łącza pod
+  spodem. Dlatego przebiegi poniżej nie mówią też nic o kompresji odpowiedzi:
+  na loopbacku to wydany CPU i nieoszczędzone pasmo, a obciążenie, które
+  zyskuje na niej najwięcej - długa transkrypcja - nie jest w miksie.
 - **Klastra.** Jedno wdrożenie, jedna baza. Cel NFA-006 jest architektoniczny, a
   przebieg na jednym hoście nie mówi o nim nic w żadną stronę.
 

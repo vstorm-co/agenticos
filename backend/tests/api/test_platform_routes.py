@@ -983,6 +983,12 @@ class _NoRows:
     def scalar_one_or_none(self) -> None:
         return None
 
+    def scalars(self) -> _NoRows:
+        return self
+
+    def all(self) -> list[object]:
+        return []
+
 
 class _NoGrantsSession:
     """Serves one resource and no grants - a member who was never shared with."""
@@ -1328,16 +1334,17 @@ class TestStatsScopeIsDecidedInTheService:
 
 # -- the inverse guard, for routes that are deliberately open -----------------
 
-# What `/public` will serve: an agent exposed to anonymous visitors. Nothing
-# is mounted there yet - the surface arrives with the identity work that makes it
-# defensible - and this table is empty on purpose rather than absent, so the
-# first public route lands into a guard instead of beside one.
+# What `/public` serves to somebody with no account. The first route is an
+# artifact's public link (#70); an agent exposed to anonymous visitors arrives
+# with the identity work that makes it defensible.
 #
 # Adding a route under `/public` means adding it here. That is the whole point:
 # `TestEveryPlatformRouteIsGuarded` proves a route demands *something*, which a
 # route that demands nothing by design would pass by accident. This one proves
 # somebody wrote down that it is open, and where its refusals are tested.
-PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset()
+PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {("GET", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}")}
+)
 
 _AUTHENTICATED_CALLER_DEPS = (
     deps.get_auth_context,
@@ -1445,6 +1452,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # the whole of the proof, and it is refused unless the address it names
         # is still the one staged on that account.
         ("POST", f"{V1}/auth/email-change/confirm"),
+        # Signing in with a directory account (#1773): an LDAP password, checked
+        # by binding as the account, and a domain-joined browser's Kerberos
+        # ticket. Both are the request made *before* there is a session, and both
+        # answer 404 on a deployment that configured neither.
+        ("POST", f"{V1}/auth/ldap/login"),
+        ("GET", f"{V1}/auth/kerberos/login"),
         # One pair for every identity provider: `google`, and the deployment's
         # own `oidc` (#1419). A provider it does not offer is a 404 from
         # `sign_in_client`, not an authenticated route.
@@ -1469,6 +1482,19 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # A share link is a capability: whoever holds the token is the audience,
         # which is the whole point of being able to send it to somebody.
         ("GET", f"{V1}/conversations/shared/{{token}}"),
+        # An artifact's "anyone with the link" address (#70). The same bargain as a
+        # share link: the key is the capability, 192 bits, revoked by clearing it
+        # and rotated by asking again. It answers the title and a signed content
+        # address, never who published it, and a bucket per key bounds a
+        # hammered link. Refusals: `tests/api/test_artifact_routes.py`.
+        ("GET", f"{V1}/public/artifacts/{{public_key}}"),
+        # The bytes of one artifact version. Deliberately cookieless - the page is
+        # agent-authored script and may be served from another origin entirely -
+        # so what authorises it is a short-lived token this deployment signed
+        # after a grant or a public link admitted the caller. Every response
+        # carries a `sandbox` policy with no `allow-same-origin`, and a bucket per
+        # address bounds one replayed on a loop.
+        ("GET", f"{V1}/artifact-content/{{token}}"),
         # Avatars, rendered by `<img src>` in contexts that have no session -
         # an invitation email, a public share. An id, and a picture the owner
         # uploaded to be seen.

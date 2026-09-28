@@ -89,6 +89,8 @@ decides which fields exist.
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
+| `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
+| `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
@@ -97,6 +99,19 @@ GitHub connect flow reads it server-side to run the token exchange — so it mus
 never silently used for the whole organization's connection, and with two org-visible
 apps stored the connect is refused (naming both) rather than keyed to whichever name
 sorts first.
+
+`git_token` carries its host because a Git sync source sends the token to a URL
+whoever edits the source chooses. Bound to the host the token was added with, the
+token cannot be aimed at another server by editing the source, and no other key
+can stand in for it.
+
+`entra_app` is what a SharePoint or OneDrive sync source signs in as. Its reach is
+set in Microsoft Entra, not here: the Graph permissions an administrator consented
+to decide which sites it can read, and a token does not say which those are. Grant
+it `Sites.Selected` on the one site the source reads — see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
+the last four characters of the client id, which is public, rather than of the
+secret.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.

@@ -42,6 +42,7 @@ describe("the retention API", () => {
       "conversations",
       "runs",
       "workspaces",
+      "artifacts",
       "memory",
       "knowledge_documents",
       "audit",

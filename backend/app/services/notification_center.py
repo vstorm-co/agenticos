@@ -18,6 +18,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.announcement import Announcement
@@ -48,6 +49,35 @@ LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
 }
 
 _ESCALATION_ROLES = {OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value}
+
+
+def absolute_context_url(context_url: str | None) -> str:
+    """A stored `context_url` as an email must print it - origin and all.
+
+    The column holds a *path* (`/agents/{id}?org={uuid}`) because the console is
+    what reads it, and a path is what `next/link` can navigate as a sub-route:
+    a destination carrying an origin is somewhere else entirely as far as the
+    router is concerned, so the click reloaded the whole document to reach a
+    page the reader was usually already standing inside, with the mark-read
+    write racing the unload. An email has no origin to resolve a path against,
+    which is the whole of why the two shapes differ and why this is the only
+    place `FRONTEND_URL` goes back on.
+
+    A value that already carries an origin is returned untouched, on purpose:
+    every row written before this column changed meaning holds `FRONTEND_URL`
+    plus the path, and no migration rewrites them - a backfill would have to
+    know the origin that was current when each row was written. The same branch
+    refuses to staple this deployment's origin onto a protocol-relative
+    `//somewhere.else`.
+
+    `""` and never `None`, because the generic template prints this straight
+    into a button's `href` and `None` there prints the word.
+    """
+    if not context_url:
+        return ""
+    if not context_url.startswith("/") or context_url.startswith("//"):
+        return context_url
+    return f"{settings.FRONTEND_URL.rstrip('/')}{context_url}"
 
 
 def announcement_audience_roles(role: str | None) -> list[str] | None:

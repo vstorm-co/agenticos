@@ -1,5 +1,5 @@
 ---
-source_sha: "25ca6d2da0fe"
+source_sha: "bc91324ffeae"
 ---
 
 # Configuración { #configuration }
@@ -179,6 +179,7 @@ se resuelven dos veces.
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | El callback, registrado en el proveedor |
 | `OIDC_SCOPES` | `openid email profile` | Separados por espacios. Añade el scope propio del proveedor donde lo necesite para los claims |
 | `OIDC_VERIFIED_CLAIM` | (vacío) | Un tercer claim que se acepta como «esta dirección está confirmada», para un proveedor que lo llama de otro modo |
+| `OIDC_GROUPS_CLAIM` | (vacío) | El claim que lista los grupos de una persona, normalmente `groups`. Si está definido, cada inicio de sesión aplica los [mapeos de grupos del directorio](directory.md#directory-group-mappings); vacío deja las membresías como están. Se rechaza junto con `LDAP_URL` |
 
 El issuer es la única URL. Authorization, token, userinfo y JWKS salen de
 `<issuer>/.well-known/openid-configuration`, que el proveedor mantiene correcto
@@ -195,7 +196,7 @@ Dos botones en el frontend, configurados allí:
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
-| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO |
+| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO. `ldap` añade el formulario del directorio y `kerberos` el botón de inicio de sesión de Windows, más abajo |
 | `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
 
@@ -230,13 +231,64 @@ La política de registro se aplica aquí exactamente como se aplica al formulari
 de registro: un despliegue `invite_only` rechaza un inicio de sesión SSO de
 alguien a quien nadie invitó, y una lista de dominios permitidos rechaza una
 dirección fuera de ella, con la misma frase en la página de acceso. Véase
-[Quién puede registrarse](deployment.md#who-may-register). Mapear los grupos de
-un proveedor a roles dentro de una organización no forma parte de esto; la gente
-entra, y una administradora la coloca.
+[Quién puede registrarse](deployment.md#who-may-register).
+
+Con `OIDC_GROUPS_CLAIM` definido, los grupos del proveedor deciden las
+membresías: los [mapeos de grupos del directorio](directory.md#directory-group-mappings)
+de cada organización incorporan a la gente con un rol y la colocan en grupos, y un
+grupo mapeado admite un primer inicio de sesión en un despliegue `invite_only` igual
+que lo hace una invitación. Un exceso de grupos (*group overage*) de Entra ID se
+rechaza en lugar de leerse como «sin grupos» - véase
+[El claim de grupos por OIDC](directory.md#the-groups-claim-over-oidc).
 
 SAML y SCIM no están implementados. La mayoría de los proveedores de identidad
 que usa una empresa mediana hablan OIDC, y estos ajustes son todo lo que
-necesitan.
+necesitan. Un directorio sin ningún proveedor de identidad delante se puede usar
+directamente - véase abajo.
+
+### Inicio de sesión con el directorio (LDAP) { #directory-sign-in-ldap }
+
+Iniciar sesión con una cuenta de Active Directory, OpenLDAP o FreeIPA, haciendo
+bind como ella. [Inicio de sesión con el directorio y grupos](directory.md) explica
+el inicio de sesión, lo que rechaza y cómo se leen los grupos. Un `LDAP_URL` vacío
+lo desactiva, y la ruta responde 404.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `LDAP_URL` | (vacío) | `ldaps://host[:port]`, o `ldap://` con StartTLS |
+| `LDAP_START_TLS` | `false` | Eleva una conexión `ldap://` a TLS antes del bind |
+| `LDAP_ALLOW_PLAINTEXT` | `false` | Acepta `ldap://` sin StartTLS, que envía las contraseñas en claro. Si no, se rechaza al arrancar |
+| `LDAP_CA_CERT_FILE` | (vacío) | Un paquete PEM contra el que verificar el certificado del directorio, para una CA de empresa |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | (vacío) | La cuenta de servicio con la que busca un inicio de sesión. Las dos o ninguna; sin ninguna, la búsqueda es anónima |
+| `LDAP_USER_BASE_DN` | (vacío) | Dónde se buscan las cuentas. Obligatorio con `LDAP_URL` |
+| `LDAP_USER_FILTER` | coincide con `uid`, `sAMAccountName`, `userPrincipalName` o `mail` | Tiene que contener `{username}`, que se escapa antes de insertarlo |
+| `LDAP_EMAIL_ATTRIBUTE` | `mail` | La dirección de la cuenta |
+| `LDAP_NAME_ATTRIBUTE` | `displayName` | El nombre visible de la cuenta |
+| `LDAP_ID_ATTRIBUTE` | `entryUUID` | El identificador estable por el que se indexa la cuenta - `objectGUID` en Active Directory |
+| `LDAP_GROUP_ATTRIBUTE` | `memberOf` | De dónde se leen los grupos de la cuenta |
+| `LDAP_GROUP_BASE_DN` | (vacío) | Busca aquí los grupos en su lugar, para un directorio sin `memberOf` |
+| `LDAP_GROUP_FILTER` | `(member={dn})` | La búsqueda de grupos, con `{dn}` o `{username}` |
+| `LDAP_TIMEOUT_SECONDS` | `10` | Timeout de conexión y de lectura para cada petición al directorio |
+
+El frontend muestra el formulario con `ldap` en `OAUTH_PROVIDERS`, y lo nombra con
+`LDAP_DISPLAY_NAME` (por defecto `LDAP`).
+
+### Inicio de sesión con Kerberos { #kerberos-sign-in }
+
+Inicio de sesión integrado de Windows mediante SPNEGO, que resuelve el principal
+del ticket a través del directorio de arriba - así que necesita `LDAP_URL`, y una
+imagen construida con el extra `kerberos`. Véase
+[Inicio de sesión integrado de Windows](directory.md#integrated-windows-sign-in-kerberos).
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `KERBEROS_ENABLED` | `false` | Ofrece el inicio de sesión con Kerberos. Se rechaza al arrancar sin `LDAP_URL` |
+| `KERBEROS_KEYTAB` | (vacío) | El keytab que guarda la clave del servicio. Vacío usa el keytab por defecto (`KRB5_KTNAME`, si no `/etc/krb5.keytab`) |
+| `KERBEROS_SERVICE_PRINCIPAL` | (vacío) | `HTTP/<api host>@<REALM>`. Vacío acepta un ticket para cualquier principal del keytab |
+| `LDAP_KERBEROS_FILTER` | `(userPrincipalName={principal})` | Cómo se encuentra el principal en el directorio: `{principal}` es `user@REALM`, `{username}` la parte antes de `@` |
+
+El frontend muestra el botón con `kerberos` en `OAUTH_PROVIDERS`, y lo nombra con
+`KERBEROS_DISPLAY_NAME` (por defecto `Kerberos`).
 
 ## Base de datos (PostgreSQL) { #database-postgresql }
 
@@ -639,6 +691,26 @@ Una fuente `s3` nombra un secreto `aws_credentials` en el vault de su organizaci
 igual que una `gdrive` nombra una cuenta de servicio. El endpoint y la región siguen
 recurriendo a estos ajustes porque ninguno nombra a un principal: dicen dónde está el
 almacén, no quién pregunta.
+
+## Artefactos publicados { #published-artifacts }
+
+Páginas que los agents publican con la capability `artifacts`. Sus bytes viven en
+el almacenamiento de ficheros de arriba; estos ajustes los acotan y dicen desde
+dónde se sirven. Consulta [Artefactos](artifacts.md).
+
+| Variable | Por defecto | Descripción |
+|----------|-------------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
+| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+
+**`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
+las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la
+consola. Fíjalo en el entorno del backend y en el del frontend; los ficheros de
+compose se lo pasan a ambos. Un valor en solo uno de ellos muestra un frame vacío,
+porque el navegador se niega a cargar la página desde un origen que la consola no
+ha permitido.
 
 ## Workspaces de los agents { #agent-workspaces }
 

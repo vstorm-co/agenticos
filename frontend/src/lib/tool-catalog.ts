@@ -57,6 +57,7 @@ export type StepKind =
  * "does it actually see my glossary" - is answered by the list and by nothing else.
  */
 export type ToolRenderer =
+  | "artifact"
   | "chart"
   | "generated-image"
   | "web-search"
@@ -135,6 +136,16 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // artifacts - the published page is the answer, so its card opens where it lands.
+  publish_artifact: {
+    kind: "write",
+    render: "artifact",
+    captionKey: "publishingArtifact",
+    displayNameKey: "publishArtifact",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
   // browser_choice - a whole browse. The step card stays generic because the live
   // view is its own panel beside the transcript: a frame per step folded into the
   // message list would rewrite the transcript thirty times over.

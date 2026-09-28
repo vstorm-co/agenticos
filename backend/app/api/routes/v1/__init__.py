@@ -34,6 +34,7 @@ from app.api.routes.v1 import stats
 from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
+from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import permissions
@@ -42,6 +43,7 @@ from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import mattermost_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import members, organizations
+from app.api.routes.v1 import groups, directory_mappings, directory_auth
 from app.api.routes.v1.invitations import (
     org_router as invitations_org_router,
     token_router as invitations_token_router,
@@ -63,6 +65,7 @@ v1_router = APIRouter()
 v1_router.include_router(health.router, tags=["health"])
 
 v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+v1_router.include_router(directory_auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
@@ -86,6 +89,13 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
+v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
+v1_router.include_router(
+    artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]
+)
+v1_router.include_router(
+    artifacts.content_router, prefix="/artifact-content", tags=["artifacts:content"]
+)
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
@@ -97,6 +107,9 @@ v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
 )
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
+v1_router.include_router(
+    sharing.artifact_sharing_router, prefix="/artifacts", tags=["artifacts:sharing"]
+)
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])
 
@@ -149,6 +162,8 @@ v1_router.include_router(mattermost_webhook.router, prefix="/mattermost", tags=[
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])
+v1_router.include_router(groups.router, prefix="/orgs", tags=["groups"])
+v1_router.include_router(directory_mappings.router, prefix="/orgs", tags=["directory"])
 v1_router.include_router(invitations_org_router, prefix="/orgs", tags=["invitations"])
 v1_router.include_router(invitations_token_router, tags=["invitations"])
 

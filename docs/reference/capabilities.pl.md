@@ -1,5 +1,5 @@
 ---
-source_sha: "2948d8926ff6"
+source_sha: "1c0ca646d240"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -51,6 +51,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
 | `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
+| `artifacts` | Artefakty | użytkowe | `publish_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -91,12 +92,100 @@ do niego nie podłączył.
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | wł. / wył. |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` obowiązuje tylko wtedy, gdy model sam nie poda liczby.
+
+`parent_context` włącza wyszukiwanie small-to-big. Dopasowanie i ranking zawsze
+działają na precyzyjnych małych fragmentach; ta opcja decyduje jedynie o tym, ile
+otaczającego kontekstu jest *zwracane* wraz z każdym trafieniem, składanego na
+ścieżce zwrotnej:
+
+| Tryb | Co otrzymuje model |
+|---|---|
+| `off` | Sam dopasowany fragment — wartość domyślna, zachowanie bez zmian |
+| `window` | Dopasowany fragment z fragmentem przed nim i po nim w tym samym dokumencie |
+| `parent` | Dopasowany fragment z taką częścią dokumentu wokół niego, jaka się zmieści, najbliższy tekst najpierw |
+
+Dopasowany fragment nigdy nie jest skracany. Do dwóch stałych limitów - 8 000
+znaków na wynik i 24 000 na wyszukiwanie - liczy się tylko tekst dodany wokół
+niego, więc włączenie trybu nigdy nie pokaże modelowi mniej niż `off`. Fragment
+pozostaje ciągły: rośnie na zewnątrz od dopasowania i zatrzymuje się na pierwszym
+fragmencie, który się nie mieści albo został już zwrócony z wcześniejszym
+wynikiem, więc tekst, który nie sąsiadował w dokumencie, nigdy nie zostaje
+sklejony.
+
+Fragmenty są czytane według pozycji wokół dopasowania, nigdy cały dokument, a
+rozszerzenie pozostaje w obrębie własnego zakresu najemcy i kolekcji
+wywołującego. Nigdy nie zmienia tego, które fragmenty zostały dopasowane, ich
+wyników ani cytowań; cytowanie mówi `with surrounding text`, gdy fragment sięga
+poza wskazany chunk.
+
+`self_query_enabled` włącza self-query, domyślnie wyłączone. Gdy wyszukiwanie
+uruchamia się bez filtra wskazanego przez sam model, LLM czyta pytanie — „PDF-y
+z zeszłego miesiąca o onboardingu” — i wyprowadza filtry biznesowe, które ono
+implikuje: źródło, typ dokumentu, jednostkę organizacyjną, zakres dat. Własne,
+jawne filtry modelu zawsze wygrywają; self-query jedynie uzupełnia lukę. Gdy
+wywnioskowane filtry zostaną zastosowane, wynik zaczyna się od linii, która je
+wymienia, a model może powtórzyć wyszukiwanie bez nich, podając
+`infer_filters=false`.
+
+Wywnioskowany obiekt to ten sam zwalidowany filtr, który podaje wywołujący, więc
+nie niesie żadnego pola tenanta ani autoryzacji i nie może rozszerzyć dostępu —
+może jedynie zawęzić w obrębie własnego tenanta i kolekcji agenta. Jednostka
+organizacyjna zostaje tylko wtedy, gdy podpięte kolekcje faktycznie ją niosą,
+odczytane w tym samym zakresie co wyszukiwanie; kolekcje niosące łącznie ponad
+200 jednostek nie oferują żadnej do wnioskowania. Identyfikator dokumentu nigdy
+nie jest wnioskowany. Puste lub nieudane wnioskowanie wyszukuje bez filtra w
+obrębie tego wciąż egzekwowanego zakresu.
+
+**Koszt:** każde wyszukiwanie, które model uruchamia bez własnych filtrów, wykonuje
+jedno dodatkowe żądanie do modelu na wnioskowanie (dwa, jeśli jego wynik wymaga
+poprawki). Działa na własnym modelu agenta, jest rozliczane na przebiegu jak każde
+inne żądanie i zostaje odrzucone przed wysłaniem, gdy budżet jest już wyczerpany.
+Jest śledzone tak jak własne żądania agenta, więc agent ustawiony na niezapisywanie
+treści także tu nie umieszcza pytania w śladach.
 
 Powiązana bez żadnych kolekcji, ta capability nie wnosi **nic** — nie jest w
 ogóle dołączana. Narzędzie wyszukiwania, które zawsze zwraca pustkę, jest gorsze
 niż brak narzędzia, bo model próbuje go dalej i wyciąga wnioski z tej ciszy.
+
+### Analiza i rozszerzanie zapytania { #query-analysis-and-expansion }
+
+Krótkie, niedookreślone lub rozjeżdżające się słownikowo pytania wyszukują za
+mało. Domyślnie wyłączone `query_analysis_mode` opcjonalnie rozszerza zapytanie
+*przed* wyszukiwaniem:
+
+| Tryb | Co robi | Koszt |
+|---|---|---|
+| `off` | Wyszukuje zapytanie tak, jak je napisano | brak |
+| `multi_query` | Model runu pisze do `query_analysis_max_variants` przeredagowań; oryginał i warianty są wyszukiwane osobno, a ich wyniki łączone | jedno wywołanie modelu plus jedno wyszukiwanie na zapytanie |
+| `hyde` | Model runu pisze krótką hipotetyczną odpowiedź, a wyszukiwanie działa na *jej* embeddingu | jedno wywołanie modelu |
+
+`multi_query` i `hyde` dokładają po jednym wywołaniu modelu przed
+wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełność przy
+rozmytych pytaniach. `multi_query` dodatkowo wyszukuje raz na każde zapytanie,
+jedno po drugim, a każde wyszukiwanie osobno tworzy embedding swojego zapytania —
+warianty nie są łączone w jedno wywołanie embeddingu — więc trzymaj
+`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie.
+
+Oba tryby używają własnego modelu agenta — nie ma osobnego modelu do
+skonfigurowania — a ich koszt jest mierzony względem budżetu runu jak każde inne
+wywołanie modelu. Wyczerpany budżet pomija rozszerzanie bez wywołania modelu, tak
+samo jak model, który zawiedzie albo nie potrafi odpowiedzieć na zwykłe żądanie:
+wyszukiwanie działa wtedy na zapytaniu w oryginalnym brzmieniu, zamiast zawieść.
+
+Rozszerzanie zwiększa *pełność*, nigdy *dostęp*. Każde wygenerowane zapytanie jest
+wyszukiwane w tym samym zakresie dzierżawcy i przy tych samych filtrach
+biznesowych co oryginał, więc rozszerzone zapytanie nigdy nie sięgnie do dokumentu
+innej organizacji ani spoza zakresu. Komponuje się z ponownym rankingiem:
+rozszerzanie poszerza zbiór kandydatów, a wyniki są łączone, i reranker
+przestawiłby to, co zwróciło łączenie. Przy włączonym `parent_context` otaczający
+tekst jest dodawany raz, do połączonych wyników, więc jego limity obejmują całe
+wyszukiwanie, a nie każde zapytanie z osobna.
 
 ## Skille { #skills }
 
@@ -883,6 +972,39 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
+
+## Artefakty { #artifacts }
+
+`publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
+podsumowanie — pod stałym linkiem.*
+
+Publikuje jeden samodzielny dokument HTML albo Markdown jako
+[artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
+grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
+konfiguracji.
+
+**Nazwa jest tożsamością.** `(organization, agent, name)` wybiera artefakt, więc
+następny run tego samego agenta, który publikuje `weekly-report` — z czatu, z
+harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast tworzyć
+drugi link. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
+
+**Skąd pochodzi strona.** `path` czyta plik z workspace'u runa przez jego własny
+backend, więc działa wszędzie tam, gdzie działa capability `sandbox`; `content`
+przyjmuje stronę inline dla agenta bez workspace'u. Dokładnie jedno z nich.
+Błędne wywołanie — oba albo żadne, nazwa spoza `^[a-z0-9][a-z0-9-]{0,63}$`,
+nieznane rozszerzenie, pusta albo za duża strona — to retry mówiący, co zmienić.
+Odczyt, którego odmawiają reguły uprawnień workspace'u, jest wynikiem, a nie
+retry.
+
+**Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
+był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
+jedynie wstrzymałaby zaplanowany raport, dla którego to istnieje. Autor, który
+chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
+`tool_approval` na `publish_artifact`.
+
+**Strona nie ma sieci.** Jest serwowana w nieprzezroczystym originie pod polityką
+`sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby wszystko
+wstawiał inline. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegowanie { #delegation }
 

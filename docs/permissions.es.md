@@ -1,5 +1,5 @@
 ---
-source_sha: "4fc9ab1fab50"
+source_sha: "0f2e647408d7"
 ---
 
 # Permisos { #permissions }
@@ -249,7 +249,8 @@ arriba; los clientes no pueden inventar otros nuevos.
 
 Todo recurso compartible lleva un `owner_user_id` y una `visibility` (`private` |
 `team` | `org`). Encima de eso, `resource_grants` guarda una fila por cada cosa
-compartida: un recurso, una persona, un nivel. Una fila así es una **concesión**
+compartida: un recurso, una persona o un [grupo](directory.md#groups), un nivel.
+Una fila así es una **concesión**
 (*grant*).
 
 **Un agent nuevo es `org` salvo que su autora diga otra cosa**, y el diálogo que
@@ -266,6 +267,13 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `use` | además ejecutarlo o adjuntarlo |
 | `edit` | además cambiarlo |
 
+Una concesión a un grupo alcanza a quien esté en el grupo en el momento en que se
+comprueba el acceso, así que entrar en el grupo es ganar el acceso y salir de él
+es perderlo. Una persona con varias concesiones sobre una fila - la suya propia y
+las de sus grupos - obtiene la más alta de ellas. La base de datos guarda cada
+concesión para exactamente un sujeto, una persona o un grupo, y un grupo de otra
+organización no alcanza a nadie aquí aunque una fila lo nombrara.
+
 La tabla es deliberadamente genérica - `resource_type` + `resource_id`, sin clave
 foránea al objetivo - porque los agents, las colecciones, los skills, los
 archivos de contexto y las claves guardadas comparten todos las mismas reglas. La
@@ -280,6 +288,9 @@ Una fórmula, en `app/services/access.py`:
 ```
 effective access to one row = max(role scope, grant on that row)
 ```
+
+"Grant on that row" es la mejor entre la concesión propia de la persona y las
+concesiones a los grupos en los que está.
 
 !!! danger "Una concesión amplía lo que permite un rol; nunca lo estrecha"
 

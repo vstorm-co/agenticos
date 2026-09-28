@@ -1,5 +1,5 @@
 ---
-source_sha: "2948d8926ff6"
+source_sha: "1c0ca646d240"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -51,6 +51,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
 | `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
 | `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
+| `artifacts` | Artefakte | utility | `publish_artifact` | — | — |
 | `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -91,13 +92,104 @@ sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat
 | Konfiguration | Standard | Bereich |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | an / aus |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
+
+`parent_context` schaltet Small-to-Big-Retrieval ein. Treffer und Ranking laufen
+immer über die präzisen kleinen Chunks; diese Option entscheidet nur, wie viel
+umgebenden Kontext jeder Treffer *zurückgegeben* bekommt, zusammengesetzt auf dem
+Rückweg:
+
+| Modus | Was das Modell erhält |
+|---|---|
+| `off` | Nur der getroffene Chunk — der Standard, unverändertes Verhalten |
+| `window` | Der getroffene Chunk mit dem Chunk davor und danach im selben Dokument |
+| `parent` | Der getroffene Chunk mit so viel seines Dokuments darum herum, wie passt, den nächsten Text zuerst |
+
+Der getroffene Chunk wird nie gekürzt. Nur der um ihn herum hinzugefügte Text
+zählt gegen zwei feste Grenzen - 8.000 Zeichen pro Ergebnis und 24.000 pro Suche -,
+sodass der Modus dem Modell nie weniger zeigt als `off`. Eine Passage bleibt
+zusammenhängend: Sie wächst vom Treffer nach außen und endet am ersten Chunk, der
+nicht passt oder schon mit einem früheren Ergebnis zurückgegeben wurde, sodass
+Text, der im Dokument nicht benachbart war, nie zusammengefügt wird.
+
+Chunks werden nach ihrer Position um den Treffer gelesen, nie das ganze Dokument,
+und die Erweiterung bleibt im eigenen Mandanten- und Collection-Scope des
+Aufrufers. Sie ändert nie, welche Chunks getroffen wurden, deren Scores oder
+Zitate; ein Zitat sagt `with surrounding text`, wenn die Passage über den
+genannten Chunk hinausreicht.
+
+`self_query_enabled` schaltet Self-Query ein, standardmäßig aus. Läuft eine Suche
+ohne einen vom Modell selbst genannten Filter, liest ein LLM die Frage — „PDFs
+vom letzten Monat über Onboarding“ — und leitet die geschäftlichen Filter ab, die
+sie impliziert: eine Quelle, einen Dokumenttyp, eine Organisationseinheit, einen
+Datumsbereich. Die eigenen, ausdrücklichen Filter des Modells gewinnen immer;
+Self-Query füllt nur die Lücke. Werden abgeleitete Filter angewendet, beginnt das
+Ergebnis mit einer Zeile, die sie nennt, und das Modell kann die Suche mit
+`infer_filters=false` ohne sie wiederholen.
+
+Das abgeleitete Objekt ist derselbe validierte Filter, den ein Aufrufer liefert,
+trägt also kein Tenant- oder Autorisierungsfeld und kann den Zugriff nicht
+erweitern — es kann nur innerhalb des eigenen Tenants und der Collections des
+Agenten einschränken. Eine Organisationseinheit bleibt nur erhalten, wenn die
+gebundenen Collections sie tatsächlich tragen, gelesen im selben Bereich wie die
+Suche; Collections mit zusammen mehr als 200 Einheiten bieten keine zur Ableitung
+an. Eine Dokument-ID wird nie abgeleitet. Eine leere oder fehlgeschlagene
+Ableitung sucht ungefiltert innerhalb dieses weiterhin erzwungenen Bereichs.
+
+**Kosten:** Jede Suche, die das Modell ohne eigene Filter ausführt, stellt eine
+zusätzliche Modellanfrage für die Ableitung (zwei, wenn deren Ausgabe korrigiert
+werden muss). Sie läuft auf dem eigenen Modell des Agenten, wird dem Lauf wie
+jede andere Anfrage angerechnet und vor dem Senden abgelehnt, wenn das Budget
+bereits ausgeschöpft ist. Sie wird wie die eigenen Anfragen des Agenten
+getraced, sodass ein Agent, der keine Inhalte aufzeichnet, die Frage auch hier
+aus seinen Traces heraushält.
 
 Ohne gebundene Collections steuert diese Capability **nichts** bei — sie wird gar
 nicht erst angehängt. Ein Suchtool, das immer leer zurückkommt, ist schlimmer als
 gar kein Suchtool, denn das Modell versucht es weiter und schließt aus dem
 Schweigen.
+
+### Abfrageanalyse und -erweiterung { #query-analysis-and-expansion }
+
+Kurze, unterspezifizierte oder im Vokabular abweichende Fragen finden zu wenig.
+Standardmäßig aus, erweitert `query_analysis_mode` die Abfrage optional *vor* dem
+Abruf:
+
+| Modus | Was er tut | Kosten |
+|---|---|---|
+| `off` | Sucht die Abfrage so, wie sie geschrieben wurde | keine |
+| `multi_query` | Das Modell des Runs schreibt bis zu `query_analysis_max_variants` Umformulierungen; das Original und die Varianten werden je einzeln gesucht und ihre Ergebnisse zusammengeführt | ein Modellaufruf, plus ein Abruf je Abfrage |
+| `hyde` | Das Modell des Runs schreibt eine kurze hypothetische Antwort, und der Abruf läuft gegen *deren* Embedding | ein Modellaufruf |
+
+`multi_query` und `hyde` fügen je einen Modellaufruf vor der Suche hinzu und
+tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
+unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
+der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
+werden nicht in einem Embedding-Aufruf gebündelt —, also halte
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+
+Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
+konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie
+jeder andere Modellaufruf. Ein erschöpftes Budget überspringt die Erweiterung,
+ohne das Modell aufzurufen, und ebenso ein Modell, das scheitert oder keine
+einfache Anfrage beantworten kann: Die Suche läuft dann mit der Abfrage, wie sie
+geschrieben wurde, statt zu scheitern.
+
+Erweiterung erhöht die *Trefferquote*, niemals den *Zugriff*. Jede von ihr
+erzeugte Abfrage wird unter demselben Mandanten-Scope und denselben
+Geschäftsfiltern wie das Original gesucht, sodass eine erweiterte Abfrage niemals
+ein Dokument einer anderen Organisation oder außerhalb des Scopes erreichen kann.
+Sie fügt sich mit dem Reranking zusammen: Erweiterung verbreitert die
+Kandidatenmenge und die Ergebnisse werden zusammengeführt, und ein Reranker würde
+umsortieren, was die Zusammenführung zurückgab. Mit eingeschaltetem
+`parent_context` wird der umgebende Text einmal an die zusammengeführten
+Ergebnisse angefügt, sodass seine Grenzen für die ganze Suche gelten und nicht
+für jede Abfrage einzeln.
 
 ## Skills { #skills }
 
@@ -937,6 +1029,41 @@ Workspace hat (die `sandbox`-Capability), wird dasselbe Bild dort unter `/output
 abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, eine
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
+
+## Artefakte { #artifacts }
+
+`publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
+kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
+
+Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
+[Artefakt](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
+Sichtbarkeit und Grants, die im Browser unter einem Link geöffnet wird, der
+bleibt. Keine Konfiguration.
+
+**Der Name ist die Identität.** `(organization, agent, name)` wählt das Artefakt
+aus, sodass der nächste Run desselben Agents, der `weekly-report` veröffentlicht —
+aus einem Chat, einem Zeitplan oder der API —, demselben Artefakt eine Version
+hinzufügt, statt einen zweiten Link anzulegen. Identische Bytes fügen keine
+Version hinzu und antworten mit `unchanged`.
+
+**Woher die Seite kommt.** `path` liest eine Datei aus dem Workspace des Runs über
+dessen eigenes Backend, funktioniert also überall, wo die Capability `sandbox`
+funktioniert; `content` nimmt die Seite inline für einen Agent ohne Workspace.
+Genau eines von beiden. Ein falscher Aufruf — beides oder keines, ein Name
+außerhalb von `^[a-z0-9][a-z0-9-]{0,63}$`, eine unbekannte Endung, eine leere
+oder zu große Seite — ist ein Retry, der nennt, was zu ändern ist. Ein Lesen, das
+die Berechtigungsregeln des Workspace ablehnen, ist ein Ergebnis, kein Retry.
+
+**Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
+für die der Run lief, und nur eine Person erweitert, wer sie liest; das
+Genehmigungs-Gate würde also nur den geplanten Bericht parken, für den das hier
+existiert. Ein Autor, der jede erneute Veröffentlichung einer geteilten Seite
+genehmigt haben möchte, setzt `tool_approval` auf `publish_artifact`.
+
+**Die Seite hat kein Netzwerk.** Sie wird in einem opaken Origin unter einer
+`sandbox`-Policy mit `connect-src 'none'` ausgeliefert, und der Tool-Text sagt dem
+Modell, alles einzubetten. Siehe
+[wie die Seite isoliert wird](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegation { #delegation }
 

@@ -9,6 +9,7 @@ import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
+import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
@@ -136,6 +137,13 @@ export function ToolCallCard({
       ? parseGeneratedImage(toolCall.result)
       : null;
 
+  const publishedArtifact =
+    renderer === "artifact" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parsePublishedArtifact(toolCall.result)
+      : null;
+
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
@@ -200,6 +208,8 @@ export function ToolCallCard({
         <WebSearchResults data={webResults} />
       ) : generatedImage !== null ? (
         <GeneratedImageResult data={generatedImage} />
+      ) : publishedArtifact !== null ? (
+        <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (

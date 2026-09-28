@@ -1,5 +1,5 @@
 ---
-source_sha: "31e3e2845403"
+source_sha: "11e8f02699df"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -152,6 +152,14 @@ registrarse siquiera. **Una invitación anula esa lista**: alguien con
 política del despliegue frente a desconocidos, no un veto sobre un acto
 deliberado. A `closed` no lo anula nada, porque un «cerrado» que deja pasar
 algunos registros no está cerrado.
+
+**Un mapeo de grupo del directorio cuenta como una invitación.** `invite_only` y
+la lista de dominios admiten un primer inicio de sesión a través del directorio
+(LDAP o Kerberos), o a través de OIDC con un claim de grupos, cuyos grupos
+coincidan con el mapeo de alguna organización: quien escribió el mapeo tenía
+`members:manage` y `roles:manage` y decidió que todos los de ese grupo tienen su
+sitio allí. `closed` lo sigue rechazando. Véase
+[Mapeos de grupos del directorio](directory.md#directory-group-mappings).
 
 **`closed` significa cerrado, y no hay ningún camino en el que un administrador
 cree una cuenta.** Deliberadamente: una cuenta necesita una contraseña elegida

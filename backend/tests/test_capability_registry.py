@@ -596,6 +596,34 @@ class TestConfigValidation:
         assert isinstance(config, KnowledgeConfig)
         assert config.default_top_k == 8
 
+    def test_a_valid_parent_context_mode_is_parsed(self):
+        config = get("knowledge").validate_config({"parent_context": "window"})
+        assert isinstance(config, KnowledgeConfig)
+        assert config.parent_context == "window"
+
+    def test_parent_context_defaults_to_off_when_omitted(self):
+        """An old spec whose config predates the field takes the default (#1651)."""
+        config = get("knowledge").validate_config({"default_top_k": 5})
+        assert isinstance(config, KnowledgeConfig)
+        assert config.parent_context == "off"
+
+    def test_the_builder_is_offered_the_parent_context_modes_as_a_choice(self):
+        """An inline `enum` is what the schema form renders as a select; an enum
+        class reaches the schema as a `$ref` and became a free-text box."""
+        field = KnowledgeConfig.model_json_schema()["properties"]["parent_context"]
+        assert field["enum"] == ["off", "window", "parent"]
+        assert set(field["x-enum-labels"]) == {"off", "window", "parent"}
+
+    def test_an_unknown_parent_context_mode_is_refused_at_publish(self):
+        """The Builder marks the field rather than a run failing later."""
+        with pytest.raises(BadRequestError) as exc:
+            get("knowledge").validate_config({"parent_context": "everything"})
+        assert exc.value.details is not None
+        assert exc.value.details["capability_id"] == "knowledge"
+        assert [problem["field"] for problem in exc.value.details["fields"]] == [
+            "config.parent_context"
+        ]
+
     def test_invalid_config_reports_field_errors(self):
         """The Builder needs field-level errors to point at the right input.
 
@@ -627,6 +655,34 @@ class TestConfigValidation:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
         assert all(set(problem) == {"field", "message"} for problem in exc.value.details["fields"])
+
+    def test_query_analysis_config_is_validated_and_bounded(self):
+        config = get("knowledge").validate_config(
+            {"query_analysis_mode": "multi_query", "query_analysis_max_variants": 4}
+        )
+        assert isinstance(config, KnowledgeConfig)
+        assert (config.query_analysis_mode, config.query_analysis_max_variants) == (
+            "multi_query",
+            4,
+        )
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "translate"})
+        # Not spec format: with no lexical leg running it could only embed a
+        # different string, and a published mode can never be taken back.
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "keywords"})
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_max_variants": 99})
+
+    def test_query_analysis_defaults_off(self):
+        """A stored spec that predates the field loads with expansion off."""
+        assert get("knowledge").validate_config({}).query_analysis_mode == "off"
+
+    def test_query_analysis_fields_are_in_the_form_schema(self):
+        schema = get("knowledge").config_json_schema()
+        assert schema is not None
+        assert "query_analysis_mode" in schema["properties"]
+        assert "query_analysis_max_variants" in schema["properties"]
 
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None
@@ -681,6 +737,23 @@ class TestBuilding:
             resources={"kb_collection_names": ["kb_1"]},
         )
         assert isinstance(built[0], Knowledge)
+
+    def test_knowledge_carries_its_query_analysis_config(self):
+        """The binding's mode and bound reach the built capability, so it is what
+        actually runs rather than the default."""
+        built = build(
+            [
+                CapabilityBinding(
+                    capability_id="knowledge",
+                    config={"query_analysis_mode": "hyde", "query_analysis_max_variants": 4},
+                )
+            ],
+            granted_scopes=frozenset({"knowledge:read"}),
+            resources={"kb_collection_names": ["kb_1"]},
+        )
+        assert isinstance(built[0], Knowledge)
+        assert built[0].query_analysis_mode == "hyde"
+        assert built[0].query_analysis_max_variants == 4
 
     def test_config_reaches_the_capability(self):
         built = build(

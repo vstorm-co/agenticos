@@ -25,8 +25,14 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.secret_kinds import StorableSecret
 from app.main import app
-from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, ConfigRefusal
+from app.services.rag.connectors import (
+    CONNECTOR_REGISTRY,
+    BaseSyncConnector,
+    ConfigRefusal,
+    RemoteListing,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -43,10 +49,14 @@ class _OpinionatedConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "opinionated"
     DISPLAY_NAME = "Opinionated"
 
-    async def list_files(self, config: dict) -> list:  # pragma: no cover - never reached
-        return []
+    async def list_files(
+        self, config: dict, credential: StorableSecret | None
+    ) -> RemoteListing:  # pragma: no cover - never reached
+        return RemoteListing(files=[])
 
-    async def _fetch(self, file: Any, dest_path: Any, config: dict) -> None:
+    async def _fetch(
+        self, file: Any, dest_path: Any, config: dict, credential: StorableSecret | None
+    ) -> None:
         """Never reached: every request in this file is refused at validation."""
 
     async def validate_config(self, config: dict) -> ConfigRefusal | None:
@@ -59,10 +69,14 @@ class _PickyConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "picky"
     DISPLAY_NAME = "Picky"
 
-    async def list_files(self, config: dict) -> list:  # pragma: no cover - never reached
-        return []
+    async def list_files(
+        self, config: dict, credential: StorableSecret | None
+    ) -> RemoteListing:  # pragma: no cover - never reached
+        return RemoteListing(files=[])
 
-    async def _fetch(self, file: Any, dest_path: Any, config: dict) -> None:
+    async def _fetch(
+        self, file: Any, dest_path: Any, config: dict, credential: StorableSecret | None
+    ) -> None:
         """Never reached: every request in this file is refused at validation."""
 
     async def validate_config(self, config: dict) -> ConfigRefusal | None:

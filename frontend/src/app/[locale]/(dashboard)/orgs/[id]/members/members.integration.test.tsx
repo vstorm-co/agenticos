@@ -62,7 +62,13 @@ function mayChangeRole(callerRole: string, targetRole: string): boolean {
   return assignableRoles(ROLE_CATALOG, callerRole).includes(targetRole as OrgRole);
 }
 
-function member(id: string, email: string, role: string, canChangeRole = false) {
+function member(
+  id: string,
+  email: string,
+  role: string,
+  canChangeRole = false,
+  source: "manual" | "directory" = "manual",
+) {
   return {
     // `id` as well as `user_id`: the table keys its rows on it, and four rows
     // keyed `undefined` collapse into one.
@@ -80,6 +86,7 @@ function member(id: string, email: string, role: string, canChangeRole = false) 
     // page draws a selector only where a change would land rather than one whose
     // result is a 403 toast (#700).
     can_change_role: canChangeRole,
+    source,
   };
 }
 
@@ -98,7 +105,13 @@ function serve(role: string) {
         items: [
           member(ME, "me@acme.test", role, mayChangeRole(role, role)),
           member("user-peer", "peer@acme.test", "admin", mayChangeRole(role, "admin")),
-          member("user-builder", "builder@acme.test", "builder", mayChangeRole(role, "builder")),
+          member(
+            "user-builder",
+            "builder@acme.test",
+            "builder",
+            mayChangeRole(role, "builder"),
+            "directory",
+          ),
           member("user-owner", "owner@acme.test", "owner", mayChangeRole(role, "owner")),
         ],
         total: 4,
@@ -256,6 +269,50 @@ describe("the members table's role control", () => {
     await mount();
 
     expect(await screen.findByText(/role list could not be loaded/i)).toBeVisible();
+  });
+
+  it("marks a membership the directory sync maintains, beside its role", async () => {
+    serve("admin");
+    await mount();
+
+    const builder = await roleCell("builder@acme.test");
+    await waitFor(() => expect(within(builder).getByRole("combobox")).toBeVisible());
+    const badge = within(builder).getByText("Directory");
+    expect(badge.closest("[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Changing the role here takes it over"),
+    );
+    expect(within(await roleCell("peer@acme.test")).queryByText("Directory")).toBeNull();
+  });
+
+  it("marks it beside the plain label too, for a caller who cannot change it", async () => {
+    serve("viewer");
+    await mount();
+
+    const builder = await roleCell("builder@acme.test");
+    expect(within(builder).getByText("Directory")).toBeVisible();
+    expect(within(builder).queryByRole("combobox")).toBeNull();
+  });
+
+  it("links to the groups for everyone, and to the directory only for a member manager", async () => {
+    serve("viewer");
+    await mount();
+
+    expect(await screen.findByRole("link", { name: "Groups" })).toHaveAttribute(
+      "href",
+      "/orgs/org-1/groups",
+    );
+    expect(screen.queryByRole("link", { name: "Directory" })).toBeNull();
+  });
+
+  it("links a member manager to the directory mappings", async () => {
+    serve("admin");
+    await mount();
+
+    expect(await screen.findByRole("link", { name: "Directory" })).toHaveAttribute(
+      "href",
+      "/orgs/org-1/directory",
+    );
   });
 
   it("lets an Owner change a peer Admin, whose role they do outrank", async () => {

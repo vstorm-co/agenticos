@@ -1,5 +1,5 @@
 ---
-source_sha: "ed41ce8850a9"
+source_sha: "7e8688fd9cd6"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -118,6 +118,7 @@ Notices-Datei ist die aktuelle Zahl.
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | ein paar | Namensnennung oder nichts | Wie oben |
 | MPL-2.0 (`certifi`, `pathspec`, `tqdm`, Teil von `orjson`) | 4 | Copyleft auf Dateiebene: Die erfassten Dateien bleiben unter der MPL, und ihr Quellcode ist verfügbar | Unverändert genutzt; der Lizenztext wird ausgeliefert; die Notices verlinken den Quellcode |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Lizenztext, Verfügbarkeit des Quellcodes und die Möglichkeit, die Bibliothek zu ersetzen | Beide sind separat installierte Binaries, dynamisch geladen, unverändert, durch Neuinstallation ersetzbar; die Quellen sind in den Notices verlinkt. Die libvips-Pakete veröffentlichen keine Lizenzdatei, deshalb legt das Image den LGPL-Text daneben |
+| LGPL-3.0-only (`ldap3`) | 1 | Lizenztext, Verfügbarkeit des Quellcodes und die Möglichkeit, die Bibliothek zu ersetzen | Der LDAP-Client der Verzeichnisanmeldung, ein reines Python-Wheel, unverändert importiert und durch Neuinstallation ersetzbar; seine Lizenzdateien liegen in seiner dist-info, und sein Quellcode ist in den Notices verlinkt |
 | Artistic-1.0-Perl oder GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; unter der Artistic License genommen: Hinweis und Text | Die Lizenzdatei des Wheels wird ausgeliefert |
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Namensnennung und ein Link auf die Quelle | In den Notices mit seiner Quelle genannt |
 | AGPL-3.0-only (`pymupdf`) | 1 | Netzwerk-Copyleft: Das Image wird unter AGPL-3.0-Bedingungen weitergegeben, und ein verändertes Deployment schuldet seinen Nutzern den veränderten Quellcode (Abschnitt 13) | Bewusst behalten, Bedingungen benannt: [der Abschnitt unten](#the-agpl-component) und das `COPYING` des Wheels im Image |

@@ -55,10 +55,12 @@ export async function getUnreadNotificationCount(): Promise<UnreadCount> {
 }
 
 export async function markNotificationRead(id: string): Promise<Notification> {
-  // `keepalive` because the caller is usually a click on a link with a real
-  // destination (`context_url`): the browser can start unloading this
-  // document before an ordinary fetch flushes, and a request tied to the
-  // page's lifetime does not survive that.
+  // `keepalive` for the rows that still reload the document: a `context_url`
+  // written before the column held a path carries an origin, so the browser can
+  // start unloading this page before an ordinary fetch flushes, and a request
+  // tied to the page's lifetime does not survive that. A path navigates as a
+  // sub-route and nothing unloads - but nothing migrates those older rows
+  // either, so this stays until they have aged out.
   return apiClient.patch<Notification>(`${ROOT}/${id}`, undefined, { keepalive: true });
 }
 

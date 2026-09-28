@@ -37,6 +37,20 @@ describe("readPublicConfig", () => {
     expect(config.siteUrl).toBe("https://console.acme.example");
   });
 
+  it("frames artifacts from the API unless the deployment moved them", () => {
+    // The backend signs content addresses on `ARTIFACT_ORIGIN` when it is set and
+    // on its own public address otherwise, so the two have to fall back the same way.
+    expect(readPublicConfig({ PUBLIC_API_URL: "https://api.acme.example" }).artifactUrl).toBe(
+      "https://api.acme.example",
+    );
+    expect(
+      readPublicConfig({
+        PUBLIC_API_URL: "https://api.acme.example",
+        ARTIFACT_ORIGIN: "https://content.acme-pages.example/",
+      }).artifactUrl,
+    ).toBe("https://content.acme-pages.example");
+  });
+
   it("treats a blank URL as unset", () => {
     expect(readPublicConfig({ PUBLIC_API_URL: "  " }).apiUrl).toBe(DEFAULT_PUBLIC_CONFIG.apiUrl);
   });
@@ -85,6 +99,31 @@ describe("readPublicConfig", () => {
       "oidc",
       "google",
     ]);
+  });
+
+  it("accepts the directory sign-ins, LDAP and Kerberos, which have no mark either (#1773)", () => {
+    expect(readPublicConfig({ OAUTH_PROVIDERS: "google, LDAP ,kerberos" }).oauthProviders).toEqual([
+      "google",
+      "ldap",
+      "kerberos",
+    ]);
+  });
+
+  it("names the directory sign-ins by their protocol until the deployment names them", () => {
+    expect(readPublicConfig({})).toMatchObject({
+      ldapDisplayName: "LDAP",
+      kerberosDisplayName: "Kerberos",
+    });
+    expect(readPublicConfig({ LDAP_DISPLAY_NAME: "  ", KERBEROS_DISPLAY_NAME: "" })).toMatchObject({
+      ldapDisplayName: "LDAP",
+      kerberosDisplayName: "Kerberos",
+    });
+    expect(
+      readPublicConfig({
+        LDAP_DISPLAY_NAME: " Active Directory ",
+        KERBEROS_DISPLAY_NAME: " Acme domain ",
+      }),
+    ).toMatchObject({ ldapDisplayName: "Active Directory", kerberosDisplayName: "Acme domain" });
   });
 
   it("calls the generic provider SSO until the deployment names it", () => {

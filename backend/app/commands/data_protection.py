@@ -44,6 +44,7 @@ from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.artifact import ArtifactVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.chat_file import ChatFile
@@ -78,6 +79,7 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     AgentEmbed.logo_path,
     DeploymentSettings.logo_path,
     DeploymentSettings.favicon_path,
+    ArtifactVersion.storage_path,
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design:
@@ -118,6 +120,11 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
 # Capabilities whose work never leaves the process, so they own no destination.
 CAPABILITIES_STAYING_INSIDE = frozenset(
     {
+        # A published page goes to the deployment's own file storage. Who may then
+        # open it - including a stranger holding a public link - is a member's
+        # sharing decision recorded on the artifact, not a destination the
+        # capability sends anything to.
+        "artifacts",
         "channel_tools",
         "charts",
         "clock",
