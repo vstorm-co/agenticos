@@ -277,7 +277,20 @@ class HttpResponseOutput(BaseModel):
 The handler dials through `PinnedAsyncClient` unchanged — no second SSRF
 check, no reimplemented redirect walk. `auth` resolves through
 `vault.unseal(ciphertext, scope=VaultScope.organization(ctx.organization_id))`,
-never a value in `config_schema` itself. `timeout_seconds`/`max_response_bytes`
+never a value in `config_schema` itself. **A `secret_id` in `auth` is
+origin-bound**: the vault secret records the HTTP origin(s) it may be sent to
+(the way an MCP connection's token is bound to its server URL), and the handler
+resolves `url`, checks its origin against that allowlist, and refuses
+`Failed(code="secret_origin_denied")` **before** unsealing. The SSRF pin only
+stops a private host and redaction only stops the secret returning in a
+response — neither stops an authenticated editor pointing `url` at an
+attacker-controlled *public* host, so credential exfiltration is closed here,
+at the origin. Because `url` may be a bound value, this check runs at dial time
+against the resolved origin, not only at publish; a redirect hop dialled by a
+download/upload node (#1791) is checked the same way, per hop. Publish and
+test-run additionally verify the editor holds `secrets:view` on the referenced
+secret and that its kind permits HTTP auth — Pass 0's schema validation alone
+never reaches a secret. `timeout_seconds`/`max_response_bytes`
 are bounded above by the node's own schema, not by policy read at run time; a
 streamed body hitting the cap is `Failed(code="response_too_large")`, never a
 silent partial-success truncation. Outgoing `headers` strip `Authorization`,
@@ -372,7 +385,7 @@ AC4 checks structurally.
 |---|---|
 | `knowledge.search` | A seeded pgvector collection returns correct `SourceRef`s; an unpermitted `collection_id` is refused at bind time |
 | `agent.run` | An approval-gated tool parks (`Waiting`); the dispatcher resumes the *same* `agent_runs` row — #1788's approval test, replayed here |
-| `http.request` | A private-IP target is refused before connecting; an over-size response fails without buffering it whole; a redacted response never carries `Authorization` |
+| `http.request` | A private-IP target is refused before connecting; a `url` whose origin is not on the `secret_id`'s allowlist fails `secret_origin_denied` before unsealing; an over-size response fails without buffering it whole; a redacted response never carries `Authorization` |
 | `notification.send` | An unpermitted `member_id` is dropped; two attempts sharing one idempotency key write one row |
 | `logic.if`/`logic.merge` | A full if/else→merge graph runs end to end with typed data on both branches (AC1) |
 | `data.map` | A disallowed JMESPath function is refused at config-validation time |

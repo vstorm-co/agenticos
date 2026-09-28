@@ -62,12 +62,37 @@ publish. `on_error = "route"` makes a node's `error` output port live;
 Both `kind="control"`, `effect_kind="pure"` — they route or synthesize,
 never touch an external system.
 
-**`error.handle`**: input port `in` (`WorkflowError`), zero or more named
-branches matched against `WorkflowError.code`/`retryable`, plus one
-mandatory `default` port. A node with `policy.on_error = "route"` gets an
-implicit `error` output port carrying `WorkflowError` (never its declared
-`output_schema`); wiring it to an `error.handle`'s `in` is how failures get
-routed. Nothing matching flows out `default`.
+**`error.handle`**: fixed input port `in` (`WorkflowError`) and one
+mandatory `default` output port; between them, zero or more named branch
+output ports matched against `WorkflowError.code`/`retryable`. The branches
+are **per-instance**, so they cannot live in the static `NodeDefinition.ports`
+tuple #1786 stores once per kind. They are declared in `config` instead, and
+the effective port set is *derived* from that config deterministically:
+
+```python
+class ErrorBranch(BaseModel):
+    name: str                         # the derived output port id
+    code: str | None = None           # match WorkflowError.code
+    retryable: bool | None = None     # match WorkflowError.retryable
+
+class ErrorHandleConfig(BaseModel):
+    branches: tuple[ErrorBranch, ...] = ()   # ordered; first match wins
+```
+
+`effective_ports(instance)` for `error.handle` returns the fixed
+`in`/`default` plus one `Port(id=branch.name, kind="output", schema=
+WorkflowError)` per `config.branches` entry. Everywhere the platform would
+read the static `ports` tuple to learn a node's ports — catalog
+serialization, #1787's palette, and rules 3/8's per-edge source-port
+lookup — it reads `effective_ports` for a `control` node whose definition
+opts into config-derived ports, so the edge validator can tell whether a
+named source port exists. `branches` names are unique and disjoint from
+`in`/`default`, refused at publish otherwise. A node with
+`policy.on_error = "route"` gets an implicit `error` output port carrying
+`WorkflowError` (never its declared `output_schema`); wiring it to an
+`error.handle`'s `in` is how failures get routed. An incoming
+`WorkflowError` leaves by the first branch whose declared `code`/`retryable`
+all match; nothing matching flows out `default`.
 
 **Mandatory default branch, enforced at publish.** #1786's `validate_graph`
 already special-cases node kinds inside its generic passes (rule 5:
@@ -192,7 +217,13 @@ unbacked (shared-contracts decision 1), and #1791 itself depends on #1790
 a real cycle (round 3 of this review). #1790 instead ships `max_items`
 (the existing Limits row) sized so inline JSONB always fits comfortably —
 a few thousand short items, not a bound chosen for storage capacity — and
-the manifest is read once, fully, at freeze time, never paged. Once #1791
+the manifest is read once, fully, at freeze time, never paged. Because
+`max_items` bounds count, not size — one item can carry a huge
+string/object, or a few thousand items can each be large — freeze
+additionally caps the manifest's serialized-JSONB byte size and nesting
+depth (`max_manifest_bytes`), computed on the fully resolved list before it
+is written, so neither a single oversized item nor many large ones can pass
+the count check and still force an outsized allocation and JSONB row. Once #1791
 lands, a blob-backed manifest for genuinely large lists is a
 `ResourceRef.kind` addition, not a redesign of anything here.
 
@@ -263,6 +294,7 @@ untaken `logic.if` branch.
 | Limit | Checked | Effect when exceeded |
 |---|---|---|
 | `max_items` | At freeze, against manifest length | Freeze refused, error naming cap and count — never truncated |
+| `max_manifest_bytes` | At freeze, against the resolved manifest's serialized-JSONB size and nesting depth | Freeze refused, error naming cap and observed size — never truncated |
 | `max_depth` | At publish, walking `graph.scopes` | New rule alongside 9/10; refused at publish |
 | `max_total_nodes` | At dispatch, running `NodeRun` count under the run | Further outbox creation refused; run fails |
 

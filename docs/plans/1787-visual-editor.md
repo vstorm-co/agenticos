@@ -107,8 +107,8 @@ catalog contract as deciding "how property forms and bindings work."
   `agent_id`/`version_id`), picked through a resource picker, never bound.
 - **A field's runtime value never lives in `config`.** It is a `Binding
   {target_node_id, target_field, source}` in the graph's flat `bindings`
-  list, where `source` is `NodeOutputRef {node_id, port}`, `TableIORef`,
-  `FileRef` or `LiteralValue {value}`. Every `input_schema` field works this
+  list, where `source` is `NodeOutputRef {node_id, port, field_path}`,
+  `TableIORef`, `FileRef` or `LiteralValue {value}`. Every `input_schema` field works this
   way — `LiteralValue` for "type a value," the rest for "read it from
   somewhere else." A `config_schema` field opts in via `x-bindable: true`
   (the slot `schema-form.tsx` already reads `x-multiline`/`x-suggestions`
@@ -157,10 +157,16 @@ target_field)`, never `config`:
   #1786 forbids client-supplied expressions) switches to a `Select` picker.
   Candidates are every upstream `(node, port)` reachable on every path that
   reaches this node — rule 4's dominator check — filtered by schema
-  compatibility — rule 3 — both mirrored client-side. Choosing one writes
-  `NodeOutputRef {node_id, port}`; candidates group by source node (icon +
-  name) and show declared type, the density `collection-picker.tsx` already
-  uses to disambiguate same-named rows.
+  compatibility — rule 3 — both mirrored client-side. Picking a port whose
+  payload is a nested model exposes a second leaf selector over that port's
+  `output_schema` — the `("text",)`-style path #1786's `field_path` walks —
+  so `AgentRunOutput.text` binds to another agent's scalar `prompt` rather
+  than the whole-model binding rule 3 rejects; a scalar port needs no path
+  (empty `field_path`, "the whole port value"). Choosing one writes
+  `NodeOutputRef {node_id, port, field_path}`; rule-3 compatibility filters on
+  the *path's* terminal type, not the port's. Candidates group by source node
+  (icon + name) and show declared type, the density `collection-picker.tsx`
+  already uses to disambiguate same-named rows.
 - Toggling replaces `Binding.source` wholesale (`SchemaField`'s existing
   convention: discard a stale shape rather than merge it).
 - An `input_schema` leaf with no `Binding` targeting it is a validation

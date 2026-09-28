@@ -103,7 +103,7 @@ surface this issue adds, not #1782's.
 class TableOperation(StrEnum):
     READ = "read"
     CREATE_RECORD = "create_record"
-    UPDATE_RECORD = "update_record"   # covers update and upsert-as-update
+    UPDATE_RECORD = "update_record"   # update; upsert also needs CREATE_RECORD
     DELETE_RECORD = "delete_record"
 
 class TableGrant(BaseModel):
@@ -139,7 +139,13 @@ unbound collection rather than erroring. The result,
    is not in its set, is refused before the service runs. This is
    `AgentDeps`'s own boundary made concrete for tables: "a tool's parameters
    are model-controlled and therefore untrusted, while its deps are resolved
-   server-side."
+   server-side." `table.records.upsert` is the one tool that maps to two
+   operations: `upsert_record` creates the row when no record carries the
+   `external_id` and updates it otherwise, and the allow-list check runs
+   before the service decides which branch, so the tool requires **both**
+   `CREATE_RECORD` and `UPDATE_RECORD` in the grant. A `{UPDATE_RECORD}`-only
+   grant that could still reach `create_record` behavior through upsert is
+   exactly the allow-list crossing this check exists to stop.
 2. **The service's own `resolve_access` check**, unconditionally, on every
    call, because access can be revoked mid-run and the pinned map is only a
    run-start snapshot that narrows, never grants. This is the issue's
@@ -236,9 +242,17 @@ granted cannot publish a graph containing the two write nodes.
    redirect a write the way a model argument could try to.
 2. **The node handler still calls `resolve_access` through the service on
    every run** (#1788 supplies `NodeDefinition.handler`; this issue's nodes
-   must honor the contract), passing the workflow's own owning principal's
-   `AuthContext`, resolved once per run start. A table archived or unshared
-   after publish is refused at the node with the same `TABLE_ARCHIVED`/
+   must honor the contract), passing an `AuthContext` built from the run's
+   pinned execution principal — `WorkflowRun.execution_principal_user_id`
+   (#1788), the API/WebSocket/chat caller or the configured trigger/exposure
+   principal that admission recorded, **not** the workflow's owning member.
+   The two diverge whenever the admitted caller and the owner hold different
+   table access: resolving as the owner would let a node perform an operation
+   the caller was never authorized for, or deny one the caller was. #1788
+   rebuilds this `AuthContext` from the column at each resume (so the role
+   half reflects current membership even hours into a `waiting_approval`
+   pause), only the pinned `user_id` is fixed for the run. A table archived or
+   unshared after publish is refused at the node with the same `TABLE_ARCHIVED`/
    `NOT_FOUND` codes, surfaced as the run's `Failed` result.
 
 Both surfaces resolve to the same three service methods with no
@@ -250,12 +264,19 @@ rather than by convention.
 **Registers a `DependencyChecker`** against #1782's unclaimed hook (#1793
 flagged this hook as shipped and never registered against): at
 `workflow_registry` import time, `register_dependency_checker
-(table_binding_dependents)`, where the checker scans published
-`WorkflowVersion.graph` for `TableIORef` bindings naming the table (and, for
-a column-level archive, checks `column_ids`), returning
-`Dependent(kind="workflow_version", id=version.id)` per match — one
-published version is enough to refuse the archive, since a draft can still
-be edited around it but a published graph cannot.
+(table_binding_dependents)`, where the checker scans the
+`WorkflowVersion.graph` of every version *still runnable* — one pinned by an
+active `WorkflowExposure` (#1792) or `VirtualTableTrigger` (#1785) — for
+`TableIORef` bindings naming the table (and, for a column-level archive,
+checks `column_ids`), returning `Dependent(kind="workflow_version",
+id=version.id)` per match. One such version is enough to refuse the archive,
+since a live exposure or trigger can still start it but a pinned graph cannot
+be edited around the write. **Superseded versions that nothing active pins do
+not block** — `WorkflowVersion` rows are immutable and never retired, so
+scanning *every* published version would make one historical reference a
+permanent schema lock, and republishing a corrected graph could never free
+the column. They are retained for audit; only the runnable set gates the
+archive, matching #1785's own checker, which scans active triggers alone.
 
 ## `expected_revision`, upsert-by-`external_id`, idempotency
 
@@ -295,7 +316,10 @@ writes onto one record.
 **1. Reads permitted tables, writes only enabled operations.** A
 `{READ}`-only grant exposes reads and refuses a create at the allow-list
 check (assert zero service calls); `{READ, CREATE_RECORD}` allows a create on
-its table and refuses one on an unbound table id; `allow_create=False` means
+its table and refuses one on an unbound table id; a `{READ, UPDATE_RECORD}`
+grant refuses `table.records.upsert` at the allow-list check (upsert requires
+`CREATE_RECORD` too, since it can create) while `{READ, CREATE_RECORD,
+UPDATE_RECORD}` admits it; `allow_create=False` means
 `table.create` is absent from the built toolset; a grant naming a
 now-unreachable table is dropped from the pinned map at build time.
 

@@ -82,7 +82,7 @@ class VirtualTableTrigger(Base, TimestampMixin):
     workflow_version_id: UUID            # FK workflow_versions.id, NOT NULL, pinned
     revision: int                         # bumped on every config write
     filter: list[RecordFilter]             # #1782's own shape, reused verbatim
-    input_mapping: dict[str, str]          # core.input field -> record column id
+    input_mapping: dict[str, str]          # payload key -> record column id or system-field token (@author)
     execution_principal_user_id: UUID      # FK users.id, NOT NULL — see below
     is_active: bool
     activated_at: datetime                  # the watermark — see subscription boundary
@@ -94,9 +94,9 @@ record's `create` history row, not the outbox payload.** Round 1 of this
 review checked #1782's real `add_outbox` call and found the outbox
 `payload` carries only `{table_id, record_id, external_id, schema_version,
 revision}` — no cell values, no `author_user_id` — so a filter naming an
-actual column, or an `input_mapping` naming `author_user_id`, cannot be
-evaluated from the outbox row alone as an earlier draft of this document
-assumed. The consumer instead loads
+actual column, or an `input_mapping` whose `@author` token resolves the
+creating user, cannot be evaluated from the outbox row alone as an earlier
+draft of this document assumed. The consumer instead loads
 `VirtualTableRecordHistory` by `(record_id, revision)` from the outbox
 payload's own fields, `operation = "create"`: its `after` column holds the
 exact merged values `add_history` wrote at creation, and its
@@ -110,30 +110,46 @@ validated at save time against the table's live schema, exactly as
 `RecordQuery.filters` already is, and stays column-id-keyed so a rename
 doesn't orphan it. All filters hold (AND), matching `RecordQuery`.
 
-**Input mapping** is `{payload key: record column id}` — round 3 of this
-review corrected this once #1789 settled `core.input.output_schema` as the
-fixed `WorkflowInputPayload{payload: dict[str, Any], triggered_by: str}`,
-with no per-workflow typed field list to bind into (#1792 needed the same
-correction). Admission builds `payload` from the mapping — `{key:
-record_values[column_id] for key, column_id in input_mapping.items()}` —
-validated at save time only against the table's current schema (every
-`column_id` names a live column), never against a target `input_schema`
-that does not exist at this boundary. `triggered_by = "table_created"`.
-A workflow that needs a typed field out of `payload` reads it with a
-`data.map` node just past `core.input`, the same as #1792's channel
-adapters.
+**Input mapping** is `{payload key: source}`, where each `source` is either
+a live record column id or one of a small fixed set of reserved
+system-field tokens — `@author`, resolving to the creation history row's
+`actor_user_id`, is the only one this trigger needs. A record's system
+fields are not table columns, so the author cannot be reached as a column
+id at all; the token is what makes it mappable, and without it the earlier
+promise that a mapping can name the author would be unimplementable. Round
+3 of this review corrected the shape once #1789 settled
+`core.input.output_schema` as the fixed `WorkflowInputPayload{payload:
+dict[str, Any], triggered_by: str}`, with no per-workflow typed field list
+to bind into (#1792 needed the same correction). Admission builds `payload`
+from the mapping — a column-id source reads `record_values[column_id]`, a
+system-field token reads the matching field off the already-loaded `create`
+history row (`@author → actor_user_id`) — validated at save time only
+against the table's current schema (every column-id source names a live
+column, every token is a known system field), never against a target
+`input_schema` that does not exist at this boundary. `triggered_by =
+"table_created"`. A workflow that needs a typed field out of `payload` reads
+it with a `data.map` node just past `core.input`, the same as #1792's
+channel adapters.
 
-**The execution principal is the trigger's own configured principal, pinned
-at activation — never the record's author, never derived from record data.**
-The issue's scope line is explicit that "the record author is the initiator"
-but "record content cannot choose the execution principal." Concretely:
-`execution_principal_user_id` is set by the trigger's *configuring* user
-(defaulting to themselves, like #1792's exposures), checked for table and
-workflow-run authority at that moment, and used unchanged for every event
-until the trigger is edited. The record's `author_user_id` travels only as
-ordinary input data if the mapping names it — data the workflow can read,
-never an identity it runs as. This is #1792's "never read `run_as` from the
-caller's payload" rule, with "payload" read as "the record's own columns."
+**The execution principal is the *configuring* user themselves, pinned at
+activation — never a third party the configurer names, never the record's
+author, never derived from record data.** The issue's scope line is explicit
+that "the record author is the initiator" but "record content cannot choose
+the execution principal." Concretely: `execution_principal_user_id` is set
+to the configuring user's own id and cannot be pointed at anyone else. A
+free choice of principal would let a mere table viewer, knowing an
+administrator's member id, stand up an automation that runs as that
+administrator — an escalation activation's access check cannot catch, because
+proving the *named* principal is powerful enough is not the same as
+authorizing the *configurer* to act as them. So the principal is forced to
+self, exactly #1792's exposures, whose stored principal is the creator
+(`AgentTrigger.created_by_user_id`'s rationale), not an outside id. The
+configurer therefore can only cause runs with authority they already hold
+themselves. It stays that id unchanged for every event until the trigger is
+edited. The record's `author_user_id` travels only as ordinary input data if
+the mapping's `@author` token names it — data the workflow can read, never an
+identity it runs as. This is #1792's "never read `run_as` from the caller's
+payload" rule, with "payload" read as "the record's own columns."
 
 ## Atomic admission
 
@@ -147,10 +163,11 @@ class TableTriggerAdmission(Base):
     id: UUID
     organization_id: UUID
     trigger_id: UUID                # FK virtual_table_triggers.id
-    outbox_event_id: UUID           # FK virtual_table_outbox.id
+    outbox_event_id: UUID | None    # FK virtual_table_outbox.id ON DELETE SET NULL — see retention below
     trigger_revision: int           # pinned at this admission — see below
     workflow_run_id: UUID | None    # NULL when filtered/blocked, not a run
     status: AdmissionStatus         # see below
+    reason: AdmissionReason | None  # coarse code, NULL for QUEUED — pinned with the decision
     created_at: datetime
 
     __table_args__ = (
@@ -166,8 +183,30 @@ not `trigger_dedupe.py`'s cheaper TTL cache. A retry after a crash re-evaluates
 the row and hits the unique constraint if a prior attempt already committed;
 the violation *is* "already admitted," read back rather than raced against.
 
+**The admission outlives its outbox row.** `outbox_event_id` is `ON DELETE
+SET NULL`, not the default restrictive FK: #1828's 30-day sweep deletes
+delivered outbox rows, so a restrictive FK would start failing the sweep the
+moment an admitted row aged out, while a cascade would erase the very
+trigger history this table exists to keep. Nulling the reference on sweep
+keeps the admission (its `status`, `reason`, `trigger_revision` and
+`workflow_run_id`) and costs only the back-link to a row already gone. The
+`(trigger_id, outbox_event_id)` dedup constraint still guards every live,
+un-swept row — a row is admitted well inside 30 days, long before the sweep
+can null anything — and Postgres does not treat two `NULL` back-links as a
+collision.
+
+**Each trigger's admission transaction reloads and locks its
+`VirtualTableTrigger` row (`FOR UPDATE`) before deciding anything, and
+re-checks `is_active` there.** The consumer's up-front active-trigger
+snapshot (§ consumption mechanism) is only a work list; the authority is the
+locked row read inside the transaction. If `is_active` is now false — an
+operator disabled the trigger after that snapshot but before this
+transaction began — the admission is skipped with no row and no run, so
+"disabling stops new admissions" holds immediately rather than only for
+events claimed after the disable commits.
+
 **Both the trigger's own revision and the workflow version are pinned at
-admission**, read off `VirtualTableTrigger` inside the same transaction:
+admission**, read off that same locked `VirtualTableTrigger` row:
 `WorkflowRun.workflow_version_id` is copied from the trigger's stored value
 (never re-resolved against the workflow's current published version), and the
 admission carries the trigger's `revision` at that moment, into
@@ -178,6 +217,21 @@ filter, mapping or principal actually produced a given status). Editing the
 trigger afterward bumps `revision` but never touches an admission or run
 already committed — the forward-only discipline #1786's `draft_revision` and
 #1792's pinned `workflow_version_id` already hold.
+
+**The integer is a pointer; it needs something immutable to point at.**
+`VirtualTableTrigger` is one mutable row, so the number alone cannot recover
+which `filter`, `input_mapping` or principal a past decision used once the
+row has been edited. Every config write therefore inserts a
+`virtual_table_trigger_revisions` row — `UniqueConstraint(trigger_id,
+revision)`, carrying that revision's `filter`, `input_mapping`,
+`execution_principal_user_id` and `workflow_version_id`, never updated after
+insert — in the same transaction that bumps `VirtualTableTrigger.revision`.
+An admission's `(trigger_id, trigger_revision)` resolves to that frozen
+snapshot, so even a `FILTERED` or `BLOCKED` admission with no `WorkflowRun`
+to inspect can still show the exact configuration that produced its `status`
+and `reason` after the live trigger has since changed. The mutable row stays
+the current-config working copy; the snapshot rows are the durable audit the
+run's own pinned `workflow_version_id` already gives execution.
 
 ## The transactional subscription boundary
 
@@ -256,7 +310,26 @@ class AdmissionStatus(enum.StrEnum):
     FILTERED = "filtered"  # RecordFilter did not match, or predates activation
     BLOCKED = "blocked"    # cycle (visited-trigger) or depth/quota ceiling
     FAILED = "failed"      # admission itself errored (e.g. permission recheck)
+
+
+class AdmissionReason(enum.StrEnum):
+    FILTER_MISMATCH = "filter_mismatch"     # RecordFilter did not match
+    PRE_ACTIVATION = "pre_activation"       # created_at < activated_at
+    CYCLE = "cycle"                          # trigger.id already in visited set
+    DEPTH_LIMIT = "depth_limit"             # depth past the ceiling
+    QUOTA = "quota"                          # per-root/org quota exceeded
+    PERMISSION_DENIED = "permission_denied" # execution recheck failed
 ```
+
+**The status alone cannot be un-collapsed after the fact.** One `FILTERED`
+row is a filter miss *or* a pre-activation event; one `BLOCKED` row is a
+cycle *or* a depth *or* a quota refusal — and once the trigger is edited or
+a principal's access changes, the deciding condition can no longer be
+recomputed from `status`. So each admission persists its `reason:
+AdmissionReason` beside `status`, written in the same transaction that makes
+the decision (`NULL` only for `QUEUED`), a fixed safe code and never any
+record data. The history view reads this column directly rather than
+re-deriving it.
 
 Every row carries one of these, exposed on a **trigger's own history view** —
 `GET .../triggers/{trigger_id}/admissions`, gated by `Perm.TABLES_VIEW` and
@@ -270,15 +343,15 @@ surface the issue's "blocked, filtered, queued and failed events" and
 
 **At activation** (creating or re-enabling a trigger): `resolve_access` for
 the configuring user against the table (`Perm.TABLES_VIEW`, the authority to
-manage the trigger at all), *and*, separately, the two checks execution will
-actually require — the **stored execution principal** against the workflow
-(`Perm.WORKFLOWS_RUN`) *and* the same stored principal against the table
-(`Perm.TABLES_VIEW`) — run before the row is written or `is_active` flips
-true. Checking only the configuring user's table access was the earlier
-draft's gap (round 3 of this review): a configuring user with table access
-can name a different execution principal who can run the workflow but
-cannot view the table, and activation would have accepted it, producing a
-trigger that deterministically `FAILED` every future event with nothing at
+manage the trigger at all) *and*, separately, the two checks execution will
+actually require — that same user (who *is* the pinned principal, § execution
+principal) against the workflow (`Perm.WORKFLOWS_RUN`) *and* against the
+table (`Perm.TABLES_VIEW`) — run before the row is written or `is_active`
+flips true. Checking only the configuring user's table access was the earlier
+draft's gap (round 3 of this review): table-management authority does not by
+itself imply the `WORKFLOWS_RUN` authority the run needs, so a configurer
+with table access but no run authority would otherwise activate a trigger
+that deterministically `FAILED` every future event with nothing at
 activation time to say why.
 
 **At execution**, before each admission commits, the same `WORKFLOWS_RUN`
@@ -307,7 +380,7 @@ own event stream, never a field bolted onto the record write's response.
 ## Module layout
 
 ```
-app/db/models/virtual_table_trigger.py    # VirtualTableTrigger, TableTriggerAdmission, AdmissionStatus
+app/db/models/virtual_table_trigger.py    # VirtualTableTrigger, VirtualTableTriggerRevision, TableTriggerAdmission, AdmissionStatus, AdmissionReason
 app/repositories, app/schemas/virtual_table_trigger.py
 app/services/table_trigger/
   facade.py                                # create/update/activate/deactivate trigger, list admissions
@@ -317,7 +390,8 @@ app/api/routes/v1/virtual_table_triggers.py
 app/worker/tasks/table_trigger_tasks.py     # workflow-dispatch-table-trigger deployment
 ```
 
-New tables: `virtual_table_triggers`, `table_trigger_admissions`, org-scoped,
+New tables: `virtual_table_triggers`, `virtual_table_trigger_revisions`,
+`table_trigger_admissions`, org-scoped,
 FK to `virtual_tables`/`workflows`/`workflow_versions`. Migration stacks
 above whatever #1786/#1788/#1792 land as, and above #1828's
 `0093_virtual_table_sweep_indexes` on #1782's branch; verify `alembic heads`

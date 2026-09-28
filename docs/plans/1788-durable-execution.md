@@ -64,6 +64,7 @@ WorkflowRun
   draft_graph_snapshot: jsonb | None             # set only when workflow_version_id is NULL
   status: RunStatus (below)
   triggered_by: {api, websocket, webhook, chat, schedule, table_created}
+  input_payload: jsonb                        # the admitted WorkflowInputPayload.payload; immutable, see below
   execution_principal_user_id: uuid           # pinned at admission; see below
   budget_limit, spent_cost, cost_is_partial   # budget_limit copied from WorkflowVersion.budget_limit at start
   deadline_at: datetime | None
@@ -115,6 +116,20 @@ transactional outbox — a row is created in the **same transaction** that
 records the `NodeResult` which made the next node runnable, so "the result
 is durable" and "the next step is scheduled" can never disagree.
 
+`WorkflowRun.input_payload` holds the immutable `WorkflowInputPayload.payload`
+the admitting adapter supplied (#1785/#1792), written in the same transaction
+that inserts the run — its `triggered_by` companion is the column already
+above. `core.input`'s handler is identity (#1789): it rebuilds
+`Completed(WorkflowInputPayload)` from these two columns, not from a live
+request, so an asynchronous or restarted run — where the admitting request
+(a webhook answered `202`, a schedule tick) is already gone — reconstructs the
+entry payload from the row on disk. Without this column the dispatcher would
+have nowhere to read the payload from after a crash before `core.input`
+settles, and #1792's AC1 round-trip could not hold across that crash. Large
+uploads still arrive as `FileRef`s in the payload and are resolved through
+`ResourceRef` at start, so `input_payload` stays the small trigger envelope,
+not the file bytes.
+
 `WorkflowRun.execution_principal_user_id` was missing from the first draft
 (round 2 of this review): #1784 already assumes a node handler builds its
 `AuthContext` from "the workflow's own owning principal," and #1785/#1792
@@ -134,8 +149,10 @@ this table had nowhere durable to hold an unpublished graph, and a real
 `WorkflowVersion` row can only ever be published — inventing an
 unpublished one would break the immutable-once-created discipline
 `create_version` exists to guarantee). Exactly one of the pair is set: a
-CHECK constraint enforces it, mirroring how `WorkflowRun` already treats
-`root_run_id`/`causation_run_id` as one XOR-shaped pair. `mode: {real,
+CHECK constraint enforces it. (The causation columns below are deliberately
+*not* this shape — `root_run_id` is set on every run and `causation_run_id`
+is null only for roots, so an XOR check there would reject every child run.)
+`mode: {real,
 test}` on the row records which; a test run's dispatcher reads its graph
 from `draft_graph_snapshot` instead of resolving `workflow_version_id`, and
 everything downstream — `NodeRun`, `NodeAttempt`, the event stream #1787's
@@ -152,7 +169,11 @@ by a trigger (or, later, any node that can itself cause a new run) copies
 its originator's `root_run_id`, sets `causation_run_id` to the originating
 run's id, appends to `visited_trigger_ids`, and increments `depth` by one —
 all in the same admission transaction #1785 already needs for its own
-dedup insert, so this costs that transaction nothing extra.
+dedup insert, so this costs that transaction nothing extra. So `root_run_id`
+is `NOT NULL` on every run and `causation_run_id` is null on exactly the
+roots — a causally admitted child sets both, and the only enforced rule is
+`causation_run_id IS NULL` iff `root_run_id = id`, never an exactly-one-set
+XOR across the two.
 
 ## Prefect: a flow per dispatch tick, not a flow per run
 

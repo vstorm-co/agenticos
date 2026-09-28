@@ -68,7 +68,18 @@ class WorkflowFile(Base, TimestampMixin):
 
 **Bind-time (Pass 0, mirroring `TableIORef`'s rule):** a literal `FileRef` in
 a `config` must resolve to a `WorkflowFile` row whose `organization_id`
-matches `ctx`'s, else `GraphValidationError`. Most `FileRef`s are not
+matches `ctx`'s **and whose producing `workflow_run_id` the binding principal
+can reach** — a run `resolve_access` grants them — else `GraphValidationError`.
+Org equality alone is not enough at bind time for the same reason it is not
+enough at the handler (round 4 of this review): every `WorkflowFile` is
+run-scoped, there is no org-level file to name, so a literal always points at
+some past run's output — admitting one on org match would let a publisher who
+learns another run's `file_id` launder an unreachable file into this run's
+`ResourceRef` imports and sail through the handler's own-run-or-imported check
+below, which is only as strong as what may become an import in the first
+place. The same producing-run authorization is re-checked at admission, when
+the resolved literal is written as a `ResourceRef`, so access revoked between
+publish and run does not import stale. Most `FileRef`s are not
 literals — a `FileRef` `http.download`/`file.write`/`image.transform`/a
 conversion node produces is a `NodeOutputRef` resolved only at dispatch, so
 real enforcement is a repository lookup every handler makes first, checking
@@ -134,9 +145,17 @@ happens only after the sniff passes.
 streamed from storage via `BaseFileStorage.open_stream` directly into the
 request body, never buffered whole.
 
-**`retry_guarantee`** mirrors #1789: `http.download` is always `GET` →
-`"idempotent"`. `http.upload` is `"idempotent"` only with
-`idempotency_key_header` set (from the `NodeAttempt`'s own stable key);
+**`retry_guarantee`** mirrors #1789's read/write split, corrected for
+row-minting exactly as `file.write` below is: even though `http.download` is
+always a `GET` and the *remote* fetch is repeatable, the handler also saves
+bytes and mints a fresh `WorkflowFile` row per attempt, so #1788's
+reconciler auto-retrying it as `"idempotent"` would leave two stored objects
+and two rows for one logical download — it is `"at_least_once"`, not
+`"idempotent"`, the same distinction round 1 caught for `file.write`. Its
+GET-ness makes the *retry* safe, not exactly-once; a caller downstream must
+not assume one row per download. `http.upload` mints no local file and is
+`"idempotent"` only with `idempotency_key_header` set (from the
+`NodeAttempt`'s own stable key), so the far side dedupes the write;
 otherwise `"at_least_once"`. `Uncertain` reuses #1789's one trigger: a
 post-send timeout on a non-idempotent upload is
 `Uncertain(detail="request sent; no response received")`.
@@ -146,6 +165,7 @@ post-send timeout on a non-idempotent upload is
 ```python
 class FileReadConfig(BaseModel):
     parse_as: Literal["text", "json", "csv"] = "text"
+    max_bytes: int = Field(default=10_000_000, le=25_000_000)
 
 class FileReadOutput(BaseModel):
     text: str | None = None
@@ -160,7 +180,14 @@ class FileWriteConfig(BaseModel):
 Only the field matching `parse_as`/`format` is populated; a decode failure
 (bad UTF-8, malformed JSON, a ragged CSV) is
 `Failed(code="file_parse_failed", details={"parse_as"})`, never a truncated
-best-effort value. `retry_guarantee` splits by direction: `file.read` is
+best-effort value. `file.read` materializes its whole result inline into
+`NodeAttempt.result` JSONB, so it is bounded before it reads: a
+`WorkflowFile` whose `byte_size` exceeds `max_bytes` — an `http.download` can
+mint one up to 200 MB — is `Failed(code="file_too_large",
+details={"byte_size", "max_bytes"})` before any parse, so one node cannot
+pull a 200 MB file into worker memory and then into an oversized database
+row. A result that must exceed this bound belongs behind a `FileRef`
+(`text.extract`, a conversion node), never inlined. `retry_guarantee` splits by direction: `file.read` is
 `"idempotent"` — reading has no side effect to duplicate. `file.write` is
 `"at_least_once"`, not `"idempotent"` (round 1 of this review caught the
 first draft claiming `idempotent` while its own text said a retry mints a
@@ -247,8 +274,13 @@ the requested output**, not only the source (round 3 of this review: a
 small, valid source image with an enormous `resize.width`/`resize.height`
 passed the source-side check and then exhausted memory allocating the
 *output* canvas — the cap on decoded pixels said nothing about produced
-ones): compute `resize.width * resize.height` from config before calling
-`.resize()`, refused the same way if it exceeds the limit. Metadata (EXIF,
+ones): compute the requested output area from config before allocating it —
+`resize.width * resize.height` before `.resize()`, and `crop`'s own box
+width × height before `.crop()`, since Pillow's `.crop()` allocates a canvas
+the size of the box even when it extends past the source, so a tiny valid
+image with an enormous crop rectangle allocates an unbounded output the
+source-side check never saw — refused the same way if either exceeds the
+limit. Metadata (EXIF,
 ICC) is dropped by never forwarding `image.info` into the write call. `retry_guarantee=
 "at_least_once"`, not `"idempotent"` — the transform itself is
 deterministic over already-fetched bytes, but its output is a fresh
@@ -293,8 +325,7 @@ token is ever staged into it; the session carries only `args` and input
 class PythonSandboxConfig(BaseModel):
     code: str
     timeout_seconds: float = Field(default=120.0, le=1800.0)
-    max_memory_mb: int = Field(default=1024, le=2048)
-    max_disk_mb: int = Field(default=512, le=2048)
+    max_disk_mb: int = Field(default=512, le=2048)   # detection, not enforcement — see Limits
 
 class PythonSandboxOutput(BaseModel):
     result: dict[str, Any] | None
@@ -314,12 +345,20 @@ The shape that already exists and needs no change to #1786/#1788/#1790 is
 `Waiting(reason="retry_backoff")` — the mechanism a retryable `Failed`
 already schedules a future dispatch through. Each dispatch derives a session
 key from the same string #1788/#1790 mint as `NodeAttempt.idempotency_key`;
-**reconnects** if a session for that key exists, checking a completion
-marker the launch step wrote; **only if none exists**, stages inputs and
-launches the script backgrounded (`nohup ... & echo $! > job.pid; disown`,
-so the launching `execute` call returns quickly rather than blocking for the
-job's whole run — `SANDBOXD_EXECUTE_TIMEOUT`, 300 s, bounds one call, not the
-job). No marker yet → `Waiting(reason="retry_backoff",
+**reconnects** only if a session for that key exists *and* its launch
+actually ran — proven by the `job.pid` the launch step writes, not by the
+session's bare existence (round 4 of this review: a crash after the session
+is created and inputs staged but before `nohup` runs leaves a session with
+no `job.pid`; treating existence alone as "launched" would poll a job that
+never started, forever, since no completion marker can ever appear) — then
+checks the completion marker the launched job writes; **launches** — staging
+inputs, then backgrounding the script — when no session exists *or* a
+session exists without a `job.pid`, so a half-created session from a crash
+mid-launch is completed rather than stranded (`nohup ... & echo $! >
+job.pid; disown`, so the launching `execute` call returns quickly rather
+than blocking for the job's whole run — `SANDBOXD_EXECUTE_TIMEOUT`, 300 s,
+bounds one call, not the job). A `job.pid` but no completion marker yet →
+`Waiting(reason="retry_backoff",
 resume_token=<NodeRun.id>)`; the next scheduled dispatch repeats the
 check-then-launch step, always a reconnect after the first attempt. This is
 also the answer to reconnecting after a dispatcher crash: a reconciler retry
@@ -334,7 +373,12 @@ wall clock across every backoff cycle, checked against the first
 rather than leaving it for the idle reaper. CPU (2 cores), process count
 (512) and `/tmp` (64 MiB) are `sandboxd`'s own per-sandbox ceilings,
 inherited as-is; memory is the catalogue entry's `mem_limit`, one setting
-per profile like every other runtime. **Disk has no existing per-session
+per profile like every other runtime — deliberately **not** a per-node config
+field (round 4 of this review removed a `max_memory_mb` on
+`PythonSandboxConfig` that promised isolation the runtime never applied: the
+profile ceiling is what `sandboxd` enforces, and honouring a lower
+per-instance number would need a distinct runtime profile per value, which
+this design does not mint). **Disk has no existing per-session
 quota in `sandboxd`**, and this issue's `max_disk_mb` check does not add
 one — it is detection, not prevention (round 3 of this review: summing
 workspace size after the script exits can only refuse the *output*,
@@ -399,8 +443,12 @@ scanned PDF refused naming its pages, never emptied; a corrupt DOCX and an
 encrypted PDF each their own typed code; `code.python.sandbox` killed after
 launch but before the first `Waiting` persists — restart must reconnect, not
 launch a second session, asserted by one session existing for the
-deterministic key; a timeout test closing the session; a cross-organization
-`FileRef` (bound literal and `NodeOutputRef`) refused both ways. The
+deterministic key; and, separately, killed after the session is created and
+inputs staged but before `nohup` writes `job.pid` — restart must finish the
+launch on that same session, not wait on a job that never started; a timeout test closing the session; a cross-organization
+`FileRef` (bound literal and `NodeOutputRef`) refused both ways, and a
+literal `FileRef` naming a same-organization run the publisher cannot reach
+refused at bind with `GraphValidationError`. The
 milestone's worked example — file → foreach → extract/transform → agent →
 Python → upsert → report — is built as one fixture graph exercising every
 node above inside a `control.foreach` body, reused by #1793.

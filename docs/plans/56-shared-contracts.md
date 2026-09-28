@@ -47,8 +47,14 @@ follows, so implementation isn't blocked on further discussion:
    exist at this tier regardless.
 2. **`TableIORef` is a real reference into #1782's model** — a table id plus
    a list of column ids (or `None` for "all live columns"), validated at
-   bind time against the table's *current* schema version the way a graph's
-   other typed bindings are, not a generic placeholder.
+   bind time the way a graph's other typed bindings are, not a generic
+   placeholder. For an explicit `column_ids` set the check is column-scoped:
+   each named column must still be live with an unchanged type, so a schema
+   change that touches only *unbound* columns does not invalidate the
+   binding (this is what lets #1793 archive an unbound column without
+   breaking published versions); `None` pins the whole current schema
+   version. #1788 re-resolves every `TableIORef` against the pinned
+   published version at run start. #1786 owns the exact rule.
 3. **`expected_revision` is reused, not reinvented.** Same field name, same
    conflict/required error shape as #1782's `RevisionConflictError` /
    `RevisionRequiredError`, applied to `Workflow` draft writes. Same
@@ -141,7 +147,7 @@ class NodeDefinition:
     config_schema: type[BaseModel] | None
     input_schema: type[BaseModel] | None
     output_schema: type[BaseModel] | None
-    ports: tuple[Port, ...]
+    ports: tuple[Port, ...]        # a control node may extend these from its instance config — see below
     effect_kind: Literal["pure", "read", "write"]
     retry_guarantee: Literal["none", "idempotent", "at_least_once"]
     scopes: frozenset[str] = frozenset()      # the same scope catalog capabilities use
@@ -152,6 +158,13 @@ class NodeDefinition:
 `app/agents/capabilities/_registry.py`'s shape exactly, including its
 duplicate-id guard.
 
+`ports` is the static tuple every node declares. A `control`-kind node may
+additionally opt into deriving output ports from its instance `config` — the
+`error.handle` node (#1790) mints one branch port per configured branch.
+Where a node does, the catalog, #1787's editor and the edge validator read
+its *effective* ports (the static tuple plus any config-derived ones), not
+the raw tuple. An action node's ports are always exactly its static tuple.
+
 ## Graph validation
 
 One pure function per rule in the issue, composed by `validate_graph()`,
@@ -160,7 +173,10 @@ together (the `agent_registry.py` convention), refusing publication rather
 than failing at run:
 
 exactly-one-input · reachable-outputs (forward reachability from input) ·
-type-compatibility (a static schema-shape check per edge) · branch-local
+type-compatibility (a static schema-shape check per *binding*, resolving each
+binding source's terminal type — including a `NodeOutputRef.field_path` into a
+nested output — against the target field; control-flow edge ports are checked
+only to exist) · branch-local
 data availability (a binding may only reference a node reachable on *every*
 path to it — a dominator check) · exclusive-merge (a `logic.merge`'s inputs
 must come from one `logic.if`'s mutually exclusive branches, checked

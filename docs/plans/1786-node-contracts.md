@@ -128,7 +128,7 @@ class TableIORef(BaseModel):
     kind: Literal["table"] = "table"
     table_id: UUID
     column_ids: tuple[UUID, ...] | None = None   # None = all live columns
-    schema_version: int = Field(ge=1)             # the version this binding was checked against
+    schema_version: int = Field(ge=1)             # version the bound columns' types were checked against; explicit column_ids validate those columns, not global version equality
 ```
 
 Two more `kind`-discriminated variants complete `BindingSource`:
@@ -148,10 +148,21 @@ target_field: str, source: BindingSource}` is what a `NodeInstance.config`
 field actually resolves to — see the graph model below.
 
 A `TableIORef` is validated at bind time, inside `validate_graph`'s
-resource-resolution pass, not merely at parse time: the service loads the
+resource-resolution pass, not merely at parse time, and — because #1788
+re-resolves every `TableIORef` at run start (its `ResourceRef` load) against an
+immutable published version — again on every run: the service loads the
 `VirtualTable` through `resolve_access(ctx, table, Perm.TABLES_VIEW,
-resource_type=TABLE)`, confirms `schema_version` matches the table's current
-one, and confirms every id in `column_ids` names a live column — reusing
+resource_type=TABLE)`, then validates **column-scoped, not table-wide**, so an
+unrelated schema change cannot invalidate a still-correct binding. For an
+explicit `column_ids` set, every named id must still name a live column whose
+type is unchanged since `schema_version`; the global `schema_version` need
+*not* equal the table's current one, because adding or archiving a column the
+binding never names must not break it — the same column-scoped guarantee
+#1793's dependency checker enforces at archive time (a bound column's archive
+is refused, an *unbound* column archives cleanly), extended so the archive it
+permits does not then fail the published version at its next run. Only
+`column_ids=None` ("all live columns") pins the whole schema and so still
+requires `schema_version` to match the table's current one. Either way, reuse
 `app/services/virtual_tables/types.py`'s lookups rather than a second copy.
 
 ## Graph model
@@ -258,7 +269,7 @@ every `TableIORef` binding must resolve and stay live, as above; every
 |---|---|---|
 | 1 | Exactly one input | `entry_node_id` must name a node with in-degree 0. Refused if missing or if any edge targets it. |
 | 2 | Reachable outputs | BFS/DFS forward from `entry_node_id`, treating each scope body as one opaque node reached only via its `entry_port`/`exit_port`. **Every top-level node must be visited, not only sinks** (fixed in round 1 of this review: checking only sinks lets a second, unreachable zero-in-degree source — or an unreachable island connected only to itself — pass both rule 1 and the old rule 2 undetected, since rule 1 only proves the *named* entry has in-degree 0, not that it is the *only* one). Any node the forward walk does not reach is named in the refusal, sinks and non-sinks alike. |
-| 3 | Type compatibility | Per edge, compare the source port's `output_schema` field descriptor against the target port's `input_schema` descriptor — a shallow structural comparison (base type, and for `FileRef`/`TableIORef`/nested models, the model name) from `model_fields`, not full unification. |
+| 3 | Type compatibility | Per **binding**, not per edge: edges are control flow and carry no payload, so a `str`→`str` control edge can still hide an incompatible data binding riding beside it — Journey 2's `sources`→`prompt` negative case, where both variants share the same `A`→`B` edge and differ only in the binding's `field_path`, is undetectable by an edge-only check. For each `Binding`, resolve its `source`'s type — a `NodeOutputRef`'s `field_path` terminal type walked through the source `output_schema`'s nested `model_fields` (empty path = the whole port payload), a `LiteralValue` typed by the target field, a `TableIORef`/`FileRef` by model name — and compare it against the `target_field`'s descriptor on the target node's `input_schema`: a shallow structural comparison (base type, and for `FileRef`/`TableIORef`/nested models, the model name), not full unification. Control-flow edge ports are checked separately, for port existence only; topology is rules 1/2/6/8's job. |
 | 4 | Branch-local data availability | Dominator check. Process nodes in topological order (rule 7 runs first); `Dom(entry)={entry}`; `Dom(n)={n} ∪ ⋂ Dom(p)` over predecessors `p`. A binding to `NodeOutputRef(node_id=M)` on node `N` is refused unless `M ∈ Dom(N)`. |
 | 5 | Exclusive merge | For `logic.merge` with predecessors `A1..Ak`, compute their nearest common dominator `F` from rule 4's tree. Refused unless `F.definition_id == "logic.if"` and each `Ai` is dominated by a distinct immediate child of `F` — one branch port each, never both. |
 | 6 | Nested scope boundaries | Node→scope map from `graph.scopes`. Any edge/binding crossing scopes is refused unless it is one of the two boundary edges a `ScopeBoundary` declares. |
@@ -317,12 +328,19 @@ refusal, a resource/revision oracle). Only then, load the row
 and increment `draft_revision`. `#1787`'s autosave reads `current_revision`
 off the 409 and retries with it.
 
-**Publish** (`POST .../{id}/publish`) is also `expected_revision`-gated, so a
-publish racing a draft edit cannot promote a stale draft: same revision
-check, then `validate_graph(WorkflowGraph.model_validate(draft_graph), ctx)`
-(raises `GraphValidationError`, 422, on any Pass 0/1 rule), then
-`workflow_repo.create_version(...)` at `current_version + 1`, flipping
-`status` to `PUBLISHED`. `repositories/workflow.py` exposes `create_version`
+**Publish** (`POST .../{id}/publish`, body `{expected_revision, budget_limit}`)
+is also `expected_revision`-gated, so a publish racing a draft edit cannot
+promote a stale draft: same revision check, then
+`validate_graph(WorkflowGraph.model_validate(draft_graph), ctx)` (raises
+`GraphValidationError`, 422, on any Pass 0/1 rule), then
+`workflow_repo.create_version(..., budget_limit=budget_limit)` at
+`current_version + 1`, flipping `status` to `PUBLISHED`. `budget_limit:
+Decimal | None` is the caller's explicit per-publish input — `None` sets no
+workflow-level cap — copied verbatim onto the new `WorkflowVersion`. It lives
+only on the immutable version, never on the mutable draft (`draft_graph` +
+`draft_revision` are all the draft holds), so republishing with a new value is
+the only way to raise or lower the cap (#1793's workflow-level-budget fixture) —
+which is what makes it pinned per version rather than editable in place. `repositories/workflow.py` exposes `create_version`
 and reads only — no `update_version` — which is what makes "published
 definitions remain unchanged after draft edits" structural, not a convention
 to remember.

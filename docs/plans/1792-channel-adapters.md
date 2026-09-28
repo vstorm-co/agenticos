@@ -138,10 +138,16 @@ commits, never waiting on the handler.
 **Schedule reuses `AgentTrigger`'s clock, not `DispatchOutbox`'s lease.**
 Structurally `run_scheduled_trigger_flow`'s heartbeat: a Prefect deployment
 claims exposures whose `next_fire_at <= now()` with the usual `SKIP LOCKED`
-claim, advances `next_fire_at` in the same transaction, and calls the shared
-admission function every adapter calls, with a default payload from `config`
-(a clock has no caller-supplied one) — an internal claimed-tick identity,
-where a webhook's is an external delivery id.
+claim, then advances `next_fire_at` **and** runs the shared admission
+function — inserting the `WorkflowRun` and its first `DispatchOutbox` row — in
+that one claim transaction, so the clock advance and the run's existence
+commit together or not at all. This is the webhook rule applied to a clock: a
+worker that dies before the commit leaves `next_fire_at` unadvanced, so the
+next heartbeat re-claims the identical tick and no execution is lost; one that
+dies after has a durable run #1788's poller drives forward. The advanced
+`next_fire_at` (not a Redis `SET NX`) is the tick's durable identity, where a
+webhook's is an external delivery id, with a default payload from `config`
+(a clock has no caller-supplied one).
 
 **`/chat` is session-bound; WebSocket is the transport under it.** Each
 authenticated turn maps through a `ChannelSession`-shaped identity (not the
@@ -263,8 +269,14 @@ becomes the same `202`/`run_id` response as the first.
 **AC3 — one final response across approval and reconnect.** Start a run over
 WebSocket, disconnect before an approval-gated node resumes, decide the
 approval while disconnected, reconnect with the last cursor; assert the
-reconnect replays exactly the missed events plus the terminal one, with no
-second dispatch of the approved node (`NodeAttempt.attempt_no` stays 1).
+reconnect replays exactly the missed events plus the terminal one, and that
+the approval produced exactly one resume dispatch — the single fresh
+`NodeAttempt` #1788 creates on resume (`attempt_no` 2, after the initial
+`Waiting` attempt), never a second dispatch for that resume and never a
+duplicate for any `attempt_no`. Asserting `attempt_no` stays 1 would
+contradict #1788's dispatch sequence, where the resume outbox row is claimed
+by `workflow-dispatch-node` and records a new `in_flight` attempt before
+calling `resume`.
 
 **AC4 — unauthorized channel, forged principal, changed recipient rejected.**
 No `WORKFLOWS_RUN` grant refuses before any run exists; a `run_as` body field

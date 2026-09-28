@@ -142,12 +142,19 @@ permission and budget behavior is what these criteria check.
 ### Journey 1 — `/chat` → `knowledge.search` → `agent.run` → answer
 
 Exercises #1786 (`WorkflowInputPayload`/`WorkflowOutputPayload`), #1788 (the
-dispatcher advancing three nodes, event streaming with cursors), #1789
-(`knowledge.search` against a seeded pgvector collection, `agent.run` pinned
-to a published version), #1792's `/chat` adapter (session-bound admission,
-reply on the same connection). Graph: `core.input → knowledge.search →
-agent.run → core.output`; a dashboard user asks a question a seeded
-collection answers.
+dispatcher advancing the chain node by node, event streaming with cursors),
+#1789 (`knowledge.search` against a seeded pgvector collection, `agent.run`
+pinned to a published version, and the two `data.map` nodes #1789 requires
+between the untyped trigger payload and the typed node inputs), #1792's
+`/chat` adapter (session-bound admission, reply on the same connection).
+Graph: `core.input → data.map(question) → knowledge.search →
+data.map(prompt) → agent.run → core.output` — `core.input` emits
+`WorkflowInputPayload.payload` (`dict[str, Any]`), so the first `data.map`
+coerces the question out of it into `knowledge.search`'s `query` (`str`) and
+the second builds `agent.run`'s `prompt` (`str`) from that question and
+`knowledge.search`'s `SourceRef`s (both dominate it on the linear chain, rule
+4), the boundary coercions #1789 says the untyped payload needs; a dashboard
+user asks a question a seeded collection answers.
 
 Assertions beyond "a response appeared": `WorkflowRun.workflow_version_id` is
 the version pinned at publish, not whatever is currently draft;
@@ -208,9 +215,18 @@ graph read) writes the score back.
 Assertions: exactly one `WorkflowRun`/`TableTriggerAdmission` (`QUEUED`) per
 record under a concurrent-poller race, the loser resolving via the
 `(trigger_id, outbox_event_id)` constraint; the workflow's own
-`table.record.upsert` write does **not** re-fire the trigger
-(`visited_trigger_ids` blocks the re-entry, asserted against the admission
-history, not inferred from record state); the create API's `201` response
+`table.record.upsert` write-back — an upsert-as-update against the lead's
+existing `external_id` — emits **no** `record.created` outbox row (per
+#1782/#1785's AC2, only an insert does), so it cannot re-fire the trigger,
+asserted by the absence of any second outbox row or admission for that write;
+a variant in which the workflow instead **creates** a new record in the same
+`leads` table (which does emit `record.created`) is where `visited_trigger_ids`
+cycle protection is actually exercised — the re-entry is `BLOCKED`, asserted
+as a `BLOCKED` row in the admission history, not inferred from record state
+(round 2 of this review: attributing the write-back's non-re-fire to
+`visited_trigger_ids` was wrong — an update emits no event to block, so
+cycle detection needs a record-creating node to exercise it); the create
+API's `201` response
 never carries a `workflow_run_id` or any hint a trigger fired, per #1792's
 frozen-destination rule #1785 must not special-case; the admission-history
 endpoint shows the `QUEUED` row without leaking the record's own field
@@ -235,11 +251,16 @@ four slots; each upsert's `external_id` is per-file, so **two** distinct
 rows exist (round 1 of this review caught this claiming "four" while the
 same sentence says only the two clean files complete — the two that fail
 never reach the upsert node at all) with zero `REVISION_CONFLICT`s under
-sequential (rule 8) iteration; a kill between iteration 3's `code.python.sandbox`
+sequential (rule 8) iteration; a kill between iteration 2's `code.python.sandbox`
 result persisting and the loop's advance-or-finish commit resumes at
-iteration 4 on restart, re-dispatching neither iteration 3 nor a duplicate
+iteration 3 on restart, re-dispatching neither iteration 2 nor a duplicate
 sandbox session (checked by session count on the deterministic key, not
-final state alone); the sandbox's full log lands as a `WorkflowFile`-backed
+final state alone) — the injected iteration must be one that reaches the
+sandbox, so it is a clean PDF (iterations 1–2 in input order), not the
+scanned PDF or corrupt DOCX (iterations 3–4), which fail at `text.extract`
+and never execute `code.python.sandbox` (round 2 of this review: an earlier
+draft killed iteration 3, a failing file that never reaches the sandbox
+node); the sandbox's full log lands as a `WorkflowFile`-backed
 `FileRef`, never inline — the typed `stdout_tail` must be strictly shorter
 than the persisted log's byte size.
 
