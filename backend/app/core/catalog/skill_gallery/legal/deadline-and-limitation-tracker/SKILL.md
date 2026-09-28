@@ -1,5 +1,5 @@
 ---
-name: Deadline and limitation tracker
+name: deadline-and-limitation-tracker
 description: Compute and monitor the dates a matter turns on, and escalate before they bite.
 category: operations
 ---

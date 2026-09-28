@@ -1,5 +1,5 @@
 ---
-name: Shift handover
+name: shift-handover
 description: Hand over a line so the next shift starts informed rather than discovering.
 category: operations
 ---

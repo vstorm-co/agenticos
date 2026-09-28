@@ -1,5 +1,5 @@
 ---
-name: Pull request review
+name: pull-request-review
 description: Review a diff against the repository's own conventions, in the order a maintainer does.
 category: engineering
 ---

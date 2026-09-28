@@ -1,5 +1,5 @@
 ---
-name: Returns and exchanges
+name: returns-and-exchanges
 description: Decide a return without asking, know what needs a person, and refuse with a next step.
 category: customer-support
 ---

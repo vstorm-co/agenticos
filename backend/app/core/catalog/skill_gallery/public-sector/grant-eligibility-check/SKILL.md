@@ -1,5 +1,5 @@
 ---
-name: Grant eligibility check
+name: grant-eligibility-check
 description: Check an application against published criteria and list what is missing.
 category: operations
 ---

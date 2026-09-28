@@ -1,5 +1,5 @@
 ---
-name: Discharge summary in plain language
+name: discharge-summary-plain-language
 description: Rewrite a discharge summary for the patient without changing a single clinical fact.
 category: content
 ---

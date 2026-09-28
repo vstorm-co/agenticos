@@ -1,5 +1,5 @@
 ---
-name: Complaint stage tracking
+name: complaint-stage-tracking
 description: Track a complaint through its statutory stages and never miss an escalation right.
 category: operations
 ---

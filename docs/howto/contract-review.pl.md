@@ -1,5 +1,5 @@
 ---
-source_sha: "95d57516d759"
+source_sha: "3cc67268b6c7"
 title: "Sprawdź umowę według własnej listy kontrolnej"
 description: "Przypisz agentowi skill do wstępnego przeglądu, załącz krótką syntetyczną umowę o świadczenie usług i sprawdź, czy znajduje oba podłożone problemy i brakującą klauzulę, nie udzielając porad prawnych."
 ---
@@ -57,7 +57,7 @@ Dwa podłożone problemy: klauzula 5 niczego nie ogranicza (nieograniczona odpow
 
 ## Zbuduj agenta { #build-the-agent }
 
-1. W **Skills → Skill gallery** zainstaluj z półki legal `Document review first pass`.
+1. W **Skills → Skill gallery** zainstaluj z półki legal `document-review-first-pass`.
 2. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
 3. W **Toolbox** włącz **Skills** i przypisz właśnie zainstalowany skill.
 4. Wpisz poniższe instrukcje, a potem **Publish**.
@@ -68,7 +68,7 @@ review checklist skill. You do not advise, do not conclude a clause is
 acceptable, and do not redraft. Everything you produce is checked by the
 person who reviews it before it is relied on.
 
-Use the Document review first pass skill for what to extract and how to flag
+Use the document-review-first-pass skill for what to extract and how to flag
 deviations. Cite the clause number for every extracted term and every
 deviation. Flag anything the checklist expects that the agreement does not
 contain.
@@ -99,11 +99,11 @@ Sam przeczytaj odstępstwa obok klauzul źródłowych. Odstępstwo z błędnym n
 
     Model: Claude Sonnet 4.6 przez OpenRouter. Wyciąg określił odpowiedzialność z kl. 5 jako „unlimited” z „no exclusion of indirect/consequential loss”, odnowienie z kl. 7 jako pozbawione „no opt-out/break notice mechanism” i wymienił „Governing law & jurisdiction” jako brakujące zarówno w odstępstwach, jak i w osobnej tabeli braków, obok odszkodowań i zmiany kontroli, czyli pozycji z listy kontrolnej, których ten krótki przykład nigdy nie zawierał. Zakończył stwierdzeniem, że wyciąg „requires verification by the fee earner responsible for this matter before being relied upon”. Koszt: 0,0249 USD.
 
-    Pierwsza próba skończyła się błędem, zanim cokolwiek powstało. Model wywołał `load_capability` ze zgadniętym id `document-review-first-pass` (z myślnikami, jak w nazewnictwie galerii), które nie istnieje. Id przypisanego skilla to jego dokładna zapisana nazwa, „Document review first pass”. Model spróbował drugi raz z inną błędną nazwą, a run zakończył się komunikatem „the agent could not finish this turn”, przy koszcie 0,0083 USD za dwa zgadywania. Nowa próba w nowej rozmowie od razu użyła właściwego id. Praktyczne rozwiązanie to jedna ponowna próba. Jeśli model dalej zgaduje źle, podanie w instrukcjach dokładnej zapisanej nazwy skilla całkowicie usuwa zgadywanie.
+    Run został zapisany na 0.0.508, gdy galeria instalowała ten skill jako „Document review first pass”, a instrukcje nazywały go w ten sam sposób. Pierwsza próba skończyła się błędem, zanim cokolwiek powstało. Model wywołał `load_capability` z id `document-review-first-pass`, które wtedy nie istniało, bo id przypisanego skilla to jego dokładna zapisana nazwa. Model spróbował drugi raz z inną błędną nazwą, a run zakończył się komunikatem „the agent could not finish this turn”, przy koszcie 0,0083 USD za dwa zgadywania. Od 0.0.509 każdy skill z galerii ma nazwę w tej formie z myślnikami i nazwa nowego skilla też musi ją mieć, więc id, które pisze model, istnieje ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
-- **Run kończy się komunikatem „could not finish this turn”, zanim cokolwiek powstanie.** Zobacz zapisany run powyżej: wywołanie `load_capability` zgadło id skilla, zamiast skopiować je z katalogu. Spróbuj ponownie w nowej rozmowie albo podaj w instrukcjach dokładną nazwę skilla.
+- **Run kończy się komunikatem „could not finish this turn”, zanim cokolwiek powstanie.** Wywołanie `load_capability` podało id skilla, które nie istnieje. Na 0.0.509 i nowszych wskazuje to na skill zainstalowany wcześniej, który nadal nosi jako nazwę tytuł z galerii: zainstaluj go ponownie z galerii, co doda go pod nazwą z myślnikami, i przypisz ten nowy.
 - **Agent mówi, czy podpisać.** Zaostrz „you do not advise” i sprawdź to wprost pytaniem uzupełniającym. Narzędzie do listy kontrolnej, które odpowiada „tak, jest w porządku”, gdy tylko ktoś zapyta, wychodzi poza swoje zadanie.
 - **Odstępstwo nie ma numeru klauzuli.** Instrukcje wymagają go przy każdej pozycji. Brak odniesienia przy skądinąd poprawnym wniosku i tak warto zgłosić, bo kolejny czytelnik nie sprawdzi go bez numeru.
 - **Lista brakujących klauzul wymyśla coś, co umowa ma.** Przeczytaj źródło bezpośrednio. Lista kontrolna oczekuje mniej więcej tuzina standardowych pozycji. Krótkiemu przykładowi zawsze będzie brakować kilku, a model musi poprawnie wskazać te, których naprawdę nie ma, a nie tylko wypisać długą listę.

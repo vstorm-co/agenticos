@@ -1,5 +1,5 @@
 ---
-name: Incident triage
+name: incident-triage
 description: Turn an alert into a severity, an owner and a first hypothesis within minutes.
 category: devops
 ---

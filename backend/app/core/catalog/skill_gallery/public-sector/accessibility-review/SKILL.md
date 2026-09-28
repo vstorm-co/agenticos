@@ -1,5 +1,5 @@
 ---
-name: Accessibility review
+name: accessibility-review
 description: Check a public document or page against the standard and say what to fix.
 category: qa
 ---

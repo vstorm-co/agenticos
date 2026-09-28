@@ -1,5 +1,5 @@
 ---
-name: Shipping and customs
+name: shipping-and-customs
 description: Answer duties, delivery windows and restrictions for a destination, accurately.
 category: operations
 ---

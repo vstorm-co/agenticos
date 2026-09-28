@@ -1,5 +1,5 @@
 ---
-name: Regulatory change digest
+name: regulatory-change-digest
 description: Compare two versions of a rulebook and report what changed and who it hits.
 category: research
 ---

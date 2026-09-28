@@ -1,5 +1,5 @@
 ---
-name: Onboarding buddy
+name: onboarding-buddy
 description: Answer a new engineer's questions from the repository's own docs, with the file path.
 category: documentation
 ---

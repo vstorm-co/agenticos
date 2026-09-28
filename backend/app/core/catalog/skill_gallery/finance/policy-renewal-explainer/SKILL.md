@@ -1,5 +1,5 @@
 ---
-name: Policy renewal explainer
+name: policy-renewal-explainer
 description: Explain what changed at renewal, why the price moved, and what the options are.
 category: customer-support
 ---

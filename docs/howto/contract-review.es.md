@@ -1,5 +1,5 @@
 ---
-source_sha: "95d57516d759"
+source_sha: "3cc67268b6c7"
 title: "Revisa un contrato con tu lista de comprobación"
 description: "Vincula a un agent una skill de revisión inicial, adjunta un breve contrato de servicios sintético y comprueba que encuentra los dos problemas plantados y la cláusula que falta sin dar asesoramiento jurídico."
 ---
@@ -57,7 +57,7 @@ Dos problemas plantados: la cláusula 5 no limita nada (responsabilidad ilimitad
 
 ## Construye el agent { #build-the-agent }
 
-1. En **Skills → Skill gallery**, instala `Document review first pass` desde la sección legal.
+1. En **Skills → Skill gallery**, instala `document-review-first-pass` desde la sección legal.
 2. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
 3. En **Toolbox**, activa **Skills** y vincula la skill que acabas de instalar.
 4. Escribe las instrucciones de abajo y luego pulsa **Publish**.
@@ -68,7 +68,7 @@ review checklist skill. You do not advise, do not conclude a clause is
 acceptable, and do not redraft. Everything you produce is checked by the
 person who reviews it before it is relied on.
 
-Use the Document review first pass skill for what to extract and how to flag
+Use the document-review-first-pass skill for what to extract and how to flag
 deviations. Cite the clause number for every extracted term and every
 deviation. Flag anything the checklist expects that the agreement does not
 contain.
@@ -99,11 +99,11 @@ Lee tú mismo las desviaciones frente a las cláusulas de origen. Una desviació
 
     Modelo: Claude Sonnet 4.6 a través de OpenRouter. El extracto calificó la responsabilidad de la cl. 5 como "unlimited" con "no exclusion of indirect/consequential loss", la renovación de la cl. 7 como sin "no opt-out/break notice mechanism", y enumeró "Governing law & jurisdiction" como ausente tanto en las desviaciones como en una tabla aparte de elementos que faltan, junto a indemnizaciones y cambio de control, elementos que la lista espera y que este breve ejemplo nunca incluyó. Terminó indicando que el extracto "requires verification by the fee earner responsible for this matter before being relied upon". Coste: 0,0249 USD.
 
-    El primer intento falló antes de producir nada: el modelo llamó a `load_capability` con el id supuesto `document-review-first-pass` (con guiones, como el nombre de la galería), que no existe. El id de una skill vinculada es su nombre guardado exacto, "Document review first pass". Reintentó con una segunda suposición errónea y el run terminó con "the agent could not finish this turn", tras gastar 0,0083 USD en las dos suposiciones. Un intento nuevo en otra conversación usó el id correcto a la primera. Reintentar una vez es la solución práctica; si sigue adivinando mal, poner en las instrucciones el nombre guardado exacto de la skill elimina la suposición por completo.
+    El run se registró en 0.0.508, cuando la galería instalaba esta skill como "Document review first pass" y las instrucciones la nombraban así. El primer intento falló antes de producir nada: el modelo llamó a `load_capability` con el id `document-review-first-pass`, que entonces no existía, porque el id de una skill vinculada es su nombre guardado exacto. Reintentó con una segunda suposición errónea y el run terminó con "the agent could not finish this turn", tras gastar 0,0083 USD en las dos suposiciones. Desde 0.0.509 cada skill de la galería se llama con esa forma con guiones, y el nombre de una skill nueva también debe tenerla, así que el id que escribe el modelo es el que existe ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
-- **El run falla con "could not finish this turn" antes de producir nada.** Consulta el run registrado arriba: una llamada a `load_capability` adivinó el id de la skill en lugar de copiarlo del catálogo. Reintenta en una conversación nueva o indica en las instrucciones el nombre exacto de la skill.
+- **El run falla con "could not finish this turn" antes de producir nada.** Una llamada a `load_capability` nombró un id de skill que no existe. En 0.0.509 y posteriores apunta a una skill instalada antes, que aún lleva como nombre su título de la galería: instálala de nuevo desde la galería, que la añade con el nombre con guiones, y vincula esa.
 - **El agent te dice si firmar.** Endurece "you do not advise" y pruébalo directamente con una pregunta de seguimiento. Una herramienta de lista de comprobación que responde "sí, está bien" en cuanto alguien pregunta va más allá de su encargo.
 - **Una desviación no tiene número de cláusula.** Las instrucciones lo piden en cada elemento; aun así merece la pena señalar una cita que falta en un hallazgo correcto, porque el siguiente lector no puede comprobarlo sin ella.
 - **La lista de cláusulas ausentes inventa algo que el contrato tiene.** Lee el original directamente. La lista espera alrededor de una docena de elementos estándar; a un ejemplo corto siempre le faltarán varios, y el modelo tiene que acertar con los que de verdad faltan, no solo producir una lista larga.

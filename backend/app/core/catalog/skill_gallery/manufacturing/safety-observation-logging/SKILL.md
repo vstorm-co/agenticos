@@ -1,5 +1,5 @@
 ---
-name: Safety observation logging
+name: safety-observation-logging
 description: Capture a near miss or unsafe condition so it produces an action, not a statistic.
 category: operations
 ---

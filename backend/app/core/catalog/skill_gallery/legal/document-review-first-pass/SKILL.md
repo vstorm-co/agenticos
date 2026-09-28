@@ -1,5 +1,5 @@
 ---
-name: Document review first pass
+name: document-review-first-pass
 description: Extract the operative terms of an agreement and flag what deviates from the standard.
 category: legal
 ---

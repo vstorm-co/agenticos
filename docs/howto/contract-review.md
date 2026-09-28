@@ -70,7 +70,7 @@ outright: nothing in the agreement names a governing law or a jurisdiction.
 
 ## Build the agent
 
-1. In **Skills → Skill gallery**, install `Document review first pass` from
+1. In **Skills → Skill gallery**, install `document-review-first-pass` from
    the legal shelf.
 2. Create an agent in **Agents → New agent** and select your model profile.
 3. In **Toolbox**, enable **Skills** and bind the skill you just installed.
@@ -82,7 +82,7 @@ review checklist skill. You do not advise, do not conclude a clause is
 acceptable, and do not redraft. Everything you produce is checked by the
 person who reviews it before it is relied on.
 
-Use the Document review first pass skill for what to extract and how to flag
+Use the document-review-first-pass skill for what to extract and how to flag
 deviations. Cite the clause number for every extracted term and every
 deviation. Flag anything the checklist expects that the agreement does not
 contain.
@@ -123,23 +123,24 @@ item the agreement actually has, both read as thorough in the chat.
     by the fee earner responsible for this matter before being relied upon."
     Cost: 0.0249 USD.
 
+    The run was recorded on 0.0.508, when the gallery installed this skill
+    as "Document review first pass" and the instructions named it that way.
     The first attempt failed before producing anything: the model called
-    `load_capability` with the guessed id `document-review-first-pass`
-    (hyphenated, matching the gallery's own naming), which does not exist —
-    a bound skill's id is its exact stored name, "Document review first
-    pass" — retried with a second wrong guess, and the run ended with
-    "the agent could not finish this turn," for 0.0083 USD spent on the two
-    guesses. A fresh attempt in a new conversation used the right id on the
-    first call. Retrying once is the practical fix; if it keeps guessing
-    wrong, naming the skill in the instructions with its exact stored name
-    removes the guess entirely.
+    `load_capability` with the id `document-review-first-pass`, which did
+    not exist then — a bound skill's id is its exact stored name — retried
+    with a second wrong guess, and the run ended with "the agent could not
+    finish this turn," for 0.0083 USD spent on the two guesses. Since
+    0.0.509 every gallery skill is named in that hyphenated form, and a new
+    skill's name has to be, so the id the model writes is the one that
+    exists ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 ## When it goes wrong
 
 - **The run fails with "could not finish this turn" before any output.**
-  See the recorded run above — a model call to `load_capability` guessed the
-  skill's id instead of copying it from the catalog. Retry in a fresh
-  conversation, or state the skill's exact name in the instructions.
+  A call to `load_capability` named a skill id that does not exist. On
+  0.0.509 and later this points at a skill installed earlier, which still
+  carries its gallery title as its name: install the skill again from the
+  gallery, which adds it under the hyphenated name, and bind that one.
 - **The agent tells you whether to sign.** Tighten "you do not advise" and
   test it directly with a follow-up question — a checklist tool that answers
   "yes, this is fine" the moment somebody asks is answering past its brief.

@@ -1,5 +1,5 @@
 ---
-name: Medication list reconciliation
+name: medication-list-reconciliation
 description: Compare medication lists from two sources and surface every discrepancy for a pharmacist.
 category: operations
 ---

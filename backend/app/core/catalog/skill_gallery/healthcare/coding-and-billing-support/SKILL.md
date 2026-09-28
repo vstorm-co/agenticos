@@ -1,5 +1,5 @@
 ---
-name: Coding and billing support
+name: coding-and-billing-support
 description: Match a documented episode to the right billing code, and flag what the notes do not support.
 category: finance
 ---

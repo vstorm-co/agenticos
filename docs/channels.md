@@ -86,7 +86,7 @@ The shortest path. Publish the agent, create an embed, paste two lines.
 
 In the Builder, open the agent → **Availability** → *Website widget*. You choose:
 
-- **Allowed origins** — the sites this widget may be opened from. **An empty
+- **Allowed sites** — the sites this widget may be opened from. **An empty
   list allows nothing**, so publishing without one is refused rather than
   producing a widget that answers nowhere. The key in the script tag is public by
   construction, so the origin list is what actually stops somebody else running

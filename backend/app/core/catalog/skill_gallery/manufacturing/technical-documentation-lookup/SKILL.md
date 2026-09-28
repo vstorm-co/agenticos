@@ -1,5 +1,5 @@
 ---
-name: Technical documentation lookup
+name: technical-documentation-lookup
 description: Answer from the right revision of a drawing or manual, and say which one.
 category: documentation
 ---

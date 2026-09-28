@@ -1,5 +1,5 @@
 ---
-source_sha: "dfc8e7b908eb"
+source_sha: "07eb2e5baba3"
 title: "Napisz opisy produktów z pliku katalogu"
 description: "Załącz mały syntetyczny products.csv i niech agent napisze po jednym opisie oferty na wiersz, oznaczając wiersz bez wymaganego atrybutu, zamiast go wymyślać."
 ---
@@ -12,7 +12,7 @@ Załącz mały plik katalogu do zwykłego agenta czatu z przypisanym skillem do 
 
 - [Działająca instalacja](../install.md) z profilem modelu.
 - Bez sandboksa i modelu embeddingów. Wystarczy zwykły agent czatu z [capability skills](../reference/capabilities.md#skills), a CSV jest na tyle mały, że trafi do promptu jako tekst.
-- Opcjonalnie do przeczytania: **Skills → Skill gallery → e-commerce** ma skill `Product description writer` z tymi samymi zasadami, których używa ta strona, a szablon agenta `ecommerce/listing-writer` z tej samej galerii pokazuje pełniejszego agenta zbudowanego wokół niego, z dodaną wiedzą i połączeniami MCP. Skill z tej strony powstał na podstawie treści tamtego wpisu.
+- Opcjonalnie do przeczytania: **Skills → Skill gallery → e-commerce** ma skill `product-description-writer` z tymi samymi zasadami, których używa ta strona, a szablon agenta `ecommerce/listing-writer` z tej samej galerii pokazuje pełniejszego agenta zbudowanego wokół niego, z dodaną wiedzą i połączeniami MCP. Skill z tej strony powstał na podstawie treści tamtego wpisu.
 
 ## Przygotuj dane wejściowe { #prepare-the-input }
 
@@ -107,7 +107,7 @@ Najpierw sprawdź FW-104. Brakujący atrybut uzupełniony po cichu to dokładnie
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
 - **Dla FW-104 zostaje wymyślony materiał albo wymiar.** Sekcja „Never” skilla jest ignorowana. Powtórz to polecenie w polu instrukcji samego agenta, a nie tylko w skillu.
-- **Agent wywołuje `load_capability` z błędnym id i tura kończy się błędem.** Zdarzyło się to podczas weryfikacji, gdy skill był przypisany pod dokładną nazwą i wielkością liter z wpisu w galerii (`Product description writer`). Model dwa razy zgadł inne id, a tura zakończyła się `UnexpectedModelBehavior` zamiast zwykłej odmowy. Odtworzenie tej samej treści jako nowego skilla pod prostą nazwą małymi literami z myślnikami rozwiązywało problem przy każdej ponownej próbie. Podanie dokładnej zapisanej nazwy skilla w instrukcjach agenta usuwa zgadywanie, jak opisuje [przegląd umowy](contract-review.md). Jeśli skill zainstalowany z galerii nadal to powoduje, skopiuj jego treść do nowego skilla o prostej nazwie.
+- **Agent wywołuje `load_capability` z błędnym id i tura kończy się błędem.** Zdarzyło się to podczas weryfikacji na 0.0.508, gdy wpis z galerii instalował się jako `Product description writer`: model dwa razy napisał zamiast tego id z myślnikami, a tura zakończyła się `UnexpectedModelBehavior` zamiast zwykłej odmowy. Od 0.0.509 skille z galerii instalują się pod tą nazwą z myślnikami, a nazwa nowego skilla musi składać się z małych liter, cyfr i myślników ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Skill zainstalowany wcześniej zachowuje starą nazwę: zainstaluj go ponownie z galerii i przypisz nowy.
 - **Brakuje informacji o rozmiarze przy rzeczy do noszenia.** Zapytaj, który atrybut sekcja „Always include” skilla wymienia dla tego wiersza. Brak informacji o rozmiarze to przyczyna zwrotów, której skill ma zapobiegać.
 - **Odpowiedź pomija wiersz.** Poproś o liczbę wierszy, zanim zaufasz tabeli: pięć wierszy na wejściu, pięć opisów na wyjściu.
 

@@ -2047,7 +2047,7 @@
     "folderMadeByNaming": "Folder powstaje przez nazwanie pliku w środku — nie ma tu nic innego do utworzenia.",
     "groupsListingNeverReaches": "Grupuje listę. Nigdy nie dociera do modelu.",
     "hide": "Ukryj",
-    "howModelRefersSkill": "Tak model odwołuje się do tego skilla. Później nie da się tego zmienić.",
+    "howModelRefersSkill": "Tak model odwołuje się do tego skilla: małe litery, cyfry i myślniki, na przykład refund-policy. Później nie da się tego zmienić.",
     "howRefundsTheirExceptions": "Jak obsługiwane są zwroty i ich wyjątki.",
     "markdownLoadedOnlyAfter": "Markdown. Wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął, więc długość nic nie kosztuje, dopóki nie jest potrzebna.",
     "markdownYouCanFill": "Markdown. Możesz uzupełnić to później — jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",

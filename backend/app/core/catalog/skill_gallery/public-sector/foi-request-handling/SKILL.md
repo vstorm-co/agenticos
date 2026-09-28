@@ -1,5 +1,5 @@
 ---
-name: Information request handling
+name: foi-request-handling
 description: Log, clarify and route a request for information within the statutory clock.
 category: legal
 ---

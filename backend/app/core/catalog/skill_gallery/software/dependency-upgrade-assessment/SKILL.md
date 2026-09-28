@@ -1,5 +1,5 @@
 ---
-name: Dependency upgrade assessment
+name: dependency-upgrade-assessment
 description: Judge whether an upgrade is safe, and say what to test.
 category: engineering
 ---

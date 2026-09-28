@@ -1,5 +1,5 @@
 ---
-name: Bug report triage
+name: bug-report-triage
 description: Turn a report into something reproducible, or say precisely what is missing.
 category: qa
 ---

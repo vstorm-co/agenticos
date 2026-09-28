@@ -1,5 +1,5 @@
 ---
-name: API support
+name: api-support
 description: Answer integration questions with a request that works, and diagnose from status codes.
 category: engineering
 ---

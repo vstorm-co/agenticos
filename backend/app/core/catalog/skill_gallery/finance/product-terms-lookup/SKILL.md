@@ -1,5 +1,5 @@
 ---
-name: Product terms lookup
+name: product-terms-lookup
 description: Answer questions about rates, fees and terms from the current document, with the version cited.
 category: customer-support
 ---

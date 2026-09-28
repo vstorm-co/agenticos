@@ -1,5 +1,5 @@
 ---
-name: Consent explainer
+name: consent-explainer
 description: Explain a consent form in plain language without advising, and route every clinical question.
 category: content
 ---

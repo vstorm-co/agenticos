@@ -1,5 +1,5 @@
 ---
-source_sha: "95d57516d759"
+source_sha: "3cc67268b6c7"
 title: "Einen Vertrag gegen Ihre Checkliste prüfen"
 description: "Binden Sie einen Erstprüfungs-Skill an einen Agent, hängen Sie einen kurzen synthetischen Dienstleistungsvertrag an und prüfen Sie, dass er beide platzierten Probleme und die fehlende Klausel findet, ohne Rechtsberatung zu geben."
 ---
@@ -74,8 +74,8 @@ anwendbares Recht oder ein Gerichtsstand genannt.
 
 ## Den Agent bauen { #build-the-agent }
 
-1. Installieren Sie unter **Skills → Skill gallery** `Document review first
-   pass` aus dem Bereich legal.
+1. Installieren Sie unter **Skills → Skill gallery**
+   `document-review-first-pass` aus dem Bereich legal.
 2. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr
    Modellprofil.
 3. Aktivieren Sie unter **Toolbox** **Skills** und binden Sie den Skill, den
@@ -89,7 +89,7 @@ review checklist skill. You do not advise, do not conclude a clause is
 acceptable, and do not redraft. Everything you produce is checked by the
 person who reviews it before it is relied on.
 
-Use the Document review first pass skill for what to extract and how to flag
+Use the document-review-first-pass skill for what to extract and how to flag
 deviations. Cite the clause number for every extracted term and every
 deviation. Flag anything the checklist expects that the agreement does not
 contain.
@@ -133,26 +133,27 @@ Chat beide gründlich.
     Auszug „requires verification by the fee earner responsible for this
     matter before being relied upon." Kosten: 0,0249 USD.
 
-    Der erste Versuch scheiterte, bevor irgendetwas entstand: Das Modell rief
-    `load_capability` mit der geratenen id `document-review-first-pass` auf
-    (mit Bindestrichen, passend zur eigenen Benennung der Gallery), die
-    nicht existiert — die id eines gebundenen Skills ist sein exakter
-    gespeicherter Name, „Document review first pass" — versuchte es erneut
-    mit einer zweiten falschen Vermutung, und der Run endete mit „the agent
-    could not finish this turn," für 0,0083 USD, ausgegeben für die zwei
-    Vermutungen. Ein neuer Versuch in einer neuen Konversation verwendete
-    beim ersten Aufruf die richtige id. Ein erneuter Versuch ist die
-    praktische Lösung; rät das Modell weiterhin falsch, entfernt das Nennen
-    des Skills mit seinem exakten gespeicherten Namen in den Instruktionen
-    das Raten vollständig.
+    Der Run wurde auf 0.0.508 festgehalten, als die Gallery diesen Skill als
+    „Document review first pass" installierte und die Instruktionen ihn so
+    nannten. Der erste Versuch scheiterte, bevor irgendetwas entstand: Das
+    Modell rief `load_capability` mit der id `document-review-first-pass`
+    auf, die damals nicht existierte — die id eines gebundenen Skills ist
+    sein exakter gespeicherter Name —, versuchte es erneut mit einer zweiten
+    falschen Vermutung, und der Run endete mit „the agent could not finish
+    this turn," für 0,0083 USD, ausgegeben für die zwei Vermutungen. Seit
+    0.0.509 trägt jeder Gallery-Skill einen Namen in dieser Form mit
+    Bindestrichen, und der Name eines neuen Skills muss sie haben, sodass die
+    id, die das Modell schreibt, die ist, die existiert
+    ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
 - **Der Run scheitert mit „could not finish this turn," bevor irgendeine
-  Ausgabe entsteht.** Siehe den festgehaltenen Run oben — ein Modellaufruf
-  von `load_capability` riet die id des Skills, statt sie aus dem Katalog zu
-  übernehmen. Versuchen Sie es in einer neuen Konversation erneut, oder
-  nennen Sie den exakten Namen des Skills in den Instruktionen.
+  Ausgabe entsteht.** Ein Aufruf von `load_capability` nannte eine Skill-id,
+  die nicht existiert. Auf 0.0.509 und später deutet das auf einen früher
+  installierten Skill, der noch seinen Gallery-Titel als Namen trägt:
+  Installieren Sie ihn erneut aus der Gallery, die ihn unter dem Namen mit
+  Bindestrichen hinzufügt, und binden Sie diesen.
 - **Der Agent sagt Ihnen, ob Sie unterschreiben sollen.** Verschärfen Sie
   „you do not advise" und testen Sie es direkt mit einer Anschlussfrage —
   ein Checklisten-Tool, das „yes, this is fine" antwortet, sobald jemand

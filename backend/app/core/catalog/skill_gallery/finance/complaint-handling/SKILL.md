@@ -1,5 +1,5 @@
 ---
-name: Complaint handling
+name: complaint-handling
 description: Acknowledge, classify and route a complaint within the regulatory clock.
 category: customer-support
 ---

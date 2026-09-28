@@ -1,5 +1,5 @@
 ---
-name: Policy in plain language
+name: policy-plain-language
 description: Rewrite a policy so a resident can act on it, without changing what it means.
 category: content
 ---

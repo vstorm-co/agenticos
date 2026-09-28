@@ -1,5 +1,5 @@
 ---
-source_sha: "dfc8e7b908eb"
+source_sha: "07eb2e5baba3"
 title: "Produktbeschreibungen aus einer Katalogdatei schreiben"
 description: "Hängen Sie eine kleine synthetische products.csv an und lassen Sie einen Agent eine Angebotsbeschreibung pro Zeile schreiben, wobei die Zeile mit fehlendem Pflichtattribut markiert statt ergänzt wird."
 ---
@@ -12,7 +12,7 @@ Hängen Sie eine kleine Katalogdatei an einen einfachen Chat-Agent an, der an ei
 
 - Eine [laufende Installation](../install.md) mit einem Modellprofil.
 - Keine Sandbox und kein Embedding-Modell. Ein einfacher Chat-Agent mit der [Skills-Capability](../reference/capabilities.md#skills) genügt; die CSV ist klein genug, um als Text in den Prompt eingefügt zu werden.
-- Optional zum Lesen: **Skills → Skill gallery → e-commerce** hat einen Skill `Product description writer` mit denselben Regeln, die diese Seite nutzt, und die Agent-Vorlage `ecommerce/listing-writer` aus derselben Galerie zeigt einen vollständigeren Agent, der darum herum gebaut ist, mit zusätzlichem Wissen und MCP-Verbindungen. Der Skill dieser Seite basiert auf dem Inhalt dieses Eintrags.
+- Optional zum Lesen: **Skills → Skill gallery → e-commerce** hat einen Skill `product-description-writer` mit denselben Regeln, die diese Seite nutzt, und die Agent-Vorlage `ecommerce/listing-writer` aus derselben Galerie zeigt einen vollständigeren Agent, der darum herum gebaut ist, mit zusätzlichem Wissen und MCP-Verbindungen. Der Skill dieser Seite basiert auf dem Inhalt dieses Eintrags.
 
 ## Die Eingabe vorbereiten { #prepare-the-input }
 
@@ -107,7 +107,7 @@ Prüfen Sie zuerst FW-104. Ein fehlendes Attribut, das still ergänzt wurde, ist
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
 - **Für FW-104 wird ein Material oder ein Maß erfunden.** Der Abschnitt "Never" des Skills wird ignoriert. Wiederholen Sie die Anweisung im Instruktionsfeld des Agents selbst, nicht nur im Skill.
-- **Der Agent ruft `load_capability` mit der falschen ID auf, und die Runde endet mit einem Fehler.** Das geschah bei der Prüfung, als der Skill unter genau dem Namen und der Schreibweise des Galerie-Eintrags (`Product description writer`) gebunden war: Das Modell riet zweimal eine andere ID, und die Runde endete mit `UnexpectedModelBehavior` statt einer normalen Ablehnung. Denselben Inhalt als neuen Skill unter einem schlichten, kleingeschriebenen Namen mit Bindestrichen anzulegen, behob es bei jedem neuen Versuch. Den genauen gespeicherten Namen des Skills in den Instruktionen des Agents zu nennen, beseitigt das Raten, wie [Vertragsprüfung](contract-review.md) beschreibt. Wenn ein aus der Galerie installierter Skill trotzdem daran scheitert, kopieren Sie seinen Inhalt in einen neuen Skill mit einem schlichten Namen.
+- **Der Agent ruft `load_capability` mit der falschen ID auf, und die Runde endet mit einem Fehler.** Das geschah bei der Prüfung auf 0.0.508, als der Galerie-Eintrag als `Product description writer` installiert wurde: Das Modell schrieb zweimal stattdessen die ID mit Bindestrichen, und die Runde endete mit `UnexpectedModelBehavior` statt einer normalen Ablehnung. Seit 0.0.509 werden Galerie-Skills unter diesem Namen mit Bindestrichen installiert, und der Name eines neuen Skills muss aus Kleinbuchstaben, Ziffern und Bindestrichen bestehen ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Ein früher installierter Skill behält seinen alten Namen — installieren Sie ihn erneut aus der Galerie und binden Sie den neuen.
 - **Bei einem tragbaren Artikel fehlt der Passformhinweis.** Fragen Sie, welches Attribut der Abschnitt "Always include" des Skills für diese Zeile nennt. Ein fehlender Passformhinweis ist der Rücksendegrund, den der Skill verhindern soll.
 - **Die Antwort überspringt eine Zeile.** Fragen Sie nach der Zeilenzahl, bevor Sie der Tabelle vertrauen: fünf Zeilen hinein, fünf Beschreibungen heraus.
 

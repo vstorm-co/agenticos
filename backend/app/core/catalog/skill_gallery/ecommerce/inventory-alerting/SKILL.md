@@ -1,5 +1,5 @@
 ---
-name: Inventory alerting
+name: inventory-alerting
 description: Turn stock levels into a small number of decisions with a lead time attached.
 category: analytics
 ---

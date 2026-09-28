@@ -1,5 +1,5 @@
 ---
-name: Customer-facing postmortem
+name: customer-facing-postmortem
 description: Explain an outage to customers honestly, without leaking internals or blaming a person.
 category: content
 ---

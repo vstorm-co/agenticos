@@ -1,5 +1,5 @@
 ---
-name: Inbound goods check
+name: inbound-goods-check
 description: Verify a delivery against the order and record what is wrong before it is signed for.
 category: operations
 ---

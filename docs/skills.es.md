@@ -1,5 +1,5 @@
 ---
-source_sha: "10bf6042e631"
+source_sha: "157f22ede691"
 ---
 
 # Skills { #skills }
@@ -109,6 +109,13 @@ archivo que leer.
 
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.
+
+**El nombre de un skill es el id con el que un modelo lo carga**, así que
+tiene la forma en que los modelos escriben ids: minúsculas y dígitos unidos por
+guiones simples, como `refund-policy`. Un nombre con espacios o mayúsculas se
+rechaza al crear el skill. Un nombre que el modelo tuviera que reproducir
+exactamente, como `Refund policy`, lo cargaba como `refund-policy`, y dos
+suposiciones erróneas terminan el turno ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 **Un skill no puede llamarse como una capability.** Cada uno se archiva bajo su
 propio nombre en el mismo espacio que `knowledge`, `planning` y los demás, así que
@@ -251,9 +258,10 @@ deployment no incluya.
 
 Añadir a la galería es igual que añadir un skill incluido — una carpeta con un
 `SKILL.md`, bajo el sector al que pertenece — con una regla extra: **su nombre no
-puede chocar con el de un skill incluido ni con el de otro skill de la galería.**
-La instalación empareja por nombre, así que una colisión se saltaría en silencio
-para siempre. Un test lee los setenta y falla en cuanto hay uno.
+puede chocar con el de un skill incluido ni con el de otro skill de la galería,**
+y es el nombre de su carpeta. La instalación empareja por nombre, así que una
+colisión se saltaría en silencio para siempre. Un test lee los setenta y falla
+con cualquiera de los dos errores.
 
 ### Sembrar crea copias { #seeding-copies }
 

@@ -1,5 +1,5 @@
 ---
-name: Incident reporting assistant
+name: incident-reporting-assistant
 description: Turn an account of a patient-safety incident into a complete, factual, blame-free report.
 category: operations
 ---

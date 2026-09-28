@@ -1,5 +1,5 @@
 ---
-name: Patient enquiry triage
+name: patient-enquiry-triage
 description: Which patient messages an agent may answer, which go to a clinician, and what it must never do.
 category: customer-support
 ---

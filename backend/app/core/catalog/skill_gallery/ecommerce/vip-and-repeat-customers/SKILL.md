@@ -1,5 +1,5 @@
 ---
-name: VIP and repeat customers
+name: vip-and-repeat-customers
 description: Recognise a high-value or at-risk customer and change the handling, not the tone.
 category: sales
 ---

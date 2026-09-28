@@ -1,5 +1,5 @@
 ---
-name: Conflict check summary
+name: conflict-check-summary
 description: Assemble the entity and relationship picture a conflict decision needs.
 category: research
 ---

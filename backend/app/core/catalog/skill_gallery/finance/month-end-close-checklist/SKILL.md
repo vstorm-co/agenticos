@@ -1,5 +1,5 @@
 ---
-name: Month-end close checklist
+name: month-end-close-checklist
 description: Drive a close through its dependencies and report what is blocking it.
 category: finance
 ---

@@ -1,5 +1,5 @@
 ---
-name: Claim intake triage
+name: claim-intake-triage
 description: Turn a first notification of loss into a structured, complete claim record.
 category: operations
 ---

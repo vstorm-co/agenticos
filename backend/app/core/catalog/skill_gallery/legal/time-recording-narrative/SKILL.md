@@ -1,5 +1,5 @@
 ---
-name: Time recording narrative
+name: time-recording-narrative
 description: Write a time narrative a client will pay without querying.
 category: finance
 ---

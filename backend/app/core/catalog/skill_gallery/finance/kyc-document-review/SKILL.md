@@ -1,5 +1,5 @@
 ---
-name: KYC document review
+name: kyc-document-review
 description: Check an identity pack for completeness and consistency, and list what blocks onboarding.
 category: finance
 ---

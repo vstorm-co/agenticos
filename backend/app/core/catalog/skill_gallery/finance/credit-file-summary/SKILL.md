@@ -1,5 +1,5 @@
 ---
-name: Credit file summary
+name: credit-file-summary
 description: Summarise an application pack into the facts a credit decision needs, and nothing else.
 category: finance
 ---

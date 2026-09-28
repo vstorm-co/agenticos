@@ -1,5 +1,5 @@
 ---
-name: Supplier chase
+name: supplier-chase
 description: Detect a late purchase order, chase it with the right ask, and escalate on a schedule.
 category: operations
 ---

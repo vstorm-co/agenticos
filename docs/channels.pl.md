@@ -1,5 +1,5 @@
 ---
-source_sha: "e5fd7d3d2206"
+source_sha: "789bc9fe4b45"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -92,7 +92,7 @@ Najkrótsza droga. Opublikuj agenta, utwórz embed, wklej dwie linijki.
 
 W Builderze otwórz agenta → **Availability** → *Website widget*. Wybierasz:
 
-- **Allowed origins** — strony, z których ten widget może zostać otwarty. **Pusta
+- **Allowed sites** — strony, z których ten widget może zostać otwarty. **Pusta
   lista nie pozwala na nic**, więc publikacja bez niej jest odrzucana, zamiast
   dawać widget, który nigdzie nie odpowiada. Klucz w tagu skryptu jest publiczny
   z natury, więc to lista originów jest tym, co faktycznie powstrzymuje kogoś

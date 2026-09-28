@@ -1,5 +1,5 @@
 ---
-name: Asset fault triage
+name: asset-fault-triage
 description: Classify a reported fault, set the response class, and dispatch with the right detail.
 category: operations
 ---

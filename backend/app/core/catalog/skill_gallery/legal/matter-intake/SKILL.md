@@ -1,5 +1,5 @@
 ---
-name: Matter intake
+name: matter-intake
 description: Capture a new matter completely, and run the conflict and scope questions first.
 category: operations
 ---

@@ -1,5 +1,5 @@
 ---
-name: Procurement question response
+name: procurement-question-response
 description: Answer a bidder's clarification correctly, and publish it to every bidder.
 category: legal
 ---

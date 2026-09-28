@@ -1,5 +1,5 @@
 ---
-name: Quality deviation report
+name: quality-deviation-report
 description: Record a deviation, contain it, and set up the investigation without pre-judging it.
 category: qa
 ---

@@ -1,5 +1,5 @@
 ---
-name: Citizen enquiry routing
+name: citizen-enquiry-routing
 description: Answer procedural questions from published information and route everything else correctly.
 category: customer-support
 ---

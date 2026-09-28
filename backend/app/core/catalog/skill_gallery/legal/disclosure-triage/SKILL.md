@@ -1,5 +1,5 @@
 ---
-name: Disclosure triage
+name: disclosure-triage
 description: Sort documents for relevance and privilege, and never decide privilege alone.
 category: legal
 ---

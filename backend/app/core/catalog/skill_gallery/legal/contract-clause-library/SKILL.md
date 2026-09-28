@@ -1,5 +1,5 @@
 ---
-name: Contract clause library
+name: contract-clause-library
 description: Retrieve the approved clause, its variants and the fallback position.
 category: legal
 ---

@@ -1,5 +1,5 @@
 ---
-name: Transaction dispute workflow
+name: transaction-dispute-workflow
 description: Classify a disputed transaction and drive it down the right path with the right evidence.
 category: operations
 ---

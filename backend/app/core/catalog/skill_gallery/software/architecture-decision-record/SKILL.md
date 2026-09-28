@@ -1,5 +1,5 @@
 ---
-name: Architecture decision record
+name: architecture-decision-record
 description: Capture a decision, the options rejected, and the cost accepted.
 category: documentation
 ---

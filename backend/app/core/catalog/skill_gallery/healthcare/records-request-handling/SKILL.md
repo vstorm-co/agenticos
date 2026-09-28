@@ -1,5 +1,5 @@
 ---
-name: Records request handling
+name: records-request-handling
 description: Identity checks, lawful basis, timescales and refusals for a request to access records.
 category: legal
 ---

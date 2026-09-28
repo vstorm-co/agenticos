@@ -1,5 +1,5 @@
 ---
-name: Meeting minutes
+name: meeting-minutes
 description: Produce minutes that record decisions, actions and dissent, not the discussion.
 category: documentation
 ---

@@ -1,5 +1,5 @@
 ---
-name: Referral letter draft
+name: referral-letter-draft
 description: Assemble a structured referral from the record, and mark every field the notes cannot fill.
 category: documentation
 ---

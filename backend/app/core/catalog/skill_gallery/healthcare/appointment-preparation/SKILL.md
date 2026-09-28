@@ -1,5 +1,5 @@
 ---
-name: Appointment preparation
+name: appointment-preparation
 description: What a patient must bring, stop, fast for, or arrange before a listed appointment.
 category: customer-support
 ---

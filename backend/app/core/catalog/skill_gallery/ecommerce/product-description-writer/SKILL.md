@@ -1,5 +1,5 @@
 ---
-name: Product description writer
+name: product-description-writer
 description: Write listing copy from the spec sheet, without inventing an attribute.
 category: content
 ---

@@ -1,5 +1,5 @@
 ---
-name: Bundle preparation
+name: bundle-preparation
 description: Assemble and check a document bundle against the court's requirements.
 category: operations
 ---

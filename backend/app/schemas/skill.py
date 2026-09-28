@@ -1,5 +1,6 @@
 """Schemas for skills."""
 
+import re
 from datetime import datetime
 from uuid import UUID
 
@@ -7,6 +8,16 @@ from pydantic import Field, field_validator
 
 from app.agents.capabilities import all_capabilities
 from app.schemas.base import BaseSchema
+
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+"""The Agent Skills name format: lowercase letters and digits, joined by hyphens.
+
+A skill's name is the id the model passes to `load_capability`, and models
+trained on this format write the hyphenated form whatever the catalog lists. A
+gallery skill called `Product description writer` was loaded as
+`product-description-writer`, which is no id at all, and the second wrong guess
+ended the turn (#1911).
+"""
 
 
 class SkillResourceRead(BaseSchema):
@@ -113,7 +124,10 @@ class SkillCreate(BaseSchema):
     name: str = Field(
         min_length=1,
         max_length=64,
-        description="How the model refers to this skill; unique per organization",
+        description=(
+            "How the model refers to this skill: lowercase letters, digits and hyphens, "
+            "unique per organization"
+        ),
     )
 
     @field_validator("name")
@@ -128,6 +142,12 @@ class SkillCreate(BaseSchema):
         it cannot be created, and again at publish for the skills that predate
         this (#1704 review).
         """
+        if not SKILL_NAME_PATTERN.fullmatch(name):
+            raise ValueError(
+                "Use lowercase letters, digits and hyphens, such as 'refund-policy' - "
+                "the name is the id a model loads the skill by, and it writes names in "
+                "that form"
+            )
         if name in {definition.id for definition in all_capabilities()}:
             raise ValueError(
                 f"'{name}' is the name of a capability this platform offers, and a skill "

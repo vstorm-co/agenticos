@@ -1,5 +1,5 @@
 ---
-name: Clinical procedure lookup
+name: clinical-procedure-lookup
 description: Answer staff questions from SOPs and guidelines with a citation, and refuse when the procedure is silent.
 category: documentation
 ---

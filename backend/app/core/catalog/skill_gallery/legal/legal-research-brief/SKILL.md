@@ -1,5 +1,5 @@
 ---
-name: Legal research brief
+name: legal-research-brief
 description: Answer a research question with authority, currency and the counter-argument.
 category: research
 ---

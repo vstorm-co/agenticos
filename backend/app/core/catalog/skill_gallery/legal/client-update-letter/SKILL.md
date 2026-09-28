@@ -1,5 +1,5 @@
 ---
-name: Client update letter
+name: client-update-letter
 description: Tell a client where the matter is, what it costs and what happens next.
 category: content
 ---

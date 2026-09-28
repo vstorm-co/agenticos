@@ -1,5 +1,5 @@
 ---
-name: Production schedule explainer
+name: production-schedule-explainer
 description: Explain what the schedule can absorb, and what a change costs.
 category: analytics
 ---

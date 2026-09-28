@@ -1,5 +1,5 @@
 ---
-source_sha: "dfc8e7b908eb"
+source_sha: "07eb2e5baba3"
 title: "Escribe descripciones de producto a partir de un archivo de catálogo"
 description: "Adjunta un pequeño products.csv sintético y haz que un agent escriba una descripción de ficha por fila, señalando la fila a la que le falta un atributo obligatorio en lugar de inventarlo."
 ---
@@ -12,7 +12,7 @@ Adjunta un pequeño archivo de catálogo a un agent de chat sencillo vinculado a
 
 - Una [instalación en marcha](../install.md) con un perfil de modelo.
 - Sin sandbox ni modelo de embeddings: basta un agent de chat con la [capability skills](../reference/capabilities.md#skills), y el CSV es lo bastante pequeño para pegarse en el prompt como texto.
-- Lectura opcional: **Skills → Skill gallery → e-commerce** tiene una skill `Product description writer` con las mismas reglas que usa esta página, y la plantilla de agent `ecommerce/listing-writer` de la misma galería muestra un agent más completo construido en torno a ella, con conocimiento y conexiones MCP. La skill de esta página está escrita a partir del contenido de esa entrada.
+- Lectura opcional: **Skills → Skill gallery → e-commerce** tiene una skill `product-description-writer` con las mismas reglas que usa esta página, y la plantilla de agent `ecommerce/listing-writer` de la misma galería muestra un agent más completo construido en torno a ella, con conocimiento y conexiones MCP. La skill de esta página está escrita a partir del contenido de esa entrada.
 
 ## Prepara la entrada { #prepare-the-input }
 
@@ -107,7 +107,7 @@ Comprueba primero FW-104: un atributo que falta y se rellena en silencio es el f
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
 - **Se inventa un material o una medida para FW-104.** Se está ignorando la sección "Never" de la skill; repite la indicación en el campo de instrucciones del propio agent, no solo en la skill.
-- **El agent llama a `load_capability` con un id equivocado y el turno termina en error.** Ocurrió durante la verificación, cuando la skill estaba vinculada con el nombre y las mayúsculas exactos de la entrada de la galería (`Product description writer`): el modelo adivinó dos veces un id distinto y el turno terminó en `UnexpectedModelBehavior` en lugar de una negativa normal. Volver a crear el mismo contenido como una skill nueva con un nombre sencillo, en minúsculas y con guiones, lo resolvió en cada reintento. Poner el nombre guardado exacto de la skill en las instrucciones del agent elimina la suposición, como describe [la revisión de contratos](contract-review.md); si una skill instalada desde la galería sigue fallando, copia su contenido en una skill nueva con un nombre sencillo.
+- **El agent llama a `load_capability` con un id equivocado y el turno termina en error.** Ocurrió durante la verificación en 0.0.508, cuando la entrada de la galería se instalaba como `Product description writer`: el modelo escribió dos veces el id con guiones en su lugar y el turno terminó en `UnexpectedModelBehavior` en lugar de una negativa normal. Desde 0.0.509 las skills de la galería se instalan con ese nombre con guiones, y el nombre de una skill nueva debe usar minúsculas, dígitos y guiones ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Una skill instalada antes conserva su nombre antiguo: instálala de nuevo desde la galería y vincula la nueva.
 - **Falta la nota de talla en un artículo que se lleva puesto.** Pregunta qué atributo nombra para esa fila la sección "Always include" de la skill; una nota de talla ausente es el motivo de devolución que la skill existe para evitar.
 - **La respuesta se salta una fila.** Pide el número de filas antes de fiarte de la tabla: entran cinco filas, salen cinco descripciones.
 

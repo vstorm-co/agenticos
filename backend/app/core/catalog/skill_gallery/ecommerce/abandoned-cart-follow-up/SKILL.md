@@ -1,5 +1,5 @@
 ---
-name: Abandoned cart follow-up
+name: abandoned-cart-follow-up
 description: Write a follow-up that answers the objection rather than repeating the offer.
 category: marketing
 ---

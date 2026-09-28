@@ -1,5 +1,5 @@
 ---
-name: Print file validation
+name: print-file-validation
 description: Check an artwork file against the press requirements and say exactly what to fix.
 category: operations
 ---

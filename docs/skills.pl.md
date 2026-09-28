@@ -1,5 +1,5 @@
 ---
-source_sha: "10bf6042e631"
+source_sha: "157f22ede691"
 ---
 
 # Skille { #skills }
@@ -106,6 +106,13 @@ przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
+
+**Nazwa skilla to id, pod którym model go ładuje**, więc ma formę, w jakiej
+modele piszą id: małe litery i cyfry połączone pojedynczymi myślnikami, na przykład
+`refund-policy`. Nazwa ze spacjami lub wielkimi literami jest odrzucana przy
+tworzeniu skilla. Nazwę, którą model musiałby odtworzyć dokładnie, jak
+`Refund policy`, ładował jako `refund-policy`, a dwie błędne próby kończą turę
+([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 **Skill nie może nazywać się tak jak capability.** Każdy jest zapisany pod własną
 nazwą w tej samej przestrzeni co `knowledge`, `planning` i reszta, więc skill o
@@ -244,9 +251,10 @@ nie dostarcza.
 
 Dodanie do galerii wygląda tak samo jak dodanie dołączonego skilla — katalog z
 `SKILL.md`, pod branżą, do której należy — z jedną dodatkową regułą: **jego nazwa
-nie może kolidować z dołączonym skillem ani z innym skillem z galerii.**
-Instalacja dopasowuje po nazwie, więc kolizja oznaczałaby ciche pomijanie na
-zawsze. Test czyta całą siedemdziesiątkę i wywala się na kolizji.
+nie może kolidować z dołączonym skillem ani z innym skillem z galerii,** i jest
+nazwą jego katalogu. Instalacja dopasowuje po nazwie, więc kolizja oznaczałaby
+ciche pomijanie na zawsze. Test czyta całą siedemdziesiątkę i wywala się na
+każdym z tych błędów.
 
 ### Seed tworzy kopie { #seeding-copies }
 

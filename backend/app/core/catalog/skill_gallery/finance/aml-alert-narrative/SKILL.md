@@ -1,5 +1,5 @@
 ---
-name: AML alert narrative
+name: aml-alert-narrative
 description: Write the factual narrative behind a monitoring alert for an analyst to decide on.
 category: security
 ---

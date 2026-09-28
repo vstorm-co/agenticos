@@ -1,5 +1,5 @@
 ---
-name: Work order troubleshooting
+name: work-order-troubleshooting
 description: Take a machine fault from symptom to the documented procedure, safely.
 category: operations
 ---

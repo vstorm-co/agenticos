@@ -19,7 +19,7 @@ as a reference.
   [skills capability](../reference/capabilities.md#skills) is enough; the
   CSV is small enough to be pasted into the prompt as text.
 - Optional reading: **Skills → Skill gallery → e-commerce** has a
-  `Product description writer` skill with the same rules this page uses, and
+  `product-description-writer` skill with the same rules this page uses, and
   the `ecommerce/listing-writer` agent template in the same gallery shows a
   fuller agent built around it, with knowledge and MCP connections added.
   This page's skill is written from that entry's content.
@@ -133,16 +133,15 @@ this fixture exists to catch.
   section is being ignored; repeat the instruction in the agent's own
   instructions field, not only in the skill.
 - **The agent calls `load_capability` with the wrong id and the turn ends in
-  an error.** This happened during verification when the skill was bound
-  under the exact name and casing used by the gallery entry
-  (`Product description writer`) — the model twice guessed a different id
-  and the turn ended in `UnexpectedModelBehavior` rather than a normal
-  refusal. Recreating the same content as a new skill under a plain,
-  lowercase, hyphenated name fixed it every time it was retried. Naming the
-  skill's exact stored name in the agent's instructions removes the guess, as
-  [contract review](contract-review.md) describes; if a skill installed from
-  the gallery still hits it, copy its body into a new skill with a plain
-  name.
+  an error.** This happened during verification on 0.0.508, when the gallery
+  entry was installed as `Product description writer`: the model twice wrote
+  the hyphenated id instead, and the turn ended in `UnexpectedModelBehavior`
+  rather than a normal refusal. Since 0.0.509 gallery skills are installed
+  under that hyphenated name, and a new skill's name has to be lowercase
+  letters, digits and hyphens
+  ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). A skill
+  installed before then keeps its old name — install it again from the
+  gallery and bind the new one.
 - **The fit note is missing on a worn item.** Ask which attribute the skill's
   "Always include" section names for that row; a missing fit note is the
   return driver the skill exists to prevent.

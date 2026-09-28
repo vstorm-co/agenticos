@@ -4816,7 +4816,7 @@
     "folderMadeByNaming": "A folder is made by naming a file inside it - there is nothing else to create.",
     "groupsListingNeverReaches": "Groups the listing. Never reaches the model.",
     "hide": "Hide",
-    "howModelRefersSkill": "How the model refers to this skill. It cannot be changed later.",
+    "howModelRefersSkill": "How the model refers to this skill: lowercase letters, digits and hyphens, such as refund-policy. It cannot be changed later.",
     "howRefundsTheirExceptions": "How refunds and their exceptions are handled.",
     "markdownLoadedOnlyAfter": "Markdown. Loaded only after the description convinced the model to, so length costs nothing until it is needed.",
     "markdownYouCanFill": "Markdown. You can fill this in later - it is loaded only after the description convinced the model to.",

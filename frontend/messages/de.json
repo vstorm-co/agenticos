@@ -4682,7 +4682,7 @@
     "folderMadeByNaming": "Ein Ordner entsteht, indem Sie eine Datei darin benennen – mehr gibt es nicht zu erstellen.",
     "groupsListingNeverReaches": "Gruppiert die Liste. Erreicht das Modell nie.",
     "hide": "Verbergen",
-    "howModelRefersSkill": "Wie das Modell auf diesen Skill verweist. Das lässt sich später nicht mehr ändern.",
+    "howModelRefersSkill": "Wie das Modell auf diesen Skill verweist: Kleinbuchstaben, Ziffern und Bindestriche, etwa refund-policy. Das lässt sich später nicht mehr ändern.",
     "howRefundsTheirExceptions": "Wie Rückerstattungen und ihre Ausnahmen behandelt werden.",
     "markdownLoadedOnlyAfter": "Markdown. Wird erst geladen, nachdem die Beschreibung das Modell davon überzeugt hat – Länge kostet also nichts, bis sie gebraucht wird.",
     "markdownYouCanFill": "Markdown. Sie können das später ausfüllen – es wird erst geladen, nachdem die Beschreibung das Modell davon überzeugt hat.",

@@ -1,5 +1,5 @@
 ---
-name: Review response
+name: review-response
 description: Reply to a public review so the next reader is reassured, not the reviewer argued with.
 category: marketing
 ---

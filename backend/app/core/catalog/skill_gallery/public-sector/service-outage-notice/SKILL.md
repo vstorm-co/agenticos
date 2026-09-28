@@ -1,5 +1,5 @@
 ---
-name: Service outage notice
+name: service-outage-notice
 description: Tell residents what is affected, what to do meanwhile, and when it returns.
 category: content
 ---

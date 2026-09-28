@@ -1,5 +1,5 @@
 ---
-name: Order status answers
+name: order-status-answers
 description: Answer where-is-my-order from the order and carrier record, and say what happens next.
 category: customer-support
 ---

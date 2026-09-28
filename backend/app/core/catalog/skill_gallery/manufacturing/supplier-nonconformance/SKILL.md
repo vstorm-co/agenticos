@@ -1,5 +1,5 @@
 ---
-name: Supplier nonconformance
+name: supplier-nonconformance
 description: Raise a nonconformance with the evidence a supplier cannot dispute.
 category: operations
 ---

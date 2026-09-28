@@ -1,5 +1,5 @@
 ---
-name: Release notes writer
+name: release-notes-writer
 description: Turn merged changes into notes a user can act on, grouped by what they mean.
 category: content
 ---

@@ -1,5 +1,5 @@
 ---
-name: Runbook generator
+name: runbook-generator
 description: Write a runbook somebody woken at 3am can follow without thinking.
 category: devops
 ---

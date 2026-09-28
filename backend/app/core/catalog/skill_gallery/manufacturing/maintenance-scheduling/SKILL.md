@@ -1,5 +1,5 @@
 ---
-name: Maintenance scheduling
+name: maintenance-scheduling
 description: Turn a maintenance backlog into a sequence that fits the production plan.
 category: operations
 ---

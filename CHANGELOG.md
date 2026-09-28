@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **An agent loads a gallery skill on the first call.** All seventy gallery
+  skills were installed under a title, such as `Product description writer`,
+  and a skill's name is the id a model loads it by. Models write that id as
+  `product-description-writer`, so the call missed, and a second wrong guess
+  ended the turn with "the agent could not finish this turn." Gallery skills
+  are now named after their folder, and a new skill's name has to be
+  lowercase letters, digits and single hyphens; one with spaces or capitals
+  is refused when it is created. A skill installed earlier keeps its old
+  name — install it again from the gallery and bind the new one (#1911).
+- **The channels page names the widget's field as the console shows it:**
+  **Allowed sites**, not "Allowed origins" (#1912).
+
 ## [0.0.508] - 2026-09-28
 
 ### Added

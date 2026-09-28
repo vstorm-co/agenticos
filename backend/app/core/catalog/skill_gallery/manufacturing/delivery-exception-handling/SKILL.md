@@ -1,5 +1,5 @@
 ---
-name: Delivery exception handling
+name: delivery-exception-handling
 description: Detect a shipment going wrong and act before the customer notices.
 category: operations
 ---
