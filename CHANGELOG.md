@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.510] - 2026-09-28
+
 ### Changed
 
 - **Backend dependencies moved forward:** `uvicorn` 0.54.0, `pyjwt` 2.15.0,
