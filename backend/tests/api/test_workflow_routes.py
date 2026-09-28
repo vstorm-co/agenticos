@@ -124,7 +124,10 @@ async def test_the_node_catalog_lists_debug_echo(owner_client: OpenClient):
 async def test_creating_a_workflow_answers_201_with_the_derived_slug(owner_client: OpenClient):
     created = _workflow()
     with (
-        patch(f"{REGISTRY_PATH}.workflow_repo.get_by_slug", new=AsyncMock(return_value=None)),
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+            new=AsyncMock(return_value=set()),
+        ),
         patch(f"{REGISTRY_PATH}.workflow_repo.create", new=AsyncMock(return_value=created)),
     ):
         async with owner_client() as http:
@@ -133,13 +136,22 @@ async def test_creating_a_workflow_answers_201_with_the_derived_slug(owner_clien
     assert response.json()["slug"] == "import-orders"
 
 
-async def test_creating_with_a_taken_slug_is_a_409(owner_client: OpenClient):
-    existing = _workflow()
-    with patch(f"{REGISTRY_PATH}.workflow_repo.get_by_slug", new=AsyncMock(return_value=existing)):
+async def test_a_taken_handle_is_numbered_rather_than_refused(owner_client: OpenClient):
+    async def _create(db, *, slug, name, **kwargs):
+        return _workflow(slug=slug, name=name)
+
+    with (
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+            new=AsyncMock(return_value={"import-orders"}),
+        ),
+        patch(f"{REGISTRY_PATH}.workflow_repo.create", new=AsyncMock(side_effect=_create)),
+    ):
         async with owner_client() as http:
             response = await http.post(_url(), json={"name": "Import orders"})
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "ALREADY_EXISTS"
+    assert response.status_code == 201
+    assert response.json()["slug"] == "import-orders-2"
+    assert response.json()["name"] == "Import orders 2"
 
 
 @pytest.mark.security
