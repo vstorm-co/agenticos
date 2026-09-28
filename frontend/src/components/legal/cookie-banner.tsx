@@ -138,7 +138,7 @@ export function CookieBanner() {
             type="button"
             aria-label={t("close")}
             onClick={close}
-            className="text-foreground/45 hover:text-foreground hover:bg-foreground/5 -mt-1 -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 -mt-1 -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -181,7 +181,7 @@ export function CookieBanner() {
               <button
                 type="button"
                 onClick={() => setShowPrefs(false)}
-                className="text-foreground/55 hover:text-foreground text-xs font-medium"
+                className="text-muted-foreground hover:text-foreground text-xs font-medium"
               >
                 {t("back")}
               </button>
@@ -205,7 +205,7 @@ export function CookieBanner() {
               <button
                 type="button"
                 onClick={() => setShowPrefs(true)}
-                className="text-foreground/55 hover:text-foreground ml-auto text-xs font-medium"
+                className="text-muted-foreground hover:text-foreground ml-auto text-xs font-medium"
               >
                 {t("preferences")}
               </button>
@@ -238,7 +238,7 @@ function Toggle({
     <label className="flex items-start justify-between gap-3">
       <span className="min-w-0 flex-1">
         <span className="text-foreground block text-xs font-semibold">{label}</span>
-        <span className="text-foreground/55 mt-0.5 block text-[11px] leading-snug">
+        <span className="text-muted-foreground mt-0.5 block text-xs leading-snug">
           {description}
         </span>
       </span>

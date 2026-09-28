@@ -128,7 +128,7 @@ export function RecentFailuresWidget({ title, hint, seeAll, options }: Dashboard
                   {/* The count is the whole point of grouping, so it is on the
                       agent's line rather than buried in the message beneath. */}
                   {group.count > 1 ? (
-                    <span className="border-destructive/35 bg-destructive/10 text-foreground shrink-0 rounded-full border px-1.5 py-px font-mono text-[10px] tabular-nums">
+                    <span className="border-destructive/35 bg-destructive/10 text-foreground shrink-0 rounded-full border px-1.5 py-px font-mono text-[11px] tabular-nums">
                       {t("timesFailed", { count: group.count })}
                     </span>
                   ) : null}

@@ -39,7 +39,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
       ) : (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
               {t("arguments")}
             </p>
             <CopyButton
@@ -47,7 +47,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
               className="opacity-0 group-hover:opacity-100"
             />
           </div>
-          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-[11px] leading-relaxed">
+          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
             {formatArgs(toolCall.args)}
           </pre>
         </div>
@@ -55,12 +55,12 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
       {toolCall.result !== undefined && resultText !== "" && (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
               {t("result")}
             </p>
             <CopyButton text={resultText} className="opacity-0 group-hover:opacity-100" />
           </div>
-          <pre className="border-foreground/10 bg-background/60 max-h-72 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
+          <pre className="border-foreground/10 bg-background/60 max-h-72 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
             {resultText}
           </pre>
         </div>
@@ -103,7 +103,7 @@ export function GenericToolResult({
       {!isEmptyArgs(toolCall.args) && (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
               {t("arguments")}
             </p>
             <CopyButton
@@ -111,14 +111,14 @@ export function GenericToolResult({
               className="opacity-0 group-hover:opacity-100"
             />
           </div>
-          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-[11px] leading-relaxed">
+          <pre className="border-foreground/10 bg-background/60 scrollbar-thin overflow-x-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
             {formatArgs(toolCall.args)}
           </pre>
         </div>
       )}
       {resultText &&
         (prettyJson ? (
-          <pre className="border-foreground/10 bg-background/60 max-h-80 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-[11px] leading-relaxed">
+          <pre className="border-foreground/10 bg-background/60 max-h-80 scrollbar-thin overflow-x-auto overflow-y-auto rounded-lg border p-2.5 font-mono text-xs leading-relaxed">
             {prettyJson}
           </pre>
         ) : (

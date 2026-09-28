@@ -48,7 +48,7 @@ export function YourConnections() {
 
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-your-connections">
-      <p className="text-foreground/55 mb-3 text-xs leading-relaxed">{t("yourAccounts")}</p>
+      <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("yourAccounts")}</p>
       <ul className="space-y-1">
         {personal.map((ref) => {
           const entry = servers.find((one) => one.key === ref.catalog_key) ?? null;
@@ -63,7 +63,7 @@ export function YourConnections() {
               <McpServerIcon icon={entry?.icon ?? null} name={name} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium">{name}</span>
-                <span className="text-foreground/50 block text-[11px] leading-relaxed">
+                <span className="text-muted-foreground block text-xs leading-relaxed">
                   {t(`status.${status}`)}
                 </span>
               </span>

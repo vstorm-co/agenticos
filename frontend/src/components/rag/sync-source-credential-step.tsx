@@ -53,7 +53,7 @@ export function CredentialStep({
   if (connector.secret_kind === "none") {
     return (
       <div className="border-foreground/10 bg-foreground/[0.03] rounded-xl border p-5 text-center">
-        <KeyRound className="text-foreground/45 mx-auto h-6 w-6" />
+        <KeyRound className="text-muted-foreground mx-auto h-6 w-6" />
         <p className="text-foreground/70 mt-3 text-sm">
           {t("credentialNoneNeeded", { name: connector.name })}
         </p>
@@ -112,9 +112,9 @@ export function CredentialStep({
             {usable.map((secret) => (
               <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                 <span className="flex items-center gap-2">
-                  <KeyRound className="text-foreground/45 h-3.5 w-3.5" />
+                  <KeyRound className="text-muted-foreground h-3.5 w-3.5" />
                   <span>{secret.name}</span>
-                  <span className="text-foreground/45 font-mono text-xs">··{secret.hint}</span>
+                  <span className="text-muted-foreground font-mono text-xs">··{secret.hint}</span>
                 </span>
               </SelectItem>
             ))}
@@ -131,7 +131,7 @@ export function CredentialStep({
           is the state this whole step replaced - the credential was a textarea
           and every source got its own copy. Opened in a new tab so the
           half-filled wizard behind it survives. */}
-      <p className="text-foreground/55 text-sm">
+      <p className="text-muted-foreground text-sm">
         {usable.length === 0
           ? t("credentialNoneStored", { name: connector.name })
           : t("credentialAddAnother")}{" "}

@@ -38,6 +38,17 @@ Two things are versioned separately from this file and worth knowing about:
   steps slide in, and its progress rail fills as it advances.
 - **The Activity table keeps one row to a line.** Agent and person names,
   costs and durations no longer wrap, and token counts are grouped by digit.
+- **Easier to read, firmer to see.** Small and faded text was raised to a
+  readable size and contrast across the console (nothing under 11 px, no grey
+  under 4.5:1), borders and field edges are firmer, and status pills and
+  alerts keep their tone in the fill and edge while the words stay in text
+  colour - red words on a red badge are gone. The accent is neutral: toggles
+  are green when on, errors red, and each section keeps a small hue only on
+  its page tile and empty state. Dialogs are white with a rule above their
+  actions, and every field shares one height and edge.
+- **Sign-in is quieter.** Sign in, sign up and the password pages are a white
+  form beside a soft panel with the agent orb, without the badges and licence
+  line.
 - **Headers and lists hold together across the console.** A page's actions
   sit level with its title instead of at the foot of a long description, and
   an agent's status badges sit under its name. On a phone, a list card's title

@@ -1054,7 +1054,7 @@ function CronBuilder({
                       className={cn(
                         // The same pill the quick presets wear, so the two rows
                         // of toggles in this dialog read as one control family.
-                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
                         active
                           ? "bg-foreground text-background border-foreground"
                           : "text-foreground/65 hover:text-foreground hover:border-foreground/40",

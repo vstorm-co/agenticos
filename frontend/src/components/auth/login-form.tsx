@@ -62,8 +62,8 @@ export function LoginForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">{t("welcomeBack")}</span>
-        <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
+        <span className="text-muted-foreground text-sm font-medium">{t("welcomeBack")}</span>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
           {t.rich("signInHeading", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/65 text-sm">
@@ -82,10 +82,7 @@ export function LoginForm() {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
-            <Label
-              htmlFor="email"
-              className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-            >
+            <Label htmlFor="email" className="text-foreground text-sm font-medium">
               {t("email")}
             </Label>
             <Input
@@ -98,7 +95,7 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="email"
-              className={`h-12 rounded-xl ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+              className={`h-11 rounded-lg text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
             />
             {emailTouched && email && !emailValid && (
               <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -107,15 +104,12 @@ export function LoginForm() {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label
-                htmlFor="password"
-                className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-              >
+              <Label htmlFor="password" className="text-foreground text-sm font-medium">
                 {t("password")}
               </Label>
               <Link
                 href={ROUTES.FORGOT_PASSWORD}
-                className="text-foreground/55 hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
+                className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
               >
                 {t("forgotShort")}
               </Link>
@@ -129,21 +123,17 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="current-password"
-              className="h-12 rounded-xl"
+              className="h-11 rounded-lg text-[15px]"
             />
           </div>
 
           {error && (
-            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
+            <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
               {error}
             </p>
           )}
 
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-          >
+          <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
             {isLoading ? (
               t("loggingIn")
             ) : (

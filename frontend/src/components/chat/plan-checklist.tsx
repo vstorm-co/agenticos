@@ -24,10 +24,10 @@ const LOOK: Record<
   PlanStepStatus,
   { icon: ComponentType<{ className?: string }> | null; tint: string; labelKey: string }
 > = {
-  pending: { icon: CircleDashed, tint: "text-muted-foreground/60", labelKey: "statusPending" },
+  pending: { icon: CircleDashed, tint: "text-muted-foreground", labelKey: "statusPending" },
   in_progress: { icon: Loader2, tint: "text-brand", labelKey: "statusInProgress" },
   completed: { icon: null, tint: "text-success", labelKey: "statusCompleted" },
-  cancelled: { icon: Ban, tint: "text-muted-foreground/50", labelKey: "statusCancelled" },
+  cancelled: { icon: Ban, tint: "text-muted-foreground", labelKey: "statusCancelled" },
   blocked: { icon: OctagonAlert, tint: "text-amber-600", labelKey: "statusBlocked" },
 };
 
@@ -172,7 +172,7 @@ export function PlanChecklist({
               className={cn(
                 "min-w-0",
                 done && "text-muted-foreground",
-                step.status === "cancelled" && "text-muted-foreground/70",
+                step.status === "cancelled" && "text-muted-foreground",
                 step.status === "pending" && "text-foreground/70",
                 step.status === "in_progress" && "text-foreground font-medium",
               )}
@@ -226,7 +226,7 @@ export function PlanMeter({
           style={{ width: `${percent}%` }}
         />
       </span>
-      <span className="text-muted-foreground shrink-0 font-mono text-[10px] tracking-wider">
+      <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider">
         {t("count", { completed, total })}
       </span>
     </span>

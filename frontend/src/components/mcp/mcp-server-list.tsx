@@ -620,7 +620,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                       {row.category === CUSTOM_CATEGORY
                         ? t("notCatalog")
                         : categoryLabel(row.category)}

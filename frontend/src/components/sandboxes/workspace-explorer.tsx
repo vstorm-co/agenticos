@@ -306,7 +306,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                  rather than the name and a size. */
               renderFileMeta={(node) => (
                 <>
-                  <span className="text-muted-foreground shrink-0 text-[11px]">
+                  <span className="text-muted-foreground shrink-0 text-xs">
                     {node.file?.size == null ? "—" : formatBytes(node.file.size)}
                   </span>
                   <button
@@ -323,7 +323,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                  holding only `src/components/widget.tsx` counted zero and then
                  opened to reveal a file, which is a row contradicting itself. */
               renderFolderMeta={(node) => (
-                <span className="text-muted-foreground/70 shrink-0 pr-2 text-[10px]">
+                <span className="text-muted-foreground shrink-0 pr-2 text-[11px]">
                   {t("fileCount", { count: countFiles(node.children) })}
                 </span>
               )}
@@ -348,7 +348,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                 <span className="min-w-0 flex-1 truncate font-mono text-xs" title={chosen.path}>
                   {chosen.path}
                 </span>
-                <span className="text-muted-foreground shrink-0 text-[11px]">
+                <span className="text-muted-foreground shrink-0 text-xs">
                   {chosen.size == null ? "—" : formatBytes(chosen.size)}
                 </span>
                 {/* Every format with two renderings, which `hasSourceView` is the
@@ -425,7 +425,7 @@ function FileList({ source, files, selected, onSelect, showFullPath }: FileListP
               {showFullPath ? file.path : (file.path.split("/").pop() ?? file.path)}
             </span>
           </button>
-          <span className="text-muted-foreground shrink-0 text-[11px]">
+          <span className="text-muted-foreground shrink-0 text-xs">
             {file.size == null ? "—" : formatBytes(file.size)}
           </span>
           <button

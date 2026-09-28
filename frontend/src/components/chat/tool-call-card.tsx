@@ -192,7 +192,7 @@ export function ToolCallCard({
           title={showRaw ? t("showFormatted") : t("showRaw")}
           aria-label={showRaw ? t("showFormatted") : t("showRaw")}
           className={cn(
-            "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
+            "text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1",
             showRaw && "text-foreground",
           )}
         >

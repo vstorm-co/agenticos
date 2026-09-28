@@ -216,7 +216,7 @@ export function MarkdownContent({
         ul({ children, ...props }) {
           return (
             <ul
-              className="marker:text-foreground/40 mb-3 list-disc space-y-1 pl-5 last:mb-0"
+              className="marker:text-muted-foreground mb-3 list-disc space-y-1 pl-5 last:mb-0"
               {...props}
             >
               {children}
@@ -227,7 +227,7 @@ export function MarkdownContent({
           return (
             <ol
               className={cn(
-                "marker:text-foreground/40 mb-3 list-decimal space-y-1 last:mb-0",
+                "marker:text-muted-foreground mb-3 list-decimal space-y-1 last:mb-0",
                 orderedIndent(children, props.start),
               )}
               {...props}
@@ -293,7 +293,7 @@ export function MarkdownContent({
         th({ children, ...props }) {
           return (
             <th
-              className="border-foreground/10 border-b px-3 py-2 text-left font-mono text-[11px] font-semibold tracking-wider uppercase"
+              className="border-foreground/10 border-b px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider uppercase"
               {...props}
             >
               {children}

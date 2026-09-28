@@ -82,7 +82,7 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
       <div className="mb-8 text-center">
         <div
           className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
-            linked ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"
+            linked ? "bg-success/12 text-success" : "bg-primary/10 text-primary"
           }`}
         >
           {linked ? <Check className="h-6 w-6" /> : <Link2 className="h-6 w-6" />}

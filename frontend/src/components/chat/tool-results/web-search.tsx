@@ -57,11 +57,11 @@ export function WebSearchResults({
 
   return (
     <div className="space-y-3 py-1">
-      <div className="text-foreground/55 flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase">
+      <div className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase">
         <Globe className="h-3 w-3" />
         <span>{t("webResultCount", { count: data.results.length })}</span>
         {detailed && data.query && (
-          <span className="text-foreground/40 truncate normal-case">· “{data.query}”</span>
+          <span className="text-muted-foreground truncate normal-case">· “{data.query}”</span>
         )}
       </div>
 
@@ -75,26 +75,26 @@ export function WebSearchResults({
             className="hover:bg-foreground/[0.03] block px-3 py-2.5 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <span className="bg-foreground/8 text-foreground/65 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[10px] tabular-nums">
+              <span className="bg-foreground/8 text-foreground/65 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[11px] tabular-nums">
                 {i + 1}
               </span>
               <p className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
                 {hit.title}
               </p>
               {detailed && typeof hit.score === "number" && (
-                <span className="bg-brand/10 text-brand shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
+                <span className="bg-brand/10 text-brand shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums">
                   {(hit.score * 100).toFixed(0)}%
                 </span>
               )}
             </div>
-            <div className="text-primary mt-1 flex items-center gap-1 truncate pl-[calc(1.5rem+0.5rem)] text-[10px]">
+            <div className="text-primary mt-1 flex items-center gap-1 truncate pl-[calc(1.5rem+0.5rem)] text-[11px]">
               <Link className="h-2.5 w-2.5 shrink-0" />
               {domainOf(hit.url)}
             </div>
             {hit.content && (
               <p
                 className={cn(
-                  "text-foreground/55 mt-1 pl-[calc(1.5rem+0.5rem)] text-[11px] leading-relaxed",
+                  "text-muted-foreground mt-1 pl-[calc(1.5rem+0.5rem)] text-xs leading-relaxed",
                   detailed ? "whitespace-pre-wrap" : "line-clamp-2",
                 )}
               >

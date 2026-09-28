@@ -178,7 +178,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 imageSrc={`/api/users/avatar/${m.user_id}`}
                 hasImage={!!m.avatar_url}
                 colorSlot={m.avatar_color}
-                className="h-8 w-8 shrink-0 text-[10px]"
+                className="h-8 w-8 shrink-0 text-[11px]"
                 ariaHidden
               />
               <div className="min-w-0">
@@ -419,7 +419,7 @@ export default function OrgMembersPage({ params }: PageProps) {
 
           <div className="min-w-0 flex-1 space-y-3">
             <div>
-              <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+              <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                 {t("workspaceProfile")}
               </p>
               <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
@@ -442,7 +442,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               )}
             </div>
             {!canManage && (
-              <p className="text-muted-foreground text-[11px]">{t("onlyOwnersAdminsCan")}</p>
+              <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>
             )}
             {canManage && (
               <div>
@@ -514,7 +514,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">
           <div>
-            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("pendingInvitations")}
             </p>
             <h2 className="text-foreground text-sm font-semibold">

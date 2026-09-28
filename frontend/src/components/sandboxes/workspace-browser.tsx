@@ -452,11 +452,11 @@ function FlatFiles() {
                   attached and a PDF an agent produced are read for different
                   reasons, and the path is not always the answer - `report.csv` at
                   a workspace root could be either. */}
-              <p className="text-muted-foreground flex items-center gap-1 px-1 text-[11px]">
+              <p className="text-muted-foreground flex items-center gap-1 px-1 text-xs">
                 <span
                   className={cn(
-                    "shrink-0 rounded px-1 py-0.5 text-[10px]",
-                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground/70",
+                    "shrink-0 rounded px-1 py-0.5 text-[11px]",
+                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground",
                   )}
                 >
                   {file.from_upload ? t("workspaces.fromMe") : t("workspaces.fromTheAgent")}

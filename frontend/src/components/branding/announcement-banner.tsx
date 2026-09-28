@@ -123,7 +123,7 @@ export function AnnouncementBanner({ notice }: { notice: NoticeResponse | undefi
           if (!remember(message)) setUnstorable(message);
         }}
         aria-label={t("dismiss")}
-        className="text-foreground/50 hover:text-foreground -mr-1 shrink-0 rounded p-0.5 transition-colors"
+        className="text-muted-foreground hover:text-foreground -mr-1 shrink-0 rounded p-0.5 transition-colors"
       >
         <X className="h-3.5 w-3.5" aria-hidden />
       </button>

@@ -122,7 +122,7 @@ function ServiceTile({ check }: { check: SystemCheck }) {
         </TooltipContent>
       </Tooltip>
       <span className="text-foreground w-full text-xs leading-tight break-words">{name}</span>
-      <span className={cn("text-[11px] leading-none", WORD[check.status])}>{word}</span>
+      <span className={cn("text-xs leading-none", WORD[check.status])}>{word}</span>
       {/* The hover is a pointer's affordance and nothing else's: the tile is not
           a control, so it is deliberately not a tab stop, and a reader who
           cannot hover would otherwise never reach the one sentence saying why a

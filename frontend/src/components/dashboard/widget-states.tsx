@@ -68,7 +68,7 @@ export function WidgetEmptyBody({
           filled rather than as a status icon reporting a fault. */}
       <span
         aria-hidden
-        className="border-foreground/15 text-muted-foreground/70 flex size-9 items-center justify-center rounded-xl border border-dashed"
+        className="border-foreground/15 text-muted-foreground flex size-9 items-center justify-center rounded-xl border border-dashed"
       >
         <Icon className="size-4" />
       </span>

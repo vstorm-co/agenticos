@@ -98,7 +98,7 @@ export function ChatControls({
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
           className={cn(
-            "border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-2.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+            "border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-2.5 font-mono text-xs tracking-wider uppercase transition-colors",
             hasOverride ? "text-foreground" : "text-foreground/65",
           )}
         >
@@ -107,7 +107,7 @@ export function ChatControls({
           {hasOverride && (
             <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
           )}
-          <ChevronDown className="text-foreground/45 h-3 w-3" />
+          <ChevronDown className="text-muted-foreground h-3 w-3" />
         </button>
       </PopoverTrigger>
 
@@ -117,7 +117,7 @@ export function ChatControls({
         className="border-border bg-popover relative w-[380px] overflow-hidden rounded-2xl border p-0 shadow-md"
       >
         <div className="max-h-[420px] scrollbar-thin overflow-y-auto p-4">
-          <p className="text-foreground/55 mb-3 text-xs leading-relaxed">
+          <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
             {t("whichModelRunsHere")}
           </p>
           <ChatModelPicker
@@ -138,14 +138,14 @@ export function ChatControls({
                 setProfileId(null);
                 onModelProfileChange?.(null);
               }}
-              className="text-foreground/55 hover:text-foreground mt-3 text-[11px] underline-offset-2 hover:underline"
+              className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
             >
               {t("backAgentAposS")}
             </button>
           )}
 
           <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-approval-mode">
-            <p className="text-foreground/55 mb-3 text-xs leading-relaxed">
+            <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
               {t("howMuchToBeAsked")}
             </p>
             <div role="radiogroup" aria-label={t("approvalMode")} className="space-y-1">
@@ -175,7 +175,7 @@ export function ChatControls({
                     )}
                   >
                     <span className="block text-xs font-medium">{t(`mode.${mode}`)}</span>
-                    <span className="text-foreground/50 block text-[11px] leading-relaxed">
+                    <span className="text-muted-foreground block text-xs leading-relaxed">
                       {t(`modeHint.${mode}`)}
                     </span>
                   </button>
@@ -183,7 +183,7 @@ export function ChatControls({
               })}
             </div>
             {!mayWaive && (
-              <p className="text-foreground/45 mt-2 text-[11px] leading-relaxed">
+              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
                 {t("cannotWaive")}
               </p>
             )}
@@ -191,7 +191,7 @@ export function ChatControls({
           <YourConnections />
         </div>
 
-        <div className="border-foreground/10 text-foreground/45 flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] tracking-wider uppercase">
+        <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-[11px] tracking-wider uppercase">
           <span className="inline-flex items-center gap-1.5">
             <span
               aria-hidden

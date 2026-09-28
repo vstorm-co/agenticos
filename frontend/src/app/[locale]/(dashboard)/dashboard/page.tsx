@@ -316,7 +316,7 @@ export default function DashboardPage() {
                           ? t("edit.expand", { title: heading })
                           : t("edit.collapse", { title: heading })
                       }
-                      className="text-muted-foreground/70 hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
+                      className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
                     >
                       {collapsed ? (
                         <ChevronRight className="size-4" aria-hidden />
@@ -327,7 +327,7 @@ export default function DashboardPage() {
                     {coloured ? (
                       <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
                     ) : null}
-                    <span className="text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+                    <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
                       {heading}
                     </span>
                     <span className="bg-border h-px min-w-6 flex-1" aria-hidden />

@@ -153,21 +153,17 @@ export function FileCard({
           <TextPeek
             source={preview}
             format={suffixOf(name) === "md" ? "markdown" : "plain"}
-            className="[&_p]:text-[10px]"
+            className="[&_p]:text-[11px]"
           />
         ) : (
           <div className="flex justify-center pt-2.5">
-            <FileIcon
-              name={name}
-              mimeType={mimeType}
-              className="text-muted-foreground/40 h-7 w-7"
-            />
+            <FileIcon name={name} mimeType={mimeType} className="text-muted-foreground h-7 w-7" />
           </div>
         )}
       </DocPeek>
 
       {meta !== "" && (
-        <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+        <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
           {meta}
         </p>
       )}
@@ -196,7 +192,7 @@ export function FileCard({
             {name}
           </span>
           {meta !== "" && (
-            <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+            <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
               {meta}
             </span>
           )}
@@ -278,7 +274,7 @@ export function PendingFileCard({
           <span title={name} className="truncate text-xs leading-tight font-medium">
             {name}
           </span>
-          <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+          <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
             {t("uploading", { size: formatBytes(size) })}
           </span>
         </span>
@@ -298,7 +294,7 @@ export function PendingFileCard({
         </span>
       </div>
       <div className="h-16 w-full" />
-      <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+      <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
         {t("uploading", { size: formatBytes(size) })}
       </p>
     </div>

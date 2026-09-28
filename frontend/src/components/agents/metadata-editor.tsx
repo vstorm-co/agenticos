@@ -81,7 +81,7 @@ export function MetadataEditor({
       <div className="space-y-2">
         <div className="flex items-baseline justify-between gap-2">
           <Label>{t("categories")}</Label>
-          <span className="text-muted-foreground/70 font-mono text-[11px]">
+          <span className="text-muted-foreground font-mono text-xs">
             {t("labelCount", { used: draftCategories.length, max: MAX_CATEGORIES })}
           </span>
         </div>
@@ -100,7 +100,7 @@ export function MetadataEditor({
       <div className="space-y-2">
         <div className="flex items-baseline justify-between gap-2">
           <Label>{t("tags")}</Label>
-          <span className="text-muted-foreground/70 font-mono text-[11px]">
+          <span className="text-muted-foreground font-mono text-xs">
             {t("labelCount", { used: draftTags.length, max: MAX_TAGS })}
           </span>
         </div>

@@ -65,7 +65,7 @@ export function AgentsAdoptionWidget({
                   {idle.map((name) => (
                     <span
                       key={name}
-                      className="bg-warning/12 text-warning mr-1 inline-block rounded-full px-2 py-0.5 whitespace-nowrap"
+                      className="border-warning/35 bg-warning/10 text-foreground mr-1 inline-block rounded-full border px-2 py-0.5 whitespace-nowrap"
                     >
                       {name}
                     </span>

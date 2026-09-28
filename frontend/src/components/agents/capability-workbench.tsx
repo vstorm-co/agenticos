@@ -188,7 +188,7 @@ export function CapabilityWorkbench({
           )}
           {categories.map((category) => (
             <div key={category.name} className="space-y-1">
-              <p className="text-muted-foreground px-1 text-[11px] font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
                 {category.name}
               </p>
               {category.entries.map((entry) => (

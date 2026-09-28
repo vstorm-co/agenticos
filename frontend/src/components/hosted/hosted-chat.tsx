@@ -708,7 +708,7 @@ function HostedTurn({
             one agent. The *version* is not here: what a stored spec is called is an
             internal fact, and a visitor has nothing to do with it. */}
         {!isUser && (
-          <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {agentName}
           </p>
         )}
@@ -724,7 +724,7 @@ function HostedTurn({
             the turn's cost, which web chat prints here and which is the operator's
             business rather than the visitor's - see `docs/channels.md`. */}
         {turn.at !== undefined && turn.live !== true && (
-          <span className={cn("text-muted-foreground block text-[10px]", isUser && "text-right")}>
+          <span className={cn("text-muted-foreground block text-[11px]", isUser && "text-right")}>
             {new Date(turn.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}

@@ -96,7 +96,7 @@ function Node({
           className={cn("h-3 w-3 shrink-0 transition-transform", open && "rotate-90")}
         />
         {name !== undefined && <Key name={name} />}
-        <span className="text-muted-foreground/70">
+        <span className="text-muted-foreground">
           {open ? openBracket : `${openBracket} ${summary} ${closeBracket}`}
         </span>
       </button>
@@ -113,7 +113,7 @@ function Node({
           ))}
         </div>
       )}
-      {open && <span className="text-muted-foreground/70 ml-[7px] block pl-3">{closeBracket}</span>}
+      {open && <span className="text-muted-foreground ml-[7px] block pl-3">{closeBracket}</span>}
     </div>
   );
 }
@@ -166,7 +166,7 @@ function Leaf({ value }: { value: unknown }) {
         "break-words",
         typeof value === "number" && "text-brand",
         typeof value === "boolean" && "text-success",
-        value === null && "text-muted-foreground/70",
+        value === null && "text-muted-foreground",
       )}
     >
       {value === null ? "null" : String(value)}

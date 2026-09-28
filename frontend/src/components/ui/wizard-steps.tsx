@@ -43,15 +43,15 @@ export function WizardSteps({ steps, current }: WizardStepsProps) {
                 // The step on screen carries a soft halo, so it reads as "here"
                 // from across the dialog rather than as one more coloured dot.
                 active && "bg-brand text-brand-foreground ring-brand/15 scale-110 ring-4",
-                !done && !active && "bg-foreground/8 text-foreground/55",
+                !done && !active && "bg-foreground/8 text-muted-foreground",
               )}
             >
               {done ? <Check className="h-3 w-3" /> : <step.icon className="h-3 w-3" />}
             </div>
             <span
               className={cn(
-                "hidden font-mono text-[10px] tracking-wider uppercase transition-colors duration-300 sm:inline",
-                active || done ? "text-foreground" : "text-foreground/45",
+                "hidden font-mono text-[11px] tracking-wider uppercase transition-colors duration-300 sm:inline",
+                active || done ? "text-foreground" : "text-muted-foreground",
               )}
             >
               {step.label}

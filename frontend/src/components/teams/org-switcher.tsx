@@ -75,14 +75,14 @@ export function OrganizationMenuItems() {
             hasImage={!!org.avatar_url}
             colorSlot={org.avatar_color}
             kind="org"
-            className="h-5 w-5 text-[10px]"
+            className="h-5 w-5 text-[11px]"
           />
           <span className="truncate">{org.name}</span>
           {org.id === activeId ? (
             <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" aria-hidden />
           ) : (
             org.is_personal && (
-              <span className="text-muted-foreground ml-auto text-[10px]">{t("personal")}</span>
+              <span className="text-muted-foreground ml-auto text-[11px]">{t("personal")}</span>
             )
           )}
         </DropdownMenuItem>

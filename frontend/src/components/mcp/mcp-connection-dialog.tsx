@@ -140,7 +140,7 @@ function ConnectionForm({
             maxLength={64}
             className="mt-1.5"
           />
-          <p className="text-foreground/45 mt-1 text-[11px]">{t("displayNameHint")}</p>
+          <p className="text-muted-foreground mt-1 text-xs">{t("displayNameHint")}</p>
         </div>
         <div>
           <Label htmlFor="mcp-name">{t("name")}</Label>
@@ -152,7 +152,7 @@ function ConnectionForm({
             maxLength={32}
             className="mt-1.5"
           />
-          <p className="text-foreground/45 mt-1 text-[11px]">
+          <p className="text-muted-foreground mt-1 text-xs">
             {t("namePrefixesToolNames", { scope })}
           </p>
         </div>
@@ -286,7 +286,7 @@ function ConnectionForm({
             maxLength={4096}
             className="mt-1.5 font-mono text-sm"
           />
-          <p className="text-foreground/45 mt-1 text-[11px]">
+          <p className="text-muted-foreground mt-1 text-xs">
             {scope === "organization"
               ? t("useServiceCredentialNot")
               : t("storedEncryptedNeverShown")}

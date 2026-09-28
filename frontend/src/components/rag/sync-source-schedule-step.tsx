@@ -96,7 +96,7 @@ export function ScheduleStep({
           onChange={(e) => setForm((f) => ({ ...f, organizational_unit: e.target.value || null }))}
           className="h-10 rounded-xl"
         />
-        <p className="text-foreground/55 text-xs">{t("organizationalUnitDetail")}</p>
+        <p className="text-muted-foreground text-xs">{t("organizationalUnitDetail")}</p>
       </div>
 
       <div className="space-y-2">
@@ -119,7 +119,7 @@ export function ScheduleStep({
                 )}
               >
                 <p className="text-foreground text-sm font-semibold">{t(mode.words)}</p>
-                <p className="text-foreground/55 mt-0.5 text-xs">{t(`${mode.words}Detail`)}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t(`${mode.words}Detail`)}</p>
               </button>
             );
           })}
@@ -141,7 +141,7 @@ export function ScheduleStep({
                   setForm((f) => ({ ...f, schedule_minutes: p.value === 0 ? null : p.value }))
                 }
                 className={cn(
-                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
                   active
                     ? "bg-foreground text-background border-foreground"
                     : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
@@ -153,7 +153,7 @@ export function ScheduleStep({
           })}
         </div>
         <div className="flex items-center gap-2 pt-1">
-          <Label htmlFor="custom-schedule" className="text-foreground/55 text-xs">
+          <Label htmlFor="custom-schedule" className="text-muted-foreground text-xs">
             {t("customMinutes")}
           </Label>
           <Input

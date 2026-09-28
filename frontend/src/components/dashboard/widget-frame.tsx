@@ -118,7 +118,7 @@ function WidgetHint({ title, text }: { title: string; text: string }) {
           // the *box* 44px, not the clickable area. The pseudo-element takes
           // pointer events for the button and occupies no layout at all -
           // 14 + 15 + 15 = 44.
-          className="text-muted-foreground/50 hover:text-foreground relative shrink-0 transition-colors before:absolute before:-inset-[15px] before:content-['']"
+          className="text-muted-foreground hover:text-foreground relative shrink-0 transition-colors before:absolute before:-inset-[15px] before:content-['']"
         >
           <Info className="size-3.5" aria-hidden />
         </button>

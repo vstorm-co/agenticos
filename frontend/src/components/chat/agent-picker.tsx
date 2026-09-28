@@ -95,10 +95,10 @@ export function AgentPicker() {
               <Bot className="h-3 w-3" />
             </span>
           )}
-          <span className="max-w-[160px] truncate font-mono text-[11px] tracking-wider uppercase">
+          <span className="max-w-[160px] truncate font-mono text-xs tracking-wider uppercase">
             {selected?.name ?? t("none")}
           </span>
-          <ChevronDown className="text-foreground/45 h-3 w-3" />
+          <ChevronDown className="text-muted-foreground h-3 w-3" />
         </button>
       </PopoverTrigger>
 
@@ -110,7 +110,7 @@ export function AgentPicker() {
         {/* One line, and the smallest type in the menu. It is a footnote about when the
             change takes effect; at twelve pixels over two lines it was the loudest
             thing in a list of agents. */}
-        <p className="text-muted-foreground border-foreground/8 mb-1 border-b px-2 pt-1 pb-2 text-[11px] leading-snug">
+        <p className="text-muted-foreground border-foreground/8 mb-1 border-b px-2 pt-1 pb-2 text-xs leading-snug">
           {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
@@ -128,10 +128,10 @@ export function AgentPicker() {
         </div>
 
         {isLoading && runnable.length === 0 ? (
-          <p className="text-foreground/55 px-2 py-3 text-xs">{t("loading")}</p>
+          <p className="text-muted-foreground px-2 py-3 text-xs">{t("loading")}</p>
         ) : (
           runnable.length === 0 && (
-            <p className="text-foreground/45 px-2 py-3 text-[11px] leading-relaxed">
+            <p className="text-muted-foreground px-2 py-3 text-xs leading-relaxed">
               {t("nonePublished")}
             </p>
           )
@@ -179,13 +179,13 @@ function AgentOption({
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-medium">{agent.name}</span>
             {isDefault && (
-              <span className="text-muted-foreground shrink-0 text-[10px]">{t("default")}</span>
+              <span className="text-muted-foreground shrink-0 text-[11px]">{t("default")}</span>
             )}
           </span>
           {/* One line, truncated. Wrapped to two, a description made every row a
               different height and the list stopped scanning as a list. */}
           {agent.description && (
-            <span className="text-muted-foreground block truncate text-[11px]">
+            <span className="text-muted-foreground block truncate text-xs">
               {agent.description}
             </span>
           )}
@@ -208,7 +208,7 @@ function AgentOption({
           // names; the one that is set is the only one worth showing unasked.
           isDefault
             ? "text-foreground"
-            : "text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+            : "text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         )}
       >
         <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />

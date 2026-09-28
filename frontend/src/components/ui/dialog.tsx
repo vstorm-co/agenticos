@@ -66,7 +66,7 @@ const DialogContent = React.forwardRef<
           // whatever happens to be behind it - the wrong place for panel.
           // Rises a few pixels as it scales in, and settles with a spring - the
           // motion of something placed in front of the page, not faded onto it.
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-[0_24px_64px_-24px_oklch(0%_0_0/0.35),0_2px_6px_oklch(0%_0_0/0.06)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:rounded-2xl",
+          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-[0_24px_64px_-24px_oklch(0%_0_0/0.35),0_2px_6px_oklch(0%_0_0/0.06)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:rounded-2xl",
           className,
         )}
         {...props}
@@ -94,7 +94,12 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+      // A rule above the actions, so where the form ends and the decision starts
+      // is drawn rather than implied by a gap.
+      className={cn(
+        "border-border mt-1 flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end",
+        className,
+      )}
       {...props}
     />
   );
@@ -106,7 +111,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg leading-none font-semibold tracking-tight", className)}
+    className={cn("text-lg leading-tight font-semibold tracking-tight", className)}
     {...props}
   />
 ));
@@ -118,7 +123,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-sm", className)}
+    className={cn("text-muted-foreground text-sm leading-relaxed", className)}
     {...props}
   />
 ));

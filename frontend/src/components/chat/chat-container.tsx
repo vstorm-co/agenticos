@@ -668,7 +668,7 @@ function ChatUI({
                 >
                   <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
                     {isArchived && (
-                      <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
+                      <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
                         {t("conversationArchived")}
                       </p>
                     )}
@@ -695,7 +695,7 @@ function ChatUI({
                       statusSlot={
                         <>
                           <span
-                            className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
+                            className={`inline-flex shrink-0 items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
                           >
                             <span
                               className={`inline-block h-1.5 w-1.5 rounded-full ${
@@ -756,7 +756,7 @@ function ChatUI({
                 other surface: a translucent chip took its colour from whatever
                 line of the transcript happened to be under it. */}
             <p className="text-center">
-              <span className="text-foreground/40 bg-background mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase">
+              <span className="text-muted-foreground bg-background mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[11px] tracking-wider uppercase">
                 {t("aiCanMakeMistakes")}
               </span>
             </p>

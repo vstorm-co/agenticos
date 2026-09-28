@@ -64,7 +64,7 @@ export function DocPeek({
         {children}
       </div>
       {badge != null && (
-        <span className="bg-foreground/85 text-background absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 font-mono text-[10px] leading-4 tracking-wide backdrop-blur-sm">
+        <span className="bg-foreground/85 text-background absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 font-mono text-[11px] leading-4 tracking-wide backdrop-blur-sm">
           {badge}
         </span>
       )}

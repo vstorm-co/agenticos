@@ -136,7 +136,7 @@ function BrowserCard({ browse }: { browse: Browse }) {
 
       <div className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
-          <Globe className="text-foreground/40 h-4 w-4 shrink-0" aria-hidden />
+          <Globe className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
           <span className="text-foreground truncate text-sm font-medium">
             {browse.title || t("browserHeading")}
           </span>
@@ -151,7 +151,7 @@ function BrowserCard({ browse }: { browse: Browse }) {
         <div className="flex min-w-0 items-baseline gap-3">
           {browse.url && (
             <span
-              className="text-foreground/45 min-w-0 flex-1 truncate font-mono text-xs"
+              className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs"
               title={browse.url}
             >
               {browse.url}
@@ -165,7 +165,7 @@ function BrowserCard({ browse }: { browse: Browse }) {
               {t(`browserOutcome.${browse.outcome}`)}
             </span>
           ) : (
-            <span className="text-foreground/50 shrink-0 font-mono text-xs tabular-nums">
+            <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
               {progress}
             </span>
           )}

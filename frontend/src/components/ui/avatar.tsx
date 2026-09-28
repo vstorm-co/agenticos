@@ -13,7 +13,7 @@ const Avatar = React.forwardRef<
     className={cn(
       // The type scale lives here, on the same element as the diameter, because
       // a font-size on the fallback would beat the one it inherits: every
-      // circle drew 12px initials whatever its size, so `text-[10px]` in a
+      // circle drew 12px initials whatever its size, so `text-[11px]` in a
       // 16px circle rendered as an unreadable smudge and `text-lg` in an 80px
       // one as two small letters in a lot of colour.
       "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full text-xs",

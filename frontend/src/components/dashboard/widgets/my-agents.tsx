@@ -74,7 +74,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                   </Link>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
                       tag === "yours" ? "bg-chart/10 text-chart" : "bg-muted text-muted-foreground",
                     )}
                   >

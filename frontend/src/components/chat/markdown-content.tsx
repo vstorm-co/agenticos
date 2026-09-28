@@ -41,7 +41,9 @@ const MarkdownContentImpl = dynamic(
   () => import("./markdown-content.impl").then((m) => m.MarkdownContent),
   {
     ssr: false,
-    loading: () => <p className="text-foreground/55 leading-relaxed whitespace-pre-wrap">&nbsp;</p>,
+    loading: () => (
+      <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">&nbsp;</p>
+    ),
   },
 );
 

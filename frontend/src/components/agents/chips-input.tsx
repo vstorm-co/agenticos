@@ -65,7 +65,9 @@ export function ChipsInput({
   return (
     <div
       className={cn(
-        "border-input flex flex-wrap items-center gap-1.5 rounded-lg border p-1.5",
+        // The height and edge of every other field: a 36px row with the same
+        // 1.5px border, ringed when anything inside it has focus.
+        "border-input focus-within:ring-ring flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border-[1.5px] px-1.5 py-0.5 focus-within:ring-1",
         disabled && "opacity-50",
       )}
     >

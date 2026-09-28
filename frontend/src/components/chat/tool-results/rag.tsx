@@ -65,7 +65,7 @@ export function RAGSearchResults({ result }: { result: string }) {
 
   return (
     <div className="space-y-3 py-1">
-      <div className="text-foreground/55 flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase">
+      <div className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase">
         <Search className="h-3 w-3" />
         <span>{t("chunkCount", { count: items.length })}</span>
         <span>·</span>
@@ -104,17 +104,17 @@ function RAGSourceGroup({
   return (
     <div>
       <div className="bg-foreground/[0.02] flex items-center gap-2 px-3 py-2">
-        <FileText className="text-foreground/55 h-3.5 w-3.5 shrink-0" />
+        <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
         <span className="text-foreground truncate text-xs font-medium" title={source}>
           {source}
         </span>
-        <span className="text-foreground/45 ml-auto font-mono text-[10px] tracking-wider uppercase">
+        <span className="text-muted-foreground ml-auto font-mono text-[11px] tracking-wider uppercase">
           {t("chunkCount", { count: chunks.length })}
         </span>
         <ScoreDot score={bestScore} />
         {collection && (
           <span
-            className="border-foreground/15 text-foreground/55 hidden shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase sm:inline"
+            className="border-foreground/15 text-muted-foreground hidden shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase sm:inline"
             title={t("collectionNamed", { name: collection })}
           >
             {collection}
@@ -131,7 +131,7 @@ function RAGSourceGroup({
                 onClick={() => onToggle(chunk.index)}
                 className="hover:bg-foreground/[0.02] flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors"
               >
-                <span className="bg-foreground/8 text-foreground/65 mt-0.5 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[10px] tabular-nums">
+                <span className="bg-foreground/8 text-foreground/65 mt-0.5 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[11px] tabular-nums">
                   {chunk.index}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -144,7 +144,7 @@ function RAGSourceGroup({
                     {chunk.content}
                   </p>
                   {(chunk.page || chunk.chunk) && (
-                    <div className="text-foreground/45 mt-1 flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase">
+                    <div className="text-muted-foreground mt-1 flex items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase">
                       {chunk.page && <span>p.{chunk.page}</span>}
                       {chunk.chunk && (
                         <>
@@ -156,13 +156,13 @@ function RAGSourceGroup({
                   )}
                 </div>
                 <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
-                  <span className="text-foreground/55 font-mono text-[10px] tabular-nums">
+                  <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
                     {parseFloat(chunk.score).toFixed(2)}
                   </span>
                   <ScoreDot score={parseFloat(chunk.score) || 0} />
                   <ChevronDown
                     className={cn(
-                      "text-foreground/40 h-3.5 w-3.5 transition-transform",
+                      "text-muted-foreground h-3.5 w-3.5 transition-transform",
                       isOpen && "rotate-180",
                     )}
                   />

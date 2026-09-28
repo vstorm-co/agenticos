@@ -81,7 +81,7 @@ export function TextPeek({ source, format = "markdown", className }: TextPeekPro
     return (
       <pre
         className={cn(
-          "text-muted-foreground overflow-hidden font-mono text-[10px] leading-[1.55] whitespace-pre",
+          "text-muted-foreground overflow-hidden font-mono text-[11px] leading-[1.55] whitespace-pre",
           className,
         )}
       >
@@ -110,17 +110,14 @@ export function TextPeek({ source, format = "markdown", className }: TextPeekPro
         }
         if (line.kind === "item") {
           return (
-            <p
-              key={index}
-              className="text-muted-foreground flex gap-1.5 text-[11px] leading-[1.55]"
-            >
-              <span className="text-muted-foreground/60 shrink-0 tabular-nums">{line.marker}</span>
+            <p key={index} className="text-muted-foreground flex gap-1.5 text-xs leading-[1.55]">
+              <span className="text-muted-foreground shrink-0 tabular-nums">{line.marker}</span>
               <span className="truncate">{line.text}</span>
             </p>
           );
         }
         return (
-          <p key={index} className="text-muted-foreground line-clamp-2 text-[11px] leading-[1.55]">
+          <p key={index} className="text-muted-foreground line-clamp-2 text-xs leading-[1.55]">
             {line.text}
           </p>
         );

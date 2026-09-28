@@ -43,7 +43,7 @@ function Fact({ label, value, source }: { label: string; value: string; source?:
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="text-foreground truncate text-sm font-medium">{value}</dd>
       {source !== undefined && (
-        <dd className="text-muted-foreground/70 truncate font-mono text-[10px]">{source}</dd>
+        <dd className="text-muted-foreground truncate font-mono text-[11px]">{source}</dd>
       )}
     </div>
   );

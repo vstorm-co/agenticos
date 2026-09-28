@@ -106,7 +106,7 @@ export function ActivityLog({ sessionId }: ActivityLogProps) {
         header: t("sessions.when"),
         className: "pl-5",
         cell: (row) => (
-          <span className="text-muted-foreground/70 font-mono text-[10px] whitespace-nowrap">
+          <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
             {t("sessions.ago", { time: ago(row.at) })}
           </span>
         ),
@@ -116,7 +116,7 @@ export function ActivityLog({ sessionId }: ActivityLogProps) {
         header: "",
         cell: (row) =>
           row.ok ? (
-            <Check className="text-muted-foreground/40 h-3.5 w-3.5" aria-label={t("sessions.ok")} />
+            <Check className="text-muted-foreground h-3.5 w-3.5" aria-label={t("sessions.ok")} />
           ) : (
             <X className="text-destructive h-3.5 w-3.5" aria-label={t("sessions.failed")} />
           ),

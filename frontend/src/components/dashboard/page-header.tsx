@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { PageIcon } from "@/components/dashboard/page-icon";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -76,9 +77,12 @@ export function PageHeader({
           leave the page's primary button floating halfway down the header. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 basis-80">
-          <h1 className="text-foreground text-2xl leading-tight font-semibold tracking-tight text-balance">
-            {title}
-          </h1>
+          <div className="flex items-center gap-3">
+            <PageIcon />
+            <h1 className="text-foreground min-w-0 text-2xl leading-tight font-semibold tracking-tight text-balance">
+              {title}
+            </h1>
+          </div>
           {/* Status belongs to the thing named, so it sits under the name - it
               used to float above the action buttons, reading as a caption for
               them rather than as a fact about the page. */}

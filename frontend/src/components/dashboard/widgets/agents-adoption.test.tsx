@@ -73,7 +73,7 @@ describe("the agent adoption widget", () => {
     const { container } = renderWidget();
     const face = container.querySelector("svg.h-full")!;
 
-    expect(face.parentElement?.parentElement).toHaveClass("h-5", "w-5", "text-[10px]");
+    expect(face.parentElement?.parentElement).toHaveClass("h-5", "w-5", "text-[11px]");
   });
 
   it("gives two agents two faces, where their labels both truncate", () => {

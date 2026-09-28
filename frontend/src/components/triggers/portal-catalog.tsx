@@ -245,7 +245,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                   )}
                   <div className="min-w-0 flex-1 space-y-1">
                     <span className="truncate text-sm font-medium">{item.portal.name}</span>
-                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide">
+                    <p className="text-muted-foreground text-xs font-medium tracking-wide">
                       {categoryLabel(item.portal.category)}
                     </p>
                     <p className="text-muted-foreground line-clamp-2 text-sm">
@@ -256,7 +256,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
 
                 <div className="flex flex-wrap gap-1">
                   {item.portal.presets.map((preset) => (
-                    <Badge key={preset.key} variant="outline" className="text-[11px]">
+                    <Badge key={preset.key} variant="outline" className="text-xs">
                       {preset.label}
                     </Badge>
                   ))}
@@ -344,7 +344,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                   <Webhook className="text-muted-foreground mt-0.5 h-6 w-6 shrink-0" aria-hidden />
                   <div className="min-w-0 flex-1 space-y-1">
                     <span className="truncate text-sm font-medium">{t("advancedWebhook")}</span>
-                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide">
+                    <p className="text-muted-foreground text-xs font-medium tracking-wide">
                       {t("apiCategory")}
                     </p>
                     <p className="text-muted-foreground line-clamp-2 text-sm">

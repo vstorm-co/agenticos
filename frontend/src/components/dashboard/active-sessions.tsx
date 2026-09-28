@@ -188,7 +188,7 @@ export function ActiveSessions() {
                     <p className="text-foreground flex items-center gap-2 text-sm font-medium">
                       <span className="truncate">{session.device_name || t("unknownDevice")}</span>
                       {session.is_current && (
-                        <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                        <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase">
                           {t("current")}
                         </span>
                       )}

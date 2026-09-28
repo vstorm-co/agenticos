@@ -55,19 +55,19 @@ export function ChatEmptyState({ onPick, agentLabel = "pydantic_ai" }: ChatEmpty
                 {t(`${p.id}Prompt`)}
               </p>
             </div>
-            <ArrowUpRight className="text-muted-foreground/50 group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 transition-colors" />
+            <ArrowUpRight className="text-muted-foreground group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 transition-colors" />
           </button>
         ))}
       </div>
 
       <div className="text-muted-foreground mt-8 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs">
-        <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+        <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[11px]">⌘K</kbd>
         <span>{t("commandPalette")}</span>
         <span className="text-border">·</span>
-        <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[10px]">/</kbd>
+        <kbd className="border-border bg-card rounded px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
         <span>{t("slashCommands")}</span>
         <span className="text-border">·</span>
-        <span className="text-muted-foreground/70">{t("poweredBy", { agent: agentLabel })}</span>
+        <span className="text-muted-foreground">{t("poweredBy", { agent: agentLabel })}</span>
       </div>
     </div>
   );

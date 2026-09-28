@@ -58,7 +58,7 @@ export function LanguageSwitcherIcon() {
               {active ? (
                 <Check className="text-foreground h-4 w-4" />
               ) : (
-                <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+                <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
                   {loc}
                 </span>
               )}

@@ -3496,8 +3496,6 @@
       "skills": "Skills"
     },
     "auth": {
-      "agentHereDataNot": "Ein Agent ist hier Daten, kein Code – Instruktionen, ein Modell, eine Reihe von Capabilities. Er läuft auf dem Web-Chat, der HTTP-API und in Slack gleich, auf Ihrer Infrastruktur und mit Ihren Schlüsseln.",
-      "apache20Your": "Apache-2.0 · Ihre Infrastruktur · Ihre Schlüssel",
       "backSign": "Zurück zur Anmeldung",
       "checkSpamFolder": "Nichts zu sehen? Sehen Sie im Spam-Ordner nach, oder <link>versuchen Sie es erneut</link>.",
       "inboxIncoming": "Posteingang, <em>im Anflug.</em>",
@@ -3505,15 +3503,10 @@
       "magicLinkSent": "Wir haben einen Anmeldelink gesendet. Klicken Sie ihn zum Fortfahren – er läuft in 15 Minuten ab.",
       "magicLinkSentTo": "Wir haben einen Anmeldelink an <strong>{email}</strong> gesendet. Klicken Sie ihn zum Fortfahren – er läuft in 15 Minuten ab.",
       "missingExpiredLink": "Fehlender oder abgelaufener Link",
-      "operatingSystemHeading": "Bauen, betreiben und steuern Sie <em>die KI-Agents Ihres Unternehmens.</em>",
       "orReturnToSignIn": "Oder <link>zurück zur Anmeldung</link>.",
       "pageExpectsTokenFrom": "Diese Seite erwartet ein Token aus Ihrer E-Mail zum Zurücksetzen. Fordern Sie einen neuen Link an, um fortzufahren.",
-      "pitchAgents": "Agents, in einer Oberfläche gebaut, beim Veröffentlichen versioniert",
-      "pitchGovernance": "Budgets, Freigaben und ein Audit-Trail bei jedem Run",
-      "pitchKnowledge": "Wissen, Skills und Tools, pro Agent eingeschaltet",
       "requestNewLink": "Neuen Link anfordern",
       "resetPassword": "Passwort zurücksetzen",
-      "selfHostedOpenSource": "Selbst gehostet, Open Source",
       "tryAgain": "erneut versuchen"
     },
     "channelLink": {
@@ -3831,9 +3824,6 @@
       "onboardingTitle": "Loslegen",
       "onboardingUnderConstruction": "Das Onboarding ist im Aufbau",
       "pageError": "Seitenfehler:",
-      "pitchAgents": "Agents, in einer Oberfläche gebaut, beim Veröffentlichen versioniert",
-      "pitchGovernance": "Budgets, Freigaben und ein Audit-Trail bei jedem Run",
-      "pitchKnowledge": "Wissen, Skills und Tools, pro Agent eingeschaltet",
       "sectionFailed": "Dieser Abschnitt konnte nicht geladen werden",
       "shareLinkExpired": "Dieser Freigabelink ist möglicherweise abgelaufen oder widerrufen worden.",
       "shareLinkNotFound": "Freigabelink nicht gefunden",

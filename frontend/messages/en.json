@@ -3630,8 +3630,6 @@
       "labelCount": "{used} of {max}"
     },
     "auth": {
-      "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",
-      "apache20Your": "Apache-2.0 · your infrastructure · your keys",
       "backSign": "Back to sign in",
       "checkSpamFolder": "Don't see it? Check your spam folder, or <link>try again</link>.",
       "inboxIncoming": "Inbox, <em>incoming.</em>",
@@ -3639,16 +3637,12 @@
       "magicLinkSent": "We sent a sign-in link. Click it to continue - expires in 15 minutes.",
       "magicLinkSentTo": "We sent a sign-in link to <strong>{email}</strong>. Click it to continue - expires in 15 minutes.",
       "missingExpiredLink": "Missing or expired link",
-      "operatingSystemHeading": "Build, run and govern <em>your company's</em> AI agents.",
       "orReturnToSignIn": "Or <link>return to sign in</link>.",
       "pageExpectsTokenFrom": "This page expects a token from your reset email. Request a new link to continue.",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "requestNewLink": "Request a new link",
       "resetPassword": "Reset password",
-      "selfHostedOpenSource": "Self-hosted, open source",
-      "tryAgain": "try again"
+      "tryAgain": "try again",
+      "tagline": "One place to <b>build</b>, <b>run</b> and <b>govern</b> your company’s AI agents."
     },
     "channelLink": {
       "connectThisAccount": "Connect this account",
@@ -3965,9 +3959,6 @@
       "onboardingTitle": "Get started",
       "onboardingUnderConstruction": "Onboarding is under construction",
       "pageError": "Page error:",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "sectionFailed": "This section failed to load",
       "shareLinkExpired": "This share link may have expired or been revoked.",
       "shareLinkNotFound": "Share link not found",

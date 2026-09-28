@@ -87,7 +87,7 @@ function useProviderLabel(variant: Variant): (provider: SignInProvider) => strin
 }
 
 const BUTTON =
-  "border-foreground/15 hover:border-foreground/40 hover:bg-foreground/[0.03] text-foreground inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border px-5 text-sm font-medium transition-colors";
+  "border-input bg-card shadow-card hover:bg-accent text-foreground inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border px-5 text-[15px] font-medium transition-colors";
 
 interface OAuthButtonsProps {
   providers: readonly SignInProvider[];
@@ -185,11 +185,9 @@ export function OAuthBlock({
 function OAuthDivider({ label = "or" }: { label?: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="bg-foreground/15 h-px flex-1" />
-      <span className="text-foreground/45 font-mono text-[11px] tracking-wider uppercase">
-        {label}
-      </span>
-      <span className="bg-foreground/15 h-px flex-1" />
+      <span className="bg-border h-px flex-1" />
+      <span className="text-muted-foreground text-xs font-medium">{label}</span>
+      <span className="bg-border h-px flex-1" />
     </div>
   );
 }

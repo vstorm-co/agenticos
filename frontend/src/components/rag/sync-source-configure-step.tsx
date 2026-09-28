@@ -30,7 +30,7 @@ export function ConfigureStep({
   if (!hasFields) {
     return (
       <div className="border-foreground/10 bg-foreground/[0.03] rounded-xl border p-5 text-center">
-        <Cog className="text-foreground/45 mx-auto h-6 w-6" />
+        <Cog className="text-muted-foreground mx-auto h-6 w-6" />
         <p className="text-foreground/70 mt-3 text-sm">
           {t.rich("configureNoneNeeded", {
             name: connector.name,

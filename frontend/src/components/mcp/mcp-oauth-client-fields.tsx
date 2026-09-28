@@ -50,7 +50,7 @@ export function McpOAuthClientFields({
         <code className="bg-muted mt-1.5 block rounded px-2 py-1.5 font-mono text-xs break-all select-all">
           {redirectUrl}
         </code>
-        <p className="text-foreground/45 mt-1 text-[11px]">{t("oauthRedirectUrlHint")}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("oauthRedirectUrlHint")}</p>
       </div>
       <div>
         <Label htmlFor="mcp-client-id">{t("oauthClientId")}</Label>
@@ -74,7 +74,7 @@ export function McpOAuthClientFields({
           autoComplete="new-password"
           className="mt-1.5 font-mono text-sm"
         />
-        <p className="text-foreground/45 mt-1 text-[11px]">{t("oauthClientSecretHint")}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("oauthClientSecretHint")}</p>
       </div>
     </div>
   );
