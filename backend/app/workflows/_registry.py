@@ -98,7 +98,10 @@ def load_builtins() -> None:
     if _builtins_loaded:
         return
 
-    from app.workflows.nodes import debug_echo  # noqa: F401 - imported for side effects
+    from app.workflows.nodes import (  # noqa: F401 - imported for side effects
+        debug_echo,
+        debug_relay,
+    )
 
     _builtins_loaded = True
     logger.debug("Workflow node registry loaded with %d entries", len(REGISTRY))

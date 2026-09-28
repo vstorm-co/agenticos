@@ -10,11 +10,12 @@ same place twice.
 - `README.md`     - why this node exists and what it deliberately does not do.
 """
 
+import sys
 from pathlib import Path
 
 import pytest
 
-from app.workflows._registry import all_node_definitions, load_builtins
+from app.workflows._registry import load_builtins
 
 NODES_ROOT = Path(__file__).resolve().parents[1] / "app" / "workflows" / "nodes"
 
@@ -49,10 +50,15 @@ def test_every_package_on_disk_is_reachable_from_the_catalog():
     """A package nobody imports from `load_builtins` does not exist as far as
     the catalog is concerned - the same drift `load_builtins` documents.
 
-    Compares by count rather than by id prefix: a node id need not share its
-    package's directory name (`debug.echo` lives in `nodes/debug_echo/`).
+    Checks that each package was imported rather than matching node ids to
+    directory names: a node id need not share its package's name
+    (`debug.echo` lives in `nodes/debug_echo/`), and two nodes may share an id
+    prefix (`debug.echo`, `debug.relay`) while living in separate packages.
     """
     load_builtins()
-    registered_packages = {definition.id.split(".")[0] for definition in all_node_definitions()}
-    on_disk = {package.name for package in packages()}
-    assert len(registered_packages) == len(on_disk)
+    imported = {
+        package.name
+        for package in packages()
+        if f"app.workflows.nodes.{package.name}" in sys.modules
+    }
+    assert imported == {package.name for package in packages()}
