@@ -64,7 +64,7 @@ type rather than as data access.
 | ↳ `message_rating.py` | Message rating schemas |
 | ↳ `rag.py` | RAG query/response schemas |
 | ↳ `sync_source.py` | Sync source schemas |
-| **`db/models/`** | **SQLAlchemy 2.0 models** |
+| **`db/models/`** | **SQLAlchemy 2.1 models** |
 | ↳ `user.py` | User model |
 | ↳ `conversation.py` | Conversation & message models |
 | ↳ `chat_file.py` | Chat file model |
@@ -113,7 +113,7 @@ type rather than as data access.
 - `Response` schemas use `model_config = ConfigDict(from_attributes=True)` for ORM conversion
 
 ### Models (`db/models/`)
-- SQLAlchemy 2.0 model definitions
+- SQLAlchemy 2.1 model definitions
 - Relationships, indexes, and column defaults live here
 
 ### RAG connectors (`rag/connectors/`)

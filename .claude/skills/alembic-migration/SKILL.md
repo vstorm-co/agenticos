@@ -5,7 +5,7 @@ description: Change the PostgreSQL schema with Alembic — add or alter a table,
 
 # Migrations
 
-Async SQLAlchemy 2.0 + Alembic on PostgreSQL. `backend/alembic/versions/`, numbered
+Async SQLAlchemy 2.1 + Alembic on PostgreSQL. `backend/alembic/versions/`, numbered
 `0001_…` upward. `.claude/rules/schemas-models.md` has the model shapes.
 
 **The chain starts at `0001_baseline`,** which is 65 earlier revisions collapsed into

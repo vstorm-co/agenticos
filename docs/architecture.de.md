@@ -1,5 +1,5 @@
 ---
-source_sha: "a76ef1e767d9"
+source_sha: "8d9cf7ac71b1"
 ---
 
 # Architektur { #architecture }
@@ -69,7 +69,7 @@ von Sortierreihenfolgen, als Typ importiert und nicht als Datenzugriff.
 | ↳ `message_rating.py` | Schemas für Nachrichtenbewertungen |
 | ↳ `rag.py` | Schemas für RAG-Abfrage und -Antwort |
 | ↳ `sync_source.py` | Schemas für Sync-Quellen |
-| **`db/models/`** | **SQLAlchemy-2.0-Modelle** |
+| **`db/models/`** | **SQLAlchemy-2.1-Modelle** |
 | ↳ `user.py` | Nutzer-Modell |
 | ↳ `conversation.py` | Modelle für Unterhaltung und Nachricht |
 | ↳ `chat_file.py` | Modell für Chat-Dateien |
@@ -119,7 +119,7 @@ von Sortierreihenfolgen, als Typ importiert und nicht als Datenzugriff.
 - `Response`-Schemas nutzen `model_config = ConfigDict(from_attributes=True)` für die ORM-Umwandlung
 
 ### Models (`db/models/`) { #models-dbmodels }
-- Modelldefinitionen für SQLAlchemy 2.0
+- Modelldefinitionen für SQLAlchemy 2.1
 - Beziehungen, Indizes und Spaltenvorgaben stehen hier
 
 ### RAG-Connectors (`rag/connectors/`) { #rag-connectors-ragconnectors }

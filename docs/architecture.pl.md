@@ -1,5 +1,5 @@
 ---
-source_sha: "a76ef1e767d9"
+source_sha: "8d9cf7ac71b1"
 ---
 
 # Architektura { #architecture }
@@ -70,7 +70,7 @@ importowany jako typ, a nie jako dostęp do danych.
 | ↳ `message_rating.py` | Schematy ocen wiadomości |
 | ↳ `rag.py` | Schematy zapytań/odpowiedzi RAG |
 | ↳ `sync_source.py` | Schematy źródeł synchronizacji |
-| **`db/models/`** | **Modele SQLAlchemy 2.0** |
+| **`db/models/`** | **Modele SQLAlchemy 2.1** |
 | ↳ `user.py` | Model użytkownika |
 | ↳ `conversation.py` | Modele rozmów i wiadomości |
 | ↳ `chat_file.py` | Model pliku czatu |
@@ -120,7 +120,7 @@ importowany jako typ, a nie jako dostęp do danych.
 - Schematy `Response` używają `model_config = ConfigDict(from_attributes=True)` do konwersji z ORM
 
 ### Modele (`db/models/`) { #models-dbmodels }
-- Definicje modeli SQLAlchemy 2.0
+- Definicje modeli SQLAlchemy 2.1
 - Tu mieszkają relacje, indeksy i domyślne wartości kolumn
 
 ### Konektory RAG (`rag/connectors/`) { #rag-connectors-ragconnectors }
