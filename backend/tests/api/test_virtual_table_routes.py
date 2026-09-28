@@ -1,0 +1,486 @@
+"""The Virtual Tables routes, through the app: the wire contract other components build on.
+
+`tests/api/test_platform_routes.py` proves the collection routes are gated and the
+per-table routes delegate to the service; `tests/integration/test_virtual_table_*.py`
+proves what the service does against a database. What is left is the wire itself:
+status codes, the replay header, the error envelope a client branches on, request
+validation, and the OpenAPI document Kacper's external API is generated from.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import UTC, datetime
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.api import deps
+from app.core.config import settings
+from app.core.permissions import AuthContext, OrgRoleName
+from app.main import app
+from app.schemas.virtual_table import (
+    RecordExists,
+    RecordList,
+    RecordQuery,
+    RecordRead,
+    TableList,
+    TableRead,
+)
+from app.services.virtual_tables import RecordWrite
+from app.services.virtual_tables.exceptions import (
+    IdempotencyKeyReuseError,
+    InvalidRecordError,
+    RevisionConflictError,
+    RevisionRequiredError,
+    SchemaDependencyError,
+    TableArchivedError,
+)
+
+pytestmark = pytest.mark.anyio
+
+_ORG = uuid.uuid4()
+_TABLE = uuid.uuid4()
+_RECORD = uuid.uuid4()
+
+OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
+
+
+def _record(revision: int = 1) -> RecordRead:
+    return RecordRead(
+        id=_RECORD,
+        table_id=_TABLE,
+        external_id="A-1",
+        schema_version=1,
+        values={"c": "x"},
+        revision=revision,
+        created_at=datetime(2026, 9, 21, tzinfo=UTC),
+    )
+
+
+def _table() -> TableRead:
+    return TableRead(
+        id=_TABLE,
+        name="Orders",
+        visibility="private",
+        schema_version=1,
+        created_at=datetime(2026, 9, 21, tzinfo=UTC),
+        columns=[],
+    )
+
+
+@pytest.fixture
+def service() -> MagicMock:
+    return MagicMock(
+        create_table=AsyncMock(return_value=_table()),
+        list_tables=AsyncMock(
+            return_value=TableList(items=[], total=0),
+        ),
+        describe_table=AsyncMock(return_value=_table()),
+        update_table=AsyncMock(return_value=_table()),
+        archive_table=AsyncMock(return_value=_table()),
+        update_schema=AsyncMock(return_value=_table()),
+        list_schema_versions=AsyncMock(return_value={"items": []}),
+        list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
+        record_exists=AsyncMock(return_value=True),
+        get_record=AsyncMock(return_value=_record()),
+        get_record_by_external_id=AsyncMock(return_value=_record()),
+        create_record=AsyncMock(
+            return_value=RecordWrite(record=_record(), created=True, replayed=False)
+        ),
+        update_record=AsyncMock(
+            return_value=RecordWrite(record=_record(2), created=False, replayed=False)
+        ),
+        upsert_record=AsyncMock(
+            return_value=RecordWrite(record=_record(), created=True, replayed=False)
+        ),
+        delete_record=AsyncMock(return_value=None),
+    )
+
+
+@pytest.fixture
+def client(mock_redis: MagicMock, service: MagicMock) -> Iterator[OpenClient]:
+    context = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.OWNER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: context
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    app.dependency_overrides[deps.get_virtual_table_service] = lambda: service
+
+    @asynccontextmanager
+    async def open_client() -> AsyncIterator[AsyncClient]:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
+            yield opened
+
+    yield open_client
+    app.dependency_overrides.clear()
+
+
+def _url(suffix: str = "") -> str:
+    return f"{settings.API_V1_STR}/tables{suffix}"
+
+
+def _records(suffix: str = "") -> str:
+    return _url(f"/{_TABLE}/records{suffix}")
+
+
+async def test_a_table_is_created_with_201_and_listed_with_its_total(client, service):
+    async with client() as http:
+        created = await http.post(_url(), json={"name": "Orders", "columns": []})
+        listed = await http.get(_url(), params={"q": "ord", "include_archived": "true"})
+
+    assert created.status_code == 201 and created.json()["name"] == "Orders"
+    assert listed.json() == {"items": [], "total": 0}
+    assert service.list_tables.await_args.kwargs == {
+        "include_archived": True,
+        "search": "ord",
+        "skip": 0,
+        "limit": 50,
+    }
+
+
+async def test_the_per_table_routes_answer_with_the_table(client):
+    async with client() as http:
+        responses = [
+            await http.get(_url(f"/{_TABLE}")),
+            await http.patch(_url(f"/{_TABLE}"), json={"name": "Renamed"}),
+            await http.post(_url(f"/{_TABLE}/archive")),
+            await http.put(_url(f"/{_TABLE}/schema"), json={"expected_version": 1, "columns": []}),
+        ]
+        versions = await http.get(_url(f"/{_TABLE}/schema-versions"))
+
+    assert [r.status_code for r in responses] == [200, 200, 200, 200]
+    assert versions.json() == {"items": []}
+
+
+async def test_creating_a_record_is_a_201_and_passes_the_operation_key_through(client, service):
+    async with client() as http:
+        response = await http.post(
+            _records(),
+            json={"external_id": "A-1", "values": {"c": "x"}},
+            headers={"Idempotency-Key": "import-17"},
+        )
+
+    assert response.status_code == 201
+    assert "idempotent-replayed" not in response.headers
+    assert response.json()["revision"] == 1
+    assert service.create_record.await_args.kwargs == {"operation_key": "import-17"}
+
+
+async def test_a_replayed_write_says_so_in_a_header(client, service):
+    service.create_record.return_value = RecordWrite(record=_record(), created=True, replayed=True)
+
+    async with client() as http:
+        response = await http.post(
+            _records(), json={"values": {}}, headers={"Idempotency-Key": "k"}
+        )
+
+    assert response.status_code == 201
+    assert response.headers["idempotent-replayed"] == "true"
+
+
+async def test_an_upsert_is_201_when_it_creates_and_200_when_it_updates(client, service):
+    async with client() as http:
+        created = await http.put(_records("/by-external-id/A-1"), json={"values": {}})
+        service.upsert_record.return_value = RecordWrite(
+            record=_record(2), created=False, replayed=False
+        )
+        updated = await http.put(
+            _records("/by-external-id/A-1"), json={"values": {}, "expected_revision": 1}
+        )
+
+    assert (created.status_code, updated.status_code) == (201, 200)
+    assert service.upsert_record.await_args.args[2:3] == ("A-1",)
+
+
+async def test_an_update_is_200_and_needs_its_expected_revision(client, service):
+    async with client() as http:
+        ok = await http.patch(
+            _records(f"/{_RECORD}"), json={"expected_revision": 1, "values": {"c": "y"}}
+        )
+        missing = await http.patch(_records(f"/{_RECORD}"), json={"values": {}})
+        misspelled = await http.patch(
+            _records(f"/{_RECORD}"), json={"expected_revison": 1, "values": {}}
+        )
+
+    assert ok.status_code == 200 and ok.json()["revision"] == 2
+    assert missing.status_code == 422 and misspelled.status_code == 422
+    assert service.update_record.await_count == 1
+
+
+async def test_a_delete_is_204_and_needs_its_expected_revision(client, service):
+    async with client() as http:
+        deleted = await http.delete(_records(f"/{_RECORD}"), params={"expected_revision": 3})
+        missing = await http.delete(_records(f"/{_RECORD}"))
+
+    assert deleted.status_code == 204 and deleted.content == b""
+    assert missing.status_code == 422
+    assert service.delete_record.await_args.kwargs["expected_revision"] == 3
+
+
+async def test_the_literal_record_routes_are_not_swallowed_by_the_record_id_route(client):
+    async with client() as http:
+        exists = await http.get(_records("/exists"), params={"external_id": "A-1"})
+        by_key = await http.get(_records("/by-external-id/A-1"))
+        one = await http.get(_records(f"/{_RECORD}"))
+
+    assert exists.json() == RecordExists(exists=True).model_dump()
+    assert by_key.status_code == 200 and one.status_code == 200
+
+
+async def test_listing_and_querying_records_hand_the_service_one_bounded_query(client, service):
+    body = {
+        "filters": [{"column_id": str(uuid.uuid4()), "op": "gte", "value": 3}],
+        "sort": {"by": "updated_at", "direction": "desc"},
+        "skip": 5,
+        "limit": 10,
+    }
+    async with client() as http:
+        plain = await http.get(
+            _records(), params={"sort": "updated_at", "direction": "desc", "skip": 5, "limit": 10}
+        )
+        queried = await http.post(_records("/query"), json=body)
+        too_many = await http.get(_records(), params={"limit": 101})
+        too_deep = await http.post(_records("/query"), json={"skip": 10_001})
+
+    assert plain.status_code == queried.status_code == 200
+    assert (too_many.status_code, too_deep.status_code) == (422, 422)
+    listed, searched = (call.args[2] for call in service.list_records.await_args_list)
+    assert isinstance(listed, RecordQuery)
+    assert (listed.sort.by, listed.sort.direction, listed.skip, listed.limit) == (
+        "updated_at",
+        "desc",
+        5,
+        10,
+    )
+    assert searched.filters[0].op == "gte" and searched.skip == 5
+
+
+async def test_every_refusal_answers_in_the_one_envelope_with_its_own_code(client, service):
+    record_id = uuid.uuid4()
+    cases: list[tuple[Any, int, str, dict[str, Any]]] = [
+        (
+            RevisionConflictError(record_id=record_id, expected_revision=1, current_revision=4),
+            409,
+            "REVISION_CONFLICT",
+            {"record_id": str(record_id), "expected_revision": 1, "current_revision": 4},
+        ),
+        (
+            RevisionRequiredError(record_id=record_id, current_revision=4),
+            428,
+            "REVISION_REQUIRED",
+            {"record_id": str(record_id), "current_revision": 4},
+        ),
+        (InvalidRecordError([("values.x", "Expected text")]), 422, "INVALID_RECORD", {}),
+        (TableArchivedError(table_id=_TABLE), 409, "TABLE_ARCHIVED", {"table_id": str(_TABLE)}),
+        (IdempotencyKeyReuseError(operation="record.create"), 422, "IDEMPOTENCY_KEY_REUSED", {}),
+        (SchemaDependencyError([{"kind": "view", "id": record_id}]), 409, "SCHEMA_DEPENDENCY", {}),
+    ]
+    async with client() as http:
+        for error, status_code, code, details in cases:
+            service.update_record.side_effect = error
+            response = await http.patch(
+                _records(f"/{_RECORD}"), json={"expected_revision": 1, "values": {}}
+            )
+            body = response.json()
+            assert response.status_code == status_code
+            assert list(body) == ["error"]
+            assert body["error"]["code"] == code
+            assert details.items() <= (body["error"]["details"] or {}).items()
+
+
+def test_the_openapi_document_types_the_write_contract():
+    document = app.openapi()
+
+    path = document["paths"][f"{settings.API_V1_STR}/tables/{{table_id}}/records/{{record_id}}"]
+    patch = path["patch"]
+    assert patch["responses"]["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    assert {"idempotency-key"} <= {p["name"] for p in patch["parameters"]}
+    request = document["components"]["schemas"]["RecordUpdate"]
+    assert set(request["required"]) == {"expected_revision", "values"}
+    assert request["additionalProperties"] is False
+    assert {"created_at", "updated_at"} <= set(
+        document["components"]["schemas"]["RecordRead"]["properties"]
+    )
+    upsert = document["paths"][
+        f"{settings.API_V1_STR}/tables/{{table_id}}/records/by-external-id/{{external_id}}"
+    ]["put"]
+    assert {"200", "201", "428"} <= set(upsert["responses"])
+
+
+NUL = chr(0)
+
+
+@pytest.mark.parametrize("spelling", ["2026/ORD-1", "2026%2FORD-1"])
+async def test_an_external_id_containing_a_slash_is_reachable_by_both_routes(
+    client, service, spelling
+):
+    async with client() as http:
+        read = await http.get(_records(f"/by-external-id/{spelling}"))
+        write = await http.put(_records(f"/by-external-id/{spelling}"), json={"values": {}})
+
+    assert (read.status_code, write.status_code) == (200, 201)
+    assert service.get_record_by_external_id.await_args.args[2] == "2026/ORD-1"
+    assert service.upsert_record.await_args.args[2] == "2026/ORD-1"
+
+
+async def test_an_external_id_that_would_hit_the_database_limit_or_hold_nul_is_a_422(
+    client, service
+):
+    too_long = "x" * 256
+    async with client() as http:
+        responses = [
+            await http.get(_records(f"/by-external-id/{too_long}")),
+            await http.put(_records(f"/by-external-id/{too_long}"), json={"values": {}}),
+            await http.get(_records("/by-external-id/a%00b")),
+            await http.put(_records("/by-external-id/a%00b"), json={"values": {}}),
+            await http.get(_records("/exists"), params={"external_id": f"a{NUL}b"}),
+            await http.get(_url(), params={"q": f"a{NUL}b"}),
+            await http.post(_records(), json={"external_id": f"a{NUL}b", "values": {}}),
+            await http.post(_records(), json={"external_id": too_long, "values": {}}),
+        ]
+
+    assert [r.status_code for r in responses] == [422] * 8
+    service.upsert_record.assert_not_awaited()
+    service.create_record.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"name": f"a{NUL}b"},
+        {"name": "ok", "description": f"a{NUL}b"},
+        {"name": "ok", "columns": [{"label": f"a{NUL}b", "type": "text"}]},
+        {
+            "name": "ok",
+            "columns": [
+                {"label": "Pick", "type": "single_select", "options": [{"label": f"a{NUL}b"}]}
+            ],
+        },
+    ],
+)
+async def test_nul_in_a_name_description_or_label_is_a_422_not_a_database_error(
+    client, service, body
+):
+    async with client() as http:
+        response = await http.post(_url(), json=body)
+
+    assert response.status_code == 422
+    service.create_table.assert_not_awaited()
+
+
+@pytest.mark.parametrize("raw", ["abc%0A", "a%0Ab", "a%0Db", "%0A"])
+async def test_an_external_id_holding_a_line_break_is_a_422_not_a_silent_match_or_a_404(
+    client, service, raw
+):
+    """`abc%0A` used to reach the route as `abc`, and `a%0Ab` matched nothing at all."""
+    async with client() as http:
+        read = await http.get(_records(f"/by-external-id/{raw}"))
+        write = await http.put(_records(f"/by-external-id/{raw}"), json={"values": {}})
+
+    assert (read.status_code, write.status_code) == (422, 422)
+    assert read.json()["error"]["code"] == "VALIDATION_ERROR"
+    service.get_record_by_external_id.assert_not_awaited()
+    service.upsert_record.assert_not_awaited()
+
+
+@pytest.mark.parametrize("external_id", ["abc\n", "a\nb", "a\rb"])
+async def test_creating_a_record_with_a_line_break_in_its_external_id_is_a_422(
+    client, service, external_id
+):
+    async with client() as http:
+        response = await http.post(_records(), json={"external_id": external_id, "values": {}})
+
+    assert response.status_code == 422
+    service.create_record.assert_not_awaited()
+
+
+async def test_the_idempotency_key_header_is_bounded(client, service):
+    async with client() as http:
+        too_long = await http.post(
+            _records(), json={"values": {}}, headers={"Idempotency-Key": "k" * 129}
+        )
+
+    assert too_long.status_code == 422
+    service.create_record.assert_not_awaited()
+
+
+async def test_the_exists_query_refuses_a_line_break_in_the_external_id(client, service):
+    async with client() as http:
+        response = await http.get(_records("/exists"), params={"external_id": "a\nb"})
+
+    assert response.status_code == 422
+    service.record_exists.assert_not_awaited()
+
+
+def test_a_url_for_the_upsert_route_carries_the_external_id_through_unchanged():
+    """Building a URL runs the converter the other way, and must not touch the text."""
+    path = app.url_path_for("upsert_record", table_id=_TABLE, external_id="2026/ORD-1")
+
+    assert path.endswith(f"/tables/{_TABLE}/records/by-external-id/2026/ORD-1")
+
+
+def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
+    paths = app.openapi()["paths"]
+    prefix = f"{settings.API_V1_STR}/tables"
+    table_routes = {
+        (path, method): operation
+        for path, item in paths.items()
+        if path.startswith(prefix) and "/sharing" not in path
+        for method, operation in item.items()
+    }
+
+    with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
+
+    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    refusal = table_routes[(prefix, "post")]["responses"]["403"]
+    assert refusal["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    assert len(table_routes) > 10
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("role", [OrgRoleName.VIEWER, OrgRoleName.OPERATOR])
+async def test_a_role_without_tables_create_gets_the_403_the_document_promises(
+    client, service, role
+):
+    """Checked against the real gate, not assumed: the status and the envelope's code."""
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=role)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    async with client() as http:
+        refused = await http.post(_url(), json={"name": "Orders"})
+        allowed_to_read = await http.get(_url())
+
+    assert refused.status_code == 403
+    body = refused.json()
+    assert list(body) == ["error"]
+    assert body["error"]["code"] == "AUTHORIZATION_ERROR"
+    assert body["error"]["details"]["required"] == ["tables:create"]
+    assert allowed_to_read.status_code == 200
+    service.create_table.assert_not_awaited()
+
+
+async def test_a_lone_surrogate_in_a_values_key_or_a_name_is_a_422_not_an_encoding_error(
+    client, service
+):
+    """The refusal used to echo the key into its own body and fail to encode it."""
+    escaped = chr(92) + "ud800"
+    headers = {"content-type": "application/json"}
+    async with client() as http:
+        by_key = await http.post(
+            _records(), content=('{"values": {"a' + escaped + '": 1}}').encode(), headers=headers
+        )
+        by_name = await http.post(
+            _url(), content=('{"name": "a' + escaped + '"}').encode(), headers=headers
+        )
+
+    assert (by_key.status_code, by_name.status_code) == (422, 422)
+    assert by_key.json()["error"]["code"] == "VALIDATION_ERROR"
+    service.create_record.assert_not_awaited()
+    service.create_table.assert_not_awaited()

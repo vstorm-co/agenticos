@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "e74235b50167"
 ---
 
 # Berechtigungen { #permissions }
@@ -282,8 +282,8 @@ Gruppe, und eine Gruppe aus einer anderen Organisation erreicht hier niemanden,
 selbst wenn eine Zeile eine benennen würde.
 
 Die Tabelle ist bewusst generisch - `resource_type` + `resource_id`, ohne
-Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien
-und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
+Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien,
+[Tabellen](virtual-tables.md) und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
 dass die Datenbank einen Grant nicht per Cascade löschen kann, wenn sein Ziel
 verschwindet, sodass Services Grants zusammen mit der Ressource löschen.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "e74235b50167"
 ---
 
 # Uprawnienia { #permissions }
@@ -267,8 +267,8 @@ jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
 do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
 
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
-do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu i przechowywane
-klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
+do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu,
+[tabele](virtual-tables.md) i przechowywane klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
 kaskadowo usunąć grantu, kiedy jego cel znika, więc serwisy usuwają granty razem
 z zasobem.
 
