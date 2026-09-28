@@ -1220,6 +1220,15 @@ class TestSumReservedNodeWork:
     and released the instant it ends - not the count of materialized node rows,
     which lag a wide graph's fan-out."""
 
+    async def test_lock_admission_holds_and_still_reads_the_reservation(self, db: AsyncSession):
+        org = await _org(db)
+        # A transaction-scoped advisory lock: taking it (even twice - it is
+        # re-entrant within one session) does not block the same transaction
+        # from going on to read its reservation.
+        await workflow_run_repo.lock_admission(db, organization_id=org.id)
+        await workflow_run_repo.lock_admission(db, organization_id=org.id)
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 0
+
     async def test_sums_node_count_over_live_runs_only(self, db: AsyncSession):
         org = await _org(db)
         workflow = await _workflow(db, org)

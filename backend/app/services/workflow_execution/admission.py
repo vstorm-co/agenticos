@@ -16,9 +16,9 @@ its single entry node, the one row that exists before the graph fans out - so
 many wide graphs cannot slip in before their work materializes. The count is
 authoritative (Postgres, not a Redis gauge a lost decrement would drift), and a
 run that reaches a terminal status frees its reservation with no bookkeeping.
-Two racing starts can both read below a ceiling and both be admitted, the same
-boundary overshoot the fixed-window rate limiter accepts; the ceiling is a
-defensive bound on sustained abuse, not an exact quota.
+Concurrent starts in one organization are serialized by a transaction-scoped
+advisory lock taken before the sum is read, so the check and the reservation are
+atomic and the ceiling cannot be overshot by racing reads.
 
 Cancelling a run releases its reservation the moment it goes terminal, before an
 attempt already executing has settled. That does not reopen the backlog this
@@ -62,6 +62,11 @@ async def enforce_admission_quota(
         WorkflowAdmissionQuotaError: Admitting this run would exceed the
             organization's or the caller's outstanding-node-work ceiling.
     """
+    # Serialize admission for this organization first: the check reads a sum and
+    # then a new run is inserted, so without this two concurrent starts could
+    # both read below the ceiling and both be admitted. The lock is held to the
+    # request's commit, by which point this run's reservation is visible.
+    await workflow_run_repo.lock_admission(db, organization_id=organization_id)
     org_outstanding = await workflow_run_repo.sum_reserved_node_work(
         db, organization_id=organization_id
     )

@@ -207,6 +207,31 @@ async def create_node_run(
 _LIVE_RUN_STATUSES = tuple(status.value for status in WorkflowRunStatus if not status.is_terminal)
 
 
+# The advisory-lock class for workflow admission (#1907). A transaction-scoped
+# advisory lock, not a row lock: the admission check reads an aggregate and then
+# inserts a *new* run, so there is no existing row to lock, and two concurrent
+# starts would otherwise both read the same sum before either committed.
+_ADMISSION_LOCK_NAMESPACE = 1907
+
+
+async def lock_admission(db: AsyncSession, *, organization_id: UUID) -> None:
+    """Serialize run admission for one organization until this transaction ends.
+
+    Taken before the reservation sum is read and held to commit - by which point
+    this start's run row exists - so concurrent starts in the same organization
+    queue through the check one at a time and the ceiling cannot be overshot by
+    racing reads. Scoped per organization; the per-principal check within it is
+    covered by the same lock.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                _ADMISSION_LOCK_NAMESPACE, func.hashtext(str(organization_id))
+            )
+        )
+    )
+
+
 async def sum_reserved_node_work(
     db: AsyncSession, *, organization_id: UUID, principal_user_id: UUID | None = None
 ) -> int:
