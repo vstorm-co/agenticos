@@ -10,10 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core.exceptions import ConcurrentChangeError
+from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_repo
-from app.schemas.virtual_table import RecordUpsert
+from app.schemas.virtual_table import RecordCreate, RecordUpsert
 from app.services.virtual_tables import records
 from app.services.virtual_tables.exceptions import RevisionConflictError, RevisionRequiredError
 from app.services.virtual_tables.records import RecordOperations
@@ -119,3 +119,14 @@ async def test_a_winner_that_appears_while_waiting_for_the_count_lock_is_updated
 
     assert raised.value.details == {"record_id": winner.id, "current_revision": 1}
     assert inserted == []
+
+
+async def test_a_create_that_loses_the_insert_to_the_same_external_id_is_already_exists(
+    service, monkeypatch
+):
+    """Nothing held the id when this create looked, but a rival's insert committed first."""
+    ops, ctx, table = service
+    _lookups(monkeypatch, None)
+
+    with pytest.raises(AlreadyExistsError):
+        await ops.create_record(ctx, table.id, RecordCreate(external_id="A-1", values={}))
