@@ -200,11 +200,23 @@ async def create_node_run(
     return node_run
 
 
-# A run's node work is outstanding until the run reaches a terminal status.
-# Summing `node_count` over these - not counting materialized `node_runs` -
-# is what makes the admission reservation durable: a wide graph holds its whole
-# count the moment it is admitted, long before its downstream nodes exist.
-_LIVE_RUN_STATUSES = tuple(status.value for status in WorkflowRunStatus if not status.is_terminal)
+# A run's node work is outstanding while it is still scheduling. Summing
+# `node_count` over these - not counting materialized `node_runs` - is what makes
+# the admission reservation durable: a wide graph holds its whole count the moment
+# it is admitted, long before its downstream nodes exist.
+#
+# `needs_attention` is excluded though it is not terminal: it is a dead end a
+# person resolves by cancelling (there is no resume path), so a run parked there
+# will never schedule the rest of its graph, and charging its whole `node_count`
+# forever would let a few failed wide runs exhaust the quota and 429 every later
+# start until each is cancelled by hand. Whatever nodes such a run still had
+# queued or running drain through the runner regardless - bounded by
+# `PREFECT_RUNNER_LIMIT`, never re-grown, since a parked run enqueues no successors.
+_LIVE_RUN_STATUSES = tuple(
+    status.value
+    for status in WorkflowRunStatus
+    if not status.is_terminal and status is not WorkflowRunStatus.NEEDS_ATTENTION
+)
 
 
 # The advisory-lock class for workflow admission (#1907). A transaction-scoped

@@ -1239,6 +1239,11 @@ class TestSumReservedNodeWork:
         # Terminal runs release their reservation.
         await _run(db, org, workflow, node_count=999, status=WorkflowRunStatus.SUCCEEDED.value)
         await _run(db, org, workflow, node_count=999, status=WorkflowRunStatus.CANCELLED.value)
+        # `needs_attention` is a dead end a person resolves by cancelling, so it
+        # releases its reservation too rather than pinning the quota forever.
+        await _run(
+            db, org, workflow, node_count=999, status=WorkflowRunStatus.NEEDS_ATTENTION.value
+        )
         assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 537
 
     async def test_another_organizations_reservation_is_not_counted(self, db: AsyncSession):
