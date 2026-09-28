@@ -1,5 +1,5 @@
 ---
-source_sha: "95169de72dd9"
+source_sha: "f96569e0069d"
 ---
 
 # Workflows { #workflows }
@@ -131,6 +131,12 @@ datos, no se enlaza nada y eliges cada fuente tú mismo con **Bind**. Undo (`Ctr
 conexión junto con sus bindings, y borrar una arista más tarde deja sus bindings donde
 estaban, así que quítalos o vuelve a enlazarlos en el panel.
 
+Para borrar una conexión, selecciónala: haz clic en el cable y se dibuja más grueso,
+el panel muestra su **From** y su **To**, y aparece sobre él un botón **Delete
+connection**. Pulsa el botón o `Backspace` y la conexión desaparece, mientras los dos
+pasos se quedan. Las conexiones de una versión publicada no se pueden seleccionar, así
+que no se pueden borrar.
+
 Un paso `foreach` ejecuta su cuerpo una vez por cada elemento de una lista. El cuerpo
 no es un documento aparte — es parte del mismo grafo plano, mostrado por sí solo.
 **Open body** en el paso entra en esa vista, y las migas **Workflow scope** muestran
@@ -222,6 +228,18 @@ Un pegado obtiene ids nuevas y reasigna los bindings entre los pasos copiados, a
 los pasos pegados leen unos de otros y no de los originales. Cada atajo de edición es
 inerte mientras ves una versión publicada, que es de solo lectura; `Escape` sigue
 cancelando una conexión perdida.
+
+Copiar y pegar tienen tres límites:
+
+- **Un paso con bindings lee de donde leía.** Un paso copiado conserva sus bindings.
+  Uno que lee de un paso que no copiaste sigue leyendo del original, pero nada conecta
+  el paso pegado con él, así que no valida hasta que los conectes. Selecciona ambos
+  pasos para copiar el par, y la copia leerá de su propio paso anterior.
+- **Una conexión viaja solo con sus dos pasos.** Seleccionar solo una conexión y copiar
+  no hace nada.
+- **Los atajos necesitan el foco dentro del lienzo.** Hacer clic en el lienzo vacío saca
+  el foco, y también cortar un paso, porque el paso que tenía el foco desaparece. Pegar
+  no hace nada hasta que hagas clic en un paso.
 
 ## Resumen { #recap }
 

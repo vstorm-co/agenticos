@@ -129,6 +129,12 @@ nothing is bound and you pick each source yourself with **Bind**. Undo (`Ctrl`/`
 back the connection and its bindings together, and deleting an edge later leaves
 its bindings in place, so remove or rebind them in the panel.
 
+To delete a connection, select it: click the wire, and it is drawn heavier, the
+panel shows its **From** and **To**, and a **Delete connection** button appears on
+it. Press the button, or press `Backspace`, and the connection goes while the two
+steps stay. The connections of a published version cannot be selected, so they
+cannot be deleted.
+
 A `foreach` step runs its body once per item in a list. The body is not a
 separate document — it is part of the same flat graph, shown on its own. **Open
 body** on the step enters that view, and the **Workflow scope** breadcrumb shows
@@ -220,6 +226,19 @@ A paste gets fresh ids and remaps the bindings among the copied steps, so pasted
 steps read from each other rather than from the originals. Every edit shortcut is
 inert while you are viewing a published version, which is read-only; `Escape`
 still cancels a stray connection.
+
+Copy and paste have three limits:
+
+- **A bound step reads from where it read before.** A copied step keeps its
+  bindings. One that reads from a step you did not copy keeps reading from the
+  original, but nothing connects the pasted step to it, so it does not validate until
+  you connect them. Select both steps to copy the pair, and the copy reads from its
+  own upstream step.
+- **A connection travels only with its two steps.** Selecting a connection alone and
+  copying does nothing.
+- **The shortcuts need focus inside the canvas.** Clicking empty canvas moves focus
+  out of it, and so does cutting a step, since the step that had focus is gone. Paste
+  does nothing until you click a step.
 
 ## Recap
 

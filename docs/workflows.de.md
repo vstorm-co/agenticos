@@ -1,5 +1,5 @@
 ---
-source_sha: "95169de72dd9"
+source_sha: "f96569e0069d"
 ---
 
 # Workflows { #workflows }
@@ -144,6 +144,13 @@ Sie wählen jede Quelle selbst mit **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die
 Bindings zurück, und das spätere Löschen einer Kante lässt ihre Bindings bestehen —
 entfernen oder binden Sie sie im Panel neu.
 
+Um eine Verbindung zu löschen, wählen Sie sie aus: Klicken Sie auf die Linie, dann
+wird sie dicker gezeichnet, das Panel zeigt ihr **From** und **To**, und auf ihr
+erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläche oder
+`Backspace`, dann verschwindet die Verbindung, und die beiden Schritte bleiben. Die
+Verbindungen einer veröffentlichten Version lassen sich nicht auswählen und daher
+nicht löschen.
+
 Ein `foreach`-Schritt führt seinen Körper einmal pro Element in einer Liste aus.
 Der Körper ist kein eigenes Dokument — er ist Teil desselben flachen Graphen, nur
 für sich gezeigt. **Open body** am Schritt betritt diese Ansicht, und die
@@ -245,6 +252,21 @@ Schritten um, sodass eingefügte Schritte voneinander lesen statt von den Origin
 Jedes Bearbeitungskürzel ist wirkungslos, während Sie eine veröffentlichte Version
 ansehen, die schreibgeschützt ist; `Escape` bricht eine übrig gebliebene Verbindung
 weiterhin ab.
+
+Kopieren und Einfügen haben drei Grenzen:
+
+- **Ein gebundener Schritt liest weiter von dort, wo er zuvor las.** Ein kopierter
+  Schritt behält seine Bindings. Liest er von einem Schritt, den Sie nicht kopiert
+  haben, liest er weiter vom Original, aber nichts verbindet den eingefügten Schritt
+  damit, sodass er erst validiert, wenn Sie beide verbinden. Wählen Sie beide Schritte
+  aus, um das Paar zu kopieren, dann liest die Kopie von ihrem eigenen vorgelagerten
+  Schritt.
+- **Eine Verbindung reist nur mit ihren beiden Schritten.** Eine Verbindung allein
+  auszuwählen und zu kopieren bewirkt nichts.
+- **Die Kürzel brauchen den Fokus in der Zeichenfläche.** Ein Klick auf die leere
+  Zeichenfläche nimmt den Fokus heraus, ebenso das Ausschneiden eines Schritts, denn
+  der Schritt mit dem Fokus ist weg. Einfügen bewirkt nichts, bis Sie einen Schritt
+  anklicken.
 
 ## Zusammenfassung { #recap }
 

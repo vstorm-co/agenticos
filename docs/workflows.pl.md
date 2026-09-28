@@ -1,5 +1,5 @@
 ---
-source_sha: "95169de72dd9"
+source_sha: "f96569e0069d"
 ---
 
 # Workflows { #workflows }
@@ -132,6 +132,11 @@ port nie niesie danych, nic nie jest wiązane i każde źródło wybierasz sam p
 **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
 krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w panelu.
 
+Aby usunąć połączenie, zaznacz je: kliknij linię, a zostanie narysowana grubiej, panel
+pokaże jego **From** i **To**, a na nim pojawi się przycisk **Delete connection**.
+Naciśnij przycisk albo `Backspace`, a połączenie zniknie, podczas gdy oba kroki
+zostaną. Połączeń opublikowanej wersji nie można zaznaczyć, więc nie można ich usunąć.
+
 Krok `foreach` wykonuje swoje ciało raz na każdy element listy. Ciało nie jest
 osobnym dokumentem — jest częścią tego samego płaskiego grafu, pokazaną osobno.
 **Open body** na kroku wchodzi do tego widoku, a okruszki **Workflow scope**
@@ -222,6 +227,19 @@ Wklejenie dostaje świeże id i przemapowuje bindingi wśród skopiowanych krok�
 wklejone kroki czytają od siebie nawzajem, a nie od oryginałów. Każdy skrót edycji
 jest bezczynny, gdy oglądasz opublikowaną wersję, która jest tylko do odczytu;
 `Escape` wciąż przerywa zabłąkane połączenie.
+
+Kopiowanie i wklejanie mają trzy ograniczenia:
+
+- **Krok z bindingami czyta stamtąd, skąd czytał.** Skopiowany krok zachowuje swoje
+  bindingi. Ten, który czyta z kroku, którego nie skopiowałeś, wciąż czyta z oryginału,
+  ale nic nie łączy wklejonego kroku z tamtym, więc nie przejdzie walidacji, dopóki ich
+  nie połączysz. Zaznacz oba kroki, aby skopiować parę, a kopia będzie czytać z własnego
+  kroku poprzedzającego.
+- **Połączenie podróżuje tylko ze swoimi dwoma krokami.** Zaznaczenie samego połączenia
+  i skopiowanie niczego nie robi.
+- **Skróty wymagają fokusu wewnątrz kanwy.** Kliknięcie pustej kanwy przenosi fokus poza
+  nią, tak samo jak wycięcie kroku, bo krok, który miał fokus, znika. Wklejanie nic nie
+  robi, dopóki nie klikniesz kroku.
 
 ## Podsumowanie { #recap }
 

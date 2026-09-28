@@ -5464,6 +5464,7 @@
     "canvasGraphLabel": "Workflow graph editor",
     "connectStart": "Connect from {port}",
     "connectFinish": "Connect to {port}",
+    "deleteConnection": "Delete connection",
     "connectFrom": "Start a connection from {name} port {port}",
     "connectTo": "Complete the connection to {name} port {port}",
     "enterScopeLabel": "Open body",
