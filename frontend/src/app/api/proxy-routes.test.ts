@@ -67,7 +67,6 @@ import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
 import * as tables from "./tables/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
-import * as tables from "./tables/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
 import * as workflows from "./workflows/[[...path]]/route";
