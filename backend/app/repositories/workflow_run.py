@@ -744,7 +744,7 @@ async def take_stale_claims_for_resubmission(
     return await _stamp_submitted(db, stale)
 
 
-async def _stamp_submitted(db: AsyncSession, ids: Select[tuple[UUID]]) -> list[DispatchOutbox]:
+async def _stamp_submitted(db: AsyncSession, ids: Select[UUID]) -> list[DispatchOutbox]:
     result = await db.execute(
         sql_update(DispatchOutbox)
         .where(DispatchOutbox.id.in_(ids))

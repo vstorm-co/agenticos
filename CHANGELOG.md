@@ -32,7 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
   Runs, their events and cancel have routes of their own; see
   [the HTTP API](docs/api.md#running-a-workflow) and
   [Permissions](docs/permissions.md#workflow-runs). Migration
-  `0104_workflow_runs.py`. (#1788)
+  `0106_workflow_runs.py`. (#1788)
 - **Virtual Tables: typed records behind one service and an HTTP API.** A table is
   metadata plus JSONB, never a physical SQL table, with immutable schema versions,
   stable table, column and option ids, and nine column types (text, long text,
@@ -100,7 +100,7 @@ Two things are versioned separately from this file and worth knowing about:
   from the instant it is admitted - not once its nodes fan out - and the check is
   serialized per organization and per principal so it cannot be raced. A start
   over the ceiling is refused with `429` `WORKFLOW_ADMISSION_QUOTA_EXCEEDED` until
-  running work drains. Migration `0105_workflow_run_node_count.py`. (#1907)
+  running work drains. Migration `0107_workflow_run_node_count.py`. (#1907)
 
 ## [0.0.513] - 2026-09-28
 

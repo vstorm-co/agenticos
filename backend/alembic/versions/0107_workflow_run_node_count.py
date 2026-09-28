@@ -21,8 +21,8 @@ not-yet-upgraded instance during a rolling deploy) can still insert a row withou
 violating `NOT NULL`. The service always stamps a real count; a later change may
 drop the default once every writer supplies one.
 
-Revision ID: 0105_workflow_run_node_count
-Revises: 0104_workflow_runs
+Revision ID: 0107_workflow_run_node_count
+Revises: 0106_workflow_runs
 Create Date: 2026-09-28
 """
 
@@ -32,8 +32,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0105_workflow_run_node_count"
-down_revision: str | Sequence[str] | None = "0104_workflow_runs"
+revision: str = "0107_workflow_run_node_count"
+down_revision: str | Sequence[str] | None = "0106_workflow_runs"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
