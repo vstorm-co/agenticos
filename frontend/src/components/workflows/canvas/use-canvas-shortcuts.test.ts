@@ -106,6 +106,25 @@ describe("useCanvasShortcuts", () => {
     expect(store.getState().graph?.nodes.map((node) => node.id)).toEqual(["a"]);
   });
 
+  it("hands focus back to the canvas after a cut removes the focused step", () => {
+    const region = document.createElement("section");
+    region.tabIndex = -1;
+    document.body.appendChild(region);
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [nodeAt("a"), nodeAt("b")],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["b"], edgeIds: [] });
+    const { handle } = handlerFor(false);
+
+    handle(keyEvent({ key: "x", metaKey: true, currentTarget: region } as Partial<KeyboardEvent>));
+    expect(document.activeElement).toBe(region);
+    region.remove();
+  });
+
   it("copies nothing when the selection is empty", () => {
     store.getState().seedGraph(seeded());
     const { handle } = handlerFor(false);

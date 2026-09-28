@@ -106,6 +106,35 @@ describe("WorkflowEdge", () => {
       expect(store.getState().graph?.edges).toEqual([]);
     });
 
+    it("hands focus back to the canvas region once the edge is gone", () => {
+      const region = document.createElement("div");
+      region.tabIndex = -1;
+      region.setAttribute("data-workflow-region", "canvas");
+      document.body.appendChild(region);
+      const view = render(
+        <svg>
+          <WorkflowEdge
+            id="e1"
+            source="a"
+            target="b"
+            sourceX={0}
+            sourceY={0}
+            targetX={100}
+            targetY={100}
+            sourcePosition={Position.Right}
+            targetPosition={Position.Left}
+            selected
+            data={{ variant: "data", label: null }}
+          />
+        </svg>,
+        { container: region.appendChild(document.createElement("div")) },
+      );
+      fireEvent.click(view.getByRole("button", { name: "Delete connection" }));
+      expect(document.activeElement).toBe(region);
+      view.unmount();
+      region.remove();
+    });
+
     it("ignores other keys", () => {
       const { getByRole } = renderEdge({ variant: "data", label: null }, true);
       fireEvent.keyDown(getByRole("button", { name: "Delete connection" }), { key: "a" });

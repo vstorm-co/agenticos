@@ -56,17 +56,23 @@ export function WorkflowEdge({
   const variant = data?.variant ?? "data";
   const label = data?.label;
 
-  const remove = () => applyEdgeChanges([{ id, type: "remove" }]);
+  // Removing the edge removes the button that holds focus, so hand focus back to the
+  // canvas region the shortcuts listen on, or Cmd+Z right after deleting does nothing.
+  const remove = (button: Element) => {
+    const region = button.closest<HTMLElement>('[data-workflow-region="canvas"]');
+    applyEdgeChanges([{ id, type: "remove" }]);
+    region?.focus();
+  };
   // The click would otherwise reach the edge underneath and select it again.
   const onClick = (event: MouseEvent) => {
     event.stopPropagation();
-    remove();
+    remove(event.currentTarget);
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     event.stopPropagation();
-    remove();
+    remove(event.currentTarget);
   };
   // A branch label sits on the wire's midpoint; the button goes just below it.
   const buttonY = label ? labelY + 18 : labelY;

@@ -161,6 +161,9 @@ describe("WorkflowCanvas", () => {
 
     fireEvent.click(container.querySelector('[data-node-id="a"] button[aria-label^="Start"]')!);
     expect(region?.getAttribute("data-connecting")).toBe("true");
+    // The clicked button unmounted with the mode change; focus must stay on the canvas
+    // so the shortcuts (Cmd+C, Cmd+V, Cmd+Z) still reach it.
+    expect(document.activeElement).toBe(region);
 
     await waitFor(() =>
       expect(
@@ -177,6 +180,7 @@ describe("WorkflowCanvas", () => {
       target_port: "in",
     });
     expect(region?.getAttribute("data-connecting")).toBe("false");
+    expect(document.activeElement).toBe(region);
   });
 
   it("binds the target's fields to the source's when an edge joins matching ports", async () => {

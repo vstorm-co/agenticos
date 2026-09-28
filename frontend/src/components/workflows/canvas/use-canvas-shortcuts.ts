@@ -62,6 +62,9 @@ export function useCanvasShortcuts(
         event.preventDefault();
         copyToClipboard(store);
         store.deleteSelection();
+        // The cut removed the element that held focus; without a refocus the next
+        // shortcut (the paste this is usually for) fires outside the canvas region.
+        if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus();
       } else if (key === "v") {
         event.preventDefault();
         pasteFromClipboard(store);

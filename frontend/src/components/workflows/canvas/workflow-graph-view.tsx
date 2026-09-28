@@ -1,7 +1,7 @@
 "use client";
 
 import { Background, type Connection, Controls, ReactFlow, useReactFlow } from "@xyflow/react";
-import { useCallback, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { readNodeDragData } from "@/components/workflows/palette";
@@ -68,6 +68,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const { screenToFlowPosition } = useReactFlow();
 
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
+  const regionRef = useRef<HTMLElement>(null);
 
   const catalogMap = useMemo(() => buildCatalogMap(catalog), [catalog]);
   // The store holds the whole flat graph; the canvas draws only the current
@@ -105,7 +106,16 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     [connectNodes, graph, definitions],
   );
 
-  const beginConnect = useCallback((endpoint: ConnectEndpoint) => setConnectSource(endpoint), []);
+  // Starting and completing a connection swap the buttons for others, so the one
+  // that was clicked unmounts and takes focus with it; put it back on the region.
+  const focusRegion = useCallback(() => regionRef.current?.focus(), []);
+  const beginConnect = useCallback(
+    (endpoint: ConnectEndpoint) => {
+      setConnectSource(endpoint);
+      focusRegion();
+    },
+    [focusRegion],
+  );
   const cancelConnect = useCallback(() => setConnectSource(null), []);
   const completeConnect = useCallback(
     (source: ConnectEndpoint, target: ConnectEndpoint) => {
@@ -117,8 +127,9 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       };
       if (isValid(connection)) connect(connection);
       setConnectSource(null);
+      focusRegion();
     },
-    [connect, isValid],
+    [connect, isValid, focusRegion],
   );
 
   // Drag-from-palette: the palette writes the whole definition onto the drag; the
@@ -159,14 +170,20 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     // sanctions on an interactive role still needs the disable.
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
+      ref={regionRef}
       role="application"
+      // Focusable, though not a tab stop, so a click anywhere in the canvas puts focus
+      // on the region the shortcuts listen on. Otherwise a click on empty canvas, or on
+      // a button in Firefox and Safari on macOS (which do not focus a clicked button),
+      // leaves focus on the page and Cmd+C, Cmd+V and Cmd+Z do nothing.
+      tabIndex={-1}
       aria-label={t("canvasTitle")}
       data-workflow-region="canvas"
       data-connecting={connectSource !== null}
       onKeyDown={onKeyDown}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className="border-border relative h-[32rem] overflow-hidden rounded-xl border"
+      className="border-border relative h-[32rem] overflow-hidden rounded-xl border outline-none"
     >
       {activeGraph.nodes.length === 0 && (
         <p className="text-muted-foreground pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm">
@@ -187,6 +204,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           nodesConnectable={!readOnly}
           elementsSelectable={!readOnly}
           deleteKeyCode={readOnly ? null : "Backspace"}
+          // The delete removed the focused element; hand focus back to the region.
+          onDelete={focusRegion}
           colorMode={colorMode}
           fitView
           proOptions={{ hideAttribution: true }}
