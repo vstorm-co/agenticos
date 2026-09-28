@@ -42,8 +42,10 @@ import type {
  *   `connectNodes`, `applyNodeChanges`/`applyEdgeChanges`, `deleteSelection`,
  *   `updateNodeConfig`, `upsertBinding`/`removeBinding` and `insertSubgraph`.
  *   Every mutation marks the draft dirty and records a history snapshot.
- * - **Canvas selection** (`#1787` canvas leaf) drives `setSelection` /
- *   `clearSelection` from `<ReactFlow>`'s `onSelectionChange`.
+ * - **Canvas selection** (`#1787` canvas leaf) is folded from the `select` and
+ *   `remove` changes `applyNodeChanges`/`applyEdgeChanges` receive, and handed
+ *   back to `<ReactFlow>` as each node's `selected`, so a graph edit that rebuilds
+ *   the nodes keeps what was selected.
  * - **Undo/redo** (history leaf, `components/workflows/history.ts`) keeps the
  *   bounded snapshot stack in its own module; the store owns the recorder for
  *   the current graph and exposes `undo`/`redo`, reporting reachability here via
@@ -246,6 +248,24 @@ function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
   return { entry_node_id, nodes: graph.nodes, edges, bindings, scopes };
 }
 
+/**
+ * Fold `select` and `remove` changes into a list of selected ids: the controlled
+ * `<ReactFlow>` contract, where the caller owns the selection. Returns `ids`
+ * itself when nothing changed, so a caller can compare by identity.
+ */
+function foldSelection(ids: string[], changes: ReadonlyArray<NodeChange | EdgeChange>): string[] {
+  const next = new Set(ids);
+  for (const change of changes) {
+    if (change.type === "select") {
+      if (change.selected) next.add(change.id);
+      else next.delete(change.id);
+    } else if (change.type === "remove") {
+      next.delete(change.id);
+    }
+  }
+  return next.size === ids.length && ids.every((id) => next.has(id)) ? ids : [...next];
+}
+
 /** A stable signature over node identity and layout, to tell a real edit from a re-select. */
 function nodesSignature(nodes: NodeInstance[]): string {
   return nodes.map((node) => `${node.id}:${node.layout.x}:${node.layout.y}`).join("|");
@@ -303,8 +323,10 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     applyNodeChanges: (changes) => {
-      const { graph } = get();
+      const { graph, selection } = get();
       if (graph === null) return;
+      const nodeIds = foldSelection(selection.nodeIds, changes);
+      if (nodeIds !== selection.nodeIds) set({ selection: { ...selection, nodeIds } });
       const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
         id: node.id,
         position: node.layout,
@@ -323,8 +345,10 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     applyEdgeChanges: (changes) => {
-      const { graph } = get();
+      const { graph, selection } = get();
       if (graph === null) return;
+      const edgeIds = foldSelection(selection.edgeIds, changes);
+      if (edgeIds !== selection.edgeIds) set({ selection: { ...selection, edgeIds } });
       const flowEdges = graph.edges.map((edge) => ({
         id: edge.id,
         source: edge.source_node_id,

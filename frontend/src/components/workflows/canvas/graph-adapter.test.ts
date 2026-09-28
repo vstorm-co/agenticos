@@ -14,7 +14,6 @@ import {
   ERROR_PORT_ID,
   isConnectionValid,
   isErrorPort,
-  selectionFromFlow,
   toFlowEdges,
   toFlowNodes,
 } from "./graph-adapter";
@@ -147,12 +146,32 @@ describe("graph-adapter", () => {
     expect(flow[2]?.data).toEqual({ variant: "data", label: null });
   });
 
-  it("maps an @xyflow selection to the store's node and edge id lists", () => {
-    expect(selectionFromFlow([{ id: "a" }, { id: "b" }], [{ id: "e1" }])).toEqual({
-      nodeIds: ["a", "b"],
-      edgeIds: ["e1"],
-    });
-    expect(selectionFromFlow([], [])).toEqual({ nodeIds: [], edgeIds: [] });
+  it("flags the selected nodes and edges, and none by default", () => {
+    const catalog = buildCatalogMap([ACTION]);
+    const graph = graphOf(
+      [instance("a", "act", 1), instance("b", "act", 1)],
+      [
+        {
+          id: "e1",
+          source_node_id: "a",
+          source_port: "out",
+          target_node_id: "b",
+          target_port: "in",
+        },
+      ],
+    );
+    const byNode = definitionsByNode(graph, catalog);
+
+    expect(toFlowNodes(graph, byNode, false).map((node) => node.selected)).toEqual([false, false]);
+    expect(toFlowEdges(graph, byNode).map((edge) => edge.selected)).toEqual([false]);
+
+    expect(toFlowNodes(graph, byNode, false, new Set(["b"])).map((node) => node.selected)).toEqual([
+      false,
+      true,
+    ]);
+    expect(toFlowEdges(graph, byNode, new Set(["e1"])).map((edge) => edge.selected)).toEqual([
+      true,
+    ]);
   });
 
   it("accepts a compatible connection and refuses everything else", () => {

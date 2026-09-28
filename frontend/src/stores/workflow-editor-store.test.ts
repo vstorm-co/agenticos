@@ -278,6 +278,59 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().isDirty).toBe(false);
   });
 
+  it("applyNodeChanges folds select changes into the selection, keeping the edge ids", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: [], edgeIds: ["e1"] });
+
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: ["e1"] });
+
+    store.getState().applyNodeChanges([
+      { id: "a", type: "select", selected: false },
+      { id: "b", type: "select", selected: true },
+    ]);
+    expect(store.getState().selection.nodeIds).toEqual(["b"]);
+  });
+
+  it("applyNodeChanges keeps the selection object when a select changes nothing", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    const before = store.getState().selection;
+
+    store.getState().applyNodeChanges([{ id: "a", type: "select", selected: true }]);
+    store.getState().applyNodeChanges([{ id: "b", type: "select", selected: false }]);
+    expect(store.getState().selection).toBe(before);
+  });
+
+  it("applyNodeChanges drops a removed node from the selection", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a", "b"], edgeIds: [] });
+
+    store.getState().applyNodeChanges([{ id: "b", type: "remove" }]);
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+  });
+
+  it("applyEdgeChanges folds select and remove changes into the edge selection", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+
+    store.getState().applyEdgeChanges([{ id: "e1", type: "select", selected: true }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: ["e1"] });
+    expect(store.getState().isDirty).toBe(false);
+
+    store.getState().applyEdgeChanges([{ id: "e1", type: "remove" }]);
+    expect(store.getState().selection).toEqual({ nodeIds: ["a"], edgeIds: [] });
+    expect(store.getState().graph?.edges).toHaveLength(0);
+  });
+
+  it("keeps the selection through a config edit", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+
+    store.getState().updateNodeConfig("a", { message: "hi" });
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+  });
+
   it("applyNodeChanges removes a node and prunes its edge", () => {
     store.getState().seedGraph(seededGraph());
     store.getState().applyNodeChanges([{ id: "b", type: "remove" }]);

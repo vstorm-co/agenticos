@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  Background,
-  type Connection,
-  Controls,
-  type OnSelectionChangeParams,
-  ReactFlow,
-  useReactFlow,
-} from "@xyflow/react";
+import { Background, type Connection, Controls, ReactFlow, useReactFlow } from "@xyflow/react";
 import { useCallback, useMemo, useState, type DragEvent } from "react";
 import { useTranslations } from "next-intl";
 
@@ -21,7 +14,6 @@ import {
   buildCatalogMap,
   definitionsByNode,
   isConnectionValid,
-  selectionFromFlow,
   toFlowEdges,
   toFlowNodes,
   type WorkflowFlowEdge,
@@ -70,7 +62,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
   const connectNodes = useWorkflowEditorStore((state) => state.connectNodes);
   const addNode = useWorkflowEditorStore((state) => state.addNode);
-  const setSelection = useWorkflowEditorStore((state) => state.setSelection);
+  const selection = useWorkflowEditorStore((state) => state.selection);
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -88,11 +80,16 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     () => definitionsByNode(activeGraph, catalogMap),
     [activeGraph, catalogMap],
   );
+  const selectedNodeIds = useMemo(() => new Set(selection.nodeIds), [selection.nodeIds]);
+  const selectedEdgeIds = useMemo(() => new Set(selection.edgeIds), [selection.edgeIds]);
   const nodes = useMemo(
-    () => toFlowNodes(activeGraph, definitions, readOnly),
-    [activeGraph, definitions, readOnly],
+    () => toFlowNodes(activeGraph, definitions, readOnly, selectedNodeIds),
+    [activeGraph, definitions, readOnly, selectedNodeIds],
   );
-  const edges = useMemo(() => toFlowEdges(activeGraph, definitions), [activeGraph, definitions]);
+  const edges = useMemo(
+    () => toFlowEdges(activeGraph, definitions, selectedEdgeIds),
+    [activeGraph, definitions, selectedEdgeIds],
+  );
 
   const isValid = useCallback(
     (edge: WorkflowFlowEdge | Connection): boolean => isConnectionValid(edge, definitions),
@@ -113,12 +110,6 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       setConnectSource(null);
     },
     [connectNodes, isValid],
-  );
-
-  const onSelectionChange = useCallback(
-    ({ nodes: selectedNodes, edges: selectedEdges }: OnSelectionChangeParams) =>
-      setSelection(selectionFromFlow(selectedNodes, selectedEdges)),
-    [setSelection],
   );
 
   // Drag-from-palette: the palette writes the whole definition onto the drag; the
@@ -182,7 +173,6 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           onNodesChange={applyNodeChanges}
           onEdgesChange={applyEdgeChanges}
           onConnect={connectNodes}
-          onSelectionChange={onSelectionChange}
           isValidConnection={isValid}
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}

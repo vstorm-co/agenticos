@@ -74,15 +74,23 @@ export type WorkflowEdgeData = {
 
 export type WorkflowFlowEdge = Edge<WorkflowEdgeData>;
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 /**
  * Project the graph's nodes into `@xyflow/react` nodes. `type` is the node's
  * `kind` bucket, so the matching component in `nodeTypes` renders it; the
  * resolved definition and the read-only flag ride along in `data`.
+ *
+ * `selectedIds` is the store's selection. The nodes are rebuilt from the graph on
+ * every edit, and a controlled `<ReactFlow>` takes `selected` from the node it is
+ * handed - so a node without the flag reads as deselected, and typing in the
+ * property panel (which edits the graph) would close the panel it is typing in.
  */
 export function toFlowNodes(
   graph: WorkflowGraph,
   definitions: Map<string, NodeDefinition | null>,
   readOnly: boolean,
+  selectedIds: ReadonlySet<string> = NO_IDS,
 ): WorkflowFlowNode[] {
   return graph.nodes.map((instance) => {
     const definition = definitions.get(instance.id) ?? null;
@@ -90,6 +98,7 @@ export function toFlowNodes(
       id: instance.id,
       type: definition?.kind ?? "action",
       position: instance.layout,
+      selected: selectedIds.has(instance.id),
       data: { instance, definition, readOnly },
     };
   });
@@ -114,21 +123,11 @@ export function edgeVariant(
   return { variant: "data", label: null };
 }
 
-/** The store selection an `@xyflow/react` selection change maps to. */
-export function selectionFromFlow(
-  selectedNodes: ReadonlyArray<{ id: string }>,
-  selectedEdges: ReadonlyArray<{ id: string }>,
-): { nodeIds: string[]; edgeIds: string[] } {
-  return {
-    nodeIds: selectedNodes.map((node) => node.id),
-    edgeIds: selectedEdges.map((edge) => edge.id),
-  };
-}
-
-/** Project the graph's edges into typed `@xyflow/react` edges. */
+/** Project the graph's edges into typed `@xyflow/react` edges, flagging the selected ones. */
 export function toFlowEdges(
   graph: WorkflowGraph,
   definitions: Map<string, NodeDefinition | null>,
+  selectedIds: ReadonlySet<string> = NO_IDS,
 ): WorkflowFlowEdge[] {
   return graph.edges.map((edge) => ({
     id: edge.id,
@@ -137,6 +136,7 @@ export function toFlowEdges(
     target: edge.target_node_id,
     sourceHandle: edge.source_port,
     targetHandle: edge.target_port,
+    selected: selectedIds.has(edge.id),
     data: edgeVariant(edge.source_port, definitions.get(edge.source_node_id) ?? null),
   }));
 }

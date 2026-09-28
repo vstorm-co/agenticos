@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { NodeDefinition, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
@@ -320,6 +320,27 @@ describe("WorkflowCanvas", () => {
       target_node_id: "b",
       target_port: "in",
     });
+  });
+
+  it("keeps the selected node selected while its config is edited", async () => {
+    // The property panel edits the graph on every keystroke, and the canvas rebuilds
+    // its nodes from the graph each time: a node rebuilt without `selected` reads as
+    // deselected, which emptied the selection and closed the panel mid-typing.
+    seedTwoActions();
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const selected = () => container.querySelectorAll(".react-flow__node.selected");
+    await waitFor(() => expect(selected()).toHaveLength(1));
+
+    act(() => store.getState().updateNodeConfig("a", { message: "h" }));
+    act(() => store.getState().updateNodeConfig("a", { message: "he" }));
+
+    await waitFor(() =>
+      expect(store.getState().graph?.nodes[0]?.config).toEqual({ message: "he" }),
+    );
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+    expect(selected()).toHaveLength(1);
+    expect(selected()[0]?.getAttribute("data-id")).toBe("a");
   });
 
   it("shows the empty-canvas hint before the store has a graph", () => {
