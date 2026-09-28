@@ -246,6 +246,27 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(edges[1]).toMatchObject({ source_node_id: "b", target_node_id: "a" });
   });
 
+  it("connectNodes adds the bindings it is given with the edge, as one undoable edit", () => {
+    store.getState().seedGraph(seededGraph());
+    const binding = {
+      target_node_id: "b",
+      target_field: "message",
+      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["echoed"] },
+    };
+
+    store
+      .getState()
+      .connectNodes({ source: "a", target: "b", sourceHandle: "out", targetHandle: "in" }, [
+        binding,
+      ]);
+    expect(store.getState().graph?.edges).toHaveLength(2);
+    expect(store.getState().graph?.bindings).toEqual([binding]);
+
+    store.getState().undo();
+    expect(store.getState().graph?.edges).toHaveLength(1);
+    expect(store.getState().graph?.bindings).toEqual([]);
+  });
+
   it("connectNodes ignores a connection missing a handle", () => {
     store.getState().seedGraph(seededGraph());
     store

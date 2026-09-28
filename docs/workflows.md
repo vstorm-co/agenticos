@@ -39,7 +39,8 @@ of a published version.
 ## The canvas and the palette { #the-canvas-and-the-palette }
 
 The **canvas** is where a workflow's steps and connections appear. A **node** is
-one step; an **edge** is a connection carrying one step's output into the next.
+one step; an **edge** is a connection that sets the order: the step it points to
+runs after the one it leaves.
 The canvas pans and zooms, and its controls sit in the corner — there is no
 minimap.
 
@@ -113,6 +114,20 @@ rather than a silent break.
 You draw an edge by connecting one node's output port to another node's input
 port. The editor refuses a connection between ports that carry different shapes
 before it draws it, so an incompatible wire never lands on the canvas.
+
+An edge sets the order the steps run in; it does not move any data. The values a
+step reads are its **bindings**, described under
+[Configuring a node](#configuring-a-node).
+
+So that a wire does not leave you binding every field by hand, connecting two ports that carry exactly the same
+shape — an Echo's output to a Relay's input, say — also binds each of the
+target's inputs to the field of the same name on the source. A field you had
+already bound is left alone.
+
+When the shapes differ, or a port carries no data,
+nothing is bound and you pick each source yourself with **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) takes
+back the connection and its bindings together, and deleting an edge later leaves
+its bindings in place, so remove or rebind them in the panel.
 
 A `foreach` step runs its body once per item in a list. The body is not a
 separate document — it is part of the same flat graph, shown on its own. **Open
@@ -213,6 +228,8 @@ still cancels a stray connection.
   into a fresh workflow.
 - The **palette** adds steps by drag or click; the **canvas** wires them, and it
   refuses a connection between incompatible ports.
+- An edge sets **order** and bindings carry **values**; connecting ports of the same
+  shape creates the bindings for you.
 - A node's inputs are **a literal or a binding** — **Bind** reads a value from a
   reachable, type-compatible upstream output.
 - The draft **saves itself**, and an edit from two places raises a banner with

@@ -5,6 +5,7 @@ import type { NodeDefinition, WorkflowDetail, WorkflowGraph } from "@/lib/workfl
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NODE_DRAG_MIME } from "@/components/workflows/palette";
+import { DEBUG_ECHO, DEBUG_RELAY } from "@/components/workflows/validation/fixtures";
 
 import { ERROR_PORT_ID } from "./graph-adapter";
 import { WorkflowCanvas } from "./workflow-canvas";
@@ -176,6 +177,38 @@ describe("WorkflowCanvas", () => {
       target_port: "in",
     });
     expect(region?.getAttribute("data-connecting")).toBe("false");
+  });
+
+  it("binds the target's fields to the source's when an edge joins matching ports", async () => {
+    // The edge only orders the two steps; a Relay reads Echo's output through
+    // bindings, and a required input left unbound blocks publishing.
+    store.getState().seedGraph({
+      entry_node_id: "e",
+      nodes: [node("e", "debug.echo"), { ...node("r", "debug.relay"), layout: { x: 240, y: 0 } }],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={[DEBUG_ECHO, DEBUG_RELAY]} />,
+    );
+
+    fireEvent.click(container.querySelector('[data-node-id="e"] button[aria-label^="Start"]')!);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-node-id="r"] button[aria-label^="Complete"]'),
+      ).toBeTruthy(),
+    );
+    fireEvent.click(container.querySelector('[data-node-id="r"] button[aria-label^="Complete"]')!);
+
+    await waitFor(() => expect(store.getState().graph?.edges).toHaveLength(1));
+    expect(store.getState().graph?.bindings).toEqual(
+      ["echoed", "received_at"].map((field) => ({
+        target_node_id: "r",
+        target_field: field,
+        source: { kind: "node_output", node_id: "e", port: "out", field_path: [field] },
+      })),
+    );
   });
 
   it("refuses to complete an incompatible connection", async () => {

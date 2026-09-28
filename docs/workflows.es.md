@@ -1,5 +1,5 @@
 ---
-source_sha: "d22d5fce4b79"
+source_sha: "95169de72dd9"
 ---
 
 # Workflows { #workflows }
@@ -43,8 +43,8 @@ versión publicada.
 ## El lienzo y la paleta { #the-canvas-and-the-palette }
 
 El **lienzo** es donde aparecen los pasos y las conexiones de un workflow. Un **nodo**
-es un paso; una **arista** es una conexión que lleva la salida de un paso al
-siguiente. El lienzo se desplaza y hace zoom, y sus controles están en la esquina —
+es un paso; una **arista** es una conexión que fija el orden: el paso al que apunta se
+ejecuta después de aquel del que sale. El lienzo se desplaza y hace zoom, y sus controles están en la esquina —
 no hay minimapa.
 
 La paleta **Nodes** al lado enumera los tipos de nodo que tu deployment ha
@@ -117,6 +117,19 @@ un aviso visible y no una ruptura silenciosa.
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
 de otro nodo. El editor rechaza una conexión entre puertos que llevan formas distintas
 antes de dibujarla, así que un cable incompatible nunca aterriza en el lienzo.
+
+Una arista fija el orden en que se ejecutan los pasos; no mueve ningún dato. Los valores
+que lee un paso son sus **bindings**, descritos en [Configurar un nodo](#configuring-a-node).
+
+Para que un cable no te deje enlazando cada campo a mano, conectar dos puertos que llevan
+exactamente la misma forma — la salida de un Echo con la entrada de un Relay, por ejemplo —
+también enlaza cada input del destino con el campo del mismo nombre de la fuente. Un campo
+que ya habías enlazado se deja como está.
+
+Cuando las formas difieren, o un puerto no lleva
+datos, no se enlaza nada y eliges cada fuente tú mismo con **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) deshace la
+conexión junto con sus bindings, y borrar una arista más tarde deja sus bindings donde
+estaban, así que quítalos o vuelve a enlazarlos en el panel.
 
 Un paso `foreach` ejecuta su cuerpo una vez por cada elemento de una lista. El cuerpo
 no es un documento aparte — es parte del mismo grafo plano, mostrado por sí solo.
@@ -217,6 +230,8 @@ cancelando una conexión perdida.
   draft en un workflow nuevo.
 - La **paleta** añade pasos por arrastre o clic; el **lienzo** los conecta y rechaza
   una conexión entre puertos incompatibles.
+- Una arista fija el **orden** y los bindings llevan los **valores**; conectar puertos
+  de la misma forma crea los bindings por ti.
 - Los inputs de un nodo son **un literal o un binding** — **Bind** lee un valor de una
   salida previa alcanzable y de tipo compatible.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con

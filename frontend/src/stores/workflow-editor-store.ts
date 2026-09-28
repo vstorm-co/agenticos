@@ -152,8 +152,11 @@ export interface WorkflowEditorState {
   applyEdgeChanges: (changes: EdgeChange[]) => void;
   /** Insert a node for `definition` at `position`, returning its new id. */
   addNode: (definition: NodeDefinition, position: NodePosition) => Uuid;
-  /** Add an edge for a validated `@xyflow/react` connection. */
-  connectNodes: (connection: Connection) => void;
+  /**
+   * Add an edge for a validated `@xyflow/react` connection, with any bindings it
+   * implies, as one edit - a single undo takes back both.
+   */
+  connectNodes: (connection: Connection, bindings?: Binding[]) => void;
   /** Delete the selected nodes and edges, pruning anything left dangling. */
   deleteSelection: () => void;
   /** Replace one node's static `config`. */
@@ -377,7 +380,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       return id;
     },
 
-    connectNodes: (connection) => {
+    connectNodes: (connection, bindings = []) => {
       const { graph } = get();
       if (graph === null) return;
       const { source, target, sourceHandle, targetHandle } = connection;
@@ -389,7 +392,11 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         target_node_id: target,
         target_port: targetHandle,
       };
-      commit({ ...graph, edges: [...graph.edges, edge] });
+      commit({
+        ...graph,
+        edges: [...graph.edges, edge],
+        bindings: [...graph.bindings, ...bindings],
+      });
     },
 
     deleteSelection: () => {

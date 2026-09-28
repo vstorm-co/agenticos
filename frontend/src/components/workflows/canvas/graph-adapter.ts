@@ -1,7 +1,7 @@
 import type { Connection, Edge, Node } from "@xyflow/react";
 
-import { portSchema, portShapesCompatible } from "@/components/workflows/validation";
-import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
+import { portSchema, portShapesCompatible, UNKNOWN } from "@/components/workflows/validation";
+import type { Binding, NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
 /**
  * The pure projection between the store's `WorkflowGraph` and the controlled
@@ -163,4 +163,64 @@ export function isConnectionValid(
   const sourceSchema = portSchema(sourceDefinition, sourceHandle, "output");
   const targetSchema = portSchema(targetDefinition, targetHandle, "input");
   return portShapesCompatible(sourceSchema, targetSchema);
+}
+
+/** The property names of a JSON-Schema object, or none when it declares no properties. */
+function propertyNames(schema: unknown): string[] {
+  if (typeof schema !== "object" || schema === null) return [];
+  const properties = (schema as { properties?: unknown }).properties;
+  return typeof properties === "object" && properties !== null ? Object.keys(properties) : [];
+}
+
+/**
+ * The bindings a new edge implies: one per input field, each reading the field of
+ * the same name from the source's output.
+ *
+ * An edge only orders two steps; the values a step reads are its bindings. When
+ * an edge joins two data ports of the *same shape* the mapping is unambiguous -
+ * every field of the target has exactly one same-named, same-typed counterpart at
+ * the source - so drawing the edge can also wire the data, and the reader is not
+ * left to bind each field by hand before the graph will publish.
+ *
+ * Nothing is implied when either end is a control port (it carries no fields) or
+ * the shapes differ (which field feeds which is then a choice). A field that is
+ * already bound is left alone, and only fields of the target's `input_schema` are
+ * bound - the fields a binding may name.
+ */
+export function autoBindings(
+  connection: Connection | Edge,
+  graph: WorkflowGraph,
+  definitions: Map<string, NodeDefinition | null>,
+): Binding[] {
+  const sourceHandle = connection.sourceHandle ?? null;
+  const targetHandle = connection.targetHandle ?? null;
+  if (sourceHandle === null || targetHandle === null) return [];
+  const sourceDefinition = definitions.get(connection.source) ?? null;
+  const targetDefinition = definitions.get(connection.target) ?? null;
+  if (sourceDefinition === null || targetDefinition === null) return [];
+
+  const sourceSchema = portSchema(sourceDefinition, sourceHandle, "output");
+  const targetSchema = portSchema(targetDefinition, targetHandle, "input");
+  if (sourceSchema === UNKNOWN || targetSchema === UNKNOWN) return [];
+  if (sourceSchema === null || targetSchema === null) return [];
+  if (!portShapesCompatible(sourceSchema, targetSchema)) return [];
+
+  const inputFields = new Set(propertyNames(targetDefinition.input_schema));
+  const bound = new Set(
+    graph.bindings
+      .filter((binding) => binding.target_node_id === connection.target)
+      .map((binding) => binding.target_field),
+  );
+  return propertyNames(targetSchema)
+    .filter((field) => inputFields.has(field) && !bound.has(field))
+    .map((field) => ({
+      target_node_id: connection.target,
+      target_field: field,
+      source: {
+        kind: "node_output",
+        node_id: connection.source,
+        port: sourceHandle,
+        field_path: [field],
+      },
+    }));
 }

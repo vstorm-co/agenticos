@@ -11,6 +11,7 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-context";
 import {
+  autoBindings,
   buildCatalogMap,
   definitionsByNode,
   isConnectionValid,
@@ -96,6 +97,14 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     [definitions],
   );
 
+  // An edge orders two steps; the values a step reads are bindings. When the ports
+  // match exactly the wiring is unambiguous, so the edge brings its bindings with it.
+  const connect = useCallback(
+    (connection: Connection) =>
+      connectNodes(connection, autoBindings(connection, graph ?? EMPTY_GRAPH, definitions)),
+    [connectNodes, graph, definitions],
+  );
+
   const beginConnect = useCallback((endpoint: ConnectEndpoint) => setConnectSource(endpoint), []);
   const cancelConnect = useCallback(() => setConnectSource(null), []);
   const completeConnect = useCallback(
@@ -106,10 +115,10 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
         target: target.nodeId,
         targetHandle: target.portId,
       };
-      if (isValid(connection)) connectNodes(connection);
+      if (isValid(connection)) connect(connection);
       setConnectSource(null);
     },
-    [connectNodes, isValid],
+    [connect, isValid],
   );
 
   // Drag-from-palette: the palette writes the whole definition onto the drag; the
@@ -172,7 +181,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           edgeTypes={edgeTypes}
           onNodesChange={applyNodeChanges}
           onEdgesChange={applyEdgeChanges}
-          onConnect={connectNodes}
+          onConnect={connect}
           isValidConnection={isValid}
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}

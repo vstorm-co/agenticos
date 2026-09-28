@@ -1,5 +1,5 @@
 ---
-source_sha: "d22d5fce4b79"
+source_sha: "95169de72dd9"
 ---
 
 # Workflows { #workflows }
@@ -47,7 +47,8 @@ Kopie einer veröffentlichten Version.
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
 Workflows erscheinen. Ein **Knoten** ist ein Schritt; eine **Kante** ist eine
-Verbindung, die die Ausgabe eines Schritts in den nächsten trägt. Die Zeichenfläche
+Verbindung, die die Reihenfolge festlegt: Der Schritt, auf den sie zeigt, läuft nach dem,
+von dem sie ausgeht. Die Zeichenfläche
 lässt sich verschieben und zoomen, und ihre Bedienelemente sitzen in der Ecke —
 eine Minimap gibt es nicht.
 
@@ -128,6 +129,20 @@ Sie ziehen eine Kante, indem Sie einen Ausgangs-Port eines Knotens mit einem
 Eingangs-Port eines anderen Knotens verbinden. Der Editor lehnt eine Verbindung
 zwischen Ports, die unterschiedliche Formen tragen, ab, bevor er sie zeichnet,
 sodass eine inkompatible Verbindung nie auf der Zeichenfläche landet.
+
+Eine Kante legt fest, in welcher Reihenfolge die Schritte laufen; sie bewegt keine
+Daten. Die Werte, die ein Schritt liest, sind seine **Bindings**, beschrieben unter
+[Einen Knoten konfigurieren](#configuring-a-node).
+
+Damit Sie nicht jedes Feld von Hand
+binden müssen, bindet das Verbinden zweier Ports, die genau dieselbe Form tragen — etwa
+die Ausgabe eines Echo mit der Eingabe eines Relay —, auch jeden Input des Ziels an das
+gleichnamige Feld der Quelle. Ein Feld, das Sie schon gebunden hatten, bleibt unberührt.
+
+Unterscheiden sich die Formen oder trägt ein Port keine Daten, wird nichts gebunden und
+Sie wählen jede Quelle selbst mit **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die Verbindung samt ihren
+Bindings zurück, und das spätere Löschen einer Kante lässt ihre Bindings bestehen —
+entfernen oder binden Sie sie im Panel neu.
 
 Ein `foreach`-Schritt führt seinen Körper einmal pro Element in einer Liste aus.
 Der Körper ist kein eigenes Dokument — er ist Teil desselben flachen Graphen, nur
@@ -238,6 +253,8 @@ weiterhin ab.
   Vorlage, und **Duplicate** kopiert einen Draft in einen frischen Workflow.
 - Die **Palette** fügt Schritte per Ziehen oder Klick hinzu; die **Zeichenfläche**
   verdrahtet sie und lehnt eine Verbindung zwischen inkompatiblen Ports ab.
+- Eine Kante legt die **Reihenfolge** fest, Bindings tragen die **Werte**; das Verbinden
+  von Ports gleicher Form legt die Bindings für Sie an.
 - Die Inputs eines Knotens sind **ein Literal oder ein Binding** — **Bind** liest
   einen Wert aus einer erreichbaren, typkompatiblen vorgelagerten Ausgabe.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt

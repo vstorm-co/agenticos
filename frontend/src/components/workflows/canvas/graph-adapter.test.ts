@@ -7,7 +7,10 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
+import { DEBUG_ECHO, DEBUG_RELAY } from "@/components/workflows/validation/fixtures";
+
 import {
+  autoBindings,
   buildCatalogMap,
   definitionsByNode,
   edgeVariant,
@@ -206,5 +209,98 @@ describe("graph-adapter", () => {
         byNode,
       ),
     ).toBe(false);
+  });
+
+  describe("autoBindings", () => {
+    const catalog = buildCatalogMap([DEBUG_ECHO, DEBUG_RELAY, ACTION, CONTROL]);
+    const graph = graphOf([
+      instance("e", "debug.echo", 1),
+      instance("r", "debug.relay", 1),
+      instance("a", "act", 1),
+      instance("c", "ctrl", 1),
+      instance("g", "ghost", 1),
+    ]);
+    const definitions = definitionsByNode(graph, catalog);
+    const link = (source: string, sourceHandle: string, target: string, targetHandle: string) => ({
+      source,
+      sourceHandle,
+      target,
+      targetHandle,
+    });
+    const echoedFrom = (field: string) => ({
+      target_node_id: "r",
+      target_field: field,
+      source: { kind: "node_output", node_id: "e", port: "out", field_path: [field] },
+    });
+
+    it("binds every field of a same-shaped target to the source's field of that name", () => {
+      expect(autoBindings(link("e", "out", "r", "in"), graph, definitions)).toEqual([
+        echoedFrom("echoed"),
+        echoedFrom("received_at"),
+      ]);
+    });
+
+    it("leaves a field that is already bound alone", () => {
+      const bound: WorkflowGraph = {
+        ...graph,
+        bindings: [
+          {
+            target_node_id: "r",
+            target_field: "echoed",
+            source: { kind: "literal", value: "typed by hand" },
+          },
+          // Another node's binding of a same-named field is not this node's.
+          {
+            target_node_id: "e",
+            target_field: "received_at",
+            source: { kind: "literal", value: "x" },
+          },
+        ],
+      };
+      expect(autoBindings(link("e", "out", "r", "in"), bound, definitions)).toEqual([
+        echoedFrom("received_at"),
+      ]);
+    });
+
+    it("implies nothing when either end is a control port", () => {
+      expect(autoBindings(link("e", "out", "c", "in"), graph, definitions)).toEqual([]);
+      expect(autoBindings(link("c", "then", "r", "in"), graph, definitions)).toEqual([]);
+    });
+
+    it("implies nothing when the shapes differ, since which field feeds which is a choice", () => {
+      expect(autoBindings(link("r", "out", "r", "in"), graph, definitions)).toEqual([]);
+    });
+
+    it("binds only fields of the target's input schema", () => {
+      // `act` declares the shape on its ports but takes no input schema.
+      expect(autoBindings(link("a", "out", "a", "in"), graph, definitions)).toEqual([]);
+    });
+
+    it("implies nothing for an unresolved node, a missing handle or an unknown port", () => {
+      expect(autoBindings(link("g", "out", "r", "in"), graph, definitions)).toEqual([]);
+      expect(autoBindings(link("e", "out", "g", "in"), graph, definitions)).toEqual([]);
+      expect(
+        autoBindings({ ...link("e", "out", "r", "in"), sourceHandle: null }, graph, definitions),
+      ).toEqual([]);
+      expect(
+        autoBindings({ ...link("e", "out", "r", "in"), targetHandle: null }, graph, definitions),
+      ).toEqual([]);
+      expect(autoBindings(link("e", "nope", "r", "in"), graph, definitions)).toEqual([]);
+      expect(autoBindings(link("e", "out", "r", "nope"), graph, definitions)).toEqual([]);
+    });
+
+    it("implies nothing when a port's schema declares no properties", () => {
+      const bare = def({
+        id: "bare",
+        input_schema: { type: "object", title: "Bare" },
+        ports: [
+          { id: "in", label: "In", kind: "input", schema: { type: "object", title: "Bare" } },
+          { id: "out", label: "Out", kind: "output", schema: { type: "object", title: "Bare" } },
+        ],
+      });
+      const bareGraph = graphOf([instance("b", "bare", 1)]);
+      const bareDefinitions = definitionsByNode(bareGraph, buildCatalogMap([bare]));
+      expect(autoBindings(link("b", "out", "b", "in"), bareGraph, bareDefinitions)).toEqual([]);
+    });
   });
 });

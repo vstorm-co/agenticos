@@ -1,5 +1,5 @@
 ---
-source_sha: "d22d5fce4b79"
+source_sha: "95169de72dd9"
 ---
 
 # Workflows { #workflows }
@@ -42,7 +42,8 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 ## Kanwa i paleta { #the-canvas-and-the-palette }
 
 **Kanwa** to miejsce, gdzie pojawiają się kroki i połączenia workflow. **Węzeł** to
-jeden krok; **krawędź** to połączenie niosące wyjście jednego kroku do następnego.
+jeden krok; **krawędź** to połączenie, które ustala kolejność: krok, na który wskazuje, wykonuje
+się po tym, z którego wychodzi.
 Kanwę można przesuwać i przybliżać, a jej elementy sterujące są w rogu — nie ma
 minimapy.
 
@@ -116,6 +117,20 @@ zachętą, a nie cichym pęknięciem.
 Krawędź rysujesz, łącząc port wyjściowy jednego węzła z portem wejściowym innego
 węzła. Edytor odrzuca połączenie między portami, które niosą różne kształty, zanim je
 narysuje, więc niezgodne połączenie nigdy nie ląduje na kanwie.
+
+Krawędź ustala kolejność, w jakiej wykonują się kroki; nie przenosi żadnych danych.
+Wartości, które krok czyta, to jego **bindingi**, opisane w sekcji
+[Konfigurowanie węzła](#configuring-a-node).
+
+Żebyś nie musiał wiązać każdego pola
+ręcznie, połączenie dwóch portów, które niosą dokładnie ten sam kształt — na przykład
+wyjścia Echo z wejściem Relay — wiąże też każdy input celu z polem o tej samej nazwie
+na źródle. Pole, które już związałeś, zostaje nietknięte.
+
+Gdy kształty się różnią albo
+port nie niesie danych, nic nie jest wiązane i każde źródło wybierasz sam przez
+**Bind**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
+krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w panelu.
 
 Krok `foreach` wykonuje swoje ciało raz na każdy element listy. Ciało nie jest
 osobnym dokumentem — jest częścią tego samego płaskiego grafu, pokazaną osobno.
@@ -215,6 +230,8 @@ jest bezczynny, gdy oglądasz opublikowaną wersję, która jest tylko do odczyt
   nowego workflow.
 - **Paleta** dodaje kroki przez przeciągnięcie lub kliknięcie; **kanwa** je łączy i
   odrzuca połączenie między niezgodnymi portami.
+- Krawędź ustala **kolejność**, a bindingi niosą **wartości**; połączenie portów o tym
+  samym kształcie tworzy bindingi za Ciebie.
 - Inputy węzła to **literał albo binding** — **Bind** czyta wartość z osiągalnego,
   zgodnego typem wyjścia wcześniejszego kroku.
 - Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
