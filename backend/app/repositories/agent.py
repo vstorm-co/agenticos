@@ -10,6 +10,8 @@ from uuid import UUID
 
 from sqlalchemy import Float, and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -83,6 +85,45 @@ async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     return set(result.scalars().all())
 
 
+def _visible_clauses(
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool,
+    include_archived: bool,
+) -> list[ColumnElement[bool]]:
+    """The rows a member may list, before any discovery filter narrows them.
+
+    Shared by `list_visible` and `list_visible_labels` so the filter's choices
+    can never be drawn from a wider set than the listing they filter.
+    """
+    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    if not include_archived:
+        where.append(Agent.status != AgentStatus.ARCHIVED.value)
+    if shared_with_me:
+        where.append(
+            and_(
+                or_(
+                    Agent.visibility == Visibility.ORG.value,
+                    Agent.id.in_(shared_ids) if shared_ids else false(),
+                ),
+                # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
+                Agent.owner_user_id.is_distinct_from(user_id),
+            )
+        )
+    elif not see_all:
+        where.append(
+            or_(
+                Agent.owner_user_id == user_id,
+                Agent.visibility == Visibility.ORG.value,
+                Agent.id.in_(shared_ids) if shared_ids else false(),
+            )
+        )
+    return where
+
+
 async def list_visible(
     db: AsyncSession,
     *,
@@ -117,48 +158,62 @@ async def list_visible(
     the count query. They can only narrow an already org- and grant-scoped set,
     never widen it, so a filter cannot surface an agent the caller could not see.
     """
-    query = select(Agent).where(Agent.organization_id == organization_id)
-    count_query = select(func.count(Agent.id)).where(Agent.organization_id == organization_id)
-
-    if not include_archived:
-        query = query.where(Agent.status != AgentStatus.ARCHIVED.value)
-        count_query = count_query.where(Agent.status != AgentStatus.ARCHIVED.value)
-
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+    )
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
     if categories:
-        overlap = Agent.categories.overlap(list(categories))
-        query = query.where(overlap)
-        count_query = count_query.where(overlap)
+        where.append(Agent.categories.overlap(list(categories)))
     if tags:
-        overlap = Agent.tags.overlap(list(tags))
-        query = query.where(overlap)
-        count_query = count_query.where(overlap)
+        where.append(Agent.tags.overlap(list(tags)))
 
-    if shared_with_me:
-        shared = and_(
-            or_(
-                Agent.visibility == Visibility.ORG.value,
-                Agent.id.in_(shared_ids) if shared_ids else false(),
-            ),
-            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-            Agent.owner_user_id.is_distinct_from(user_id),
-        )
-        query = query.where(shared)
-        count_query = count_query.where(shared)
-    elif not see_all:
-        visible = or_(
-            Agent.owner_user_id == user_id,
-            Agent.visibility == Visibility.ORG.value,
-            Agent.id.in_(shared_ids) if shared_ids else false(),
-        )
-        query = query.where(visible)
-        count_query = count_query.where(visible)
-
+    query = select(Agent).where(*where)
+    count_query = select(func.count(Agent.id)).where(*where)
     query = query.order_by(Agent.created_at.desc()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
+
+
+async def list_visible_labels(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool = False,
+    include_archived: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Every distinct category and tag on the agents this member may list.
+
+    The discovery filter's choices, sorted. Drawn from the same visibility as
+    `list_visible` but independent of the filter and paging: a choice that
+    vanished once picked, or with the page that showed it, would strand
+    whoever picked it. A private agent the caller cannot see contributes
+    nothing, so its labels are not disclosed through the menu.
+    """
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+    )
+
+    async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:
+        labels = select(func.unnest(column).label("label")).where(*where).subquery()
+        result = await db.execute(select(labels.c.label).distinct().order_by(labels.c.label.asc()))
+        return list(result.scalars().all())
+
+    return await distinct(Agent.categories), await distinct(Agent.tags)
 
 
 async def published_budget_caps(

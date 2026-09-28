@@ -1,5 +1,5 @@
 ---
-source_sha: "4af3be1ca985"
+source_sha: "e7531729ae8e"
 ---
 
 # API HTTP { #the-http-api }
@@ -91,6 +91,10 @@ grantem edycji na jednym agencie może go otagować.
 między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
 zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
 to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
+
+Odpowiedź niesie też `categories` i `tags`: każdą odrębną etykietę na agentach,
+które możesz wylistować, niezależnie od filtra i strony — wybory, które podaje menu
+filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
 ## Usługi ML { #the-ml-services }
 
 Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za

@@ -7,8 +7,8 @@ import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
-import { ChipsInput } from "@/components/agents/chips-input";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
+import { LabelFilter } from "@/components/agents/label-filter";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -89,7 +89,17 @@ export default function AgentsPage() {
   // Archived agents are fetched only when they could be shown. The list is the
   // same query otherwise, so switching between the first three filters costs
   // nothing.
-  const { agents, total, isLoading, clone, archive, unarchive, remove } = useAgents({
+  const {
+    agents,
+    total,
+    categoryOptions,
+    tagOptions,
+    isLoading,
+    clone,
+    archive,
+    unarchive,
+    remove,
+  } = useAgents({
     includeArchived: filter === "all" || filter === "archived",
     categories,
     tags,
@@ -145,23 +155,23 @@ export default function AgentsPage() {
         </SelectContent>
       </Select>
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
-      <ChipsInput
-        values={categories}
+      <LabelFilter
+        options={categoryOptions}
+        selected={categories}
         onChange={setCategories}
-        inputLabel={t("filterByCategory")}
-        removeLabel={(value) => t("removeCategoryFilter", { value })}
-        placeholder={t("filterByCategory")}
-        maxItems={10}
-        maxLength={32}
+        ariaLabel={t("filterByCategory")}
+        allLabel={t("allCategories")}
+        countLabel={(count) => t("categoryCount", { count })}
+        clearLabel={t("clearFilter")}
       />
-      <ChipsInput
-        values={tags}
+      <LabelFilter
+        options={tagOptions}
+        selected={tags}
         onChange={setTags}
-        inputLabel={t("filterByTag")}
-        removeLabel={(value) => t("removeTagFilter", { value })}
-        placeholder={t("filterByTag")}
-        maxItems={20}
-        maxLength={32}
+        ariaLabel={t("filterByTag")}
+        allLabel={t("allTags")}
+        countLabel={(count) => t("tagCount", { count })}
+        clearLabel={t("clearFilter")}
       />
     </div>
   );
