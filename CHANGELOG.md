@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.509] - 2026-09-28
+
 ### Fixed
 
 - **An agent loads a gallery skill on the first call.** All seventy gallery
