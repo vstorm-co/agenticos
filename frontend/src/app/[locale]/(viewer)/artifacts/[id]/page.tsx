@@ -1,7 +1,7 @@
-import { ArtifactDetail } from "@/components/artifacts/artifact-detail";
+import { ArtifactViewer } from "@/components/artifacts/artifact-viewer";
 
 /**
- * One artifact: the page itself, its versions, and who may open it.
+ * One artifact, opened as the page itself rather than as a console page about it.
  *
  * `?version=` is how a conversation links to the version its run published, so
  * the chat keeps showing what was written then after the agent republishes.
@@ -15,5 +15,5 @@ export default async function ArtifactPage({
 }) {
   const { id } = await params;
   const { version } = await searchParams;
-  return <ArtifactDetail artifactId={id} initialVersionId={version ?? null} />;
+  return <ArtifactViewer artifactId={id} initialVersionId={version ?? null} />;
 }

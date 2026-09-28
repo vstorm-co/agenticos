@@ -715,8 +715,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title={
-          <span className="flex items-center gap-3">
-            <span className="group relative">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="group relative shrink-0">
               <AgentAvatar
                 agentId={id}
                 slug={agent.slug}
@@ -738,7 +738,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </button>
               )}
             </span>
-            {agent.name}
+            {/* One line, whatever the width: the actions wrap under it before
+                the name is broken, and a name longer than the column ends in
+                an ellipsis with the whole of it on hover. */}
+            <span className="truncate" title={agent.name}>
+              {agent.name}
+            </span>
+          </span>
+        }
+        badges={
+          <>
             <AgentStatusBadge status={agent.status} />
             {/* Two badges, two different questions. This one: is the stored
                 draft what published surfaces are answering with - computed
@@ -759,12 +768,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               ) : (
                 isDirty && <Badge variant="secondary">{t("unsaved")}</Badge>
               ))}
-          </span>
+          </>
         }
         description={agent.description ?? undefined}
         breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
         actions={
-          <div className="flex items-center gap-2">
+          <>
             {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
                 Only a published agent has a version to run - the chat's own
@@ -866,7 +875,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               className="hidden"
               onChange={handleAvatar}
             />
-          </div>
+          </>
         }
       />
 

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { EmptyState, LoadingState } from "@/components/states";
 import { useArtifactView } from "@/hooks/use-artifacts";
+import { cn } from "@/lib/utils";
 
 /**
  * What the frame lets the page do. Never `allow-same-origin`, never popups.
@@ -24,17 +25,19 @@ interface ArtifactFrameViewProps {
   /** A signed content address the server minted for this viewer. */
   url: string;
   title: string;
+  /** Replaces the framed card look, for a surface where the page is the whole window. */
+  className?: string;
 }
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
-export function ArtifactFrameView({ url, title }: ArtifactFrameViewProps) {
+export function ArtifactFrameView({ url, title, className }: ArtifactFrameViewProps) {
   return (
     <iframe
       src={url}
       title={title}
       sandbox={ARTIFACT_SANDBOX}
       referrerPolicy="no-referrer"
-      className="h-full min-h-[32rem] w-full rounded-lg border bg-white"
+      className={cn("h-full min-h-[32rem] w-full rounded-lg border bg-white", className)}
     />
   );
 }
@@ -44,6 +47,7 @@ interface ArtifactFrameProps {
   /** A kept version to show, or null for the current one. */
   versionId: string | null;
   title: string;
+  className?: string;
 }
 
 /**
@@ -53,7 +57,7 @@ interface ArtifactFrameProps {
  * version was pruned or access was withdrawn a moment ago - both are "this is not
  * available", and neither is worth a retry.
  */
-export function ArtifactFrame({ artifactId, versionId, title }: ArtifactFrameProps) {
+export function ArtifactFrame({ artifactId, versionId, title, className }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
   const view = useArtifactView(artifactId, versionId, true);
 
@@ -67,5 +71,5 @@ export function ArtifactFrame({ artifactId, versionId, title }: ArtifactFramePro
       />
     );
   }
-  return <ArtifactFrameView url={view.data.url} title={title} />;
+  return <ArtifactFrameView url={view.data.url} title={title} className={className} />;
 }

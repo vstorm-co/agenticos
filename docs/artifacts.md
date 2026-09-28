@@ -77,8 +77,11 @@ script and the images (as `data:` URIs) into the one file.
 ## Who can open it
 
 A new artifact is **private** to the person the publishing run acted for: the
-person in the chat, or the creator of a trigger. From its page in **Artifacts**,
-anybody who may manage it can share it three ways:
+person in the chat, or the creator of a trigger. Its link - the one the chat card
+and the agent's reply point at - opens the page itself, filling the window under
+one strip with its title, its version and **Share**. Nobody gets in through that
+link alone: it opens only for a signed-in member the rules below already let in.
+Under **Share**, anybody who may manage it can share it three ways:
 
 | Reach | How | Who |
 |---|---|---|

@@ -323,6 +323,17 @@ describe("SharingPanel", () => {
     expect(screen.getByText(/searches it for everyone who can run that agent/)).toBeInTheDocument();
   });
 
+  it("names an artifact as an artifact, not as the catch-all secret", () => {
+    // The copy selects on the resource type, and `other` reads "secret": an
+    // artifact missing its own branch told its owner who reaches "this secret".
+    const { container } = render(
+      <SharingPanel resourceType="artifact" resourceId="r1" canManage />,
+    );
+
+    expect(screen.getByText(/Who reaches this artifact without being named/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/secret/i);
+  });
+
   it("adds no such note to an agent, where running it is the point", () => {
     renderPanel();
 

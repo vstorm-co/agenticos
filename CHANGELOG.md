@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **An artifact's link opens the page itself.** `/artifacts/<id>` - the link
+  the chat card and the agent's reply point at - fills the window the way the
+  public link does, under one strip with the title, how far it reaches, the
+  version and **Share**, instead of a console page with the page in a card
+  beside two panels. It still opens only for a signed-in member the artifact's
+  rules let in. **Share** holds the page's own address, the public link,
+  visibility and grants; delete moves into the strip's menu.
+- **Page headers wrap their actions instead of squeezing the title.** On the
+  agent page five buttons broke the name over two lines and every status pill
+  over two more; the name now stays on one line, the pills sit above the
+  actions, and the actions move under the title when both do not fit.
+
+### Fixed
+
+- The sharing panel on an artifact called it "this secret"; it names an
+  artifact now, in every language. The public link's copy button, hidden until
+  a hover that could never happen outside the chat, is visible.
+
 ## [0.0.512] - 2026-09-28
 
 ### Changed

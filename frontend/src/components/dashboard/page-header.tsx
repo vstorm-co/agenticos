@@ -18,6 +18,8 @@ interface PageHeaderProps {
   breadcrumbs?: Crumb[];
   /** Right-aligned actions (buttons, etc.). */
   actions?: ReactNode;
+  /** State of the thing on the page (status pills), set above the actions. */
+  badges?: ReactNode;
   className?: string;
 }
 
@@ -30,6 +32,7 @@ export function PageHeader({
   description,
   breadcrumbs,
   actions,
+  badges,
   className,
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
@@ -62,8 +65,15 @@ export function PageHeader({
         </nav>
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
+      {/* Wrapping rather than squeezing. With the actions fixed and the text
+          column shrinking to fit beside them, a page with five buttons broke
+          its own title over two lines and every pill in it over two more. The
+          text column claims 20rem before anything else, and when that and the
+          actions do not fit on one line the actions move under the title - the
+          description's length plays no part, since the basis, not the text,
+          decides the line. */}
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0 flex-1 basis-80">
           <h1 className="text-foreground text-2xl leading-tight font-semibold tracking-tight text-balance">
             {title}
           </h1>
@@ -73,9 +83,16 @@ export function PageHeader({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {actions}
-          <RestartTourButton />
+        <div className="flex max-w-full min-w-0 flex-col items-start gap-2 sm:items-end">
+          {badges && (
+            <div className="flex flex-wrap items-center gap-2 whitespace-nowrap sm:justify-end">
+              {badges}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {actions}
+            <RestartTourButton />
+          </div>
         </div>
       </div>
     </div>

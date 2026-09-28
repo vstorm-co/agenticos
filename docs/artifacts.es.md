@@ -1,5 +1,5 @@
 ---
-source_sha: "2106ff45a345"
+source_sha: "8a00f95ffe04"
 ---
 
 # Artefactos { #artifacts }
@@ -87,9 +87,12 @@ incrusta la hoja de estilos, el script y las imágenes (como URI `data:`) en el
 ## Quién puede abrirlo { #who-can-open-it }
 
 Un artefacto nuevo es **privado** para la persona en nombre de la cual actuó el
-run que lo publicó: la persona del chat, o el creador de un trigger. Desde su
-página en **Artifacts**, cualquiera que pueda gestionarlo puede compartirlo de
-tres maneras:
+run que lo publicó: la persona del chat, o el creador de un trigger. Su enlace
+- al que apuntan la tarjeta del chat y la respuesta del agente - abre la propia
+página, a toda la ventana, bajo una única barra con el título, la versión y
+**Share**. El enlace por sí solo no deja entrar a nadie: solo se abre para un
+miembro con sesión iniciada al que las reglas de abajo ya dejan entrar. En
+**Share**, cualquiera que pueda gestionarlo puede compartirlo de tres maneras:
 
 | Alcance | Cómo | Quién |
 |---|---|---|
