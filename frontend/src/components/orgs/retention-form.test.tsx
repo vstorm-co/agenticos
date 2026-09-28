@@ -32,7 +32,7 @@ describe("the retention form", () => {
   it("shows a row per class", () => {
     renderForm();
 
-    expect(screen.getAllByRole("spinbutton")).toHaveLength(6);
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(7);
   });
 
   it("says what actually sweeps beside what was asked for", () => {

@@ -44,7 +44,10 @@ from app.repositories import ingestion_spend as ingestion_spend_repo
 from app.repositories import retention as retention_repo
 from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
+from app.repositories import group as group_repo
+from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
+from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
 from app.repositories import memory as memory_repo
 
@@ -93,6 +96,8 @@ __all__ = [
     "mcp_registry_server_repo",
     "organization_secret_repo",
     "resource_grant_repo",
+    "group_repo",
+    "directory_mapping_repo",
     "audit_log_repo",
     "personal_data_repo",
     "credential_repo",
@@ -111,6 +116,7 @@ __all__ = [
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
+    "artifact_repo",
     "context_repo",
     "memory_repo",
     "notification_repo",

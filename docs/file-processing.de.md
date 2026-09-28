@@ -1,5 +1,5 @@
 ---
-source_sha: "a40ae2358eec"
+source_sha: "44dae3302f97"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1258,9 +1258,10 @@ seiner eigenen Shell ausführt.
     Ordner-Id eines Tenants wählt, was unter der Identität des Betreibers gelesen
     wird.
 
-Was die Source in `secret_id` nennt, ist ein `gcp_service_account` für Drive oder
-ein `aws_credentials`-Paar für S3, vom Connector als `SECRET_KIND` deklariert und
-dem Assistenten als `secret_kind` in der Connector-Auflistung angeboten.
+Was die Source in `secret_id` nennt, ist ein `gcp_service_account` für Drive,
+ein `aws_credentials`-Paar für S3 oder ein `git_token` für ein Git-Repository,
+vom Connector als `SECRET_KIND` deklariert und dem Assistenten als `secret_kind`
+in der Connector-Auflistung angeboten.
 
 Früher stand es in `config`, verschlüsselt von `app/core/crypto.py` — ein
 deploymentweiter Fernet-Schlüssel über den Zugangsdaten jedes Tenants, und das ist
@@ -1430,6 +1431,20 @@ eine Überraschung statt einer Funktion:
   Collection zu lesen ist weiterhin ein voller Scan
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), ein Connector, der
   tausende Dateien bringt, macht diese Paginierung also dringend statt ordentlich.
+- **Eine Auflistung, die weiß, ob sie vollständig ist.** Ein Sync entfernt die
+  Dokumente, die seine Source früher eingebracht hat und nicht mehr auflistet,
+  also antwortet `list_files` mit einem `RemoteListing`, dessen `complete` sagt,
+  ob das, was es nennt, alles ist. Eine Auflistung, die zu Ende läuft oder eine
+  Exception wirft, ist per Konstruktion vollständig. Eine, die mittendrin anhalten
+  kann - der Web-Crawler an seiner Seitenobergrenze oder nach einer Seite mit
+  Zeitüberschreitung -, sagt `complete=False`, und dieser Lauf entfernt nichts
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Das Entfernen ist
+  über `rag_document_claims` eingegrenzt, nicht über `source_path`: Zwei Sources
+  können eine Collection speisen und dasselbe Dokument auflisten, deshalb
+  beansprucht jede Source, die ein Dokument auflistet, es für sich. Eine Source,
+  die es nicht mehr auflistet, gibt ihren Anspruch auf, und das Dokument wird erst
+  entfernt, wenn keine Source, die die Collection speist, es noch beansprucht
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Ein Sync-Connector ist kein MCP-Server.** MCP ist, wie ein Agent ein Produkt
 *live* erreicht, mitten im Run; eine Sync-Source ist ein geplanter Massenabzug mit
@@ -1440,17 +1455,22 @@ lautet, welche Hälfte gebaut wird — siehe [mcp](mcp.md).
 
 Welche Connectors gebaut werden, und in welcher Reihenfolge, wird in
 [#938](https://github.com/vstorm-co/agenticos/issues/938) entschieden: ein
-Web-Crawler ([#984](https://github.com/vstorm-co/agenticos/issues/984)),
+Web-Crawler ([#984](https://github.com/vstorm-co/agenticos/issues/984),
+ausgeliefert als der `web`-Connector - siehe
+[eine Website einrichten](howto/configure-sync-sources.md#website-setup)),
 SharePoint und OneDrive
-([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#985](https://github.com/vstorm-co/agenticos/issues/985), ausgeliefert als der
+`sharepoint`-Connector - siehe [SharePoint und OneDrive
+einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), die Dokumentation
 eines Git-Repositories
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), und dann Azure Blob
 und GCS, deren Bedingung erfüllt ist: `S3Connector` ist eine Unterklasse von
 `ObjectStoreConnector`, jeder davon ist also ein Client und ein `CONNECTOR_TYPE`
 statt einer zweiten Kopie der Auflistungsschleife
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Gegen Notion, Slack
-und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Gegen Notion, Slack und E-Mail-Archive ist vorerst **entschieden**, jeweils aus einem dort
 festgehaltenen Grund — die letzten beiden, weil eine Unterhaltung sich schlecht
 abrufen lässt und die Kanal-Integrationen einen Agent bereits *in* Slack setzen.
 

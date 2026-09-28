@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import AppException
 from app.db.models.announcement import Announcement
 from app.db.models.notification import Notification, NotificationEventType
@@ -633,6 +634,9 @@ class TestSendAndSettlePreference:
 
 class TestRenderDispatch:
     async def test_an_event_type_with_no_bespoke_template_uses_the_generic_fallback(self, db):
+        """The stored value carries an origin here on purpose: this is a row of
+        the shape written before `context_url` became a path, and nothing
+        migrates those. The email prints it exactly as stored."""
         owner = await _user(db)
         org = await _org(db, owner)
         admin = await _member(db, org, role="admin")
@@ -660,6 +664,34 @@ class TestRenderDispatch:
         assert context["context_url"] == "https://app.example.com/audit"
         assert context["summary"] == "A thing happened"
         assert context["app_name"]
+
+    async def test_the_generic_fallback_gives_a_stored_path_an_origin_to_resolve_against(self, db):
+        """The other half: a row written the current way holds a console path,
+        and an email is the one reader with no origin to resolve one against."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=admin,
+            organization_id=org.id,
+            event_type=NotificationEventType.SECURITY_EVENT,
+            context_url="/vault",
+            claimed_at=now,
+            attempts=1,
+        )
+
+        service = AsyncMock()
+        service.send = AsyncMock(return_value=SendResult(provider_message_id="x", accepted=True))
+        with patch(f"{MODULE}.get_email_service", return_value=service):
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
+
+        assert outcome == "sent"
+        context = service.send.call_args.kwargs["context"]
+        assert context["context_url"] == f"{settings.FRONTEND_URL.rstrip('/')}/vault"
 
     async def test_budget_exceeded_renders_its_own_key_unchanged(self, db):
         owner = await _user(db)

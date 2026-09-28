@@ -17,10 +17,22 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
+from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+
+# What `MessageFileRead` serializes, plus the key selectin groups rows by. A
+# transcript never needs `parsed_content`, the upload's whole extracted text. It is
+# narrowed per query rather than deferred on the model because `services/attachments.py`
+# and `routes/v1/files.py` read it, and under asyncio a deferred load is a `MissingGreenlet`.
+_MESSAGE_FILE_COLUMNS = (
+    ChatFile.message_id,
+    ChatFile.filename,
+    ChatFile.mime_type,
+    ChatFile.file_type,
+)
 
 
 async def agents_in_conversations(
@@ -179,7 +191,9 @@ async def get_conversation_by_id(
             select(Conversation)
             .options(
                 selectinload(Conversation.messages).selectinload(Message.tool_calls),
-                selectinload(Conversation.messages).selectinload(Message.files),
+                selectinload(Conversation.messages)
+                .selectinload(Message.files)
+                .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
             .where(Conversation.id == conversation_id)
         )
@@ -666,7 +680,9 @@ async def get_messages_by_conversation(
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
@@ -879,7 +895,9 @@ async def get_messages_by_run(
     query = select(Message).where(Message.run_id == run_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())

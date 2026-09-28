@@ -5,7 +5,12 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 from app.core.background import discard_deferred, start_deferred
@@ -209,6 +214,25 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
     try:
         async with _managed_session(factory) as session:
             yield session
+    finally:
+        await worker_engine.dispose()
+
+
+@asynccontextmanager
+async def get_worker_connection() -> AsyncGenerator[AsyncConnection, None]:
+    """One connection for a background worker, held until the block exits.
+
+    For what lives on a *connection* rather than in a transaction - a
+    session-scoped advisory lock. A session will not do: it hands its connection
+    back when it commits, and on a `NullPool` engine that closes it, so a lock
+    taken through a session is released by the first commit. Nothing here commits
+    for the caller, and nothing rolls back; the connection closes when the block
+    exits, whatever it was doing.
+    """
+    worker_engine = create_async_engine(settings.DATABASE_URL, echo=False, poolclass=NullPool)
+    try:
+        async with worker_engine.connect() as connection:
+            yield connection
     finally:
         await worker_engine.dispose()
 

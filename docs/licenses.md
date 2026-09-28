@@ -102,6 +102,7 @@ the current figure.
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | a few | Attribution or nothing | Same as above |
 | MPL-2.0 (`certifi`, `pathspec`, `tqdm`, part of `orjson`) | 4 | File-level copyleft: the covered files stay under MPL and their source is available | Used unmodified; the licence text ships; the notices link the source |
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Licence text, source availability, and the ability to replace the library | Both are separately installed binaries loaded dynamically, unmodified, replaceable by reinstalling; sources linked in the notices. The libvips packages publish no licence file, so the image places the LGPL text beside them |
+| LGPL-3.0-only (`ldap3`) | 1 | Licence text, source availability, and the ability to replace the library | The directory sign-in's LDAP client, a pure-Python wheel imported unmodified and replaceable by reinstalling; its licence files ship in its dist-info and its source is linked in the notices |
 | Artistic-1.0-Perl or GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; taken under the Artistic License: notice and text | The wheel's licence file ships |
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Attribution and a link to the source | Named with its source in the notices |
 | AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft: the image is conveyed under AGPL-3.0 terms and a modified deployment owes its users the modified source (s.13) | Kept deliberately, terms stated: [the section below](#the-agpl-component) and the wheel's `COPYING` in the image |

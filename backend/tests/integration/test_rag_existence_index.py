@@ -237,3 +237,19 @@ async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
     )
 
     assert hit is None
+
+
+async def test_every_document_at_an_address_is_found_and_nothing_else(engine: AsyncEngine) -> None:
+    """What the stale-row reconciliation deletes from (#1867): each document at
+    the exact address once, not one by precedence and not a namesake elsewhere."""
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    address = "git://git.test/acme/handbook@main/intro.md"
+    await _insert(store, doc_id="new", source_path=address, filename="intro.md", content_hash="v2")
+    await _insert(store, doc_id="old", source_path=address, filename="intro.md", content_hash="v1")
+    await _insert(
+        store, doc_id="upload", source_path="intro.md", filename="intro.md", content_hash="v2"
+    )
+
+    assert await store.document_ids_at(COLLECTION, source_path=address) == ["new", "old"]
+    assert await store.document_ids_at("absent", source_path=address) == []

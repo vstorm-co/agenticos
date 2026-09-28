@@ -130,7 +130,7 @@ os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
 os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
 
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -164,6 +164,28 @@ def _reset_channel_intake() -> Generator[None, None, None]:
     from app.services.channels.supervisor import allow_intake
 
     allow_intake()
+
+
+@pytest.fixture
+def sole_source_run() -> Generator[None, None, None]:
+    """Grant `_run_source_sync` its per-source lock without a database.
+
+    The lock is a Postgres advisory lock on a session of its own (#987), and the
+    unit tests of the sync flow replace every session with a mock. They are about
+    what one run does, so they are handed the lock; what happens when it is held
+    elsewhere is `test_connector_sync_state.py`'s, and the lock itself is proved
+    against a real database in `tests/integration/test_sync_source_removal.py`.
+    """
+    from contextlib import asynccontextmanager
+
+    from app.worker.tasks import rag_tasks
+
+    @asynccontextmanager
+    async def held(_source_id: str) -> AsyncGenerator[bool, None]:
+        yield True
+
+    with patch.object(rag_tasks, "_exclusive_source_run", new=held):
+        yield
 
 
 @pytest.fixture

@@ -46,6 +46,7 @@ tools listed.
 | `compaction` | Context management | utility | none, by design | — | — |
 | `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -83,12 +84,92 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | on / off |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` applies only when the model does not ask for a number itself.
+
+`parent_context` turns on small-to-big retrieval. Matching and ranking always run
+on the precise small chunks; this only decides how much surrounding context each
+match is *returned* with, assembled on the return path:
+
+| Mode | What the model receives |
+|---|---|
+| `off` | The matched chunk alone — the default, unchanged behaviour |
+| `window` | The matched chunk with the chunk before and after it in the same document |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest text first |
+
+The matched chunk is never shortened. Only the text added around it counts against
+two fixed limits - 8,000 characters per result and 24,000 per search - so turning
+the mode on never shows the model less than `off` does. A passage stays contiguous:
+it grows outward from the match and stops at the first chunk that does not fit or
+was already returned with an earlier result, so text that was not adjacent in the
+document is never joined.
+
+Chunks are read by position around the match, never the whole document, and the
+expansion stays inside the caller's own tenant and collection scope. It never
+changes which chunks matched, their scores or their citations; a citation says
+`with surrounding text` when the passage reaches past the chunk it names.
+
+`self_query_enabled` turns on self-query, off by default. When a search runs
+with no filter the model named itself, an LLM reads the question — "PDFs from
+last month about onboarding" — and derives the business filters it implies: a
+source, a document type, an organizational unit, a date range. The model's own
+explicit filters always win; self-query only fills the gap. When inferred filters
+are applied, the result starts with a line naming them, and the model can repeat
+the search without them by passing `infer_filters=false`.
+
+The inferred object is the same validated filter a caller supplies, so it carries
+no tenant or authorization field and cannot widen access — it can only narrow
+within the agent's own tenant and collections. An organizational unit is kept
+only when the bound collections actually carry it, read under the same scope as
+the search; collections carrying more than 200 units between them offer none for
+inference. A document id is never inferred. An empty or failed inference searches
+unfiltered within that still-enforced scope.
+
+**Cost:** each search the model runs without filters of its own makes one extra
+model request for the inference (two if its output needs correcting). It runs on
+the agent's own model, is billed to the run like any other request, and is
+refused before it is sent when the budget is already spent. It is traced like
+the agent's own requests, so an agent set to record no content keeps the
+question out of its traces here too.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search
 tool, because the model keeps trying it and reasons from the silence.
+
+### Query analysis and expansion
+
+Short, underspecified or vocabulary-mismatched questions under-retrieve. Off by
+default, `query_analysis_mode` optionally expands the query *before* retrieval:
+
+| Mode | What it does | Cost |
+|---|---|---|
+| `off` | Search the query as written | none |
+| `multi_query` | The run's model writes up to `query_analysis_max_variants` rephrasings; the original and the variants are each searched and their results fused | one model call, plus one retrieval per query |
+| `hyde` | The run's model writes a short hypothetical answer, and retrieval runs against *its* embedding | one model call |
+
+`multi_query` and `hyde` each add one model call before the search, so they trade
+latency and a little spend for recall on fuzzy questions. `multi_query` also
+retrieves once per query, one after another, and each retrieval embeds its own
+query — the variants are not batched into one embedding call — so keep
+`query_analysis_max_variants` low to bound the fan-out.
+
+Both modes use the agent's own model — there is no separate model to configure —
+and their cost is metered against the run's budget like any other model call. An
+exhausted budget skips the expansion without calling the model, and so does a
+model that fails or cannot answer a plain request: the search then runs on the
+query as written rather than failing.
+
+Expansion widens *recall*, never *access*. Every query it produces is searched
+under the same tenant scope and the same business filters as the original, so an
+expanded query can never reach another organization's or an out-of-scope document.
+It composes with reranking: expansion widens the candidate set and the results are
+fused, and a reranker would reorder what fusion returned. With `parent_context` on,
+surrounding text is added once, to the fused results, so its limits cover the
+whole search rather than each query.
 
 ## Skills
 
@@ -844,6 +925,37 @@ also has a workspace (the `sandbox` capability), the same image is written into 
 under `/output`, so a later `execute` step can build with it — assemble a PDF, a
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
+
+## Artifacts
+
+`publish_artifact` — *Publish a finished page - a report, a small dashboard, a
+summary - under a stable link.*
+
+Publishes one self-contained HTML or Markdown document as an
+[artifact](../artifacts.md): a shared resource with an owner, a visibility and
+grants, opened in a browser under a link that stays put. No configuration.
+
+**The name is the identity.** `(organization, agent, name)` picks the artifact,
+so the next run of the same agent that publishes `weekly-report` - from a chat, a
+schedule or the API - adds a version to the same one instead of making a second
+link. Identical bytes add no version and answer `unchanged`.
+
+**Where the page comes from.** `path` reads a file from the run's workspace
+through its own backend, so it works wherever the `sandbox` capability does;
+`content` takes the page inline for an agent with no workspace. Exactly one of the
+two. A wrong call - both or neither, a name outside
+`^[a-z0-9][a-z0-9-]{0,63}$`, an unknown extension, an empty or oversized page -
+is a retry naming what to change. A read the workspace's permission rules refuse
+is a result, not a retry.
+
+**Not side-effecting.** A first publication is private to the person the run was
+for, and only a person widens who reads it, so the approval gate would only
+park the scheduled report this exists for. An author who wants each republish of
+a shared page approved sets `tool_approval` on `publish_artifact`.
+
+**The page has no network.** It is served in an opaque origin under a `sandbox`
+policy with `connect-src 'none'`, and the tool text tells the model to inline
+everything. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegation
 

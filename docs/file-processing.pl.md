@@ -1,5 +1,5 @@
 ---
-source_sha: "a40ae2358eec"
+source_sha: "44dae3302f97"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1190,9 +1190,10 @@ poleceniu CLI `rag-sync-gdrive`, które operator uruchamia z własnej powłoki.
     folderu jednego tenanta wybiera to, co jest czytane pod tożsamością
     operatora.
 
-To, co source wskazuje w `secret_id`, to `gcp_service_account` dla Drive albo
-para `aws_credentials` dla S3, deklarowane przez konektor jako `SECRET_KIND`
-i podawane kreatorowi jako `secret_kind` na listingu konektorów.
+To, co source wskazuje w `secret_id`, to `gcp_service_account` dla Drive, para
+`aws_credentials` dla S3 albo `git_token` dla repozytorium Git, deklarowane przez
+konektor jako `SECRET_KIND` i podawane kreatorowi jako `secret_kind` na listingu
+konektorów.
 
 Kiedyś siedziało to w `config`, zaszyfrowane przez `app/core/crypto.py` — jeden
 klucz Fernet obowiązujący dla całego wdrożenia nad poświadczeniem każdego
@@ -1351,6 +1352,20 @@ niespodzianką, a nie funkcją:
   wciąż pełne skanowanie
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), więc konektor
   przynoszący tysiące plików czyni tę paginację pilną, a nie porządkową.
+- **Listing, który wie, czy jest pełny.** Synchronizacja usuwa dokumenty, które
+  jej source wprowadził wcześniej, a których już nie wypisuje, więc `list_files`
+  zwraca `RemoteListing`, którego `complete` mówi, czy to, co wymienia, to
+  wszystko. Listing, który dobiega końca albo rzuca wyjątek, jest kompletny
+  z samej konstrukcji. Taki, który może zatrzymać się w połowie - crawler webowy
+  na limicie stron albo za stroną, która przekroczyła limit czasu - zgłasza
+  `complete=False`, a ten run niczego nie usuwa
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Usuwanie jest
+  zawężone przez `rag_document_claims`, a nie przez `source_path`: dwa source'y
+  mogą zasilać jedną kolekcję i wymieniać ten sam dokument, więc każdy source,
+  który go wymienia, zgłasza do niego roszczenie. Source, który przestaje go
+  wymieniać, wycofuje swoje roszczenie, a dokument jest usuwany dopiero wtedy,
+  gdy żaden source zasilający kolekcję nie zgłasza już do niego roszczenia
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Konektor synchronizacji to nie serwer MCP.** MCP to sposób, w jaki agent sięga
 po produkt *na żywo*, w trakcie runu; source synchronizacji to zaplanowane
@@ -1362,16 +1377,21 @@ przed napisaniem któregokolwiek, jest to, którą połowę się buduje — zoba
 
 O tym, które konektory są budowane i w jakiej kolejności, rozstrzyga
 [#938](https://github.com/vstorm-co/agenticos/issues/938): crawler webowy
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint
-i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)),
+([#984](https://github.com/vstorm-co/agenticos/issues/984), dostarczony jako
+konektor `web` - zobacz
+[konfigurację strony internetowej](howto/configure-sync-sources.md#website-setup)),
+SharePoint i OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985),
+dostarczone jako konektor `sharepoint` - zobacz [konfigurację SharePoint
+i OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)),
 Confluence ([#986](https://github.com/vstorm-co/agenticos/issues/986)),
 dokumentacja repozytorium gita
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), a potem Azure Blob
 i GCS, których warunek jest spełniony: `S3Connector` jest podklasą
 `ObjectStoreConnector`, więc każdy z nich to klient i `CONNECTOR_TYPE`, a nie
 druga kopia pętli listowania
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-i archiwa poczty rozstrzygnięto na razie **przeciw**, każde z powodem zapisanym
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack i archiwa poczty rozstrzygnięto na razie **przeciw**, każde z powodem zapisanym
 tam — dwa ostatnie dlatego, że rozmowa źle się wyszukuje, a integracje kanałów
 już stawiają agenta *w* Slacku.
 

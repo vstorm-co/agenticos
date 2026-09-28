@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -13,6 +14,7 @@ import {
   RingingBell,
 } from "@/components/ui";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
+import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -71,7 +73,12 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
         align="start"
         className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <NotificationPanel open={open} unread={unread} approximate={approximate} />
+        <NotificationPanel
+          open={open}
+          unread={unread}
+          approximate={approximate}
+          onNavigate={() => setOpen(false)}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -95,10 +102,12 @@ function NotificationPanel({
   open,
   unread,
   approximate,
+  onNavigate,
 }: {
   open: boolean;
   unread: number;
   approximate: boolean;
+  onNavigate: () => void;
 }) {
   const tNav = useTranslations("nav");
   const t = useTranslations("notifications");
@@ -166,7 +175,13 @@ function NotificationPanel({
           <>
             <ul className="space-y-0.5">
               {notifications.map((item) => (
-                <NotificationRow key={item.id} item={item} onRead={markRead} onDismiss={dismiss} />
+                <NotificationRow
+                  key={item.id}
+                  item={item}
+                  onRead={markRead}
+                  onDismiss={dismiss}
+                  onNavigate={onNavigate}
+                />
               ))}
             </ul>
             {hasMore ? (
@@ -205,10 +220,12 @@ function NotificationRow({
   item,
   onRead,
   onDismiss,
+  onNavigate,
 }: {
   item: Notification;
   onRead: (id: string) => Promise<void>;
   onDismiss: (id: string) => Promise<void>;
+  onNavigate: () => void;
 }) {
   const tTime = useTranslations("time");
   const tNotifications = useTranslations("notifications");
@@ -224,6 +241,15 @@ function NotificationRow({
     if (unread) {
       onRead(item.id).catch(() => {});
     }
+  };
+
+  // The bell lives in the persistent dashboard layout, so a sub-route
+  // navigation no longer unmounts it: without this the popover would sit open
+  // over the page it just opened, and a row pointing at the page the reader is
+  // already on would look like a click that did nothing at all.
+  const handleClick = () => {
+    handleRead();
+    onNavigate();
   };
 
   const content = (
@@ -254,14 +280,13 @@ function NotificationRow({
     </>
   );
 
-  // `context_url` is a full URL (`FRONTEND_URL` plus a path, `notifications.py`'s
-  // own `_link`), never a relative one - a plain anchor rather than `next/link`,
-  // which treats an absolute string as an external destination anyway.
-  const body = item.context_url ? (
-    <a href={item.context_url} onClick={handleRead} className={rowClassName}>
-      {content}
-    </a>
-  ) : (
+  // `context_url` is a console path (`notifications.py`'s own `_link`), which
+  // the router swaps under the layout already mounted rather than reloading the
+  // document to reach. A row written before the column changed meaning still
+  // carries an origin, and nothing migrates those - it keeps the plain anchor
+  // every row used to have, and `prefetch={false}` keeps a page of rows from
+  // fetching a page of dynamic routes nobody asked for.
+  const body = !item.context_url ? (
     <button
       type="button"
       onClick={handleRead}
@@ -270,6 +295,14 @@ function NotificationRow({
     >
       {content}
     </button>
+  ) : isInAppPath(item.context_url) ? (
+    <Link href={item.context_url} prefetch={false} onClick={handleClick} className={rowClassName}>
+      {content}
+    </Link>
+  ) : (
+    <a href={item.context_url} onClick={handleClick} className={rowClassName}>
+      {content}
+    </a>
   );
 
   return (

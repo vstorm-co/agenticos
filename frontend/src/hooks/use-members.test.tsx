@@ -28,6 +28,7 @@ function member(index: number): OrganizationMember {
     avatar_url: null,
     avatar_color: null,
     joined_at: "2026-07-01T00:00:00Z",
+    source: "manual",
   };
 }
 

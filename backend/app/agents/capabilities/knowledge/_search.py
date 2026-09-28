@@ -2,7 +2,7 @@
 
 import contextvars
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from app.core.config import settings
@@ -10,19 +10,18 @@ from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalFilters
-from app.services.rag.retrieval import RetrievalService
+from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
+from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from app.services.rag.retrieval import BaseRetrievalService
-
-_pooled_service: "BaseRetrievalService | None" = None
-_unpooled_service: "BaseRetrievalService | None" = None
+_pooled_service: RetrievalService | None = None
+_unpooled_service: RetrievalService | None = None
 
 
-def get_retrieval_service() -> "BaseRetrievalService":
+def get_retrieval_service() -> RetrievalService:
     """The retrieval service for the loop this search is running on.
 
     An agent is the one vector caller that does not know which loop it is on: it
@@ -90,9 +89,17 @@ def _format_results(results: list[Any]) -> str:
         page_info = f", page {page}" if page else ""
         chunk_info = f", chunk {chunk}" if chunk else ""
         col_info = f" [{col}]" if col else ""
+        # The expanded passage when small-to-big retrieval added surrounding
+        # context, else the matched chunk itself (#1651). The score and citation
+        # stay the matched chunk's; only the text the model reads grows.
+        body = result.expanded_content or result.content
+        # The page and chunk name the match; said so when the passage below
+        # reaches past it, so a citation is not read as covering the whole text.
+        context_info = ", with surrounding text" if result.expanded_content else ""
         formatted.append(
-            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info} (score: {result.score:.3f})\n"
-            f"{result.content}"
+            f"[{i}] Source: {source}{page_info}{chunk_info}{col_info}{context_info} "
+            f"(score: {result.score:.3f})\n"
+            f"{body}"
         )
     return (
         "Search results (cite inline using [1], [2], etc. - do NOT list sources at the end):\n\n"
@@ -110,12 +117,41 @@ _active_kb_collections: contextvars.ContextVar[list[str] | None] = contextvars.C
 )
 
 
+async def organizational_units_in_scope(
+    kb_collection_names: list[str], organization_id: UUID | None
+) -> list[str]:
+    """The organizational units the collections carry, read as a search reads them.
+
+    Each collection's scope is resolved exactly as :func:`search_knowledge_base`
+    resolves it, so the facet read is confined to the rows the search itself could
+    return and never names another organization's units. Self-query states these
+    in its prompt and keeps no inferred unit outside them.
+
+    Returns:
+        The distinct units across the collections, sorted; empty with no
+        organization, since there is then no scope to read under.
+    """
+    if organization_id is None:
+        return []
+    service = get_retrieval_service()
+    units: set[str] = set()
+    for name in kb_collection_names:
+        scope = await service.resolve_scope(name, organization_id)
+        values = await service.store.distinct_metadata_values(name, ["organizational_unit"], scope)
+        units.update(values.get("organizational_unit", []))
+    return sorted(units)
+
+
 async def search_knowledge_base(
     query: str,
     kb_collection_names: list[str] | None = None,
     top_k: int = 5,
     organization_id: UUID | None = None,
     filters: RetrievalFilters | None = None,
+    analysis_mode: QueryAnalysisMode = "off",
+    analysis_max_variants: int = 3,
+    generate: GenerateText | None = None,
+    parent_context: ParentContextMode = ParentContextMode.OFF,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -132,6 +168,19 @@ async def search_knowledge_base(
         filters: Optional narrowing-only business filters (source, document type,
             organizational unit, date range). Never a tenant or authorization
             field - those are structurally inexpressible here.
+        analysis_mode: Optional query analysis run before retrieval (#1649). Off by
+            default. Each produced query is retrieved under the *same* scope and
+            filters and their results are fused, so expansion can widen recall but
+            never access.
+        analysis_max_variants: How many rephrasings `multi_query` may add.
+        generate: Runs one prompt through the run's model, for the analysis
+            modes. `None` when the run's model cannot make a request-response call,
+            which degrades them to the plain query.
+        parent_context: The agent's small-to-big return mode (#1651). Return-path
+            only - matching and ranking still run on the small chunks - so `OFF`
+            (the default) returns the matched chunks unchanged. With several
+            queries it runs once, after fusion, so the passage budget is spent
+            on the fused list rather than on each variant's.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -143,9 +192,18 @@ async def search_knowledge_base(
         # tenant's chunks. Refuse rather than widen (FA-039 C1).
         return "No organization context is available, so the knowledge base cannot be searched."
 
+    # The analysis step runs before retrieval and produces only alternative query
+    # *strings*; the scope and filters below are resolved once and bound into the
+    # `retrieve_one` closure, identical for every produced query, so no expanded
+    # query can reach past this tenant's and collection's rows (#1649, FA-039).
+    queries = await plan_queries(
+        query, mode=analysis_mode, max_variants=analysis_max_variants, generate=generate
+    )
+
     service: Any = get_retrieval_service()
     one_collection = len(resolved) == 1
     try:
+        single_scope = scopes_by_name = None
         if one_collection:
             # Resolved per name rather than built from `organization_id` alone:
             # this tool holds only a name, never an already-authorized knowledge
@@ -153,22 +211,42 @@ async def search_knowledge_base(
             # `AppScope` for an app-scoped base every organization reads,
             # `TenantScope` for an org one - or an app-scoped base's untagged
             # rows never matched (#1684, FA-039).
-            scope = await service.resolve_scope(resolved[0], organization_id)
-            results = await service.retrieve(
-                query=query,
-                collection_name=resolved[0],
-                scope=scope,
-                filters=filters,
-                limit=top_k,
-            )
+            single_scope = await service.resolve_scope(resolved[0], organization_id)
         else:
-            scopes = {name: await service.resolve_scope(name, organization_id) for name in resolved}
-            results = await service.retrieve_multi(
-                query=query,
+            scopes_by_name = {
+                name: await service.resolve_scope(name, organization_id) for name in resolved
+            }
+
+        # Several variants are retrieved bare and expanded once after fusion; a
+        # single query expands inside its own retrieval, exactly as before #1649.
+        fused = len(queries) > 1
+        per_query_context = ParentContextMode.OFF if fused else parent_context
+
+        async def retrieve_one(one_query: str) -> list[SearchResult]:
+            if one_collection:
+                return await service.retrieve(
+                    query=one_query,
+                    collection_name=resolved[0],
+                    scope=single_scope,
+                    filters=filters,
+                    limit=top_k,
+                    parent_context=per_query_context,
+                )
+            return await service.retrieve_multi(
+                query=one_query,
                 collection_names=resolved,
-                scopes=scopes,
+                scopes=scopes_by_name,
                 filters=filters,
                 limit=top_k,
+                parent_context=per_query_context,
+            )
+
+        results = await fuse_over_queries(queries, retrieve_one, limit=top_k)
+        if fused:
+            await service.expand(
+                results,
+                parent_context=parent_context,
+                scopes={resolved[0]: single_scope} if one_collection else scopes_by_name,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an
@@ -194,4 +272,4 @@ async def search_knowledge_base(
     return _format_results(results)
 
 
-__all__ = ["search_knowledge_base"]
+__all__ = ["organizational_units_in_scope", "search_knowledge_base"]

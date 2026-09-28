@@ -65,6 +65,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/routines.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/artifacts/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
@@ -106,7 +108,11 @@ export default defineConfig({
         "src/components/chat/tool-call-card.tsx",
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/workspace-files.tsx",
-        "src/components/sharing/**/*.tsx",
+        // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
+        "src/components/sharing/**/*.{ts,tsx}",
+        // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
+        // the gate and is not in it yet; this file is new, so it starts inside.
+        "src/components/auth/directory-login-form.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",

@@ -1,5 +1,5 @@
 ---
-source_sha: "c263822f4476"
+source_sha: "a76ef1e767d9"
 ---
 
 # Architektur { #architecture }
@@ -82,7 +82,7 @@ von Sortierreihenfolgen, als Typ importiert und nicht als Datenzugriff.
 | `core/security.py` | Hilfsfunktionen für JWT / API-Key |
 | `agents/` | KI-Agents und Tools |
 | `rag/` | RAG-Modul (Embeddings, Vector Store, Retrieval) |
-| `rag/connectors/` | Sync-Connectors (Google Drive, S3) |
+| `rag/connectors/` | Sync-Connectors (Google Drive, S3, Websites) |
 | `commands/` | CLI-Kommandos im Django-Stil |
 
 ## Verantwortlichkeiten der Schichten { #layer-responsibilities }
@@ -756,7 +756,7 @@ einen Lesezugriff begrenzt; der Nutzer ist es, was ihn weiter einengt.**
   `role: "assistant"` ergänzt werden, den in `/chat` alle lesen und den das Modell
   als seine eigenen Worte zurückbekommt. Die Stufe wird dem genannt, der sie
   gewährt, also ist sie die Stufe, die durchgesetzt wird (#931).
-- Bei `list_messages` erledigt dieses eine Argument zwei Aufgaben — es autorisiert
+- Bei `transcript` erledigt dieses eine Argument zwei Aufgaben — es autorisiert
   *und* reichert jede Nachricht mit der eigenen Bewertung des Aufrufers an. Diese
   Überladung ist der Grund, warum seine autorisierende Hälfte so lange fehlte: Die
   Route übergab es, das Argument stand im Review klar da, und es erledigte die
@@ -802,7 +802,7 @@ Vier Konsequenzen, die man kennen sollte:
   und ein Lesezugriff, der nur *autorisiert*, schaltet es ausdrücklich mit
   `include_favourite=False` ab. Das sind die Lesezugriffe, deren Ergebnis verworfen
   wird oder keine Unterhaltung ist: `GET /conversations/{id}/messages`, das den
-  Thread über `list_messages` und `conversation_cost` zweimal auflöst; die drei
+  Thread einmal über `transcript` auflöst, für die Seite und ihre Kosten; die drei
   Workspace-Routen; jeder Zug eines bestehenden Chats, über `agent._resolve_in_org`;
   und die Schreibzugriffe — `add_message`, `delete_conversation` und
   `set_favourite`, das das Flag selbst überschreibt. Standardmäßig an ist es, was
@@ -936,8 +936,9 @@ Dokumente können auf diesen Wegen aufgenommen werden:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (nur Admins, Datei-Upload)
-3. **Sync-Quellen** -- Konfigurierte Connectors (Google Drive, S3), die Dokumente
-   nach Zeitplan oder auf Abruf holen.
+3. **Sync-Quellen** -- Konfigurierte Connectors (Google Drive, S3, Websites), die
+   Dokumente nach Zeitplan oder auf Abruf holen und entfernen, was ihre Quelle
+   nicht mehr enthält.
 
 Jedes aufgenommene Dokument wird:
 - Zu Text geparst (Parser je Collection gewählt, je Upload übersteuerbar)

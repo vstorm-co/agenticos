@@ -1,5 +1,5 @@
 ---
-source_sha: "7c25dca319aa"
+source_sha: "4204964a3eae"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -172,6 +172,14 @@ nie da się wysłać zaproszeń ani resetów hasła, oraz `LOGFIRE_TOKEN`, pod k
 
 Coś musi terminować TLS i routować te dwie nazwy. Obie opcje poniżej sięgają do
 tych samych kontenerów; wybierz na podstawie tego, czy już któreś uruchamiasz.
+
+!!! note "Kompresję zostaw aplikacji"
+
+    API kompresuje gzipem własne odpowiedzi, proxy `/api/*` konsoli ponownie
+    kompresuje dla przeglądarki to, co skompresowało API, a Next kompresuje swoje
+    strony. Proxy nie potrzebuje więc `gzip on` i nie może czyścić
+    `Accept-Encoding` klienta: to tylko wyłącza kompresję. Odpowiedź, która już
+    niesie `Content-Encoding`, Nginx i Traefik przepuszczają bez zmian.
 
 ### Opcja A: Traefik { #option-a-traefik }
 

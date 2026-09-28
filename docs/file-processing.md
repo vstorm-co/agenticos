@@ -1116,9 +1116,10 @@ been shared. The fallback is gone; the setting now serves only the
     deployment-wide fallback, because a fallback means one tenant's folder id
     choosing what is read under the operator's identity.
 
-What the source names in `secret_id` is a `gcp_service_account` for Drive or an
-`aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
-offered to the wizard as `secret_kind` on the connector listing.
+What the source names in `secret_id` is a `gcp_service_account` for Drive, an
+`aws_credentials` pair for S3 or a `git_token` for a Git repository, declared by
+the connector as `SECRET_KIND` and offered to the wizard as `secret_kind` on the
+connector listing.
 
 It used to be in `config`, encrypted by `app/core/crypto.py` — one
 deployment-wide Fernet key over every tenant's credential, which is the weakness
@@ -1270,6 +1271,18 @@ rather than a feature:
   listing is still a full scan
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), so a connector that
   brings thousands of files makes that pagination urgent rather than tidy.
+- **A listing that knows whether it is whole.** A sync removes the documents its
+  source brought in earlier and no longer lists, so `list_files` answers a
+  `RemoteListing` whose `complete` says whether what it names is everything. A
+  listing that finishes or raises is complete by construction. One that can stop
+  part-way - the web crawler at its page ceiling, or past a page that timed out -
+  says `complete=False`, and that run removes nothing
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Removal is scoped
+  by `rag_document_claims`, not by `source_path`: two sources can feed one
+  collection and list the same document, so each source that lists a document
+  claims it. A source that stops listing it drops its claim, and the document is
+  removed only when no source feeding the collection still claims it
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **A sync connector is not an MCP server.** MCP is how an agent reaches a product
 *live*, mid-run; a sync source is a scheduled bulk pull with change detection
@@ -1280,15 +1293,19 @@ question to answer before writing one is which half is being built — see
 
 Which connectors are being built, and in what order, is decided in
 [#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
-OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#984](https://github.com/vstorm-co/agenticos/issues/984), shipped as the `web`
+connector - see [website setup](howto/configure-sync-sources.md#website-setup)), SharePoint and
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985), shipped as the
+`sharepoint` connector - see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
 then Azure Blob and GCS, whose condition is met: `S3Connector` is an
 `ObjectStoreConnector` subclass, so each of those is a client and a
 `CONNECTOR_TYPE` rather than a second copy of the listing loop
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-and email archives are decided **against** for now, each for a reason recorded
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.
 

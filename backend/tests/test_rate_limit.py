@@ -349,6 +349,36 @@ class TestTheHostedPageIsCountedPerPage:
         assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_logo:key:abc123"
 
 
+class TestAnArtifactAddressIsCountedPerAddress:
+    """One signed content address, however it was obtained, is one frame's load
+    and a reload or two - not a way to pull a page out of storage on a loop."""
+
+    async def test_the_bucket_is_the_address_by_its_digest(self):
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.artifact_content_allowed("eyJ.token.sig")).allowed is True
+        key = client.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:artifact_content:token:")
+        assert "eyJ.token.sig" not in key
+
+    async def test_two_addresses_do_not_share_one_allowance(self):
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        await rate_limit.artifact_content_allowed("first")
+        await rate_limit.artifact_content_allowed("second")
+
+        first, second = (call.args[0] for call in client.count_in_window.await_args_list)
+        assert first != second
+
+    @pytest.mark.security
+    async def test_an_address_loaded_past_its_allowance_is_refused(self):
+        rate_limit.configure(_redis([rate_limit.ARTIFACT_CONTENT_LOADS_PER_MINUTE + 1]))
+
+        assert (await rate_limit.artifact_content_allowed("t")).allowed is False
+
+
 class TestStoringAFileIsCountedTwice:
     """The upload is the only public route that writes bytes to a disk, and the
     only one whose caller has two identities worth counting.

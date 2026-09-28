@@ -18,7 +18,22 @@ import { readPublicConfig } from "@/lib/public-config";
  * with the handle already attached. It appends its own `client=desktop` there,
  * which is why nothing about the shell is known to this route (#1532).
  */
-const PROVIDERS = new Set(["google", "github", "microsoft", "oidc"]);
+const PROVIDERS = new Set(["google", "github", "microsoft", "oidc", "kerberos"]);
+
+/**
+ * Where a provider's sign-in starts on the backend.
+ *
+ * Kerberos is not an OAuth provider - the browser answers a `Negotiate`
+ * challenge with the ticket of the domain it is joined to - so it starts under
+ * the directory sign-in's own route. It ends the way an OIDC sign-in does, in a
+ * redirect to `/auth/callback` with a single-use code, which is why it rides the
+ * same button, the same hop and the same staged invitation (#1773).
+ */
+function startPath(provider: string): string {
+  return provider === "kerberos"
+    ? "/api/v1/auth/kerberos/login"
+    : `/api/v1/oauth/${encodeURIComponent(provider)}/login`;
+}
 
 interface RouteParams {
   params: Promise<{ provider: string }>;
@@ -34,7 +49,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   // The browser follows this redirect, so it is the public API origin the
   // deployment names at runtime, read per request like every other public URL (#1544).
   const { apiUrl } = readPublicConfig(process.env);
-  const target = new URL(`${apiUrl}/api/v1/oauth/${encodeURIComponent(provider)}/login`);
+  const target = new URL(`${apiUrl}${startPath(provider)}`);
   const flow = request.nextUrl.searchParams.get(INVITATION_FLOW_PARAM);
   const handle = isInvitationFlow(flow) ? request.cookies.get(stageCookieName(flow))?.value : null;
   if (handle) target.searchParams.set("invitation_handle", handle);
