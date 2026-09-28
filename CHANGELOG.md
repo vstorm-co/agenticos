@@ -38,6 +38,15 @@ Two things are versioned separately from this file and worth knowing about:
   steps slide in, and its progress rail fills as it advances.
 - **The Activity table keeps one row to a line.** Agent and person names,
   costs and durations no longer wrap, and token counts are grouped by digit.
+- **Headers and lists hold together across the console.** A page's actions
+  sit level with its title instead of at the foot of a long description, and
+  an agent's status badges sit under its name. On a phone, a list card's title
+  no longer gets squeezed by its filters. Header buttons share one size.
+  Routines are started from the page header, and each row leads with the
+  routine's name. An organization card no longer reads "· admin" when it has
+  no tier. A workspace's empty preview shows a blank page, and the memory
+  settings tab stops drawing a second page title. The agent, knowledge base,
+  organization and MCP grids rise in like the others.
 
 ## [0.0.513] - 2026-09-28
 

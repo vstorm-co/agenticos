@@ -223,15 +223,15 @@ export default function DashboardPage() {
           onNewBlank={() => openEditor(true)}
           onDelete={removePreset}
         />
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEditor(false)}>
-          <LayoutGrid className="size-3.5" aria-hidden />
+        <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
+          <LayoutGrid className="size-4" aria-hidden />
           {t("edit.customize")}
         </Button>
       </div>
       {can(Perm.agentsRun) ? (
-        <Button asChild size="sm" className="gap-1.5">
+        <Button asChild className="gap-1.5">
           <Link href={ROUTES.CHAT}>
-            <MessageSquarePlus className="size-3.5" aria-hidden />
+            <MessageSquarePlus className="size-4" aria-hidden />
             {t("actions.newChat")}
           </Link>
         </Button>

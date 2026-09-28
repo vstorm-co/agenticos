@@ -578,7 +578,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          * cards then land in two or three rows with no scrolling, which is the
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((row, index) => (
             <Card
               key={row.key}

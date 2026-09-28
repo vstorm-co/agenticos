@@ -71,32 +71,35 @@ export function PageHeader({
           text column claims 20rem before anything else, and when that and the
           actions do not fit on one line the actions move under the title - the
           description's length plays no part, since the basis, not the text,
-          decides the line. */}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          decides the line. The actions sit level with the title rather than
+          with the description's last line: a four-line description used to
+          leave the page's primary button floating halfway down the header. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 basis-80">
           <h1 className="text-foreground text-2xl leading-tight font-semibold tracking-tight text-balance">
             {title}
           </h1>
+          {/* Status belongs to the thing named, so it sits under the name - it
+              used to float above the action buttons, reading as a caption for
+              them rather than as a fact about the page. */}
+          {badges && (
+            <div
+              role="group"
+              aria-label={t("pageStatus")}
+              className="mt-2 flex flex-wrap items-center gap-2 whitespace-nowrap"
+            >
+              {badges}
+            </div>
+          )}
           {description && (
             <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed text-pretty">
               {description}
             </p>
           )}
         </div>
-        <div className="flex max-w-full min-w-0 flex-col items-start gap-2 sm:items-end">
-          {badges && (
-            <div
-              role="group"
-              aria-label={t("pageStatus")}
-              className="flex flex-wrap items-center gap-2 whitespace-nowrap sm:justify-end"
-            >
-              {badges}
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            {actions}
-            <RestartTourButton />
-          </div>
+        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+          {actions}
+          <RestartTourButton />
         </div>
       </div>
     </div>

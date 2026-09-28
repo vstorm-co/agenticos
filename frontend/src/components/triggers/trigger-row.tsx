@@ -86,43 +86,55 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-md border p-3">
+    <div className="hover:border-foreground/20 flex items-center gap-3 rounded-xl border p-3 transition-colors">
       <button
         type="button"
         onClick={openRuns}
         aria-label={t("viewRuns")}
-        className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left"
+        className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left transition-colors"
       >
-        <TriggerMark trigger={trigger} className="text-muted-foreground h-5 w-5 shrink-0" />
-        {showAgent && trigger.agent_name && (
-          <AgentAvatar
-            agentId={trigger.agent_id}
-            slug={trigger.agent_slug ?? ""}
-            hasAvatar={trigger.agent_has_avatar ?? false}
-            colorSlot={trigger.agent_avatar_color}
-            size="sm"
-            className="shrink-0"
-          />
-        )}
-        <div className="min-w-0 flex-1">
+        {/* The kind of routine in a tile, with the agent that runs it tucked into
+            its corner - one mark to scan down the list rather than two loose icons. */}
+        <span className="bg-muted relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
+          <TriggerMark trigger={trigger} className="text-muted-foreground h-5 w-5" />
+          {showAgent && trigger.agent_name && (
+            <AgentAvatar
+              agentId={trigger.agent_id}
+              slug={trigger.agent_slug ?? ""}
+              hasAvatar={trigger.agent_has_avatar ?? false}
+              colorSlot={trigger.agent_avatar_color}
+              size="sm"
+              className="ring-card absolute -right-1.5 -bottom-1.5 h-5 w-5 ring-2"
+            />
+          )}
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          {/* The routine's own name leads - it was the smallest text in the row,
+              under the cadence it is only a property of. */}
           {(trigger.name || (showAgent && trigger.agent_name)) && (
-            <p className="truncate text-xs font-medium">{trigger.name ?? trigger.agent_name}</p>
+            <p className="truncate text-sm font-medium">{trigger.name ?? trigger.agent_name}</p>
           )}
-          {trigger.name && showAgent && trigger.agent_name && (
-            <p className="text-muted-foreground truncate text-[11px]">{trigger.agent_name}</p>
-          )}
-          <p className="truncate text-sm">
-            <TriggerSummary trigger={trigger} />
+          <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+            {trigger.name && showAgent && trigger.agent_name && (
+              <>
+                <span className="text-foreground/80 truncate">{trigger.agent_name}</span>
+                <span aria-hidden>·</span>
+              </>
+            )}
+            <span className="truncate">
+              <TriggerSummary trigger={trigger} />
+            </span>
           </p>
-          <p className="text-muted-foreground truncate text-xs">{trigger.prompt}</p>
+          <p className="text-muted-foreground/80 truncate text-xs">{trigger.prompt}</p>
         </div>
       </button>
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
       {trigger.can_manage && (
-        <>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             aria-label={t("runNow")}
             disabled={!trigger.is_active || runNow.isPending}
             onClick={fireAndWatch}
@@ -130,12 +142,19 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           >
             <Zap className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" aria-label={t("edit")} onClick={() => setEditing(true)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t("edit")}
+            onClick={() => setEditing(true)}
+          >
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             aria-label={trigger.is_active ? t("pause") : t("resume")}
             disabled={setActive.isPending}
             onClick={() =>
@@ -146,14 +165,15 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           </Button>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="hover:text-destructive h-8 w-8"
             aria-label={t("delete")}
             disabled={remove.isPending}
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
-        </>
+        </div>
       )}
       {editing && (
         <TriggerFormDialog

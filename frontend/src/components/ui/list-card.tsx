@@ -40,8 +40,11 @@ export function ListCard({
 } & HTMLAttributes<HTMLDivElement>) {
   return (
     <Card {...rest}>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
+      {/* A column on a phone: beside a search box and three filters the title
+          was squeezed to "Catalo", and it is the one thing in the header that
+          says what the card is. */}
+      <CardHeader className="flex-col gap-3 space-y-0 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
           <CardDescription className="text-xs">
             {counted === null ? <Skeleton className="h-3 w-24" /> : counted}

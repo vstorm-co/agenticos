@@ -235,7 +235,7 @@ export default function AgentsPage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((agent) => (
                 <AgentCard
                   key={agent.id}

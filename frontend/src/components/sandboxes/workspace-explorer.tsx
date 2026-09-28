@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Download, Info, Search } from "lucide-react";
 
 import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
-import { Badge, Button, Input, Skeleton } from "@/components/ui";
+import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
 import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
@@ -333,7 +333,14 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
 
         <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
           {chosen === null || kind === null ? (
-            <p className="text-muted-foreground m-auto p-6 text-center text-sm">{t("pickAFile")}</p>
+            // An empty page on the desk, waiting - the same paper the file cards
+            // draw, so the pane reads as "a document goes here".
+            <div className="m-auto flex flex-col items-center gap-4 p-6 text-center">
+              <DocPeek className="h-24 w-32 rounded-xl" size="compact">
+                <BlankPeek />
+              </DocPeek>
+              <p className="text-muted-foreground text-sm">{t("pickAFile")}</p>
+            </div>
           ) : (
             <>
               <div className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">

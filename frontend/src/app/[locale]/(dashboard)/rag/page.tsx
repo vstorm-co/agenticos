@@ -78,7 +78,7 @@ export default function RAGPage() {
         description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
-            <Button data-tour="knowledge-new" size="sm" onClick={() => setCreateOpen(true)}>
+            <Button data-tour="knowledge-new" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newKnowledgeBase")}
             </Button>
@@ -169,7 +169,7 @@ export default function RAGPage() {
                 }
               />
             ) : (
-              <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rise-in grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map((kb) => (
                   <KBCard key={kb.id} kb={kb} />
                 ))}
@@ -211,7 +211,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
   // only `group-hover` in this file was on the delete button #303 removed, so
   // it named a relationship nothing was on the other end of.
   return (
-    <div className="border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors">
+    <div className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col rounded-xl border">
       {/* The card is a link and nothing else, so the layering is a link over
           content that declines the click rather than the three-way z-index
           argument this used to be. Deleting a collection now lives on the
