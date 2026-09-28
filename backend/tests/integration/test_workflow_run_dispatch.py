@@ -193,6 +193,7 @@ async def _seed(
             triggered_by="api",
             execution_principal_user_id=principal.id,
             budget_limit=budget_limit,
+            node_count=1,
             deadline_at=None,
             root_run_id=None,
             causation_run_id=None,

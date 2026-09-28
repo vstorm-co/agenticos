@@ -49,6 +49,7 @@ async def create_run(
     triggered_by: str,
     execution_principal_user_id: UUID | None,
     budget_limit: Decimal | None,
+    node_count: int,
     deadline_at: datetime | None,
     root_run_id: UUID | None,
     causation_run_id: UUID | None,
@@ -73,6 +74,7 @@ async def create_run(
         triggered_by=triggered_by,
         execution_principal_user_id=execution_principal_user_id,
         budget_limit=budget_limit,
+        node_count=node_count,
         deadline_at=deadline_at,
         root_run_id=root_run_id or run_id,
         causation_run_id=causation_run_id,
@@ -196,6 +198,92 @@ async def create_node_run(
     await db.flush()
     await db.refresh(node_run)
     return node_run
+
+
+# A run's node work is outstanding while it is still scheduling. Summing
+# `node_count` over these - not counting materialized `node_runs` - is what makes
+# the admission reservation durable: a wide graph holds its whole count the moment
+# it is admitted, long before its downstream nodes exist.
+#
+# `needs_attention` is excluded though it is not terminal: it is a dead end a
+# person resolves by cancelling (there is no resume path), so a run parked there
+# will never schedule the rest of its graph, and charging its whole `node_count`
+# forever would let a few failed wide runs exhaust the quota and 429 every later
+# start until each is cancelled by hand. Whatever nodes such a run still had
+# queued or running drain through the runner regardless - bounded by
+# `PREFECT_RUNNER_LIMIT`, never re-grown, since a parked run enqueues no successors.
+_LIVE_RUN_STATUSES = tuple(
+    status.value
+    for status in WorkflowRunStatus
+    if not status.is_terminal and status is not WorkflowRunStatus.NEEDS_ATTENTION
+)
+
+
+# Advisory-lock classes for workflow admission (#1907). Transaction-scoped
+# advisory locks, not row locks: the admission check reads an aggregate and then
+# inserts a *new* run, so there is no existing row to lock, and two concurrent
+# starts would otherwise both read the same sum before either committed. The org
+# ceiling and the (cross-organization) principal ceiling need separate locks,
+# taken in a fixed order - org before principal - so concurrent starts that share
+# either dimension cannot deadlock.
+_ORG_ADMISSION_LOCK_NAMESPACE = 1907
+_PRINCIPAL_ADMISSION_LOCK_NAMESPACE = 1970
+
+
+async def lock_admission(
+    db: AsyncSession, *, organization_id: UUID, principal_user_id: UUID | None
+) -> None:
+    """Serialize run admission until this transaction ends.
+
+    Taken before the reservation sums are read and held to commit - by which
+    point this start's run row exists - so concurrent starts queue through the
+    check one at a time and neither ceiling can be overshot by racing reads. The
+    organization lock covers the org ceiling; the principal lock covers the
+    principal ceiling, which is counted across *every* organization (a caller who
+    can create organizations must not multiply their allowance by spreading runs
+    across them). Always org first, then principal, so the order is global.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                _ORG_ADMISSION_LOCK_NAMESPACE, func.hashtext(str(organization_id))
+            )
+        )
+    )
+    if principal_user_id is not None:
+        await db.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    _PRINCIPAL_ADMISSION_LOCK_NAMESPACE, func.hashtext(str(principal_user_id))
+                )
+            )
+        )
+
+
+async def sum_reserved_node_work(
+    db: AsyncSession,
+    *,
+    organization_id: UUID | None = None,
+    principal_user_id: UUID | None = None,
+) -> int:
+    """The graph node work live runs still hold in reserve, scoped by the filters.
+
+    The sum of `node_count` over every live run matching the filters - each run's
+    whole worst-case node work, counted from the instant it is admitted and
+    released when it ends, whether or not its nodes have materialized yet. With
+    `organization_id`, the organization ceiling reads it org-scoped (via
+    `ix_workflow_run_org_status`). With `principal_user_id` and no organization,
+    the principal ceiling reads it across every organization, so a caller who can
+    create organizations cannot get a fresh allowance in each.
+    """
+    stmt = select(func.coalesce(func.sum(WorkflowRun.node_count), 0)).where(
+        WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+    )
+    if organization_id is not None:
+        stmt = stmt.where(WorkflowRun.organization_id == organization_id)
+    if principal_user_id is not None:
+        stmt = stmt.where(WorkflowRun.execution_principal_user_id == principal_user_id)
+    return int(await db.scalar(stmt) or 0)
 
 
 async def get_node_run_by_id(db: AsyncSession, node_run_id: UUID) -> NodeRun | None:

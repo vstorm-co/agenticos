@@ -16,6 +16,35 @@ class WorkflowRunNotFoundError(AppException):
         super().__init__(details={"run_id": run_id})
 
 
+class WorkflowAdmissionQuotaError(AppException):
+    """Too much node work is already queued or running to admit another run (429).
+
+    Not the per-minute run limit (`limit_workflow_run`): this bounds the node
+    work one organization, and one caller within it, may hold on the shared
+    runner at once, so repeated starts below the rate limit cannot grow a
+    backlog that starves other tenants (#1907). `scope` names which ceiling was
+    hit (`organization` or `principal`). Retried once running work drains, so it
+    is a 429 like the rate limit rather than a permanent refusal.
+    """
+
+    message = (
+        "Too much workflow work is already in flight. "
+        "Wait for running work to finish and try again."
+    )
+    code = "WORKFLOW_ADMISSION_QUOTA_EXCEEDED"
+    status_code = 429
+
+    def __init__(self, *, scope: str, limit: int, outstanding: int, requested: int) -> None:
+        super().__init__(
+            details={
+                "scope": scope,
+                "limit": limit,
+                "outstanding": outstanding,
+                "requested": requested,
+            }
+        )
+
+
 class WorkflowNotRunnableError(AppException):
     """Nothing to run: no published version (`real`) or no draft graph (`test`) (409)."""
 

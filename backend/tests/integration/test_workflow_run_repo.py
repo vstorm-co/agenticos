@@ -41,7 +41,7 @@ from app.repositories import workflow_run as workflow_run_repo
 pytestmark = pytest.mark.anyio
 
 
-async def _org(db: AsyncSession) -> Organization:
+async def _user(db: AsyncSession) -> User:
     user = User(
         id=uuid.uuid4(),
         email=f"{uuid.uuid4().hex}@example.com",
@@ -50,6 +50,11 @@ async def _org(db: AsyncSession) -> Organization:
     )
     db.add(user)
     await db.flush()
+    return user
+
+
+async def _org(db: AsyncSession) -> Organization:
+    user = await _user(db)
     org = Organization(
         id=uuid.uuid4(),
         name="Acme",
@@ -84,6 +89,9 @@ async def _workflow(
 
 
 async def _run(db: AsyncSession, org: Organization, workflow: Workflow, **overrides: object):
+    # `status` is not a `create_run` field - a run is born `queued` and moved
+    # with `update_run` - so apply it after creation the way production does.
+    status = overrides.pop("status", None)
     defaults: dict[str, object] = {
         "organization_id": org.id,
         "workflow_id": workflow.id,
@@ -93,6 +101,7 @@ async def _run(db: AsyncSession, org: Organization, workflow: Workflow, **overri
         "triggered_by": "api",
         "execution_principal_user_id": None,
         "budget_limit": None,
+        "node_count": 1,
         "deadline_at": None,
         "root_run_id": None,
         "causation_run_id": None,
@@ -101,7 +110,10 @@ async def _run(db: AsyncSession, org: Organization, workflow: Workflow, **overri
         "started_at": datetime.now(UTC),
     }
     defaults.update(overrides)
-    return await workflow_run_repo.create_run(db, **defaults)
+    run = await workflow_run_repo.create_run(db, **defaults)
+    if status is not None:
+        run = await workflow_run_repo.update_run(db, run=run, update_data={"status": status})
+    return run
 
 
 async def _node_run(db: AsyncSession, run, **overrides: object):
@@ -1200,3 +1212,94 @@ class TestRenewLease:
         assert not await workflow_run_repo.renew_lease(
             db, node_run_id=node_run.id, token=token, lease_seconds=60
         )
+
+
+class TestSumReservedNodeWork:
+    """The reservation the admission quota reads: the sum of `node_count` over an
+    organization's non-terminal runs, whole from the instant a run is admitted
+    and released the instant it ends - not the count of materialized node rows,
+    which lag a wide graph's fan-out."""
+
+    async def test_lock_admission_holds_and_still_reads_the_reservation(self, db: AsyncSession):
+        org = await _org(db)
+        user = await _user(db)
+        # Transaction-scoped advisory locks (org, then principal): taking them
+        # (even twice - they are re-entrant within one session) does not block the
+        # same transaction from going on to read its reservation.
+        await workflow_run_repo.lock_admission(
+            db, organization_id=org.id, principal_user_id=user.id
+        )
+        await workflow_run_repo.lock_admission(
+            db, organization_id=org.id, principal_user_id=user.id
+        )
+        # A start with no interactive caller takes only the organization lock.
+        await workflow_run_repo.lock_admission(db, organization_id=org.id, principal_user_id=None)
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 0
+
+    async def test_sums_node_count_over_live_runs_only(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        # A just-admitted run holds its whole node_count with a single entry node.
+        await _run(db, org, workflow, node_count=500, status=WorkflowRunStatus.RUNNING.value)
+        await _run(db, org, workflow, node_count=30, status=WorkflowRunStatus.QUEUED.value)
+        await _run(db, org, workflow, node_count=7, status=WorkflowRunStatus.WAITING_APPROVAL.value)
+        # Terminal runs release their reservation.
+        await _run(db, org, workflow, node_count=999, status=WorkflowRunStatus.SUCCEEDED.value)
+        await _run(db, org, workflow, node_count=999, status=WorkflowRunStatus.CANCELLED.value)
+        # `needs_attention` is a dead end a person resolves by cancelling, so it
+        # releases its reservation too rather than pinning the quota forever.
+        await _run(
+            db, org, workflow, node_count=999, status=WorkflowRunStatus.NEEDS_ATTENTION.value
+        )
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 537
+
+    async def test_another_organizations_reservation_is_not_counted(self, db: AsyncSession):
+        org = await _org(db)
+        other = await _org(db)
+        await _run(db, org, await _workflow(db, org), node_count=10)
+        await _run(db, other, await _workflow(db, other), node_count=40)
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 10
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=other.id) == 40
+
+    async def test_an_organization_with_no_live_runs_reserves_zero(self, db: AsyncSession):
+        org = await _org(db)
+        await _run(
+            db, org, await _workflow(db, org), node_count=5, status=WorkflowRunStatus.FAILED.value
+        )
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org.id) == 0
+
+    async def test_a_principals_reservation_is_summed_across_every_organization(
+        self, db: AsyncSession
+    ):
+        # The principal ceiling is global: a caller who spreads runs across
+        # organizations they own must not get a fresh allowance in each.
+        org_a = await _org(db)
+        org_b = await _org(db)
+        user = await _user(db)
+        other = await _user(db)
+        await _run(
+            db,
+            org_a,
+            await _workflow(db, org_a),
+            node_count=100,
+            execution_principal_user_id=user.id,
+        )
+        await _run(
+            db,
+            org_b,
+            await _workflow(db, org_b),
+            node_count=25,
+            execution_principal_user_id=user.id,
+        )
+        await _run(
+            db,
+            org_a,
+            await _workflow(db, org_a),
+            node_count=8,
+            execution_principal_user_id=other.id,
+        )
+        # Across all organizations, this principal holds 100 + 25.
+        assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=user.id) == 125
+        assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=other.id) == 8
+        # The organization ceiling still reads one organization only.
+        assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org_a.id) == 108

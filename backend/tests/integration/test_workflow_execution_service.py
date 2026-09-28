@@ -278,6 +278,7 @@ async def _run_on(db: AsyncSession, workflow: Workflow, *, started_by: User) -> 
         triggered_by="api",
         execution_principal_user_id=started_by.id,
         budget_limit=None,
+        node_count=1,
         deadline_at=None,
         root_run_id=None,
         causation_run_id=None,
