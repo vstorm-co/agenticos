@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **SQLAlchemy 2.1.** The sync URL Alembic migrates with names its driver,
+  `postgresql+psycopg2://`, because 2.1 resolves a bare `postgresql://` to
+  psycopg 3, which the backend does not install. Queries move off what 2.1
+  deprecates (`Result.tuples()`, and `distinct(column)` for `DISTINCT ON`), and
+  its per-column row types are satisfied without casts (#1906).
+
 ## [0.0.510] - 2026-09-28
 
 ### Changed
