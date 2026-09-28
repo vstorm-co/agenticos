@@ -1,5 +1,5 @@
 ---
-source_sha: "689275afbf0b"
+source_sha: "a76ef1e767d9"
 ---
 
 # Architektura { #architecture }
@@ -734,7 +734,7 @@ zawęża go dalej.**
   `role: "assistant"`, którą wszyscy czytają w `/chat`, a model dostaje z powrotem
   jako własne słowa. Poziom jest komunikowany temu, kto go nadaje, więc
   egzekwowany jest właśnie ten poziom (#931).
-- W `list_messages` ten jeden argument robi dwie rzeczy — autoryzuje *i* wzbogaca
+- W `transcript` ten jeden argument robi dwie rzeczy — autoryzuje *i* wzbogaca
   każdą wiadomość o własną ocenę wywołującego. To przeciążenie jest powodem, dla
   którego jego autoryzująca połowa tak długo była nieobecna: route go
   przekazywał, argument był w przeglądzie kodu wyraźnie widoczny, a robił tę
@@ -778,8 +778,8 @@ Cztery konsekwencje, które warto znać:
   nie pyta o niczyje gwiazdki i nie płaci za to zapytaniem, a odczyt, który
   wyłącznie *autoryzuje*, wyłącza to jawnie przez `include_favourite=False`. To są
   te odczyty, których wynik zostaje odrzucony albo nie jest rozmową:
-  `GET /conversations/{id}/messages`, który rozwiązuje wątek dwa razy, przez
-  `list_messages` i `conversation_cost`; trzy route'y workspace'u; każda tura
+  `GET /conversations/{id}/messages`, który rozwiązuje wątek raz, przez
+  `transcript`, dla strony i jej kosztu; trzy route'y workspace'u; każda tura
   istniejącego czatu, przez `agent._resolve_in_org`; oraz zapisy — `add_message`,
   `delete_conversation` i `set_favourite`, który sam nadpisuje tę flagę. Domyślne
   włączenie jest tym, co powstrzymuje route, który *faktycznie* serializuje

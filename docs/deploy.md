@@ -164,6 +164,14 @@ is where traces of agent runs go.
 Something has to terminate TLS and route the two names. Both options below reach
 the same containers; pick on whether you already run one.
 
+!!! note "Leave compression to the application"
+
+    The API gzips its own answers, the console's `/api/*` proxy compresses again
+    for the browser whatever the API compressed, and Next compresses its pages. So
+    the proxy needs no `gzip on`, and it must not blank the client's
+    `Accept-Encoding`: that only turns the compression off. A response already
+    carrying `Content-Encoding` passes through Nginx and Traefik unchanged.
+
 ### Option A: Traefik
 
 The shorter path, and the one to pick on a host that already has Traefik: the

@@ -278,6 +278,7 @@ class UserService:
         email: str,
         full_name: str | None = None,
         invitation_token: str | None = None,
+        admitted_by_directory: bool = False,
     ) -> User:
         """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
 
@@ -289,6 +290,9 @@ class UserService:
         a link constraining neither an address nor a domain, which the address-based
         fallback cannot see - so one person could register with a password and not
         with the provider offered beside it.
+
+        `admitted_by_directory` says the identity provider reported a group some
+        organization has mapped, which the sign-up policy reads as an invitation.
         """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
@@ -312,6 +316,7 @@ class UserService:
             email=email,
             is_first_user=await self._is_first_user(),
             invitation_token=invitation_token,
+            admitted_by_directory=admitted_by_directory,
         )
 
         user = await user_repo.create(

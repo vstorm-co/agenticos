@@ -43,6 +43,22 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def slugs_with_prefix(db: AsyncSession, prefix: str, *, organization_id: UUID) -> set[str]:
+    """Every taken slug in the org equal to `prefix` or of the form `prefix-<suffix>`.
+
+    Lets `create` pick a collision-free handle in one query instead of probing
+    one numbered candidate at a time. A slug is `[a-z0-9-]` only, so `prefix`
+    carries no `LIKE` wildcard to escape.
+    """
+    result = await db.execute(
+        select(Workflow.slug).where(
+            Workflow.organization_id == organization_id,
+            or_(Workflow.slug == prefix, Workflow.slug.like(f"{prefix}-%")),
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def list_visible(
     db: AsyncSession,
     *,

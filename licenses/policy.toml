@@ -66,6 +66,12 @@ status = "accepted"
 obligations = "Ship the licence text, keep the library replaceable, make its source available. Used only by Alembic's synchronous engine, unmodified, as a separately installed wheel."
 fulfilled_by = "The wheel's LICENSE is in the image under its dist-info; the wheel is a separate file a deployment can replace; source at https://github.com/psycopg/psycopg2."
 
+[review.python."ldap3"]
+license = "LGPL-3.0-only"
+status = "accepted"
+obligations = "Weak copyleft: ship the licence text, keep the library replaceable, make its (unmodified) source available. Used for directory sign-in - the two-step LDAP bind in app/services/directory/ldap_directory.py (#1773) - imported unmodified as a separately installed pure-Python wheel."
+fulfilled_by = "Unmodified and replaceable by reinstalling the wheel; the wheel's COPYING.txt, COPYING.LESSER.txt and LICENSE.txt are in the image under its dist-info; source at https://github.com/cannatag/ldap3. The LGPL leaves AgenticOS's own Apache-2.0 licence unchanged, as for psycopg2-binary and odfpy."
+
 [review.python."odfpy"]
 license = "LGPL-2.1-or-later"
 status = "accepted"

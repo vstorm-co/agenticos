@@ -1,5 +1,5 @@
 ---
-source_sha: "81f76b874f26"
+source_sha: "44dae3302f97"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1381,9 +1381,12 @@ sorpresa en vez de una funcionalidad:
   tras una página que agotó el tiempo de espera - dice `complete=False`, y ese run
   no elimina nada
   ([#984](https://github.com/vstorm-co/agenticos/issues/984)). La eliminación se
-  acota por `rag_documents.sync_source_id`, no por `source_path`: dos fuentes
-  pueden alimentar una misma colección, y ninguna puede eliminar lo que trajo la
-  otra.
+  acota por `rag_document_claims`, no por `source_path`: dos fuentes pueden
+  alimentar una misma colección y listar el mismo documento, así que cada fuente
+  que lista un documento lo reclama. Una fuente que deja de listarlo retira su
+  reclamación, y el documento se elimina solo cuando ninguna fuente que alimenta
+  la colección lo sigue reclamando
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **Un conector de sincronización no es un servidor MCP.** MCP es cómo un agent llega
 a un producto *en vivo*, a mitad de run; una fuente de sincronización es una
@@ -1399,7 +1402,9 @@ Qué conectores se están construyendo, y en qué orden, se decide en
 conector `web` - véase la
 [configuración de un sitio web](howto/configure-sync-sources.md#website-setup)),
 SharePoint y OneDrive
-([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#985](https://github.com/vstorm-co/agenticos/issues/985), publicado como el
+conector `sharepoint` - véase la [configuración de SharePoint y
+OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), la documentación de un
 repositorio de git
 ([#987](https://github.com/vstorm-co/agenticos/issues/987)), y luego Azure Blob y

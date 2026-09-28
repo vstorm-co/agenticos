@@ -230,7 +230,7 @@ clients cannot invent new ones.
 
 Every shareable resource carries an `owner_user_id` and a `visibility`
 (`private` | `team` | `org`). On top of that, `resource_grants` holds one row per
-share: one resource, one person, one level.
+share: one resource, one person or one [group](directory.md#groups), one level.
 
 **A new agent is `org` unless its author says otherwise**, and the dialog that
 creates one asks. An agent is a thing a company builds, so the company can find
@@ -246,6 +246,13 @@ who can see it, not what it does.
 | `use` | also run or attach it |
 | `edit` | also change it |
 
+A grant to a group reaches whoever is in the group at the moment access is
+checked, so joining the group is gaining the access and leaving it is losing it.
+A person holding several grants on one row - their own and their groups' - gets
+the highest of them. The database holds a grant to exactly one subject, a person
+or a group, and a group from another organization reaches nobody here even if a
+row named one.
+
 The table is deliberately generic - `resource_type` + `resource_id`, with no
 foreign key to the target - because agents, collections, skills, context files,
 [tables](virtual-tables.md), workflows and stored keys all share the same
@@ -259,6 +266,9 @@ One formula, in `app/services/access.py`:
 ```
 effective access to one row = max(role scope, grant on that row)
 ```
+
+"Grant on that row" is the best of the person's own grant and the grants to the
+groups they are in.
 
 !!! danger "A grant widens what a role allows; it never narrows it"
 

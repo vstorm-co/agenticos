@@ -106,27 +106,27 @@ class TestListingItsMessages:
     async def test_the_caller_is_the_owner_the_service_is_asked_about(self) -> None:
         caller = uuid4()
         service = MagicMock(
-            list_messages=AsyncMock(return_value=([], 0)),
-            # The same route totals the thread beside the page it returns.
-            conversation_cost=AsyncMock(return_value=None),
+            # The page, its total and what the whole thread cost - one call,
+            # because they are one read and authorize once between them.
+            transcript=AsyncMock(return_value=([], 0, None)),
         )
 
         async with _client(user_id=caller, service=service) as client:
             await client.get(f"{settings.API_V1_STR}/conversations/{uuid4()}/messages")
 
-        assert service.list_messages.await_args.kwargs["user_id"] == caller
+        assert service.transcript.await_args.kwargs["user_id"] == caller
 
     async def test_an_app_admin_does_not_get_an_unscoped_read_here(self) -> None:
         service = MagicMock(
-            list_messages=AsyncMock(return_value=([], 0)),
-            # The same route totals the thread beside the page it returns.
-            conversation_cost=AsyncMock(return_value=None),
+            # The page, its total and what the whole thread cost - one call,
+            # because they are one read and authorize once between them.
+            transcript=AsyncMock(return_value=([], 0, None)),
         )
 
         async with _client(user_id=uuid4(), service=service) as client:
             await client.get(f"{settings.API_V1_STR}/conversations/{uuid4()}/messages")
 
-        assert service.list_messages.await_args.kwargs["user_id"] is not None
+        assert service.transcript.await_args.kwargs["user_id"] is not None
 
     async def test_the_active_organization_is_what_bounds_the_read(self) -> None:
         """The assertion this file was missing.
@@ -139,15 +139,15 @@ class TestListingItsMessages:
         """
         org = uuid4()
         service = MagicMock(
-            list_messages=AsyncMock(return_value=([], 0)),
-            # The same route totals the thread beside the page it returns.
-            conversation_cost=AsyncMock(return_value=None),
+            # The page, its total and what the whole thread cost - one call,
+            # because they are one read and authorize once between them.
+            transcript=AsyncMock(return_value=([], 0, None)),
         )
 
         async with _client(user_id=uuid4(), service=service, organization_id=org) as client:
             await client.get(f"{settings.API_V1_STR}/conversations/{uuid4()}/messages")
 
-        assert service.list_messages.await_args.kwargs["organization_id"] == org
+        assert service.transcript.await_args.kwargs["organization_id"] == org
 
 
 class TestAppendingAMessage:

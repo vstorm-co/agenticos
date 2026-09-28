@@ -1,5 +1,5 @@
 ---
-source_sha: "31e3e2845403"
+source_sha: "11e8f02699df"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -159,6 +159,14 @@ Kraft** — jemand mit `members:invite` hat die Adresse absichtlich benannt, und
 eine Domain-Liste ist Deployment-Politik gegenüber Fremden und kein Veto gegen
 eine bewusste Handlung. `closed` wird durch nichts außer Kraft gesetzt, denn ein
 „geschlossen", das einige Registrierungen durchlässt, ist nicht geschlossen.
+
+Eine **Zuordnung einer Verzeichnisgruppe zählt als Einladung.** Eine erste
+Anmeldung über das Verzeichnis (LDAP oder Kerberos) oder über OIDC mit einem
+Gruppen-Claim, deren Gruppen auf die Zuordnung irgendeiner Organisation passen,
+wird von `invite_only` und von der Domain-Liste zugelassen: Wer die Zuordnung
+geschrieben hat, hielt `members:manage` und `roles:manage` und hat entschieden,
+dass jeder in dieser Gruppe dazugehört. `closed` weist sie trotzdem ab. Siehe
+[Zuordnungen von Verzeichnisgruppen](directory.md#directory-group-mappings).
 
 **`closed` heißt geschlossen, und es gibt keinen Pfad, auf dem ein Administrator
 ein Konto anlegt.** Absichtlich: ein Konto braucht ein Passwort, das sein

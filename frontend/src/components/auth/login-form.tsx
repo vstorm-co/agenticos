@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 
+import { DirectoryLoginForm } from "@/components/auth/directory-login-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
@@ -29,9 +30,12 @@ export function LoginForm() {
   const signUpHref = registerHref(search.toString());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  // A sign-in that failed away from this page - a Kerberos ticket the backend
+  // refused, or a browser with none to offer - lands back here with its reason.
+  const [error, setError] = useState(search.get("error") ?? "");
   const [isLoading, setIsLoading] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [directory, setDirectory] = useState(false);
 
   const emailValid = !email || EMAIL_RE.test(email);
 
@@ -73,82 +77,92 @@ export function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="email"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
-            {t("email")}
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder={t("emailPlaceholder")}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => setEmailTouched(true)}
-            required
-            disabled={isLoading}
-            autoComplete="email"
-            className={`h-12 rounded-xl ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
-          />
-          {emailTouched && email && !emailValid && (
-            <p className="text-destructive text-xs">{t("emailRequired")}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
+      {directory ? (
+        <DirectoryLoginForm onBack={() => setDirectory(false)} />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
             <Label
-              htmlFor="password"
+              htmlFor="email"
               className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
             >
-              {t("password")}
+              {t("email")}
             </Label>
-            <Link
-              href={ROUTES.FORGOT_PASSWORD}
-              className="text-foreground/55 hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
-            >
-              {t("forgotShort")}
-            </Link>
+            <Input
+              id="email"
+              type="email"
+              placeholder={t("emailPlaceholder")}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              required
+              disabled={isLoading}
+              autoComplete="email"
+              className={`h-12 rounded-xl ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+            />
+            {emailTouched && email && !emailValid && (
+              <p className="text-destructive text-xs">{t("emailRequired")}</p>
+            )}
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={isLoading}
-            autoComplete="current-password"
-            className="h-12 rounded-xl"
-          />
-        </div>
 
-        {error && (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
-            {error}
-          </p>
-        )}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="password"
+                className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
+              >
+                {t("password")}
+              </Label>
+              <Link
+                href={ROUTES.FORGOT_PASSWORD}
+                className="text-foreground/55 hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
+              >
+                {t("forgotShort")}
+              </Link>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+              autoComplete="current-password"
+              className="h-12 rounded-xl"
+            />
+          </div>
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-        >
-          {isLoading ? (
-            t("loggingIn")
-          ) : (
-            <>
-              {t("login")}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+          {error && (
+            <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
+              {error}
+            </p>
           )}
-        </Button>
-      </form>
 
-      <OAuthBlock label={t("orSignInWith")} returnTo={returnToForAttempt(search)} />
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
+          >
+            {isLoading ? (
+              t("loggingIn")
+            ) : (
+              <>
+                {t("login")}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </form>
+      )}
+
+      {!directory && (
+        <OAuthBlock
+          label={t("orSignInWith")}
+          returnTo={returnToForAttempt(search)}
+          onDirectorySignIn={() => setDirectory(true)}
+        />
+      )}
     </div>
   );
 }

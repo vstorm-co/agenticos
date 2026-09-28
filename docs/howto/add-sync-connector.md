@@ -100,11 +100,13 @@ write it in your own words: a host and a status code, never the remote's text.
 `list_files()` and `_fetch()` are all a connector has to write. Two more
 methods have defaults that keep a connector working the way Drive and S3 do,
 and a connector overrides one when its source can answer the question it asks.
-`GitConnector` in `app/services/rag/connectors/git.py` overrides both.
+`GitConnector` in `app/services/rag/connectors/git.py` overrides both, and so does
+`SharePointConnector` in `app/services/rag/connectors/sharepoint.py`, which uses
+`previous`.
 
 | Hook | Default | Override it when |
 |------|---------|------------------|
-| `remote_version(config, credential)` | `None`: every run lists | The source can say cheaply what its whole content is at, such as a commit or a change token. After a run with nothing failed, the sync stores the value with a fingerprint of the configuration. The next run that finds the same pair stops before `list_files()`. The value must change whenever any listed file, or the listing itself, could have changed. |
+| `remote_version(config, credential, previous)` | `None`: every run lists | The source can say cheaply what its whole content is at, such as a commit or a change token. After a run with nothing failed, the sync stores the value with a fingerprint of the configuration. The next run that finds the same pair stops before `list_files()`. The value must change whenever any listed file, or the listing itself, could have changed. `previous` is the value the last clean run stored under the same configuration, or `None`. A source that can only report what changed *since* a point, such as a Graph delta link, answers `previous` back when nothing has changed. |
 | `aclose()` | nothing | The connector keeps something between `list_files()` and the downloads, such as a clone or a session. It is called once the sync is over, whether the sync succeeded or not. |
 
 ## Step by step: a Notion connector

@@ -205,6 +205,11 @@ Stated rather than left to be discovered:
 - **Anything about a real provider.** Every latency in a default run is the
   platform's plus the stub's stated delay.
 - **The console.** The frontend is not exercised; these are API paths.
+- **What a response costs to move.** The driver runs on the same machine as the
+  deployment, so every number here is latency with no link under it. That is also
+  why the runs below say nothing about response compression: on loopback it is
+  CPU spent and bandwidth not saved, and the workload that gains most from it -
+  a long transcript - is not in the mix.
 - **A cluster.** One deployment, one database. NFA-006's target is architectural
   and a single-host run says nothing about it either way.
 

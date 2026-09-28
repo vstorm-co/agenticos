@@ -4,6 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from sqlalchemy import (
     Boolean,
@@ -27,6 +28,27 @@ from app.db.base import Base, TimestampMixin
 # Roles live in the permission catalog, which is what actually decides what a
 # role can do; re-declaring them here would let the two lists drift.
 OrgRole = OrgRoleName
+
+
+class MembershipSource(enum.StrEnum):
+    """Who maintains a membership: an administrator, or the directory sync.
+
+    The directory sync only ever rewrites or removes rows it created itself. A
+    membership an administrator made - by invitation, or by changing a role the
+    sync had set - is theirs, and a later sign-in leaves it alone (#1773).
+    """
+
+    MANUAL = "manual"
+    DIRECTORY = "directory"
+
+
+MembershipSourceLiteral = Literal["manual", "directory"]
+"""The stored sources, as a type a schema can be written in.
+
+Declared beside the CHECK constraints that make it true, the way
+`GrantLevelLiteral` is, so a response model promising two values is typed from
+the same place the database enforces them.
+"""
 
 
 class InvitationStatus(enum.StrEnum):
@@ -149,12 +171,19 @@ class OrganizationMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    source: Mapped[MembershipSourceLiteral] = mapped_column(
+        String(16),
+        nullable=False,
+        default=MembershipSource.MANUAL.value,
+        server_default=MembershipSource.MANUAL.value,
+    )
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="members")
 
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
         Index("ix_org_member_org_role", "organization_id", "role"),
+        CheckConstraint("source IN ('manual', 'directory')", name="ck_org_member_source"),
     )
 
     def __repr__(self) -> str:

@@ -1184,7 +1184,7 @@ class TestConversationServiceGetMessage:
 
 
 class TestConversationServiceListMessages:
-    """Tests for list_messages."""
+    """Tests for transcript - the page, its total and the thread's cost."""
 
     @pytest.fixture
     def mock_db(self) -> AsyncMock:
@@ -1197,8 +1197,10 @@ class TestConversationServiceListMessages:
         return ConversationService(mock_db)
 
     @pytest.mark.anyio
-    async def test_list_messages_returns_tuple(self, service: ConversationService):
-        """list_messages returns (items, total) tuple."""
+    async def test_transcript_returns_the_page_the_total_and_the_cost(
+        self, service: ConversationService
+    ):
+        """transcript answers with (items, total, cost)."""
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id)
         mock_messages = [MockMessage(), MockMessage()]
@@ -1208,25 +1210,26 @@ class TestConversationServiceListMessages:
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=mock_messages)
             mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=2)
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
-            items, total = await service.list_messages(conv_id, organization_id=TEST_ORG_ID)
+            items, total, cost = await service.transcript(conv_id, organization_id=TEST_ORG_ID)
 
             assert len(items) == 2
             assert total == 2
+            assert cost is None
 
     @pytest.mark.anyio
-    async def test_list_messages_verifies_conversation_exists(self, service: ConversationService):
-        """list_messages raises NotFoundError when conversation not found."""
+    async def test_transcript_verifies_conversation_exists(self, service: ConversationService):
+        """transcript raises NotFoundError when conversation not found."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=None)
 
             with pytest.raises(NotFoundError):
-                await service.list_messages(uuid4(), organization_id=TEST_ORG_ID)
+                await service.transcript(uuid4(), organization_id=TEST_ORG_ID)
 
     @pytest.mark.anyio
-    async def test_list_messages_with_pagination(self, service: ConversationService):
-        """list_messages passes skip and limit to repository."""
+    async def test_transcript_with_pagination(self, service: ConversationService):
+        """transcript passes skip and limit to repository."""
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id)
 
@@ -1235,16 +1238,59 @@ class TestConversationServiceListMessages:
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
             mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
-            await service.list_messages(conv_id, skip=5, limit=10, organization_id=TEST_ORG_ID)
+            await service.transcript(conv_id, skip=5, limit=10, organization_id=TEST_ORG_ID)
 
             call_kwargs = mock_repo.get_messages_by_conversation.call_args
             assert call_kwargs[1]["skip"] == 5
             assert call_kwargs[1]["limit"] == 10
 
     @pytest.mark.anyio
-    async def test_list_messages_with_tool_calls(self, service: ConversationService):
-        """list_messages passes include_tool_calls to repository."""
+    async def test_the_cost_is_the_whole_thread_and_not_the_page(
+        self, service: ConversationService
+    ):
+        """The page bounds reach the messages; the cost is asked for the thread."""
+        conv_id = uuid4()
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.count_messages = AsyncMock(return_value=400)
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
+
+            await service.transcript(conv_id, skip=5, limit=10, organization_id=TEST_ORG_ID)
+
+            mock_repo.conversation_cost.assert_awaited_once_with(service.db, conv_id)
+
+    @pytest.mark.anyio
+    async def test_a_transcript_authorizes_its_conversation_exactly_once(
+        self, service: ConversationService
+    ):
+        """On a channel thread each authorization can ask the platform about the reader."""
+        conv_id = uuid4()
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch.object(
+                ConversationService,
+                "get_conversation",
+                AsyncMock(return_value=MockConversation(id=conv_id)),
+            ) as authorize,
+        ):
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.count_messages = AsyncMock(return_value=0)
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
+
+            await service.transcript(conv_id, organization_id=TEST_ORG_ID)
+
+        assert authorize.await_count == 1
+
+    @pytest.mark.anyio
+    async def test_transcript_with_tool_calls(self, service: ConversationService):
+        """transcript passes include_tool_calls to repository."""
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id)
 
@@ -1253,10 +1299,9 @@ class TestConversationServiceListMessages:
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
             mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
-            await service.list_messages(
-                conv_id, include_tool_calls=True, organization_id=TEST_ORG_ID
-            )
+            await service.transcript(conv_id, include_tool_calls=True, organization_id=TEST_ORG_ID)
 
             call_kwargs = mock_repo.get_messages_by_conversation.call_args
             assert call_kwargs[1]["include_tool_calls"] is True
@@ -1736,9 +1781,10 @@ class TestSayingATurnWasStopped:
         with patch("app.services.conversation.message_rating_repo") as ratings:
             ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
             ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
-            return await service.list_messages(
+            items, total, _cost = await service.transcript(
                 conv_id, organization_id=TEST_ORG_ID, user_id=uuid4()
             )
+            return items, total
 
     @pytest.mark.anyio
     async def test_a_turn_carries_how_its_run_ended(self, service: ConversationService):
@@ -1754,6 +1800,7 @@ class TestSayingATurnWasStopped:
             )
             mock_repo.count_messages = AsyncMock(return_value=1)
             mock_repo.run_statuses = AsyncMock(return_value={run_id: "cancelled"})
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
             items, _total = await self._listed(service, conv_id)
 
@@ -1771,6 +1818,7 @@ class TestSayingATurnWasStopped:
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage()])
             mock_repo.count_messages = AsyncMock(return_value=1)
             mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
             items, _total = await self._listed(service, conv_id)
 
@@ -1778,11 +1826,7 @@ class TestSayingATurnWasStopped:
 
 
 class TestWhatTheThreadCost:
-    """`conversation_cost` - the total beside the page of messages.
-
-    Scoped exactly as `list_messages` is, and for the same reason: a total is
-    enough to tell how heavily somebody else's conversation was used.
-    """
+    """The cost `transcript` answers with, under the page's authorization."""
 
     @pytest.fixture
     def service(self) -> ConversationService:
@@ -1791,11 +1835,15 @@ class TestWhatTheThreadCost:
     @pytest.mark.security
     @pytest.mark.anyio
     async def test_another_tenants_thread_is_not_totalled(self, service: ConversationService):
+        """And the aggregate never runs before the refusal."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=None)
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
 
             with pytest.raises(NotFoundError):
-                await service.conversation_cost(uuid4(), organization_id=TEST_ORG_ID)
+                await service.transcript(uuid4(), organization_id=TEST_ORG_ID)
+
+            mock_repo.conversation_cost.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_thread_nobody_measured_answers_nothing(self, service: ConversationService):
@@ -1805,9 +1853,14 @@ class TestWhatTheThreadCost:
             mock_repo.get_conversation_by_id = AsyncMock(
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
-            assert await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID) is None
+            _items, _total, cost = await service.transcript(conv_id, organization_id=TEST_ORG_ID)
+
+            assert cost is None
 
     @pytest.mark.anyio
     async def test_the_totals_reach_the_schema_the_client_reads(self, service: ConversationService):
@@ -1816,11 +1869,14 @@ class TestWhatTheThreadCost:
             mock_repo.get_conversation_by_id = AsyncMock(
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(
                 return_value=(3_000, 300, Decimal("0.030000"), True)
             )
 
-            cost = await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID)
+            _items, _total, cost = await service.transcript(conv_id, organization_id=TEST_ORG_ID)
 
         assert cost is not None
         assert (cost.input_tokens, cost.output_tokens) == (3_000, 300)
@@ -2199,10 +2255,9 @@ class TestAFavouriteBelongsToTheReader:
         assert read.is_favourite is True
 
     async def test_a_read_that_only_authorizes_asks_for_no_stars(self, monkeypatch):
-        """`GET /conversations/{id}/messages` resolves the conversation twice -
-        through `list_messages` and `conversation_cost` - and serializes neither
-        it nor its star, so the flag being on by default would cost two queries
-        per transcript opened."""
+        """`GET /conversations/{id}/messages` resolves the conversation through
+        `transcript` and serializes neither it nor its star, so the flag being on
+        by default would cost a query per transcript opened."""
         conversation = MockConversation()
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)

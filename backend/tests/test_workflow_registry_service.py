@@ -107,22 +107,14 @@ class TestCreate:
         with pytest.raises(AuthorizationError):
             await WorkflowRegistryService(_db()).create(ctx, WorkflowCreate(name="Import orders"))
 
-    async def test_a_taken_slug_is_refused(self):
-        ctx = _ctx(OrgRoleName.OWNER.value)
-        existing = _workflow(ctx)
-        with (
-            patch(
-                f"{REGISTRY_PATH}.workflow_repo.get_by_slug", new=AsyncMock(return_value=existing)
-            ),
-            pytest.raises(AlreadyExistsError),
-        ):
-            await WorkflowRegistryService(_db()).create(ctx, WorkflowCreate(name="Import orders"))
-
     async def test_a_new_workflow_is_created_in_draft(self):
         ctx = _ctx(OrgRoleName.OWNER.value)
         created = _workflow(ctx)
         with (
-            patch(f"{REGISTRY_PATH}.workflow_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+                new=AsyncMock(return_value=set()),
+            ),
             patch(
                 f"{REGISTRY_PATH}.workflow_repo.create", new=AsyncMock(return_value=created)
             ) as create,
@@ -132,6 +124,55 @@ class TestCreate:
             )
         assert result.id == created.id
         assert create.call_args.kwargs["slug"] == "import-orders"
+        assert create.call_args.kwargs["name"] == "Import orders"
+
+    async def test_a_taken_handle_is_numbered_rather_than_refused(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        created = _workflow(ctx)
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+                new=AsyncMock(return_value={"import-orders"}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await WorkflowRegistryService(_db()).create(ctx, WorkflowCreate(name="Import orders"))
+        assert create.call_args.kwargs["slug"] == "import-orders-2"
+        assert create.call_args.kwargs["name"] == "Import orders 2"
+
+    async def test_numbering_skips_every_taken_variant(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        created = _workflow(ctx)
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+                new=AsyncMock(return_value={"import-orders", "import-orders-2"}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            await WorkflowRegistryService(_db()).create(ctx, WorkflowCreate(name="Import orders"))
+        assert create.call_args.kwargs["slug"] == "import-orders-3"
+        assert create.call_args.kwargs["name"] == "Import orders 3"
+
+    async def test_the_handle_and_every_numbered_variant_taken_is_refused(self):
+        # A degenerate name whose numbered variants all slugify to the same
+        # handle (e.g. once the 64-char slug ceiling truncates the suffix away)
+        # has nowhere left to go, and is reported taken rather than looping.
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.slugs_with_prefix",
+                new=AsyncMock(return_value={"import-orders"}),
+            ),
+            patch(f"{REGISTRY_PATH}._numbered_name", new=lambda base, n: "Import orders"),
+            pytest.raises(AlreadyExistsError) as refused,
+        ):
+            await WorkflowRegistryService(_db()).create(ctx, WorkflowCreate(name="Import orders"))
+        assert refused.value.details == {"slug": "import-orders"}
 
 
 class TestGet:

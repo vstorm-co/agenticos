@@ -94,7 +94,7 @@ class TestReadingAnotherOrganizationsTranscript:
 
         service = ConversationService(db)
         with pytest.raises(NotFoundError):
-            await service.list_messages(
+            await service.transcript(
                 conversation.id,
                 organization_id=mine.id,
                 include_tool_calls=True,
@@ -111,7 +111,7 @@ class TestReadingAnotherOrganizationsTranscript:
         # Same arguments the route passes: `include_tool_calls` has to be on,
         # because the rating enrichment validates each row through `MessageRead`
         # and that reads `tool_calls`.
-        items, total = await service.list_messages(
+        items, total, _cost = await service.transcript(
             conversation.id,
             organization_id=theirs.id,
             include_tool_calls=True,
@@ -160,7 +160,7 @@ class TestAColleagueInTheSameOrganization:
 
         service = ConversationService(db)
         with pytest.raises(NotFoundError):
-            await service.list_messages(
+            await service.transcript(
                 conversation.id,
                 organization_id=organization.id,
                 include_tool_calls=True,

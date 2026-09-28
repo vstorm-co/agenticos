@@ -36,6 +36,14 @@ ENV UV_LINK_MODE=copy
 # choice, made where they build.
 ARG EXTRAS=""
 
+# The `kerberos` extra is `gssapi`, which publishes no Linux wheel and builds
+# against the system Kerberos headers (#1773). Only a build that asks for it pays
+# for a compiler here; the runtime stage takes the library alone.
+RUN if echo "${EXTRAS}" | grep -q kerberos; then \
+        apt-get update && apt-get install -y --no-install-recommends gcc libkrb5-dev \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \
@@ -84,6 +92,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
     git ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# What `gssapi` loads at run time, for an image built with the `kerberos` extra.
+# Redeclared because a build argument does not cross a stage boundary.
+ARG EXTRAS=""
+RUN if echo "${EXTRAS}" | grep -q kerberos; then \
+        apt-get update && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+        && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv

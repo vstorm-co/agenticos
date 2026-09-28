@@ -3,6 +3,17 @@
 // reaches the UI via /me/permissions, never hardcoded here.
 export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "viewer";
 
+/**
+ * Who made a membership - in an organization or in a group.
+ *
+ * `directory` is the sign-in sync: a directory group mapping placed the person
+ * when they signed in through LDAP, Kerberos or an OIDC groups claim, and the
+ * sync keeps that row in step with the directory, changing and removing it.
+ * `manual` is everything else, which the sync never touches. Changing a
+ * directory member's role by hand takes the membership over: it becomes `manual`.
+ */
+export type MembershipSource = "manual" | "directory";
+
 export interface Organization {
   id: string;
   name: string;
@@ -46,6 +57,7 @@ export interface OrganizationMember {
   /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
   avatar_color: number | null;
   joined_at: string;
+  source: MembershipSource;
   /** Whether the caller may change this member's role - the server's own answer
    *  to its rule, so the row shows a selector only where a change is accepted.
    *  Optional because only the members list computes it; absent reads as "no",

@@ -1,5 +1,5 @@
 ---
-source_sha: "f203f752d3d1"
+source_sha: "1ff020c86d59"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }
@@ -109,11 +109,12 @@ nunca el texto del sistema remoto.
 dos métodos tienen valores por defecto que hacen funcionar un connector como lo
 hacen Drive y S3, y un connector sobrescribe uno cuando su source puede responder
 a la pregunta que plantea. `GitConnector`, en `app/services/rag/connectors/git.py`,
-sobrescribe los dos.
+sobrescribe los dos, y también `SharePointConnector`, en
+`app/services/rag/connectors/sharepoint.py`, que usa `previous`.
 
 | Hook | Por defecto | Sobrescríbelo cuando |
 |------|---------|------------------|
-| `remote_version(config, credential)` | `None`: cada ejecución lista | La source puede decir de forma barata en qué punto está todo su contenido, como un commit o un token de cambios. Tras una ejecución sin ningún fallo, el sync guarda el valor junto con una huella de la configuración. La siguiente ejecución que encuentra el mismo par se detiene antes de `list_files()`. El valor tiene que cambiar siempre que haya podido cambiar cualquier archivo listado, o el propio listado. |
+| `remote_version(config, credential, previous)` | `None`: cada ejecución lista | La source puede decir de forma barata en qué punto está todo su contenido, como un commit o un token de cambios. Tras una ejecución sin ningún fallo, el sync guarda el valor junto con una huella de la configuración. La siguiente ejecución que encuentra el mismo par se detiene antes de `list_files()`. El valor tiene que cambiar siempre que haya podido cambiar cualquier archivo listado, o el propio listado. `previous` es el valor que guardó la última ejecución limpia con la misma configuración, o `None`. Una source que solo puede informar de lo que ha cambiado *desde* un punto, como un delta link de Graph, devuelve `previous` tal cual cuando no ha cambiado nada. |
 | `aclose()` | nada | El connector conserva algo entre `list_files()` y las descargas, como un clon o una sesión. Se llama una vez terminado el sync, tanto si ha salido bien como si no. |
 
 ## Paso a paso: un connector de Notion { #step-by-step-a-notion-connector }
