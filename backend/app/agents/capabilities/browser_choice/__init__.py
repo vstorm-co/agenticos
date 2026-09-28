@@ -2,7 +2,7 @@
 
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 from pydantic_ai.capabilities import AbstractCapability
 
 from app.agents.capabilities._registry import (
@@ -40,7 +40,7 @@ rather than the SSRF guard.
 """
 
 
-def _cdp_url_form(schema: dict[str, object]) -> None:
+def _cdp_url_form(schema: dict[str, JsonValue]) -> None:
     """Hint the endpoint from what the operator already declared.
 
     `BROWSER_CDP_ALLOWED_HOSTS` is the list of browsers this deployment permits,

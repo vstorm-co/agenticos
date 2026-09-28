@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend dependencies moved forward:** `uvicorn` 0.54.0, `pyjwt` 2.15.0,
+  `pydantic-ai-harness` 0.35.0, `liteparse` 2.14.7, `google-auth` 2.58.1,
+  `boto3` 1.43.102, `httpx2` 2.13.1, `tavily-python` 0.8.4, `mem0ai` 2.2.0
+  (which brings in `json-repair`, MIT), and the `ruff` 0.16.9 and `ty` 0.0.84
+  toolchain. SQLAlchemy stays on 2.0 for now: 2.1 resolves a plain
+  `postgresql://` URL to psycopg 3 rather than psycopg2, which breaks the
+  migrations, and it is moving in its own change (#1906).
+
 ## [0.0.509] - 2026-09-28
 
 ### Fixed
