@@ -256,6 +256,11 @@ export interface WorkflowDraftUpdate {
   expected_revision: number;
 }
 
+/** Make a published version the draft again, gated like a draft write. Mirrors `WorkflowVersionRestore`. */
+export interface WorkflowVersionRestore {
+  expected_revision: number;
+}
+
 /** Publish the current draft, gated on the same revision. Mirrors `WorkflowPublish`. */
 export interface WorkflowPublish {
   note?: string | null;

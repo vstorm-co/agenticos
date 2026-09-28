@@ -94,6 +94,18 @@ class WorkflowPublish(BaseSchema):
     expected_revision: int = Field(ge=0)
 
 
+class WorkflowVersionRestore(BaseSchema):
+    """Make a published version's graph the draft again, gated like a draft write.
+
+    The published version is never modified and no version is created: the
+    draft takes the version's frozen graph and its revision advances, so an
+    autosave still holding the old revision answers a conflict instead of
+    writing the pre-restore graph back over it.
+    """
+
+    expected_revision: int = Field(ge=0)
+
+
 class WorkflowVersionRead(BaseSchema):
     id: UUID
     version: int

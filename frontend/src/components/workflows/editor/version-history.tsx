@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { History } from "lucide-react";
+import { History, RotateCcw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   ListCard,
@@ -66,24 +68,46 @@ function VersionRow({
  * The history list is lean; the frozen graph rides only on the detail route, so
  * opening a version fetches it here (cached per version — a frozen version never
  * changes) and shows a spinner while it loads and a message if it fails.
+ *
+ * With `onRestore`, the preview also offers **Restore to draft**, behind a
+ * confirmation: it replaces the draft, and whatever was unpublished in it is gone.
  */
 function VersionPreviewDialog({
   workflowId,
   version,
   catalog,
+  onRestore,
+  onRestored,
 }: {
   workflowId: string;
   version: WorkflowVersionRead;
   catalog: NodeDefinition[];
+  onRestore?: (version: WorkflowVersionRead) => Promise<boolean>;
+  onRestored: () => void;
 }) {
   const t = useTranslations("workflows");
   const { version: detail, error } = useWorkflowVersion(workflowId, version.id);
+  const [confirming, setConfirming] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  const confirmRestore = async () => {
+    if (onRestore === undefined) return;
+    setRestoring(true);
+    try {
+      if (await onRestore(version)) onRestored();
+    } finally {
+      setRestoring(false);
+      setConfirming(false);
+    }
+  };
 
   return (
     <>
       <DialogHeader>
         <DialogTitle>{t("versionLabel", { version: version.version })}</DialogTitle>
-        <DialogDescription>{t("versionPreviewHint")}</DialogDescription>
+        <DialogDescription>
+          {onRestore === undefined ? t("versionPreviewHint") : t("versionPreviewRestoreHint")}
+        </DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1">
         {error ? (
@@ -98,6 +122,23 @@ function VersionPreviewDialog({
           <VersionPreview graph={detail.graph} catalog={catalog} />
         )}
       </div>
+      {onRestore !== undefined && (
+        <DialogFooter>
+          <Button onClick={() => setConfirming(true)} disabled={restoring}>
+            <RotateCcw className="h-4 w-4" aria-hidden />
+            {t("versionRestore")}
+          </Button>
+        </DialogFooter>
+      )}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("versionRestoreTitle", { version: version.version })}
+        description={t("versionRestoreBody", { version: version.version })}
+        confirmLabel={t("versionRestore")}
+        loading={restoring}
+        onConfirm={confirmRestore}
+      />
     </>
   );
 }
@@ -107,16 +148,18 @@ function VersionPreviewDialog({
  *
  * Each entry opens read-only: publishing froze the graph, and viewing a past
  * version draws that frozen graph in the read-only canvas posture without
- * touching the draft being edited. Editing a workflow after publishing is just
- * continuing to edit the draft, so there is no "restore" mode — the draft always
- * exists independently of any version.
+ * touching the draft being edited. For a member who may edit the workflow
+ * (`onRestore`), the preview can make that version the draft again; the version
+ * itself never changes, and nothing is published until the draft is.
  */
 export function VersionHistory({
   workflowId,
   catalog,
+  onRestore,
 }: {
   workflowId: string;
   catalog: NodeDefinition[];
+  onRestore?: (version: WorkflowVersionRead) => Promise<boolean>;
 }) {
   const t = useTranslations("workflows");
   const { versions, isLoading } = useWorkflowVersions(workflowId);
@@ -150,7 +193,13 @@ export function VersionHistory({
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className={cn(DIALOG_CANVAS, DIALOG_FILL)}>
           {selected !== null && (
-            <VersionPreviewDialog workflowId={workflowId} version={selected} catalog={catalog} />
+            <VersionPreviewDialog
+              workflowId={workflowId}
+              version={selected}
+              catalog={catalog}
+              onRestore={onRestore}
+              onRestored={() => setSelected(null)}
+            />
           )}
         </DialogContent>
       </Dialog>

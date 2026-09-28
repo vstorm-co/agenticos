@@ -1,5 +1,5 @@
 ---
-source_sha: "1af02bfb2ef7"
+source_sha: "41af1261124c"
 ---
 
 # Workflows { #workflows }
@@ -197,6 +197,16 @@ jest wymieniona w **Version history** wraz ze swoją release note. **View** otwi
 wcześniejszą wersję tylko do odczytu — opublikowana wersja jest tylko do odczytu, a
 aby wprowadzić zmiany, edytujesz draft dalej.
 
+Aby wrócić do opublikowanej wersji, otwórz ją przez **View** i wybierz **Restore to
+draft**. Po potwierdzeniu draft przejmuje graf tej wersji, a wszystko, co w drafcie
+było nieopublikowane, przepada. Sama wersja się nie zmienia i nic nie zostanie
+opublikowane, dopóki znowu nie opublikujesz draftu. Undo zaczyna od nowa od
+przywróconego grafu. Jeśli ktoś zmienił draft od chwili, gdy go otworzyłeś,
+przywrócenie zostaje odrzucone z tym samym bannerem konfliktu, który zgłasza zapis,
+zamiast nadpisać jego zmianę. Przywrócenie wymaga `workflows:edit` na tym workflow,
+a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafia do
+[dziennika audytu](governance.md) jako `workflow.version_restored`.
+
 ## Uruchamianie workflow { #running-a-workflow }
 
 Zakładka **Runs** workflow to miejsce, gdzie pojawią się jego testowe i produkcyjne
@@ -257,6 +267,7 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
   lub **Reload**.
 - **Publish** jest zablokowany, dopóki problem istnieje, i waliduje ponownie na
-  serwerze; wcześniejsze wersje pozostają widoczne tylko do odczytu.
+  serwerze; wcześniejsze wersje pozostają widoczne tylko do odczytu, a **Restore to
+  draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu.

@@ -34,6 +34,7 @@ from app.schemas.workflow import (
     WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRead,
+    WorkflowVersionRestore,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.workflows._registry import all_node_definitions
@@ -404,6 +405,61 @@ class WorkflowRegistryService:
                 "draft_graph": graph.model_dump(mode="json"),
                 "draft_revision": workflow.draft_revision + 1,
             },
+        )
+        return _detail(updated)
+
+    async def restore_version(
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        version_id: UUID,
+        data: WorkflowVersionRestore,
+    ) -> WorkflowDetail:
+        """Replace the draft with a published version's frozen graph.
+
+        The same order `update_draft` refuses in: access, then the archived
+        check, then the revision compare-and-set, and only then the version
+        lookup - so a stale restore is a conflict whichever version it names.
+        The version is reached through its workflow: one that belongs to
+        another workflow or organization is a 404, as `get_version` answers.
+
+        The stored graph is copied as it was frozen, not re-validated: a node
+        version the registry has since dropped still opens in the editor,
+        where the next publish reports it, rather than making the restore
+        itself fail.
+
+        Raises:
+            NotFoundError: The workflow or the version does not exist, or the
+                caller may not edit the workflow.
+            WorkflowArchivedError: The workflow refuses edits.
+            WorkflowRevisionConflictError: Someone changed the draft since it was read.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        self._ensure_editable(workflow)
+        self._check_revision(workflow, data.expected_revision)
+        version = await workflow_repo.get_version(
+            self.db, version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.workflow_id != workflow.id:
+            raise NotFoundError(
+                message="Workflow version not found", details={"version_id": version_id}
+            )
+        updated = await workflow_repo.update(
+            self.db,
+            workflow=workflow,
+            update_data={
+                "draft_graph": version.graph,
+                "draft_revision": workflow.draft_revision + 1,
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="workflow.version_restored",
+            target_type="workflow",
+            target_id=str(workflow.id),
+            details={"version": version.version},
         )
         return _detail(updated)
 

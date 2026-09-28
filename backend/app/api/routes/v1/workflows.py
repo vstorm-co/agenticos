@@ -26,6 +26,7 @@ from app.schemas.workflow import (
     WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRead,
+    WorkflowVersionRestore,
 )
 
 router = APIRouter()
@@ -81,6 +82,23 @@ async def get_workflow_version(
 ) -> Any:
     """One published version with its frozen graph, for a read-only preview."""
     return await service.get_version(ctx, workflow_id, version_id)
+
+
+@router.post("/{workflow_id}/versions/{version_id}/restore", response_model=WorkflowDetail)
+async def restore_workflow_version(
+    workflow_id: UUID,
+    version_id: UUID,
+    data: WorkflowVersionRestore,
+    service: WorkflowRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Make a published version's graph the draft again, if the draft is still at
+    `expected_revision`.
+
+    The version itself is unchanged and no new version is created until the
+    draft is published. A stale revision answers `REVISION_CONFLICT` (409).
+    """
+    return await service.restore_version(ctx, workflow_id, version_id, data)
 
 
 @router.patch("/{workflow_id}/draft", response_model=WorkflowDetail)

@@ -1,5 +1,5 @@
 ---
-source_sha: "1af02bfb2ef7"
+source_sha: "41af1261124c"
 ---
 
 # Workflows { #workflows }
@@ -198,6 +198,16 @@ publicada se lista bajo **Version history** con su release note. **View** abre u
 versión anterior en solo lectura — una versión publicada es de solo lectura, y para
 hacer cambios sigues editando el draft.
 
+Para volver a una versión publicada, ábrela con **View** y elige **Restore to
+draft**. Tras confirmarlo, el draft toma el grafo de esa versión, y lo que no estaba
+publicado en el draft se descarta. La versión en sí no cambia, y no se publica nada
+hasta que vuelvas a publicar el draft. Deshacer empieza de nuevo desde el grafo
+restaurado. Si alguien cambió el draft desde que lo abriste, la restauración se
+rechaza con el mismo banner de conflicto que muestra un guardado, en vez de
+descartar su cambio. Restaurar requiere `workflows:edit` sobre el workflow, y un
+workflow archivado no se puede restaurar. Cada restauración queda en el
+[registro de auditoría](governance.md) como `workflow.version_restored`.
+
 ## Ejecutar un workflow { #running-a-workflow }
 
 La pestaña **Runs** de un workflow es donde aparecerán sus runs de prueba y de
@@ -257,6 +267,7 @@ Copiar y pegar tienen tres límites:
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
   **Overwrite** o **Reload**.
 - **Publish** se bloquea mientras un problema persiste y vuelve a validar en el
-  servidor; las versiones anteriores quedan visibles en solo lectura.
+  servidor; las versiones anteriores quedan visibles en solo lectura, y **Restore to
+  draft** vuelve a convertir una de ellas en el draft.
 - Cada acción tiene una **ruta de teclado**, y los atajos de edición son inertes en una
   versión publicada de solo lectura.

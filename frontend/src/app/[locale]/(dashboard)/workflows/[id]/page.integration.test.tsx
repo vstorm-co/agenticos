@@ -51,6 +51,7 @@ vi.mock("@/hooks", () => ({
     isLoading: false,
     saveDraft: { mutateAsync: vi.fn() },
     publish: { mutateAsync: vi.fn() },
+    restore: { mutateAsync: vi.fn() },
   }),
   useNodeCatalog: () => ({ nodes: [] }),
 }));
@@ -69,7 +70,10 @@ vi.mock("@/components/workflows/property-panel", () => ({
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,
   EditorActions: () => <div data-testid="editor-actions" />,
-  VersionHistory: () => <div data-testid="version-history" />,
+  VersionHistory: ({ onRestore }: { onRestore?: unknown }) => (
+    <div data-testid="version-history" data-restorable={String(onRestore !== undefined)} />
+  ),
+  useRestoreVersion: () => vi.fn(),
 }));
 
 // The page reads its route params with `use()`, so the first render suspends and
@@ -104,6 +108,7 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("editor-actions")).toBeInTheDocument();
     expect(screen.getByTestId("property-panel")).toBeInTheDocument();
     expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "true");
   });
 
   it("gives a view-only caller a read-only editor with no edit chrome", async () => {
@@ -117,6 +122,8 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
     expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
+    // History stays readable, but a version cannot be restored over the draft.
+    expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
   });
 
   it("renders an archived workflow read-only even for a caller with workflows:edit", async () => {
@@ -133,5 +140,6 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
     expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
+    expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
   });
 });

@@ -27,7 +27,7 @@ export interface WorkflowAutosaveOptions {
 }
 
 /** The server's current revision from a `409`, or null when it did not name one. */
-function conflictRevision(error: ApiError): number | null {
+export function conflictRevision(error: ApiError): number | null {
   const value = error.details?.current_revision;
   return typeof value === "number" ? value : null;
 }

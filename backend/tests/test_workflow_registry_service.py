@@ -17,7 +17,12 @@ from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFound
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
-from app.schemas.workflow import WorkflowCreate, WorkflowDraftUpdate, WorkflowPublish
+from app.schemas.workflow import (
+    WorkflowCreate,
+    WorkflowDraftUpdate,
+    WorkflowPublish,
+    WorkflowVersionRestore,
+)
 from app.services.workflow_registry import (
     WorkflowArchivedError,
     WorkflowRegistryService,
@@ -627,3 +632,163 @@ class TestListAndVersions:
             pytest.raises(NotFoundError),
         ):
             await WorkflowRegistryService(_db()).get_version(ctx, workflow.id, foreign.id)
+
+
+def _version(workflow, *, number: int = 1, graph: WorkflowGraph | None = None):
+    version = MagicMock()
+    version.id = uuid.uuid4()
+    version.workflow_id = workflow.id
+    version.version = number
+    version.graph = (graph or _empty_graph()).model_dump(mode="json")
+    return version
+
+
+async def _apply(db, *, workflow, update_data):
+    for field, value in update_data.items():
+        setattr(workflow, field, value)
+    return workflow
+
+
+class TestRestoreVersion:
+    async def test_the_draft_takes_the_versions_graph_and_advances_its_revision(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, draft_revision=4)
+        frozen = _empty_graph()
+        version = _version(workflow, number=3, graph=frozen)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(side_effect=_apply)),
+            patch(f"{REGISTRY_PATH}.workflow_repo.create_version") as create_version,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            result = await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, version.id, WorkflowVersionRestore(expected_revision=4)
+            )
+
+        assert result.draft_revision == 5
+        assert result.draft_graph is not None
+        assert result.draft_graph.entry_node_id == frozen.entry_node_id
+        assert workflow.draft_graph == frozen.model_dump(mode="json")
+        # Restoring edits the draft only: no version is minted until the next publish.
+        create_version.assert_not_called()
+        assert audit.await_args.kwargs["action"] == "workflow.version_restored"
+        assert audit.await_args.kwargs["details"] == {"version": 3}
+
+    async def test_a_stale_revision_is_a_conflict_before_the_version_is_read(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, draft_revision=7)
+        get_version = AsyncMock()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=get_version),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update") as update,
+            pytest.raises(WorkflowRevisionConflictError),
+        ):
+            await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, uuid.uuid4(), WorkflowVersionRestore(expected_revision=6)
+            )
+        get_version.assert_not_awaited()
+        update.assert_not_called()
+
+    async def test_an_archived_workflow_refuses_the_restore(self):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx, status=WorkflowStatus.ARCHIVED.value)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update") as update,
+            pytest.raises(WorkflowArchivedError),
+        ):
+            await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, uuid.uuid4(), WorkflowVersionRestore(expected_revision=0)
+            )
+        update.assert_not_called()
+
+    @pytest.mark.parametrize("belongs_elsewhere", [True, False], ids=["other-workflow", "missing"])
+    async def test_a_version_not_of_this_workflow_is_not_found(self, belongs_elsewhere):
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        foreign = _version(_workflow(ctx)) if belongs_elsewhere else None
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=foreign)
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update") as update,
+            pytest.raises(NotFoundError),
+        ):
+            await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, uuid.uuid4(), WorkflowVersionRestore(expected_revision=0)
+            )
+        update.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_member_who_cannot_edit_the_workflow_gets_not_found(self):
+        ctx = _ctx(OrgRoleName.VIEWER.value)
+        workflow = _workflow(_ctx())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update") as update,
+            pytest.raises(NotFoundError),
+        ):
+            await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, uuid.uuid4(), WorkflowVersionRestore(expected_revision=0)
+            )
+        update.assert_not_called()
+
+    async def test_a_graph_pinning_a_node_version_since_removed_still_restores(self):
+        """The frozen graph is copied, not re-validated: an unknown node version
+        opens in the editor, and the next publish is what reports it."""
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        entry = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="debug.echo",
+            definition_version=99,
+            config={},
+            layout=NodePosition(x=0, y=0),
+        )
+        version = _version(workflow, graph=WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)))
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)
+            ),
+            patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(side_effect=_apply)),
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            result = await WorkflowRegistryService(_db()).restore_version(
+                ctx, workflow.id, version.id, WorkflowVersionRestore(expected_revision=0)
+            )
+        assert result.draft_graph is not None
+        assert result.draft_graph.nodes[0].definition_version == 99

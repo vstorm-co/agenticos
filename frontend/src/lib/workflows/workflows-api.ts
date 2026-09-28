@@ -18,6 +18,7 @@ import type {
   WorkflowVersionDetail,
   WorkflowVersionList,
   WorkflowVersionRead,
+  WorkflowVersionRestore,
 } from "@/lib/workflows/types";
 
 const ROOT = "/workflows";
@@ -87,4 +88,20 @@ export async function publishWorkflow(
   publish: WorkflowPublish,
 ): Promise<WorkflowVersionRead> {
   return apiClient.post<WorkflowVersionRead>(`${ROOT}/${workflowId}/publish`, publish);
+}
+
+/**
+ * Replace the draft with a published version's frozen graph, if the draft is
+ * still at `expected_revision`. The version is unchanged and no version is
+ * created; the response is the draft at its new revision.
+ */
+export async function restoreWorkflowVersion(
+  workflowId: string,
+  versionId: string,
+  restore: WorkflowVersionRestore,
+): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(
+    `${ROOT}/${workflowId}/versions/${versionId}/restore`,
+    restore,
+  );
 }

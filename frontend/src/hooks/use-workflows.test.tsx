@@ -23,6 +23,7 @@ vi.mock("@/lib/workflows/workflows-api", () => ({
   getWorkflowVersion: vi.fn(),
   updateWorkflowDraft: vi.fn(),
   publishWorkflow: vi.fn(),
+  restoreWorkflowVersion: vi.fn(),
   getNodeCatalog: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -337,6 +338,30 @@ describe("useWorkflow", () => {
     expect(keys).toContainEqual(["workflows", "wf-1"]);
     expect(keys).toContainEqual(["workflows", "list"]);
     expect(keys).not.toContainEqual(["workflows"]);
+  });
+
+  it("restores a version, writes the returned draft into the cache and refreshes the list", async () => {
+    vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1", draft_revision: 3 } as never);
+    vi.mocked(api.restoreWorkflowVersion).mockResolvedValue({
+      id: "wf-1",
+      draft_revision: 4,
+    } as never);
+    const { wrap, invalidateQueries } = spyWrapper();
+    const { result } = renderHook(() => useWorkflow("wf-1"), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    invalidateQueries.mockClear();
+
+    await act(async () => {
+      await result.current.restore.mutateAsync({ versionId: "v-2", expectedRevision: 3 });
+    });
+
+    expect(api.restoreWorkflowVersion).toHaveBeenCalledWith("wf-1", "v-2", {
+      expected_revision: 3,
+    });
+    await waitFor(() => expect(result.current.workflow?.draft_revision).toBe(4));
+    const keys = invalidatedKeys(invalidateQueries);
+    expect(keys).toContainEqual(["workflows", "list"]);
+    expect(keys).not.toContainEqual(["workflows", "wf-1"]);
   });
 
   it("publishes and toasts the version", async () => {

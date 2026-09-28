@@ -128,4 +128,68 @@ describe("VersionHistory", () => {
     expect(await screen.findByText("This version could not be loaded.")).toBeVisible();
     expect(screen.queryByTestId("preview")).not.toBeInTheDocument();
   });
+
+  it("offers no restore to a member who cannot edit the workflow", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    render(<VersionHistory workflowId="w1" catalog={[]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+    expect(screen.getByText(/Keep editing the draft/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Restore to draft" })).not.toBeInTheDocument();
+  });
+
+  it("restores only after the replacement is confirmed, then closes the preview", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    const onRestore = vi.fn().mockResolvedValue(true);
+    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));
+
+    // The confirmation says what is lost before anything is sent.
+    expect(await screen.findByText("Restore version 3 to the draft?")).toBeVisible();
+    expect(screen.getByText(/unpublished changes to the draft are discarded/)).toBeVisible();
+    expect(onRestore).not.toHaveBeenCalled();
+
+    const confirm = screen.getAllByRole("button", { name: "Restore to draft" }).at(-1);
+    await userEvent.click(confirm as HTMLElement);
+
+    expect(onRestore).toHaveBeenCalledWith(expect.objectContaining({ id: "a", version: 3 }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the preview open when the restore does not land", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    const onRestore = vi.fn().mockResolvedValue(false);
+    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));
+    const confirm = screen.getAllByRole("button", { name: "Restore to draft" }).at(-1);
+    await userEvent.click(confirm as HTMLElement);
+
+    await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.queryByText("Restore version 3 to the draft?")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("preview")).toBeInTheDocument();
+  });
+
+  it("does nothing when the confirmation is cancelled", async () => {
+    versionsState.current = { versions: [version({ id: "a", version: 3 })], isLoading: false };
+    detailState.current = { version: detail(), isLoading: false, error: null };
+    const onRestore = vi.fn();
+    render(<VersionHistory workflowId="w1" catalog={[]} onRestore={onRestore} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restore to draft" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(onRestore).not.toHaveBeenCalled();
+    expect(screen.getByTestId("preview")).toBeInTheDocument();
+  });
 });

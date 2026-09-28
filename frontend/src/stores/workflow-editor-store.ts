@@ -195,6 +195,21 @@ export interface WorkflowEditorState {
   setConflict: (currentRevision: number) => void;
   clearConflict: () => void;
 
+  /**
+   * Stop any save of the current working copy from landing: the debounced one
+   * (the draft is no longer dirty, so the timer is cleared) and one already in
+   * flight (the generation moves, so `isSaveCurrent` drops its result). Returns
+   * whether the draft was dirty, so a caller whose own write then fails can put
+   * the edits back in line with `markDirty`.
+   */
+  discardPendingSave: () => boolean;
+  /**
+   * Replace the working copy with a draft the server just wrote (a restored
+   * version), at that draft's revision. History starts over from it: undoing
+   * past the restore would autosave the pre-restore graph straight back over it.
+   */
+  replaceDraft: (graph: WorkflowGraph, revision: number) => void;
+
   /** Snapshot the guard token before dispatching a save. */
   beginSave: () => SaveToken;
   /** Whether a captured token still names the current editor instance. */
@@ -496,6 +511,29 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     setConflict: (currentRevision) => set({ conflict: { currentRevision } }),
     clearConflict: () => set({ conflict: null }),
+
+    discardPendingSave: () => {
+      const wasDirty = get().isDirty;
+      set((state) => ({ isDirty: false, generation: state.generation + 1 }));
+      return wasDirty;
+    },
+
+    replaceDraft: (graph, revision) => {
+      recorder?.dispose();
+      recorder = createHistoryRecorder(graph, {
+        onFlagsChange: (flags) => get().setHistoryFlags(flags),
+      });
+      set((state) => ({
+        ...CLEARED,
+        workflowId: state.workflowId,
+        // A copied selection is the user's, not the draft's: keep it pasteable.
+        clipboard: state.clipboard,
+        graph,
+        history: NO_HISTORY,
+        expectedRevision: revision,
+        generation: state.generation + 1,
+      }));
+    },
 
     beginSave: () => {
       const { generation, workflowId } = get();

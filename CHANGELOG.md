@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Restore a published workflow version to the draft.** **Restore to draft** in
+  a version's preview replaces the draft with that version's graph, after a
+  confirmation that unpublished draft changes are discarded. The version is not
+  changed and none is created until the draft is published. The restore is
+  guarded by `expected_revision` like a draft save, so it answers a conflict
+  rather than discarding someone else's edit, stops a queued autosave from
+  writing the old graph back, is refused for an archived workflow and without
+  `workflows:edit`, and is audited as `workflow.version_restored`.
+  `POST /api/v1/workflows/{id}/versions/{version_id}/restore` (#1915).
 - **Workflow runs execute durably.** `POST /workflow-runs` starts a run of a
   workflow's published version, or of its draft in `test` mode, and the nodes
   run on Prefect workers one attempt at a time: each attempt commits `in_flight`

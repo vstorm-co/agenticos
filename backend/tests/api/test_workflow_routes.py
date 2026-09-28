@@ -416,3 +416,117 @@ async def test_listing_workflows_answers_the_paginated_envelope(owner_client: Op
             response = await http.get(_url())
     assert response.status_code == 200
     assert response.json() == {"items": [], "total": 0}
+
+
+def _version_of(workflow, *, number: int = 1):
+    version = MagicMock()
+    version.id = uuid.uuid4()
+    version.workflow_id = workflow.id
+    version.version = number
+    version.graph = _graph().model_dump(mode="json")
+    return version
+
+
+async def test_restoring_a_version_answers_the_draft_at_its_new_revision(owner_client: OpenClient):
+    workflow = _workflow(draft_revision=2)
+    version = _version_of(workflow, number=1)
+
+    async def _update(db, *, workflow, update_data):
+        for field, value in update_data.items():
+            setattr(workflow, field, value)
+        return workflow
+
+    with (
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+        ),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+        patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(side_effect=_update)),
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{workflow.id}/versions/{version.id}/restore"),
+                json={"expected_revision": 2},
+            )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["draft_revision"] == 3
+    assert body["draft_graph"]["entry_node_id"] == version.graph["entry_node_id"]
+
+
+async def test_restoring_over_a_changed_draft_answers_409(owner_client: OpenClient):
+    workflow = _workflow(draft_revision=3)
+    with patch(
+        f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{workflow.id}/versions/{uuid.uuid4()}/restore"),
+                json={"expected_revision": 2},
+            )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "REVISION_CONFLICT"
+    assert response.json()["error"]["details"]["current_revision"] == 3
+
+
+async def test_restoring_an_archived_workflow_answers_409(owner_client: OpenClient):
+    workflow = _workflow(status=WorkflowStatus.ARCHIVED.value)
+    with patch(
+        f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{workflow.id}/versions/{uuid.uuid4()}/restore"),
+                json={"expected_revision": 0},
+            )
+    assert response.status_code == 409
+
+
+async def test_restoring_another_workflows_version_is_a_404(owner_client: OpenClient):
+    workflow = _workflow()
+    foreign = _version_of(_workflow())
+    with (
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+        ),
+        patch(f"{REGISTRY_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=foreign)),
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{workflow.id}/versions/{foreign.id}/restore"),
+                json={"expected_revision": 0},
+            )
+    assert response.status_code == 404
+
+
+@pytest.mark.security
+async def test_restoring_a_version_of_a_cross_tenant_workflow_is_a_404(owner_client: OpenClient):
+    with patch(f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=None)):
+        async with owner_client() as http:
+            response = await http.post(
+                _url(f"/{uuid.uuid4()}/versions/{uuid.uuid4()}/restore"),
+                json={"expected_revision": 0},
+            )
+    assert response.status_code == 404
+
+
+@pytest.mark.security
+async def test_a_viewer_without_an_edit_grant_cannot_restore(viewer_client: OpenClient):
+    workflow = _workflow()
+    with (
+        patch(
+            f"{REGISTRY_PATH}.workflow_repo.get_for_update", new=AsyncMock(return_value=workflow)
+        ),
+        patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.READ),
+        ),
+        patch(f"{REGISTRY_PATH}.workflow_repo.update") as update,
+    ):
+        async with viewer_client() as http:
+            response = await http.post(
+                _url(f"/{workflow.id}/versions/{uuid.uuid4()}/restore"),
+                json={"expected_revision": 0},
+            )
+    assert response.status_code == 404
+    update.assert_not_called()

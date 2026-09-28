@@ -21,6 +21,7 @@ import {
   listWorkflowVersions,
   listWorkflows,
   publishWorkflow,
+  restoreWorkflowVersion,
   updateWorkflowDraft,
 } from "@/lib/workflows/workflows-api";
 
@@ -139,9 +140,15 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
   };
 }
 
+/** Which published version to make the draft again, against the draft revision last read. */
+export interface WorkflowRestoreInput {
+  versionId: string;
+  expectedRevision: number;
+}
+
 /**
- * One workflow with the graph currently being edited, plus the draft-save and
- * publish mutations.
+ * One workflow with the graph currently being edited, plus the draft-save,
+ * publish and restore-to-draft mutations.
  *
  * `saveDraft` is deliberately quiet: the autosave leaf owns its own conflict
  * handling (a `409` surfaces the store's conflict banner), so a toast here would
@@ -181,7 +188,22 @@ export function useWorkflow(workflowId: string | null) {
     onError: (err) => toast.error(getErrorMessage(err, tErrors)),
   });
 
-  return { workflow: data, isLoading, error, saveDraft, publish };
+  // Quiet like `saveDraft`: the editor decides what a refusal means (a `409` is a
+  // conflict for the banner, not just an error), so it owns the feedback.
+  const restore = useMutation({
+    mutationFn: ({ versionId, expectedRevision }: WorkflowRestoreInput) =>
+      restoreWorkflowVersion(workflowId as string, versionId, {
+        expected_revision: expectedRevision,
+      }),
+    onSuccess: async (detail) => {
+      // The response is the new draft; writing it in place of a refetch keeps the
+      // header's revision in step without a second round trip.
+      queryClient.setQueryData(qk.workflows.detail(workflowId as string), detail);
+      await queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
+    },
+  });
+
+  return { workflow: data, isLoading, error, saveDraft, publish, restore };
 }
 
 /** Every published version of a workflow, newest first. Lean — no graphs. */

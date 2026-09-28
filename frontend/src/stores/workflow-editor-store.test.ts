@@ -190,6 +190,64 @@ describe("useWorkflowEditorStore", () => {
   });
 });
 
+describe("useWorkflowEditorStore restore-to-draft", () => {
+  const store = useWorkflowEditorStore;
+
+  beforeEach(() => {
+    reset();
+    store.getState().teardown();
+    reset();
+  });
+
+  it("discardPendingSave clears the dirty flag, orphans an in-flight save and says it was dirty", () => {
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 2 });
+    store.getState().markDirty();
+    const inFlight = store.getState().beginSave();
+
+    expect(store.getState().discardPendingSave()).toBe(true);
+    expect(store.getState().isDirty).toBe(false);
+    expect(store.getState().isSaveCurrent(inFlight)).toBe(false);
+    // The revision is the server's fact, not the save's: it stays for the restore to send.
+    expect(store.getState().expectedRevision).toBe(2);
+
+    expect(store.getState().discardPendingSave()).toBe(false);
+  });
+
+  it("replaceDraft installs the restored graph at its revision with a fresh history", () => {
+    store.getState().load({ workflowId: "wf-1", expectedRevision: 2 });
+    store.getState().seedGraph(seededGraph());
+    store.getState().addNode(DEFINITION, { x: 9, y: 9 });
+    store.getState().setConflict(4);
+    const clipboard = { nodes: [NODE], edges: [], bindings: [], scopes: [] };
+    store.getState().setClipboard(clipboard);
+    const generation = store.getState().generation;
+    const restored: WorkflowGraph = { ...seededGraph(), entry_node_id: NODE.id, nodes: [NODE] };
+
+    store.getState().replaceDraft(restored, 5);
+
+    const state = store.getState();
+    expect(state.graph).toBe(restored);
+    expect(state.expectedRevision).toBe(5);
+    expect(state.isDirty).toBe(false);
+    expect(state.conflict).toBeNull();
+    expect(state.history).toEqual({ canUndo: false, canRedo: false });
+    expect(state.workflowId).toBe("wf-1");
+    expect(state.generation).toBe(generation + 1);
+    // What the user copied survives: a node from the old draft can still be pasted.
+    expect(state.clipboard).toBe(clipboard);
+
+    // Undo has nothing to step back to, so it cannot bring the old draft back.
+    store.getState().undo();
+    expect(store.getState().graph).toBe(restored);
+
+    // History records from the restored graph onwards.
+    store.getState().addNode(DEFINITION, { x: 1, y: 1 });
+    expect(store.getState().history.canUndo).toBe(true);
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toEqual(restored.nodes);
+  });
+});
+
 describe("useWorkflowEditorStore graph slice", () => {
   const store = useWorkflowEditorStore;
 

@@ -6,7 +6,12 @@ import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkflowCanvas } from "@/components/workflows/canvas";
-import { ConflictBanner, EditorActions, VersionHistory } from "@/components/workflows/editor";
+import {
+  ConflictBanner,
+  EditorActions,
+  VersionHistory,
+  useRestoreVersion,
+} from "@/components/workflows/editor";
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
 import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
@@ -54,7 +59,8 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
-  const { workflow, isLoading, saveDraft, publish } = useWorkflow(id);
+  const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
+  const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const { nodes } = useNodeCatalog();
   const { can } = usePermissions();
   // An archived workflow is read-only server-side (`_ensure_editable` rejects its
@@ -134,7 +140,11 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       ) : (
         <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly />
       )}
-      <VersionHistory workflowId={workflow.id} catalog={nodes} />
+      <VersionHistory
+        workflowId={workflow.id}
+        catalog={nodes}
+        onRestore={canEdit ? restoreVersion : undefined}
+      />
     </div>
   );
 }

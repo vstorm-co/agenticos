@@ -197,6 +197,16 @@ version is listed under **Version history** with its release note. **View** open
 a past version read-only — a published version is read-only, and to make changes
 you go on editing the draft.
 
+To go back to a published version, open it with **View** and choose **Restore to
+draft**. After you confirm, the draft takes that version's graph, and whatever was
+unpublished in the draft is discarded. The version itself does not change, and
+nothing is published until you publish the draft again. Undo starts over from the
+restored graph. If someone changed the draft since you opened it, the restore is
+refused with the same conflict banner a save raises, rather than discarding their
+edit. Restoring needs `workflows:edit` on the workflow, and an archived workflow
+cannot be restored. Each restore is recorded in the [audit log](governance.md) as
+`workflow.version_restored`.
+
 ## Running a workflow { #running-a-workflow }
 
 A workflow's **Runs** tab is where its test and production runs will appear, per
@@ -257,6 +267,7 @@ Copy and paste have three limits:
 - The draft **saves itself**, and an edit from two places raises a banner with
   **Overwrite** or **Reload**.
 - **Publish** is blocked while a problem stands and re-validates on the server;
-  past versions stay viewable read-only.
+  past versions stay viewable read-only, and **Restore to draft** makes one the
+  draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version.

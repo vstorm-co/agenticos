@@ -9,6 +9,7 @@ import {
   listWorkflowVersions,
   listWorkflows,
   publishWorkflow,
+  restoreWorkflowVersion,
   updateWorkflowDraft,
 } from "./workflows-api";
 import type { WorkflowDetail, WorkflowGraph } from "./types";
@@ -101,6 +102,14 @@ describe("workflows-api", () => {
     await publishWorkflow("wf-1", { note: "first", expected_revision: 3 });
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf-1/publish", {
       note: "first",
+      expected_revision: 3,
+    });
+  });
+
+  it("restores a version to the draft against the draft's revision", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "wf-1", draft_revision: 4 });
+    await restoreWorkflowVersion("wf-1", "v-2", { expected_revision: 3 });
+    expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf-1/versions/v-2/restore", {
       expected_revision: 3,
     });
   });

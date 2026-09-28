@@ -1,5 +1,5 @@
 ---
-source_sha: "1af02bfb2ef7"
+source_sha: "41af1261124c"
 ---
 
 # Workflows { #workflows }
@@ -219,6 +219,18 @@ ihrer Release note gelistet. **View** öffnet eine frühere Version schreibgesch
 — eine veröffentlichte Version ist schreibgeschützt, und um Änderungen zu machen,
 bearbeiten Sie den Draft weiter.
 
+Um zu einer veröffentlichten Version zurückzukehren, öffnen Sie sie mit **View** und
+wählen **Restore to draft**. Nach Ihrer Bestätigung übernimmt der Draft den Graphen
+dieser Version, und alles, was im Draft unveröffentlicht war, wird verworfen. Die
+Version selbst ändert sich nicht, und nichts wird veröffentlicht, bis Sie den Draft
+erneut veröffentlichen. Undo beginnt beim wiederhergestellten Graphen von vorn. Hat
+jemand den Draft geändert, seit Sie ihn geöffnet haben, wird die Wiederherstellung
+mit demselben Konflikt-Banner abgelehnt, das ein Speichern auslöst, statt seine
+Änderung zu verwerfen. Wiederherstellen erfordert `workflows:edit` auf dem Workflow,
+und ein archivierter Workflow kann nicht wiederhergestellt werden. Jede
+Wiederherstellung wird im [Audit-Log](governance.md) als `workflow.version_restored`
+festgehalten.
+
 ## Einen Workflow ausführen { #running-a-workflow }
 
 Der **Runs**-Tab eines Workflows ist der Ort, an dem seine Test- und Produktions-Runs
@@ -284,6 +296,7 @@ Kopieren und Einfügen haben drei Grenzen:
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
   ein Banner mit **Overwrite** oder **Reload**.
 - **Publish** wird blockiert, solange ein Problem besteht, und validiert erneut auf
-  dem Server; frühere Versionen bleiben schreibgeschützt einsehbar.
+  dem Server; frühere Versionen bleiben schreibgeschützt einsehbar, und **Restore to
+  draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
   schreibgeschützten veröffentlichten Version wirkungslos.
