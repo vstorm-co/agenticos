@@ -46,6 +46,104 @@ Two things are versioned separately from this file and worth knowing about:
   Migration `0104_table_views.py`; see
   [saved views](docs/virtual-tables.md#saved-views). (#1783)
 
+## [0.0.507] - 2026-09-26
+
+### Fixed
+
+- **Auxiliary model calls obey the run's budget, trace policy and settings.**
+  A system reminder, a compaction summary and a tool-output summary now
+  re-check the organization and agent caps before they spend and fall back to
+  their model-free path at a cap. The runner opens the run's budget guard, which
+  also makes the existing checks in knowledge search and browser automation
+  take effect. Reminders and compaction summaries are traced the way the run
+  is, so `content: none` holds and a run routed to its own Logfire project keeps
+  them there, and they run under the run's model settings. Concurrent reminders
+  no longer double-count their spend. The tool-output summary gets the budget
+  check only; its trace policy and settings are tracked in #1809 and #1810
+  (#1818).
+
+## [0.0.506] - 2026-09-26
+
+### Added
+
+- **Three use-case tutorials you can repeat.** The docs now cover a handbook
+  question answered in Slack, a CSV turned into a chart you can reconcile with
+  its rows, and a weekly report published as an artifact on a schedule. Each
+  gives a synthetic fixture, the configuration, the exact prompt, reference
+  checks, the usual failures and what to record. The CSV and report tutorials
+  include a run recorded on v0.0.504. The use-case index says which tutorials
+  the maintainers have run (#1895).
+
+## [0.0.505] - 2026-09-26
+
+### Changed
+
+- **Comparisons cover eleven products in depth.** The comparison hub groups
+  assistant apps, cloud-suite builders, self-hosted builders, teammate
+  services, delivered platforms and coding agents, and states what AgenticOS
+  does not do yet. The Viktor, Dify and Wonderful guides now compare tenancy,
+  identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
+  guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
+  Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
+  sources checked on 25 September 2026 (#1894).
+- **Comparison guides are written for search.** Each has a search title, a
+  meta description and a frequently-asked-questions section, in all four
+  languages. The site adds Open Graph and Twitter card tags to every page and
+  publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
+  lists every comparison (#1894).
+
+## [0.0.504] - 2026-09-25
+
+### Added
+
+- **A first document task and clearer platform comparisons.** The documentation
+  includes a synthetic handbook tutorial with answer checks, use-case entry
+  points, a help route and sourced comparisons with Viktor, Dify and Wonderful.
+  Comparisons distinguish documented options from untested behavior (#1893).
+
+### Changed
+
+- **README and docs start with the work an agent can do.** Navigation connects
+  the first task, platform selection and deployment responsibilities in English,
+  Polish, German and Spanish. The operating guide explains costs, ownership and
+  separately scoped Vstorm implementation help. Statements about approvals,
+  budgets, secrets, MCP compatibility and outbound data now describe their
+  configuration-dependent limits (#1893).
+
+## [0.0.503] - 2026-09-25
+
+### Added
+
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget and traced under the agent's own
+  observability settings. An exhausted budget or a failed model call falls back
+  to the plain query. Every produced query is searched under the same tenant
+  scope and filters as the original, so expansion widens recall and never access
+  (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
+
 ## [0.0.502] - 2026-09-25
 
 ### Added
