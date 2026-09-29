@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a29877375a"
+source_sha: "fe75fd081391"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -311,7 +311,9 @@ przekierowań. Jego treść jest liczona w trakcie napływu i odrzucana powyżej
 `max_bytes`, a typ jest rozpoznawany po bajtach, więc nagłówek nie oszuka
 `expected_content_types`. `text.extract` nie robi OCR: zeskanowana strona kończy
 krok błędem `TEXT_EXTRACTION_NEEDS_OCR` i wymienia strony. Uszkodzony dokument to
-`DOCUMENT_CORRUPT`, a PDF chroniony hasłem `DOCUMENT_ENCRYPTED`.
+`DOCUMENT_CORRUPT`, dokument Word, który rozpakowuje się ponad limity archiwum
+obowiązujące upload na czacie, to `DOCUMENT_TOO_LARGE`, a PDF chroniony hasłem
+`DOCUMENT_ENCRYPTED`.
 
 Obraz jest mierzony, zanim zostanie zdekodowany. Jego szerokość razy wysokość, obszar
 przycięcia i żądany rozmiar są każdy sprawdzane wobec `CHAT_IMAGE_MAX_PIXELS`, a
@@ -354,6 +356,7 @@ wybierz runtime bez sieci.
 | Skrypt rzucił wyjątek albo przekroczył limit | `PYTHON_ERROR` |
 | Zadanie przekroczyło `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, sesja wyczyszczona |
 | Brak używalnego połączenia `sandboxd` | `SANDBOX_UNAVAILABLE` |
+| Zapisał więcej niż 20 plików albo 100 MB albo wypisał więcej niż 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, zmierzone w sandboksie, zanim cokolwiek zostanie pobrane, a sesja wyczyszczona |
 | Nie udało się połączyć z hostem | `SANDBOX_UNREACHABLE`, ponawiane |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

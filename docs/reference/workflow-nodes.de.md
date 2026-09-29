@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a29877375a"
+source_sha: "fe75fd081391"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -327,8 +327,9 @@ fünf Weiterleitungen. Sein Body wird beim Eintreffen gezählt und über `max_by
 abgelehnt, und sein Typ wird an den Bytes erkannt, sodass ein Header
 `expected_content_types` nicht täuschen kann. `text.extract` macht kein OCR: Eine
 gescannte Seite lässt den Schritt mit `TEXT_EXTRACTION_NEEDS_OCR` scheitern und nennt
-die Seiten. Ein beschädigtes Dokument ist `DOCUMENT_CORRUPT`, ein passwortgeschütztes
-PDF `DOCUMENT_ENCRYPTED`.
+die Seiten. Ein beschädigtes Dokument ist `DOCUMENT_CORRUPT`, ein Word-Dokument, das sich über die
+Archivgrenzen eines Chat-Uploads hinaus entpackt, `DOCUMENT_TOO_LARGE`, ein
+passwortgeschütztes PDF `DOCUMENT_ENCRYPTED`.
 
 Ein Bild wird vermessen, bevor es dekodiert wird. Seine Breite mal Höhe, ein
 Zuschnittsbereich und eine angeforderte Größe werden jeweils gegen
@@ -374,6 +375,7 @@ vertrauenswürdige Arbeit eine Runtime ohne Netzwerk.
 | Das Skript hat eine Ausnahme ausgelöst oder ein Limit überschritten | `PYTHON_ERROR` |
 | Der Job lief länger als `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, Sitzung gelöscht |
 | Keine nutzbare `sandboxd`-Verbindung | `SANDBOX_UNAVAILABLE` |
+| Es schrieb mehr als 20 Dateien oder 100 MB oder gab mehr als 10 MB aus | `PYTHON_OUTPUT_TOO_LARGE`, in der Sandbox gemessen, bevor etwas abgeholt wird, und die Session gelöscht |
 | Der Host war nicht erreichbar | `SANDBOX_UNREACHABLE`, wiederholt |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

@@ -12,6 +12,7 @@ import io
 import itertools
 import json
 import uuid
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -397,6 +398,14 @@ def _pdf(*pages: str | None) -> bytes:
     return data
 
 
+def _zip(members: dict[str, bytes]) -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return out.getvalue()
+
+
 def _docx(*paragraphs: str) -> bytes:
     document = Document()
     for paragraph in paragraphs:
@@ -449,6 +458,8 @@ class TestExtractingText:
             (encrypted, "application/pdf", "DOCUMENT_ENCRYPTED"),
             (b"%PDF-1.7 truncated", "application/pdf", "DOCUMENT_CORRUPT"),
             (b"PK\x03\x04 broken", files.DOCX, "DOCUMENT_CORRUPT"),
+            # A sound ZIP that is not a Word document: python-docx refuses it.
+            (_zip({"notes.txt": b"hello"}), files.DOCX, "DOCUMENT_CORRUPT"),
             (b"\xff\xfe", "text/plain", "DOCUMENT_CORRUPT"),
             (b"\x89PNG\r\n\x1a\n", "image/png", "UNSUPPORTED_FORMAT"),
         ]:
@@ -456,6 +467,20 @@ class TestExtractingText:
                 engine, storage, _one_step("text.extract"), data, content_type=content_type
             )
             assert (await _error(seeded))["code"] == code, content_type
+
+    async def test_a_docx_that_unpacks_past_the_archive_bound_is_refused_before_parsing(
+        self, engine, storage, monkeypatch
+    ):
+        """A small file can hold a huge compressed part: the member bound a chat
+        upload has is applied before python-docx expands any of it."""
+        monkeypatch.setattr(settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 64 * 1024)
+        # Highly compressible: well under a kilobyte on disk, a megabyte unpacked.
+        data = _docx("A" * 1_000_000)
+        assert len(data) < 64 * 1024
+        _run, seeded = await _run_on(
+            engine, storage, _one_step("text.extract"), data, content_type=files.DOCX
+        )
+        assert (await _error(seeded))["code"] == "DOCUMENT_TOO_LARGE"
 
     async def test_text_over_the_limit_is_refused_and_a_big_file_before_reading(
         self, engine, storage

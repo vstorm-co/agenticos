@@ -1,5 +1,5 @@
 ---
-source_sha: "1635944fd28a"
+source_sha: "65515c947c35"
 ---
 
 # API HTTP { #the-http-api }
@@ -133,7 +133,9 @@ Serwer wysyła `{"type": "run", "run": {...}}`, gdy zaczyna śledzić, i ponowni
 run się kończy, oraz `{"type": "event", "event": {...}, "cursor": ...}` dla każdego
 zdarzenia pomiędzy. Odrzucona ramka dostaje `{"type": "error", "code": ...,
 "message": ...}`, a unieważniona sesja zamyka gniazdo kodem `4001`. Jedno gniazdo
-śledzi jeden run; nowa ramka zastępuje run, który śledziło.
+śledzi jeden run; nowa ramka zastępuje run, który śledziło. Ramka `start` zużywa ten
+sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
+`RATE_LIMIT_EXCEEDED`.
 
 ### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
 

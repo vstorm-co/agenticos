@@ -781,7 +781,8 @@ class TestOverHttp:
         assert rotated.json()["reveal_secret"] != exposure["reveal_secret"]
         paused = await client.patch(f"{base}/{exposure['id']}", json={"is_active": False})
         assert paused.json()["is_active"] is False
-        assert (await client.delete(f"{base}/{exposure['id']}")).status_code == 204
+        deleted = await client.delete(f"{base}/{exposure['id']}")
+        assert deleted.status_code == 204
 
     async def test_a_bad_signature_is_a_403_and_writes_nothing(self, http):
         client, workflow, factory = http

@@ -300,7 +300,8 @@ redirects. Its body is counted as it arrives and refused past `max_bytes`, and i
 type is sniffed from the bytes, so `expected_content_types` cannot be fooled by a
 header. `text.extract` does no OCR: a scanned page fails the step with
 `TEXT_EXTRACTION_NEEDS_OCR` and names the pages. A corrupt document is
-`DOCUMENT_CORRUPT` and a password-protected PDF `DOCUMENT_ENCRYPTED`.
+`DOCUMENT_CORRUPT`, a Word document that unpacks past the archive bounds a chat
+upload has `DOCUMENT_TOO_LARGE`, and a password-protected PDF `DOCUMENT_ENCRYPTED`.
 
 An image is measured before it is decoded. Its width times height, a crop box and
 a requested size are each checked against `CHAT_IMAGE_MAX_PIXELS`, and the result
@@ -343,6 +344,7 @@ configuration - choose a runtime without network for untrusted work.
 | The script raised or ran past a limit | `PYTHON_ERROR` |
 | The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
 | No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
+| It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
 | The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

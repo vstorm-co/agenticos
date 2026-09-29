@@ -36,6 +36,7 @@ from app.workflows.nodes._http import (
     auth_headers,
     auth_problems,
     check_headers,
+    check_idempotency_header,
     credential,
     failed,
     is_http_url,
@@ -73,6 +74,11 @@ class HttpUploadConfig(BaseModel):
     @classmethod
     def _headers_are_ours_to_send(cls, headers: dict[str, str]) -> dict[str, str]:
         return check_headers(headers)
+
+    @field_validator("idempotency_key_header")
+    @classmethod
+    def _key_header_is_ours_to_send(cls, name: str | None) -> str | None:
+        return check_idempotency_header(name)
 
 
 class HttpUploadInput(BaseModel):

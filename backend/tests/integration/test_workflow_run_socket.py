@@ -27,7 +27,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun
-from app.services import workflow_run_socket
+from app.services import rate_limit, workflow_run_socket
 from app.services.workflow_execution import WorkflowExecutionService, events
 from app.services.workflow_run_socket import WorkflowRunSocket
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -186,6 +186,27 @@ class TestStartAndFollow:
         assert kinds[0] == events.EventKind.RUN_STARTED
         assert kinds[-1] == events.EventKind.RUN_CANCELLED
         assert socket.of("run")[-1]["run"]["status"] == "cancelled"
+
+    @pytest.mark.security
+    async def test_a_start_over_the_run_allowance_is_refused_and_starts_nothing(self, factory):
+        """The socket spends the allowance `POST /workflow-runs` does, so it is not
+        a way to start runs past the per-minute limit."""
+        owner, org, workflow = await _tenant(factory)
+        socket = _Socket()
+        session = _session(socket, org)
+        refused = rate_limit.Decision(allowed=False, retry_after_seconds=12, metered=True)
+        with (
+            _signed_in(owner),
+            patch.object(rate_limit, "consume", new=AsyncMock(return_value=refused)) as spent,
+        ):
+            await session.handle_frame({"type": "start", "workflow_id": str(workflow.id)})
+
+        (error,) = socket.of("error")
+        assert error["code"] == "RATE_LIMIT_EXCEEDED"
+        assert spent.await_args.kwargs["surface"] == "workflow_run"
+        assert spent.await_args.kwargs["caller"] == f"user:{owner.id}"
+        async with factory() as db:
+            assert (await db.execute(select(WorkflowRun))).first() is None
 
     async def test_a_reconnect_picks_up_after_its_last_cursor(self, factory):
         owner, org, workflow = await _tenant(factory)

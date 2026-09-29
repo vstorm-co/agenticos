@@ -193,10 +193,11 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     return derive_scopes(graph)
 
 
-def _detail(workflow: Workflow) -> WorkflowDetail:
+def _detail(workflow: Workflow, *, can_edit: bool) -> WorkflowDetail:
     return WorkflowDetail(
         **_read(workflow).model_dump(),
         draft_graph=_parse_draft_graph(workflow),
+        can_edit=can_edit,
     )
 
 
@@ -392,7 +393,10 @@ class WorkflowRegistryService:
     async def get(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowDetail:
         """One workflow, with the draft graph currently being edited."""
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
-        return _detail(workflow)
+        can_edit = workflow.status != WorkflowStatus.ARCHIVED.value and await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        )
+        return _detail(workflow, can_edit=can_edit)
 
     async def list_versions(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowVersionList:
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
@@ -469,7 +473,7 @@ class WorkflowRegistryService:
                 "draft_revision": workflow.draft_revision + 1,
             },
         )
-        return _detail(updated)
+        return _detail(updated, can_edit=True)
 
     async def restore_version(
         self,
@@ -524,7 +528,7 @@ class WorkflowRegistryService:
             target_id=str(workflow.id),
             details={"version": version.version},
         )
-        return _detail(updated)
+        return _detail(updated, can_edit=True)
 
     async def publish(
         self, ctx: AuthContext, workflow_id: UUID, data: WorkflowPublish

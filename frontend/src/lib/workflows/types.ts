@@ -228,6 +228,8 @@ export interface WorkflowRead {
  */
 export interface WorkflowDetail extends WorkflowRead {
   draft_graph: WorkflowGraph | null;
+  /** Whether this caller may edit this workflow, resolved server-side; false once archived. */
+  can_edit: boolean;
 }
 
 /** A page of workflows. Mirrors `WorkflowList`. */

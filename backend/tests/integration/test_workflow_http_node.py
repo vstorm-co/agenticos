@@ -8,6 +8,7 @@ stored and opened the way a deployment does it.
 
 from __future__ import annotations
 
+import base64
 import socket
 import uuid
 from collections.abc import Callable
@@ -205,6 +206,46 @@ async def test_a_get_sends_the_credential_and_hands_back_a_redacted_response(
     assert "set-cookie" not in response["headers"]
     assert response["headers"]["x-request-id"] == "r-1"
     assert _TOKEN not in str(run.output)
+
+
+@pytest.mark.security
+async def test_a_basic_credential_echoed_back_is_redacted_in_its_encoded_form(
+    engine: AsyncEngine, network
+):
+    """The Basic header carries base64 of `username:token`, which does not contain
+    the token as stored - scrubbing only the raw token would hand it back whole."""
+    member = await _member(engine)
+    secret = HttpCredentialSecret(
+        token=_TOKEN, username="svc", origins=("https://api.example.com",)
+    )
+    secret_id = await _secret(engine, member, secret)
+    wire = network(
+        lambda request: httpx2.Response(
+            200,
+            json={"echo": request.headers["Authorization"]},
+            headers={"X-Echo": request.headers["Authorization"]},
+        )
+    )
+    graph, _call = _graph(
+        {
+            "url": "https://api.example.com/v1/items",
+            "auth": {"kind": "basic", "secret_id": str(secret_id)},
+        }
+    )
+    seeded = await seed_run(engine, graph, member=member)
+    await _published(engine, seeded)
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    (sent,) = wire.sent
+    encoded = base64.b64encode(f"svc:{_TOKEN}".encode()).decode()
+    assert sent.headers["Authorization"] == f"Basic {encoded}"
+    assert run.output is not None
+    response = run.output["structured"]
+    assert response["body"] == {"echo": "Basic [redacted]"}
+    assert response["headers"]["x-echo"] == "Basic [redacted]"
+    assert encoded not in str(run.output) and _TOKEN not in str(run.output)
 
 
 @pytest.mark.security

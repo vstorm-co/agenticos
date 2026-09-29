@@ -218,6 +218,38 @@ class TestGet:
             found = await WorkflowRegistryService(_db()).get(ctx, workflow.id)
         assert found.id == workflow.id
 
+    @pytest.mark.parametrize(
+        ("role", "owned", "grant", "status", "can_edit"),
+        [
+            (OrgRoleName.BUILDER.value, True, None, WorkflowStatus.DRAFT.value, True),
+            (OrgRoleName.BUILDER.value, False, None, WorkflowStatus.PUBLISHED.value, False),
+            (OrgRoleName.BUILDER.value, False, GrantLevel.EDIT, WorkflowStatus.DRAFT.value, True),
+            (OrgRoleName.OWNER.value, True, None, WorkflowStatus.ARCHIVED.value, False),
+        ],
+        ids=["own", "another-builders-private", "shared-to-edit", "archived"],
+    )
+    async def test_it_says_whether_this_caller_may_edit_this_workflow(
+        self, role, owned, grant, status, can_edit
+    ):
+        """A role's `workflows:edit` does not say it reaches this workflow: a builder
+        views every workflow, another builder's private one included, and edits only
+        its own and the ones shared with it."""
+        ctx = _ctx(role)
+        workflow = _workflow(
+            ctx, owner_user_id=ctx.user_id if owned else uuid.uuid4(), status=status
+        )
+
+        with (
+            patch(f"{REGISTRY_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=grant),
+            ),
+        ):
+            found = await WorkflowRegistryService(_db()).get(ctx, workflow.id)
+
+        assert found.can_edit is can_edit
+
     async def test_a_never_edited_workflow_reports_no_draft_graph_instead_of_crashing(self):
         """`draft_graph` starts at `{}` - not a valid `WorkflowGraph` - so a
         workflow nobody has edited yet used to raise a raw `ValidationError`

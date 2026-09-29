@@ -2,17 +2,19 @@
 
 `pymupdf` and `python-docx` ship no types, so every call into them is here and
 answers in plain Python values. A document either opens or raises one of the
-two errors below, never the parser's own exception, whose text is the
-library's and not an explanation a reader of a run can act on.
+errors below, never the parser's own exception, whose text is the library's and
+not an explanation a reader of a run can act on.
 """
 
 from __future__ import annotations
 
-import io
+import zipfile
 from dataclasses import dataclass
 
 import pymupdf
 from docx import Document
+
+from app.services.file_upload import safe_unzip
 
 
 class DocumentCorrupt(ValueError):
@@ -21,6 +23,11 @@ class DocumentCorrupt(ValueError):
 
 class DocumentEncrypted(ValueError):
     """The document opens only with a password."""
+
+
+class DocumentTooLarge(ValueError):
+    """The document unpacks to more than a document may: a small file can hold a
+    huge compressed part, and the parser would expand all of it in memory."""
 
 
 @dataclass(frozen=True)
@@ -82,8 +89,16 @@ def pdf_page_png(data: bytes, *, page_number: int, dpi: int) -> tuple[bytes, int
 
 
 def docx_text(data: bytes) -> str:
+    # A DOCX is a ZIP: its parts are expanded under the same member and total
+    # bounds a chat upload is, before python-docx is handed any of them.
     try:
-        document = Document(io.BytesIO(data))
+        validated = safe_unzip(data)
+    except zipfile.BadZipFile as exc:
+        raise DocumentCorrupt("The Word document could not be opened") from exc
+    except ValueError as exc:
+        raise DocumentTooLarge("The Word document unpacks to more than a document may") from exc
+    try:
+        document = Document(validated)
     except Exception as exc:  # python-docx raises anything a broken ZIP or XML can
         raise DocumentCorrupt("The Word document could not be opened") from exc
     return "\n".join(paragraph.text for paragraph in document.paragraphs)

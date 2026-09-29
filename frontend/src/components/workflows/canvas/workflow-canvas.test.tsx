@@ -80,6 +80,7 @@ function workflow(): WorkflowDetail {
     created_at: null,
     updated_at: null,
     draft_graph: null,
+    can_edit: true,
   };
 }
 

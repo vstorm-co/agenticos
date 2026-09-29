@@ -41,9 +41,26 @@ describe("runs-api", () => {
     await expect(getWorkflowRun("r")).resolves.toEqual({ id: "r" });
     await listWorkflowRunNodes("r");
     expect(apiClient.get).toHaveBeenLastCalledWith("/workflow-runs/r/nodes", {
-      params: { limit: "500" },
+      params: { skip: "0", limit: "500" },
     });
     await expect(getWorkflowRunGraph("r")).resolves.toEqual({ entry_node_id: "a" });
+  });
+
+  it("reads every page of a run's steps, and stops when the run has no more", async () => {
+    const step = (id: string) => ({ id });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [step("a"), step("b")], total: 4 })
+      .mockResolvedValueOnce({ items: [step("c")], total: 4 })
+      .mockResolvedValueOnce({ items: [], total: 3 });
+
+    const all = await listWorkflowRunNodes("r");
+
+    expect(all).toEqual({ items: [step("a"), step("b"), step("c")], total: 4 });
+    expect(vi.mocked(apiClient.get).mock.calls.map((call) => call[1])).toEqual([
+      { params: { skip: "0", limit: "500" } },
+      { params: { skip: "2", limit: "500" } },
+      { params: { skip: "3", limit: "500" } },
+    ]);
   });
 
   it("starts and cancels a run", async () => {

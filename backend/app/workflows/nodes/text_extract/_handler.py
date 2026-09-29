@@ -93,6 +93,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     try:
         # The parsers are synchronous and can take seconds on a long document.
         result = await asyncio.to_thread(_extract, stored.data, source)
+    except _documents.DocumentTooLarge:
+        return files.failed(
+            "DOCUMENT_TOO_LARGE", "This document unpacks to more than a document may"
+        )
     except _documents.DocumentEncrypted:
         return files.failed("DOCUMENT_ENCRYPTED", "This document is protected by a password")
     except (_documents.DocumentCorrupt, ParseError):

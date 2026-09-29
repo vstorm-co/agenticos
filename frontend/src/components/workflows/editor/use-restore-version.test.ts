@@ -76,6 +76,7 @@ function detail(revision: number, draft: WorkflowGraph | null = RESTORED): Workf
     created_at: null,
     updated_at: null,
     draft_graph: draft,
+    can_edit: true,
   };
 }
 

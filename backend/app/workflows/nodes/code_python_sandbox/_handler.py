@@ -50,6 +50,17 @@ MAX_INPUT_FILES = 20
 MAX_INPUT_BYTES = 100_000_000
 MAX_OUTPUT_FILES = 20
 MAX_OUTPUT_BYTES = 100_000_000
+MAX_LOG_BYTES = 10_000_000
+
+# What the job left, measured inside the sandbox before a byte of it is fetched:
+# the output count, their total size, the answer's size and the log's, one per
+# line. Only counts, never names - a script chooses its files' names.
+_MEASURE = (
+    f"cd {ROOT} && find outputs -maxdepth 1 -type f | wc -l"
+    " && { cat outputs/* 2>/dev/null || true; } | wc -c"
+    " && { wc -c < result.json 2>/dev/null || echo 0; }"
+    " && { wc -c < log.txt 2>/dev/null || echo 0; }"
+)
 LOG_TAIL_CHARS = 4000
 
 # What runs the script: its arguments and file folders as globals, `result`
@@ -184,7 +195,30 @@ def _launch(sandbox: Any, code: str, args: dict[str, Any], inputs: list[tuple[st
         raise RuntimeError(f"Could not start the job: {started.output[:500]}")
 
 
+class _TooLarge(Exception):
+    """What the job left is over the bounds, measured before any of it was fetched."""
+
+
+def _measure(sandbox: Any) -> None:
+    """Refuse a job's leftovers that are over the bounds before any of them is
+    fetched into this worker's memory.
+
+    Raises:
+        _TooLarge: Too many outputs, too many bytes of them with the answer, or
+            too long a log.
+        RuntimeError: The sandbox could not measure them.
+    """
+    measured = sandbox.execute(_MEASURE)
+    try:
+        count, total, answer, log = (int(line) for line in measured.output.split())
+    except ValueError:
+        raise RuntimeError(f"Could not measure the job's files: {measured.output[:200]}") from None
+    if count > MAX_OUTPUT_FILES or total + answer > MAX_OUTPUT_BYTES or log > MAX_LOG_BYTES:
+        raise _TooLarge
+
+
 def _collect(sandbox: Any) -> tuple[dict[str, Any], bytes, list[tuple[str, bytes]]]:
+    _measure(sandbox)
     answer = json.loads(sandbox.read_bytes(f"{ROOT}/result.json"))
     log = sandbox.read_bytes(f"{ROOT}/log.txt") if sandbox.exists(f"{ROOT}/log.txt") else b""
     produced: list[tuple[str, bytes]] = []
@@ -194,6 +228,14 @@ def _collect(sandbox: Any) -> tuple[dict[str, Any], bytes, list[tuple[str, bytes
         path = entry["path"]
         produced.append((path.rsplit("/", 1)[-1], sandbox.read_bytes(path)))
     return answer, log, produced
+
+
+def _too_large() -> Failed:
+    return files.failed(
+        "PYTHON_OUTPUT_TOO_LARGE",
+        f"The script wrote more than {MAX_OUTPUT_FILES} files or {MAX_OUTPUT_BYTES} bytes, "
+        f"or printed more than {MAX_LOG_BYTES} bytes",
+    )
 
 
 def _started(sandbox: Any) -> datetime:
@@ -251,6 +293,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 )
             return waiting
         answer, log, produced = await asyncio.to_thread(_collect, sandbox)
+    except _TooLarge:
+        await asyncio.to_thread(sandbox.stop, True)
+        return _too_large()
     except (OSError, RuntimeError) as exc:
         # The host went away mid-conversation: nothing about the job is known to
         # have changed, and the next dispatch checks again.
@@ -259,15 +304,15 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             "SANDBOX_UNREACHABLE", "The sandbox host could not be reached", retryable=True
         )
 
+    # Measured before it was fetched, and checked again as it arrived: a process
+    # the script left behind can still be writing after the job was measured.
     if (
         len(produced) > MAX_OUTPUT_FILES
         or sum(len(data) for _n, data in produced) > MAX_OUTPUT_BYTES
+        or len(log) > MAX_LOG_BYTES
     ):
         await asyncio.to_thread(sandbox.stop, True)
-        return files.failed(
-            "PYTHON_OUTPUT_TOO_LARGE",
-            f"The script wrote more than {MAX_OUTPUT_FILES} files or {MAX_OUTPUT_BYTES} bytes",
-        )
+        return _too_large()
     log_file = await files.save(log, content_type="text/plain", filename="log.txt")
     outputs = [
         await files.save(data, content_type=files.sniff(data), filename=name)

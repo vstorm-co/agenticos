@@ -21,6 +21,12 @@ organization, and per principal across organizations) taken before the sums are
 read, so each check and its reservation are atomic and neither ceiling can be
 overshot by racing reads.
 
+A loop does not widen the reservation. `control.foreach` runs its body one
+iteration at a time - the next is scheduled only once the one before has
+settled - and a step fans out through one edge per port, so a run's outstanding
+node work never exceeds its graph's node count, however many iterations it
+takes in all. That total is bounded separately, by `WORKFLOW_RUN_MAX_NODE_RUNS`.
+
 Cancelling a run releases its reservation the moment it goes terminal, before an
 attempt already executing has settled. That does not reopen the backlog this
 bounds: `cancel` drains every pending and claimed outbox row, `begin_attempt`

@@ -41,14 +41,18 @@ const WORKFLOW: WorkflowDetail = {
   created_at: null,
   updated_at: null,
   draft_graph: null,
+  can_edit: true,
 };
 
 vi.mock("@/hooks", () => ({
-  usePermissions: () => ({
-    can: (permission: string) => (permission === "workflows:edit" ? state.canEdit : true),
-  }),
   useWorkflow: () => ({
-    workflow: { ...WORKFLOW, status: state.status },
+    // What the server answers: `can_edit` is this caller's reach to this
+    // workflow, and false for an archived one whatever the role.
+    workflow: {
+      ...WORKFLOW,
+      status: state.status,
+      can_edit: state.canEdit && state.status !== "archived",
+    },
     isLoading: false,
     saveDraft: { mutateAsync: vi.fn() },
     publish: { mutateAsync: vi.fn() },
@@ -134,7 +138,7 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
   });
 
-  it("renders an archived workflow read-only even for a caller with workflows:edit", async () => {
+  it("renders an archived workflow read-only even for a caller who could edit it", async () => {
     // The backend's `_ensure_editable` rejects every write to an archived
     // workflow, so an editor-role caller still takes the read-only path — palette,
     // actions, autosave and publish must not mount to 403 (#1787).

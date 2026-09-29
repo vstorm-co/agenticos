@@ -1,5 +1,5 @@
 ---
-source_sha: "1635944fd28a"
+source_sha: "65515c947c35"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -144,6 +144,9 @@ wenn der Run endet, und `{"type": "event", "event": {...}, "cursor": ...}` für 
 Ereignis dazwischen. Ein abgelehnter Frame bekommt `{"type": "error", "code": ...,
 "message": ...}`, und eine widerrufene Sitzung schließt den Socket mit `4001`. Ein
 Socket folgt einem Run; ein neuer Frame ersetzt den Run, dem er gefolgt ist.
+
+Ein `start`-Frame verbraucht dasselbe Kontingent pro Minute wie `POST /workflow-runs` und
+bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
 

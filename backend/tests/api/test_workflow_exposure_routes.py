@@ -87,7 +87,8 @@ class TestExposureRoutes:
         assert made.json()["webhook_url"].endswith(f"/api/v1/workflow-webhooks/{exposure_id}")
         changed = await client.patch(f"{base}/{exposure_id}", json={"is_active": False})
         assert changed.json()["is_active"] is False
-        assert (await client.delete(f"{base}/{exposure_id}")).status_code == 204
+        deleted = await client.delete(f"{base}/{exposure_id}")
+        assert deleted.status_code == 204
         rotated = await client.post(f"{base}/{exposure_id}/rotate-secret")
         assert rotated.json()["reveal_secret"] == "s"
 

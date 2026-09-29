@@ -358,11 +358,14 @@ def _checked_filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> l
 
 
 def _checked_mapping(columns: list[ColumnDef], mapping: dict[str, str]) -> dict[str, str]:
-    """The mapping, refused when a key is blank or a source is neither a live column
-    nor one of `@author` and `@record_id`."""
+    """The mapping with its keys trimmed, refused when a key is blank or a source is
+    neither a live column nor one of `@author` and `@record_id`. Two keys that are the
+    same once trimmed are refused by the request schema, before they collapse."""
     live = {str(column.id) for column in columns if not column.archived}
-    for key, source in mapping.items():
-        if not key.strip() or len(key) > 64:
+    checked: dict[str, str] = {}
+    for raw, source in mapping.items():
+        key = raw.strip()
+        if not key or len(key) > 64:
             raise BadRequestError(
                 message="A mapping key must be 1 to 64 characters",
                 details={"field": "input_mapping"},
@@ -372,7 +375,8 @@ def _checked_mapping(columns: list[ColumnDef], mapping: dict[str, str]) -> dict[
                 message=f"'{key}' takes its value from a column this table does not have",
                 details={"field": f"input_mapping.{key}"},
             )
-    return {key.strip(): source for key, source in mapping.items()}
+        checked[key] = source
+    return checked
 
 
 class TableTriggerConsumer:
@@ -415,7 +419,14 @@ class TableTriggerConsumer:
                     ):
                         continue
                     async with self.db.begin_nested():
-                        pair = await self._decide(trigger, event, snapshot, causing)
+                        # Judged as it is now: one switched off or changed since
+                        # the list was read starts nothing under what it was.
+                        current = await trigger_repo.lock_active(self.db, trigger_id=trigger.id)
+                        pair = (
+                            None
+                            if current is None
+                            else await self._decide(current, event, snapshot, causing)
+                        )
                     if pair is not None:
                         admitted.append(pair)
             await trigger_repo.mark_dispatched(self.db, event=event, now=now)

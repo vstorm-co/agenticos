@@ -128,7 +128,8 @@ sends `{"type": "run", "run": {...}}` when it starts following and again when th
 run ends, and `{"type": "event", "event": {...}, "cursor": ...}` for every event
 between. A refused frame gets `{"type": "error", "code": ..., "message": ...}`,
 and a revoked session closes the socket with `4001`. One socket follows one run;
-a new frame replaces the run it was following.
+a new frame replaces the run it was following. A `start` frame spends the per-minute
+allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks and schedules { #workflow-webhooks-and-schedules }
 

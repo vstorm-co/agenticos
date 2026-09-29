@@ -137,6 +137,10 @@ class _Session:
         self.stopped = False
         self.fail_write = False
         self.exec_exit = 0
+        # What the job's files measure as, when a test wants them to look smaller
+        # than they are - a file still growing after it was measured.
+        self.measured_as: str | None = None
+        self.reads: list[str] = []
 
     # The `RemoteSandbox` surface the step uses.
     def exists(self, path: str) -> bool:
@@ -151,13 +155,28 @@ class _Session:
     def execute(self, command: str) -> SimpleNamespace:
         if self.exec_exit:
             return SimpleNamespace(output="boom", exit_code=self.exec_exit, truncated=False)
+        if "wc -c" in command:
+            return SimpleNamespace(output=self._measured(), exit_code=0, truncated=False)
         if f"{sandbox_node.ROOT}/job.pid" not in self.files:
             self.launches += 1
             self.files[f"{sandbox_node.ROOT}/job.pid"] = b"42"
         return SimpleNamespace(output="", exit_code=0, truncated=False)
 
     def read_bytes(self, path: str) -> bytes:
+        self.reads.append(path)
         return self.files[path]
+
+    def _measured(self) -> str:
+        if self.measured_as is not None:
+            return self.measured_as
+        root = sandbox_node.ROOT
+        outputs = [data for path, data in self.files.items() if path.startswith(f"{root}/outputs/")]
+        size = {
+            name: len(self.files.get(f"{root}/{name}", b"")) for name in ("result.json", "log.txt")
+        }
+        return (
+            f"{len(outputs)}\n{sum(map(len, outputs))}\n{size['result.json']}\n{size['log.txt']}\n"
+        )
 
     def ls_info(self, path: str) -> list[dict[str, Any]]:
         prefix = path.rstrip("/") + "/"
@@ -303,6 +322,46 @@ class TestTheSandboxJob:
         assert await _failed_code(seeded) == "PYTHON_OUTPUT_TOO_LARGE"
         async with seeded.factory() as db:
             assert (await db.execute(select(WorkflowFile))).scalars().all() == []
+
+    async def test_leftovers_over_the_bounds_are_refused_before_any_is_fetched(
+        self, engine, host, monkeypatch
+    ):
+        monkeypatch.setattr(sandbox_node, "MAX_LOG_BYTES", 4)
+        seeded = await seed_run(engine, _chain(_sandbox_step()))
+        await drive(seeded)
+        (session,) = host.values()
+        session.finish({"ok": True, "result": None}, log=b"far too chatty")
+        await _due_now(seeded)
+
+        assert await _failed_code(seeded) == "PYTHON_OUTPUT_TOO_LARGE"
+        assert session.reads == [] and session.stopped is True
+
+    async def test_a_file_that_grew_after_it_was_measured_is_still_refused(
+        self, engine, host, monkeypatch
+    ):
+        monkeypatch.setattr(sandbox_node, "MAX_OUTPUT_BYTES", 8)
+        seeded = await seed_run(engine, _chain(_sandbox_step()))
+        await drive(seeded)
+        (session,) = host.values()
+        session.finish({"ok": True, "result": None}, outputs={"big.bin": b"x" * 64})
+        session.measured_as = "1\n0\n0\n0\n"
+        await _due_now(seeded)
+
+        assert await _failed_code(seeded) == "PYTHON_OUTPUT_TOO_LARGE"
+        async with seeded.factory() as db:
+            assert (await db.execute(select(WorkflowFile))).scalars().all() == []
+
+    async def test_leftovers_that_cannot_be_measured_are_checked_again_later(self, engine, host):
+        seeded = await seed_run(engine, _chain(_sandbox_step()))
+        await drive(seeded)
+        (session,) = host.values()
+        session.finish({"ok": True, "result": None})
+        session.measured_as = "not a number"
+        await _due_now(seeded)
+
+        run = await drive(seeded)
+        assert run.status == WorkflowRunStatus.WAITING_RETRY.value
+        assert session.reads == [] and session.stopped is False
 
     async def test_a_job_with_no_log_answers_with_an_empty_one(self, engine, host):
         seeded = await seed_run(engine, _chain(_sandbox_step()))

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.db.models.virtual_table_trigger import AdmissionStatus
 from app.schemas.base import BaseSchema, TimestampSchema
@@ -13,6 +14,19 @@ from app.schemas.virtual_table import RecordFilter
 
 MAX_FILTERS = 20
 MAX_MAPPING_KEYS = 50
+
+
+def _distinct_keys(value: Any) -> Any:
+    """Refuse two mapping keys that are the same once trimmed.
+
+    The schema trims every string, dictionary keys included, so `"email"` and
+    `" email"` would otherwise collapse into one key and silently drop a source.
+    """
+    if isinstance(value, dict):
+        trimmed = [str(key).strip() for key in value]
+        if len(trimmed) != len(set(trimmed)):
+            raise ValueError("Two mapping keys are the same once spaces are trimmed")
+    return value
 
 
 class TableTriggerCreate(BaseSchema):
@@ -28,6 +42,8 @@ class TableTriggerCreate(BaseSchema):
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     input_mapping: dict[str, str] = Field(default_factory=dict, max_length=MAX_MAPPING_KEYS)
 
+    _distinct = field_validator("input_mapping", mode="before")(_distinct_keys)
+
 
 class TableTriggerUpdate(BaseSchema):
     """Rename, switch on or off, re-filter, re-map, or move to the live version.
@@ -40,6 +56,8 @@ class TableTriggerUpdate(BaseSchema):
     filters: list[RecordFilter] | None = Field(default=None, max_length=MAX_FILTERS)
     input_mapping: dict[str, str] | None = Field(default=None, max_length=MAX_MAPPING_KEYS)
     pin_current_version: bool = False
+
+    _distinct = field_validator("input_mapping", mode="before")(_distinct_keys)
 
 
 class TableTriggerRead(BaseSchema, TimestampSchema):

@@ -59,6 +59,7 @@ function serverDetail(): WorkflowDetail {
     created_at: null,
     updated_at: null,
     draft_graph: SERVER_GRAPH,
+    can_edit: true,
   };
 }
 

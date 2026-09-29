@@ -37,13 +37,14 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.exceptions import AppException, AuthenticationError, NotFoundError
+from app.core.exceptions import AppException, AuthenticationError, NotFoundError, RateLimitError
 from app.core.permissions import AuthContext
 from app.db.models.workflow_run import WorkflowRunTrigger
 from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
 from app.repositories import member_repo
 from app.schemas.workflow_run import WorkflowRunRead
+from app.services import rate_limit
 from app.services.workflow_execution import WorkflowExecutionService, events
 from app.services.ws_auth import authenticate_socket_token
 
@@ -117,6 +118,16 @@ class WorkflowRunSocket:
             await task
 
     async def _start(self, ctx: AuthContext, frame: _StartFrame) -> WorkflowRunRead:
+        # The allowance `POST /workflow-runs` spends, under the same key: a socket
+        # is a second door to the same start, not a way around its limit.
+        decision = await rate_limit.consume(
+            surface="workflow_run", caller=f"user:{ctx.subject_id}", limit=rate_limit.run_limit()
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many workflow runs in the last minute. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
         async with get_db_context() as db:
             runs = WorkflowExecutionService(db)
             if frame.conversation_id is None:

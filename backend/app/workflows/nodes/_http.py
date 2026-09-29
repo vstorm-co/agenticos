@@ -95,6 +95,14 @@ def check_headers(headers: dict[str, str]) -> dict[str, str]:
     return headers
 
 
+def check_idempotency_header(name: str | None) -> str | None:
+    """`name`, refused when it is a header the transport or the credential owns:
+    the operation key written into it would replace what that header carries."""
+    if name is not None and name.lower() in RESERVED_HEADERS:
+        raise ValueError(f"{name} cannot carry the operation key")
+    return name
+
+
 def is_http_url(url: str) -> bool:
     """An `http`/`https` URL with a host - anything else is refused before dialling."""
     try:
@@ -193,10 +201,16 @@ class HttpResponseOutput(BaseModel):
 
 
 def _scrub(text: str, secret: HttpCredentialSecret | None) -> str:
+    """`text` with the credential removed in every form this step sent it: the
+    token itself, and the base64 `username:token` pair a Basic header carries,
+    which does not contain the token as it was stored."""
     if secret is None:
         return text
     token = secret.token.get_secret_value()
-    return text.replace(token, "[redacted]") if token else text
+    pair = base64.b64encode(f"{secret.username or ''}:{token}".encode()).decode()
+    for form in (pair, token):
+        text = text.replace(form, "[redacted]")
+    return text
 
 
 def response_output(

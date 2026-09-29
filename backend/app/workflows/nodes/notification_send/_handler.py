@@ -21,6 +21,7 @@ occurrence_id)` uniqueness turns a second write into a no-op.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Literal
 from uuid import UUID
 
@@ -153,7 +154,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         await NotificationCenterService(db).write(
             recipients=recipients,
             event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
-            occurrence_id=current.idempotency_key,
+            # The step's key names its whole loop scope and outgrows the column
+            # three loops deep; its digest is as stable, so a retry still dedupes.
+            occurrence_id="workflow:"
+            + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),
             summary=summary,
             organization_id=current.organization_id,
             actor_user_id=current.auth.user_id,

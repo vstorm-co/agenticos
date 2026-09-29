@@ -1,5 +1,5 @@
 ---
-source_sha: "1635944fd28a"
+source_sha: "65515c947c35"
 ---
 
 # La API HTTP { #the-http-api }
@@ -141,7 +141,8 @@ envía `{"type": "run", "run": {...}}` cuando empieza a seguirlo y otra vez cuan
 run termina, y `{"type": "event", "event": {...}, "cursor": ...}` por cada evento
 intermedio. Un frame rechazado recibe `{"type": "error", "code": ..., "message":
 ...}`, y una sesión revocada cierra el socket con `4001`. Un socket sigue un run; un
-frame nuevo sustituye el run que seguía.
+frame nuevo sustituye el run que seguía. Un frame `start` gasta la misma cuota por
+minuto que `POST /workflow-runs`, y pasada esta recibe `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks y programaciones { #workflow-webhooks-and-schedules }
 

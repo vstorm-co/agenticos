@@ -28,11 +28,10 @@ import {
   SheetTitle,
   Skeleton,
 } from "@/components/ui";
-import { useNodeCatalog, usePermissions, useWorkflow } from "@/hooks";
+import { useNodeCatalog, useWorkflow } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import type { AgentStatus } from "@/types/agents";
-import { Perm } from "@/types/permissions";
 import { useWorkflowEditorStore } from "@/stores";
 
 interface PageProps {
@@ -63,12 +62,15 @@ const EMPTY_GRAPH: WorkflowGraph = {
  * away edits made while the save was in flight. The store's revision is advanced
  * by autosave, not by the refetch.
  *
- * A caller with only `workflows:view` gets a read-only editor: the canvas renders
- * with `readOnly`, and the edit chrome — palette, autosave/publish actions,
- * property panel and conflict banner — is not rendered at all, so no autosave
- * fires to 403. This is the "not rendered, then 403" rule: never show a control
- * the server would refuse. `can()` gates the UI only; every write is re-checked
- * server-side.
+ * A caller who may not edit this workflow gets a read-only editor: the canvas
+ * renders with `readOnly`, and the edit chrome — palette, autosave/publish
+ * actions, property panel and conflict banner — is not rendered at all, so no
+ * autosave fires to 404. Whether they may is the workflow's own `can_edit`,
+ * resolved server-side: a role's `workflows:edit` says nothing about *this*
+ * workflow - a builder views every one and edits only their own and shared ones,
+ * and a grant widens a role for one - and an archived workflow is read-only for
+ * everybody. This is the "not rendered, then refused" rule: never show a control
+ * the server would refuse. Every write is still re-checked server-side.
  */
 export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
@@ -76,12 +78,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const { nodes } = useNodeCatalog();
-  const { can } = usePermissions();
-  // An archived workflow is read-only server-side (`_ensure_editable` rejects its
-  // writes), so it takes the read-only render path even for a caller with
-  // `workflows:edit`: never mount palette/actions/autosave/publish that would 403.
-  // Computed after the loading guard defers rendering, so `workflow` is present.
-  const canEdit = can(Perm.workflowsEdit) && workflow?.status !== "archived";
+  const canEdit = workflow?.can_edit === true;
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);

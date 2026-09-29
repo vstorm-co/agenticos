@@ -54,6 +54,7 @@ function detail(revision: number): WorkflowDetail {
     created_at: null,
     updated_at: null,
     draft_graph: GRAPH,
+    can_edit: true,
   };
 }
 

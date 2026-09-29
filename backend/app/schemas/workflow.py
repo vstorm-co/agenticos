@@ -43,6 +43,12 @@ class WorkflowDetail(WorkflowRead):
     """
 
     draft_graph: WorkflowGraph | None
+    can_edit: bool = Field(
+        default=False,
+        description="Whether this caller may edit this workflow: role scope or an explicit "
+        "grant, resolved server-side, and false once it is archived - so the editor never "
+        "mounts controls every write behind them would refuse.",
+    )
 
 
 class WorkflowList(BaseSchema):

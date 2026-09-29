@@ -828,3 +828,28 @@ async def test_archiving_the_whole_table_is_not_held_up_by_its_triggers(world: _
         await db.commit()
 
     assert archived.archived_at is not None
+
+
+async def test_a_trigger_switched_off_after_the_list_was_read_starts_nothing(world: _World):
+    """The consumer lists a table's triggers once per event; one switched off in
+    between is re-read under its lock and judged off, not by the stale copy."""
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+    async with world.factory() as db:
+        stale = await db.get(VirtualTableTrigger, trigger_id)
+    await world.add({"Email": "a@x"})
+    async with world.factory() as db:
+        await TableTriggerService(db).update(
+            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
+        )
+        await db.commit()
+
+    with patch(
+        "app.services.virtual_tables.triggers.trigger_repo.list_for_table",
+        new=AsyncMock(return_value=[stale]),
+    ):
+        assert await world.consume() == []
+
+    assert await world.admissions(trigger_id) == []
+    async with world.factory() as db:
+        assert (await db.execute(select(WorkflowRun))).first() is None

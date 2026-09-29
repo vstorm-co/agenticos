@@ -30,11 +30,30 @@ export async function getWorkflowRun(runId: string): Promise<WorkflowRunRead> {
   return apiClient.get<WorkflowRunRead>(`${ROOT}/${runId}`);
 }
 
-/** Every step the run took, loop iterations included. */
+/** The most steps the route answers in one page (`limit: le=500`). */
+const NODE_RUNS_PAGE = 500;
+
+/**
+ * Every step the run took, loop iterations included - every page of them.
+ *
+ * A loop can take a run to thousands of steps, and the run page counts, draws and
+ * lists what this returns, so one page would hide every later iteration and its
+ * failures.
+ */
 export async function listWorkflowRunNodes(runId: string): Promise<WorkflowNodeRunList> {
-  return apiClient.get<WorkflowNodeRunList>(`${ROOT}/${runId}/nodes`, {
-    params: { limit: "500" },
-  });
+  const page = (skip: number) =>
+    apiClient.get<WorkflowNodeRunList>(`${ROOT}/${runId}/nodes`, {
+      params: { skip: String(skip), limit: String(NODE_RUNS_PAGE) },
+    });
+  const first = await page(0);
+  const items = [...first.items];
+  while (items.length < first.total) {
+    const next = await page(items.length);
+    // The run shrank between pages - nothing is left to read.
+    if (next.items.length === 0) break;
+    items.push(...next.items);
+  }
+  return { items, total: first.total };
 }
 
 /** The graph the run executes: its version's, or a test run's draft snapshot. */

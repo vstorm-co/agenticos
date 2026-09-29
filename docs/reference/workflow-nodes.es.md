@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a29877375a"
+source_sha: "fe75fd081391"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -316,7 +316,9 @@ cinco redirecciones. Su cuerpo se cuenta a medida que llega y se rechaza por enc
 `max_bytes`, y su tipo se detecta por los bytes, así que una cabecera no puede engañar
 a `expected_content_types`. `text.extract` no hace OCR: una página escaneada hace
 fallar el paso con `TEXT_EXTRACTION_NEEDS_OCR` y nombra las páginas. Un documento
-dañado es `DOCUMENT_CORRUPT` y un PDF protegido con contraseña `DOCUMENT_ENCRYPTED`.
+dañado es `DOCUMENT_CORRUPT`, un documento de Word que se descomprime más allá de los
+límites de archivo de una subida al chat es `DOCUMENT_TOO_LARGE`, y un PDF protegido
+con contraseña `DOCUMENT_ENCRYPTED`.
 
 Una imagen se mide antes de decodificarse. Su ancho por alto, una zona de recorte y un
 tamaño solicitado se comprueban cada uno contra `CHAT_IMAGE_MAX_PIXELS`, y el
@@ -360,6 +362,7 @@ de confianza.
 | El script lanzó una excepción o superó un límite | `PYTHON_ERROR` |
 | El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
 | No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
+| Escribió más de 20 archivos o 100 MB, o imprimió más de 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, medido en la sandbox antes de traer nada, y la sesión purgada |
 | No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

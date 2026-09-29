@@ -7,6 +7,7 @@ workflow-access rules every other surface uses.
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -172,7 +173,15 @@ async def test_someone_outside_the_organization_cannot_be_named_at_publish(engin
     assert f"nodes.{notify.id}.config.recipients.0" in fields
 
 
-async def test_a_retried_attempt_writes_no_second_notification(engine: AsyncEngine):
+# Three loops deep, a step's key names every scope it is in and outgrows the
+# 255-character column a notification's occurrence is stored in.
+_NESTED_SCOPE = json.dumps(
+    [{"loop": str(uuid.uuid4()), "index": 9999} for _ in range(3)], separators=(",", ":")
+)
+
+
+@pytest.mark.parametrize("scope", ["[]", _NESTED_SCOPE], ids=["top-level", "three-loops-deep"])
+async def test_a_retried_attempt_writes_no_second_notification(engine: AsyncEngine, scope: str):
     """The same operation key twice: the notification center's own index makes it a no-op."""
     owner = await _owner(engine)
     admin = await _colleague(engine, owner[1], role="admin")
@@ -187,8 +196,9 @@ async def test_a_retried_attempt_writes_no_second_notification(engine: AsyncEngi
         auth=AuthContext(user_id=owner[0].id, organization_id=owner[1].id, role="owner"),
         resumed_agent_run_id=None,
         workflow_id=seeded.run.workflow_id,
-        idempotency_key=f"{owner[1].id}:{seeded.run.id}:step:[]",
+        idempotency_key=f"{owner[1].id}:{seeded.run.id}:{uuid.uuid4()}:{scope}",
     )
+    assert scope == "[]" or len(dispatch.idempotency_key) > 255
     config = NotificationSendConfig(recipients=(admin.id,), subject="Once")
 
     for _ in range(2):

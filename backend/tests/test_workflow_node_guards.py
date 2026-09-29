@@ -25,6 +25,7 @@ from app.workflows.nodes.agent_run import AgentRunConfig
 from app.workflows.nodes.agent_run import _handler as agent_node
 from app.workflows.nodes.http_request import HttpAuth, HttpRequestConfig
 from app.workflows.nodes.http_request import _handler as http_node
+from app.workflows.nodes.http_upload import HttpUploadConfig
 from app.workflows.nodes.knowledge_search import _handler as search_node
 from app.workflows.nodes.notification_send import _handler as notify_node
 
@@ -91,6 +92,15 @@ class TestHttpConfig:
     def test_a_header_that_is_not_ours_to_send_is_refused(self, headers, message):
         with pytest.raises(ValidationError, match=message):
             HttpRequestConfig(url="https://a.example", headers=headers)
+
+    @pytest.mark.parametrize("config_type", [HttpRequestConfig, HttpUploadConfig])
+    @pytest.mark.parametrize("name", ["Authorization", "host", "Content-Length"])
+    def test_the_operation_key_cannot_replace_a_header_the_transport_owns(self, config_type, name):
+        with pytest.raises(ValidationError, match="cannot carry the operation key"):
+            config_type(url="https://a.example", idempotency_key_header=name)
+        assert (
+            config_type(url="https://a.example", idempotency_key_header="Idempotency-Key")
+        ).idempotency_key_header == "Idempotency-Key"
 
     def test_a_url_the_parser_cannot_read_is_not_an_http_url(self):
         assert is_http_url("http://[::1") is False

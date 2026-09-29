@@ -61,6 +61,19 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def lock_active(db: AsyncSession, *, trigger_id: UUID) -> VirtualTableTrigger | None:
+    """The trigger as it is now, locked for the caller's transaction - `None` once
+    it is switched off or gone. `populate_existing`: a copy of the row already in
+    the session is overwritten with what the lock read, not trusted."""
+    result = await db.execute(
+        select(VirtualTableTrigger)
+        .where(VirtualTableTrigger.id == trigger_id, VirtualTableTrigger.is_active.is_(True))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_for_table(
     db: AsyncSession, *, table_id: UUID, organization_id: UUID, active_only: bool = False
 ) -> list[VirtualTableTrigger]:

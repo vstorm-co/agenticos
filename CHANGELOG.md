@@ -166,6 +166,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The workflow editor opens read-only for a workflow the caller cannot
+  edit.** It decided from the role alone, so a builder opening another
+  builder's private workflow got the full editor and an autosave that failed on
+  every write; the workflow's detail now carries `can_edit`, resolved for that
+  workflow (#1925).
+- **A run page shows every step of a long loop.** It read the first 500 steps
+  only, so later iterations and their failures were missing from the counts,
+  the canvas and the step list; it now reads every page (#1925).
+- **A trigger switched off while the consumer was judging a record starts
+  nothing**, because each trigger is re-read under its lock before it admits a
+  run. Two mapping keys that are the same once trimmed are refused instead of
+  one silently replacing the other (#1785).
+- **A `notification.send` three loops deep notifies instead of failing** on an
+  occurrence id longer than its column, and an `http.request` or
+  `http.upload` can no longer put its operation key in a header the transport
+  or the credential owns, such as `Authorization` or `Host` (#1925).
 - **A table step retried after its write committed replays it instead of
   failing.** An update, upsert or delete with no revision bound read the record's
   revision before writing, so a retry after the first write had moved it on sent a
@@ -205,6 +221,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- **Workflow steps no longer hand back a Basic credential, unpack a DOCX
+  bomb, or fetch unbounded sandbox output.** A Basic-authenticated
+  `http.request` or `http.upload` whose far side echoed the `Authorization`
+  header returned the base64 `username:password` pair, because only the raw
+  password was scrubbed; both forms are now. `text.extract` expands a Word
+  document under the member and total bounds a chat upload has, failing
+  `DOCUMENT_TOO_LARGE` past them. `code.python.sandbox` measures what a job
+  left inside the sandbox and refuses more than 20 files, 100 MB or a 10 MB log
+  before fetching any of it into the worker.
+- **Starting a run over the workflow-run WebSocket spends the per-minute run
+  allowance** that `POST /workflow-runs` does. Before, one socket could start
+  runs past the limit.
 - **An HTTP credential only goes where its secret says.** A workflow's HTTP step
   authenticates with a new `http_credential` vault kind: a token sealed with
   the origins it may be sent to. The origin is checked on the URL about to be
