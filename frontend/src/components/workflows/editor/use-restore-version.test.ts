@@ -3,16 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api-error";
-import type {
-  NodeDefinition,
-  WorkflowDetail,
-  WorkflowGraph,
-  WorkflowVersionRead,
-} from "@/lib/workflows/types";
+import type { WorkflowDetail, WorkflowGraph, WorkflowVersionRead } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useRestoreVersion } from "./use-restore-version";
 import { useWorkflowAutosave } from "./use-workflow-autosave";
+
+/** An edit to the working graph: one more unwired step at `(x, y)`. */
+function insertAt(x: number, y: number): string {
+  const id = crypto.randomUUID();
+  useWorkflowEditorStore.getState().insertNode({
+    node: { id, definition_id: "act", definition_version: 1, config: {}, layout: { x, y } },
+    edge: null,
+    bindings: [],
+    becomesEntry: false,
+  });
+  return id;
+}
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -36,22 +43,6 @@ function graph(entry: string): WorkflowGraph {
 
 const DRAFT = graph("draft");
 const RESTORED = graph("v1");
-
-const DEFINITION: NodeDefinition = {
-  id: "debug.echo",
-  version: 1,
-  name: "Echo",
-  category: "debug",
-  description: "",
-  kind: "action",
-  config_schema: null,
-  input_schema: null,
-  output_schema: null,
-  ports: [],
-  effect_kind: "pure",
-  retry_guarantee: "none",
-  scopes: [],
-};
 
 const VERSION: WorkflowVersionRead = {
   id: "v-1",
@@ -116,7 +107,7 @@ afterEach(() => {
 describe("useRestoreVersion", () => {
   it("restores against the draft's revision and makes the returned draft the working copy", async () => {
     seedLoaded(4);
-    act(() => useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 5, y: 5 }));
+    act(() => insertAt(5, 5));
     expect(useWorkflowEditorStore.getState().history.canUndo).toBe(true);
     const restore = vi.fn().mockResolvedValue(detail(5));
     const { result } = renderHook(() => useRestoreVersion(restore));

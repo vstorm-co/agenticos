@@ -1,36 +1,23 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SearchInput, useListControls } from "@/components/ui";
 import { categoryRank, nodeVisual } from "@/components/workflows/node-visuals";
+import { useInsertNode } from "@/components/workflows/canvas/use-insert-node";
 import { cn } from "@/lib/utils";
-import type { NodeDefinition, NodePosition } from "@/lib/workflows/types";
+import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { writeNodeDragData } from "./drag";
 import { isAddableInScope } from "./scope";
-import { useAddNode } from "./use-add-node";
 
 interface NodePaletteProps {
   /** The node catalog the palette leaf groups by category, searches and adds from. */
   nodes: NodeDefinition[];
 }
-
-/**
- * Where a click-to-add node lands, and how far each successive one steps.
- *
- * The palette renders outside the canvas's `<ReactFlowProvider>`, so it cannot
- * read the viewport to drop under the cursor the way a pointer drag does. The
- * accessible add path therefore places at a fixed anchor and staggers each add
- * so a run of them does not stack on one spot; the canvas brings the new node
- * into view and the user can move it. Pointer users get cursor-accurate drops
- * through drag-and-drop instead.
- */
-const ADD_ANCHOR: NodePosition = { x: 120, y: 120 };
-const ADD_STAGGER = 32;
 
 /** One category and the nodes under it, in the order the catalog first names them. */
 interface NodeGroup {
@@ -55,10 +42,10 @@ function groupByCategory(nodes: NodeDefinition[]): NodeGroup[] {
  * The node palette — the library the editor adds nodes from.
  *
  * The catalog arrives already fetched (`useNodeCatalog`). Each entry is offered
- * as a draggable, keyboard-activatable control: pointer users drag it onto the
- * canvas (payload written by {@link writeNodeDragData}, dropped by the canvas
- * leaf), and keyboard or touch users activate it to add near a fixed anchor —
- * the accessible path, since the palette sits outside the canvas's viewport.
+ * as a draggable, clickable control: drag it onto the canvas to place it
+ * (payload written by {@link writeNodeDragData}, dropped by the canvas leaf), or
+ * click it - or press Enter - to add it after the selected step, or at the end
+ * of the flow in view, wired in when the ports fit.
  *
  * The offered set is scope-filtered off the store's `scopePath` first — inside a
  * `foreach` body a boundary-shaped node is hidden and a second `control.foreach`
@@ -67,8 +54,7 @@ function groupByCategory(nodes: NodeDefinition[]): NodeGroup[] {
 export function NodePalette({ nodes }: NodePaletteProps) {
   const t = useTranslations("workflows");
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
-  const addNode = useAddNode();
-  const addCount = useRef(0);
+  const insert = useInsertNode(nodes);
 
   const available = useMemo(
     () => nodes.filter((node) => isAddableInScope(node, scopePath)),
@@ -90,11 +76,9 @@ export function NodePalette({ nodes }: NodePaletteProps) {
   const categoryLabel = (category: string) =>
     t.has(`category.${category}`) ? t(`category.${category}`) : category;
 
-  const handleAdd = (definition: NodeDefinition) => {
-    const offset = addCount.current * ADD_STAGGER;
-    addCount.current += 1;
-    addNode(definition, { x: ADD_ANCHOR.x + offset, y: ADD_ANCHOR.y + offset });
-  };
+  // After the selected step, or at the end of the flow in view - wired to it
+  // when the ports fit. See `planInsertion`.
+  const handleAdd = (definition: NodeDefinition) => insert(definition);
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (category: string) =>

@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type {
-  Binding,
-  NodeDefinition,
-  NodeInstance,
-  ScopeBoundary,
-  WorkflowGraph,
-} from "@/lib/workflows/types";
+import type { Binding, NodeInstance, ScopeBoundary, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "./workflow-editor-store";
+
+/** An edit to the working graph: one more step at `(x, y)`, the start if `becomesEntry`. */
+function insertAt(x: number, y: number, becomesEntry = false): string {
+  const id = crypto.randomUUID();
+  useWorkflowEditorStore.getState().insertNode({
+    node: { id, definition_id: "act", definition_version: 1, config: {}, layout: { x, y } },
+    edge: null,
+    bindings: [],
+    becomesEntry,
+  });
+  return id;
+}
 
 const INITIAL = useWorkflowEditorStore.getState();
 
@@ -55,22 +61,6 @@ function seededGraph(): WorkflowGraph {
     scopes: [],
   };
 }
-
-const DEFINITION: NodeDefinition = {
-  id: "debug.echo",
-  version: 1,
-  name: "Echo",
-  category: "debug",
-  description: "",
-  kind: "action",
-  config_schema: null,
-  input_schema: null,
-  output_schema: null,
-  ports: [],
-  effect_kind: "pure",
-  retry_guarantee: "none",
-  scopes: [],
-};
 
 describe("useWorkflowEditorStore", () => {
   beforeEach(reset);
@@ -216,7 +206,7 @@ describe("useWorkflowEditorStore restore-to-draft", () => {
   it("replaceDraft installs the restored graph at its revision with a fresh history", () => {
     store.getState().load({ workflowId: "wf-1", expectedRevision: 2 });
     store.getState().seedGraph(seededGraph());
-    store.getState().addNode(DEFINITION, { x: 9, y: 9 });
+    insertAt(9, 9);
     store.getState().setConflict(4);
     const clipboard = { nodes: [NODE], edges: [], bindings: [], scopes: [] };
     store.getState().setClipboard(clipboard);
@@ -241,7 +231,7 @@ describe("useWorkflowEditorStore restore-to-draft", () => {
     expect(store.getState().graph).toBe(restored);
 
     // History records from the restored graph onwards.
-    store.getState().addNode(DEFINITION, { x: 1, y: 1 });
+    insertAt(1, 1);
     expect(store.getState().history.canUndo).toBe(true);
     store.getState().undo();
     expect(store.getState().graph?.nodes).toEqual(restored.nodes);
@@ -266,29 +256,53 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().getGraph()?.entry_node_id).toBe("a");
   });
 
-  it("addNode appends a node, names the first one the entry, and marks dirty", () => {
-    store.getState().seedGraph({ ...seededGraph(), nodes: [], edges: [], entry_node_id: "" });
-    const id = store.getState().addNode(DEFINITION, { x: 10, y: 20 });
-
-    const graph = store.getState().graph;
-    expect(graph?.nodes).toHaveLength(1);
-    expect(graph?.nodes[0]?.id).toBe(id);
-    expect(graph?.nodes[0]?.layout).toEqual({ x: 10, y: 20 });
-    expect(graph?.entry_node_id).toBe(id);
-    expect(store.getState().isDirty).toBe(true);
-  });
-
-  it("addNode into a non-empty graph keeps the existing entry", () => {
+  it("insertNode adds the step, its wire and bindings in one undoable change", () => {
     store.getState().seedGraph(seededGraph());
-    store.getState().addNode(DEFINITION, { x: 5, y: 5 });
-    expect(store.getState().graph?.entry_node_id).toBe("a");
-    expect(store.getState().graph?.nodes).toHaveLength(3);
+    const binding = {
+      target_node_id: "n",
+      target_field: "text",
+      source: { kind: "node_output" as const, node_id: "a", port: "out", field_path: ["text"] },
+    };
+    store.getState().insertNode({
+      node: {
+        id: "n",
+        definition_id: "act",
+        definition_version: 1,
+        config: {},
+        layout: { x: 3, y: 4 },
+      },
+      edge: {
+        id: "e-n",
+        source_node_id: "a",
+        source_port: "out",
+        target_node_id: "n",
+        target_port: "in",
+      },
+      bindings: [binding],
+      becomesEntry: false,
+    });
+
+    const state = store.getState();
+    expect(state.graph?.nodes.at(-1)?.layout).toEqual({ x: 3, y: 4 });
+    expect(state.graph?.edges.at(-1)?.id).toBe("e-n");
+    expect(state.graph?.bindings.at(-1)).toEqual(binding);
+    expect(state.graph?.entry_node_id).toBe("a");
+    expect(state.isDirty).toBe(true);
+    // The new step is what the user now looks at, and the canvas is asked to show it.
+    expect(state.selection).toEqual({ nodeIds: ["n"], edgeIds: [] });
+    expect(state.revealNodeId).toBe("n");
+    store.getState().clearReveal();
+    expect(store.getState().revealNodeId).toBeNull();
+
+    store.getState().undo();
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(store.getState().graph?.edges).toHaveLength(seededGraph().edges.length);
   });
 
-  it("addNode falls back to an empty graph when none is seeded", () => {
-    const id = store.getState().addNode(DEFINITION, { x: 1, y: 2 });
-    expect(store.getState().graph?.nodes).toHaveLength(1);
+  it("insertNode makes a step the start when told to, even with no graph seeded", () => {
+    const id = insertAt(1, 2, true);
     expect(store.getState().graph?.entry_node_id).toBe(id);
+    expect(store.getState().graph?.nodes).toHaveLength(1);
   });
 
   it("connectNodes adds an edge from a validated connection", () => {
@@ -672,7 +686,7 @@ describe("useWorkflowEditorStore graph slice", () => {
 
   it("undo and redo step the graph through history and report the flags", () => {
     store.getState().seedGraph(seededGraph());
-    const id = store.getState().addNode(DEFINITION, { x: 10, y: 10 });
+    const id = insertAt(10, 10);
     expect(store.getState().graph?.nodes).toHaveLength(3);
 
     store.getState().undo();

@@ -7,6 +7,18 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 
+/** An edit to the working graph: one more unwired step at `(x, y)`. */
+function insertAt(x: number, y: number): string {
+  const id = crypto.randomUUID();
+  useWorkflowEditorStore.getState().insertNode({
+    node: { id, definition_id: "act", definition_version: 1, config: {}, layout: { x, y } },
+    edge: null,
+    bindings: [],
+    becomesEntry: false,
+  });
+  return id;
+}
+
 const store = useWorkflowEditorStore;
 
 function nodeAt(id: string): NodeInstance {
@@ -55,7 +67,7 @@ describe("useCanvasShortcuts", () => {
 
   it("ignores every edit shortcut in read-only mode", () => {
     store.getState().seedGraph(seeded());
-    store.getState().addNode({ id: "act", version: 1 } as never, { x: 5, y: 5 });
+    insertAt(5, 5);
     const { handle } = handlerFor(true);
     handle(keyEvent({ key: "z", ctrlKey: true }));
     expect(store.getState().graph?.nodes).toHaveLength(2);
@@ -63,7 +75,7 @@ describe("useCanvasShortcuts", () => {
 
   it("undoes on Ctrl+Z and redoes on Ctrl+Shift+Z or Ctrl+Y", () => {
     store.getState().seedGraph(seeded());
-    store.getState().addNode({ id: "act", version: 1 } as never, { x: 5, y: 5 });
+    insertAt(5, 5);
     const { handle } = handlerFor(false);
 
     handle(keyEvent({ key: "z", ctrlKey: true }));

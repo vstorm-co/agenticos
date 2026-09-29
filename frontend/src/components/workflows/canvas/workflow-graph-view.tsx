@@ -19,7 +19,9 @@ import {
   toFlowNodes,
   type WorkflowFlowEdge,
 } from "./graph-adapter";
+import { NODE_HEIGHT, NODE_WIDTH, withLiveScopes } from "./insertion";
 import { scopedGraph } from "./scope-view";
+import { useInsertNode } from "./use-insert-node";
 import { useCanvasShortcuts } from "./use-canvas-shortcuts";
 import { edgeTypes } from "./workflow-edge";
 import { nodeTypes } from "./workflow-node";
@@ -35,8 +37,8 @@ interface WorkflowGraphViewProps {
   readOnly: boolean;
 }
 
-/** Frame a graph close enough to read: below 0.8 a node's text stops being legible. */
-const FIT_VIEW = { padding: 0.2, minZoom: 0.8, maxZoom: 1 };
+/** Frame the whole graph, but no smaller than a node's text stays legible at. */
+const FIT_VIEW = { padding: 0.2, minZoom: 0.55, maxZoom: 1 };
 /** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
 const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
 
@@ -67,10 +69,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
   const connectNodes = useWorkflowEditorStore((state) => state.connectNodes);
-  const addNode = useWorkflowEditorStore((state) => state.addNode);
   const selection = useWorkflowEditorStore((state) => state.selection);
+  const revealNodeId = useWorkflowEditorStore((state) => state.revealNodeId);
+  const clearReveal = useWorkflowEditorStore((state) => state.clearReveal);
+  const insert = useInsertNode(catalog);
 
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, getZoom, flowToScreenPosition } = useReactFlow();
 
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
   const regionRef = useRef<HTMLElement>(null);
@@ -79,10 +83,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   // The store holds the whole flat graph; the canvas draws only the current
   // `foreach` scope's slice of it. Filtering here (not in the store) keeps the
   // scope switch display-only — the graph, autosave, undo and publish never see it.
-  const activeGraph = useMemo(
-    () => scopedGraph(graph ?? EMPTY_GRAPH, scopePath),
-    [graph, scopePath],
-  );
+  // The loop bodies are derived from the wires as they are now: the ones the
+  // draft was loaded with go stale the moment a step is wired into a body.
+  const activeGraph = useMemo(() => {
+    const whole = graph ?? EMPTY_GRAPH;
+    return scopedGraph(withLiveScopes(whole, definitionsByNode(whole, catalogMap)), scopePath);
+  }, [graph, scopePath, catalogMap]);
   const definitions = useMemo(
     () => definitionsByNode(activeGraph, catalogMap),
     [activeGraph, catalogMap],
@@ -156,10 +162,36 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       const definition = readNodeDragData(event.dataTransfer);
       if (!definition) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      addNode(definition, position);
+      insert(definition, { dropAt: position });
     },
-    [readOnly, screenToFlowPosition, addNode],
+    [readOnly, screenToFlowPosition, insert],
   );
+
+  // A step just added is brought into view once, framed with the step it hangs
+  // off so the flow it extends stays in sight - only when it landed outside the
+  // view, so a run of adds in view does not keep the canvas moving under the user.
+  useEffect(() => {
+    if (revealNodeId === null) return;
+    const node = graph?.nodes.find((item) => item.id === revealNodeId);
+    const region = regionRef.current;
+    clearReveal();
+    if (node === undefined || region === null) return;
+    const bounds = region.getBoundingClientRect();
+    const topLeft = flowToScreenPosition(node.layout);
+    const bottomRight = flowToScreenPosition({
+      x: node.layout.x + NODE_WIDTH,
+      y: node.layout.y + NODE_HEIGHT,
+    });
+    const inView =
+      topLeft.x >= bounds.left &&
+      topLeft.y >= bounds.top &&
+      bottomRight.x <= bounds.right &&
+      bottomRight.y <= bounds.bottom;
+    if (inView) return;
+    const upstream = graph?.edges.find((edge) => edge.target_node_id === node.id);
+    const framed = [{ id: node.id }, ...(upstream ? [{ id: upstream.source_node_id }] : [])];
+    void fitView({ ...FIT_VIEW, maxZoom: getZoom(), nodes: framed, duration: 300 });
+  }, [revealNodeId, graph, clearReveal, flowToScreenPosition, fitView, getZoom]);
 
   // A different scope is a different drawing: frame it, or entering a loop body
   // leaves the viewport where the outer graph was and the body off-screen.
@@ -173,9 +205,14 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
 
   const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
 
+  const insertAfter = useCallback(
+    (nodeId: string, portId: string, definition: NodeDefinition) =>
+      insert(definition, { from: { nodeId, portId } }),
+    [insert],
+  );
   const interaction = useMemo(
-    () => ({ readOnly, connectSource, beginConnect, completeConnect }),
-    [readOnly, connectSource, beginConnect, completeConnect],
+    () => ({ readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter }),
+    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter],
   );
 
   return (
@@ -222,6 +259,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           // The delete removed the focused element; hand focus back to the region.
           onDelete={focusRegion}
           colorMode={colorMode}
+          // A trackpad or a wheel moves the canvas; a pinch, or Ctrl/Cmd with the
+          // wheel, zooms it - the way a map or a design tool behaves.
+          panOnScroll
+          zoomOnScroll={false}
+          zoomOnPinch
+          zoomOnDoubleClick={false}
           fitView
           fitViewOptions={readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW}
           minZoom={0.3}

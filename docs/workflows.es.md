@@ -1,5 +1,5 @@
 ---
-source_sha: "04a80ddc4ae9"
+source_sha: "03af9f3de9f1"
 ---
 
 # Workflows { #workflows }
@@ -52,17 +52,28 @@ Cada nodo es una tarjeta con el icono del paso, su nombre y una línea de para q
 está configurado - una condición, una URL, el número de campos mapeados - y un paso
 con más de una salida nombra sus puertos: **true** y **false**, **Each item** y
 **Done**, y un puerto **Error** rojo en un paso que gestiona sus errores. El lienzo
-se desplaza y hace zoom, y sus controles están en la esquina - no hay minimapa.
+se mueve con el trackpad o la rueda del ratón, y un pellizco - o Ctrl o Cmd con la
+rueda - le hace zoom; sus controles están en la esquina y no hay minimapa.
 
 La paleta **Nodes** enumera los tipos de nodo que tu deployment ha registrado, en
 grupos que siguen cómo se lee un workflow - **Start and finish**, **Agents**,
 **Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - cada grupo
 plegable, cada fila con un icono, un nombre y su descripción. **Search nodes** filtra
-la lista. Añades un paso de dos maneras:
+la lista. Añades un paso de tres maneras:
 
-- **Arrastra** un nodo desde la paleta al lienzo — la ruta del puntero.
-- **Haz clic** en un nodo para añadirlo cerca del centro de la vista — la ruta de
-  teclado y táctil, que no necesita arrastrar.
+- **Haz clic** en un nodo de la paleta, o pulsa Enter sobre él: se añade después
+  del paso seleccionado, o al final del flujo a la vista, y se conecta a él cuando
+  sus puertos encajan - un flujo lineal es una serie de clics. Un paso de inicio
+  como **Input** va en cambio antes del inicio actual y pasa a serlo.
+- **+** junto a la salida de un paso abre una búsqueda de los pasos que pueden
+  venir después, y añade el elegido tras esa salida.
+- **Arrastra** un nodo desde la paleta para ponerlo justo donde lo sueltas, sin
+  conectar.
+
+Un paso nuevo nunca cae encima de otro, queda seleccionado para que se abran sus
+**Properties**, y el lienzo se desplaza hasta él cuando cae fuera de la vista.
+Dentro del cuerpo de un bucle cada paso nuevo se conecta al cuerpo, así que se
+queda en él.
 
 La paleta muestra lo que es válido donde estás. **Loop item** y **Loop result**
 solo aparecen dentro del cuerpo de un bucle, porque fuera de él no significan nada,

@@ -5723,6 +5723,8 @@
     "versionRestored": "Version {version} ist wieder der Entwurf",
     "versionRestoreConflict": "Der Entwurf hat sich beim Wiederherstellen geändert. Lösen Sie den Konflikt und stellen Sie dann erneut wieder her.",
     "paletteTitle": "Knoten",
+    "quickAdd": "Einen Schritt nach {name} ({port}) hinzufügen",
+    "quickAddSearch": "Schritte suchen",
     "paletteHint": "Ziehen Sie einen Knoten auf die Arbeitsfläche, um einen Schritt hinzuzufügen.",
     "paletteSearch": "Knoten suchen",
     "paletteEmpty": "Keine Knotentypen verfügbar.",

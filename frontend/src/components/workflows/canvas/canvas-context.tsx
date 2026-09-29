@@ -2,6 +2,8 @@
 
 import { createContext, useContext } from "react";
 
+import type { NodeDefinition } from "@/lib/workflows/types";
+
 /** One end of a keyboard-driven connection: a node and one of its ports. */
 export interface ConnectEndpoint {
   nodeId: string;
@@ -17,13 +19,18 @@ export interface ConnectEndpoint {
  * (`completeConnect`, given the pending source and its own endpoint), each a real
  * button rather than a handle only a mouse can reach. `connectSource` is the
  * pending source while a connection is in progress — non-null exactly when a
- * node may show its "complete" control.
+ * node may show its "complete" control. `insertAfter` is what a node's "+"
+ * beside an output calls: the next step, placed and wired in one change.
  */
 export interface CanvasInteraction {
   readOnly: boolean;
   connectSource: ConnectEndpoint | null;
   beginConnect: (endpoint: ConnectEndpoint) => void;
   completeConnect: (source: ConnectEndpoint, target: ConnectEndpoint) => void;
+  /** The node catalog a node's "+" offers the next step from. */
+  catalog: NodeDefinition[];
+  /** Add `definition` after `nodeId`'s `portId`, wired to it. */
+  insertAfter: (nodeId: string, portId: string, definition: NodeDefinition) => void;
 }
 
 const CanvasInteractionContext = createContext<CanvasInteraction | null>(null);

@@ -402,6 +402,39 @@ describe("WorkflowCanvas", () => {
     expect(store.getState().graph?.nodes.at(-1)?.definition_id).toBe("act");
   });
 
+  it("brings a step added out of view into view once, and leaves one in view where it is", async () => {
+    seedTwoActions();
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    const region = container.querySelector('[data-workflow-region="canvas"]') as HTMLElement;
+    const add = (id: string, x: number) =>
+      act(() =>
+        store.getState().insertNode({
+          node: {
+            id,
+            definition_id: "act",
+            definition_version: 1,
+            config: {},
+            layout: { x, y: 0 },
+          },
+          edge: null,
+          bindings: [],
+          becomesEntry: false,
+        }),
+      );
+
+    // A region the size of nothing: every step is out of view.
+    add("far", 5000);
+    await waitFor(() => expect(store.getState().revealNodeId).toBeNull());
+
+    region.getBoundingClientRect = () =>
+      ({ left: -1e6, top: -1e6, right: 1e6, bottom: 1e6 }) as DOMRect;
+    add("near", 10);
+    await waitFor(() => expect(store.getState().revealNodeId).toBeNull());
+    // A reveal for a step that is not in the graph is dropped.
+    act(() => store.setState({ revealNodeId: "gone" }));
+    await waitFor(() => expect(store.getState().revealNodeId).toBeNull());
+  });
+
   it("ignores a drop that carries no palette payload", () => {
     seedTwoActions();
     const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);

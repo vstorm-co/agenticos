@@ -32,12 +32,14 @@ function refuseConnect(): never {
   throw new Error("A read-only version preview has no connect handlers");
 }
 
-/** The interaction a preview supplies: read-only, with no live connect mode. */
+/** The interaction a preview supplies: read-only, with no live connect mode and nothing to add. */
 export const READ_ONLY_INTERACTION: CanvasInteraction = {
   readOnly: true,
   connectSource: null,
   beginConnect: refuseConnect,
   completeConnect: refuseConnect,
+  catalog: [],
+  insertAfter: refuseConnect,
 };
 
 interface VersionPreviewProps {

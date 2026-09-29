@@ -1,5 +1,5 @@
 ---
-source_sha: "04a80ddc4ae9"
+source_sha: "03af9f3de9f1"
 ---
 
 # Workflows { #workflows }
@@ -57,19 +57,30 @@ eine Karte mit dem Icon des Schritts, seinem Namen und einer Zeile dazu, wofür 
 eingerichtet ist - eine Bedingung, eine URL, die Zahl gemappter Felder -, und ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
 **false**, **Each item** und **Done** und einen roten **Error**-Port bei einem
-Schritt, der seine Fehler behandelt. Die Zeichenfläche lässt sich verschieben und
-zoomen, und ihre Bedienelemente sitzen in der Ecke - eine Minimap gibt es nicht.
+Schritt, der seine Fehler behandelt. Ein Trackpad oder das Mausrad verschiebt die
+Zeichenfläche, und ein Zusammenziehen der Finger - oder Strg bzw. Cmd mit dem Rad -
+zoomt sie; ihre Bedienelemente sitzen in der Ecke, eine Minimap gibt es nicht.
 
 Die **Nodes**-Palette listet die Knotentypen, die Ihr Deployment registriert hat,
 in Gruppen, die der Lesart eines Workflows folgen - **Start and finish**, **Agents**,
 **Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** -, jede
 Gruppe lässt sich einklappen, jede Zeile hat Icon, Namen und Beschreibung. **Search
-nodes** filtert die Liste. Sie fügen einen Schritt auf zwei Wegen hinzu:
+nodes** filtert die Liste. Sie fügen einen Schritt auf drei Wegen hinzu:
 
-- **Ziehen** Sie einen Knoten aus der Palette auf die Zeichenfläche — der Weg für
-  den Zeiger.
-- **Klicken** Sie einen Knoten, um ihn nahe der Mitte der Ansicht hinzuzufügen —
-  der Weg für Tastatur und Touch, der kein Ziehen braucht.
+- **Klicken** Sie einen Knoten in der Palette an oder drücken Sie darauf Enter: Er
+  wird nach dem ausgewählten Schritt oder am Ende des sichtbaren Ablaufs
+  hinzugefügt und mit ihm verbunden, wenn die Ports passen - ein gerader Ablauf ist
+  eine Folge von Klicks. Ein Startschritt wie **Input** kommt stattdessen vor den
+  aktuellen Start und wird selbst zum Start.
+- **+** neben dem Ausgang eines Schritts öffnet eine Suche der Schritte, die danach
+  kommen können, und fügt den gewählten nach diesem Ausgang hinzu.
+- **Ziehen** Sie einen Knoten aus der Palette, um ihn genau dort abzulegen, wo Sie
+  ihn fallen lassen, ohne Verbindung.
+
+Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, sodass sich seine
+**Properties** öffnen, und die Zeichenfläche scrollt zu ihm, wenn er außerhalb der
+Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den Körper
+verbunden und bleibt so darin.
 
 Die Palette zeigt, was dort gültig ist, wo Sie gerade sind. **Loop item** und
 **Loop result** erscheinen nur im Körper einer Schleife, weil sie außerhalb davon

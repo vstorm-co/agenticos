@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Building a workflow is a run of clicks.** Clicking a step in the palette
+  adds it after the selected step, or at the end of the flow in view, wired in
+  when the ports fit and clear of every other step; a starting step goes before
+  the current start and becomes it. A **+** beside each output searches the
+  steps that can come next and adds one there. The new step is selected and
+  scrolled into view, a trackpad or wheel pans the canvas while a pinch zooms,
+  and steps added inside a loop now show in its body at once instead of only
+  after a reload.
 - **A table can run a workflow for every record added to it.** A table's
   **Triggers** sheet sets one up: a published workflow, pinned to the version
   live at the time and run as the member who set it up, filters judged on the

@@ -2,10 +2,22 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
-import type { NodeDefinition, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
+import type { WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useWorkflowAutosave } from "./use-workflow-autosave";
+
+/** An edit to the working graph: one more unwired step at `(x, y)`. */
+function insertAt(x: number, y: number): string {
+  const id = crypto.randomUUID();
+  useWorkflowEditorStore.getState().insertNode({
+    node: { id, definition_id: "act", definition_version: 1, config: {}, layout: { x, y } },
+    edge: null,
+    bindings: [],
+    becomesEntry: false,
+  });
+  return id;
+}
 
 const GRAPH: WorkflowGraph = {
   entry_node_id: "n1",
@@ -20,22 +32,6 @@ const GRAPH: WorkflowGraph = {
   ],
   edges: [],
   bindings: [],
-  scopes: [],
-};
-
-const DEFINITION: NodeDefinition = {
-  id: "debug.echo",
-  version: 1,
-  name: "Echo",
-  category: "debug",
-  description: "",
-  kind: "action",
-  config_schema: null,
-  input_schema: null,
-  output_schema: null,
-  ports: [],
-  effect_kind: "pure",
-  retry_guarantee: "none",
   scopes: [],
 };
 
@@ -124,8 +120,8 @@ describe("useWorkflowAutosave", () => {
     renderHook(() => useWorkflowAutosave({ saveDraft, debounceMs: 20 }));
 
     act(() => {
-      useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 1, y: 1 });
-      useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 2, y: 2 });
+      insertAt(1, 1);
+      insertAt(2, 2);
     });
 
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1));
@@ -170,7 +166,7 @@ describe("useWorkflowAutosave", () => {
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1));
 
     // An edit lands mid-flight, so the resolved save must not clear the dirty flag.
-    act(() => useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 5, y: 5 }));
+    act(() => insertAt(5, 5));
     await act(async () => {
       gate.resolve(detail(1));
       await gate.promise;
@@ -202,7 +198,7 @@ describe("useWorkflowAutosave", () => {
     expect(result.current).toBe("conflict");
 
     // Paused: a further edit does not dispatch while the conflict stands.
-    act(() => useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 1, y: 1 }));
+    act(() => insertAt(1, 1));
     await new Promise((r) => setTimeout(r, 20));
     expect(saveDraft).toHaveBeenCalledTimes(1);
   });
@@ -220,7 +216,7 @@ describe("useWorkflowAutosave", () => {
     act(() => useWorkflowEditorStore.getState().markDirty());
     await waitFor(() => expect(result.current).toBe("error"));
 
-    act(() => useWorkflowEditorStore.getState().addNode(DEFINITION, { x: 1, y: 1 }));
+    act(() => insertAt(1, 1));
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));
   });
 

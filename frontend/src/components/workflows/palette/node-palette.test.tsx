@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NodeDefinition } from "@/lib/workflows/types";
-import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { NODE_DRAG_MIME } from "./drag";
 import { NodePalette } from "./node-palette";
@@ -57,18 +57,16 @@ const WAIT = def({
 
 const CATALOG = [FETCH, BRANCH, FOREACH, WAIT];
 
-const addNode = vi.fn(() => "new-node-id");
+const insertNode = vi.fn();
 
-/**
- * Seed the store with a scope path and the working-graph `addNode` the canvas
- * leaf owns. `addNode` is not on the store's published type on this branch, so
- * the seed is cast the same way the palette's `useAddNode` reads it.
- */
+/** Seed the store with a scope path, an empty working graph and a recorded `insertNode`. */
 function seedStore(scopePath: string[] = []) {
   useWorkflowEditorStore.setState({
     scopePath,
-    addNode,
-  } as unknown as Partial<WorkflowEditorState>);
+    graph: { entry_node_id: "", nodes: [], edges: [], bindings: [], scopes: [] },
+    selection: { nodeIds: [], edgeIds: [] },
+    insertNode,
+  });
 }
 
 beforeEach(() => {
@@ -144,14 +142,19 @@ describe("NodePalette", () => {
     expect(screen.getByText("No nodes match your search.")).toBeVisible();
   });
 
-  it("adds a node on click, staggering each add off a fixed anchor", async () => {
+  it("adds a node on click, planned by the canvas's insertion rules", async () => {
     render(<NodePalette nodes={CATALOG} />);
 
     await userEvent.click(addButton("Fetch"));
-    expect(addNode).toHaveBeenNthCalledWith(1, FETCH, { x: 120, y: 120 });
 
-    await userEvent.click(addButton("Wait"));
-    expect(addNode).toHaveBeenNthCalledWith(2, WAIT, { x: 152, y: 152 });
+    // The first step of an empty graph: at the origin, the entry, wired to nothing.
+    expect(insertNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        node: expect.objectContaining({ definition_id: FETCH.id, layout: { x: 0, y: 0 } }),
+        edge: null,
+        becomesEntry: true,
+      }),
+    );
   });
 
   it("writes the definition onto a drag for the canvas to drop", () => {

@@ -3509,6 +3509,8 @@
     "versionRestored": "Wersja {version} jest znów wersją roboczą",
     "versionRestoreConflict": "Wersja robocza zmieniła się podczas przywracania. Rozwiąż konflikt, a potem przywróć ponownie.",
     "paletteTitle": "Węzły",
+    "quickAdd": "Dodaj krok po {name} ({port})",
+    "quickAddSearch": "Szukaj kroków",
     "paletteHint": "Przeciągnij węzeł na płótno, żeby dodać krok.",
     "paletteSearch": "Szukaj węzłów",
     "paletteEmpty": "Nie ma dostępnych typów węzłów.",

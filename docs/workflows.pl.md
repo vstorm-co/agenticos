@@ -1,5 +1,5 @@
 ---
-source_sha: "04a80ddc4ae9"
+source_sha: "03af9f3de9f1"
 ---
 
 # Workflows { #workflows }
@@ -50,18 +50,28 @@ Każdy węzeł to karta z
 ikoną kroku, jego nazwą i jedną linią tego, do czego jest ustawiony - warunek, URL,
 liczba mapowanych pól - a krok z więcej niż jednym wyjściem wymienia porty z nazwy:
 **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** na kroku,
-który obsługuje swoje błędy. Kanwę można przesuwać i przybliżać, a jej elementy
-sterujące są w rogu - nie ma minimapy.
+który obsługuje swoje błędy. Gładzik albo kółko myszy przesuwa kanwę, a
+szczypanie - albo Ctrl lub Cmd z kółkiem - ją przybliża; elementy sterujące są w
+rogu i nie ma minimapy.
 
 Paleta **Nodes** wymienia typy węzłów, które zarejestrowała Twoja deployment, w
 grupach ułożonych tak, jak czyta się workflow - **Start and finish**, **Agents**,
 **Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - każdą grupę
 da się zwinąć, a każdy wiersz ma ikonę, nazwę i opis. **Search nodes** filtruje
-listę. Krok dodajesz na dwa sposoby:
+listę. Krok dodajesz na trzy sposoby:
 
-- **Przeciągnij** węzeł z palety na kanwę — droga dla wskaźnika.
-- **Kliknij** węzeł, aby dodać go blisko środka widoku — droga dla klawiatury i
-  dotyku, która nie wymaga przeciągania.
+- **Kliknij** węzeł w palecie albo naciśnij na nim Enter: zostaje dodany po
+  zaznaczonym kroku albo na końcu widocznego flow i połączony z nim, gdy porty
+  pasują - prosty flow to seria kliknięć. Krok startowy, taki jak **Input**, trafia
+  za to przed obecny start i sam nim zostaje.
+- **+** obok wyjścia kroku otwiera wyszukiwarkę kroków, które mogą przyjść dalej,
+  i dodaje wybrany po tym wyjściu.
+- **Przeciągnij** węzeł z palety, żeby postawić go dokładnie tam, gdzie go
+  upuścisz, bez połączeń.
+
+Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, więc otwierają się jego
+**Properties**, a kanwa przewija się do niego, gdy wypadnie poza widok. Wewnątrz
+ciała pętli każdy nowy krok zostaje do niego podłączony, więc w nim zostaje.
 
 Paleta pokazuje, co jest ważne tam, gdzie jesteś. **Loop item** i **Loop result**
 pojawiają się tylko wewnątrz ciała pętli, bo poza nim nic nie znaczą, a pętla jest

@@ -49,18 +49,27 @@ Each node is a card with the step's icon, its name and one line of what
 it is set up to do - a condition, a URL, the number of mapped fields - and a step
 with more than one way out lists its ports by name: **true** and **false**, **Each
 item** and **Done**, and a red **Error** port on a step that handles its errors.
-The canvas pans and zooms, and its controls sit in the corner - there is no
-minimap.
+A trackpad or a mouse wheel moves the canvas, and a pinch - or Ctrl or Cmd with
+the wheel - zooms it; its controls sit in the corner and there is no minimap.
 
 The **Nodes** palette lists the node types your deployment has registered, in
 groups that follow how a workflow reads - **Start and finish**, **Agents**,
 **Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - each group
 folding away, each row with an icon, a name and its description. **Search nodes**
-filters the list. You add a step two ways:
+filters the list. You add a step three ways:
 
-- **Drag** a node from the palette onto the canvas — the pointer path.
-- **Click** a node to add it near the center of the view — the keyboard and
-  touch path, which needs no drag.
+- **Click** a node in the palette, or press Enter on it: it is added after the
+  selected step, or at the end of the flow in view, and wired to it when their
+  ports fit - so a straight flow is a run of clicks. A starting step such as
+  **Input** goes before the current start instead and becomes it.
+- **+** beside a step's output opens a search of the steps that can come next,
+  and adds the one you pick after that output.
+- **Drag** a node from the palette to put it exactly where you drop it, wired to
+  nothing.
+
+A new step never lands on top of another, is selected so its **Properties** open,
+and the canvas scrolls to it when it falls outside the view. Inside a loop's body
+every new step is wired into the body, so it stays there.
 
 The palette shows what is valid where you are. **Loop item** and **Loop result**
 appear only inside a loop's body, since they mean nothing outside one, and a loop

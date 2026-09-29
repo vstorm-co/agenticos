@@ -5863,6 +5863,8 @@
     "versionRestored": "Version {version} is the draft again",
     "versionRestoreConflict": "The draft changed while restoring. Resolve the conflict, then restore again.",
     "paletteTitle": "Nodes",
+    "quickAdd": "Add a step after {name} ({port})",
+    "quickAddSearch": "Search steps",
     "paletteHint": "Drag a node onto the canvas to add a step.",
     "paletteSearch": "Search nodes",
     "paletteEmpty": "No node types are available.",

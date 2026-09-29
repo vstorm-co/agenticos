@@ -13,10 +13,8 @@ import { create } from "zustand";
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
 import type {
   Binding,
-  NodeDefinition,
   NodeInstance,
   NodePolicy,
-  NodePosition,
   ScopeBoundary,
   Uuid,
   WorkflowEdge,
@@ -39,7 +37,7 @@ import type {
  * without redefining the store's public shape:
  *
  * - **Working graph** (`#1787` canvas leaf) is seeded by the editor page from
- *   `WorkflowDetail.draft_graph` (`seedGraph`) and mutated through `addNode`,
+ *   `WorkflowDetail.draft_graph` (`seedGraph`) and mutated through `insertNode`,
  *   `connectNodes`, `applyNodeChanges`/`applyEdgeChanges`, `deleteSelection`,
  *   `updateNodeConfig`, `upsertBinding`/`removeBinding` and `insertSubgraph`.
  *   Every mutation marks the draft dirty and records a history snapshot.
@@ -93,6 +91,19 @@ export interface WorkflowClipboard {
 }
 
 /** Whether undo and redo can move — the history leaf reports this; the toolbar reads it. */
+/**
+ * A new step and everything that comes with it, applied as one change: the node,
+ * the wire into it, the bindings that wire implies, and whether it becomes the
+ * workflow's start. One change is one undo - adding a step and wiring it is one
+ * thing the user did.
+ */
+export interface NodeInsertion {
+  node: NodeInstance;
+  edge: WorkflowEdge | null;
+  bindings: Binding[];
+  becomesEntry: boolean;
+}
+
 export interface HistoryFlags {
   canUndo: boolean;
   canRedo: boolean;
@@ -137,6 +148,8 @@ export interface WorkflowEditorState {
   /** The foreach scope, root-to-current (empty at the root scope). */
   scopePath: Uuid[];
   selection: EditorSelection;
+  /** A node just added, for the canvas to scroll to once; null when there is none. */
+  revealNodeId: Uuid | null;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -151,8 +164,10 @@ export interface WorkflowEditorState {
   applyNodeChanges: (changes: NodeChange[]) => void;
   /** Apply a batch of `@xyflow/react` edge changes (remove) to the graph. */
   applyEdgeChanges: (changes: EdgeChange[]) => void;
-  /** Insert a node for `definition` at `position`, returning its new id. */
-  addNode: (definition: NodeDefinition, position: NodePosition) => Uuid;
+  /** Apply a planned insertion, select the new step and ask the canvas to bring it into view. */
+  insertNode: (insertion: NodeInsertion) => void;
+  /** The canvas has brought `revealNodeId` into view. */
+  clearReveal: () => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
    * implies, as one edit - a single undo takes back both.
@@ -237,6 +252,7 @@ const CLEARED = {
   graph: null as WorkflowGraph | null,
   scopePath: [] as Uuid[],
   selection: EMPTY_SELECTION,
+  revealNodeId: null,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
@@ -383,20 +399,19 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
     },
 
-    addNode: (definition, position) => {
+    insertNode: ({ node, edge, bindings, becomesEntry }) => {
       const base = get().graph ?? EMPTY_GRAPH;
-      const id = crypto.randomUUID();
-      const node: NodeInstance = {
-        id,
-        definition_id: definition.id,
-        definition_version: definition.version,
-        config: {},
-        layout: position,
-      };
-      const entry_node_id = base.nodes.length === 0 ? id : base.entry_node_id;
-      commit({ ...base, entry_node_id, nodes: [...base.nodes, node] });
-      return id;
+      commit({
+        ...base,
+        entry_node_id: becomesEntry ? node.id : base.entry_node_id,
+        nodes: [...base.nodes, node],
+        edges: edge === null ? base.edges : [...base.edges, edge],
+        bindings: [...base.bindings, ...bindings],
+      });
+      set({ selection: { nodeIds: [node.id], edgeIds: [] }, revealNodeId: node.id });
     },
+
+    clearReveal: () => set({ revealNodeId: null }),
 
     connectNodes: (connection, bindings = []) => {
       const { graph } = get();

@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { ownsAScope } from "@/components/workflows/palette";
 import { routesErrors } from "@/lib/workflows/ports";
-import { nodeDisplayName, type NodeInstance, type Port, shortNodeId } from "@/lib/workflows/types";
+import { nodeDisplayName, type NodeInstance, type Port } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -16,6 +16,7 @@ import { NodeRunStatusLabel } from "@/components/workflows/runs/run-status";
 import { useCanvasInteraction } from "./canvas-context";
 import { useIsRunView, useNodeRunSummary } from "./run-overlay";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
+import { QuickAdd } from "./quick-add";
 
 type Translate = ReturnType<typeof useTranslations<"workflows">>;
 
@@ -73,8 +74,9 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
  */
 export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
-  const { instance, definition, readOnly } = data;
-  const { connectSource, beginConnect, completeConnect } = useCanvasInteraction();
+  const { instance, definition, readOnly, bodySize } = data;
+  const { connectSource, beginConnect, completeConnect, catalog, insertAfter } =
+    useCanvasInteraction();
   const enterScope = useWorkflowEditorStore((state) => state.enterScope);
   const graph = useWorkflowEditorStore((state) => state.graph);
 
@@ -89,11 +91,6 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const summary = nodeSummary(instance, t);
   // A single ordinary output needs no label: the wire leaving the card says it all.
   const labelledOutputs = outputs.length > 1 || outputs.some(isErrorPort);
-  const bodySize =
-    scopeOwner && graph !== null
-      ? (graph.scopes.find((scope) => scope.scope_node_id === instance.id)?.body_node_ids.length ??
-        0)
-      : 0;
   const policy = instance.policy ?? null;
   const run = useNodeRunSummary(instance.id);
   const runView = useIsRunView();
@@ -119,6 +116,27 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
       </button>
     );
 
+  // The "+" beside an output adds the next step there. Shown whenever nothing
+  // leaves the port yet - the natural next move - and on hover otherwise.
+  const usedPorts = new Set(
+    (graph?.edges ?? [])
+      .filter((edge) => edge.source_node_id === instance.id)
+      .map((edge) => edge.source_port),
+  );
+  const quickAdd = (port: Port) =>
+    !readOnly &&
+    !connecting && (
+      <span className="absolute top-1/2 -right-8 -translate-y-1/2">
+        <QuickAdd
+          catalog={catalog}
+          nodeName={name}
+          portLabel={port.label}
+          prominent={!usedPorts.has(port.id)}
+          onPick={(next) => insertAfter(instance.id, port.id, next)}
+        />
+      </span>
+    );
+
   return (
     <div
       data-node-id={instance.id}
@@ -140,7 +158,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
           data-port-id={port.id}
           data-port-variant="input"
           className={cn(
-            "!border-background !bg-muted-foreground !size-2.5 !border-2",
+            "!border-background !bg-muted-foreground !size-3 !border-2",
             readOnly && "!pointer-events-none",
           )}
         />
@@ -161,9 +179,6 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
             <span className="flex shrink-0 items-center gap-1">
               {!labelledOutputs &&
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
-              <span className="text-muted-foreground font-mono text-[0.625rem]">
-                {shortNodeId(instance.id)}
-              </span>
             </span>
           </div>
           {(summary ?? definition?.description) && (
@@ -235,6 +250,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
             >
               {connectButton(port)}
               <span>{port.label}</span>
+              {quickAdd(port)}
               <Handle
                 id={port.id}
                 type="source"
@@ -243,7 +259,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 data-port-id={port.id}
                 data-port-variant={isErrorPort(port) ? "error" : "output"}
                 className={cn(
-                  "!border-background !size-2.5 !border-2",
+                  "!border-background !size-3 !border-2",
                   isErrorPort(port) ? "!bg-destructive" : "!bg-primary",
                   readOnly && "!pointer-events-none",
                 )}
@@ -253,19 +269,21 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
         </ul>
       ) : (
         outputs.map((port) => (
-          <Handle
-            key={port.id}
-            id={port.id}
-            type="source"
-            position={Position.Right}
-            isConnectable={!readOnly}
-            data-port-id={port.id}
-            data-port-variant="output"
-            className={cn(
-              "!border-background !bg-primary !size-2.5 !border-2",
-              readOnly && "!pointer-events-none",
-            )}
-          />
+          <span key={port.id}>
+            {quickAdd(port)}
+            <Handle
+              id={port.id}
+              type="source"
+              position={Position.Right}
+              isConnectable={!readOnly}
+              data-port-id={port.id}
+              data-port-variant="output"
+              className={cn(
+                "!border-background !bg-primary !size-3 !border-2",
+                readOnly && "!pointer-events-none",
+              )}
+            />
+          </span>
         ))
       )}
 

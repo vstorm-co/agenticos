@@ -22,6 +22,8 @@ describe("useCanvasInteraction", () => {
       connectSource: null,
       beginConnect: vi.fn(),
       completeConnect: vi.fn(),
+      catalog: [],
+      insertAfter: vi.fn(),
     };
     const wrapper = ({ children }: { children: ReactNode }) => (
       <CanvasInteractionProvider value={value}>{children}</CanvasInteractionProvider>

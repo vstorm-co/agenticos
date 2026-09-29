@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
@@ -153,6 +154,15 @@ describe("a node card", () => {
 
   it("opens a loop body, counting its steps, without selecting the loop", () => {
     seed([instance("f", "control.foreach"), instance("m", "data.map")], {
+      edges: [
+        {
+          id: "e",
+          source_node_id: "f",
+          source_port: "body",
+          target_node_id: "m",
+          target_port: "in",
+        },
+      ],
       scopes: [
         {
           scope_node_id: "f",
@@ -170,6 +180,38 @@ describe("a node card", () => {
     );
     expect(store.getState().scopePath).toEqual(["f"]);
     expect(store.getState().selection.nodeIds).toEqual([]);
+  });
+});
+
+describe("a node card's +", () => {
+  it("adds the chosen step after that output, wired to it, and selects it", async () => {
+    seed([instance("i", "logic.if")]);
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    // xyflow keeps an unmeasured node out of the accessibility tree in jsdom.
+    await userEvent.click(
+      container.querySelector('button[aria-label="Add a step after If (false)"]') as HTMLElement,
+    );
+    await userEvent.click(await screen.findByText("Map"));
+
+    const graph = store.getState().graph;
+    expect(graph?.nodes.map((node) => node.definition_id)).toEqual(["logic.if", "data.map"]);
+    expect(graph?.edges).toEqual([
+      expect.objectContaining({ source_node_id: "i", source_port: "false" }),
+    ]);
+    expect(store.getState().selection.nodeIds).toEqual([graph?.nodes[1]?.id]);
+  });
+
+  it("sits beside a single output too, and is not offered on a read-only canvas", () => {
+    seed([instance("m", "data.map")]);
+    const first = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    expect(
+      first.container.querySelector('button[aria-label="Add a step after Map (out)"]'),
+    ).toBeTruthy();
+    first.unmount();
+
+    const readOnly = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />);
+    expect(readOnly.container.querySelector('button[aria-label^="Add a step after"]')).toBeNull();
   });
 });
 

@@ -65,6 +65,8 @@ export type WorkflowNodeData = {
   instance: NodeInstance;
   definition: NodeDefinition | null;
   readOnly: boolean;
+  /** How many steps a loop's body holds, from the wires as they are now; 0 for any other step. */
+  bodySize: number;
 };
 
 export type WorkflowFlowNode = Node<WorkflowNodeData>;
@@ -98,6 +100,9 @@ export function toFlowNodes(
   readOnly: boolean,
   selectedIds: ReadonlySet<string> = NO_IDS,
 ): WorkflowFlowNode[] {
+  const bodySizes = new Map(
+    graph.scopes.map((scope) => [scope.scope_node_id, scope.body_node_ids.length] as const),
+  );
   return graph.nodes.map((instance) => {
     const definition = definitions.get(instance.id) ?? null;
     return {
@@ -105,7 +110,7 @@ export function toFlowNodes(
       type: definition?.kind ?? "action",
       position: instance.layout,
       selected: selectedIds.has(instance.id),
-      data: { instance, definition, readOnly },
+      data: { instance, definition, readOnly, bodySize: bodySizes.get(instance.id) ?? 0 },
     };
   });
 }
