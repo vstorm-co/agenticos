@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.virtual_table import (
+    RecordBatchResult,
     RecordCount,
     RecordExists,
     RecordList,
@@ -41,6 +42,7 @@ from app.services.virtual_tables.exceptions import (
     SchemaDependencyError,
     TableArchivedError,
 )
+from app.services.virtual_tables.records import RecordExport
 
 pytestmark = pytest.mark.anyio
 
@@ -49,6 +51,14 @@ _TABLE = uuid.uuid4()
 _RECORD = uuid.uuid4()
 
 OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
+
+
+async def _export(*_args: Any) -> RecordExport:
+    async def lines() -> AsyncIterator[str]:
+        yield "Name\r\n"
+        yield "Ada\r\n"
+
+    return RecordExport(filename="Orders.csv", lines=lines())
 
 
 def _record(revision: int = 1) -> RecordRead:
@@ -88,6 +98,8 @@ def service() -> MagicMock:
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
+        create_records=AsyncMock(return_value=RecordBatchResult(created=1, failed=[])),
+        export_records=AsyncMock(side_effect=_export),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
         get_record_by_external_id=AsyncMock(return_value=_record()),
@@ -110,6 +122,7 @@ def client(mock_redis: MagicMock, service: MagicMock) -> Iterator[OpenClient]:
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
     app.dependency_overrides[deps.get_virtual_table_service] = lambda: service
+    app.dependency_overrides[deps.get_streaming_virtual_table_service] = lambda: service
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:
@@ -266,6 +279,30 @@ async def test_listing_and_querying_records_hand_the_service_one_bounded_query(c
         10,
     )
     assert searched.filters[0].op == "gte" and searched.skip == 5
+
+
+async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, service):
+    async with client() as http:
+        written = await http.post(_records("/batch"), json={"records": [{"values": {}}]})
+        empty = await http.post(_records("/batch"), json={"records": []})
+        too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
+
+    assert written.status_code == 200
+    assert written.json() == {"created": 1, "failed": []}
+    assert (empty.status_code, too_many.status_code) == (422, 422)
+    assert len(service.create_records.await_args.args[2].records) == 1
+
+
+async def test_an_export_answers_a_csv_file_named_after_its_table(client, service):
+    column_id = str(uuid.uuid4())
+    async with client() as http:
+        exported = await http.post(_records("/export"), json={"columns": [column_id]})
+
+    assert exported.status_code == 200
+    assert exported.headers["content-type"] == "text/csv; charset=utf-8"
+    assert exported.headers["content-disposition"] == 'attachment; filename="Orders.csv"'
+    assert exported.text == "Name\r\nAda\r\n"
+    assert [str(c) for c in service.export_records.await_args.args[2].columns] == [column_id]
 
 
 async def test_a_count_hands_the_service_the_filters_and_search_and_nothing_else(client, service):
@@ -617,6 +654,7 @@ async def test_reads_are_not_counted_and_a_refused_permission_does_not_spend_the
             await http.get(_records()),
             await http.post(_records("/query"), json={}),
             await http.post(_records("/count"), json={}),
+            await http.post(_records("/export"), json={}),
         ]
         _as(uuid.uuid4(), role=OrgRoleName.VIEWER)
         refused = [await http.post(_url(), json={"name": "Orders"}) for _ in range(4)]
@@ -706,6 +744,7 @@ def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_someth
     writes = {key for key in routes if key[1] in {"post", "patch", "put", "delete"}} - {
         (f"{prefix}/{{table_id}}/records/query", "post"),
         (f"{prefix}/{{table_id}}/records/count", "post"),
+        (f"{prefix}/{{table_id}}/records/export", "post"),
     }
     storing = {
         (prefix, "post"),
@@ -717,3 +756,9 @@ def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_someth
     assert {k for k, op in routes.items() if "429" in op["responses"]} == writes
     assert {k for k, op in routes.items() if "402" in op["responses"]} == storing
     assert storing <= writes
+
+
+def test_the_export_is_served_by_a_table_service_on_the_session_it_is_given():
+    session = MagicMock()
+
+    assert deps.get_streaming_virtual_table_service(session).db is session

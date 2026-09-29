@@ -44,18 +44,28 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
+from fastapi.responses import StreamingResponse
 
-from app.api.deps import Auth, VirtualTableSvc, limit_table_write, require
+from app.api.deps import (
+    Auth,
+    StreamingVirtualTableSvc,
+    VirtualTableSvc,
+    limit_table_write,
+    require,
+)
 from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
 from app.schemas.virtual_table import (
     ErrorEnvelope,
     OperationKey,
+    RecordBatchCreate,
+    RecordBatchResult,
     RecordCount,
     RecordCountQuery,
     RecordCreate,
     RecordExists,
+    RecordExportQuery,
     RecordList,
     RecordQuery,
     RecordRead,
@@ -124,6 +134,9 @@ _LIMITED: dict[int | str, dict[str, Any]] = {
 # A write that stores something can also hit a quota. One that only removes or renames
 # cannot, so it advertises the rate limit and not the quota.
 _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {**_REFUSALS, **_LIMITED}
+_TOO_LARGE: dict[int | str, dict[str, Any]] = {
+    413: {"model": ErrorEnvelope, "description": "More records match than one export writes"},
+}
 _STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
 
 _GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
@@ -323,6 +336,43 @@ async def create_record(
     """Create a record at revision 1."""
     written = await service.create_record(ctx, table_id, data, operation_key=idempotency_key)
     return answer(response, written)
+
+
+@router.post(
+    "/{table_id}/records/batch",
+    response_model=RecordBatchResult,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def create_records(
+    table_id: UUID, data: RecordBatchCreate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Create up to 200 records, each on its own - what a CSV import sends.
+
+    A record that is refused is listed in `failed` with the code a single create
+    would answer (`INVALID_RECORD`, `ALREADY_EXISTS`, `QUOTA_EXCEEDED`...), and the
+    others are written. The whole batch counts once against the write rate limit.
+    """
+    return await service.create_records(ctx, table_id, data)
+
+
+@router.post("/{table_id}/records/export", responses={**_REFUSALS, **_TOO_LARGE})
+async def export_records(
+    table_id: UUID, query: RecordExportQuery, service: StreamingVirtualTableSvc, ctx: Auth
+) -> Any:
+    """The records a query matches, in its order, as a CSV file headed by column labels.
+
+    A select cell is written as its option's label, several as `a; b`, a yes/no as
+    `true` or `false`, and an empty cell as nothing. A text cell a spreadsheet would
+    read as a formula is written with a leading `'`. More than 100,000 matching
+    records are refused with `EXPORT_TOO_LARGE` (413): narrow them with a filter.
+    """
+    export = await service.export_records(ctx, table_id, query)
+    return StreamingResponse(
+        export.lines,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{export.filename}"'},
+    )
 
 
 @router.get("/{table_id}/records/{record_id}", response_model=RecordRead, responses=_REFUSALS)

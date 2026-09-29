@@ -901,6 +901,8 @@ RESOURCE_AWARE_SERVICES = (
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
+    # The same service on the session a CSV export streams from.
+    deps.get_streaming_virtual_table_service,
     # A workflow is a shared resource shaped the same way: who may read, edit the
     # draft or publish it is its grants' answer, resolved inside the service.
     # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.

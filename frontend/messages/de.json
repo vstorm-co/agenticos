@@ -4388,7 +4388,9 @@
         "loadingMore": "Weitere Datensätze werden geladen…",
         "truncated": "Das Raster scrollt durch die ersten 10.000 Datensätze. Filtern oder suchen Sie, um den Rest zu erreichen.",
         "recordCount": "{count, plural, one {# Datensatz} other {# Datensätze}}",
-        "recordCountCapped": "{count, number}+ Datensätze"
+        "recordCountCapped": "{count, number}+ Datensätze",
+        "export": "Exportieren",
+        "import": "Importieren"
       },
       "views": {
         "created": "Ansicht gespeichert",
@@ -6162,6 +6164,35 @@
       "add": "Spalte hinzufügen",
       "hiddenCount": "{count, plural, one {# ausgeblendet} other {# ausgeblendet}}",
       "showAll": "Alle Spalten anzeigen"
+    },
+    "import": {
+      "title": "Datensätze aus CSV importieren",
+      "description": "Jede Zeile der Datei wird ein Datensatz. Legen Sie fest, in welche Spalte jede Spalte der Datei geht; ein Tabellen-Trigger startet für jeden hinzugefügten Datensatz.",
+      "choose": "CSV-Datei auswählen",
+      "chooseHint": "Die erste Zeile benennt die Spalten. Komma- oder semikolongetrennt, UTF-8.",
+      "empty": "Diese Datei hat keine Zeilen unter der Kopfzeile.",
+      "found": "{count, plural, one {# Zeile} other {# Zeilen}} in {file}.",
+      "unnamed": "Unbenannte Spalte",
+      "mapTo": "Wohin {header} geht",
+      "skip": "Nicht importieren",
+      "externalId": "Externe ID",
+      "back": "Zurück",
+      "import": "{count, plural, one {# Zeile importieren} other {# Zeilen importieren}}",
+      "progress": "{done} von {total} gesendet",
+      "created": "{count, plural, =0 {Es wurden keine Datensätze hinzugefügt.} one {# Datensatz hinzugefügt.} other {# Datensätze hinzugefügt.}}",
+      "failed": "{count, plural, one {# Zeile wurde nicht importiert:} other {# Zeilen wurden nicht importiert:}}",
+      "line": "Zeile {line}:",
+      "more": "Und {count} weitere.",
+      "close": "Schließen",
+      "cellProblem": "{column}: {problem}",
+      "problem": {
+        "number": "keine Zahl",
+        "integer": "keine ganze Zahl",
+        "boolean": "weder wahr noch falsch",
+        "date": "kein Datum im Format JJJJ-MM-TT",
+        "datetime": "kein Datum mit Uhrzeit",
+        "option": "keine der Optionen der Spalte"
+      }
     }
   },
   "groups": {

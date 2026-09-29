@@ -19,6 +19,7 @@ from app.core.exceptions import AlreadyExistsError
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.virtual_table import VirtualTableRecord
 from app.schemas.virtual_table import (
+    RecordBatchCreate,
     RecordCreate,
     RecordUpdate,
     RecordUpsert,
@@ -508,3 +509,44 @@ async def test_a_duplicate_id_on_a_full_table_is_already_exists_not_a_quota_refu
             await _call(factory, lambda service, new=new: service.create_record(ctx, table.id, new))
     assert len(await _refusals(factory, ctx)) == 2
     assert await _records(factory) == 2
+
+
+async def test_a_batch_refuses_a_record_too_large_alone_and_the_rest_once_the_table_is_full(
+    engine: AsyncEngine, monkeypatch
+):
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORDS_PER_TABLE", 2)
+    monkeypatch.setattr(settings, "TABLES_MAX_RECORD_BYTES", 200)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ctx = await _tenant(factory)
+    table = await _table(factory, ctx)
+    note = str(table.columns[0].id)
+
+    result = await _call(
+        factory,
+        lambda service: service.create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(
+                records=[
+                    RecordCreate(values={note: SECRET_TEXT * 10}),
+                    RecordCreate(values={note: "one"}),
+                    RecordCreate(values={note: "two"}),
+                    RecordCreate(values={note: "three"}),
+                    RecordCreate(values={note: "four"}),
+                ]
+            ),
+        ),
+    )
+
+    assert result.created == 2
+    assert [(failure.index, failure.details["quota"]) for failure in result.failed] == [
+        (0, "record_bytes"),
+        (3, "records"),
+        (4, "records"),
+    ]
+    assert await _records(factory) == 2
+    # The full table is audited once, not once for every record the batch still held.
+    assert [entry["quota"] for entry in await _refusals(factory, ctx)] == [
+        "record_bytes",
+        "records",
+    ]

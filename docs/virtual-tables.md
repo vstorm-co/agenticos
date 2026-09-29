@@ -146,6 +146,23 @@ schema version the Columns dialog would write, and an archive a view or trigger 
 on is refused with its name. The **+** after the last column adds one, optional to begin
 with. A column's type never changes.
 
+### Import and export { #import-and-export }
+
+**Export** saves what the page shows as a CSV file: the records the filters and search
+match, in the grid's order, under its visible columns. `POST
+/tables/{id}/records/export` does the same for a caller, with the same filters,
+search, sort and a list of `columns`. An option is written as its label, several as
+`a; b`, and a text cell a spreadsheet would read as a formula starts with `'`. More
+than 100,000 matching records are refused with `EXPORT_TOO_LARGE` (413).
+
+**Import** reads a CSV file, comma or semicolon separated, whose first row names its
+columns. Each file column is matched to the table column of the same name, or to
+**External id**, and can be pointed elsewhere or skipped. A value that does not read
+as its column's type fails its row before anything is sent. The rest go 200 at a time
+to `POST /tables/{id}/records/batch`, which writes each record on its own and lists
+the ones it refused with their codes, and the console lists every failed row with its
+line. Each record added starts the table's triggers, as any other would.
+
 ## Safe retries { #safe-retries }
 
 Every record write accepts an `Idempotency-Key` header (at most 128 characters). A

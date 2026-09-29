@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd407fa9568"
+source_sha: "8b9e6e603bbe"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -158,6 +158,24 @@ todos, cada una como la misma nueva versión del esquema que escribiría el diá
 Columns, y un archivado del que depende una vista o un disparador se rechaza con su
 nombre. El **+** tras la última columna añade una, opcional al principio. El tipo de una
 columna nunca cambia.
+
+### Importar y exportar { #import-and-export }
+
+**Export** guarda lo que muestra la página como un archivo CSV: los registros que
+coinciden con los filtros y la búsqueda, en el orden de la cuadrícula, con sus columnas
+visibles. `POST /tables/{id}/records/export` hace lo mismo para quien llama, con los
+mismos filtros, búsqueda, orden y una lista de `columns`. Una opción se escribe como su
+etiqueta, varias como `a; b`, y una celda de texto que una hoja de cálculo leería como
+fórmula empieza por `'`. Más de 100.000 registros coincidentes se rechazan con
+`EXPORT_TOO_LARGE` (413).
+
+**Import** lee un archivo CSV separado por comas o punto y coma cuya primera fila nombra
+sus columnas. Cada columna del archivo se asocia a la columna de la tabla con el mismo
+nombre, o a **External id**, y puede dirigirse a otra u omitirse. Un valor que no se lee
+en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va de 200 en
+200 a `POST /tables/{id}/records/batch`, que escribe cada registro por separado y
+enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
+línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
 ## Reintentos seguros { #safe-retries }
 

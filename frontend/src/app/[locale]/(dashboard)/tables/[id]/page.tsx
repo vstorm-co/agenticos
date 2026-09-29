@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Plus, Save, Settings2, Share2, Zap } from "lucide-react";
+import { Download, Plus, Save, Settings2, Share2, Upload, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage } from "@/lib/api-error";
@@ -11,6 +11,8 @@ import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { HasMorePager } from "@/components/tables/has-more-pager";
 import { NewRecordDialog } from "@/components/tables/new-record-dialog";
+import { ImportCsvDialog } from "@/components/tables/import-csv-dialog";
+import { exportRecords } from "@/lib/tables-api";
 import {
   AddColumnDialog,
   RenameColumnDialog,
@@ -99,6 +101,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [addingRecord, setAddingRecord] = useState(false);
   const [addingColumn, setAddingColumn] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [renaming, setRenaming] = useState<ColumnDef | null>(null);
   const [archiving, setArchiving] = useState<ColumnDef | null>(null);
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
@@ -187,6 +191,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         sort: activeView.config.sort,
         visible_columns: activeView.config.visible_columns,
       });
+
+  /** Save what the screen shows - its records, in its order, its columns - as a CSV file. */
+  const exportShown = () => {
+    setExporting(true);
+    exportRecords(id, {
+      filters: applied,
+      search,
+      sort,
+      columns: columns.map((column) => column.id),
+    })
+      .catch((failure: unknown) => toast.error(getErrorMessage(failure, tErrors)))
+      .finally(() => setExporting(false));
+  };
 
   /** Show or hide one column on this screen; showing every live one again is `null`. */
   const setShown = (columnId: string, shown: boolean) => {
@@ -281,6 +298,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             className="sm:w-56"
           />
           <RecordFiltersPopover columns={liveColumns} filters={filters} onChange={setFilters} />
+          <Button variant="outline" size="sm" disabled={exporting} onClick={exportShown}>
+            <Download className="h-4 w-4" /> {t("export")}
+          </Button>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
+              <Upload className="h-4 w-4" /> {t("import")}
+            </Button>
+          )}
           {hidden.length > 0 && (
             <HiddenColumnsPopover
               hidden={hidden}
@@ -466,6 +491,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             }
           />
         </>
+      )}
+
+      {canEdit && (
+        <ImportCsvDialog
+          tableId={id}
+          columns={liveColumns}
+          open={importing}
+          onOpenChange={setImporting}
+        />
       )}
 
       {canEdit && (

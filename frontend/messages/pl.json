@@ -650,7 +650,9 @@
         "loadingMore": "Wczytywanie kolejnych rekordów…",
         "truncated": "Siatka przewija pierwsze 10 000 rekordów. Użyj filtra lub wyszukiwania, aby dotrzeć do pozostałych.",
         "recordCount": "{count, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}}",
-        "recordCountCapped": "{count, number}+ rekordów"
+        "recordCountCapped": "{count, number}+ rekordów",
+        "export": "Eksportuj",
+        "import": "Importuj"
       },
       "views": {
         "created": "Zapisano widok",
@@ -3955,6 +3957,35 @@
       "add": "Dodaj kolumnę",
       "hiddenCount": "{count, plural, one {# ukryta} few {# ukryte} many {# ukrytych} other {# ukrytej}}",
       "showAll": "Pokaż wszystkie kolumny"
+    },
+    "import": {
+      "title": "Import rekordów z CSV",
+      "description": "Każdy wiersz pliku staje się rekordem. Wskaż, do której kolumny trafia każda kolumna pliku; wyzwalacz tabeli uruchomi się dla każdego dodanego rekordu.",
+      "choose": "Wybierz plik CSV",
+      "chooseHint": "Pierwszy wiersz nazywa kolumny. Rozdzielany przecinkiem lub średnikiem, UTF-8.",
+      "empty": "Ten plik nie ma wierszy pod nagłówkiem.",
+      "found": "{count, plural, one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}} w {file}.",
+      "unnamed": "Kolumna bez nazwy",
+      "mapTo": "Dokąd trafia {header}",
+      "skip": "Nie importuj",
+      "externalId": "Identyfikator zewnętrzny",
+      "back": "Wstecz",
+      "import": "{count, plural, one {Importuj # wiersz} few {Importuj # wiersze} many {Importuj # wierszy} other {Importuj # wiersza}}",
+      "progress": "Wysłano {done} z {total}",
+      "created": "{count, plural, =0 {Nie dodano żadnego rekordu.} one {Dodano # rekord.} few {Dodano # rekordy.} many {Dodano # rekordów.} other {Dodano # rekordu.}}",
+      "failed": "{count, plural, one {# wiersz nie został zaimportowany:} few {# wiersze nie zostały zaimportowane:} many {# wierszy nie zostało zaimportowanych:} other {# wiersza nie zaimportowano:}}",
+      "line": "Wiersz {line}:",
+      "more": "I jeszcze {count}.",
+      "close": "Zamknij",
+      "cellProblem": "{column}: {problem}",
+      "problem": {
+        "number": "to nie liczba",
+        "integer": "to nie liczba całkowita",
+        "boolean": "to nie prawda ani fałsz",
+        "date": "to nie data w formacie RRRR-MM-DD",
+        "datetime": "to nie data i godzina",
+        "option": "to nie jedna z opcji kolumny"
+      }
     }
   },
   "groups": {

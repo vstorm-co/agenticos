@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd407fa9568"
+source_sha: "8b9e6e603bbe"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -167,6 +167,25 @@ Tabelle für alle, jeweils als dieselbe neue Schemaversion, die der Dialog Colum
 schreiben würde, und eine Archivierung, von der eine Ansicht oder ein Trigger abhängt,
 wird mit dessen Namen abgelehnt. Das **+** nach der letzten Spalte fügt eine hinzu,
 anfangs optional. Der Typ einer Spalte ändert sich nie.
+
+### Import und Export { #import-and-export }
+
+**Export** speichert, was die Seite zeigt, als CSV-Datei: die Datensätze, die Filter und
+Suche treffen, in der Reihenfolge des Rasters, unter seinen sichtbaren Spalten. `POST
+/tables/{id}/records/export` tut dasselbe für einen Aufrufer, mit denselben Filtern,
+Suche, Sortierung und einer Liste `columns`. Eine Option wird als ihre Bezeichnung
+geschrieben, mehrere als `a; b`, und eine Textzelle, die eine Tabellenkalkulation als
+Formel lesen würde, beginnt mit `'`. Mehr als 100.000 passende Datensätze werden mit
+`EXPORT_TOO_LARGE` (413) abgelehnt.
+
+**Import** liest eine komma- oder semikolongetrennte CSV-Datei, deren erste Zeile die
+Spalten benennt. Jede Spalte der Datei wird der gleichnamigen Tabellenspalte oder
+**External id** zugeordnet und kann umgelenkt oder übersprungen werden. Ein Wert, der
+sich nicht als Typ seiner Spalte lesen lässt, lässt seine Zeile scheitern, bevor etwas
+gesendet wird. Der Rest geht zu je 200 an `POST /tables/{id}/records/batch`, das jeden
+Datensatz einzeln schreibt und die abgelehnten mit ihren Codes auflistet, und die Konsole
+listet jede gescheiterte Zeile mit ihrer Zeilennummer. Jeder hinzugefügte Datensatz
+startet die Trigger der Tabelle wie jeder andere.
 
 ## Sichere Wiederholungen { #safe-retries }
 

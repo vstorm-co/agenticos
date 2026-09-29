@@ -132,6 +132,25 @@ export interface RecordCount {
   capped: boolean;
 }
 
+export interface RecordBatchFailure {
+  /** The record's position in the batch, from 0. */
+  index: number;
+  code: string;
+  message: string;
+  details: Record<string, unknown> | null;
+}
+
+export interface RecordBatchResult {
+  created: number;
+  failed: RecordBatchFailure[];
+}
+
+export interface RecordExportQuery extends RecordCountQuery {
+  sort?: RecordSort;
+  /** The live columns to write, in order; `null` writes every live one. */
+  columns?: string[] | null;
+}
+
 export interface RecordRead {
   id: string;
   table_id: string;

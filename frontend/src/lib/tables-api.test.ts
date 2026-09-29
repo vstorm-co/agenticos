@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archiveTable,
+  batchRefusal,
   createRecord,
+  createRecords,
   createTable,
   deleteRecord,
+  exportRecords,
   getRecord,
   getTable,
   listTables,
@@ -14,6 +17,7 @@ import {
   updateTable,
 } from "./tables-api";
 import { apiClient } from "@/lib/api-client";
+import { saveBlob } from "./file-access";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
@@ -22,8 +26,10 @@ vi.mock("@/lib/api-client", () => ({
     put: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
+    raw: vi.fn(),
   },
 }));
+vi.mock("./file-access", () => ({ saveBlob: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -121,4 +127,53 @@ it("deleteRecord sends the expected revision as a query param", async () => {
   vi.mocked(apiClient.delete).mockResolvedValue(undefined);
   await deleteRecord("t1", "r1", 3);
   expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=3");
+});
+
+describe("bulk records", () => {
+  it("creates a batch in one call", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [] });
+
+    await createRecords("t1", [{ values: {} }]);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/records/batch", {
+      records: [{ values: {} }],
+    });
+  });
+
+  it("saves an export under the name the server gives, or a plain one", async () => {
+    const blob = new Blob(["a"]);
+    const answer = (disposition: string | null) =>
+      ({
+        headers: new Headers(disposition ? { "content-disposition": disposition } : {}),
+        blob: async () => blob,
+      }) as unknown as Response;
+    vi.mocked(apiClient.raw)
+      .mockResolvedValueOnce(answer('attachment; filename="Orders.csv"'))
+      .mockResolvedValueOnce(answer(null));
+
+    await exportRecords("t1", { search: "ada" });
+    await exportRecords("t1", {});
+
+    expect(apiClient.raw).toHaveBeenCalledWith("/tables/t1/records/export", {
+      method: "POST",
+      body: { search: "ada" },
+    });
+    expect(vi.mocked(saveBlob).mock.calls).toEqual([
+      [blob, "Orders.csv"],
+      [blob, "table.csv"],
+    ]);
+  });
+});
+
+describe("batchRefusal", () => {
+  it("is the error a single create would have thrown", () => {
+    const error = batchRefusal({
+      index: 0,
+      code: "ALREADY_EXISTS",
+      message: "Taken",
+      details: null,
+    });
+
+    expect([error.status, error.code, error.message]).toEqual([422, "ALREADY_EXISTS", "Taken"]);
+  });
 });

@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Import a CSV file into a table, and export one.** **Import** maps the file's
+  columns to the table's, reads each value in its column's type and sends the rows
+  200 at a time to a new `POST /tables/{id}/records/batch`, listing every row that
+  failed with its line and reason. **Export** saves the records on screen, in their
+  order and columns, from a new streaming `POST /tables/{id}/records/export` (#1961).
 - **A table grid that scrolls through thousands of records, and says how many.**
   The grid loads a hundred records at a time as it scrolls and draws only the rows
   in view; the count of matching records shows beside the view tabs, from a new

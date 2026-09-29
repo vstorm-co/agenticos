@@ -1,5 +1,5 @@
 ---
-source_sha: "4bd407fa9568"
+source_sha: "8b9e6e603bbe"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -153,6 +153,24 @@ zapisuje jedno i drugie. **Rename** i **Archive column** zmieniają tabelę dla 
 każda jako ta sama nowa wersja schematu, którą zapisałby dialog Columns, a archiwizacja,
 od której zależy widok lub wyzwalacz, zostaje odrzucona z jego nazwą. **+** za ostatnią
 kolumną dodaje nową, na początek opcjonalną. Typ kolumny nigdy się nie zmienia.
+
+### Import i eksport { #import-and-export }
+
+**Export** zapisuje to, co pokazuje strona, jako plik CSV: rekordy pasujące do filtrów
+i wyszukiwania, w kolejności siatki, w jej widocznych kolumnach. `POST
+/tables/{id}/records/export` robi to samo dla wywołującego, z tymi samymi filtrami,
+wyszukiwaniem, sortowaniem i listą `columns`. Opcja jest zapisywana jako jej etykieta,
+kilka jako `a; b`, a komórka tekstowa, którą arkusz odczytałby jako formułę, zaczyna
+się od `'`. Ponad 100 000 pasujących rekordów jest odrzucane z `EXPORT_TOO_LARGE` (413).
+
+**Import** czyta plik CSV rozdzielany przecinkiem lub średnikiem, którego pierwszy
+wiersz nazywa kolumny. Każda kolumna pliku jest dopasowana do kolumny tabeli o tej
+samej nazwie albo do **External id** i można ją skierować gdzie indziej lub pominąć.
+Wartość, której nie da się odczytać w typie kolumny, odrzuca swój wiersz, zanim cokolwiek
+zostanie wysłane. Reszta trafia po 200 do `POST /tables/{id}/records/batch`, który
+zapisuje każdy rekord osobno i wymienia odrzucone z ich kodami, a konsola wypisuje każdy
+nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabeli, jak
+każdy inny.
 
 ## Bezpieczne ponawianie { #safe-retries }
 

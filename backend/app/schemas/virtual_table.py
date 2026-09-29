@@ -215,6 +215,28 @@ class RecordCreate(_Request):
     )
 
 
+MAX_BATCH = 200
+"""Records one batch create writes: a CSV import sends its rows this many at a time."""
+
+
+class RecordBatchCreate(_Request):
+    """Records to create together, each on its own: one refused is reported, not fatal."""
+
+    records: list[RecordCreate] = Field(min_length=1, max_length=MAX_BATCH)
+
+
+class RecordBatchFailure(_Schema):
+    index: int = Field(description="The record's position in the batch, from 0")
+    code: str = Field(description="The refusal's code, as a single create would answer it")
+    message: str
+    details: dict[str, Any] | None = None
+
+
+class RecordBatchResult(_Schema):
+    created: int = Field(description="How many of the batch's records were written")
+    failed: list[RecordBatchFailure] = Field(description="Each record that was not, and why")
+
+
 class RecordUpdate(_Request):
     """A partial update: only the columns named change, and `null` clears one."""
 
@@ -291,6 +313,19 @@ class RecordCountQuery(_Request):
 
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")
+
+
+class RecordExportQuery(_Request):
+    """What an export writes: the records a query matches, in its order, as CSV."""
+
+    filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")
+    sort: RecordSort = Field(default_factory=RecordSort)
+    columns: list[UUID] | None = Field(
+        default=None,
+        max_length=MAX_COLUMNS,
+        description="The live columns to write, in order; `null` writes every live one",
+    )
 
 
 class RecordCount(_Schema):

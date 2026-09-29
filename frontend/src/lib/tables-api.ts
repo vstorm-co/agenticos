@@ -7,10 +7,15 @@
  */
 
 import { apiClient } from "./api-client";
+import { ApiError } from "./api-error";
+import { saveBlob } from "./file-access";
 import type {
+  RecordBatchFailure,
+  RecordBatchResult,
   RecordCount,
   RecordCountQuery,
   RecordCreate,
+  RecordExportQuery,
   RecordList,
   RecordQuery,
   RecordRead,
@@ -67,6 +72,36 @@ export function queryRecords(tableId: string, query: RecordQuery): Promise<Recor
 
 export function countRecords(tableId: string, query: RecordCountQuery): Promise<RecordCount> {
   return apiClient.post<RecordCount>(`/tables/${tableId}/records/count`, query);
+}
+
+/** Records created together, each on its own - at most 200 in one call. */
+export function createRecords(
+  tableId: string,
+  records: RecordCreate[],
+): Promise<RecordBatchResult> {
+  return apiClient.post<RecordBatchResult>(`/tables/${tableId}/records/batch`, { records });
+}
+
+/**
+ * One refused record of a batch as the error a single create would have thrown,
+ * so it is shown the way every other refusal is - in the reader's language where
+ * its code has a translation.
+ */
+export function batchRefusal(failure: RecordBatchFailure): ApiError {
+  return new ApiError(422, failure.message, {
+    error: { code: failure.code, message: failure.message, details: failure.details },
+  });
+}
+
+/** The records a query matches, as a CSV file saved to disk under the name the server gives. */
+export async function exportRecords(tableId: string, query: RecordExportQuery): Promise<void> {
+  const response = await apiClient.raw(`/tables/${tableId}/records/export`, {
+    method: "POST",
+    body: query,
+  });
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "table.csv";
+  saveBlob(await response.blob(), name);
 }
 
 export function createRecord(tableId: string, data: RecordCreate): Promise<RecordRead> {

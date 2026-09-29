@@ -82,6 +82,15 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     </div>
   ),
 }));
+const exportRecords = vi.fn();
+vi.mock("@/lib/tables-api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/tables-api")>("@/lib/tables-api");
+  return { ...actual, exportRecords: (...args: unknown[]) => exportRecords(...args) };
+});
+vi.mock("@/components/tables/import-csv-dialog", () => ({
+  ImportCsvDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="import-dialog" /> : null,
+}));
 vi.mock("@/components/tables/new-record-dialog", () => ({
   NewRecordDialog: ({
     open,
@@ -596,6 +605,50 @@ describe("the table detail page", () => {
           config: { ...emptyConfig, filters: [COMPLETE] },
         }),
       );
+    });
+  });
+
+  describe("records in and out as CSV", () => {
+    it("exports what the screen shows, and says why when it cannot", async () => {
+      serve();
+      exportRecords
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new ApiError(413, "Too many"));
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "Export" }));
+      await waitFor(() =>
+        expect(exportRecords).toHaveBeenCalledWith("t1", {
+          filters: [],
+          search: null,
+          sort: { by: "created_at", direction: "asc" },
+          columns: ["c1", "c2"],
+        }),
+      );
+      await waitFor(() => expect(screen.getByRole("button", { name: "Export" })).toBeEnabled());
+      await user.click(screen.getByRole("button", { name: "Export" }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Too many"));
+    });
+
+    it("offers the import to an editor only", async () => {
+      serve();
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "Import" }));
+      expect(screen.getByRole("dialog", { name: "import-dialog" })).toBeInTheDocument();
+    });
+
+    it("hides the import from a reader, who can still export", async () => {
+      serve({ tableFixture: table({ can_edit: false }) });
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     });
   });
 

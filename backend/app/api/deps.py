@@ -637,6 +637,22 @@ def get_virtual_table_service(db: DBSession) -> VirtualTableService:
 
 VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
 
+
+def get_streaming_virtual_table_service(db: StreamingDBSession) -> VirtualTableService:
+    """The table service for a CSV export, and nothing else.
+
+    The export's lines are read from the database while the response is being
+    sent, after an ordinary `DBSession` has committed and closed. The export
+    writes nothing, which is what makes a request-scoped session acceptable
+    here; see `StreamingDBSession`.
+    """
+    return VirtualTableService(db)
+
+
+StreamingVirtualTableSvc = Annotated[
+    VirtualTableService, Depends(get_streaming_virtual_table_service)
+]
+
 from app.services.virtual_tables import TableViewService
 
 

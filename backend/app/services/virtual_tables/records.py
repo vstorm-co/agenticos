@@ -15,7 +15,10 @@ Concurrency rests on three database facts rather than on checks made in Python:
   operation key serialize on it.
 """
 
-from collections.abc import Awaitable, Callable
+import csv
+import io
+import re
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -23,7 +26,13 @@ from uuid import UUID
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AppException,
+    ConcurrentChangeError,
+    ExportTooLargeError,
+    NotFoundError,
+)
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
@@ -35,9 +44,13 @@ from app.schemas.virtual_table import (
     ColumnDef,
     ExternalId,
     OperationKey,
+    RecordBatchCreate,
+    RecordBatchFailure,
+    RecordBatchResult,
     RecordCount,
     RecordCountQuery,
     RecordCreate,
+    RecordExportQuery,
     RecordFilter,
     RecordList,
     RecordQuery,
@@ -51,6 +64,7 @@ from app.services.virtual_tables.exceptions import (
     ArchivedColumnError,
     InvalidQueryError,
     InvalidRecordError,
+    QuotaExceededError,
     RevisionConflictError,
     RevisionRequiredError,
 )
@@ -260,6 +274,50 @@ def _search(columns: list[ColumnDef], term: str | None) -> SearchClause | None:
     )
 
 
+EXPORT_BATCH = 500
+"""Records an export reads at a time while it writes the CSV."""
+
+# A cell a spreadsheet would read as a formula. Written as text instead, with a
+# leading quote: an export opened in Excel must not run what somebody typed.
+_FORMULA = re.compile(r"^[=+\-@\t\r]")
+
+
+@dataclass(frozen=True)
+class RecordExport:
+    """A CSV export: what to call the file, and its lines as they are read."""
+
+    filename: str
+    lines: AsyncIterator[str]
+
+
+def _csv_line(cells: list[str]) -> str:
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\r\n").writerow(cells)
+    return buffer.getvalue()
+
+
+def _cell_text(column: ColumnDef, value: CellValue) -> str:
+    """One cell as a person reads it: an option by its label, a yes/no as a word."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    labels = {str(option.id): option.label for option in column.options}
+    if isinstance(value, list):
+        text = "; ".join(labels.get(item, item) for item in value)
+    else:
+        text = labels.get(value, value)
+    return f"'{text}" if _FORMULA.match(text) else text
+
+
+def _failure(index: int, refused: AppException) -> RecordBatchFailure:
+    return RecordBatchFailure(
+        index=index, code=refused.code, message=refused.message, details=refused.details
+    )
+
+
 class RecordOperations(Operations):
     """Reading and writing the records of one table."""
 
@@ -346,6 +404,119 @@ class RecordOperations(Operations):
             cap=MAX_COUNT,
         )
         return RecordCount(count=min(counted, MAX_COUNT), capped=counted > MAX_COUNT)
+
+    async def create_records(
+        self, ctx: AuthContext, table_id: UUID, data: RecordBatchCreate
+    ) -> RecordBatchResult:
+        """Create each record on its own, reporting the ones refused rather than failing all.
+
+        Every record is written under its own savepoint, so one that does not fit its
+        columns, repeats a taken external id, names an archived column or is too large is
+        rolled back alone and answered with the code a single create would give. Once the
+        table is full, the rest are refused with that quota without being tried. Each
+        record created emits `table.record.created`, so a table trigger starts for it as
+        for any other.
+
+        Raises:
+            NotFoundError: The table is out of reach.
+            TableArchivedError: The table is archived.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
+        self._ensure_live(table)
+        created = 0
+        failed: list[RecordBatchFailure] = []
+        for index, record in enumerate(data.records):
+            try:
+                async with self.db.begin_nested():
+                    await self._create_one(ctx, table, record)
+            except QuotaExceededError as refused:
+                if refused.details is not None and refused.details["quota"] == "records":
+                    failed.extend(_failure(at, refused) for at in range(index, len(data.records)))
+                    break
+                failed.append(_failure(index, refused))
+            except (InvalidRecordError, ArchivedColumnError, AlreadyExistsError) as refused:
+                failed.append(_failure(index, refused))
+            else:
+                created += 1
+        return RecordBatchResult(created=created, failed=failed)
+
+    async def _create_one(self, ctx: AuthContext, table: VirtualTable, data: RecordCreate) -> None:
+        if data.external_id is not None:
+            # As in `create_record`: an id that exists is answered as taken, not as a quota.
+            await quotas.lock_record_count(self.db, table)
+            if await self._lookup(ctx, table, data.external_id) is not None:
+                raise self._already_exists(data.external_id)
+        if await self._insert(ctx, table, data.external_id, data.values) is None:
+            raise self._already_exists(data.external_id)
+
+    async def export_records(
+        self, ctx: AuthContext, table_id: UUID, query: RecordExportQuery
+    ) -> RecordExport:
+        """The records a query matches, in its order, as CSV lines headed by column labels.
+
+        Everything the export can refuse is checked before the first line, so a
+        refusal is an error response rather than a truncated file: a filter or column
+        the table does not have, or more than `MAX_COUNT` records - narrowed with a
+        filter or search, never cut short.
+
+        Raises:
+            InvalidQueryError: A filter, the sort or a column names something the table
+                does not support.
+            ExportTooLargeError: More records match than one export writes.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        columns = await self._columns(table)
+        live = {column.id: column for column in columns if not column.archived}
+        if query.columns is None:
+            chosen = list(live.values())
+        else:
+            if any(column_id not in live for column_id in query.columns):
+                raise InvalidQueryError("columns", "Export only the table's live columns")
+            chosen = [live[column_id] for column_id in query.columns]
+        filters, sort = _clauses(columns, RecordQuery(filters=query.filters, sort=query.sort))
+        search = _search(columns, query.search)
+        matching = await virtual_table_repo.count_records(
+            self.db,
+            table_id=table.id,
+            organization_id=ctx.organization_id,
+            filters=filters,
+            search=search,
+            cap=MAX_COUNT,
+        )
+        if matching > MAX_COUNT:
+            raise ExportTooLargeError(
+                message=(
+                    f"An export writes at most {MAX_COUNT:,} records. "
+                    "Narrow it with a filter or a search."
+                ),
+                details={"limit": MAX_COUNT},
+            )
+
+        async def lines() -> AsyncIterator[str]:
+            # A byte-order mark, so a spreadsheet reads the file as UTF-8.
+            yield "\ufeff" + _csv_line([column.label for column in chosen])
+            skip = 0
+            while True:
+                rows = await virtual_table_repo.list_records(
+                    self.db,
+                    table_id=table.id,
+                    organization_id=ctx.organization_id,
+                    filters=filters,
+                    search=search,
+                    sort=sort,
+                    skip=skip,
+                    limit=EXPORT_BATCH,
+                )
+                for row in rows:
+                    yield _csv_line(
+                        [_cell_text(column, row.values.get(str(column.id))) for column in chosen]
+                    )
+                if len(rows) < EXPORT_BATCH:
+                    return
+                skip += EXPORT_BATCH
+
+        name = re.sub(r"[^A-Za-z0-9._-]+", "-", table.name).strip("-") or "table"
+        return RecordExport(filename=f"{name}.csv", lines=lines())
 
     async def create_record(
         self,
