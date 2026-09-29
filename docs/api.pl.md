@@ -1,5 +1,5 @@
 ---
-source_sha: "1bc1faed14af"
+source_sha: "1b01d58d3031"
 ---
 
 # API HTTP { #the-http-api }
@@ -122,6 +122,43 @@ robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workfl
 typowanym błędem, którym ostatnio się zakończył, a `GET
 /api/v1/workflow-runs/{id}/graph` zwraca graf, który run wykonuje: graf jego wersji
 albo snapshot draftu runa testowego.
+
+### Śledzenie runa przez WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` uwierzytelnia się tak jak gniazdo
+czatu, z tokenem dostępu jako subprotokołem `access_token.<token>`. Wyślij
+`{"type": "start", "workflow_id": ..., "input": {...}}`, żeby uruchomić run, albo
+`{"type": "attach", "run_id": ..., "after": <cursor>}`, żeby śledzić istniejący.
+Serwer wysyła `{"type": "run", "run": {...}}`, gdy zaczyna śledzić, i ponownie, gdy
+run się kończy, oraz `{"type": "event", "event": {...}, "cursor": ...}` dla każdego
+zdarzenia pomiędzy. Odrzucona ramka dostaje `{"type": "error", "code": ...,
+"message": ...}`, a unieważniona sesja zamyka gniazdo kodem `4001`. Jedno gniazdo
+śledzi jeden run; nowa ramka zastępuje run, który śledziło.
+
+### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
+
+`/api/v1/workflows/{id}/exposures` wymienia webhooki i harmonogramy workflow, tworzy
+je (`POST`), zmienia (`PATCH .../{exposure_id}`) i usuwa; `POST
+.../{exposure_id}/rotate-secret` wymienia sekret webhooka. Skonfigurowanie jednego
+wymaga `workflows:edit` i `workflows:run` na workflow, bo działa on jako ty.
+`reveal_secret` webhooka jest tylko w odpowiedziach na utworzenie i rotację, a jego
+`webhook_url` to adres, na który dostarcza nadawca:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+Odpowiada `202` z `{"run_id": ..., "duplicate": false}`, gdy tylko run zostanie
+przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęto,
+odpowiada `"duplicate": true` z id pierwszego runa. Podpis, który się nie weryfikuje,
+to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
+a wstrzymany albo nieznany webhook to `404`.
 
 ## Usługi ML { #the-ml-services }
 

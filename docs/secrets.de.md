@@ -1,5 +1,5 @@
 ---
-source_sha: "4114faad9226"
+source_sha: "78a92d55183a"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -180,6 +180,13 @@ in derselben Form wie das Signing Secret eines Channel-Bots. Es wird nie im
 Klartext zurückgegeben oder geloggt; die Verifikation entsiegelt es, vergleicht in
 konstanter Zeit, und eine Zustellung, die scheitert, ist ein 403. Siehe
 [Konzepte](concepts.md#trigger).
+
+**Workflow-Webhooks.** Der HMAC-Key, mit dem die Zustellungen eines
+Workflow-Webhooks signiert werden, von der Plattform erzeugt, für die Organisation
+versiegelt und mit seiner `key_version` in der Zeile des Webhooks gespeichert. Er wird
+einmal angezeigt, wenn er erstellt oder ersetzt wird, und nie wieder; eine Rotation
+des Master-Keys verpackt ihn zusammen mit dem Rest neu. Siehe
+[Workflows](workflows.md#a-webhook-or-a-schedule).
 
 **Embeds.** Ein `jwt`-Widget verifiziert Besucher-Token gegen ein
 HS256-Signing-Secret, das das Backend des Kunden hält. Es ist an die Organisation

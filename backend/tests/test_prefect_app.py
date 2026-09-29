@@ -97,6 +97,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "workflow-dispatch-node",
         "workflow-dispatch-poll",
         "workflow-reconcile",
+        "workflow-schedules-check",
     }
     assert captured_runner.start.await_count == 1
 

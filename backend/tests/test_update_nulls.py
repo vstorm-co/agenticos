@@ -61,6 +61,7 @@ from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.virtual_table import VirtualTable
+from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
@@ -91,6 +92,7 @@ from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
 from app.schemas.workflow import WorkflowDraftUpdate
+from app.schemas.workflow_exposure import WorkflowExposureUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
 # one. Declared by hand because nothing in the code says it: the pairing lives in
@@ -140,6 +142,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     UserUpdate: User,
     VisibilityUpdate: None,
     WorkflowDraftUpdate: None,
+    WorkflowExposureUpdate: WorkflowExposure,
 }
 
 # What is left, and none of it writes a row. `ingestion_config` merges two Pydantic

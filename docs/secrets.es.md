@@ -1,5 +1,5 @@
 ---
-source_sha: "4114faad9226"
+source_sha: "78a92d55183a"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -171,6 +171,12 @@ fila del trigger junto con la `key_version` que lo selló, con la misma forma qu
 signing secret de un bot de canal. Nunca se devuelve ni se registra en claro; la
 verificación lo desella, compara en tiempo constante, y una entrega que falla es un
 403. Mira [Conceptos](concepts.md#trigger).
+
+**Webhooks de workflows.** La clave HMAC con la que se firman las entregas de un
+webhook de workflow, generada por la plataforma, sellada para la organización y
+guardada en la fila del webhook con su `key_version`. Se muestra una vez, cuando se
+crea o se sustituye, y nunca más; una rotación de la clave maestra la vuelve a
+envolver junto con el resto. Consulta [Workflows](workflows.md#a-webhook-or-a-schedule).
 
 **Embeds.** Un widget `jwt` verifica los tokens de visitante contra un signing
 secret HS256 que guarda el backend del cliente. Está sellado a la organización del

@@ -4,8 +4,17 @@ import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } fr
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import type { PublishedModel } from "@/types/agents";
-import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
-import { AgentPicker } from "./agent-picker";
+import {
+  useAgents,
+  useChat,
+  useConversationWorkspace,
+  useModelProviders,
+  usePermissions,
+  useWorkflowChat,
+  useWorkflows,
+} from "@/hooks";
+import { Perm } from "@/types/permissions";
+import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
@@ -101,8 +110,13 @@ export function ChatContainer() {
   // search box, and reading the two facts below off *that* would flip the
   // composer to writable the moment somebody typed a search that excluded the
   // thread they have open.
-  const { conversations, fetchConversations, refreshConversations, selectConversation } =
-    useConversations();
+  const {
+    conversations,
+    fetchConversations,
+    refreshConversations,
+    selectConversation,
+    createConversation,
+  } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   // An archived conversation is read-only: the backend refuses new messages on
@@ -169,6 +183,26 @@ export function ChatContainer() {
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
   });
+
+  // A message addressed to a workflow goes to it instead of the agent: the
+  // picker's choice, read from the same cached list the picker shows.
+  const { can } = usePermissions();
+  const { workflows } = useWorkflows({ enabled: can(Perm.workflowsRun) });
+  const selectedWorkflowId = useAgentSelectionStore((state) => state.selectedWorkflowId);
+  const selectedWorkflow =
+    workflows.find((workflow) => workflow.id === selectedWorkflowId && isChattable(workflow)) ??
+    null;
+  const workflowChat = useWorkflowChat({
+    createConversation,
+    onConversationCreated: handleConversationCreated,
+  });
+  const send = useCallback(
+    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+      if (selectedWorkflow) void workflowChat.send(selectedWorkflow, content);
+      else sendMessage(content, fileIds, files);
+    },
+    [selectedWorkflow, workflowChat, sendMessage],
+  );
 
   // The reader pressing the notice's button has gone to look for the answer, so
   // the notice stops saying one is on its way. The re-read is the same one a
@@ -341,7 +375,7 @@ export function ChatContainer() {
         currentConversationId !== null && isConversationLoading && messages.length === 0
       }
       isArchived={isArchived}
-      sendMessage={sendMessage}
+      sendMessage={send}
       // Kept here as well as pushed into the hook, because the context gauge is a
       // share of *this* model's window: a switch has to move the figure at once,
       // and one carried over from a 1M-context model reads "50%" for a history

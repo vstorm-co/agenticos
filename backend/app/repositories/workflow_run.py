@@ -57,6 +57,7 @@ async def create_run(
     depth: int,
     started_at: datetime,
     run_input: dict[str, Any] | None = None,
+    reply_conversation_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -81,6 +82,7 @@ async def create_run(
         causation_run_id=causation_run_id,
         visited_trigger_ids=visited_trigger_ids,
         input=run_input or {},
+        reply_conversation_id=reply_conversation_id,
         depth=depth,
         started_at=started_at,
     )

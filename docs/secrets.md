@@ -165,6 +165,12 @@ as a channel bot's signing secret. It is never returned or logged in the clear; 
 verification unseals it, compares in constant time, and a delivery that fails is a 403.
 See [Concepts](concepts.md#trigger).
 
+**Workflow webhooks.** The HMAC key a workflow webhook's deliveries are signed with,
+minted by the platform, sealed to the organization and stored on the webhook's row
+with its `key_version`. It is shown once, when it is made or replaced, and never
+again; a master-key rotation rewraps it with the rest. See
+[Workflows](workflows.md#a-webhook-or-a-schedule).
+
 **Embeds.** A `jwt` widget verifies visitor tokens against an HS256 signing secret
 the customer's backend holds. It is sealed to the agent's organization and records
 its `key_version` like every other sealed row, so a master-key rotation can

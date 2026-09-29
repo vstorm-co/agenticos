@@ -216,3 +216,21 @@ class TestLeaseRenewal:
         assert renewals >= 1
         assert renew.await_count == renewals
         assert claim.lost is False
+
+
+class TestWorkflowSchedulesCheck:
+    async def test_it_fires_due_schedules_then_submits_each_admitted_run(self):
+        """The runs are submitted only after the transaction that admitted them
+        closed - the heartbeat hands `_submit_each` what `fire_due` returned."""
+        pair = (uuid.uuid4(), uuid.uuid4())
+        service = MagicMock(fire_due=AsyncMock(return_value=[pair]))
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch("app.services.workflow_exposure.WorkflowExposureService", return_value=service),
+            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
+        ):
+            assert await workflow_tasks.workflow_schedules_check_flow() == 1
+            service.fire_due.return_value = []
+            assert await workflow_tasks.workflow_schedules_check_flow() == 0
+
+        submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))

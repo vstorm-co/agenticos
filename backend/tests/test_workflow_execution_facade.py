@@ -525,12 +525,15 @@ class TestCancel:
                 f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=cancelled)
             ),
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.delivery.deliver_result", new=AsyncMock()) as delivered,
         ):
             result = await service.cancel(_ctx(), run.id)
 
         assert result.status == WorkflowRunStatus.CANCELLED.value
         assert update_node_run.await_args.kwargs["node_run"] is loop_row
         assert update_node_run.await_args.kwargs["update_data"]["status"] == "cancelled"
+        # The run's answer goes to its conversation, if it was started in one.
+        delivered.assert_awaited_once_with(service.db, run=cancelled)
 
     async def test_a_run_gone_between_the_read_and_the_lock_is_not_found(self):
         run = _run_row()

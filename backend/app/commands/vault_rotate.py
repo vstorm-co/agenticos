@@ -38,11 +38,14 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
 
 
-def _org_scope(row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger) -> VaultScope:
+def _org_scope(
+    row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger | WorkflowExposure,
+) -> VaultScope:
     return VaultScope.organization(row.organization_id)
 
 
@@ -62,7 +65,14 @@ class SealedTable:
     """
 
     label: str
-    model: type[OrganizationSecret | ChannelBot | McpConnection | AgentEmbed | AgentTrigger]
+    model: type[
+        OrganizationSecret
+        | ChannelBot
+        | McpConnection
+        | AgentEmbed
+        | AgentTrigger
+        | WorkflowExposure
+    ]
     columns: tuple[str, ...]
     version_attr: str
     scope: Callable[..., VaultScope]
@@ -106,6 +116,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         label="agent_triggers",
         model=AgentTrigger,
         columns=("event_secret_encrypted",),
+        version_attr="secret_key_version",
+        scope=_org_scope,
+    ),
+    SealedTable(
+        label="workflow_exposures",
+        model=WorkflowExposure,
+        columns=("secret_encrypted",),
         version_attr="secret_key_version",
         scope=_org_scope,
     ),

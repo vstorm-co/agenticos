@@ -1,5 +1,5 @@
 ---
-source_sha: "4114faad9226"
+source_sha: "78a92d55183a"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -172,6 +172,12 @@ w tym samym kształcie co signing secret bota kanału. Nigdy nie jest zwracany a
 logowany jawnie; weryfikacja odpieczętowuje go, porównuje w stałym czasie,
 a dostarczenie, które się nie powiedzie, to 403. Zobacz
 [Pojęcia](concepts.md#trigger).
+
+**Webhooki workflow.** Klucz HMAC, którym podpisywane są dostarczenia webhooka
+workflow, wygenerowany przez platformę, zapieczętowany dla organizacji i
+przechowywany w wierszu webhooka razem z jego `key_version`. Jest pokazywany raz, gdy
+jest tworzony albo wymieniany, i nigdy więcej; rotacja klucza głównego przepakowuje go
+razem z resztą. Zobacz [Workflow](workflows.md#a-webhook-or-a-schedule).
 
 **Embedy.** Widget `jwt` weryfikuje tokeny odwiedzających wobec signing secretu
 HS256, który trzyma backend klienta. Jest zapieczętowany dla organizacji agenta

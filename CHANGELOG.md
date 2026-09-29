@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A workflow can be started from outside the console, and answer in the
+  chat.** The editor's **Triggers** sheet shows how to start it from the HTTP API
+  and adds the two ways in that nobody stands at: a **webhook**, whose sender
+  signs each delivery with a secret shown once and names it with an
+  `X-Delivery-Id` so a retry never runs it twice, and a **schedule** - every so
+  often, daily at a time or on a cron expression, in UTC. Both are pinned to the
+  version that was live when they were made and run as the member who set them
+  up, checked afresh on every fire. `/api/v1/ws/workflow-runs` starts or follows
+  a run and streams its events, resuming from a cursor after a dropped
+  connection. The chat's picker of who answers lists published workflows too: a
+  message starts a run, and its status card and answer land in the thread, even
+  if the chat was closed meanwhile (#1792).
 - **The workflow editor, its runs and the tables pages look and work like the
   rest of the console.** The editor fills the window: a palette grouped the way
   a workflow reads, with loop steps offered only inside a loop and the debug

@@ -933,6 +933,15 @@ include = [
     "app/schemas/workflow_run.py",
     "app/services/workflow_execution/**",
     "app/api/routes/v1/workflow_runs.py",
+    # The ways in to a workflow (#1792): its webhooks and schedules, the
+    # workflow-run WebSocket and the chat's door through it.
+    "app/db/models/workflow_exposure.py",
+    "app/repositories/workflow_exposure.py",
+    "app/schemas/workflow_exposure.py",
+    "app/services/workflow_exposure.py",
+    "app/services/workflow_run_socket.py",
+    "app/api/routes/v1/workflow_exposures.py",
+    "app/api/routes/v1/workflow_run_socket.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another
@@ -1359,6 +1368,15 @@ include = [
     "app/schemas/workflow_run.py",
     "app/services/workflow_execution/**",
     "app/api/routes/v1/workflow_runs.py",
+    # The ways in to a workflow (#1792): its webhooks and schedules, the
+    # workflow-run WebSocket and the chat's door through it.
+    "app/db/models/workflow_exposure.py",
+    "app/repositories/workflow_exposure.py",
+    "app/schemas/workflow_exposure.py",
+    "app/services/workflow_exposure.py",
+    "app/services/workflow_run_socket.py",
+    "app/api/routes/v1/workflow_exposures.py",
+    "app/api/routes/v1/workflow_run_socket.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another

@@ -118,6 +118,43 @@ iterations included, each with its `scope_path`, status, tries, cost and the typ
 error it last failed with, and `GET /api/v1/workflow-runs/{id}/graph` returns the
 graph the run executes: its version's, or a test run's draft snapshot.
 
+### Following a run over a WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` authenticates like the chat's
+socket, with the access token as the `access_token.<token>` subprotocol. Send
+`{"type": "start", "workflow_id": ..., "input": {...}}` to start a run, or
+`{"type": "attach", "run_id": ..., "after": <cursor>}` to follow one. The server
+sends `{"type": "run", "run": {...}}` when it starts following and again when the
+run ends, and `{"type": "event", "event": {...}, "cursor": ...}` for every event
+between. A refused frame gets `{"type": "error", "code": ..., "message": ...}`,
+and a revoked session closes the socket with `4001`. One socket follows one run;
+a new frame replaces the run it was following.
+
+### Webhooks and schedules { #workflow-webhooks-and-schedules }
+
+`/api/v1/workflows/{id}/exposures` lists a workflow's webhooks and schedules,
+creates one (`POST`), changes one (`PATCH .../{exposure_id}`) and deletes one;
+`POST .../{exposure_id}/rotate-secret` replaces a webhook's secret. Setting one up
+needs `workflows:edit` and `workflows:run` on the workflow, because it runs as
+you. A webhook's `reveal_secret` is in the create and rotate responses only, and
+its `webhook_url` is where the sender delivers:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+It answers `202` with `{"run_id": ..., "duplicate": false}` as soon as the run is
+admitted, never waiting for the run itself. A delivery id already admitted answers
+`"duplicate": true` with the first run's id. A signature that does not verify is a
+`403`, a delivery with no id or with a body that is not a JSON object a `400`, and
+a paused or unknown webhook a `404`.
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no

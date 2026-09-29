@@ -259,6 +259,57 @@ The run's output
 and every step it took, iteration by iteration, sit alongside. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it.
 
+## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
+
+**Triggers** in the editor's header lists every way into a workflow. Some need
+nothing set up. Anyone who may run the workflow can start it as themselves from
+the [HTTP API](api.md#running-a-workflow), over a WebSocket or in the chat, and
+each of these runs the live version and is checked, billed and audited like a run
+started here. Others are set up once and then fire on their own: a signed webhook
+and a schedule.
+
+### From the chat { #from-the-chat }
+
+The chat's picker of who answers lists the published workflows below the agents.
+With one picked, each message starts a run of it, with the message as
+`payload.prompt`. The thread shows a card with the run's status and a link to its
+steps, and the workflow's answer follows it once the run ends.
+
+The answer is written into the conversation when the run ends, whether or not the
+chat is still open, so reopening the conversation reads it back. A run writes to
+the conversation it was started from and nowhere else: reaching anyone else takes
+an HTTP or notification step in the graph.
+
+### Over a WebSocket { #over-a-websocket }
+
+`/api/v1/ws/workflow-runs` starts a run and streams its events, or follows one
+already going. A client that lost its connection reconnects with the cursor of the
+last event it saw and picks up exactly where it stopped. Events are written before
+they are sent, so nothing is lost and nothing runs twice. The socket re-checks the
+session and the member's access before every frame and every read of the stream.
+The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
+
+### A webhook or a schedule { #a-webhook-or-a-schedule }
+
+**New webhook** and **New schedule** add a way in that nobody stands at. Each is
+pinned to the version that was live when it was made: publishing again changes
+nothing until **Use the live version** moves it. Each runs as the member who set
+it up or last changed it, and that member's access is checked afresh on every
+fire. A webhook whose member can no longer run the workflow refuses its
+deliveries, and such a schedule is switched off and recorded in the audit trail.
+
+A webhook's **signing secret** is shown once, when it is made or replaced. The
+sender signs the exact request body with it, HMAC-SHA256 in `X-Signature-256`,
+and names each delivery in `X-Delivery-Id`; GitHub's own headers work as well.
+Each delivery's JSON body is its run's input. A retry that repeats an id is
+answered with the first run and starts nothing, because the id is recorded with
+the run it admitted, in one transaction.
+
+A schedule runs every so often, daily at a set time or on a cron expression, all
+in UTC and at most once a minute. Its **Input** is what every run starts with. A
+tick that finds the last run still going is skipped rather than stacking a second
+run behind it, and a tick the admission quota refuses waits for the next one.
+
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 
 Every part of the editor has a path that needs no pointer. Clicking a palette
@@ -316,6 +367,9 @@ Copy and paste have three limits:
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version.
+- **Triggers** start a workflow from the API, a WebSocket or the chat, as whoever
+  asks, and from a signed **webhook** or a **schedule** pinned to one version and
+  run as the member who set it up.
 - A step's **policy** sets its tries, its time limit and whether its failures
   leave by an **Error** port; a **For each** step's body runs from **Loop item** to
   **Loop result** once per item.

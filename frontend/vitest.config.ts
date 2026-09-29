@@ -150,6 +150,8 @@ export default defineConfig({
         "src/components/workflows/workflow-card.tsx",
         "src/components/workflows/node-visuals.ts",
         "src/components/workflows/runs/**/*.{ts,tsx}",
+        // The editor's Triggers sheet: webhooks and schedules (#1792).
+        "src/components/workflows/exposures/**/*.{ts,tsx}",
       ],
       exclude: [
         "node_modules",

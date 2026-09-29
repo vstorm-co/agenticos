@@ -105,7 +105,18 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "workflow_run";
+
+/** A workflow answering a chat turn: which run it is and where it stands. */
+export interface WorkflowRunPart {
+  workflowId: string;
+  /** What the workflow was called when it answered. */
+  workflowName: string | null;
+  /** Null until the socket has admitted the run. */
+  runId: string | null;
+  status: string;
+  error: string | null;
+}
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -124,6 +135,8 @@ export interface MessagePart {
    * asked it itself, and on every question stored before the field existed.
    */
   askedBy?: string;
+  /** The run, for a "workflow_run" part. */
+  workflowRun?: WorkflowRunPart;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";

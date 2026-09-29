@@ -25,6 +25,7 @@ from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.workflow_exposure import WorkflowExposure
 
 pytestmark = pytest.mark.anyio
 
@@ -281,6 +282,33 @@ class TestRotateTable:
         assert report.rotated == 1
         assert unseal(conn.auth_token, scope=scope, key_version=2) == "ghp-token"
 
+    @pytest.mark.security
+    async def test_a_workflow_webhooks_signing_secret_moves_to_the_new_key(self, monkeypatch):
+        """A webhook still verifies after a rotation: its secret is rewrapped
+        under the organization, like every other org-owned envelope (#1792)."""
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+        org_id = uuid.uuid4()
+        scope = VaultScope.organization(org_id)
+        exposure = WorkflowExposure(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            secret_encrypted=seal("hmac-key", scope=scope, key_version=1).ciphertext,
+            secret_key_version=1,
+        )
+
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+        report = Report()
+        await _rotate_table(
+            _db_returning([exposure]),
+            _spec("workflow_exposures"),
+            target=2,
+            dry_run=False,
+            report=report,
+        )
+
+        assert report.rotated == 1 and exposure.secret_key_version == 2
+        assert unseal(exposure.secret_encrypted, scope=scope, key_version=2) == "hmac-key"
+
 
 class TestRun:
     @staticmethod
@@ -307,7 +335,7 @@ class TestRun:
             hint="abcd",
             key_version=1,
         )
-        db = _db_returning([secret], [], [], [], [])
+        db = _db_returning([secret], [], [], [], [], [])
 
         with patch.object(sweep, "get_db_context", self._db_context(db)):
             report = await _run(dry_run=False)

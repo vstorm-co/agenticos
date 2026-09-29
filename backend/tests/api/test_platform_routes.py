@@ -910,6 +910,10 @@ RESOURCE_AWARE_SERVICES = (
     # indirection `get_agent_exposure_service` uses for a binding and its
     # agent. `POST /workflow-runs`, `GET/POST .../{id}...` all depend on it.
     deps.get_workflow_execution_service,
+    # A workflow's webhooks and schedules have no grants of their own either:
+    # `WorkflowExposureService` resolves `workflows:view`/`edit`/`run` against
+    # the workflow in the path, per workflow rather than per role (#1792).
+    deps.get_workflow_exposure_service,
     # A saved view is a sub-resource of one table: listing and reading resolve
     # against the table's own grants, and changing or deleting one additionally
     # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
@@ -1577,6 +1581,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # installation, so the path names nothing and the installation id in the
         # payload selects the grant whose secret verifies the HMAC (#1072).
         ("POST", f"{V1}/webhooks/github-app"),
+        # A workflow webhook's inbound door (#1792). The sender signs the body with
+        # the exposure's own secret and the service verifies that HMAC against the
+        # exposure in the path; the run then acts as the member who set it up.
+        ("POST", f"{V1}/workflow-webhooks/{{exposure_id}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

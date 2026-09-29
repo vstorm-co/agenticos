@@ -82,6 +82,12 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.db.models.workflow_exposure import (
+    ExposureAdapter,
+    ExposureScheduleKind,
+    WorkflowExposure,
+    WorkflowWebhookDelivery,
+)
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
@@ -189,4 +195,8 @@ __all__ = [
     "WorkflowRunMode",
     "WorkflowRunStatus",
     "WorkflowRunTrigger",
+    "ExposureAdapter",
+    "ExposureScheduleKind",
+    "WorkflowExposure",
+    "WorkflowWebhookDelivery",
 ]

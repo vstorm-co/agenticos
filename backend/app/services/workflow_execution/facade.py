@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import (
     NodeAttempt,
     NodeAttemptStatus,
@@ -45,7 +45,7 @@ from app.schemas.workflow_run import (
     WorkflowRunRead,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
-from app.services.workflow_execution import admission, dispatcher, events
+from app.services.workflow_execution import admission, delivery, dispatcher, events
 from app.services.workflow_execution.exceptions import (
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
@@ -58,6 +58,20 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 
 logger = logging.getLogger(__name__)
+
+
+def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
+    """`run_input` as a run stores it, refused when it is over the size limit.
+
+    Raises:
+        WorkflowRunInputTooLargeError: Over `WORKFLOW_RUN_MAX_INPUT_BYTES` as
+            compact JSON.
+    """
+    payload = run_input or {}
+    size = len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode())
+    if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
+        raise WorkflowRunInputTooLargeError(limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=size)
+    return payload
 
 
 def _read(run: WorkflowRun) -> WorkflowRunRead:
@@ -100,6 +114,7 @@ class WorkflowExecutionService:
         triggered_by: WorkflowRunTrigger = WorkflowRunTrigger.API,
         run_input: dict[str, Any] | None = None,
         deadline_seconds: int | None = None,
+        reply_conversation_id: UUID | None = None,
     ) -> WorkflowRunRead:
         """Admit a new run of `workflow_id`'s current published version (or,
         in `test` mode, a snapshot of its current draft).
@@ -112,6 +127,10 @@ class WorkflowExecutionService:
         not yet dispatched when it passes is refused and the run fails with
         `DEADLINE_EXCEEDED`. It is checked when a node is dispatched, so a node
         already running, or parked on an approval, is not interrupted by it.
+
+        `reply_conversation_id` is where a chat-started run answers: the
+        caller's own conversation, which the chat surface checked belongs to
+        them. The run's result is written there when it ends.
 
         Raises:
             NotFoundError: The workflow does not exist, or this caller may
@@ -128,12 +147,7 @@ class WorkflowExecutionService:
                 organization's or the caller's outstanding node work past its
                 ceiling; retried once running work drains.
         """
-        payload = run_input or {}
-        size = len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode())
-        if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
-            raise WorkflowRunInputTooLargeError(
-                limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=size
-            )
+        payload = _checked_input(run_input)
         workflow = await self._authorize(ctx, workflow_id, Perm.WORKFLOWS_RUN)
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
@@ -153,6 +167,81 @@ class WorkflowExecutionService:
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
             ctx, workflow, mode=mode
         )
+        run, entry_node_run_id = await self._admit(
+            ctx,
+            workflow,
+            graph=graph,
+            workflow_version_id=workflow_version_id,
+            draft_snapshot=draft_snapshot,
+            budget_limit=budget_limit,
+            mode=mode,
+            triggered_by=triggered_by,
+            payload=payload,
+            deadline_seconds=deadline_seconds,
+            reply_conversation_id=reply_conversation_id,
+        )
+        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run_id)
+        return _read(run)
+
+    async def admit_pinned(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        *,
+        triggered_by: WorkflowRunTrigger,
+        run_input: dict[str, Any],
+    ) -> tuple[WorkflowRun, UUID]:
+        """Admit a run of one pinned version as `ctx` - a webhook's or a schedule's fire.
+
+        The exposure layer has already decided `ctx` may run `workflow` and that
+        it is not archived; this is the rest of `start`, on the version the
+        exposure pinned rather than the workflow's current one. Returns the run
+        and its entry node run, whose first dispatch the caller submits once its
+        own transaction commits - a request through `trigger_dispatch`, the
+        schedule heartbeat after its claim commits.
+
+        Raises:
+            WorkflowRunInputTooLargeError: `run_input` is over
+                `WORKFLOW_RUN_MAX_INPUT_BYTES`.
+            WorkflowAdmissionQuotaError: The organization's or the principal's
+                outstanding node work would pass its ceiling.
+        """
+        return await self._admit(
+            ctx,
+            workflow,
+            graph=WorkflowGraph.model_validate(version.graph),
+            workflow_version_id=version.id,
+            draft_snapshot=None,
+            budget_limit=version.budget_limit,
+            mode=WorkflowRunMode.REAL,
+            triggered_by=triggered_by,
+            payload=_checked_input(run_input),
+            deadline_seconds=None,
+            reply_conversation_id=None,
+        )
+
+    async def _admit(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        *,
+        graph: WorkflowGraph,
+        workflow_version_id: UUID | None,
+        draft_snapshot: dict[str, Any] | None,
+        budget_limit: Decimal | None,
+        mode: WorkflowRunMode,
+        triggered_by: WorkflowRunTrigger,
+        payload: dict[str, Any],
+        deadline_seconds: int | None,
+        reply_conversation_id: UUID | None,
+    ) -> tuple[WorkflowRun, UUID]:
+        """One admitted run: its row, its references, its entry node and first outbox row.
+
+        Every surface ends here, so a run started from the console, the API, a
+        webhook, a schedule or the chat is the same row with the same
+        governance - the admission quota, the pinned principal, the frozen input.
+        """
         # Charge this run's node work against the organization's and the caller's
         # outstanding-node-work ceilings before anything is written, so a caller
         # cannot start many wide graphs below the per-minute run limit and grow a
@@ -186,6 +275,7 @@ class WorkflowExecutionService:
             depth=0,
             started_at=now,
             run_input=payload,
+            reply_conversation_id=reply_conversation_id,
         )
         await self._record_resource_refs(run, graph)
         entry_node_run = await workflow_run_repo.create_node_run(
@@ -195,8 +285,8 @@ class WorkflowExecutionService:
             node_instance_id=graph.entry_node_id,
             scope_path=[],
         )
-        # Stamped submitted: `_trigger_dispatch` submits it once this request
-        # commits, so the poll leaves it alone unless that submission is lost.
+        # Stamped submitted: the caller submits it once its transaction commits,
+        # so the poll leaves it alone unless that submission is lost.
         await workflow_run_repo.create_outbox(
             self.db,
             organization_id=run.organization_id,
@@ -208,8 +298,7 @@ class WorkflowExecutionService:
             self.db, run=run, update_data={"status": WorkflowRunStatus.RUNNING.value}
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_STARTED)
-        self._trigger_dispatch(workflow_run_id=run.id, node_run_id=entry_node_run.id)
-        return _read(run)
+        return run, entry_node_run.id
 
     async def cancel(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
         """Stop a run: no further node ever dispatches for it.
@@ -291,6 +380,7 @@ class WorkflowExecutionService:
             },
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
+        await delivery.deliver_result(self.db, run=run)
         return _read(run)
 
     async def get(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:

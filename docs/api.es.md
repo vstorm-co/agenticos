@@ -1,5 +1,5 @@
 ---
-source_sha: "1bc1faed14af"
+source_sha: "1b01d58d3031"
 ---
 
 # La API HTTP { #the-http-api }
@@ -130,6 +130,43 @@ iteraciones de bucle incluidas, cada uno con su `scope_path`, estado, intentos,
 coste y el error tipado con el que falló por última vez, y `GET
 /api/v1/workflow-runs/{id}/graph` devuelve el grafo que ejecuta el run: el de su
 versión o la instantánea del draft de un run de prueba.
+
+### Seguir un run por un WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` se autentica como el socket del
+chat, con el token de acceso como subprotocolo `access_token.<token>`. Envía
+`{"type": "start", "workflow_id": ..., "input": {...}}` para iniciar un run, o
+`{"type": "attach", "run_id": ..., "after": <cursor>}` para seguir uno. El servidor
+envía `{"type": "run", "run": {...}}` cuando empieza a seguirlo y otra vez cuando el
+run termina, y `{"type": "event", "event": {...}, "cursor": ...}` por cada evento
+intermedio. Un frame rechazado recibe `{"type": "error", "code": ..., "message":
+...}`, y una sesión revocada cierra el socket con `4001`. Un socket sigue un run; un
+frame nuevo sustituye el run que seguía.
+
+### Webhooks y programaciones { #workflow-webhooks-and-schedules }
+
+`/api/v1/workflows/{id}/exposures` enumera los webhooks y las programaciones de un
+workflow, crea uno (`POST`), cambia uno (`PATCH .../{exposure_id}`) y borra uno;
+`POST .../{exposure_id}/rotate-secret` sustituye el secreto de un webhook.
+Configurarlo requiere `workflows:edit` y `workflows:run` sobre el workflow, porque se
+ejecuta como tú. El `reveal_secret` de un webhook solo está en las respuestas de
+creación y rotación, y su `webhook_url` es la dirección a la que entrega el remitente:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+Responde `202` con `{"run_id": ..., "duplicate": false}` en cuanto el run queda
+admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
+`"duplicate": true` con el id del primer run. Una firma que no se verifica es un
+`403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
+webhook pausado o desconocido un `404`.
 
 ## Los servicios de ML { #the-ml-services }
 

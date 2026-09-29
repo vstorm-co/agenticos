@@ -2,14 +2,16 @@
 
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { Bot, Check, ChevronDown, Star } from "lucide-react";
+import { Bot, Check, ChevronDown, Star, Workflow } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { useAgents } from "@/hooks";
+import { useAgents, usePermissions, useWorkflows } from "@/hooks";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
+import type { WorkflowRead } from "@/lib/workflows/types";
 import type { Agent } from "@/types/agents";
+import { Perm } from "@/types/permissions";
 
 /**
  * Whether an agent can be chatted with at all.
@@ -18,6 +20,10 @@ import type { Agent } from "@/types/agents";
  * an archived one - so offering it would turn the picker into a trap.
  */
 const isRunnable = (agent: Agent): boolean => agent.status === "published";
+
+/** A workflow the chat can hand a message to: one with a live version to run. */
+export const isChattable = (workflow: WorkflowRead): boolean =>
+  workflow.current_version_id !== null && workflow.status !== "archived";
 
 /**
  * Who answers, as its own control beside the composer.
@@ -32,6 +38,10 @@ const isRunnable = (agent: Agent): boolean => agent.status === "published";
  * user's default agent - the one starred here - or, absent that, the first
  * published agent as soon as the list arrives, so the composer always
  * addresses someone real.
+ *
+ * A member who may run workflows is offered the published ones as well: a
+ * message addressed to one starts a run of it, and its answer - a card with the
+ * run's status, then its words - comes back into the same thread.
  *
  * The choice applies from the next message, not retroactively - switching
  * mid-conversation is a supported thing to do, and the transcript records the
@@ -48,10 +58,17 @@ export function AgentPicker() {
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
   const setDefaultAgent = useAgentSelectionStore((state) => state.setDefault);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
+  const selectedWorkflowId = useAgentSelectionStore((state) => state.selectedWorkflowId);
+  const selectWorkflow = useAgentSelectionStore((state) => state.selectWorkflow);
+  const { can } = usePermissions();
+  const { workflows } = useWorkflows({ enabled: can(Perm.workflowsRun) });
 
   const runnable = agents.filter(isRunnable);
   const selected =
     agents.find((agent) => agent.id === selectedAgentId && isRunnable(agent)) ?? null;
+  const chattable = workflows.filter(isChattable);
+  const selectedWorkflow = chattable.find((workflow) => workflow.id === selectedWorkflowId) ?? null;
+  const answererName = selectedWorkflow?.name ?? selected?.name;
 
   // No selection, or one pointing at an agent that has since been unpublished,
   // resolves to the default agent, then the first published one. The store is
@@ -77,13 +94,15 @@ export function AgentPicker() {
         <button
           type="button"
           data-tour="chat-agent-picker"
-          aria-label={t("current", { name: selected?.name ?? t("noneSelected") })}
+          aria-label={t("current", { name: answererName ?? t("noneSelected") })}
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex min-w-0 items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >
-          {selected ? (
+          {selectedWorkflow ? (
+            <WorkflowMark />
+          ) : selected ? (
             <AgentAvatar
               agentId={selected.id}
               slug={selected.slug}
@@ -96,7 +115,7 @@ export function AgentPicker() {
             </span>
           )}
           <span className="max-w-[160px] truncate font-mono text-[11px] tracking-wider uppercase">
-            {selected?.name ?? t("none")}
+            {answererName ?? t("none")}
           </span>
           <ChevronDown className="text-foreground/45 h-3 w-3" />
         </button>
@@ -119,13 +138,31 @@ export function AgentPicker() {
             <AgentOption
               key={agent.id}
               agent={agent}
-              selected={selectedAgentId === agent.id}
+              selected={selectedWorkflow === null && selectedAgentId === agent.id}
               isDefault={defaultAgentId === agent.id}
               onSelect={() => selectAgent(agent.id)}
               onToggleDefault={() => setDefaultAgent(defaultAgentId === agent.id ? null : agent.id)}
             />
           ))}
         </div>
+
+        {chattable.length > 0 && (
+          <>
+            <p className="text-muted-foreground border-foreground/8 mt-1 border-t px-2 pt-2 pb-1 text-[11px]">
+              {t("workflows")}
+            </p>
+            <div role="radiogroup" aria-label={t("workflows")} className="space-y-px">
+              {chattable.map((workflow) => (
+                <WorkflowOption
+                  key={workflow.id}
+                  workflow={workflow}
+                  selected={selectedWorkflow?.id === workflow.id}
+                  onSelect={() => selectWorkflow(workflow.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {isLoading && runnable.length === 0 ? (
           <p className="text-foreground/55 px-2 py-3 text-xs">{t("loading")}</p>
@@ -214,5 +251,47 @@ function AgentOption({
         <Star className={cn("h-3.5 w-3.5", isDefault && "fill-current")} />
       </button>
     </div>
+  );
+}
+
+function WorkflowMark() {
+  return (
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300">
+      <Workflow aria-hidden="true" className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
+function WorkflowOption({
+  workflow,
+  selected,
+  onSelect,
+}: {
+  workflow: WorkflowRead;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors",
+        selected ? "bg-accent" : "hover:bg-accent/60",
+      )}
+    >
+      <WorkflowMark />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium">{workflow.name}</span>
+        {workflow.description && (
+          <span className="text-muted-foreground block truncate text-[11px]">
+            {workflow.description}
+          </span>
+        )}
+      </span>
+      {selected && <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />}
+    </button>
   );
 }

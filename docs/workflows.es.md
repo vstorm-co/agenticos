@@ -1,5 +1,5 @@
 ---
-source_sha: "6947676d3d3e"
+source_sha: "5e8a58bfee0e"
 ---
 
 # Workflows { #workflows }
@@ -262,6 +262,59 @@ La salida del run y cada paso que dio, iteración a iteración, están
 al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene.
 
+## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
+
+**Triggers**, en la cabecera del editor, enumera todas las vías de entrada a un
+workflow. Algunas no necesitan configuración. Quien pueda ejecutar el workflow puede
+iniciarlo como sí mismo desde la [API HTTP](api.md#running-a-workflow), por un
+WebSocket o en el chat, y cada una de estas vías ejecuta la versión en vivo y se
+comprueba, factura y audita como un run iniciado aquí. Otras se configuran una vez y
+luego se disparan solas: un webhook firmado y una programación.
+
+### Desde el chat { #from-the-chat }
+
+El selector del chat de quién responde enumera los workflows publicados debajo de los
+agentes. Con uno elegido, cada mensaje inicia un run de él, con el mensaje como
+`payload.prompt`. El hilo muestra una tarjeta con el estado del run y un enlace a sus
+pasos, y la respuesta del workflow la sigue cuando el run termina.
+
+La respuesta se escribe en la conversación cuando el run termina, siga el chat abierto
+o no, así que al volver a abrir la conversación se lee de nuevo. Un run escribe en la
+conversación desde la que se inició y en ninguna otra parte: llegar a cualquier otra
+persona requiere un paso HTTP o de notificación en el grafo.
+
+### Por un WebSocket { #over-a-websocket }
+
+`/api/v1/ws/workflow-runs` inicia un run y transmite sus eventos, o sigue uno que ya
+está en marcha. Un cliente que perdió la conexión se reconecta con el cursor del
+último evento que vio y retoma exactamente donde lo dejó. Los eventos se escriben
+antes de enviarse, así que nada se pierde y nada se ejecuta dos veces. El socket
+vuelve a comprobar la sesión y el acceso del miembro antes de cada frame y de cada
+lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-over-a-websocket).
+
+### Un webhook o una programación { #a-webhook-or-a-schedule }
+
+**New webhook** y **New schedule** añaden una vía de entrada ante la que nadie está.
+Cada una queda fijada a la versión que estaba en vivo cuando se creó: volver a
+publicar no cambia nada hasta que **Use the live version** la mueve. Cada una se
+ejecuta como el miembro que la configuró o la cambió por última vez, y su acceso se
+comprueba de nuevo en cada disparo. Un webhook cuyo miembro ya no puede ejecutar el
+workflow rechaza sus entregas, y una programación así se desactiva y queda registrada
+en el registro de auditoría.
+
+El **signing secret** de un webhook se muestra una vez, cuando se crea o se sustituye.
+El remitente firma con él el cuerpo exacto de la petición, HMAC-SHA256 en
+`X-Signature-256`, y nombra cada entrega en `X-Delivery-Id`; las cabeceras propias de
+GitHub también funcionan. El cuerpo JSON de cada entrega es la entrada de su run. Un
+reintento que repite un id recibe como respuesta el primer run y no inicia nada,
+porque el id se guarda junto con el run que admitió, en una sola transacción.
+
+Una programación se ejecuta cada cierto tiempo, a diario a una hora fija o según una
+expresión cron, todo en UTC y como mucho una vez por minuto. Su **Input** es aquello
+con lo que empieza cada run. Un tic que encuentra el último run aún en marcha se
+omite en lugar de apilar un segundo run detrás, y un tic que la cuota de admisión
+rechaza espera al siguiente.
+
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 
 Cada parte del editor tiene una ruta que no necesita puntero. Hacer clic en un nodo de
@@ -318,6 +371,9 @@ Copiar y pegar tienen tres límites:
   draft** vuelve a convertir una de ellas en el draft.
 - Cada acción tiene una **ruta de teclado**, y los atajos de edición son inertes en una
   versión publicada de solo lectura.
+- **Triggers** inician un workflow desde la API, un WebSocket o el chat, como quien lo
+  pide, y desde un **webhook** firmado o una **programación** fijados a una versión y
+  ejecutados como el miembro que los configuró.
 - La **política** de un paso fija sus intentos, su límite de tiempo y si sus fallos
   salen por un puerto **Error**; el cuerpo de un paso **For each** se ejecuta de
   **Loop item** a **Loop result** una vez por elemento.

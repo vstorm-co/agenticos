@@ -60,6 +60,7 @@ from app.worker.tasks.workflow_tasks import (
     workflow_dispatch_node_flow,
     workflow_dispatch_poll_flow,
     workflow_reconcile_flow,
+    workflow_schedules_check_flow,
 )
 
 logger = logging.getLogger(__name__)
@@ -250,6 +251,15 @@ async def main() -> None:
         await workflow_reconcile_flow.ato_deployment(
             name="workflow-reconcile",
             schedules=[_every(30)],
+        )
+    )
+    # Every minute, like the agent-trigger heartbeat: fire the workflow
+    # schedules that have come due. A schedule's interval floor is a minute, so
+    # a faster tick would find nothing new.
+    deployments.append(
+        await workflow_schedules_check_flow.ato_deployment(
+            name="workflow-schedules-check",
+            schedules=[_every(60)],
         )
     )
     logger.info(

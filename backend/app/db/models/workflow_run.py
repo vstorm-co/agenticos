@@ -283,6 +283,15 @@ class WorkflowRun(Base, TimestampMixin):
         ForeignKey("workflow_runs.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Where a chat-started run answers: the conversation the member typed in,
+    # frozen at admission from their own session and never read from a payload.
+    # The run's result is written there when it ends. Null for every other
+    # surface - none of them has a destination a run may write to on its own.
+    reply_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     visited_trigger_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     started_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)

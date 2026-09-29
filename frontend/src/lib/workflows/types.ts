@@ -428,3 +428,66 @@ export interface WorkflowRunStart {
 export function isRunTerminal(status: WorkflowRunStatus): boolean {
   return ["succeeded", "failed", "cancelled", "budget_exceeded"].includes(status);
 }
+
+/** The two ways a workflow runs with nobody pressing Start. */
+export type ExposureAdapter = "webhook" | "schedule";
+
+/** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
+export type ExposureScheduleKind = "interval" | "cron";
+
+/**
+ * One way in to a workflow that runs it unattended - a signed webhook or a
+ * schedule. Mirrors `WorkflowExposureRead`. Pinned to one published version:
+ * publishing again changes nothing until the exposure is moved to it.
+ */
+export interface WorkflowExposureRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_version_id: Uuid;
+  version_number: number;
+  adapter: ExposureAdapter;
+  name: string | null;
+  is_active: boolean;
+  execution_principal_user_id: Uuid | null;
+  run_input: Record<string, unknown>;
+  schedule_kind: ExposureScheduleKind | null;
+  interval_seconds: number | null;
+  cron_expression: string | null;
+  next_fire_at: string | null;
+  last_fired_at: string | null;
+  last_run_id: Uuid | null;
+  /** Where a webhook's deliveries are POSTed - the deployment's public API address. */
+  webhook_url: string | null;
+  created_at: string | null;
+}
+
+/** The create and rotate response - carries a webhook's signing secret, once. */
+export interface WorkflowExposureCreated extends WorkflowExposureRead {
+  reveal_secret: string | null;
+}
+
+export interface WorkflowExposureList {
+  items: WorkflowExposureRead[];
+}
+
+/** What creating an exposure sends. Mirrors `WorkflowExposureCreate`. */
+export interface WorkflowExposureCreate {
+  adapter: ExposureAdapter;
+  name?: string | null;
+  run_input?: Record<string, unknown>;
+  schedule_kind?: ExposureScheduleKind;
+  interval_seconds?: number | null;
+  cron_expression?: string | null;
+}
+
+/** What editing one sends. Mirrors `WorkflowExposureUpdate`. */
+export interface WorkflowExposureUpdate {
+  name?: string | null;
+  is_active?: boolean;
+  run_input?: Record<string, unknown>;
+  schedule_kind?: ExposureScheduleKind;
+  interval_seconds?: number | null;
+  cron_expression?: string | null;
+  /** Move the exposure to the workflow's current published version. */
+  pin_current_version?: boolean;
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "6947676d3d3e"
+source_sha: "5e8a58bfee0e"
 ---
 
 # Workflows { #workflows }
@@ -290,6 +290,63 @@ Die Ausgabe des Runs und jeder Schritt, den er gemacht hat, Iteration für Itera
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn.
 
+## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
+
+**Triggers** in der Kopfzeile des Editors listet jeden Weg in einen Workflow. Manche
+brauchen keine Einrichtung. Wer den Workflow ausführen darf, kann ihn als er selbst
+über die [HTTP-API](api.md#running-a-workflow), über einen WebSocket oder im Chat
+starten, und jeder dieser Wege führt die Live-Version aus und wird geprüft,
+abgerechnet und auditiert wie ein hier gestarteter Run. Andere werden einmal
+eingerichtet und lösen dann von selbst aus: ein signierter Webhook und ein Zeitplan.
+
+### Aus dem Chat { #from-the-chat }
+
+Die Auswahl im Chat, wer antwortet, listet die veröffentlichten Workflows unter den
+Agenten. Ist einer gewählt, startet jede Nachricht einen Run davon, mit der Nachricht
+als `payload.prompt`. Der Thread zeigt eine Karte mit dem Status des Runs und einem
+Link zu seinen Schritten, und die Antwort des Workflows folgt darunter, sobald der Run
+endet.
+
+Die Antwort wird in die Unterhaltung geschrieben, wenn der Run endet, ob der Chat noch
+offen ist oder nicht, sodass ein erneutes Öffnen der Unterhaltung sie wieder liest.
+Ein Run schreibt in die Unterhaltung, aus der er gestartet wurde, und nirgendwo sonst:
+Wer jemand anderen erreichen will, braucht einen HTTP- oder Benachrichtigungsschritt
+im Graphen.
+
+### Über einen WebSocket { #over-a-websocket }
+
+`/api/v1/ws/workflow-runs` startet einen Run und streamt seine Ereignisse oder folgt
+einem, der bereits läuft. Ein Client, der seine Verbindung verloren hat, verbindet
+sich mit dem Cursor des letzten Ereignisses, das er gesehen hat, erneut und macht
+genau dort weiter, wo er aufgehört hat. Ereignisse werden geschrieben, bevor sie
+gesendet werden, sodass nichts verloren geht und nichts zweimal läuft. Der Socket
+prüft die Sitzung und den Zugriff des Mitglieds vor jedem Frame und jedem Lesen des
+Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-a-websocket).
+
+### Ein Webhook oder ein Zeitplan { #a-webhook-or-a-schedule }
+
+**New webhook** und **New schedule** fügen einen Weg hinzu, an dem niemand steht.
+Jeder ist an die Version gebunden, die beim Anlegen live war: Erneutes Veröffentlichen
+ändert nichts, bis **Use the live version** ihn verschiebt. Jeder läuft als das
+Mitglied, das ihn eingerichtet oder zuletzt geändert hat, und dessen Zugriff wird bei
+jedem Auslösen neu geprüft. Ein Webhook, dessen Mitglied den Workflow nicht mehr
+ausführen darf, weist seine Zustellungen ab, und ein solcher Zeitplan wird abgeschaltet
+und im Audit-Trail vermerkt.
+
+Das **Signing Secret** eines Webhooks wird einmal angezeigt, wenn es erstellt oder
+ersetzt wird. Der Absender signiert damit den exakten Request-Body, HMAC-SHA256 in
+`X-Signature-256`, und benennt jede Zustellung in `X-Delivery-Id`; GitHubs eigene
+Header funktionieren ebenfalls. Der JSON-Body jeder Zustellung ist die Eingabe ihres
+Runs. Ein Retry, der eine ID wiederholt, wird mit dem ersten Run beantwortet und
+startet nichts, weil die ID zusammen mit dem Run, den sie zugelassen hat, in einer
+Transaktion gespeichert wird.
+
+Ein Zeitplan läuft in einem festen Abstand, täglich zu einer festen Uhrzeit oder nach
+einem Cron-Ausdruck, alles in UTC und höchstens einmal pro Minute. Sein **Input** ist
+das, womit jeder Run beginnt. Ein Takt, der den letzten Run noch laufend vorfindet,
+wird übersprungen, statt einen zweiten Run dahinter zu stapeln, und ein Takt, den die
+Zulassungsquote ablehnt, wartet auf den nächsten.
+
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 
 Jeder Teil des Editors hat einen Weg, der keinen Zeiger braucht. Ein Klick auf einen
@@ -351,6 +408,9 @@ Kopieren und Einfügen haben drei Grenzen:
   draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
   schreibgeschützten veröffentlichten Version wirkungslos.
+- **Triggers** starten einen Workflow über die API, einen WebSocket oder den Chat als
+  derjenige, der fragt, und über einen signierten **Webhook** oder einen **Zeitplan**,
+  der an eine Version gebunden ist und als das Mitglied läuft, das ihn eingerichtet hat.
 - Die **Policy** eines Schritts legt seine Versuche, sein Zeitlimit und fest, ob
   seine Fehler über einen **Error**-Port hinausgehen; der Körper eines **For
   each**-Schritts läuft einmal pro Element von **Loop item** bis **Loop result**.

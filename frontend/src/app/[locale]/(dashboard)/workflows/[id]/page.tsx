@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Activity, History, Workflow } from "lucide-react";
+import { Activity, History, Workflow, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -14,6 +14,7 @@ import {
   VersionHistory,
   useRestoreVersion,
 } from "@/components/workflows/editor";
+import { ExposuresPanel } from "@/components/workflows/exposures";
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
 import {
@@ -86,6 +87,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const teardown = useWorkflowEditorStore((state) => state.teardown);
   const seededId = useRef<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [triggersOpen, setTriggersOpen] = useState(false);
 
   useEffect(() => {
     if (workflow && seededId.current !== workflow.id) {
@@ -147,6 +149,10 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 {t("runsTitle")}
               </Link>
             </Button>
+            <Button variant="outline" onClick={() => setTriggersOpen(true)}>
+              <Zap className="h-4 w-4" />
+              {t("triggers")}
+            </Button>
             <Button variant="outline" onClick={() => setHistoryOpen(true)}>
               <History className="h-4 w-4" />
               {t("history")}
@@ -180,6 +186,18 @@ export default function WorkflowEditorPage({ params }: PageProps) {
           </aside>
         )}
       </div>
+      <Sheet open={triggersOpen} onOpenChange={setTriggersOpen}>
+        <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t("triggers")}</SheetTitle>
+            <SheetClose onClick={() => setTriggersOpen(false)} />
+          </SheetHeader>
+          <div className="p-4">
+            {/* Mounted with the sheet, so the list is read only when someone looks. */}
+            {triggersOpen && <ExposuresPanel workflow={workflow} canEdit={canEdit} />}
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
         <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
           <SheetHeader>

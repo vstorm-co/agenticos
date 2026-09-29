@@ -77,7 +77,7 @@ from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
-from app.services.workflow_execution import budget, context, events
+from app.services.workflow_execution import budget, context, delivery, events
 from app.services.workflow_execution.exceptions import (
     InvalidBindingError,
     NodeDefinitionMissingError,
@@ -866,6 +866,7 @@ async def _end_run(
         db, run=run, kind=event, node_run_id=node_run.id, payload={"code": error.code}
     )
     await workflow_run_repo.cancel_live_outbox_for_run(db, workflow_run_id=run.id)
+    await delivery.deliver_result(db, run=run)
 
 
 async def _end_run_before_dispatch(
@@ -2012,6 +2013,7 @@ async def _succeed_run(db: AsyncSession, *, run: WorkflowRun) -> None:
         },
     )
     await events.append(db, run=run, kind=events.EventKind.RUN_SUCCEEDED)
+    await delivery.deliver_result(db, run=run)
 
 
 __all__ = [

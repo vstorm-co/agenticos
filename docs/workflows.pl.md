@@ -1,5 +1,5 @@
 ---
-source_sha: "6947676d3d3e"
+source_sha: "5e8a58bfee0e"
 ---
 
 # Workflows { #workflows }
@@ -258,6 +258,59 @@ iteracje pętli.
 Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
 Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje.
 
+## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
+
+**Triggers** w nagłówku edytora wymienia każdą drogę do workflow. Niektóre nie
+wymagają żadnej konfiguracji. Każdy, kto może uruchomić workflow, może go uruchomić
+jako on sam z [HTTP API](api.md#running-a-workflow), przez WebSocket albo na czacie,
+i każda z tych dróg uruchamia żywą wersję oraz jest sprawdzana, rozliczana i
+audytowana tak samo jak run uruchomiony tutaj. Inne konfiguruje się raz, a potem
+odpalają same: podpisany webhook i harmonogram.
+
+### Z czatu { #from-the-chat }
+
+Wybór tego, kto odpowiada na czacie, wymienia opublikowane workflow pod agentami. Gdy
+wybrany jest workflow, każda wiadomość uruchamia jego run, z wiadomością jako
+`payload.prompt`. Wątek pokazuje kartę ze statusem runa i linkiem do jego kroków, a
+odpowiedź workflow pojawia się pod nią, gdy run się skończy.
+
+Odpowiedź jest zapisywana w rozmowie, gdy run się kończy, niezależnie od tego, czy
+czat jest jeszcze otwarty, więc ponowne otwarcie rozmowy ją odczytuje. Run pisze do
+rozmowy, z której został uruchomiony, i nigdzie indziej: dotarcie do kogokolwiek
+innego wymaga kroku HTTP albo powiadomienia w grafie.
+
+### Przez WebSocket { #over-a-websocket }
+
+`/api/v1/ws/workflow-runs` uruchamia run i strumieniuje jego zdarzenia albo śledzi
+run, który już trwa. Klient, który stracił połączenie, łączy się ponownie z kursorem
+ostatniego zdarzenia, które widział, i podejmuje dokładnie tam, gdzie przerwał.
+Zdarzenia są zapisywane, zanim zostaną wysłane, więc nic nie ginie i nic nie
+uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka przed każdą
+ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Webhook albo harmonogram { #a-webhook-or-a-schedule }
+
+**New webhook** i **New schedule** dodają drogę, przy której nikt nie stoi. Każda
+jest przypięta do wersji, która była żywa, gdy ją utworzono: ponowna publikacja
+niczego nie zmienia, dopóki **Use the live version** jej nie przeniesie. Każda
+działa jako członek, który ją skonfigurował albo ostatnio zmienił, a jego dostęp jest
+sprawdzany od nowa przy każdym odpaleniu. Webhook, którego członek nie może już
+uruchomić workflow, odrzuca dostarczenia, a taki harmonogram jest wyłączany i
+odnotowywany w dzienniku audytu.
+
+**Signing secret** webhooka jest pokazywany raz, gdy jest tworzony albo wymieniany.
+Nadawca podpisuje nim dokładną treść żądania, HMAC-SHA256 w `X-Signature-256`, i
+nazywa każde dostarczenie w `X-Delivery-Id`; własne nagłówki GitHuba też działają.
+JSON-owa treść każdego dostarczenia jest wejściem jego runa. Ponowienie, które
+powtarza id, dostaje odpowiedź z pierwszym runem i niczego nie uruchamia, bo id jest
+zapisywane razem z runem, który wpuściło, w jednej transakcji.
+
+Harmonogram uruchamia się co jakiś czas, codziennie o ustalonej godzinie albo według
+wyrażenia cron, wszystko w UTC i najczęściej raz na minutę. Jego **Input** to to, od
+czego zaczyna każdy run. Tyknięcie, które zastaje poprzedni run wciąż trwający, jest
+pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
+przyjęć czeka na następne.
+
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 
 Każda część edytora ma drogę, która nie wymaga wskaźnika. Kliknięcie węzła w palecie
@@ -315,6 +368,9 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu.
+- **Triggers** uruchamiają workflow z API, przez WebSocket albo na czacie, jako ten,
+  kto pyta, oraz z podpisanego **webhooka** albo **harmonogramu** przypiętego do
+  jednej wersji i działającego jako członek, który go skonfigurował.
 - **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą
   portem **Error**; ciało kroku **For each** wykonuje się od **Loop item** do **Loop
   result** raz na każdy element.

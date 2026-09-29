@@ -68,6 +68,8 @@ def _run_row(**overrides: object):
     run.workflow_id = uuid.uuid4()
     run.workflow_version_id = uuid.uuid4()
     run.mode = WorkflowRunMode.REAL.value
+    # Started over the API, so it answers in no conversation.
+    run.reply_conversation_id = None
     run.status = WorkflowRunStatus.RUNNING.value
     run.triggered_by = "api"
     run.budget_limit = None

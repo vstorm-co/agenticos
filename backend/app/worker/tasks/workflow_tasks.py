@@ -256,3 +256,23 @@ async def workflow_reconcile_flow() -> dict[str, int]:
     if any(result.values()):
         logger.warning("workflow_reconcile: %s", result)
     return result
+
+
+@flow(name="workflow-schedules-check", log_prints=True)
+async def workflow_schedules_check_flow() -> int:
+    """Heartbeat: fire every workflow schedule due now (#1792).
+
+    The claim, the clock advance and each admitted run commit in one
+    transaction, so a tick either happened or did not: a worker that dies
+    before the commit leaves the clock where it was and the next tick fires the
+    same instant, and one that dies after leaves durable runs the dispatch poll
+    drives forward. Only then are their first dispatches submitted.
+    """
+    from app.services.workflow_exposure import WorkflowExposureService
+
+    async with get_worker_db_context() as db:
+        pairs = await WorkflowExposureService(db).fire_due(now=datetime.now(UTC))
+    submitted = await _submit_each(pairs)
+    if pairs:
+        logger.info("workflow_schedules_check: fired %d schedule(s)", len(pairs))
+    return submitted

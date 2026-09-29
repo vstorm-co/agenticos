@@ -693,6 +693,15 @@ def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
 
 WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
 
+from app.services.workflow_exposure import WorkflowExposureService
+
+
+def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
+    return WorkflowExposureService(db)
+
+
+WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
+
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
 
