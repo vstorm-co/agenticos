@@ -643,7 +643,14 @@
           "description": "Rekordy utworzone tutaj, przez agenta lub przez API, pojawiają się w każdym pasującym widoku.",
           "add": "Dodaj rekord"
         },
-        "addRecord": "Dodaj rekord"
+        "addRecord": "Dodaj rekord",
+        "search": "Szukaj rekordów",
+        "saveView": "Zapisz widok",
+        "viewSaved": "Zapisano widok.",
+        "loadingMore": "Wczytywanie kolejnych rekordów…",
+        "truncated": "Siatka przewija pierwsze 10 000 rekordów. Użyj filtra lub wyszukiwania, aby dotrzeć do pozostałych.",
+        "recordCount": "{count, plural, one {# rekord} few {# rekordy} many {# rekordów} other {# rekordu}}",
+        "recordCountCapped": "{count, number}+ rekordów"
       },
       "views": {
         "created": "Zapisano widok",
@@ -3891,7 +3898,63 @@
       "deleteTitle": "{count, plural, one {Usunąć # rekord?} few {Usunąć # rekordy?} many {Usunąć # rekordów?} other {Usunąć # rekordu?}}",
       "deleteDescription": "Usunięte rekordy znikają ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla każdego z nich. Tego nie można cofnąć.",
       "deleted": "{count, plural, one {Usunięto # rekord.} few {Usunięto # rekordy.} many {Usunięto # rekordów.} other {Usunięto # rekordu.}}",
-      "deleteConflict": "{count, plural, one {# rekord zmienił się od wczytania i został zachowany. Sprawdź go i spróbuj ponownie.} few {# rekordy zmieniły się od wczytania i zostały zachowane. Sprawdź je i spróbuj ponownie.} many {# rekordów zmieniło się od wczytania i zostało zachowanych. Sprawdź je i spróbuj ponownie.} other {# rekordu zmieniło się od wczytania i zostało zachowane. Sprawdź je i spróbuj ponownie.}}"
+      "deleteConflict": "{count, plural, one {# rekord zmienił się od wczytania i został zachowany. Sprawdź go i spróbuj ponownie.} few {# rekordy zmieniły się od wczytania i zostały zachowane. Sprawdź je i spróbuj ponownie.} many {# rekordów zmieniło się od wczytania i zostało zachowanych. Sprawdź je i spróbuj ponownie.} other {# rekordu zmieniło się od wczytania i zostało zachowane. Sprawdź je i spróbuj ponownie.}}",
+      "addColumn": "Dodaj kolumnę"
+    },
+    "filters": {
+      "button": "Filtr",
+      "title": "Filtry",
+      "hint": "Rekord jest widoczny, gdy spełnia każdy warunek.",
+      "none": "Brak warunków, więc widać każdy rekord.",
+      "where": "Gdzie",
+      "and": "i",
+      "column": "Kolumna",
+      "operator": "Operator",
+      "remove": "Usuń warunek",
+      "add": "Dodaj warunek",
+      "clear": "Wyczyść wszystko",
+      "op": {
+        "eq": "jest",
+        "ne": "nie jest",
+        "lt": "mniej niż",
+        "lte": "najwyżej",
+        "gt": "więcej niż",
+        "gte": "co najmniej",
+        "contains": "zawiera",
+        "starts_with": "zaczyna się od",
+        "in": "jest jednym z",
+        "empty": "jest puste",
+        "not_empty": "nie jest puste"
+      },
+      "opDated": {
+        "lt": "przed",
+        "lte": "najpóźniej",
+        "gt": "po",
+        "gte": "najwcześniej"
+      }
+    },
+    "columnMenu": {
+      "open": "Akcje kolumny {column}",
+      "sortAsc": "Sortuj rosnąco",
+      "sortDesc": "Sortuj malejąco",
+      "rename": "Zmień nazwę",
+      "hide": "Ukryj w tym widoku",
+      "archive": "Zarchiwizuj kolumnę",
+      "archiveTitle": "Zarchiwizować {column}?",
+      "archiveDescription": "Zniknie z tabeli dla wszystkich. Rekordy zachowają jej wartości, można ją przywrócić w Kolumnach, a widok lub wyzwalacz, który od niej zależy, zatrzyma archiwizację i zostanie wskazany.",
+      "renameTitle": "Zmień nazwę kolumny",
+      "renameDescription": "Każdy rekord zachowa swoją wartość: kolumnę rozpoznaje się po identyfikatorze, nie po nazwie.",
+      "label": "Nazwa",
+      "type": "Typ",
+      "options": "Opcje",
+      "optionsPlaceholder": "Jedna opcja w wierszu",
+      "addTitle": "Dodaj kolumnę",
+      "addDescription": "Kolumna jest na start opcjonalna, bo istniejące rekordy nie mają dla niej wartości. Jej typu nie da się później zmienić.",
+      "cancel": "Anuluj",
+      "save": "Zapisz",
+      "add": "Dodaj kolumnę",
+      "hiddenCount": "{count, plural, one {# ukryta} few {# ukryte} many {# ukrytych} other {# ukrytej}}",
+      "showAll": "Pokaż wszystkie kolumny"
     }
   },
   "groups": {

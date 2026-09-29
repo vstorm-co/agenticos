@@ -52,6 +52,8 @@ from app.core.permissions import Perm
 from app.schemas.virtual_table import (
     ErrorEnvelope,
     OperationKey,
+    RecordCount,
+    RecordCountQuery,
     RecordCreate,
     RecordExists,
     RecordList,
@@ -240,6 +242,18 @@ async def query_records(
 ) -> Any:
     """A page of records matching typed filters, in a deterministic order."""
     return await service.list_records(ctx, table_id, query)
+
+
+@router.post("/{table_id}/records/count", response_model=RecordCount, responses=_REFUSALS)
+async def count_records(
+    table_id: UUID, query: RecordCountQuery, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """How many records match typed filters and a search, counted up to 100,000.
+
+    A listing has no `total`; this is the separate, bounded question. `capped`
+    says more match than were counted.
+    """
+    return await service.count_records(ctx, table_id, query)
 
 
 @router.get("/{table_id}/records/exists", response_model=RecordExists, responses=_REFUSALS)

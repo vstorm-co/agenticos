@@ -39,6 +39,7 @@ from sqlalchemy import (
     select,
     text,
 )
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,6 +76,21 @@ class FilterClause:
     kind: SqlKind
     op: FilterOp
     value: FilterValue
+
+
+@dataclass(frozen=True)
+class SearchClause:
+    """Text a record must contain somewhere a person would read it.
+
+    `text_columns` are the live text and long text columns, searched for `term`
+    itself. A select cell holds option ids, not what anyone typed, so it is
+    searched through `options`: for each live select column, the ids of the
+    options whose label contains the term, and whether the column holds many.
+    """
+
+    term: str
+    text_columns: tuple[UUID, ...]
+    options: tuple[tuple[UUID, bool, tuple[str, ...]], ...]
 
 
 @dataclass(frozen=True)
@@ -498,6 +514,57 @@ def _predicate(clause: FilterClause) -> ColumnElement[bool]:
             return cell >= operand
 
 
+def _search_predicate(search: SearchClause) -> ColumnElement[bool]:
+    matches = [
+        contains_ci(_cell(column_id).astext, search.term) for column_id in search.text_columns
+    ]
+    for column_id, many, option_ids in search.options:
+        if many:
+            matches.append(_cell(column_id).has_any(array(option_ids)))
+        else:
+            matches.append(_cell(column_id).astext.in_(option_ids))
+    # Nothing searchable, or no option labelled that way: a search nothing can meet.
+    return or_(*matches) if matches else false()
+
+
+def _matching(
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    search: SearchClause | None,
+) -> ColumnElement[bool]:
+    """The records of one table a listing or a count reads: its tenant's, meeting every clause."""
+    return and_(
+        VirtualTableRecord.table_id == table_id,
+        VirtualTableRecord.organization_id == organization_id,
+        *[_predicate(clause) for clause in filters],
+        *([] if search is None else [_search_predicate(search)]),
+    )
+
+
+async def count_records(
+    db: AsyncSession,
+    *,
+    table_id: UUID,
+    organization_id: UUID,
+    filters: list[FilterClause],
+    search: SearchClause | None,
+    cap: int,
+) -> int:
+    """How many records match, counting no further than `cap + 1`.
+
+    Counting stops there so a count of a huge table costs a bounded scan: the
+    caller learns the exact number up to the cap, and that there are more past it.
+    """
+    matching = (
+        select(VirtualTableRecord.id)
+        .where(_matching(table_id, organization_id, filters, search))
+        .limit(cap + 1)
+        .subquery()
+    )
+    return (await db.execute(select(func.count()).select_from(matching))).scalar_one()
+
+
 async def list_records(
     db: AsyncSession,
     *,
@@ -507,6 +574,7 @@ async def list_records(
     sort: SortClause,
     skip: int,
     limit: int,
+    search: SearchClause | None = None,
 ) -> list[VirtualTableRecord]:
     """A page of records. The order is total: the record id always breaks a tie.
 
@@ -521,13 +589,7 @@ async def list_records(
     ordered = key.desc().nulls_last() if sort.direction == "desc" else key.asc().nulls_last()
     query = (
         select(VirtualTableRecord)
-        .where(
-            and_(
-                VirtualTableRecord.table_id == table_id,
-                VirtualTableRecord.organization_id == organization_id,
-                *[_predicate(clause) for clause in filters],
-            )
-        )
+        .where(_matching(table_id, organization_id, filters, search))
         .order_by(ordered, VirtualTableRecord.id.asc())
         .offset(skip)
         .limit(limit)

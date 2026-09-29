@@ -1,5 +1,5 @@
 ---
-source_sha: "0cf6760a5d9e"
+source_sha: "4bd407fa9568"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -150,6 +150,15 @@ cuántos. El panel del registro elimina uno solo de la misma forma. Un miembro q
 puede ver la tabla ve la misma cuadrícula en modo lectura, y hacer clic en una fila abre
 el registro.
 
+Para un miembro que puede editar la tabla, la cabecera de una columna abre un menú.
+**Sort ascending** y **Sort descending** ordenan la cuadrícula por ella, y **Hide in this
+view** la quita de la pantalla hasta que el botón de columnas ocultas la vuelve a mostrar;
+**Save view** guarda ambas cosas. **Rename** y **Archive column** cambian la tabla para
+todos, cada una como la misma nueva versión del esquema que escribiría el diálogo
+Columns, y un archivado del que depende una vista o un disparador se rechaza con su
+nombre. El **+** tras la última columna añade una, opcional al principio. El tipo de una
+columna nunca cambia.
+
 ## Reintentos seguros { #safe-retries }
 
 Toda escritura de registros acepta una cabecera `Idempotency-Key` (como máximo 128
@@ -181,6 +190,14 @@ receipts que nadie reintentó.
 añade filtros tipados, que deben cumplirse todos. Ambos están acotados: `limit` va de 1 a
 100, `skip` es como máximo 10.000 y una consulta tiene como máximo 20 filtros.
 
+`search` es el texto que un registro debe contener, sin distinguir mayúsculas, en
+cualquier columna activa de texto o texto largo o en la etiqueta de una opción de
+selección que guarda. Se combina con los filtros, y una búsqueda en blanco no busca
+nada. Una vista guardada la conserva junto a sus filtros. En la consola la envía el
+cuadro de búsqueda, y **Filter** escribe las condiciones: una columna, un operador que
+su tipo admite y un valor. Cada condición completa acota los registros al momento, y
+**Save view** guarda las condiciones, la búsqueda y el orden en la vista en pantalla.
+
 El orden es total. Al orden pedido (`created_at`, `updated_at` o una columna ordenable) le
 sigue el id del registro, de modo que una página nunca repite ni se salta un registro en
 una tabla sin cambios. Los registros sin valor en la columna ordenada van al final en
@@ -188,8 +205,13 @@ ambas direcciones. Una columna `multi_select` no se puede ordenar. `updated_at` 
 avanza con cada edición, así que los registros que nadie ha editado se ordenan por su
 momento de creación.
 
-No hay `total`, porque contar una tabla filtrada no es barato. `has_more` indica si sigue
-otra página.
+Un listado no tiene `total`, porque contar una tabla filtrada no es barato: `has_more`
+indica si sigue otra página. `POST /tables/{id}/records/count` responde a esa pregunta
+por separado, para los filtros y la búsqueda de una consulta, y cuenta como mucho hasta
+100.000; `capped` indica que coinciden más. La consola muestra ese número junto a las
+pestañas de vistas, y su cuadrícula carga cien registros cada vez al desplazarse y dibuja
+solo las filas visibles. Más allá de los 10.000 registros que una consulta puede saltar,
+pide un filtro o una búsqueda.
 
 ## Vistas guardadas { #saved-views }
 
@@ -204,7 +226,7 @@ permite la propia tabla.
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
 (como máximo 100): primero las vistas propias del llamante, luego las compartidas,
-cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, sort,
+cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, search, sort,
 visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
 necesita la presentación de la consola: `visible_columns` (`null` significa cada
 columna viva) y `group_by` (una columna `single_select` viva, para los carriles de

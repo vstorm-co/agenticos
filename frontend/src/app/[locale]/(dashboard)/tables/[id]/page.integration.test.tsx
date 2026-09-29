@@ -43,16 +43,25 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     onOpenRecord,
     canEdit,
     onAddRecord,
+    columnActions,
+    onAddColumn,
+    records,
+    onEndReached,
   }: {
-    columns: { id: string }[];
+    columns: { id: string; label: string }[];
     sort: { by: string; direction: string };
     onSort: (sort: { by: string; direction: string }) => void;
     onOpenRecord: (r: RecordRead) => void;
     canEdit: boolean;
     onAddRecord?: () => void;
+    columnActions?: Record<"onSort" | "onRename" | "onHide" | "onArchive", (arg: unknown) => void>;
+    onAddColumn?: () => void;
+    records: RecordRead[];
+    onEndReached: () => void;
   }) => (
     <div
       data-testid="grid-view"
+      data-record-count={records.length}
       data-column-ids={columns.map((c) => c.id).join(",")}
       data-sort={`${sort.by}:${sort.direction}`}
       data-can-edit={String(canEdit)}
@@ -60,6 +69,16 @@ vi.mock("@/components/tables/table-grid-view", () => ({
       <button onClick={() => onOpenRecord({ ...RECORD })}>open-record-from-grid</button>
       <button onClick={() => onSort({ by: "name", direction: "desc" })}>resort-by-name</button>
       {onAddRecord && <button onClick={onAddRecord}>add-from-empty-grid</button>}
+      {onAddColumn && <button onClick={onAddColumn}>add-column</button>}
+      <button onClick={onEndReached}>scroll-to-end</button>
+      {columnActions &&
+        columns.map((column) => (
+          <span key={column.id}>
+            <button onClick={() => columnActions.onRename(column)}>rename-{column.id}</button>
+            <button onClick={() => columnActions.onHide(column)}>hide-{column.id}</button>
+            <button onClick={() => columnActions.onArchive(column)}>archive-{column.id}</button>
+          </span>
+        ))}
     </div>
   ),
 }));
@@ -81,8 +100,36 @@ vi.mock("@/components/tables/table-list-view", () => ({
   TableListView: () => <div data-testid="list-view" />,
 }));
 vi.mock("@/components/tables/table-kanban-view", () => ({
-  TableKanbanView: ({ groupByColumnId }: { groupByColumnId: string }) => (
-    <div data-testid="kanban-view" data-group-by={groupByColumnId} />
+  TableKanbanView: ({
+    groupByColumnId,
+    baseFilters,
+    search,
+  }: {
+    groupByColumnId: string;
+    baseFilters: unknown[];
+    search: string | null;
+  }) => (
+    <div
+      data-testid="kanban-view"
+      data-group-by={groupByColumnId}
+      data-filters={JSON.stringify(baseFilters)}
+      data-search={String(search)}
+    />
+  ),
+}));
+const COMPLETE = { column_id: "c1", op: "contains", value: "ad" };
+const DRAFT = { column_id: "c1", op: "contains", value: null };
+vi.mock("@/components/tables/record-filters-popover", () => ({
+  RecordFiltersPopover: ({
+    columns,
+    onChange,
+  }: {
+    columns: { id: string }[];
+    onChange: (filters: unknown[]) => void;
+  }) => (
+    <div data-testid="filters" data-column-ids={columns.map((c) => c.id).join(",")}>
+      <button onClick={() => onChange([COMPLETE, DRAFT])}>set-filters</button>
+    </div>
   ),
 }));
 vi.mock("@/components/tables/schema-editor-dialog", () => ({
@@ -229,6 +276,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
 
 const emptyConfig = {
   filters: [],
+  search: null,
   sort: { by: "created_at", direction: "asc" as const },
   visible_columns: null,
   group_by: null,
@@ -287,7 +335,8 @@ function serve({
   });
   vi.mocked(apiClient.post).mockImplementation((path: string) => {
     if (path === "/tables/t1/records/query")
-      return Promise.resolve({ items: [RECORD], has_more: false });
+      return Promise.resolve({ items: [RECORD], skip: 0, limit: 100, has_more: false });
+    if (path === "/tables/t1/records/count") return Promise.resolve({ count: 1, capped: false });
     return Promise.resolve({});
   });
 }
@@ -323,6 +372,7 @@ describe("the table detail page", () => {
 
   it("shows an error state when the table fails to load", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
+    vi.mocked(apiClient.post).mockReturnValue(new Promise(() => {}));
     renderPage();
 
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
@@ -437,6 +487,313 @@ describe("the table detail page", () => {
     expect(screen.queryByRole("button", { name: "add-from-empty-grid" })).not.toBeInTheDocument();
   });
 
+  describe("narrowing the records", () => {
+    const lastQuery = () =>
+      vi
+        .mocked(apiClient.post)
+        .mock.calls.filter(([path]) => path === "/tables/t1/records/query")
+        .at(-1)?.[1] as { filters: unknown[]; search: string | null };
+
+    it("sends the search once typing settles, and only the complete conditions", async () => {
+      serve();
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+      expect(screen.getByTestId("filters")).toHaveAttribute("data-column-ids", "c1,c2");
+
+      await user.type(screen.getByPlaceholderText("Search records"), "  ada ");
+      await waitFor(() => expect(lastQuery().search).toBe("ada"));
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+      await waitFor(() => expect(lastQuery().filters).toEqual([COMPLETE]));
+    });
+
+    it("narrows every kanban lane the same way", async () => {
+      serve();
+      arriveAt("view=kanban&viewId=v-kanban");
+      const user = userEvent.setup();
+      renderPage();
+      const board = await screen.findByTestId("kanban-view");
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+
+      expect(board).toHaveAttribute("data-filters", JSON.stringify([COMPLETE]));
+      expect(board).toHaveAttribute("data-search", "null");
+    });
+
+    it("offers to save a changed view to whoever manages it, and saves into it", async () => {
+      serve();
+      arriveAt("viewId=v-table");
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({});
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+      expect(screen.queryByRole("button", { name: "Save view" })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+      await user.click(screen.getByRole("button", { name: "Save view" }));
+
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("View saved."));
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-table", {
+        config: {
+          ...emptyConfig,
+          sort: { by: "c1", direction: "desc" },
+          filters: [COMPLETE],
+          search: null,
+        },
+      });
+    });
+
+    it("says so when saving the view is refused", async () => {
+      serve();
+      arriveAt("viewId=v-table");
+      vi.mocked(apiClient.patch).mockRejectedValueOnce(new ApiError(404, "View not found"));
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+      await user.click(screen.getByRole("button", { name: "Save view" }));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("View not found"));
+    });
+
+    it("offers no save of a view the caller cannot manage", async () => {
+      const readOnly = views();
+      readOnly.items = readOnly.items.map((view) => ({ ...view, can_manage: false }));
+      serve({ viewsFixture: readOnly });
+      arriveAt("viewId=v-table");
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+
+      expect(screen.queryByRole("button", { name: "Save view" })).not.toBeInTheDocument();
+    });
+
+    it("keeps what the screen is narrowed by in a new view", async () => {
+      serve();
+      vi.mocked(apiClient.post).mockImplementation((path: string) => {
+        if (path === "/tables/t1/records/query")
+          return Promise.resolve({ items: [RECORD], has_more: false });
+        return Promise.resolve({ ...views().items[1], id: "v-new" });
+      });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "set-filters" }));
+      await user.click(screen.getByRole("button", { name: "New view" }));
+      await user.type(screen.getByRole("textbox", { name: "View name" }), "Ada's");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenCalledWith("/tables/t1/views", {
+          name: "Ada's",
+          kind: "table",
+          visibility: "private",
+          config: { ...emptyConfig, filters: [COMPLETE] },
+        }),
+      );
+    });
+  });
+
+  describe("a large table", () => {
+    it("says how many records match", async () => {
+      serve();
+      renderPage();
+
+      expect(await screen.findByText("1 record")).toBeInTheDocument();
+      const counted = vi
+        .mocked(apiClient.post)
+        .mock.calls.find(([path]) => path === "/tables/t1/records/count");
+      expect(counted?.[1]).toEqual({ filters: [], search: null });
+    });
+
+    it("says when more match than the service counts", async () => {
+      serve();
+      const fallback = vi.mocked(apiClient.post).getMockImplementation()!;
+      vi.mocked(apiClient.post).mockImplementation((path: string, body?: unknown) =>
+        path === "/tables/t1/records/count"
+          ? Promise.resolve({ count: 100000, capped: true })
+          : fallback(path, body),
+      );
+      renderPage();
+
+      expect(await screen.findByText("100,000+ records")).toBeInTheDocument();
+    });
+
+    it("loads the next hundred records as the grid nears its end, then stops at the last", async () => {
+      serve();
+      const bodies: { skip: number }[] = [];
+      let releaseSecond!: () => void;
+      vi.mocked(apiClient.post).mockImplementation((path: string, body?: unknown) => {
+        if (path === "/tables/t1/records/count")
+          return Promise.resolve({ count: 2, capped: false });
+        const { skip } = body as { skip: number };
+        bodies.push({ skip });
+        if (skip === 0)
+          return Promise.resolve({ items: [RECORD], skip, limit: 100, has_more: true });
+        return new Promise((resolve) => {
+          releaseSecond = () =>
+            resolve({ items: [{ ...RECORD, id: "r2" }], skip, limit: 100, has_more: false });
+        });
+      });
+      const user = userEvent.setup();
+      renderPage();
+      const grid = await screen.findByTestId("grid-view");
+      await waitFor(() => expect(grid).toHaveAttribute("data-record-count", "1"));
+
+      await user.click(screen.getByRole("button", { name: "scroll-to-end" }));
+      expect(await screen.findByText("Loading more records…")).toBeInTheDocument();
+      // A second nudge while a page is loading asks for nothing more.
+      await user.click(screen.getByRole("button", { name: "scroll-to-end" }));
+      act(() => releaseSecond());
+
+      await waitFor(() => expect(grid).toHaveAttribute("data-record-count", "2"));
+      await user.click(screen.getByRole("button", { name: "scroll-to-end" }));
+      expect(bodies.map((body) => body.skip)).toEqual([0, 100]);
+    });
+
+    it("says where scrolling ends when the service can skip no further", async () => {
+      serve();
+      vi.mocked(apiClient.post).mockImplementation((path: string, body?: unknown) => {
+        if (path === "/tables/t1/records/count")
+          return Promise.resolve({ count: 100000, capped: true });
+        const { skip } = body as { skip: number };
+        return Promise.resolve({ items: [RECORD], skip: 10_000, limit: 100, has_more: skip >= 0 });
+      });
+      renderPage();
+
+      expect(
+        await screen.findByText(
+          "The grid scrolls through the first 10,000 records. Filter or search to reach the rest.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("managing columns from the grid", () => {
+    const savedWith = () =>
+      vi.mocked(apiClient.put).mock.calls.at(-1)?.[1] as {
+        expected_version: number;
+        columns: { id?: string; label: string; archived?: boolean }[];
+      };
+
+    it("offers a reader no column actions", async () => {
+      serve({ tableFixture: table({ can_edit: false }) });
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      expect(screen.queryByRole("button", { name: "rename-c1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "add-column" })).not.toBeInTheDocument();
+    });
+
+    it("renames a column as one schema version of every column", async () => {
+      serve();
+      vi.mocked(apiClient.put).mockResolvedValueOnce(table());
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "rename-c1" }));
+      const name = screen.getByLabelText("Name");
+      await user.clear(name);
+      await user.type(name, "Client");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(apiClient.put).toHaveBeenCalled());
+      expect(savedWith().expected_version).toBe(1);
+      expect(savedWith().columns.map((column) => [column.id, column.label])).toEqual([
+        ["c1", "Client"],
+        ["c2", "Status"],
+        ["c3", "Retired"],
+      ]);
+      await waitFor(() => expect(screen.queryByLabelText("Name")).not.toBeInTheDocument());
+    });
+
+    it("archives a column after asking, and says why when it is refused", async () => {
+      serve();
+      vi.mocked(apiClient.put).mockRejectedValueOnce(
+        new ApiError(409, "The view Open orders filters on this column"),
+      );
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "archive-c2" }));
+      expect(screen.getByText("Archive Status?")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Archive column" }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("The view Open orders filters on this column"),
+      );
+      expect(savedWith().columns.find((column) => column.id === "c2")?.archived).toBe(true);
+
+      vi.mocked(apiClient.put).mockResolvedValueOnce(table());
+      await user.click(screen.getByRole("button", { name: "Archive column" }));
+      await waitFor(() => expect(screen.queryByText("Archive Status?")).not.toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "archive-c1" }));
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByText("Archive Customer?")).not.toBeInTheDocument();
+    });
+
+    it("hides a column on this screen, shows it back, and adds one that shows", async () => {
+      serve();
+      const withRegion = table();
+      withRegion.columns = [
+        ...withRegion.columns,
+        { ...withRegion.columns[0]!, id: "c4", label: "Region" },
+      ];
+      vi.mocked(apiClient.put).mockResolvedValueOnce(withRegion);
+      const user = userEvent.setup();
+      renderPage();
+      const grid = await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "hide-c2" }));
+      expect(grid).toHaveAttribute("data-column-ids", "c1");
+      await user.click(screen.getByRole("button", { name: "1 hidden" }));
+      await user.click(screen.getByRole("button", { name: "Status" }));
+      expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+
+      await user.click(screen.getByRole("button", { name: "hide-c2" }));
+      await user.click(screen.getByRole("button", { name: "hide-c1" }));
+      expect(grid).toHaveAttribute("data-column-ids", "");
+      await user.click(screen.getByRole("button", { name: "add-column" }));
+      await user.type(screen.getByLabelText("Name"), "Region");
+      // The table read again after the save has the new column.
+      serve({ tableFixture: withRegion });
+      await user.click(screen.getByRole("button", { name: "Add column" }));
+
+      await waitFor(() => expect(grid).toHaveAttribute("data-column-ids", "c4"));
+      expect(savedWith().columns.at(-1)).toEqual({
+        label: "Region",
+        type: "text",
+        nullable: true,
+        options: [],
+      });
+      await user.click(screen.getByRole("button", { name: "2 hidden" }));
+      await user.click(screen.getByRole("button", { name: "Show all columns" }));
+      expect(grid).toHaveAttribute("data-column-ids", "c1,c2,c4");
+    });
+
+    it("adds a column to a screen that shows every one without narrowing it", async () => {
+      serve();
+      vi.mocked(apiClient.put).mockResolvedValueOnce(table());
+      const user = userEvent.setup();
+      renderPage();
+      const grid = await screen.findByTestId("grid-view");
+
+      await user.click(screen.getByRole("button", { name: "add-column" }));
+      await user.type(screen.getByLabelText("Name"), "Region");
+      await user.click(screen.getByRole("button", { name: "Add column" }));
+
+      await waitFor(() => expect(apiClient.put).toHaveBeenCalled());
+      expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+    });
+  });
+
   it("opens the sharing panel scoped to this table, with can_edit as can_manage", async () => {
     serve();
     const user = userEvent.setup();
@@ -501,7 +858,7 @@ describe("the table detail page", () => {
     expect(kanban).toHaveAttribute("data-group-by", "c2");
   });
 
-  it("resets to the first page when switching to a different saved view, even after advancing past it", async () => {
+  it("resets the list to its first page when switching to a different saved view, even after advancing past it", async () => {
     // The regression this guards: `page` used to carry over unchanged across a
     // view switch, so a page advanced under one view became the offset for the
     // next view's own (possibly much shorter) result - rendering the
@@ -519,14 +876,15 @@ describe("the table detail page", () => {
       }
       return Promise.resolve({});
     });
+    arriveAt("view=list");
     const user = userEvent.setup();
     renderPage();
-    await screen.findByTestId("grid-view");
+    await screen.findByTestId("list-view");
 
     await user.click(screen.getByRole("button", { name: "Next page" }));
     await waitFor(() => expect(queryBodies.some((body) => body.skip === PAGE_SIZE)).toBe(true));
 
-    await user.click(screen.getByRole("combobox", { name: /select a table view/i }));
+    await user.click(screen.getByRole("combobox", { name: /select a list view/i }));
     await user.click(screen.getByRole("option", { name: "By customer" }));
 
     await waitFor(() => expect(queryBodies[queryBodies.length - 1]?.skip).toBe(0));
@@ -626,7 +984,7 @@ describe("the table detail page", () => {
     );
   });
 
-  it("holds the pager while the next page is still loading", async () => {
+  it("holds the list's pager while the next page is still loading", async () => {
     // The previous page stands in as placeholder data while the next one
     // loads; its `has_more` kept "Next" enabled, so a double click skipped a
     // page and could land past the end.
@@ -640,9 +998,10 @@ describe("the table detail page", () => {
         releaseSecondPage = () => resolve({ items: [RECORD], has_more: true });
       });
     });
+    arriveAt("view=list");
     const user = userEvent.setup();
     renderPage();
-    await screen.findByTestId("grid-view");
+    await screen.findByTestId("list-view");
     await waitFor(() => expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled());
 
     await user.click(screen.getByRole("button", { name: "Next page" }));

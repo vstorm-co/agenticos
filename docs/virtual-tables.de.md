@@ -1,5 +1,5 @@
 ---
-source_sha: "0cf6760a5d9e"
+source_sha: "4bd407fa9568"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -159,6 +159,15 @@ sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz 
 dieselbe Weise. Wer die Tabelle nur ansehen darf, sieht dasselbe Raster schreibgeschützt,
 und ein Klick auf eine Zeile öffnet den Datensatz.
 
+Für ein Mitglied, das die Tabelle bearbeiten darf, öffnet der Kopf einer Spalte ein Menü.
+**Sort ascending** und **Sort descending** sortieren das Raster nach ihr, und **Hide in
+this view** nimmt sie vom Bildschirm, bis die Schaltfläche für ausgeblendete Spalten sie
+wieder zeigt; **Save view** speichert beides. **Rename** und **Archive column** ändern die
+Tabelle für alle, jeweils als dieselbe neue Schemaversion, die der Dialog Columns
+schreiben würde, und eine Archivierung, von der eine Ansicht oder ein Trigger abhängt,
+wird mit dessen Namen abgelehnt. Das **+** nach der letzten Spalte fügt eine hinzu,
+anfangs optional. Der Typ einer Spalte ändert sich nie.
+
 ## Sichere Wiederholungen { #safe-retries }
 
 Jeder Schreibzugriff auf Datensätze akzeptiert einen `Idempotency-Key`-Header (höchstens
@@ -193,6 +202,15 @@ fügt typisierte Filter hinzu, die alle zutreffen müssen. Beide sind begrenzt: 
 liegt zwischen 1 und 100, `skip` bei höchstens 10.000, und eine Abfrage hat höchstens 20
 Filter.
 
+`search` ist Text, den ein Datensatz enthalten muss, ohne Beachtung der Groß- und
+Kleinschreibung, in einer aktiven Text- oder Langtextspalte oder in der Bezeichnung
+einer Auswahloption, die er hält. Die Suche wird mit den Filtern kombiniert, und eine
+leere Suche sucht nichts. Eine gespeicherte Ansicht bewahrt sie neben ihren Filtern auf.
+In der Konsole sendet das Suchfeld sie, und **Filter** schreibt die Bedingungen: eine
+Spalte, einen Operator, den ihr Typ unterstützt, und einen Wert. Jede vollständige
+Bedingung grenzt die Datensätze sofort ein, und **Save view** speichert Bedingungen,
+Suche und Sortierung in der angezeigten Ansicht.
+
 Die Reihenfolge ist total. Auf die gewünschte Sortierung (`created_at`, `updated_at`
 oder eine sortierbare Spalte) folgt die Datensatz-id, sodass eine Seite in einer
 unveränderten Tabelle nie einen Datensatz wiederholt oder überspringt. Datensätze ohne
@@ -201,8 +219,13 @@ Wert in der sortierten Spalte kommen in beiden Richtungen zuletzt. Eine
 Datensatzes gesetzt und rückt mit jeder Bearbeitung vor, sodass Datensätze, die niemand
 bearbeitet hat, nach ihrer Erstellungszeit sortieren.
 
-Es gibt kein `total`, weil das Zählen einer gefilterten Tabelle nicht billig ist.
-`has_more` sagt, ob eine weitere Seite folgt.
+Eine Auflistung hat kein `total`, weil das Zählen einer gefilterten Tabelle nicht billig
+ist: `has_more` sagt, ob eine weitere Seite folgt. `POST /tables/{id}/records/count`
+beantwortet diese Frage getrennt, für die Filter und die Suche einer Abfrage, und zählt
+höchstens bis 100.000; `capped` sagt, dass mehr passen. Die Konsole zeigt diese Zahl neben
+den Ansichts-Tabs, und ihr Raster lädt beim Scrollen jeweils hundert Datensätze und
+zeichnet nur die sichtbaren Zeilen. Jenseits der 10.000 Datensätze, die eine Abfrage
+überspringen darf, bittet es um einen Filter oder eine Suche.
 
 ## Gespeicherte Ansichten { #saved-views }
 
@@ -219,7 +242,7 @@ selbst erlaubt.
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
 und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
 dann die geteilten, jeweils nach Name; `total` zählt alle. `config` ist `{filters,
-sort, visible_columns, group_by}` - eine `RecordQuery` plus die zwei Felder, die
+search, sort, visible_columns, group_by}` - eine `RecordQuery` plus die zwei Felder, die
 nur die Darstellung der Konsole braucht: `visible_columns` (`null` bedeutet jede
 lebende Spalte) und `group_by` (eine lebende `single_select`-Spalte, für die
 Spalten eines Kanban-Boards).

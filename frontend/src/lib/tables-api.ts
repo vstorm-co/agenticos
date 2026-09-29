@@ -8,6 +8,8 @@
 
 import { apiClient } from "./api-client";
 import type {
+  RecordCount,
+  RecordCountQuery,
   RecordCreate,
   RecordList,
   RecordQuery,
@@ -61,6 +63,10 @@ export function updateSchema(tableId: string, data: SchemaUpdate): Promise<Table
 
 export function queryRecords(tableId: string, query: RecordQuery): Promise<RecordList> {
   return apiClient.post<RecordList>(`/tables/${tableId}/records/query`, query);
+}
+
+export function countRecords(tableId: string, query: RecordCountQuery): Promise<RecordCount> {
+  return apiClient.post<RecordCount>(`/tables/${tableId}/records/count`, query);
 }
 
 export function createRecord(tableId: string, data: RecordCreate): Promise<RecordRead> {

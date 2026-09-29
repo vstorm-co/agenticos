@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Maximize2, Trash2 } from "lucide-react";
+import { Maximize2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { InlineCell } from "./inline-cell";
 import { selectChips } from "./option-chip";
 import {
@@ -20,6 +21,9 @@ import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutati
 import { formatCellValue } from "@/lib/format-cell-value";
 import { useTableViewStore } from "@/stores";
 import type { CellValue, ColumnDef, RecordRead, RecordSort } from "@/types/tables";
+
+/** A cell's fixed 52px (`h-13`) and the row's bottom border. */
+const ROW_HEIGHT = 53;
 
 interface EditingCell {
   recordId: string;
@@ -50,6 +54,9 @@ export function TableGridView({
   onOpenRecord,
   canEdit,
   onAddRecord,
+  columnActions,
+  onAddColumn,
+  onEndReached,
 }: {
   tableId: string;
   columns: ColumnDef[];
@@ -61,6 +68,15 @@ export function TableGridView({
   canEdit: boolean;
   /** Offered from the empty state when records may be added. */
   onAddRecord?: () => void;
+  /**
+   * A menu on each header - sort, rename, hide, archive - for whoever may
+   * change the table. The menu sorts, so the header is not a sort button too.
+   */
+  columnActions?: ColumnActions;
+  /** A "+" after the last column, to add one. */
+  onAddColumn?: () => void;
+  /** Called as the scroll nears the last record, to load the next page. */
+  onEndReached?: () => void;
 }) {
   const t = useTranslations("tables.cells");
   const tGrid = useTranslations("tables.grid");
@@ -155,9 +171,13 @@ export function TableGridView({
 
   const tableColumns: Column<RecordRead>[] = columns.map((column) => ({
     key: column.id,
-    header: column.label,
+    header: columnActions ? (
+      <ColumnHeaderMenu column={column} sort={sort} actions={columnActions} />
+    ) : (
+      column.label
+    ),
     cell: (record) => renderCell(column, record),
-    sortable: column.type !== "multi_select",
+    sortable: !columnActions && column.type !== "multi_select",
   }));
 
   if (canEdit) {
@@ -185,7 +205,20 @@ export function TableGridView({
     tableColumns.push({
       key: "__open",
       className: "w-12 px-2",
-      header: <span className="sr-only">{tGrid("openRecord")}</span>,
+      header: onAddColumn ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground size-7"
+          aria-label={tGrid("addColumn")}
+          title={tGrid("addColumn")}
+          onClick={onAddColumn}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      ) : (
+        <span className="sr-only">{tGrid("openRecord")}</span>
+      ),
       cell: (record) => (
         <Button
           variant="ghost"
@@ -227,6 +260,10 @@ export function TableGridView({
         onRowClick={canEdit ? undefined : onOpenRecord}
         isRowActive={canEdit ? (record) => selected.has(record.id) : undefined}
         fillHeight
+        // Every row is one height, so only the rows in view are drawn.
+        className="[&_tbody_td]:h-13"
+        rowHeight={ROW_HEIGHT}
+        onEndReached={onEndReached}
         sort={{ by: sort.by, dir: sort.direction }}
         onSort={(next: TableSort) => onSort({ by: next.by, direction: next.dir })}
         empty={

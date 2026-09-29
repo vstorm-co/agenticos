@@ -28,13 +28,17 @@ from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 from app.repositories import virtual_table_repo
-from app.repositories.virtual_table import FilterClause, SortClause
+from app.repositories.virtual_table import FilterClause, SearchClause, SortClause
 from app.schemas.virtual_table import (
+    MAX_COUNT,
     CellValue,
     ColumnDef,
     ExternalId,
     OperationKey,
+    RecordCount,
+    RecordCountQuery,
     RecordCreate,
+    RecordFilter,
     RecordList,
     RecordQuery,
     RecordRead,
@@ -53,6 +57,7 @@ from app.services.virtual_tables.exceptions import (
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
+    OPTION_TYPES,
     CellProblem,
     validate_cell,
     validate_filter,
@@ -185,10 +190,10 @@ def _causation() -> dict[str, str]:
     return {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
 
 
-def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterClause], SortClause]:
+def _filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> list[FilterClause]:
     by_id = {column.id: column for column in columns}
     clauses: list[FilterClause] = []
-    for index, condition in enumerate(query.filters):
+    for index, condition in enumerate(filters):
         column = by_id.get(condition.column_id)
         if column is None:
             raise InvalidQueryError(
@@ -206,6 +211,12 @@ def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterC
                 value=operand,
             )
         )
+    return clauses
+
+
+def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterClause], SortClause]:
+    by_id = {column.id: column for column in columns}
+    clauses = _filters(columns, query.filters)
     sort = query.sort
     if sort.by in _RECORD_TIMESTAMPS:
         return clauses, SortClause(direction=sort.direction, field=sort.by)
@@ -220,6 +231,32 @@ def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterC
         raise InvalidQueryError("sort.by", f"A {sorted_by.type} column cannot be sorted")
     return clauses, SortClause(
         direction=sort.direction, column_id=sorted_by.id, kind=column_type.kind
+    )
+
+
+def _search(columns: list[ColumnDef], term: str | None) -> SearchClause | None:
+    """What a search box's `term` looks for in this table, or `None` for no search.
+
+    Only live columns are searched: an archived one is not on anyone's screen,
+    and a match found there would look like a record matching nothing.
+    """
+    if not term:
+        return None
+    needle = term.casefold()
+    live = [column for column in columns if not column.archived]
+    options = tuple(
+        (
+            column.id,
+            column.type == "multi_select",
+            tuple(str(option.id) for option in column.options if needle in option.label.casefold()),
+        )
+        for column in live
+        if column.type in OPTION_TYPES
+    )
+    return SearchClause(
+        term=term,
+        text_columns=tuple(column.id for column in live if column.type in ("text", "long_text")),
+        options=tuple(entry for entry in options if entry[2]),
     )
 
 
@@ -270,12 +307,14 @@ class RecordOperations(Operations):
         """
         query = query or RecordQuery()
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        filters, sort = _clauses(await self._columns(table), query)
+        columns = await self._columns(table)
+        filters, sort = _clauses(columns, query)
         rows = await virtual_table_repo.list_records(
             self.db,
             table_id=table.id,
             organization_id=ctx.organization_id,
             filters=filters,
+            search=_search(columns, query.search),
             sort=sort,
             skip=query.skip,
             limit=query.limit + 1,
@@ -286,6 +325,27 @@ class RecordOperations(Operations):
             limit=query.limit,
             has_more=len(rows) > query.limit,
         )
+
+    async def count_records(
+        self, ctx: AuthContext, table_id: UUID, query: RecordCountQuery
+    ) -> RecordCount:
+        """How many records match the filters and search, counted up to `MAX_COUNT`.
+
+        Raises:
+            InvalidQueryError: A filter names something the table or the column type
+                does not support.
+        """
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        columns = await self._columns(table)
+        counted = await virtual_table_repo.count_records(
+            self.db,
+            table_id=table.id,
+            organization_id=ctx.organization_id,
+            filters=_filters(columns, query.filters),
+            search=_search(columns, query.search),
+            cap=MAX_COUNT,
+        )
+        return RecordCount(count=min(counted, MAX_COUNT), capped=counted > MAX_COUNT)
 
     async def create_record(
         self,

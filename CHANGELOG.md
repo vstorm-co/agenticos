@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A table grid that scrolls through thousands of records, and says how many.**
+  The grid loads a hundred records at a time as it scrolls and draws only the rows
+  in view; the count of matching records shows beside the view tabs, from a new
+  `POST /tables/{id}/records/count` that counts up to 100,000 (#1964).
+- **Manage a table's columns from its grid.** Each header opens a menu to sort by
+  the column, hide it in the view, rename it or archive it, and a **+** after the
+  last column adds one; a rename, an archive and an add each write the schema
+  version the Columns dialog would (#1963).
+- **Search and filter a table's records, and keep it in a view.** A search box
+  finds text in any text column or select option label, **Filter** builds
+  conditions from the operators each column type supports, and **Save view** keeps
+  both, with the sort, in the view on screen. `RecordQuery` and a view's `config`
+  take the same `search` (#1962).
 - **Add, edit and delete table records in the console.** **Add record** asks for
   each live column in its own type and marks the ones that need a value; a cell
   edits in place on a click, saving on Enter and leaving on Escape; ticked rows

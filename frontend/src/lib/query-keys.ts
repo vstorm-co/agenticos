@@ -570,6 +570,12 @@ export const qk = {
     // Every `records(tableId, …)` query at once: what a record write invalidates,
     // without also refetching the table itself, its views and its schema versions.
     recordsAll: (tableId: string) => ["tables", tableId, "records"] as const,
+    // The grid's records loaded page after page, and how many match: both under
+    // `recordsAll`, so a record write refreshes them with every other listing.
+    recordsInfinite: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "infinite", query] as const,
+    recordCount: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "count", query] as const,
     // One record, as "reload and reapply" refetches it after a conflict.
     record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,

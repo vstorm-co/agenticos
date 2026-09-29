@@ -1,5 +1,5 @@
 ---
-source_sha: "10772d5fcdb4"
+source_sha: "0a100423c33e"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -208,7 +208,9 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 `expected_revision`, die Sie zuletzt gelesen haben; eine veraltete ist `409
 REVISION_CONFLICT`. `PUT .../records/by-external-id/{external_id}` legt den Datensatz
 an oder aktualisiert ihn, mit `expected_revision`, sobald er existiert. `POST
-.../records/query` filtert und sortiert seitenweise.
+.../records/query` filtert, durchsucht und sortiert seitenweise, und `POST
+.../records/count` sagt, wie viele Datensätze dieselben Filter und dieselbe Suche
+treffen, höchstens 100.000.
 
 Ein Workflow, dessen Trigger-Knoten **New table record** ist, läuft nach der
 Veröffentlichung für jeden Datensatz, der seiner Tabelle hinzugefügt wird. `GET

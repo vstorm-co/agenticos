@@ -20,21 +20,10 @@ import {
 } from "@/components/ui";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
+import { COLUMN_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
 
 const FORM = { fields: ["name"], identifiedBy: "name" } as const;
-
-const COLUMN_TYPES: ColumnTypeName[] = [
-  "text",
-  "long_text",
-  "number",
-  "integer",
-  "boolean",
-  "date",
-  "datetime",
-  "single_select",
-  "multi_select",
-];
 
 interface DraftColumn {
   key: string;

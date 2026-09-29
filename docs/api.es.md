@@ -1,5 +1,5 @@
 ---
-source_sha: "10772d5fcdb4"
+source_sha: "0a100423c33e"
 ---
 
 # La API HTTP { #the-http-api }
@@ -203,8 +203,9 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 `PATCH .../records/{record_id}` cambia algunas celdas y necesita la `expected_revision`
 que leíste por última vez; una desfasada es `409 REVISION_CONFLICT`. `PUT
 .../records/by-external-id/{external_id}` crea el registro o lo actualiza, con
-`expected_revision` obligatoria cuando ya existe. `POST .../records/query` filtra y
-ordena página a página.
+`expected_revision` obligatoria cuando ya existe. `POST .../records/query` filtra, busca y
+ordena página a página, y `POST .../records/count` indica cuántos registros coinciden
+con los mismos filtros y la misma búsqueda, hasta 100.000.
 
 Un workflow cuyo nodo trigger es **New table record** se ejecuta, una vez publicado,
 por cada registro que se añade a su tabla. `GET .../triggers` enumera los workflows

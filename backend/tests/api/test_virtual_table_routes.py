@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.virtual_table import (
+    RecordCount,
     RecordExists,
     RecordList,
     RecordQuery,
@@ -86,6 +87,7 @@ def service() -> MagicMock:
         update_schema=AsyncMock(return_value=_table()),
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
+        count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
         get_record_by_external_id=AsyncMock(return_value=_record()),
@@ -264,6 +266,25 @@ async def test_listing_and_querying_records_hand_the_service_one_bounded_query(c
         10,
     )
     assert searched.filters[0].op == "gte" and searched.skip == 5
+
+
+async def test_a_count_hands_the_service_the_filters_and_search_and_nothing_else(client, service):
+    column_id = str(uuid.uuid4())
+    async with client() as http:
+        counted = await http.post(
+            _records("/count"),
+            json={
+                "filters": [{"column_id": column_id, "op": "is_null", "value": True}],
+                "search": " ada ",
+            },
+        )
+        paged = await http.post(_records("/count"), json={"skip": 5})
+
+    assert counted.status_code == 200
+    assert counted.json() == {"count": 3, "capped": False}
+    assert paged.status_code == 422
+    query = service.count_records.await_args.args[2]
+    assert (str(query.filters[0].column_id), query.search) == (column_id, "ada")
 
 
 async def test_every_refusal_answers_in_the_one_envelope_with_its_own_code(client, service):
@@ -595,6 +616,7 @@ async def test_reads_are_not_counted_and_a_refused_permission_does_not_spend_the
             await http.get(_url(f"/{_TABLE}")),
             await http.get(_records()),
             await http.post(_records("/query"), json={}),
+            await http.post(_records("/count"), json={}),
         ]
         _as(uuid.uuid4(), role=OrgRoleName.VIEWER)
         refused = [await http.post(_url(), json={"name": "Orders"}) for _ in range(4)]
@@ -682,7 +704,8 @@ def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_someth
         for method, operation in item.items()
     }
     writes = {key for key in routes if key[1] in {"post", "patch", "put", "delete"}} - {
-        (f"{prefix}/{{table_id}}/records/query", "post")
+        (f"{prefix}/{{table_id}}/records/query", "post"),
+        (f"{prefix}/{{table_id}}/records/count", "post"),
     }
     storing = {
         (prefix, "post"),

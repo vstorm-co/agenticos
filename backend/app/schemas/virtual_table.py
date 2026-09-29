@@ -81,6 +81,7 @@ CellKey = Annotated[str, StringConstraints(max_length=64), NoNul]
 """A key of a record's `values`: a column id. Bounded and clean because an unknown one is echoed
 back in the refusal."""
 ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), PlainKey]
+SearchTerm = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200), NoNul]
 OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128), PlainKey]
 
 MAX_COLUMNS = 100
@@ -269,9 +270,32 @@ class RecordSort(_Request):
 
 class RecordQuery(_Request):
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    search: SearchTerm | None = Field(
+        default=None,
+        description=(
+            "Text a record must contain, ignoring case, in any live text or long text "
+            "column or in the label of a select option it holds. Blank searches nothing."
+        ),
+    )
     sort: RecordSort = Field(default_factory=RecordSort)
     skip: int = Field(default=0, ge=0, le=MAX_SKIP)
     limit: int = Field(default=50, ge=1, le=MAX_LIMIT)
+
+
+MAX_COUNT = 100_000
+"""The furthest a count goes: past it, only that there are more is worth knowing."""
+
+
+class RecordCountQuery(_Request):
+    """The filters and search of a `RecordQuery`, without its order or page."""
+
+    filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")
+
+
+class RecordCount(_Schema):
+    count: int = Field(description=f"How many records match, at most {MAX_COUNT:,}.")
+    capped: bool = Field(description="Whether more match than that, so `count` is a floor.")
 
 
 class RecordList(_Schema):

@@ -1,5 +1,5 @@
 ---
-source_sha: "10772d5fcdb4"
+source_sha: "0a100423c33e"
 ---
 
 # API HTTP { #the-http-api }
@@ -194,8 +194,9 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 `PATCH .../records/{record_id}` zmienia część komórek i wymaga `expected_revision`,
 którą ostatnio odczytałeś; nieaktualna to `409 REVISION_CONFLICT`. `PUT
 .../records/by-external-id/{external_id}` tworzy rekord albo go aktualizuje, a gdy już
-istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje i sortuje po
-jednej stronie naraz.
+istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje, przeszukuje
+i sortuje po jednej stronie naraz, a `POST .../records/count` mówi, ile rekordów
+pasuje do tych samych filtrów i wyszukiwania, najwyżej 100 000.
 
 Workflow, którego węzłem wyzwalacza jest **New table record**, po publikacji
 uruchamia się dla każdego rekordu dodanego do jego tabeli. `GET .../triggers`

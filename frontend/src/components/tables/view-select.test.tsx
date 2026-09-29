@@ -9,6 +9,7 @@ import type { TableViewRead } from "@/types/tables";
 
 const config = {
   filters: [],
+  search: null,
   sort: { by: "c1", direction: "asc" as const },
   visible_columns: null,
   group_by: null,

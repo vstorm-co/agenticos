@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -231,5 +231,58 @@ describe("DataTable server-side sorting", () => {
     await user.click(screen.getAllByRole("button")[0]!);
 
     expect(onSort).toHaveBeenCalledWith({ by: "name", dir: "asc" });
+  });
+});
+
+describe("DataTable with a fixed row height", () => {
+  const many: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: String(i), name: `Row ${i}` }));
+
+  /** The scroll container, sized and scrolled as a browser would report it. */
+  function scroll(container: HTMLElement, { top, height }: { top: number; height: number }) {
+    const element = container.querySelector(".overflow-x-auto") as HTMLElement;
+    Object.defineProperty(element, "clientHeight", { configurable: true, value: height });
+    Object.defineProperty(element, "scrollHeight", { configurable: true, value: 100 * 40 });
+    element.scrollTop = top;
+    fireEvent.scroll(element);
+  }
+
+  it("draws only the rows in view, with space standing in for the rest", () => {
+    const { container } = renderTable({ rows: many, rowHeight: 40, fillHeight: true });
+
+    expect(screen.getByText("Row 0")).toBeInTheDocument();
+    expect(screen.queryByText("Row 50")).not.toBeInTheDocument();
+
+    scroll(container, { top: 2000, height: 400 });
+
+    expect(screen.getByText("Row 50")).toBeInTheDocument();
+    expect(screen.queryByText("Row 0")).not.toBeInTheDocument();
+    const spacers = container.querySelectorAll('tr[aria-hidden="true"]');
+    expect(spacers).toHaveLength(2);
+  });
+
+  it("asks for more as the scroll nears the end, and not before", () => {
+    const onEndReached = vi.fn();
+    const { container } = renderTable({
+      rows: many,
+      rowHeight: 40,
+      fillHeight: true,
+      onEndReached,
+    });
+
+    scroll(container, { top: 1000, height: 400 });
+    expect(onEndReached).not.toHaveBeenCalled();
+
+    scroll(container, { top: 3500, height: 400 });
+    expect(onEndReached).toHaveBeenCalled();
+  });
+
+  it("asks for more at the end of a table that draws every row", () => {
+    const onEndReached = vi.fn();
+    const { container } = renderTable({ rows: many, onEndReached });
+
+    scroll(container, { top: 3500, height: 400 });
+
+    expect(onEndReached).toHaveBeenCalled();
+    expect(screen.getByText("Row 0")).toBeInTheDocument();
   });
 });

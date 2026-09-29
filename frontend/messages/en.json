@@ -4748,7 +4748,14 @@
           "description": "Records created here, by an agent or through the API all show up in every matching view.",
           "add": "Add record"
         },
-        "addRecord": "Add record"
+        "addRecord": "Add record",
+        "search": "Search records",
+        "saveView": "Save view",
+        "viewSaved": "View saved.",
+        "loadingMore": "Loading more records…",
+        "truncated": "The grid scrolls through the first 10,000 records. Filter or search to reach the rest.",
+        "recordCount": "{count, plural, one {# record} other {# records}}",
+        "recordCountCapped": "{count, number}+ records"
       },
       "views": {
         "created": "View saved",
@@ -6239,7 +6246,63 @@
       "deleteTitle": "{count, plural, one {Delete # record?} other {Delete # records?}}",
       "deleteDescription": "Deleted records leave every view, and a table trigger watching deletions fires for each. This cannot be undone.",
       "deleted": "{count, plural, one {# record deleted.} other {# records deleted.}}",
-      "deleteConflict": "{count, plural, one {# record changed since you loaded it and was kept. Check it and try again.} other {# records changed since you loaded them and were kept. Check them and try again.}}"
+      "deleteConflict": "{count, plural, one {# record changed since you loaded it and was kept. Check it and try again.} other {# records changed since you loaded them and were kept. Check them and try again.}}",
+      "addColumn": "Add column"
+    },
+    "filters": {
+      "button": "Filter",
+      "title": "Filters",
+      "hint": "A record shows when it meets every condition.",
+      "none": "No conditions yet, so every record shows.",
+      "where": "Where",
+      "and": "and",
+      "column": "Column",
+      "operator": "Operator",
+      "remove": "Remove condition",
+      "add": "Add condition",
+      "clear": "Clear all",
+      "op": {
+        "eq": "is",
+        "ne": "is not",
+        "lt": "less than",
+        "lte": "at most",
+        "gt": "more than",
+        "gte": "at least",
+        "contains": "contains",
+        "starts_with": "starts with",
+        "in": "is any of",
+        "empty": "is empty",
+        "not_empty": "is not empty"
+      },
+      "opDated": {
+        "lt": "before",
+        "lte": "on or before",
+        "gt": "after",
+        "gte": "on or after"
+      }
+    },
+    "columnMenu": {
+      "open": "{column} column actions",
+      "sortAsc": "Sort ascending",
+      "sortDesc": "Sort descending",
+      "rename": "Rename",
+      "hide": "Hide in this view",
+      "archive": "Archive column",
+      "archiveTitle": "Archive {column}?",
+      "archiveDescription": "It leaves the table for everyone. Records keep its values, it can be restored from Columns, and a view or trigger that depends on it stops the archive and is named.",
+      "renameTitle": "Rename column",
+      "renameDescription": "Every record keeps its value: a column is matched by its id, not its name.",
+      "label": "Name",
+      "type": "Type",
+      "options": "Options",
+      "optionsPlaceholder": "One option per line",
+      "addTitle": "Add column",
+      "addDescription": "The column starts optional, since the records already here hold nothing for it. Its type cannot change later.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "add": "Add column",
+      "hiddenCount": "{count, plural, one {# hidden} other {# hidden}}",
+      "showAll": "Show all columns"
     }
   },
   "groups": {

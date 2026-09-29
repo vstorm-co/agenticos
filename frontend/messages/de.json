@@ -4381,7 +4381,14 @@
           "description": "Hier, von einem Agent oder über die API erstellte Datensätze erscheinen in jeder passenden Ansicht.",
           "add": "Datensatz hinzufügen"
         },
-        "addRecord": "Datensatz hinzufügen"
+        "addRecord": "Datensatz hinzufügen",
+        "search": "Datensätze durchsuchen",
+        "saveView": "Ansicht speichern",
+        "viewSaved": "Ansicht gespeichert.",
+        "loadingMore": "Weitere Datensätze werden geladen…",
+        "truncated": "Das Raster scrollt durch die ersten 10.000 Datensätze. Filtern oder suchen Sie, um den Rest zu erreichen.",
+        "recordCount": "{count, plural, one {# Datensatz} other {# Datensätze}}",
+        "recordCountCapped": "{count, number}+ Datensätze"
       },
       "views": {
         "created": "Ansicht gespeichert",
@@ -6098,7 +6105,63 @@
       "deleteTitle": "{count, plural, one {# Datensatz löschen?} other {# Datensätze löschen?}}",
       "deleteDescription": "Gelöschte Datensätze verschwinden aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für jeden ausgelöst. Das lässt sich nicht rückgängig machen.",
       "deleted": "{count, plural, one {# Datensatz gelöscht.} other {# Datensätze gelöscht.}}",
-      "deleteConflict": "{count, plural, one {# Datensatz wurde seit dem Laden geändert und behalten. Prüfen Sie ihn und versuchen Sie es erneut.} other {# Datensätze wurden seit dem Laden geändert und behalten. Prüfen Sie sie und versuchen Sie es erneut.}}"
+      "deleteConflict": "{count, plural, one {# Datensatz wurde seit dem Laden geändert und behalten. Prüfen Sie ihn und versuchen Sie es erneut.} other {# Datensätze wurden seit dem Laden geändert und behalten. Prüfen Sie sie und versuchen Sie es erneut.}}",
+      "addColumn": "Spalte hinzufügen"
+    },
+    "filters": {
+      "button": "Filter",
+      "title": "Filter",
+      "hint": "Ein Datensatz erscheint, wenn er jede Bedingung erfüllt.",
+      "none": "Noch keine Bedingungen, daher erscheint jeder Datensatz.",
+      "where": "Wo",
+      "and": "und",
+      "column": "Spalte",
+      "operator": "Operator",
+      "remove": "Bedingung entfernen",
+      "add": "Bedingung hinzufügen",
+      "clear": "Alle entfernen",
+      "op": {
+        "eq": "ist",
+        "ne": "ist nicht",
+        "lt": "weniger als",
+        "lte": "höchstens",
+        "gt": "mehr als",
+        "gte": "mindestens",
+        "contains": "enthält",
+        "starts_with": "beginnt mit",
+        "in": "ist eines von",
+        "empty": "ist leer",
+        "not_empty": "ist nicht leer"
+      },
+      "opDated": {
+        "lt": "vor",
+        "lte": "am oder vor",
+        "gt": "nach",
+        "gte": "am oder nach"
+      }
+    },
+    "columnMenu": {
+      "open": "Aktionen für Spalte {column}",
+      "sortAsc": "Aufsteigend sortieren",
+      "sortDesc": "Absteigend sortieren",
+      "rename": "Umbenennen",
+      "hide": "In dieser Ansicht ausblenden",
+      "archive": "Spalte archivieren",
+      "archiveTitle": "{column} archivieren?",
+      "archiveDescription": "Sie verschwindet für alle aus der Tabelle. Datensätze behalten ihre Werte, sie lässt sich unter Spalten wiederherstellen, und eine Ansicht oder ein Trigger, der von ihr abhängt, stoppt die Archivierung und wird genannt.",
+      "renameTitle": "Spalte umbenennen",
+      "renameDescription": "Jeder Datensatz behält seinen Wert: Eine Spalte wird über ihre ID erkannt, nicht über ihren Namen.",
+      "label": "Name",
+      "type": "Typ",
+      "options": "Optionen",
+      "optionsPlaceholder": "Eine Option pro Zeile",
+      "addTitle": "Spalte hinzufügen",
+      "addDescription": "Die Spalte ist zunächst optional, da die vorhandenen Datensätze keinen Wert für sie haben. Ihr Typ lässt sich später nicht ändern.",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "add": "Spalte hinzufügen",
+      "hiddenCount": "{count, plural, one {# ausgeblendet} other {# ausgeblendet}}",
+      "showAll": "Alle Spalten anzeigen"
     }
   },
   "groups": {

@@ -128,6 +128,7 @@ function KanbanLane({
   tableId,
   lane,
   baseFilters,
+  search,
   groupBy,
   sort,
   archivedOptionIds,
@@ -145,6 +146,7 @@ function KanbanLane({
   tableId: string;
   lane: Lane;
   baseFilters: RecordFilter[];
+  search: string | null;
   groupBy: string;
   sort: RecordSort;
   archivedOptionIds: string[];
@@ -164,6 +166,7 @@ function KanbanLane({
   const filters = filter ? [...baseFilters, filter] : baseFilters;
   const { records, hasMore, isLoading } = useTableRecords(skipLane ? null : tableId, {
     filters,
+    search,
     sort,
     skip: 0,
     limit: LANE_PAGE_SIZE,
@@ -225,6 +228,7 @@ export function TableKanbanView({
   columns,
   groupByColumnId,
   baseFilters,
+  search = null,
   sort,
   onOpenRecord,
   canEdit,
@@ -233,6 +237,8 @@ export function TableKanbanView({
   columns: ColumnDef[];
   groupByColumnId: string;
   baseFilters: RecordFilter[];
+  /** The search box's text, narrowing every lane alike. */
+  search?: string | null;
   sort: RecordSort;
   onOpenRecord: (record: RecordRead) => void;
   /** No drag, no "Move to" menu, for a caller who cannot write to this table. */
@@ -346,6 +352,7 @@ export function TableKanbanView({
           tableId={tableId}
           lane={lane}
           baseFilters={baseFilters}
+          search={search}
           groupBy={groupByColumnId}
           sort={sort}
           archivedOptionIds={archivedOptionIds}

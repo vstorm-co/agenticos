@@ -20,19 +20,8 @@ import {
 } from "@/components/ui";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage } from "@/lib/api-error";
+import { COLUMN_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
-
-const COLUMN_TYPES: ColumnTypeName[] = [
-  "text",
-  "long_text",
-  "number",
-  "integer",
-  "boolean",
-  "date",
-  "datetime",
-  "single_select",
-  "multi_select",
-];
 
 /** An option row, `archived` narrowed to required - see `Row` below. */
 interface OptionRow {

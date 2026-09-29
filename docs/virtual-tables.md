@@ -138,6 +138,14 @@ kept, and the console says how many were. The record panel deletes one record th
 way. A member who can only view the table sees the same grid read-only, and clicking a
 row opens the record.
 
+For a member who can edit the table, a column's header opens a menu. **Sort ascending**
+and **Sort descending** order the grid by it, and **Hide in this view** takes it off the
+screen until the hidden-columns button shows it again; **Save view** keeps both.
+**Rename** and **Archive column** change the table for everyone, each as the same new
+schema version the Columns dialog would write, and an archive a view or trigger depends
+on is refused with its name. The **+** after the last column adds one, optional to begin
+with. A column's type never changes.
+
 ## Safe retries { #safe-retries }
 
 Every record write accepts an `Idempotency-Key` header (at most 128 characters). A
@@ -168,14 +176,25 @@ retried.
 adds typed filters, all of which must hold. Both are bounded: `limit` is 1 to 100,
 `skip` is at most 10,000, and a query has at most 20 filters.
 
+`search` is text a record must contain, ignoring case, in any live text or long text
+column or in the label of a select option it holds. It combines with the filters, and
+a blank one searches nothing. A saved view keeps it beside its filters. In the console
+the search box sends it, and **Filter** writes the conditions: a column, an operator its
+type supports and a value. Each complete condition narrows the records at once, and
+**Save view** keeps the conditions, the search and the sort in the view on screen.
+
 The order is total. The requested sort (`created_at`, `updated_at` or a sortable
 column) is followed by the record id, so a page never repeats or skips a record in
 an unchanged table. Records with no value in the sorted column come last in either
 direction. A `multi_select` column cannot be sorted. `updated_at` is set when a record is
 created and moves on each edit, so records nobody has edited sort by their creation time.
 
-There is no `total`, because counting a filtered table is not cheap. `has_more` says
-whether another page follows.
+A listing has no `total`, because counting a filtered table is not cheap: `has_more`
+says whether another page follows. `POST /tables/{id}/records/count` answers that
+question separately, for a query's filters and search, and counts no further than
+100,000; `capped` says more match. The console shows that count beside the view tabs,
+and its grid loads a hundred records at a time as it scrolls, drawing only the rows in
+view. Past the 10,000 records a query may skip, it asks for a filter or a search.
 
 ## Saved views { #saved-views }
 
@@ -189,7 +208,7 @@ widens access beyond what the table itself allows.
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and
 `limit` (at most 100), the caller's own views first, then the shared ones, each by
-name; `total` counts them all. `config` is `{filters, sort,
+name; `total` counts them all. `config` is `{filters, search, sort,
 visible_columns, group_by}` - a `RecordQuery` plus the two fields only the
 console's own rendering needs: `visible_columns` (`null` means every live column)
 and `group_by` (a live `single_select` column, for a kanban board's lanes).

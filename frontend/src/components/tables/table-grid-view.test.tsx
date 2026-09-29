@@ -502,6 +502,21 @@ describe("TableGridView", () => {
       expect(screen.getByText("1 selected")).toBeInTheDocument();
     });
 
+    it("puts a menu on each header in place of the sort button, and a + after the last", async () => {
+      const onAddColumn = vi.fn();
+      const user = userEvent.setup();
+      renderEditable({
+        columnActions: { onSort: vi.fn(), onRename: vi.fn(), onHide: vi.fn(), onArchive: vi.fn() },
+        onAddColumn,
+      });
+
+      expect(screen.getByRole("button", { name: "Name column actions" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Name" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Add column" }));
+
+      expect(onAddColumn).toHaveBeenCalled();
+    });
+
     it("offers to add a record from the empty state", async () => {
       const onAddRecord = vi.fn();
       const user = userEvent.setup();

@@ -3,16 +3,20 @@
  * and `backend/app/schemas/table_view.py`.
  */
 
-export type ColumnTypeName =
-  | "text"
-  | "long_text"
-  | "number"
-  | "integer"
-  | "boolean"
-  | "date"
-  | "datetime"
-  | "single_select"
-  | "multi_select";
+/** Every column type, in the order a column type picker lists them. */
+export const COLUMN_TYPES = [
+  "text",
+  "long_text",
+  "number",
+  "integer",
+  "boolean",
+  "date",
+  "datetime",
+  "single_select",
+  "multi_select",
+] as const;
+
+export type ColumnTypeName = (typeof COLUMN_TYPES)[number];
 
 export type FilterOp =
   "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "contains" | "starts_with" | "in" | "is_null";
@@ -111,9 +115,21 @@ export interface RecordSort {
 
 export interface RecordQuery {
   filters?: RecordFilter[];
+  /** Text to find in any live text column or select option label, ignoring case. */
+  search?: string | null;
   sort?: RecordSort;
   skip?: number;
   limit?: number;
+}
+
+/** What a count narrows by: a query's filters and search, without its order or page. */
+export type RecordCountQuery = Pick<RecordQuery, "filters" | "search">;
+
+export interface RecordCount {
+  /** How many records match, up to the cap. */
+  count: number;
+  /** Whether more match than the cap, so `count` is a floor. */
+  capped: boolean;
 }
 
 export interface RecordRead {
@@ -149,6 +165,7 @@ export type ViewVisibility = "private" | "shared";
 
 export interface TableViewConfig {
   filters: RecordFilter[];
+  search: string | null;
   sort: RecordSort;
   /** `null` means every live column. */
   visible_columns: string[] | null;
@@ -202,6 +219,7 @@ export interface TableViewUpdate {
 export function emptyViewConfig(): TableViewConfig {
   return {
     filters: [],
+    search: null,
     sort: { by: "created_at", direction: "asc" },
     visible_columns: null,
     group_by: null,

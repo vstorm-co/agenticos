@@ -13,7 +13,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.schemas.virtual_table import MAX_FILTERS, RecordFilter, RecordSort
+from app.schemas.virtual_table import MAX_FILTERS, RecordFilter, RecordSort, SearchTerm
 
 ViewKind = Literal["table", "kanban", "list"]
 ViewVisibility = Literal["private", "shared"]
@@ -34,6 +34,7 @@ class TableViewConfig(_Request):
     plus the two fields only the console's own rendering needs."""
 
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")
     sort: RecordSort = Field(default_factory=RecordSort)
     visible_columns: list[UUID] | None = Field(
         default=None, description="`null` means every live column."

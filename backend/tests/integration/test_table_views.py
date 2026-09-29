@@ -299,6 +299,7 @@ async def test_updating_config_and_visibility_persists_and_reads_back(db):
             visibility="shared",
             config=TableViewConfig(
                 filters=[RecordFilter(column_id=status_id, op="eq", value=str(status_id))],
+                search="  rush ",
                 sort=RecordSort(by="created_at", direction="desc"),
                 group_by=status_id,
             ),
@@ -310,6 +311,7 @@ async def test_updating_config_and_visibility_persists_and_reads_back(db):
     assert updated.config.filters[0].column_id == status_id
     fetched = await views.get_view(ctx, table.id, view.id)
     assert fetched.config.sort.direction == "desc"
+    assert fetched.config.search == "rush"
 
 
 async def test_an_update_with_nothing_set_changes_nothing(db):

@@ -1,5 +1,5 @@
 ---
-source_sha: "0cf6760a5d9e"
+source_sha: "4bd407fa9568"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -146,6 +146,14 @@ który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich był
 rekordu usuwa pojedynczy rekord w ten sam sposób. Członek, który może tylko oglądać
 tabelę, widzi tę samą siatkę tylko do odczytu, a kliknięcie wiersza otwiera rekord.
 
+Członkowi, który może edytować tabelę, nagłówek kolumny otwiera menu. **Sort ascending**
+i **Sort descending** sortują siatkę według niej, a **Hide in this view** zdejmuje ją z
+ekranu, dopóki przycisk ukrytych kolumn nie pokaże jej z powrotem; **Save view**
+zapisuje jedno i drugie. **Rename** i **Archive column** zmieniają tabelę dla wszystkich,
+każda jako ta sama nowa wersja schematu, którą zapisałby dialog Columns, a archiwizacja,
+od której zależy widok lub wyzwalacz, zostaje odrzucona z jego nazwą. **+** za ostatnią
+kolumną dodaje nową, na początek opcjonalną. Typ kolumny nigdy się nie zmienia.
+
 ## Bezpieczne ponawianie { #safe-retries }
 
 Każdy zapis rekordu przyjmuje nagłówek `Idempotency-Key` (co najwyżej 128 znaków).
@@ -178,6 +186,14 @@ dodaje typowane filtry, z których wszystkie muszą być spełnione. Oba są ogr
 `limit` wynosi od 1 do 100, `skip` co najwyżej 10 000, a zapytanie ma co najwyżej 20
 filtrów.
 
+`search` to tekst, który rekord musi zawierać, bez względu na wielkość liter, w dowolnej
+aktywnej kolumnie tekstowej lub długiego tekstu albo w etykiecie opcji wyboru, którą
+przechowuje. Łączy się z filtrami, a puste wyszukiwanie niczego nie szuka. Zapisany
+widok przechowuje je obok swoich filtrów. W konsoli wysyła je pole wyszukiwania, a
+**Filter** zapisuje warunki: kolumnę, operator obsługiwany przez jej typ i wartość.
+Każdy kompletny warunek od razu zawęża rekordy, a **Save view** zapisuje warunki,
+wyszukiwanie i sortowanie w widoku na ekranie.
+
 Kolejność jest całkowita. Po żądanym sortowaniu (`created_at`, `updated_at` lub
 kolumna, którą można sortować) następuje id rekordu, więc strona nigdy nie powtarza ani
 nie pomija rekordu w niezmienionej tabeli. Rekordy bez wartości w sortowanej kolumnie
@@ -185,8 +201,12 @@ są na końcu w obu kierunkach. Kolumny `multi_select` nie da się sortować. `u
 rekordu i przesuwa się z każdą edycją, więc rekordy, których nikt nie edytował,
 sortują się według czasu utworzenia.
 
-Nie ma `total`, bo liczenie przefiltrowanej tabeli nie jest tanie. `has_more` mówi, czy
-następuje kolejna strona.
+Listowanie nie ma `total`, bo liczenie przefiltrowanej tabeli nie jest tanie: `has_more`
+mówi, czy następuje kolejna strona. `POST /tables/{id}/records/count` odpowiada na to
+pytanie osobno, dla filtrów i wyszukiwania zapytania, i liczy najwyżej do 100 000;
+`capped` mówi, że pasuje więcej. Konsola pokazuje tę liczbę obok zakładek widoków, a jej
+siatka wczytuje po sto rekordów podczas przewijania i rysuje tylko widoczne wiersze. Za
+10 000 rekordów, które zapytanie może pominąć, prosi o filtr lub wyszukiwanie.
 
 ## Zapisane widoki { #saved-views }
 
@@ -201,7 +221,7 @@ tabela.
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
 `skip` i `limit` (najwyżej 100): najpierw własne widoki wywołującego, potem
-współdzielone, w każdej grupie według nazwy; `total` liczy wszystkie. `config` to `{filters, sort,
+współdzielone, w każdej grupie według nazwy; `total` liczy wszystkie. `config` to `{filters, search, sort,
 visible_columns, group_by}` - `RecordQuery` plus dwa pola potrzebne tylko
 renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę) i
 `group_by` (żywa kolumna `single_select`, dla kolumn tablicy kanban).

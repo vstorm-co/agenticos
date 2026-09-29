@@ -17,6 +17,7 @@ from app.db.models.virtual_table import (
 from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
     OptionInput,
+    RecordCountQuery,
     RecordCreate,
     RecordFilter,
     RecordQuery,
@@ -28,6 +29,7 @@ from app.schemas.virtual_table import (
 )
 from app.services.access import TABLE
 from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables import records as records_module
 from app.services.virtual_tables.exceptions import (
     InvalidQueryError,
     InvalidRecordError,
@@ -404,6 +406,109 @@ async def test_typed_filters_compare_numbers_dates_times_text_booleans_and_optio
     assert await _ids(
         service, ctx, table, where("Quantity", "gte", 1), where("Paid", "eq", True)
     ) == {"a"}
+
+
+async def _found(service, ctx, table, search, *filters) -> set[str]:
+    page = await service.list_records(
+        ctx, table.id, RecordQuery(search=search, filters=list(filters))
+    )
+    return {item.external_id for item in page.items}
+
+
+async def test_a_search_reads_text_and_the_labels_of_the_options_a_record_holds(db):
+    service, ctx, table, _org = await _setup(db)
+    status = next(c for c in table.columns if c.label == "Status")
+    tags = next(c for c in table.columns if c.label == "Tags")
+    rows = {
+        "a": {
+            "Customer": "Acme Ltd",
+            "Status": str(status.options[0].id),
+            "Tags": [str(tags.options[0].id)],
+        },
+        "b": {
+            "Customer": "Globex",
+            "Status": str(status.options[1].id),
+            "Tags": [str(tags.options[1].id)],
+        },
+        "c": {"Customer": "100% cotton"},
+        "d": {},
+    }
+    for external_id, cells in rows.items():
+        await service.create_record(
+            ctx,
+            table.id,
+            RecordCreate(
+                external_id=external_id, values={cid(table, k): v for k, v in cells.items()}
+            ),
+        )
+    quantity = next(c.id for c in table.columns if c.label == "Quantity")
+
+    assert await _found(service, ctx, table, "ACME") == {"a"}
+    assert await _found(service, ctx, table, "ship") == {"b"}  # Status "Shipped"
+    assert await _found(service, ctx, table, "rus") == {"a"}  # Tags "Rush"
+    assert await _found(service, ctx, table, "o") == {"a", "b", "c"}  # "Open", "Globex", "cotton"
+    assert await _found(service, ctx, table, "%") == {"c"}
+    assert await _found(service, ctx, table, "nowhere") == set()
+    assert await _found(service, ctx, table, "   ") == {"a", "b", "c", "d"}
+    assert await _found(
+        service, ctx, table, "o", RecordFilter(column_id=quantity, op="is_null", value=True)
+    ) == {"a", "b", "c"}
+
+
+async def test_a_search_skips_archived_columns_and_finds_nothing_with_nothing_to_read(db):
+    service, ctx, table, _org = await _setup(db)
+    await _seed(service, ctx, table, [("a", "Acme", 1)])
+    keep = [
+        column(c.label, c.type, id=c.id)
+        for c in table.columns
+        if c.type not in ("text", "single_select", "multi_select")
+    ]
+    await service.update_schema(ctx, table.id, SchemaUpdate(expected_version=1, columns=keep))
+
+    assert await _found(service, ctx, table, "acme") == set()
+
+
+async def test_a_count_matches_the_filters_and_search_and_stops_at_its_cap(db, monkeypatch):
+    service, ctx, table, _org = await _setup(db)
+    await _seed(
+        service, ctx, table, [(f"r{i}", f"Acme {i}" if i < 3 else "Globex", i) for i in range(5)]
+    )
+    quantity = next(c.id for c in table.columns if c.label == "Quantity")
+
+    everything = await service.count_records(ctx, table.id, RecordCountQuery())
+    acme = await service.count_records(ctx, table.id, RecordCountQuery(search="acme"))
+    narrowed = await service.count_records(
+        ctx,
+        table.id,
+        RecordCountQuery(
+            search="acme", filters=[RecordFilter(column_id=quantity, op="gte", value=1)]
+        ),
+    )
+    assert (everything.count, acme.count, narrowed.count) == (5, 3, 2)
+    assert not everything.capped
+
+    monkeypatch.setattr(records_module, "MAX_COUNT", 4)
+    capped = await service.count_records(ctx, table.id, RecordCountQuery())
+    exact = await service.count_records(ctx, table.id, RecordCountQuery(search="acme"))
+    assert (capped.count, capped.capped) == (4, True)
+    assert (exact.count, exact.capped) == (3, False)
+
+
+@pytest.mark.security
+async def test_a_count_refuses_a_filter_the_table_cannot_answer_and_counts_only_its_tenant(db):
+    service, ctx, table, _org = await _setup(db)
+    await _seed(service, ctx, table, [("a", "Acme", 1)])
+    other_owner = await make_user(db)
+    other = ctx_for(other_owner, await make_org(db, owner=other_owner))
+
+    with pytest.raises(InvalidQueryError):
+        await service.count_records(
+            ctx,
+            table.id,
+            RecordCountQuery(filters=[RecordFilter(column_id=uuid.uuid4(), op="eq", value=1)]),
+        )
+    with pytest.raises(NotFoundError):
+        await service.count_records(other, table.id, RecordCountQuery())
 
 
 @pytest.mark.security

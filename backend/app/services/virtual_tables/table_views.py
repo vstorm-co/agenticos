@@ -140,6 +140,7 @@ def _live_config(view: TableView, live: set[UUID]) -> TableViewConfig:
         visible = [item for item in visible if item in live] or None
     return TableViewConfig(
         filters=[item for item in config.filters if item.column_id in live],
+        search=config.search,
         sort=RecordSort() if _names_a_dead_column(config.sort.by, live) else config.sort,
         visible_columns=visible,
         group_by=config.group_by if config.group_by in live else None,

@@ -190,8 +190,9 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 `PATCH .../records/{record_id}` changes some cells and needs the
 `expected_revision` you last read; a stale one is `409 REVISION_CONFLICT`. `PUT
 .../records/by-external-id/{external_id}` creates the record or updates it, with
-`expected_revision` required once it exists. `POST .../records/query` filters and
-sorts one page at a time.
+`expected_revision` required once it exists. `POST .../records/query` filters,
+searches and sorts one page at a time, and `POST .../records/count` says how many
+records the same filters and search match, up to 100,000.
 
 A workflow whose trigger node is **New table record** runs for every record added
 to its table once it is published. `GET .../triggers` lists the workflows that
