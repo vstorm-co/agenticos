@@ -194,8 +194,9 @@ anything that ran before the loop. What the loop does is in the
 The editor checks the graph as you edit and shows what is wrong where it is
 wrong. A selected node with a problem carries a badge counting its problems in
 the panel header, a field with a problem shows its message inline, and a
-collapsible list at the foot of the panel collects the problems together so each
-one links to the node or field it is about.
+collapsible list at the foot of the panel collects the problems together, each
+under the name of its node and field. Choosing one selects that node and brings it
+into view, and every node with a problem is marked on the canvas too.
 
 The messages name the specific fault: a required input with no value, an input
 set by more than one source, a connection whose ports carry different shapes, a

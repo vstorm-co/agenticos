@@ -30,6 +30,19 @@ vi.mock("@/components/workflows/pickers", () => ({
       <span>{value ?? "bot-none"}</span>
     </div>
   ),
+  SandboxConnectionPicker: ({
+    value,
+    onChange,
+  }: {
+    value: string | null;
+    onChange: (v: unknown) => void;
+  }) => (
+    <div>
+      <button type="button" aria-label="set-host" onClick={() => onChange("host-1")} />
+      <button type="button" aria-label="default-host" onClick={() => onChange(null)} />
+      <span>{value ?? "host-default"}</span>
+    </div>
+  ),
   AgentVersionPicker: ({
     value,
     onChange,
@@ -67,12 +80,15 @@ vi.mock("@/components/workflows/pickers", () => ({
     value,
     onChange,
     kind,
+    label,
   }: {
     value: string | null;
     onChange: (v: unknown) => void;
     kind?: string;
+    label?: string;
   }) => (
     <div>
+      <span>{`picker-label:${label ?? "own"}`}</span>
       <button type="button" aria-label="set-secret" onClick={() => onChange("sec")} />
       <button type="button" aria-label="clear-secret" onClick={() => onChange(null)} />
       <span>{value ?? "secret-none"}</span>
@@ -261,6 +277,44 @@ describe("NodeForm sections", () => {
     });
     renderForm({ definition: agentRun });
     expect(screen.getByText("As the agent answers")).toBeVisible();
+  });
+
+  it("names a picker by its field's own title, and never labels it twice", () => {
+    renderForm({
+      definition: makeDefinition({
+        id: "decide.yes_no",
+        config_schema: {
+          type: "object",
+          properties: {
+            secret_id: { "x-resource": "secret", title: "TypeSafe key" },
+            other_id: { "x-resource": "secret", title: "Other Id" },
+          },
+        } as Schema,
+      }),
+    });
+    expect(screen.getByText("picker-label:TypeSafe key")).toBeVisible();
+    // A title Pydantic made of the name says less than the picker's own label.
+    expect(screen.getByText("picker-label:own")).toBeVisible();
+    expect(screen.queryByText("TypeSafe key")).toBeNull();
+    expect(screen.queryByText("Other Id")).toBeNull();
+  });
+
+  it("picks a script step's sandbox host, and goes back to the default", async () => {
+    const scriptStep = makeDefinition({
+      id: "code.javascript.sandbox",
+      config_schema: {
+        type: "object",
+        properties: {
+          connection_id: { "x-resource": "sandbox_connection", title: "Sandbox host" },
+        },
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({ definition: scriptStep });
+    expect(screen.getByText("host-default")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "set-host" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { connection_id: "host-1" });
+    await userEvent.click(screen.getByRole("button", { name: "default-host" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
   });
 
   it("pins a channel step's bot through the bot picker, and clears it", async () => {

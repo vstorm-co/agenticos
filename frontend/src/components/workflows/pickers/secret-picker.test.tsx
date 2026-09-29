@@ -22,7 +22,7 @@ beforeEach(() => {
 
 function mount(
   value: string | null,
-  props: Partial<{ disabled: boolean; error: string; kind: "api_key" }> = {},
+  props: Partial<{ disabled: boolean; error: string; kind: "api_key"; label: string }> = {},
 ) {
   const onChange = vi.fn();
   render(<SecretPicker value={value} onChange={onChange} {...props} />);
@@ -37,6 +37,11 @@ describe("SecretPicker", () => {
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
     expect(onChange).toHaveBeenCalledWith("s1");
+  });
+
+  it("is called what its field is called, when the field names itself", () => {
+    mount(null, { label: "TypeSafe key" });
+    expect(screen.getByRole("combobox", { name: "TypeSafe key" })).toBeTruthy();
   });
 
   it("offers only secrets of the required kind", async () => {

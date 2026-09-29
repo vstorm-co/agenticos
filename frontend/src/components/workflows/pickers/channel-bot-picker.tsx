@@ -18,6 +18,8 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 export interface ChannelBotPickerProps {
+  /** What the control is called: the field's own name, or the picker's when it has none. */
+  label?: string;
   /** The chosen bot's id, or null while none is. */
   value: string | null;
   onChange: (botId: string | null) => void;
@@ -33,8 +35,15 @@ export interface ChannelBotPickerProps {
  * instead of shown an empty list. A switched-off bot is offered, marked, because
  * the step would refuse it at the next run and a silent absence would hide that.
  */
-export function ChannelBotPicker({ value, onChange, disabled, error }: ChannelBotPickerProps) {
+export function ChannelBotPicker({
+  value,
+  onChange,
+  disabled,
+  error,
+  label,
+}: ChannelBotPickerProps) {
   const t = useTranslations("workflows");
+  const caption = label ?? t("pickerBotLabel");
   const { can } = usePermissions();
   const mayManage = can(Perm.channelsManage);
   const { bots, isLoading } = useChannelBots(mayManage);
@@ -47,9 +56,9 @@ export function ChannelBotPicker({ value, onChange, disabled, error }: ChannelBo
 
   return (
     <div className="space-y-2">
-      <Label>{t("pickerBotLabel")}</Label>
+      <Label>{caption}</Label>
       <Select value={value ?? ""} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger aria-label={t("pickerBotLabel")}>
+        <SelectTrigger aria-label={caption}>
           <SelectValue placeholder={t("pickerBotPlaceholder")} />
         </SelectTrigger>
         <SelectContent>

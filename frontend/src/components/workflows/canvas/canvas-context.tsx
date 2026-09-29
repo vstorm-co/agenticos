@@ -31,6 +31,8 @@ export interface CanvasInteraction {
   catalog: NodeDefinition[];
   /** Add `definition` after `nodeId`'s `portId`, wired to it. */
   insertAfter: (nodeId: string, portId: string, definition: NodeDefinition) => void;
+  /** How many problems each node has that stop publishing - a node with none is absent. */
+  problemCounts: ReadonlyMap<string, number>;
 }
 
 const CanvasInteractionContext = createContext<CanvasInteraction | null>(null);

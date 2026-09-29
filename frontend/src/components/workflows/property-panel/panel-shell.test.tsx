@@ -157,7 +157,8 @@ describe("PanelShell states", () => {
       selection: { nodeIds: ["A"], edgeIds: [] },
       problems: [{ nodeId: "A", edgeId: null, field: null, code: "c", message: "Node problem" }],
     });
-    expect(screen.getByRole("heading", { name: "Echo · A" })).toBeVisible();
+    // One Echo in the graph: its name says which step, with no id beside it.
+    expect(screen.getByRole("heading", { name: "Echo" })).toBeVisible();
     expect(screen.getByText("Configuration")).toBeVisible();
     expect(screen.getByText("Node problem")).toBeVisible();
     expect(screen.getByLabelText("1 problem")).toBeVisible();
@@ -189,7 +190,7 @@ describe("PanelShell states", () => {
     });
     expect(screen.getByText("Connection")).toBeVisible();
     // A present node with an unknown definition falls back to its definition id.
-    expect(screen.getByText(/missing · U/)).toBeVisible();
+    expect(screen.getByText(/missing · out/)).toBeVisible();
     // A dangling endpoint falls back to a short id.
     expect(screen.getByText(/goneno/)).toBeVisible();
   });
@@ -204,7 +205,9 @@ describe("PanelShell states", () => {
       }),
       selection: { nodeIds: [], edgeIds: ["e"] },
     });
+    // Two Echo steps: each is told apart by a short id.
     expect(screen.getByText(/Echo · A/)).toBeVisible();
+    expect(screen.getByText(/Echo · B/)).toBeVisible();
   });
 
   it("falls through to empty when the selected edge is not found", () => {

@@ -16,7 +16,7 @@ import {
   Label,
   Textarea,
 } from "@/components/ui";
-import { ProblemsFooter } from "@/components/workflows/property-panel/problems";
+import { nodeNames, ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import { validateGraph } from "@/components/workflows/validation";
 import { ApiError, fieldProblems } from "@/lib/api-error";
@@ -75,7 +75,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   const graph = useWorkflowEditorStore((state) => state.graph);
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
-  const setSelection = useWorkflowEditorStore((state) => state.setSelection);
+  const focusNode = useWorkflowEditorStore((state) => state.focusNode);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
 
   const [open, setOpen] = useState(false);
@@ -106,7 +106,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   const problems = clientProblems.length > 0 ? clientProblems : serverProblems;
 
   const selectNode = (nodeId: Uuid) => {
-    setSelection({ nodeIds: [nodeId], edgeIds: [] });
+    focusNode(nodeId);
     setOpen(false);
   };
 
@@ -182,7 +182,12 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
             <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
           )}
           {isDirty && <p className="text-muted-foreground text-xs">{t("publishSaving")}</p>}
-          <ProblemsFooter problems={problems} onSelectNode={selectNode} />
+          <ProblemsFooter
+            problems={problems}
+            names={nodeNames(graph, nodeCatalog)}
+            onSelectNode={selectNode}
+            defaultOpen
+          />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

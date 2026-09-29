@@ -14,6 +14,7 @@
  *   current schema, with the schema-drift banner.
  * - `SecretPicker` (a vault secret id, never a value).
  * - `ChannelBotPicker` (one of the organization's channel bots, by id).
+ * - `SandboxConnectionPicker` (a `sandboxd` host by id, or the default).
  */
 
 export { CollectionPicker } from "@/components/agents/collection-picker";
@@ -25,3 +26,7 @@ export {
 export { TableColumnPicker, type TableColumnPickerProps } from "./table-column-picker";
 export { SecretPicker, type SecretPickerProps } from "./secret-picker";
 export { ChannelBotPicker, type ChannelBotPickerProps } from "./channel-bot-picker";
+export {
+  SandboxConnectionPicker,
+  type SandboxConnectionPickerProps,
+} from "./sandbox-connection-picker";

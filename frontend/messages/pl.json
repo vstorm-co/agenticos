@@ -3671,7 +3671,15 @@
         "date": "Data",
         "choice": "Wybór"
       }
-    }
+    },
+    "pickerHostLabel": "Host sandboxa",
+    "pickerHostDefault": "Domyślny host organizacji",
+    "pickerHostIsDefault": "domyślny",
+    "pickerHostOff": "wyłączony",
+    "pickerHostsEmpty": "Nie podłączono jeszcze żadnego hosta sandboxa.",
+    "pickerHostsAdd": "Podłącz host",
+    "pickerHostOrphaned": "Host wskazany przez ten krok zniknął albo nie jest hostem sandboxd. Wybierz inny.",
+    "pickerHostNeedsPermission": "Wybór hosta wymaga connections:view. Krok działa na domyślnym hoście organizacji."
   },
   "artifacts": {
     "title": "Artefakty",

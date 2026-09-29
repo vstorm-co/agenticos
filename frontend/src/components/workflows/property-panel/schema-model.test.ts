@@ -9,6 +9,7 @@ import {
   isBindable,
   isRecord,
   labelOf,
+  ownTitle,
   objectFields,
   resolveRef,
   resourceKind,
@@ -225,6 +226,14 @@ describe("isBindable", () => {
     expect(isBindable({ "x-bindable": true })).toBe(true);
     expect(isBindable({ "x-bindable": false })).toBe(false);
     expect(isBindable({})).toBe(false);
+  });
+});
+
+describe("ownTitle", () => {
+  it("keeps a title given on purpose and drops the one made of the name", () => {
+    expect(ownTitle({ title: "Secret Id" }, "secret_id")).toBeUndefined();
+    expect(ownTitle({ title: "TypeSafe key" }, "secret_id")).toBe("TypeSafe key");
+    expect(ownTitle({}, "secret_id")).toBeUndefined();
   });
 });
 

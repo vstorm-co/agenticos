@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import { ArrowUpRight, Cable, RotateCw, ShieldAlert, Timer } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Cable, RotateCw, ShieldAlert, Timer } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { nodeVisual } from "@/components/workflows/node-visuals";
@@ -75,7 +75,7 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
 export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const t = useTranslations("workflows");
   const { instance, definition, readOnly, bodySize } = data;
-  const { connectSource, beginConnect, completeConnect, catalog, insertAfter } =
+  const { connectSource, beginConnect, completeConnect, catalog, insertAfter, problemCounts } =
     useCanvasInteraction();
   const enterScope = useWorkflowEditorStore((state) => state.enterScope);
   const graph = useWorkflowEditorStore((state) => state.graph);
@@ -94,6 +94,7 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const policy = instance.policy ?? null;
   const run = useNodeRunSummary(instance.id);
   const runView = useIsRunView();
+  const problems = runView ? 0 : (problemCounts.get(instance.id) ?? 0);
 
   const connectButton = (port: Port) =>
     !readOnly &&
@@ -177,6 +178,16 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-sm leading-5 font-medium">{name}</span>
             <span className="flex shrink-0 items-center gap-1">
+              {problems > 0 && (
+                <span
+                  role="img"
+                  aria-label={t("panelWarningCount", { count: problems })}
+                  title={t("panelWarningCount", { count: problems })}
+                  className="text-destructive"
+                >
+                  <AlertTriangle aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
               {!labelledOutputs &&
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
             </span>

@@ -12,6 +12,7 @@ interface StoreState {
   getGraph: () => WorkflowGraph | null;
   getSelectedNode: () => NodeInstance | null;
   setSelection: (selection: unknown) => void;
+  focusNode: (nodeId: string) => void;
   updateNodeConfig: () => void;
   upsertBinding: () => void;
   removeBinding: () => void;
@@ -35,6 +36,7 @@ function baseStore(over: Partial<StoreState> = {}): StoreState {
     getGraph: () => null,
     getSelectedNode: () => null,
     setSelection: vi.fn(),
+    focusNode: vi.fn(),
     updateNodeConfig: vi.fn(),
     upsertBinding: vi.fn(),
     removeBinding: vi.fn(),
@@ -71,20 +73,20 @@ describe("PropertyPanel", () => {
       getSelectedNode: () => selected,
     });
     render(<PropertyPanel />);
-    expect(screen.getByRole("heading", { name: "Echo · A" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Echo" })).toBeVisible();
     expect(screen.getByText("Configuration")).toBeVisible();
   });
 
-  it("selects a node's node when its problem is clicked", async () => {
-    const setSelection = vi.fn();
+  it("selects a problem's node and brings it into view when the problem is clicked", async () => {
+    const focusNode = vi.fn();
     store.current = baseStore({
-      setSelection,
+      focusNode,
       getGraph: () => graph({ entry: "A", nodes: [node("A", "missing")] }),
     });
     render(<PropertyPanel />);
     // With nothing selected the problems are what the panel has to show, so the
     // list starts open.
     await userEvent.click(screen.getByRole("button", { name: /unknown node/ }));
-    expect(setSelection).toHaveBeenCalledWith({ nodeIds: ["A"], edgeIds: [] });
+    expect(focusNode).toHaveBeenCalledWith("A");
   });
 });

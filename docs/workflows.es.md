@@ -1,5 +1,5 @@
 ---
-source_sha: "2888701f07a0"
+source_sha: "ca8e70d5d607"
 ---
 
 # Workflows { #workflows }
@@ -199,8 +199,9 @@ cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Un
 nodo seleccionado con un problema lleva un badge que cuenta sus problemas en la
 cabecera del panel; un campo con un problema muestra su mensaje inline; y una lista
-plegable al pie del panel reúne los problemas, de modo que cada uno enlaza con el nodo
-o el campo del que trata.
+plegable al pie del panel reúne los problemas, cada uno bajo el nombre de su nodo y
+su campo. Elegir uno selecciona ese nodo y lo trae a la vista, y cada nodo con un
+problema también queda marcado en el lienzo.
 
 Los mensajes nombran el fallo concreto: un input obligatorio sin valor, un input
 puesto por más de una fuente, una conexión cuyos puertos llevan formas distintas, un

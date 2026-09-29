@@ -148,6 +148,22 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-node-id="u"] .react-flow__handle')).toBeNull();
   });
 
+  it("marks a step publishing would refuse, and nothing on a read-only version", () => {
+    seedFourKinds();
+    const { container, unmount } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} />,
+    );
+    // The step whose type is not in the catalog cannot be published.
+    const marker = container.querySelector('[data-node-id="u"] [role="img"]');
+    expect(marker?.getAttribute("aria-label")).toMatch(/problem/);
+    unmount();
+
+    const { container: readOnly } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
+    );
+    expect(readOnly.querySelector('[data-node-id="u"] [role="img"]')).toBeNull();
+  });
+
   it("draws a distinct handle for the error output port", () => {
     seedFourKinds();
     const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);

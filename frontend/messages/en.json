@@ -6019,7 +6019,15 @@
         "date": "Date",
         "choice": "Choice"
       }
-    }
+    },
+    "pickerHostLabel": "Sandbox host",
+    "pickerHostDefault": "The organization's default host",
+    "pickerHostIsDefault": "default",
+    "pickerHostOff": "off",
+    "pickerHostsEmpty": "No sandbox host is connected yet.",
+    "pickerHostsAdd": "Connect one",
+    "pickerHostOrphaned": "The host this step names is gone or is not a sandboxd host. Pick another.",
+    "pickerHostNeedsPermission": "Choosing a host needs connections:view. The step runs on the organization's default host."
   },
   "artifacts": {
     "title": "Artifacts",

@@ -1,5 +1,5 @@
 ---
-source_sha: "2888701f07a0"
+source_sha: "ca8e70d5d607"
 ---
 
 # Workflows { #workflows }
@@ -218,8 +218,10 @@ lief. Was die Schleife tut, steht in der
 Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
 es falsch ist. Ein ausgewählter Knoten mit einem Problem trägt ein Badge, das seine
 Probleme zählt, im Panel-Kopf; ein Feld mit einem Problem zeigt seine Meldung
-inline; und eine ausklappbare Liste am Fuß des Panels sammelt die Probleme, sodass
-jedes auf den Knoten oder das Feld verweist, um das es geht.
+inline; und eine ausklappbare Liste am Fuß des Panels sammelt die Probleme, jedes
+unter dem Namen seines Knotens und Felds. Ein Problem zu wählen, wählt diesen Knoten
+aus und holt ihn ins Bild, und jeder Knoten mit einem Problem ist auch auf der
+Leinwand markiert.
 
 Die Meldungen benennen den konkreten Fehler: ein Pflicht-Input ohne Wert, ein Input,
 den mehr als eine Quelle setzt, eine Verbindung, deren Ports unterschiedliche Formen

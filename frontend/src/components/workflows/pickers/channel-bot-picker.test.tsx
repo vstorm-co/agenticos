@@ -36,6 +36,11 @@ describe("ChannelBotPicker", () => {
     expect(bots).toHaveBeenCalledWith(true);
   });
 
+  it("is called what its field is called, when the field names itself", () => {
+    render(<ChannelBotPicker value={null} onChange={vi.fn()} label="Alert bot" />);
+    expect(screen.getByRole("combobox", { name: "Alert bot" })).toBeTruthy();
+  });
+
   it("says where to add a bot when there is none, and names a bot that is gone", () => {
     bots.mockReturnValue({ bots: [], isLoading: false });
     const { rerender } = render(<ChannelBotPicker value={null} onChange={vi.fn()} />);

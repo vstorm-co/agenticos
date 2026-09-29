@@ -18,6 +18,8 @@ import { ROUTES } from "@/lib/constants";
 import type { StorableSecretKind } from "@/types/secrets";
 
 export interface SecretPickerProps {
+  /** What the control is called: the field's own name, or the picker's when it has none. */
+  label?: string;
   /** The chosen vault secret id, or null while none is. Never a value. */
   value: string | null;
   onChange: (secretId: string | null) => void;
@@ -42,8 +44,9 @@ export interface SecretPickerProps {
  * that names a `kind` narrows the list to it; a mismatched stored kind is one the
  * runtime would refuse, so it is not offered.
  */
-export function SecretPicker({ value, onChange, disabled, kind, error }: SecretPickerProps) {
+export function SecretPicker({ value, onChange, disabled, kind, error, label }: SecretPickerProps) {
   const t = useTranslations("workflows");
+  const caption = label ?? t("pickerSecretLabel");
   const { secrets, isLoading } = useSecrets();
   const offered = kind === undefined ? secrets : secrets.filter((secret) => secret.kind === kind);
 
@@ -55,9 +58,9 @@ export function SecretPicker({ value, onChange, disabled, kind, error }: SecretP
 
   return (
     <div className="space-y-2">
-      <Label>{t("pickerSecretLabel")}</Label>
+      <Label>{caption}</Label>
       <Select value={value ?? ""} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger aria-label={t("pickerSecretLabel")}>
+        <SelectTrigger aria-label={caption}>
           <SelectValue placeholder={t("pickerSecretPlaceholder")} />
         </SelectTrigger>
         <SelectContent>

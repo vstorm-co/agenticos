@@ -5885,7 +5885,15 @@
         "date": "Datum",
         "choice": "Auswahl"
       }
-    }
+    },
+    "pickerHostLabel": "Sandbox-Host",
+    "pickerHostDefault": "Der Standard-Host der Organisation",
+    "pickerHostIsDefault": "Standard",
+    "pickerHostOff": "aus",
+    "pickerHostsEmpty": "Noch ist kein Sandbox-Host verbunden.",
+    "pickerHostsAdd": "Einen verbinden",
+    "pickerHostOrphaned": "Der Host dieses Schritts ist weg oder kein sandboxd-Host. Wähle einen anderen.",
+    "pickerHostNeedsPermission": "Einen Host zu wählen braucht connections:view. Der Schritt läuft auf dem Standard-Host der Organisation."
   },
   "artifacts": {
     "title": "Artefakte",

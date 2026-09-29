@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ValidationProblem } from "@/components/workflows/validation";
+import type { NodeCatalog, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   fieldErrors,
   nodeLevelProblems,
+  nodeNames,
   nodeProblemCount,
   ProblemsFooter,
   WarningBadge,
@@ -60,17 +62,27 @@ describe("WarningBadge", () => {
 
 describe("ProblemsFooter", () => {
   it("renders nothing when there are no problems", () => {
-    const { container } = render(<ProblemsFooter problems={[]} onSelectNode={vi.fn()} />);
+    const { container } = render(
+      <ProblemsFooter problems={[]} names={new Map()} onSelectNode={vi.fn()} />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 
   it("expands, links a node problem and skips a graph-level one", async () => {
     const onSelectNode = vi.fn();
-    render(<ProblemsFooter problems={problems} onSelectNode={onSelectNode} />);
+    render(
+      <ProblemsFooter
+        problems={problems}
+        names={new Map([["N", "Send a message"]])}
+        onSelectNode={onSelectNode}
+      />,
+    );
     // Collapsed by default.
     expect(screen.queryByText("A bad")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "5 problems" }));
-    await userEvent.click(screen.getByRole("button", { name: "A bad" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /^Send a message\s*·\s*a:\s*A bad$/ }),
+    );
     expect(onSelectNode).toHaveBeenCalledWith("N");
     // The graph-level problem has no link, just text.
     expect(screen.getByText("Graph bad")).toBeVisible();
@@ -78,5 +90,40 @@ describe("ProblemsFooter", () => {
     // Collapse again.
     await userEvent.click(screen.getByRole("button", { name: "5 problems" }));
     expect(screen.queryByText("A bad")).toBeNull();
+  });
+});
+
+describe("nodeNames", () => {
+  const node = (id: string, definitionId: string) => ({
+    id,
+    definition_id: definitionId,
+    definition_version: 1,
+    config: {},
+    layout: { x: 0, y: 0 },
+  });
+  const catalog = {
+    items: [{ id: "channel.send", version: 1, name: "Send a message" }],
+    total: 1,
+  } as unknown as NodeCatalog;
+
+  it("names a step by its definition, with a short id only when two share the name", () => {
+    const graph = {
+      entry_node_id: "a",
+      nodes: [
+        node("aaaaaaaa-0000-0000-0000-000000000000", "channel.send"),
+        node("bbbbbbbb-0000-0000-0000-000000000000", "channel.send"),
+        node("cccccccc-0000-0000-0000-000000000000", "gone.node"),
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    } as WorkflowGraph;
+    const names = nodeNames(graph, catalog);
+    expect(names.get("aaaaaaaa-0000-0000-0000-000000000000")).toMatch(/^Send a message · /);
+    expect(names.get("bbbbbbbb-0000-0000-0000-000000000000")).not.toBe(
+      names.get("aaaaaaaa-0000-0000-0000-000000000000"),
+    );
+    expect(names.get("cccccccc-0000-0000-0000-000000000000")).toBe("gone.node");
+    expect(nodeNames(null, catalog).size).toBe(0);
   });
 });

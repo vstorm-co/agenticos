@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { useTranslations } from "next-intl";
 
 import { readNodeDragData } from "@/components/workflows/palette";
+import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -210,9 +211,28 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       insert(definition, { from: { nodeId, portId } }),
     [insert],
   );
+  // Worked out once for the whole graph, not per card: each rule reads the graph
+  // around a node, and a read-only version was checked when it was published.
+  const problemCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (readOnly || graph === null) return counts;
+    for (const problem of validateGraph(graph, { items: catalog, total: catalog.length }, t)) {
+      if (problem.nodeId !== null)
+        counts.set(problem.nodeId, (counts.get(problem.nodeId) ?? 0) + 1);
+    }
+    return counts;
+  }, [readOnly, graph, catalog, t]);
   const interaction = useMemo(
-    () => ({ readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter }),
-    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter],
+    () => ({
+      readOnly,
+      connectSource,
+      beginConnect,
+      completeConnect,
+      catalog,
+      insertAfter,
+      problemCounts,
+    }),
+    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter, problemCounts],
   );
 
   return (

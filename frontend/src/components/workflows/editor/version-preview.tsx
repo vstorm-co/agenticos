@@ -40,6 +40,7 @@ export const READ_ONLY_INTERACTION: CanvasInteraction = {
   completeConnect: refuseConnect,
   catalog: [],
   insertAfter: refuseConnect,
+  problemCounts: new Map(),
 };
 
 interface VersionPreviewProps {

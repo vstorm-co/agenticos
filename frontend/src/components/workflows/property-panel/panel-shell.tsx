@@ -9,7 +9,6 @@ import { isTrigger } from "@/lib/workflows/triggers";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import type { EditorSelection } from "@/stores/workflow-editor-store";
 import {
-  nodeDisplayName,
   shortNodeId,
   type Binding,
   type NodeCatalog,
@@ -26,6 +25,7 @@ import { PolicySection } from "./policy-section";
 import {
   fieldErrors,
   nodeLevelProblems,
+  nodeNames,
   nodeProblemCount,
   ProblemsFooter,
   WarningBadge,
@@ -39,16 +39,6 @@ function findDefinition(catalog: NodeCatalog, node: NodeInstance): NodeDefinitio
         definition.id === node.definition_id && definition.version === node.definition_version,
     ) ?? null
   );
-}
-
-/** A node's display name: its definition's name where known, else its definition id, with a short id. */
-function nodeLabel(graph: WorkflowGraph, catalog: NodeCatalog, nodeId: Uuid): string {
-  const node = graph.nodes.find((candidate) => candidate.id === nodeId);
-  if (node === undefined) return shortNodeId(nodeId);
-  const definition = findDefinition(catalog, node);
-  return definition !== null
-    ? nodeDisplayName(definition.name, nodeId, true)
-    : nodeDisplayName(node.definition_id, nodeId, true);
 }
 
 export interface PanelShellProps {
@@ -88,6 +78,8 @@ export function PanelShell({
   onDeleteNodes,
 }: PanelShellProps) {
   const t = useTranslations("workflows");
+  const names = nodeNames(graph, catalog);
+  const nameOf = (nodeId: Uuid) => names.get(nodeId) ?? shortNodeId(nodeId);
 
   const frame = (
     title: string,
@@ -161,17 +153,14 @@ export function PanelShell({
             {t("panelBulkDelete")}
           </Button>
         )}
-        <ProblemsFooter problems={problems} onSelectNode={onSelectNode} />
+        <ProblemsFooter problems={problems} names={names} onSelectNode={onSelectNode} />
       </div>,
     );
   }
 
   if (nodeIds.length === 1 && selectedNode !== null) {
     const definition = findDefinition(catalog, selectedNode);
-    const title =
-      definition !== null
-        ? nodeDisplayName(definition.name, selectedNode.id, true)
-        : nodeDisplayName(selectedNode.definition_id, selectedNode.id, true);
+    const title = nameOf(selectedNode.id);
     const nodeProblems = nodeLevelProblems(problems, selectedNode.id);
     return frame(
       title,
@@ -214,7 +203,7 @@ export function PanelShell({
             )}
           </>
         )}
-        <ProblemsFooter problems={problems} onSelectNode={onSelectNode} />
+        <ProblemsFooter problems={problems} names={names} onSelectNode={onSelectNode} />
       </div>,
       { definition, instance: selectedNode },
     );
@@ -232,14 +221,14 @@ export function PanelShell({
           <div className="space-y-2 text-xs">
             <div>
               <span className="text-muted-foreground">{t("panelEdgeFrom")}</span>{" "}
-              {nodeLabel(graph, catalog, edge.source_node_id)} · {edge.source_port}
+              {nameOf(edge.source_node_id)} · {edge.source_port}
             </div>
             <div>
               <span className="text-muted-foreground">{t("panelEdgeTo")}</span>{" "}
-              {nodeLabel(graph, catalog, edge.target_node_id)} · {edge.target_port}
+              {nameOf(edge.target_node_id)} · {edge.target_port}
             </div>
           </div>
-          <ProblemsFooter problems={problems} onSelectNode={onSelectNode} />
+          <ProblemsFooter problems={problems} names={names} onSelectNode={onSelectNode} />
         </div>,
       );
     }
@@ -264,7 +253,7 @@ export function PanelShell({
       {problems.length === 0 ? (
         <p className="text-muted-foreground text-xs">{t("panelNoProblems")}</p>
       ) : (
-        <ProblemsFooter problems={problems} onSelectNode={onSelectNode} defaultOpen />
+        <ProblemsFooter problems={problems} names={names} onSelectNode={onSelectNode} defaultOpen />
       )}
     </div>,
   );

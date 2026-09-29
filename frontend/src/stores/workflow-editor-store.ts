@@ -175,6 +175,8 @@ export interface WorkflowEditorState {
   insertNode: (insertion: NodeInsertion) => void;
   /** The canvas has brought `revealNodeId` into view. */
   clearReveal: () => void;
+  /** Select a step and ask the canvas to bring it into view - a problem pointing at it. */
+  focusNode: (nodeId: Uuid) => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
    * implies, as one edit - a single undo takes back both.
@@ -438,6 +440,9 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     clearReveal: () => set({ revealNodeId: null }),
+
+    focusNode: (nodeId) =>
+      set({ selection: { nodeIds: [nodeId], edgeIds: [] }, revealNodeId: nodeId }),
 
     connectNodes: (connection, bindings = []) => {
       const { graph } = get();

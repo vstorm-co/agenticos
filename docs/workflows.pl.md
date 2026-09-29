@@ -1,5 +1,5 @@
 ---
-source_sha: "2888701f07a0"
+source_sha: "ca8e70d5d607"
 ---
 
 # Workflows { #workflows }
@@ -195,7 +195,8 @@ działało przed pętlą. Co robi pętla, opisuje
 Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Zaznaczony
 węzeł z problemem nosi badge liczący jego problemy w nagłówku panelu; pole z problemem
 pokazuje swój komunikat inline; a zwijana lista u dołu panelu zbiera problemy razem,
-tak że każdy odsyła do węzła lub pola, którego dotyczy.
+każdy pod nazwą swojego węzła i pola. Wybranie problemu zaznacza ten węzeł i
+przewija do niego płótno, a każdy węzeł z problemem jest też oznaczony na płótnie.
 
 Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
 przez więcej niż jedno źródło, połączenie, którego porty niosą różne kształty, krok,

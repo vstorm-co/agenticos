@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { validateGraph } from "@/components/workflows/validation";
 import { useNodeCatalog } from "@/hooks";
-import type { NodeCatalog, Uuid } from "@/lib/workflows/types";
+import type { NodeCatalog } from "@/lib/workflows/types";
 
 import { PanelShell } from "./panel-shell";
 import { usePanelStore } from "./store-bridge";
@@ -33,8 +33,6 @@ export function PropertyPanel() {
     [graph, catalog, isLoading, t],
   );
 
-  const selectNode = (nodeId: Uuid) => store.setSelection({ nodeIds: [nodeId], edgeIds: [] });
-
   return (
     <PanelShell
       graph={graph}
@@ -46,7 +44,7 @@ export function PropertyPanel() {
       updateNodePolicy={store.updateNodePolicy}
       upsertBinding={store.upsertBinding}
       removeBinding={store.removeBinding}
-      onSelectNode={selectNode}
+      onSelectNode={store.focusNode}
     />
   );
 }

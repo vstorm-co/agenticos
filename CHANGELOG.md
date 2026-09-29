@@ -211,6 +211,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The sandbox script steps run on a real sandbox host.** They asked for a
+  connection kind no host can be registered as, so every run failed with
+  `SANDBOX_UNAVAILABLE` and every publish was refused. They now run on a
+  `sandboxd` connection as it is registered, and the editor picks the host from
+  the organization's own instead of asking for its id.
 - **The workflow editor opens read-only for a workflow the caller cannot
   edit.** It decided from the role alone, so a builder opening another
   builder's private workflow got the full editor and an autosave that failed on
@@ -302,6 +307,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The workflow editor points at what stops a publish.** A step with a
+  problem is marked on the canvas, each problem names its step and field, and
+  choosing one selects the step and brings it into view; the publish dialog
+  lists them open. A step's name carries a short id only when two steps share
+  it, and a picker is labelled once, by its field.
 - **A stale revision on a workflow table step is no longer retried.**
   `REVISION_CONFLICT` from `table.record.update`, `.upsert` or `.delete` fails
   the step at once, because the same revision would conflict on every retry;

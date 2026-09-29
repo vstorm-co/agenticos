@@ -228,7 +228,8 @@ export function objectFields(schema: Schema, defs: Defs): FieldEntry[] {
 }
 
 /** Which resource picker a config leaf pins, from its `x-resource` keyword, or null. */
-export type ResourceKind = "agent" | "table" | "secret" | "collection" | "member" | "channel_bot";
+export type ResourceKind =
+  "agent" | "table" | "secret" | "collection" | "member" | "channel_bot" | "sandbox_connection";
 
 const RESOURCE_KINDS: readonly ResourceKind[] = [
   "agent",
@@ -237,6 +238,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   "collection",
   "member",
   "channel_bot",
+  "sandbox_connection",
 ];
 
 /** The resource a leaf pins through a picker, or null for an ordinary literal leaf. */
@@ -265,6 +267,21 @@ export function humanise(name: string): string {
 /** A leaf's label: its schema `title`, else its humanised field name. */
 export function labelOf(schema: Schema, name: string): string {
   return typeof schema["title"] === "string" ? (schema["title"] as string) : humanise(name);
+}
+
+/**
+ * The title a field was given on purpose, or undefined for the one Pydantic makes
+ * of its name (`secret_id` is "Secret Id") - which says less than a picker's own
+ * label ("Secret") does.
+ */
+export function ownTitle(schema: Schema, name: string): string | undefined {
+  const title = schema["title"];
+  if (typeof title !== "string") return undefined;
+  const generated = name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  return title === generated ? undefined : title;
 }
 
 /**

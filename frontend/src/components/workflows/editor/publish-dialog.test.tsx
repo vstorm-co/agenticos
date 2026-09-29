@@ -142,11 +142,12 @@ describe("PublishDialog", () => {
     // No note typed: the empty note is sent as null.
     await waitFor(() => expect(publish).toHaveBeenCalledWith({ note: null, expected_revision: 5 }));
 
-    await userEvent.click(await screen.findByRole("button", { expanded: false }));
-    expect(screen.getByText("This node lost its resource")).toBeVisible();
+    // The list starts open, each problem under the step it names.
+    expect(await screen.findByText("This node lost its resource")).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: /This node lost its resource/ }));
     expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["a"]);
+    expect(useWorkflowEditorStore.getState().revealNodeId).toBe("a");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
@@ -170,8 +171,7 @@ describe("PublishDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
 
-    await userEvent.click(await screen.findByRole("button", { expanded: false }));
-    expect(screen.getByText("This edge crosses a scope")).toBeVisible();
+    expect(await screen.findByText("This edge crosses a scope")).toBeVisible();
     expect(screen.getByText("This binding is unavailable")).toBeVisible();
     expect(screen.getByText("The graph is empty")).toBeVisible();
   });

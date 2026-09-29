@@ -18,6 +18,7 @@ import { MemberPicker } from "@/components/orgs/member-picker";
 import {
   AgentVersionPicker,
   ChannelBotPicker,
+  SandboxConnectionPicker,
   CollectionPicker,
   SecretPicker,
   TableColumnPicker,
@@ -53,6 +54,7 @@ import {
   isBindable,
   isRecord,
   labelOf,
+  ownTitle,
   objectFields,
   resourceKind,
   secretKind,
@@ -203,6 +205,7 @@ function MemberPin({
 function ResourcePin({
   kind,
   schema,
+  label,
   value,
   error,
   disabled,
@@ -210,6 +213,8 @@ function ResourcePin({
 }: {
   kind: ResourceKind;
   schema: Schema;
+  /** The field's own title, for a picker that labels its control; its own label when none. */
+  label: string | undefined;
   value: unknown;
   error?: string;
   disabled?: boolean;
@@ -249,6 +254,18 @@ function ResourcePin({
   if (kind === "channel_bot") {
     return (
       <ChannelBotPicker
+        label={label}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "sandbox_connection") {
+    return (
+      <SandboxConnectionPicker
+        label={label}
         value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}
@@ -267,6 +284,7 @@ function ResourcePin({
   }
   return (
     <SecretPicker
+      label={label}
       value={strOrNull(value)}
       onChange={(next) => onChange(next ?? undefined)}
       kind={secretKind(schema)}
@@ -292,14 +310,17 @@ function ConfigLeaf({
   const resource = resourceKind(schema);
 
   if (resource !== null) {
-    // The agent and table pickers label their own controls.
-    const labelled = resource === "agent" || resource === "table";
+    // Only the collection and member pins leave their label to the form: the
+    // other pickers label their own controls, the secret, bot and host ones
+    // with the field's name.
+    const labelled = resource !== "collection" && resource !== "member";
     return (
       <div className="space-y-1.5">
         {!labelled && <Label>{label}</Label>}
         <ResourcePin
           kind={resource}
           schema={schema}
+          label={ownTitle(schema, name)}
           value={value}
           error={error}
           disabled={ctx.disabled}
