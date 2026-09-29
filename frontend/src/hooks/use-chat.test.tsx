@@ -684,9 +684,17 @@ describe("useChat - the conversation a turn belongs to", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
+    const temporary = streaming()?.id;
+
     receive("message_saved", { message_id: "m-real" });
 
-    expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
+    // And keeps rendering under the id it streamed under: a new React key would be
+    // a new bubble, cutting the text reveal off at the end of the turn.
+    expect(streaming()).toMatchObject({
+      id: "m-real",
+      isTemporaryId: false,
+      renderKey: temporary,
+    });
   });
 
   it("re-reads what the thread has cost once a turn has added to it", async () => {
@@ -878,6 +886,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(useChatStore.getState().messages[0]).toMatchObject({
       id: "m-real",
       isTemporaryId: false,
+      renderKey: expect.any(String),
     });
   });
 

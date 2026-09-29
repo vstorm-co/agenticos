@@ -1947,6 +1947,28 @@
   animation: stream-block-in 420ms var(--ease-out) both;
 }
 
+/* Each word of a streaming answer surfacing out of a soft blur, spans from
+   `rehypeStreamWords`. `backwards`, not `both`: once a word has arrived it
+   keeps no filter, so a long answer is not hundreds of compositing layers. */
+@keyframes stream-word-in {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.stream-word {
+  animation: stream-word-in 700ms var(--ease-out) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stream-word {
+    animation: none;
+  }
+}
+
 /* A wizard's step arriving: the body is keyed on the step, so each one slides
    in from the side it is heading toward rather than swapping in place. */
 @keyframes wizard-step-in {

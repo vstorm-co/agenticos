@@ -23,6 +23,11 @@ export interface MarkdownContentProps {
    * run was read. Chat does not pass it - there the reader wrote the thread.
    */
   inertImages?: boolean;
+  /**
+   * The text is still arriving: each word is wrapped so it fades in as it
+   * lands. Off once the turn ends, so a finished answer is plain markup.
+   */
+  streaming?: boolean;
 }
 
 /**
@@ -52,6 +57,7 @@ export function MarkdownContent({
   onCiteClick,
   bareCode,
   inertImages,
+  streaming,
 }: MarkdownContentProps) {
   return (
     <MarkdownContentImpl
@@ -59,6 +65,7 @@ export function MarkdownContent({
       onCiteClick={onCiteClick}
       bareCode={bareCode}
       inertImages={inertImages}
+      streaming={streaming}
     />
   );
 }

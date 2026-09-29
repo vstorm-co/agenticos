@@ -1,12 +1,14 @@
 "use client";
 
-import { Children, isValidElement } from "react";
+import { Children, isValidElement, useLayoutEffect, useMemo, useRef } from "react";
+import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ExternalLink, ImageOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
@@ -91,226 +93,244 @@ export function MarkdownContent({
   onCiteClick,
   bareCode,
   inertImages,
+  streaming,
 }: MarkdownContentProps) {
   const t = useTranslations("chat");
   const processed = onCiteClick ? preprocessCitations(content) : content;
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeHighlight]}
-      components={{
-        pre({ children, ...props }) {
-          const block = (
-            <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed" {...props}>
-              {children}
-            </pre>
-          );
-          if (bareCode) return block;
+  const citable = onCiteClick !== undefined;
+  // Read through a ref so a caller passing a fresh handler each render does not
+  // hand ReactMarkdown a new `a` component every time.
+  const cite = useRef(onCiteClick);
+  useLayoutEffect(() => {
+    cite.current = onCiteClick;
+  }, [onCiteClick]);
 
-          const codeElement = children as React.ReactElement<{
-            children?: React.ReactNode;
-            className?: string;
-          }>;
-          const codeContent = textOf(codeElement?.props?.children);
-          const lang = languageLabel(codeElement?.props?.className);
+  // Memoized, not a literal in the JSX: a new object is a new component type for
+  // every `p`, `li` and heading, so React remounted the whole answer on each
+  // streamed frame - restarting every fade-in, which is why a streaming answer
+  // sat invisible and then appeared at once when the turn ended.
+  const components = useMemo<Components>(
+    () => ({
+      pre({ children, ...props }) {
+        const block = (
+          <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed" {...props}>
+            {children}
+          </pre>
+        );
+        if (bareCode) return block;
 
+        const codeElement = children as React.ReactElement<{
+          children?: React.ReactNode;
+          className?: string;
+        }>;
+        const codeContent = textOf(codeElement?.props?.children);
+        const lang = languageLabel(codeElement?.props?.className);
+
+        return (
+          <CollapsibleBlock
+            className="my-3"
+            // An unlabelled block is still called something, unless it is also
+            // empty - which is what a half-streamed answer looks like for a moment,
+            // and a bar reading "text" over nothing is chrome around nothing.
+            label={lang ?? (codeContent === "" ? null : "text")}
+            copyText={codeContent}
+          >
+            {block}
+          </CollapsibleBlock>
+        );
+      },
+      code({ className, children, ...props }) {
+        const isInline = !className;
+        if (isInline) {
           return (
-            <CollapsibleBlock
-              className="my-3"
-              // An unlabelled block is still called something, unless it is also
-              // empty - which is what a half-streamed answer looks like for a moment,
-              // and a bar reading "text" over nothing is chrome around nothing.
-              label={lang ?? (codeContent === "" ? null : "text")}
-              copyText={codeContent}
+            <code
+              className="bg-foreground/8 text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em]"
+              {...props}
             >
-              {block}
-            </CollapsibleBlock>
-          );
-        },
-        code({ className, children, ...props }) {
-          const isInline = !className;
-          if (isInline) {
-            return (
-              <code
-                className="bg-foreground/8 text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em]"
-                {...props}
-              >
-                {children}
-              </code>
-            );
-          }
-          return (
-            <code className={className} {...props}>
               {children}
             </code>
           );
-        },
-        img({ src, alt }) {
-          // A remote image in text somebody else wrote is a tracking pixel.
-          // `inertImages` is set where the reader is not the author - the run
-          // timeline, where an operator reviews a colleague's conversation - so
-          // a `![](https://attacker/px.png)` appended to a run would otherwise
-          // fetch on review and hand over the reviewer's address, agent and the
-          // fact that this run was read. Drawn as a link instead: the reader
-          // decides, and nothing loads until they do.
-          const address = typeof src === "string" ? src : "";
-          if (!inertImages) {
-            // eslint-disable-next-line @next/next/no-img-element
-            return <img src={address} alt={alt ?? ""} className="my-2 max-w-full rounded-lg" />;
+        }
+        return (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        );
+      },
+      img({ src, alt }) {
+        // A remote image in text somebody else wrote is a tracking pixel.
+        // `inertImages` is set where the reader is not the author - the run
+        // timeline, where an operator reviews a colleague's conversation - so
+        // a `![](https://attacker/px.png)` appended to a run would otherwise
+        // fetch on review and hand over the reviewer's address, agent and the
+        // fact that this run was read. Drawn as a link instead: the reader
+        // decides, and nothing loads until they do.
+        const address = typeof src === "string" ? src : "";
+        if (!inertImages) {
+          // eslint-disable-next-line @next/next/no-img-element
+          return <img src={address} alt={alt ?? ""} className="my-2 max-w-full rounded-lg" />;
+        }
+        return (
+          <a
+            href={address}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="text-muted-foreground hover:text-foreground border-border inline-flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-xs"
+          >
+            <ImageOff className="h-3 w-3 shrink-0" aria-hidden />
+            {alt || t("imageNotLoaded")}
+          </a>
+        );
+      },
+      a({ href, children, ...props }) {
+        if (href?.startsWith("#cite-") && citable) {
+          const n = parseInt(href.slice(6), 10);
+          if (!Number.isNaN(n)) {
+            return (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  cite.current?.(n);
+                }}
+                className="bg-foreground/10 text-foreground/70 hover:bg-foreground/20 mx-0.5 inline-flex h-[1.1em] cursor-pointer items-center rounded px-1 align-middle font-mono text-[0.72em] font-semibold tabular-nums transition-colors"
+                title={t("sourceNumber", { marker: `[${n}]` })}
+              >
+                {n}
+              </button>
+            );
           }
-          return (
-            <a
-              href={address}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="text-muted-foreground hover:text-foreground border-border inline-flex items-center gap-1 rounded-md border border-dashed px-1.5 py-0.5 text-xs"
-            >
-              <ImageOff className="h-3 w-3 shrink-0" aria-hidden />
-              {alt || t("imageNotLoaded")}
-            </a>
-          );
-        },
-        a({ href, children, ...props }) {
-          if (href?.startsWith("#cite-") && onCiteClick) {
-            const n = parseInt(href.slice(6), 10);
-            if (!Number.isNaN(n)) {
-              return (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onCiteClick(n);
-                  }}
-                  className="bg-foreground/10 text-foreground/70 hover:bg-foreground/20 mx-0.5 inline-flex h-[1.1em] cursor-pointer items-center rounded px-1 align-middle font-mono text-[0.72em] font-semibold tabular-nums transition-colors"
-                  title={t("sourceNumber", { marker: `[${n}]` })}
-                >
-                  {n}
-                </button>
-              );
-            }
-          }
-          const isExternal = !!href && /^https?:\/\//i.test(href);
-          return (
-            <a
-              href={href}
-              target={isExternal ? "_blank" : undefined}
-              rel={isExternal ? "noopener noreferrer" : undefined}
-              className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-0.5 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
-              {...props}
-            >
+        }
+        const isExternal = !!href && /^https?:\/\//i.test(href);
+        return (
+          <a
+            href={href}
+            target={isExternal ? "_blank" : undefined}
+            rel={isExternal ? "noopener noreferrer" : undefined}
+            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-0.5 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
+            {...props}
+          >
+            {children}
+            {isExternal && (
+              <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
+            )}
+          </a>
+        );
+      },
+      p({ children, ...props }) {
+        return (
+          <p className="mb-3 leading-relaxed last:mb-0" {...props}>
+            {children}
+          </p>
+        );
+      },
+      // Padding, not margin - see `orderedIndent`.
+      ul({ children, ...props }) {
+        return (
+          <ul
+            className="marker:text-muted-foreground mb-3 list-disc space-y-1 pl-5 last:mb-0"
+            {...props}
+          >
+            {children}
+          </ul>
+        );
+      },
+      ol({ children, ...props }) {
+        return (
+          <ol
+            className={cn(
+              "marker:text-muted-foreground mb-3 list-decimal space-y-1 last:mb-0",
+              orderedIndent(children, props.start),
+            )}
+            {...props}
+          >
+            {children}
+          </ol>
+        );
+      },
+      li({ children, ...props }) {
+        return (
+          <li className="leading-relaxed" {...props}>
+            {children}
+          </li>
+        );
+      },
+      h1({ children, ...props }) {
+        return (
+          <h1 className="mt-4 mb-2 text-xl font-bold tracking-tight first:mt-0" {...props}>
+            {children}
+          </h1>
+        );
+      },
+      h2({ children, ...props }) {
+        return (
+          <h2 className="mt-4 mb-2 text-lg font-semibold tracking-tight first:mt-0" {...props}>
+            {children}
+          </h2>
+        );
+      },
+      h3({ children, ...props }) {
+        return (
+          <h3 className="mt-3 mb-2 text-base font-semibold first:mt-0" {...props}>
+            {children}
+          </h3>
+        );
+      },
+      blockquote({ children, ...props }) {
+        return (
+          <blockquote
+            className="border-brand/40 text-foreground/75 my-3 border-l-2 pl-4 italic"
+            {...props}
+          >
+            {children}
+          </blockquote>
+        );
+      },
+      table({ children, ...props }) {
+        return (
+          <div className="border-foreground/10 my-3 overflow-x-auto rounded-lg border">
+            <table className="min-w-full text-sm" {...props}>
               {children}
-              {isExternal && (
-                <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
-              )}
-            </a>
-          );
-        },
-        p({ children, ...props }) {
-          return (
-            <p className="mb-3 leading-relaxed last:mb-0" {...props}>
-              {children}
-            </p>
-          );
-        },
-        // Padding, not margin - see `orderedIndent`.
-        ul({ children, ...props }) {
-          return (
-            <ul
-              className="marker:text-muted-foreground mb-3 list-disc space-y-1 pl-5 last:mb-0"
-              {...props}
-            >
-              {children}
-            </ul>
-          );
-        },
-        ol({ children, ...props }) {
-          return (
-            <ol
-              className={cn(
-                "marker:text-muted-foreground mb-3 list-decimal space-y-1 last:mb-0",
-                orderedIndent(children, props.start),
-              )}
-              {...props}
-            >
-              {children}
-            </ol>
-          );
-        },
-        li({ children, ...props }) {
-          return (
-            <li className="leading-relaxed" {...props}>
-              {children}
-            </li>
-          );
-        },
-        h1({ children, ...props }) {
-          return (
-            <h1 className="mt-4 mb-2 text-xl font-bold tracking-tight first:mt-0" {...props}>
-              {children}
-            </h1>
-          );
-        },
-        h2({ children, ...props }) {
-          return (
-            <h2 className="mt-4 mb-2 text-lg font-semibold tracking-tight first:mt-0" {...props}>
-              {children}
-            </h2>
-          );
-        },
-        h3({ children, ...props }) {
-          return (
-            <h3 className="mt-3 mb-2 text-base font-semibold first:mt-0" {...props}>
-              {children}
-            </h3>
-          );
-        },
-        blockquote({ children, ...props }) {
-          return (
-            <blockquote
-              className="border-brand/40 text-foreground/75 my-3 border-l-2 pl-4 italic"
-              {...props}
-            >
-              {children}
-            </blockquote>
-          );
-        },
-        table({ children, ...props }) {
-          return (
-            <div className="border-foreground/10 my-3 overflow-x-auto rounded-lg border">
-              <table className="min-w-full text-sm" {...props}>
-                {children}
-              </table>
-            </div>
-          );
-        },
-        thead({ children, ...props }) {
-          return (
-            <thead className="bg-foreground/[0.04]" {...props}>
-              {children}
-            </thead>
-          );
-        },
-        th({ children, ...props }) {
-          return (
-            <th
-              className="border-foreground/10 border-b px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider uppercase"
-              {...props}
-            >
-              {children}
-            </th>
-          );
-        },
-        td({ children, ...props }) {
-          return (
-            <td className="border-foreground/8 border-b px-3 py-2 last:border-0" {...props}>
-              {children}
-            </td>
-          );
-        },
-        hr({ ...props }) {
-          return <hr className="border-foreground/10 my-4" {...props} />;
-        },
-      }}
+            </table>
+          </div>
+        );
+      },
+      thead({ children, ...props }) {
+        return (
+          <thead className="bg-foreground/[0.04]" {...props}>
+            {children}
+          </thead>
+        );
+      },
+      th({ children, ...props }) {
+        return (
+          <th
+            className="border-foreground/10 border-b px-3 py-2 text-left font-mono text-xs font-semibold tracking-wider uppercase"
+            {...props}
+          >
+            {children}
+          </th>
+        );
+      },
+      td({ children, ...props }) {
+        return (
+          <td className="border-foreground/8 border-b px-3 py-2 last:border-0" {...props}>
+            {children}
+          </td>
+        );
+      },
+      hr({ ...props }) {
+        return <hr className="border-foreground/10 my-4" {...props} />;
+      },
+    }),
+    [t, bareCode, inertImages, citable],
+  );
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={streaming ? [rehypeHighlight, rehypeStreamWords] : [rehypeHighlight]}
+      components={components}
     >
       {processed}
     </ReactMarkdown>

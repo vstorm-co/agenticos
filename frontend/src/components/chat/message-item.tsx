@@ -299,9 +299,12 @@ export function MessageItem({
         )}
 
         {!message.isStreaming && hasBody && endsTurn && (
+          // The time and the cost surface on hover with the actions beside them:
+          // a column of receipts under every turn is noise while reading, and the
+          // numbers are one pointer move away when somebody wants them.
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
-              <span className="text-muted-foreground text-[11px]">
+              <span className="hover-reveal text-muted-foreground text-[11px]">
                 {new Date(message.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -319,7 +322,11 @@ export function MessageItem({
                 {t("turnWasStopped")}
               </span>
             )}
-            {!isUser && footerUsage && <MessageCost usage={footerUsage} />}
+            {!isUser && footerUsage && (
+              <span className="hover-reveal">
+                <MessageCost usage={footerUsage} />
+              </span>
+            )}
             {message.content && (
               <CopyButton
                 text={message.content}

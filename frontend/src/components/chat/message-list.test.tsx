@@ -104,6 +104,17 @@ describe("the transcript", () => {
     expect(state.rendered.map((entry) => entry.id)).toEqual(["m-1", "m-2"]);
   });
 
+  it("keeps a streamed turn's bubble when the database id replaces its temporary one", () => {
+    // A new key is a new bubble: the reveal of the last words was cut off and
+    // the whole answer appeared at once, right as the turn ended.
+    const { rerender } = render(<MessageList messages={[message({ id: "tmp-1" })]} />);
+    const bubble = screen.getByTestId("message-tmp-1");
+
+    rerender(<MessageList messages={[message({ id: "m-real", renderKey: "tmp-1" })]} />);
+
+    expect(screen.getByTestId("message-m-real")).toBe(bubble);
+  });
+
   it("labels a turn with the agent's name as it is today", () => {
     // Not as it was when the turn was saved: the message carries an id, and the
     // name comes from the list.

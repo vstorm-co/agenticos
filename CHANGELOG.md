@@ -29,9 +29,14 @@ Two things are versioned separately from this file and worth knowing about:
   opening as `excerpt`, and the chat's and a workspace's file listings now
   carry `preview` and `thumbnail`, as All files already did.
 - **A streaming answer flows onto the page.** Chat text is revealed at a steady
-  pace instead of in network bursts, and each new paragraph, list or table
-  fades up as it arrives. Anyone who asked the system for less motion gets the
-  text as it arrives.
+  pace a whole word at a time, each word surfacing out of a soft blur, and each
+  new paragraph, list or table fades up as it arrives. The markdown renderer
+  rebuilt its element types on every render, which remounted the answer on
+  each streamed frame, and the bubble was replaced when the database id
+  arrived; both kept the text invisible until the turn ended. Anyone who asked
+  the system for less motion gets the text as it arrives.
+- **A turn's time and cost appear on hover**, with its copy, retry and rating
+  actions, instead of under every message. A stopped turn's marker stays.
 - **Dialogs, menus, selects and popovers animate.** Their enter and exit
   classes compiled to nothing, so every overlay appeared and vanished in a
   single frame. A dialog now rises onto a lighter, blurred veil. A wizard's
