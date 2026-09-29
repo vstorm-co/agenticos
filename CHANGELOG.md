@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.514] - 2026-09-29
+
 ### Changed
 
 - **Skill, context, artifact and file cards show what is inside them.** Each
