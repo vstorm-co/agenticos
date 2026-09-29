@@ -17,6 +17,45 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **An agent can change part of a page it published.** `read_artifact` returns
+  the current version's source, and `publish_artifact` takes `edits` - exact
+  replacements applied to that version - beside `path` and `content`. An edit
+  made against a version another run has since replaced is refused, so it never
+  overwrites the newer page (#1970).
+- **Pages load charts from the deployment instead of inlining them.** Chart.js
+  4.5.1, d3 7.9.0 and a stylesheet of the console's tokens are served beside every
+  page under `lib/`, the one remote source the page's policy allows. A bundled
+  `artifact-pages` skill carries two templates and the house style; the
+  Artifacts capability's **Page style** tab offers it, and an existing
+  organization gets it through `seed-skills` (#1971).
+- **Restore a kept version** from the artifact's page. It adds a new version
+  with the old one's bytes, so the history is never rewritten (#1966).
+- **The public link has settings**: a date after which it opens nothing, a
+  pinned version a new publication does not change, a password asked before the
+  page is shown, and how often the link was opened (#1972).
+- **A public page can be embedded** on the sites listed for it, through an
+  embed document whose policy lets only those sites frame it (#1973).
+- **The artifact list filters by the agent that published** (#1967).
+
+### Changed
+
+- **A link inside a published page opens after a confirmation.** The page still
+  has no `allow-popups`; a platform script turns the click into a request, and
+  the console, the public page and the embed show the full address and open it in
+  a new tab only when the person agrees (#1969).
+- **The artifact list's thumbnails run the page's script**, so a chart a library
+  draws is on the card, and each one is unmounted when its card scrolls away
+  (#1968).
+
+### Fixed
+
+- **A run in a named environment no longer republishes the default
+  environment's page.** The environment is part of an artifact's identity, read
+  from the run, so `staging` publishes a page of its own. Deleting an
+  environment leaves its pages readable with no publisher (#1965).
+
 ## [0.0.514] - 2026-09-29
 
 ### Changed

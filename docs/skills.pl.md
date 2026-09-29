@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "a02d0afc5f98"
 ---
 
 # Skille { #skills }
@@ -189,14 +189,15 @@ a nie więcej informacji.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza trzy jako przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — i każda
-organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
+**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
+rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
+`artifact-pages`, który uczy agenta budować stronę dla capability
+[Artifacts](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
 bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
 widoczne dla organizacji.
 
 Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych trzech się nie wybiera — one po
+nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
 prostu przychodzą, raz, przy tworzeniu organizacji.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
@@ -241,7 +242,7 @@ zwykły skill, który organizacja posiada i edytuje, dokładnie jak dołączony.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
-    Dołączona trójka mieszka w `app/core/catalog/skills/` i jest kopiowana
+    Dołączona czwórka mieszka w `app/core/catalog/skills/` i jest kopiowana
     automatycznie do **każdej** organizacji. Galeria mieszka w
     `app/core/catalog/skill_gallery/` i nie jest kopiowana do **żadnej** — czyta
     ją ten sam parser, z drugiego katalogu, i nigdy nie jest seedowana.

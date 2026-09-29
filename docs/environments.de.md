@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a41dd69a21"
+source_sha: "f89c2d2bad65"
 ---
 
 # Umgebungen { #environments }
@@ -77,6 +77,11 @@ Das macht die Trennung nützlich: ein Dev-Bot, der an `dev` gebunden ist, dient
 dem, was `dev` heftet, während das Widget auf Ihrer Website auf `production`
 bleibt, bis Sie es bewegen. Ein Agent, zwei Zielgruppen, zwei Versionen, eine
 Buchführung.
+
+Eine Seite, die der Agent veröffentlicht, folgt derselben Trennung. Ein Run in
+einer benannten Umgebung veröffentlicht ein eigenes
+[Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
+Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
 
 ## Tracing pro Umgebung { #tracing-per-environment }
 

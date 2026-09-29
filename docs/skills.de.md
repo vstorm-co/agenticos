@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "a02d0afc5f98"
 ---
 
 # Skills { #skills }
@@ -199,14 +199,16 @@ mehr Arbeit bekommen statt mehr Information.
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert drei als
+**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und jede Organisation startet mit ihnen. Das Anlegen einer Organisation kopiert
+und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
+[Artifacts](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
+ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.
 
 Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese drei werden nicht gewählt — sie
+Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
 kommen an, einmal, beim Anlegen.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
@@ -255,7 +257,7 @@ und bearbeitet, genau wie ein mitgelieferter.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten drei liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.

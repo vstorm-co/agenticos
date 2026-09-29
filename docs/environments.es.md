@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a41dd69a21"
+source_sha: "f89c2d2bad65"
 ---
 
 # Entornos { #environments }
@@ -74,6 +74,11 @@ Eso es lo que hace útil la separación: un bot de desarrollo ligado a `dev` sir
 lo que `dev` tenga fijado, mientras el widget de tu web se queda en `production`
 hasta que tú lo muevas. Un agent, dos audiencias, dos versiones, una sola
 contabilidad.
+
+Una página que el agent publica sigue la misma separación. Un run en un entorno
+con nombre publica un [artefacto](artifacts.md#one-name-one-link) propio, así que
+probar `dev` con el informe semanal nunca vuelve a publicar la página que abren
+los lectores de producción.
 
 ## Trazas por entorno { #tracing-per-environment }
 

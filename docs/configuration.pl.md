@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "5aba2e88c4bf"
 ---
 
 # Konfiguracja { #configuration }
@@ -684,9 +684,9 @@ serwowane. Zobacz [Artefakty](artifacts.md).
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na artefakt. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
-| `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
+| `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
 podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.

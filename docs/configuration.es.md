@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "5aba2e88c4bf"
 ---
 
 # Configuración { #configuration }
@@ -701,9 +701,9 @@ dónde se sirven. Consulta [Artefactos](artifacts.md).
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
-| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
+| `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 
 **`ARTIFACT_ORIGIN` se lee dos veces, y ambas tienen que verlo.** El backend firma
 las direcciones de contenido sobre él, y el frontend lo añade al `frame-src` de la

@@ -1,5 +1,5 @@
 ---
-source_sha: "1c0ca646d240"
+source_sha: "7a374d96fdea"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -50,7 +50,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
 | `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact` | — | — |
+| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -991,24 +991,36 @@ no tiene dónde construir con ellas.
 
 `publish_artifact` — *Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable.*
+`read_artifact` — *Lee la versión actual de una página que publicó este agent, tal
+como se escribió.*
 
 Publica un único documento HTML o Markdown autocontenido como
 [artefacto](../artifacts.md): un recurso compartido con propietario, visibilidad y
 grants, que se abre en el navegador bajo un enlace que no se mueve. Sin
 configuración.
 
-**El nombre es la identidad.** `(organization, agent, name)` elige el artefacto,
-así que el siguiente run del mismo agent que publique `weekly-report` — desde un
-chat, una programación o la API — añade una versión al mismo en lugar de crear un
-segundo enlace. Unos bytes idénticos no añaden versión y responden `unchanged`.
+**El nombre es la identidad.** `(organization, agent, environment, name)` elige el
+artefacto, así que el siguiente run del mismo agent que publique `weekly-report` —
+desde un chat, una programación o la API — añade una versión al mismo en lugar de
+crear un segundo enlace. El entorno sale del run, así que un run en `staging`
+publica una página propia. Unos bytes idénticos no añaden versión y responden
+`unchanged`.
 
 **De dónde sale la página.** `path` lee un archivo del workspace del run a través
 de su propio backend, así que funciona allí donde funciona la capability `sandbox`;
-`content` recibe la página en línea para un agent sin workspace. Exactamente uno de
-los dos. Una llamada incorrecta — ambos o ninguno, un nombre fuera de
+`content` recibe la página en línea para un agent sin workspace; `edits` son
+reemplazos exactos aplicados a la versión que devolvió `read_artifact`, y una
+publicación entre medias los rechaza en lugar de sobrescribirla. Exactamente uno de
+los tres. Una llamada incorrecta — más de uno, ninguno, un nombre fuera de
 `^[a-z0-9][a-z0-9-]{0,63}$`, una extensión desconocida, una página vacía o
-demasiado grande — es un reintento que nombra qué cambiar. Una lectura que las
-reglas de permisos del workspace rechazan es un resultado, no un reintento.
+demasiado grande, un reemplazo que no coincide con ningún sitio o con varios — es un
+reintento que nombra qué cambiar. Una lectura que las reglas de permisos del
+workspace rechazan, y una página que la persona del run no puede abrir, son
+resultados, no reintentos.
+
+**Leer de vuelta.** `read_artifact` devuelve una línea de cabecera (versión,
+formato, tamaño) y el código fuente, cortado en 100.000 caracteres, cosa que la
+cabecera dice. Solo abre lo que la persona del run puede abrir en la consola.
 
 **Sin efectos secundarios.** Una primera publicación es privada para la persona en
 cuyo nombre se hizo el run, y solo una persona amplía quién la lee, así que la
@@ -1017,8 +1029,10 @@ Un autor que quiera aprobar cada nueva publicación de una página compartida fi
 `tool_approval` en `publish_artifact`.
 
 **La página no tiene red.** Se sirve en un origen opaco bajo una política `sandbox`
-con `connect-src 'none'`, y el texto de la herramienta le dice al modelo que lo
-incruste todo. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
+con `connect-src 'none'`, y el texto de la herramienta le dice al modelo que
+incruste sus propios datos y cargue los gráficos desde el
+[conjunto de bibliotecas](../artifacts.md#the-library-set) del despliegue en lugar
+de un CDN. Consulta [cómo se aísla la página](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegación { #delegation }
 

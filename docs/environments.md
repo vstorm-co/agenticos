@@ -66,6 +66,10 @@ That is what makes the split useful: a dev bot bound to `dev` serves whatever
 `dev` pins, while the widget on your website stays on `production` until you
 move it. One agent, two audiences, two versions, one set of books.
 
+A page the agent publishes follows the same split. A run in a named environment
+publishes an [artifact](artifacts.md#one-name-one-link) of its own, so trying
+`dev` on the weekly report never republishes the page production readers open.
+
 ## Tracing per environment
 
 An environment can carry its own Logfire write token, sealed in

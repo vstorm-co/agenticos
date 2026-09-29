@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a41dd69a21"
+source_sha: "f89c2d2bad65"
 ---
 
 # Środowiska { #environments }
@@ -73,6 +73,11 @@ To właśnie czyni ten podział użytecznym: bot deweloperski podpięty do `dev`
 serwuje to, co przypina `dev`, podczas gdy widget na twojej stronie zostaje na
 `production`, dopóki go nie przeniesiesz. Jeden agent, dwie publiczności, dwie
 wersje, jeden komplet ksiąg.
+
+Strona, którą agent publikuje, dzieli się tak samo. Run w nazwanym środowisku
+publikuje własny [artefakt](artifacts.md#one-name-one-link), więc próba `dev` na
+cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
+czytelnicy produkcji.
 
 ## Ślady per środowisko { #tracing-per-environment }
 

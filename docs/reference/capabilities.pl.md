@@ -1,5 +1,5 @@
 ---
-source_sha: "1c0ca646d240"
+source_sha: "7a374d96fdea"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -51,7 +51,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
 | `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact` | — | — |
+| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -977,24 +977,34 @@ nie ma gdzie niczego z nich zbudować.
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem.*
+`read_artifact` — *Przeczytaj bieżącą wersję strony opublikowanej przez tego
+agenta, taką, jaką ją napisano.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
 [artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
 grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
 konfiguracji.
 
-**Nazwa jest tożsamością.** `(organization, agent, name)` wybiera artefakt, więc
-następny run tego samego agenta, który publikuje `weekly-report` — z czatu, z
-harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast tworzyć
-drugi link. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
+**Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
+artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
+czatu, z harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast
+tworzyć drugi link. Środowisko pochodzi z runa, więc run w `staging` publikuje
+własną stronę. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
 
 **Skąd pochodzi strona.** `path` czyta plik z workspace'u runa przez jego własny
 backend, więc działa wszędzie tam, gdzie działa capability `sandbox`; `content`
-przyjmuje stronę inline dla agenta bez workspace'u. Dokładnie jedno z nich.
-Błędne wywołanie — oba albo żadne, nazwa spoza `^[a-z0-9][a-z0-9-]{0,63}$`,
-nieznane rozszerzenie, pusta albo za duża strona — to retry mówiący, co zmienić.
-Odczyt, którego odmawiają reguły uprawnień workspace'u, jest wynikiem, a nie
-retry.
+przyjmuje stronę inline dla agenta bez workspace'u; `edits` to dokładne zamiany
+nakładane na wersję zwróconą przez `read_artifact`, a publikacja w międzyczasie je
+odrzuca, zamiast ją nadpisać. Dokładnie jedno z trzech. Błędne wywołanie — więcej
+niż jedno, żadne, nazwa spoza `^[a-z0-9][a-z0-9-]{0,63}$`, nieznane rozszerzenie,
+pusta albo za duża strona, edycja, która nie pasuje do żadnego miejsca albo pasuje
+do kilku — to retry mówiący, co zmienić. Odczyt, którego odmawiają reguły
+uprawnień workspace'u, i strona, której osoba runa nie może otworzyć, są wynikami,
+a nie retry.
+
+**Odczyt.** `read_artifact` zwraca wiersz nagłówka (wersja, format, rozmiar) i
+źródło, ucięte na 100 000 znaków, co nagłówek mówi. Otwiera tylko to, co osoba
+runa może otworzyć w konsoli.
 
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
@@ -1003,8 +1013,9 @@ chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
 `tool_approval` na `publish_artifact`.
 
 **Strona nie ma sieci.** Jest serwowana w nieprzezroczystym originie pod polityką
-`sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby wszystko
-wstawiał inline. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
+`sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby własne dane
+wstawiał inline, a wykresy ładował z [zestawu bibliotek](../artifacts.md#the-library-set)
+wdrożenia zamiast z CDN. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
 
 ## Delegowanie { #delegation }
 

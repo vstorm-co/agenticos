@@ -183,14 +183,16 @@ rather than more information.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships three as worked
-examples — `refund-policy`, `code-review` and `incident-report` — and every
-organization starts with them. Creating an organization copies the whole shipped
-library in as ordinary skills, owned by the organization's owner and visible to the
+**The bundled ones are already there.** The repository ships four: three worked
+examples — `refund-policy`, `code-review` and `incident-report` — and
+`artifact-pages`, which teaches an agent to build a page for the
+[Artifacts](artifacts.md#the-library-set) capability. Every organization starts
+with them. Creating an organization copies the whole shipped library in as
+ordinary skills, owned by the organization's owner and visible to the
 organization.
 
 The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those three are not chosen — they arrive once, at
+matches the shipped library. Those four are not chosen — they arrive once, at
 creation.
 
 **And they are yours from then on.** A seeded skill is an ordinary row: edit it,
@@ -235,7 +237,7 @@ is an ordinary skill the organization owns and edits, exactly like a bundled one
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled three live in `app/core/catalog/skills/` and are copied into
+    The bundled four live in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.

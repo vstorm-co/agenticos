@@ -1,5 +1,5 @@
 ---
-source_sha: "14be638e2c6f"
+source_sha: "a02d0afc5f98"
 ---
 
 # Skills { #skills }
@@ -193,14 +193,16 @@ dado más trabajo, no más información.
 
 **Escribe uno.** Skills → New, en la UI. Este es el camino normal.
 
-**Los incluidos ya están ahí.** El repositorio trae tres como ejemplos
-trabajados — `refund-policy`, `code-review` e `incident-report` — y toda
-organización empieza con ellos. Crear una organización copia dentro la biblioteca
+**Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
+trabajados — `refund-policy`, `code-review` e `incident-report` — y
+`artifact-pages`, que enseña a un agent a construir una página para la
+capability [Artifacts](artifacts.md#the-library-set). Toda organización empieza
+con ellos. Crear una organización copia dentro la biblioteca
 entera que se distribuye, como skills normales, cuyo dueño es el owner de la
 organización y visibles para la organización.
 
 La página de skills muestra una sola lista, con una insignia `built-in` sobre
-cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos tres no se
+cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
 eligen — llegan solos, una vez, al crear la organización.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
@@ -248,7 +250,7 @@ incluido.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
-    Los tres incluidos viven en `app/core/catalog/skills/` y se copian
+    Los cuatro incluidos viven en `app/core/catalog/skills/` y se copian
     automáticamente en **todas** las organizaciones. La galería vive en
     `app/core/catalog/skill_gallery/` y no se copia en **ninguna** — la lee el
     mismo parser, desde un segundo directorio, y nunca se siembra.

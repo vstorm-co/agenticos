@@ -1,5 +1,5 @@
 ---
-source_sha: "bc91324ffeae"
+source_sha: "5aba2e88c4bf"
 ---
 
 # Konfiguration { #configuration }
@@ -721,9 +721,9 @@ sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
-| `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
 Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum

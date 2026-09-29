@@ -1,5 +1,5 @@
 ---
-source_sha: "cb93ec8bdf86"
+source_sha: "9d0ec5aa0374"
 ---
 
 # Polecenia { #commands }
@@ -384,7 +384,7 @@ uv run agenticos cmd data-protection-report --older-than 90
 uv run agenticos cmd vault-rotate --dry-run
 uv run agenticos cmd vault-rotate
 
-# Install the bundled skills (refund-policy, code-review, incident-report)
+# Install the bundled skills (refund-policy, code-review, incident-report, artifact-pages)
 uv run agenticos cmd seed-skills
 uv run agenticos cmd seed-skills --org <org-id> --dry-run
 
