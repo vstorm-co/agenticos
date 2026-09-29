@@ -2185,7 +2185,6 @@
     "save": "Speichern",
     "saving": "Wird gespeichert …",
     "scannedPages": "Gescannte Seiten",
-    "scope": "Geltungsbereich",
     "selectKnowledgeBase": "Wissensdatenbank wählen …",
     "sendPicturesInsideDocument": "Die Bilder in einem Dokument an ein Modell senden und indexieren, was es dazu sagt. Braucht ein Modellprofil mit funktionierendem Schlüssel, was beim Speichern geprüft wird.",
     "servedBy": "bereitgestellt von {provider}",

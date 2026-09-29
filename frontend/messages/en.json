@@ -2198,7 +2198,6 @@
     "save": "Save",
     "saving": "Saving…",
     "scannedPages": "Scanned pages",
-    "scope": "Scope",
     "selectKnowledgeBase": "Select a knowledge base…",
     "sendPicturesInsideDocument": "Send the pictures inside a document to a model and index what it says about them. Needs a model profile with a working key, which is checked when this is saved.",
     "servedBy": "served by {provider}",
@@ -2246,7 +2245,11 @@
     "registering": "Registering…",
     "ocrServerSetting": "OCR server",
     "ocrServerHint": "Where LiteParse sends pages to be read. The built-in Tesseract runs inside the worker.",
-    "builtInTesseract": "Built-in Tesseract"
+    "builtInTesseract": "Built-in Tesseract",
+    "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
+    "whoCanSearchIt": "Who can search it",
+    "scopeHintPersonal": "Only you can see it, upload to it and search it.",
+    "scopeHintOrg": "Everyone in this organization can find it and search it."
   },
   "knowledgeBases": {
     "active": "Active",

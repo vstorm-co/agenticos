@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
@@ -162,6 +163,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
+          <DialogDescription>{t("createKbDescription")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
@@ -192,9 +194,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               />
             </FormField>
             <div className="space-y-1.5" data-tour="kb-dialog-scope">
-              <Label htmlFor="kb-scope">{t("scope")}</Label>
+              <Label htmlFor="kb-scope">{t("whoCanSearchIt")}</Label>
               <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
-                <SelectTrigger id="kb-scope">
+                <SelectTrigger id="kb-scope" aria-describedby="kb-scope-hint">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -202,6 +204,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <SelectItem value="org">{t("organizationAllMembers")}</SelectItem>
                 </SelectContent>
               </Select>
+              {/* What the choice means, said for the one that is chosen - the
+                  two option labels name an audience, not the consequence. */}
+              <p id="kb-scope-hint" className="text-muted-foreground text-xs">
+                {scope === "org" ? t("scopeHintOrg") : t("scopeHintPersonal")}
+              </p>
             </div>
 
             {/*

@@ -187,7 +187,7 @@ describe("IngestionSettings", () => {
         };
       return { items: [], total: 0 };
     });
-    const onChange = show({ pdf_parser: "liteparse" });
+    const onChange = show({ pdf_parser: "liteparse", ocr: true });
 
     const server = await screen.findByLabelText("OCR server");
     expect(server).toHaveTextContent("Built-in Tesseract");
@@ -208,9 +208,19 @@ describe("IngestionSettings", () => {
   });
 
   it("offers OCR language and a timeout to the parser that reads them", () => {
-    show({ pdf_parser: "liteparse" });
+    show({ pdf_parser: "liteparse", ocr: true });
 
     expect(screen.getByLabelText("OCR language")).toBeInTheDocument();
+    expect(screen.getByLabelText("Parse timeout (seconds)")).toBeInTheDocument();
+  });
+
+  it("keeps the OCR settings out of the way while scanned pages are not read", () => {
+    show({ pdf_parser: "liteparse", ocr: false });
+
+    expect(screen.queryByLabelText("OCR server")).toBeNull();
+    expect(screen.queryByLabelText("OCR language")).toBeNull();
+    expect(screen.queryByLabelText("OCR resolution (DPI)")).toBeNull();
+    // What LiteParse does with any document stays: its output and its limits.
     expect(screen.getByLabelText("Parse timeout (seconds)")).toBeInTheDocument();
   });
 
