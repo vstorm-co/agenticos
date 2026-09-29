@@ -237,6 +237,19 @@ _LIVE_RUN_STATUSES = tuple(
 )
 
 
+async def count_unfinished_runs(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+) -> int:
+    """The workflow's runs that have not ended, one waiting for a person included."""
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    stmt = select(func.count()).where(
+        WorkflowRun.workflow_id == workflow_id,
+        WorkflowRun.organization_id == organization_id,
+        WorkflowRun.status.not_in(terminal),
+    )
+    return (await db.execute(stmt)).scalar_one()
+
+
 # Advisory-lock classes for workflow admission (#1907). Transaction-scoped
 # advisory locks, not row locks: the admission check reads an aggregate and then
 # inserts a *new* run, so there is no existing row to lock, and two concurrent

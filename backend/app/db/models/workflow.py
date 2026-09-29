@@ -26,7 +26,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -75,6 +75,10 @@ class Workflow(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Labels a builder files the workflow under, for filtering a long list.
+    tags: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), nullable=False, default=list, server_default="{}"
+    )
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=WorkflowStatus.DRAFT.value, index=True

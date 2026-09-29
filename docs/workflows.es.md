@@ -1,5 +1,5 @@
 ---
-source_sha: "7bf230937988"
+source_sha: "3454b4f371cb"
 ---
 
 # Workflows { #workflows }
@@ -42,6 +42,24 @@ versión publicada.
     una organización sin ninguno, el segundo un filtro de estado bajo el que no cae
     ninguna fila. **Clear filter** devuelve la lista completa. Un workflow compartido
     contigo aparece en la misma lista en cuanto tienes `workflows:view`.
+
+### Encontrar, nombrar y retirar un workflow { #finding-naming-and-retiring-a-workflow }
+
+Sobre las tarjetas, una búsqueda encuentra un workflow por su nombre, descripción o
+etiquetas, un filtro de etiquetas acota la lista a una, y el orden es la última edición,
+el nombre o los más nuevos primero. Todo se guarda en la dirección, así que recargar o
+un enlace compartido muestran la misma lista. En el editor, haz clic en el nombre para
+cambiarlo - su identificador, el que usan quienes llaman a la API, se mantiene - y
+**+ Tag** le asigna una etiqueta.
+
+Un workflow publicado cuyo disparador funciona solo - un webhook, una programación o un
+nuevo registro de tabla - tiene un interruptor **Active** en la cabecera del editor, y
+su tarjeta dice **Active** o **Paused**. Apagarlo pausa el disparador al momento;
+encenderlo lo reanuda como quien lo publicó, así que requiere permiso para ejecutar el
+workflow. El menú **...** de una tarjeta archiva un workflow, lo que también pausa su
+disparador. Uno archivado se puede restaurar, todavía en pausa, o eliminar con sus
+versiones, ejecuciones y permisos compartidos; uno cuyas ejecuciones no han terminado se
+rechaza con `WORKFLOW_IN_USE`.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
 

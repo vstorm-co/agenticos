@@ -2,11 +2,30 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Activity, Building2, Copy, Lock, Pencil, Users, Workflow } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  ArchiveRestore,
+  Building2,
+  Copy,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
-import { Badge } from "@/components/ui";
+import {
+  Badge,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui";
 import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
@@ -25,18 +44,30 @@ const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
 export function WorkflowCard({
   workflow,
   canCreate,
+  canEdit,
   busy,
   onDuplicate,
+  onArchive,
+  onRestore,
+  onDelete,
 }: {
   workflow: WorkflowRead;
   canCreate: boolean;
+  /** Whether the member's role edits workflows: the menu to archive, restore or delete. */
+  canEdit: boolean;
   busy?: boolean;
   onDuplicate: () => void;
+  onArchive: () => void;
+  onRestore: () => void;
+  /** Resolves once deleted; a refusal rejects, and the card stays. */
+  onDelete: () => Promise<unknown>;
 }) {
   const t = useTranslations("pages.workflows");
   const tc = useTranslations("common");
   const locale = useLocale();
   const [hovered, setHovered] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const archived = workflow.status === "archived";
   const status = workflow.status as AgentStatus;
   const visibility = (
     workflow.visibility in VISIBILITY_ICON ? workflow.visibility : "private"
@@ -65,7 +96,7 @@ export function WorkflowCard({
           aria-label={tc("openNamed", { name: workflow.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300">
+          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
             <Workflow aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
@@ -87,6 +118,23 @@ export function WorkflowCard({
               <Badge variant="outline" className="text-muted-foreground font-normal">
                 {workflow.current_version_id ? t("hasLiveVersion") : t("neverPublished")}
               </Badge>
+              {workflow.trigger_active !== null && !archived && (
+                <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      workflow.trigger_active ? "bg-emerald-500" : "bg-muted-foreground/40",
+                    )}
+                  />
+                  {workflow.trigger_active ? t("activeOn") : t("activeOff")}
+                </Badge>
+              )}
+              {workflow.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="font-normal">
+                  {tag}
+                </Badge>
+              ))}
             </div>
           </div>
         </div>
@@ -119,9 +167,52 @@ export function WorkflowCard({
                 <Copy className="h-4 w-4" />
               </button>
             )}
+            {canEdit && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label={t("moreFor", { name: workflow.name })}
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {archived ? (
+                    <>
+                      <DropdownMenuItem onSelect={onRestore}>
+                        <ArchiveRestore className="h-4 w-4" /> {t("restore")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onSelect={() => setDeleting(true)}
+                      >
+                        <Trash2 className="h-4 w-4" /> {t("delete")}
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <DropdownMenuItem onSelect={onArchive}>
+                      <Archive className="h-4 w-4" /> {t("archive")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title={t("deleteTitle", { name: workflow.name })}
+        description={t("deleteDescription")}
+        confirmLabel={t("delete")}
+        destructive
+        onConfirm={() =>
+          onDelete().then(
+            () => setDeleting(false),
+            () => setDeleting(false),
+          )
+        }
+      />
     </Beam>
   );
 }

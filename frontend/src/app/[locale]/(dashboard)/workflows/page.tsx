@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -11,6 +11,7 @@ import {
   ListCard,
   ListCardEmpty,
   Pager,
+  SearchInput,
   Select,
   SelectContent,
   SelectItem,
@@ -21,14 +22,34 @@ import {
 import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
-import { usePermissions, useWorkflows } from "@/hooks";
+import { usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
+import { useUrlState } from "@/hooks/use-url-state";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { WorkflowRead, WorkflowStatus } from "@/lib/workflows/types";
 
 type Filter = "all" | WorkflowStatus;
+type Sort = "edited" | "name" | "created";
 
 const FILTERS: readonly Filter[] = ["all", "draft", "published", "archived"];
+const SORTS: readonly Sort[] = ["edited", "name", "created"];
+const ALL_TAGS = "__all__";
+
+function parseFilter(value: string | null): Filter {
+  return FILTERS.includes(value as Filter) ? (value as Filter) : "all";
+}
+
+function parseSort(value: string | null): Sort {
+  return SORTS.includes(value as Sort) ? (value as Sort) : "edited";
+}
+
+/** Newest first for the two times, A to Z for the name. */
+function compare(sort: Sort): (a: WorkflowRead, b: WorkflowRead) => number {
+  if (sort === "name") return (a, b) => a.name.localeCompare(b.name);
+  const at = (workflow: WorkflowRead) =>
+    (sort === "created" ? workflow.created_at : (workflow.updated_at ?? workflow.created_at)) ?? "";
+  return (a, b) => at(b).localeCompare(at(a));
+}
 
 /**
  * The workflows list — draft / published / archived, like the agents list.
@@ -48,22 +69,53 @@ export default function WorkflowsPage() {
     enabled: can(Perm.workflowsView),
   });
 
-  const [filter, setFilter] = useState<Filter>("all");
+  const actions = useWorkflowActions();
+  const canEdit = can(Perm.workflowsEdit);
+
+  // Kept in the URL, so a reload - or a link someone was sent - shows the same list.
+  const [filterParam, setFilterParam] = useUrlState("status");
+  const [sortParam, setSortParam] = useUrlState("sort");
+  const [tagParam, setTagParam] = useUrlState("tag");
+  const [queryParam, setQueryParam] = useUrlState("q");
+  const filter = parseFilter(filterParam);
+  const sort = parseSort(sortParam);
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Status filter and paging both run over the *whole* registry the hook walked,
-  // so a status still matches a workflow on what would have been a later page
-  // (#1787). The status rides the controls' query — "all" is the empty query
-  // that filters nothing — and `matches` compares it to a row's own status.
+  const tags = useMemo(
+    () => [...new Set(workflows.flatMap((workflow) => workflow.tags))].sort(),
+    [workflows],
+  );
+  // Status and tag narrow the list before the search does; the order is applied last.
+  const narrowed = useMemo(
+    () =>
+      workflows
+        .filter((workflow) => filter === "all" || workflow.status === filter)
+        .filter((workflow) => tagParam === null || workflow.tags.includes(tagParam))
+        .sort(compare(sort)),
+    [workflows, filter, tagParam, sort],
+  );
+
+  // Search and paging both run over the *whole* registry the hook walked, so a
+  // search still finds a workflow on what would have been a later page (#1787).
   const list = useListControls({
-    items: workflows,
-    query: filter === "all" ? "" : filter,
-    matches: (workflow, status) => workflow.status === status,
+    items: narrowed,
+    query: queryParam ?? "",
+    onQueryChange: (next) => setQueryParam(next === "" ? null : next),
+    matches: (workflow, needle) =>
+      workflow.name.toLowerCase().includes(needle) ||
+      (workflow.description ?? "").toLowerCase().includes(needle) ||
+      workflow.tags.some((tag) => tag.includes(needle)),
   });
-  const filtersActive = filter !== "all";
+  const filtersActive = filter !== "all" || tagParam !== null || (queryParam ?? "") !== "";
 
   const onFilter = (value: Filter) => {
-    setFilter(value);
+    setFilterParam(value === "all" ? null : value);
+    list.setPage(0);
+  };
+  const clearFilters = () => {
+    setFilterParam(null);
+    setTagParam(null);
+    setQueryParam(null);
     list.setPage(0);
   };
 
@@ -85,18 +137,64 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
-      <SelectTrigger data-tour="workflows-list" className="w-40" aria-label={t("filterByStatus")}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {FILTERS.map((value) => (
-          <SelectItem key={value} value={value}>
-            {t(`filter.${value}`)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex flex-wrap items-center gap-2">
+      <SearchInput
+        value={queryParam ?? ""}
+        onChange={(next) => {
+          setQueryParam(next === "" ? null : next);
+          list.setPage(0);
+        }}
+        placeholder={t("searchPlaceholder")}
+      />
+      <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
+        <SelectTrigger data-tour="workflows-list" className="w-36" aria-label={t("filterByStatus")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTERS.map((value) => (
+            <SelectItem key={value} value={value}>
+              {t(`filter.${value}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {tags.length > 0 && (
+        <Select
+          value={tagParam ?? ALL_TAGS}
+          onValueChange={(value) => {
+            setTagParam(value === ALL_TAGS ? null : value);
+            list.setPage(0);
+          }}
+        >
+          <SelectTrigger className="w-36" aria-label={t("filterByTag")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_TAGS}>{t("allTags")}</SelectItem>
+            {tags.map((tag) => (
+              <SelectItem key={tag} value={tag}>
+                {tag}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <Select
+        value={sort}
+        onValueChange={(value) => setSortParam(value === "edited" ? null : value)}
+      >
+        <SelectTrigger className="w-40" aria-label={t("sortBy")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SORTS.map((value) => (
+            <SelectItem key={value} value={value}>
+              {t(`sort.${value}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 
   return (
@@ -140,11 +238,7 @@ export default function WorkflowsPage() {
                   ? t("createFirst")
                   : t("nobodyHasShared")
             }
-            cta={
-              filtersActive
-                ? { label: t("clearFilter"), onClick: () => onFilter("all") }
-                : undefined
-            }
+            cta={filtersActive ? { label: t("clearFilter"), onClick: clearFilters } : undefined}
           />
         ) : (
           <div className="space-y-4">
@@ -154,8 +248,12 @@ export default function WorkflowsPage() {
                   key={workflow.id}
                   workflow={workflow}
                   canCreate={canCreate}
+                  canEdit={canEdit}
                   busy={duplicate.isPending && duplicate.variables?.sourceId === workflow.id}
                   onDuplicate={() => onDuplicate(workflow)}
+                  onArchive={() => actions.archive.mutate(workflow.id)}
+                  onRestore={() => actions.unarchive.mutate(workflow.id)}
+                  onDelete={() => actions.remove.mutateAsync(workflow.id)}
                 />
               ))}
             </div>

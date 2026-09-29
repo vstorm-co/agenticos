@@ -1,5 +1,5 @@
 ---
-source_sha: "7bf230937988"
+source_sha: "3454b4f371cb"
 ---
 
 # Workflows { #workflows }
@@ -38,6 +38,23 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
     organizacja bez żadnego workflow, drugi to filtr statusu, pod który nie
     wpada żaden wiersz. **Clear filter** przywraca pełną listę. Workflow
     udostępniony Tobie pojawia się na tej samej liście, gdy masz `workflows:view`.
+
+### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
+
+Nad kartami wyszukiwanie znajduje workflow po nazwie, opisie lub tagach, filtr tagów
+zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo najnowsze
+najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony link
+pokazują tę samą listę. W edytorze kliknij nazwę, aby zmienić nazwę workflow - jego
+identyfikator, którego używają wywołujący API, zostaje - a **+ Tag** przypisuje tag.
+
+Opublikowany workflow, którego wyzwalacz działa sam - webhook, harmonogram lub nowy
+rekord tabeli - ma przełącznik **Active** w nagłówku edytora, a jego karta mówi
+**Active** albo **Paused**. Wyłączenie od razu wstrzymuje wyzwalacz; włączenie wznawia
+go jako publikującego, więc wymaga uprawnienia do uruchamiania workflow. Menu **...**
+na karcie archiwizuje workflow, co również wstrzymuje wyzwalacz. Zarchiwizowany można
+przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
+udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
+`WORKFLOW_IN_USE`.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
 

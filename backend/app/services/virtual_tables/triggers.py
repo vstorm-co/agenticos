@@ -236,6 +236,39 @@ class TableTriggerService(Operations):
         )
         return await self._trigger_read(trigger)
 
+    async def set_active_for_workflow(
+        self, ctx: AuthContext, workflow: Workflow, active: bool
+    ) -> bool | None:
+        """Pause or resume the workflow's table trigger; `None` when it has none.
+
+        For the workflow's own switch, so what it needs is the caller's say over
+        the workflow, which is theirs to check first - not edit access to the table.
+        Resuming reads the table, as publishing did, and stamps a new `activated_at`
+        under its schema lock, so the records added while it was paused never start
+        it. Pausing touches no table.
+
+        Raises:
+            NotFoundError: Resuming, and the table is out of reach.
+            TableArchivedError: Resuming, and the table is archived.
+        """
+        trigger = await trigger_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if trigger is None:
+            return None
+        if trigger.is_active == active:
+            return active
+        changes: dict[str, Any] = {"is_active": active}
+        if active:
+            table = await self._load_table(ctx, trigger.table_id, Perm.TABLES_VIEW, lock=True)
+            self._ensure_live(table)
+            changes["activated_at"] = trigger_repo.activation_time()
+        await trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        await self._audit(
+            ctx, trigger, "table.trigger_resumed" if active else "table.trigger_paused"
+        )
+        return active
+
     async def admissions(
         self, ctx: AuthContext, table_id: UUID, trigger_id: UUID, *, skip: int, limit: int
     ) -> TableTriggerAdmissionList:

@@ -62,6 +62,7 @@ from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.virtual_table_trigger import VirtualTableTrigger
+from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
@@ -93,7 +94,7 @@ from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
-from app.schemas.workflow import WorkflowDraftUpdate
+from app.schemas.workflow import WorkflowActiveUpdate, WorkflowDraftUpdate, WorkflowUpdate
 from app.schemas.workflow_exposure import WorkflowExposureUpdate
 
 # Which row each `*Update` schema writes, and `None` where it writes no single
@@ -145,6 +146,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     UserUpdate: User,
     VisibilityUpdate: None,
     WorkflowDraftUpdate: None,
+    # Switches whichever trigger row the workflow has: an exposure or a table trigger.
+    WorkflowActiveUpdate: None,
+    WorkflowUpdate: Workflow,
     WorkflowExposureUpdate: WorkflowExposure,
 }
 
@@ -226,6 +230,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "SchemaUpdate",
             "VisibilityUpdate",
             "WorkflowDraftUpdate",
+            "WorkflowActiveUpdate",
         }
 
 

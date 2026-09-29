@@ -95,6 +95,8 @@ function workflow(): WorkflowDetail {
     owner_user_id: null,
     current_version_id: null,
     live_trigger: null,
+    tags: [],
+    trigger_active: null,
     draft_revision: 0,
     created_at: null,
     updated_at: null,

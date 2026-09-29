@@ -35,6 +35,9 @@ export function useWorkflowExposure(workflowId: string) {
       updateWorkflowExposure(workflowId, id, { is_active: active }),
     onSuccess: (exposure) => {
       refresh();
+      // The editor's Active switch and the list's card read the same state.
+      void queryClient.invalidateQueries({ queryKey: qk.workflows.detail(workflowId) });
+      void queryClient.invalidateQueries({ queryKey: qk.workflows.list() });
       toast.success(exposure.is_active ? t("triggerResumed") : t("triggerPaused"));
     },
     onError: fail,

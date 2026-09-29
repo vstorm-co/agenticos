@@ -1,5 +1,5 @@
 ---
-source_sha: "7bf230937988"
+source_sha: "3454b4f371cb"
 ---
 
 # Workflows { #workflows }
@@ -43,6 +43,24 @@ Kopie einer veröffentlichten Version.
     unter den keine Zeile fällt. **Clear filter** bringt die volle Liste zurück.
     Ein mit Ihnen geteilter Workflow erscheint in derselben Liste, sobald Sie
     `workflows:view` haben.
+
+### Workflows finden, benennen und stilllegen { #finding-naming-and-retiring-a-workflow }
+
+Über den Karten findet eine Suche einen Workflow nach Name, Beschreibung oder Tags,
+ein Tag-Filter grenzt die Liste auf einen Tag ein, und sortiert wird nach letzter
+Bearbeitung, Name oder den neuesten zuerst. Alles bleibt in der Adresse, sodass ein
+Neuladen oder ein geteilter Link dieselbe Liste zeigt. Im Editor benennt ein Klick auf
+den Namen den Workflow um - sein Kennzeichen, das API-Aufrufer verwenden, bleibt - und
+**+ Tag** ordnet ihn einem Tag zu.
+
+Ein veröffentlichter Workflow, dessen Trigger von selbst läuft - ein Webhook, ein
+Zeitplan oder ein neuer Tabellendatensatz -, hat einen Schalter **Active** im Kopf des
+Editors, und seine Karte zeigt **Active** oder **Paused**. Ausschalten pausiert den
+Trigger sofort; Einschalten setzt ihn als seinen Veröffentlicher fort und braucht daher
+die Berechtigung, den Workflow auszuführen. Das Menü **...** einer Karte archiviert
+einen Workflow, was seinen Trigger ebenfalls pausiert. Ein archivierter lässt sich
+wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben löschen;
+einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
 

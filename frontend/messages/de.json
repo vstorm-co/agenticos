@@ -4680,7 +4680,36 @@
       "liveRunTitle": "Testlauf",
       "liveRunSteps": "{count, plural, one {# Schritt fertig} other {# Schritte fertig}}",
       "liveRunOpen": "Run öffnen",
-      "liveRunClose": "Run ausblenden"
+      "liveRunClose": "Run ausblenden",
+      "activeOn": "Aktiv",
+      "activeOff": "Pausiert",
+      "activeHintOn": "Sein Trigger startet Läufe von selbst. Ausschalten pausiert ihn.",
+      "activeHintOff": "Sein Trigger ist pausiert. Einschalten startet wieder Läufe.",
+      "activeTurnedOn": "Workflow eingeschaltet.",
+      "activeTurnedOff": "Workflow pausiert.",
+      "renameHint": "Zum Umbenennen klicken",
+      "renameLabel": "Name des Workflows",
+      "addTag": "Tag",
+      "tagPlaceholder": "Tag eingeben und Enter drücken",
+      "removeTag": "Tag {tag} entfernen",
+      "archivedToast": "Workflow archiviert. Sein Trigger ist pausiert.",
+      "restoredToast": "Workflow wiederhergestellt.",
+      "deletedToast": "Workflow gelöscht.",
+      "moreFor": "Mehr für {name}",
+      "archive": "Archivieren",
+      "restore": "Wiederherstellen",
+      "delete": "Löschen",
+      "deleteTitle": "{name} löschen?",
+      "deleteDescription": "Seine Versionen, Läufe und Freigaben gehen mit, und das lässt sich nicht rückgängig machen. Ein Workflow mit laufenden Läufen wird nicht gelöscht.",
+      "searchPlaceholder": "Workflows durchsuchen",
+      "filterByTag": "Nach Tag filtern",
+      "allTags": "Alle Tags",
+      "sortBy": "Workflows sortieren",
+      "sort": {
+        "edited": "Zuletzt bearbeitet",
+        "name": "Name",
+        "created": "Neueste"
+      }
     }
   },
   "profile": {

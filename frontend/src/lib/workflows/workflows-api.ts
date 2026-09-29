@@ -16,6 +16,7 @@ import type {
   WorkflowPublish,
   WorkflowPublished,
   WorkflowRead,
+  WorkflowUpdate,
   WorkflowVersionDetail,
   WorkflowVersionList,
   WorkflowVersionRestore,
@@ -53,6 +54,37 @@ export async function createWorkflow(input: WorkflowCreate): Promise<WorkflowRea
 /** One workflow with the graph currently being edited. */
 export async function getWorkflow(workflowId: string): Promise<WorkflowDetail> {
   return apiClient.get<WorkflowDetail>(`${ROOT}/${workflowId}`);
+}
+
+/** Rename a workflow, or change its description or tags. Its handle stays. */
+export async function updateWorkflow(
+  workflowId: string,
+  update: WorkflowUpdate,
+): Promise<WorkflowDetail> {
+  return apiClient.patch<WorkflowDetail>(`${ROOT}/${workflowId}`, update);
+}
+
+/** Switch on or pause the trigger the published version starts from on its own. */
+export async function setWorkflowActive(
+  workflowId: string,
+  active: boolean,
+): Promise<WorkflowDetail> {
+  return apiClient.put<WorkflowDetail>(`${ROOT}/${workflowId}/active`, { is_active: active });
+}
+
+/** Retire a workflow, keeping its versions and runs; its trigger is paused. */
+export async function archiveWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(`${ROOT}/${workflowId}/archive`);
+}
+
+/** Bring an archived workflow back; its trigger stays paused. */
+export async function unarchiveWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(`${ROOT}/${workflowId}/unarchive`);
+}
+
+/** Permanently remove a workflow, its versions, runs and shares. */
+export async function deleteWorkflow(workflowId: string): Promise<void> {
+  await apiClient.delete<void>(`${ROOT}/${workflowId}`);
 }
 
 /** Every published version of this workflow, newest first. Lean - no graphs. */

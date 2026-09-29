@@ -42,6 +42,21 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def active_by_workflow(
+    db: AsyncSession, *, organization_id: UUID, workflow_ids: list[UUID]
+) -> dict[UUID, bool]:
+    """Whether each of these workflows' row is on, for those that have one."""
+    if not workflow_ids:
+        return {}
+    result = await db.execute(
+        select(WorkflowExposure.workflow_id, WorkflowExposure.is_active).where(
+            WorkflowExposure.organization_id == organization_id,
+            WorkflowExposure.workflow_id.in_(workflow_ids),
+        )
+    )
+    return {row.workflow_id: row.is_active for row in result.all()}
+
+
 async def get_for_workflow(
     db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
 ) -> WorkflowExposure | None:

@@ -7,10 +7,10 @@ and `NodeCatalog`/`NodeCatalogEntry` for the editor palette - the same shape
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, StringConstraints
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
@@ -34,6 +34,13 @@ class WorkflowRead(BaseSchema):
         description="The trigger node the published version starts from - `core.input`, "
         "`trigger.chat`, `trigger.webhook`, `trigger.schedule`, `trigger.table_record` - "
         "or null when it starts from no trigger (by hand) or was never published",
+    )
+    tags: list[str] = Field(default_factory=list)
+    trigger_active: bool | None = Field(
+        default=None,
+        description="Whether the published version's unattended trigger - a webhook, a "
+        "schedule, a new table record - is on. Null when the live version has none: it "
+        "starts by hand, from an API call or from chat, or was never published",
     )
     draft_revision: int
     created_at: datetime | None = None
@@ -76,6 +83,33 @@ class WorkflowCreate(BaseSchema):
             "draft cannot run either way, so this decides who sees it, not what it does."
         ),
     )
+
+
+MAX_TAGS = 10
+
+WorkflowTag = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=32),
+]
+
+
+class WorkflowUpdate(BaseSchema):
+    """Rename a workflow, describe it or file it under tags. An absent field is kept.
+
+    The handle stays: it is what API callers and exports name the workflow by.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    tags: list[WorkflowTag] | None = Field(default=None, max_length=MAX_TAGS)
+
+
+class WorkflowActiveUpdate(BaseSchema):
+    model_config = ConfigDict(extra="forbid")
+
+    is_active: bool = Field(description="Switch the live version's trigger on, or pause it")
 
 
 class WorkflowDraftUpdate(BaseSchema):

@@ -821,3 +821,41 @@ async def test_a_trigger_switched_off_after_the_list_was_read_starts_nothing(wor
     assert await world.admissions(trigger_id) == []
     async with world.factory() as db:
         assert (await db.execute(select(WorkflowRun))).first() is None
+
+
+async def test_the_workflows_own_switch_pauses_and_resumes_its_table_trigger(world: _World):
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+
+    async def switch(active: bool) -> bool | None:
+        async with world.factory() as db:
+            detail = await WorkflowRegistryService(db).set_active(world.ctx, workflow.id, active)
+            await db.commit()
+        return detail.trigger_active
+
+    assert await switch(False) is False
+    assert await switch(False) is False  # already off: nothing to change
+    await world.add({"Email": "while-off@x"})
+    assert await switch(True) is True
+    before = (await world.trigger_of(workflow)).activated_at
+    await world.add({"Email": "after@x"})
+    await world.consume()
+
+    assert (await world.trigger_of(workflow)).activated_at == before
+    # The record added while it was paused came before the new activation.
+    assert sorted(_statuses(await world.admissions(trigger_id)), key=str) == [
+        ("filtered", "pre_activation"),
+        ("queued", None),
+    ]
+
+
+async def test_archiving_a_workflow_pauses_its_table_trigger(world: _World):
+    workflow = await world.workflow()
+    await world.trigger(workflow)
+
+    async with world.factory() as db:
+        archived = await WorkflowRegistryService(db).archive(world.ctx, workflow.id)
+        await db.commit()
+
+    assert archived.trigger_active is False
+    assert (await world.trigger_of(workflow)).is_active is False

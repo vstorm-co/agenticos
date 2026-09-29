@@ -261,6 +261,22 @@ class WorkflowExposureService:
         )
         return _read(exposure, await self._version_number(exposure))
 
+    async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Pause the workflow's webhook or schedule, if it has one that is on.
+
+        What archiving a workflow does, and so needs no more than editing it: a
+        pause starts nothing, and nothing runs as anyone because of it.
+        """
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if exposure is None or not exposure.is_active:
+            return
+        await workflow_exposure_repo.update(
+            self.db, exposure=exposure, update_data={"is_active": False}
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_paused")
+
     async def rotate_secret(
         self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID
     ) -> WorkflowExposureWithSecret:

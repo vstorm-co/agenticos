@@ -26,11 +26,23 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.main import app
+from app.schemas.workflow import WorkflowDetail
 from app.services.workflow_registry import WorkflowRegistryService
 from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_live_triggers():
+    """The session here is a mock with no triggers to read: none of these workflows has one."""
+    with patch(
+        "app.services.workflow_registry.WorkflowTriggerSync.states",
+        new=AsyncMock(return_value={}),
+    ):
+        yield
+
 
 _ORGANIZATION_ID = uuid.uuid4()
 
@@ -539,3 +551,52 @@ async def test_a_viewer_without_an_edit_grant_cannot_restore(viewer_client: Open
             )
     assert response.status_code == 404
     update.assert_not_called()
+
+
+@pytest.fixture
+def stubbed() -> Iterator[tuple[MagicMock, OpenClient]]:
+    """The routes over a stand-in service: what they hand it and how they answer."""
+    detail = WorkflowDetail(
+        id=uuid.uuid4(),
+        slug="import-orders",
+        name="Import orders",
+        status="published",
+        visibility="org",
+        trigger_active=False,
+        draft_revision=1,
+        draft_graph=None,
+    )
+    service = MagicMock()
+    for method in ("update", "set_active", "archive", "unarchive"):
+        setattr(service, method, AsyncMock(return_value=detail))
+    service.delete = AsyncMock(return_value=None)
+    context = AuthContext(user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role="owner")
+    app.dependency_overrides[deps.get_auth_context] = lambda: context
+    app.dependency_overrides[deps.get_workflow_registry_service] = lambda: service
+
+    @asynccontextmanager
+    async def open_client() -> AsyncIterator[AsyncClient]:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
+            yield opened
+
+    yield service, open_client
+    app.dependency_overrides.clear()
+
+
+async def test_managing_a_workflow_hands_the_service_each_change(stubbed):
+    service, client = stubbed
+    workflow_id = uuid.uuid4()
+    async with client() as http:
+        renamed = await http.patch(_url(f"/{workflow_id}"), json={"name": "Leads", "tags": ["a"]})
+        switched = await http.put(_url(f"/{workflow_id}/active"), json={"is_active": True})
+        archived = await http.post(_url(f"/{workflow_id}/archive"))
+        restored = await http.post(_url(f"/{workflow_id}/unarchive"))
+        deleted = await http.delete(_url(f"/{workflow_id}"))
+        unknown = await http.patch(_url(f"/{workflow_id}"), json={"slug": "no"})
+
+    assert [r.status_code for r in (renamed, switched, archived, restored)] == [200] * 4
+    assert renamed.json()["trigger_active"] is False
+    assert deleted.status_code == 204
+    assert unknown.status_code == 422
+    assert service.update.await_args.args[2].tags == ["a"]
+    assert service.set_active.await_args.args[1:] == (workflow_id, True)

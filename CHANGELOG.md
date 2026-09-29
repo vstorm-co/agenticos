@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Find, rename, switch and retire workflows from the console.** The list
+  searches by name, description and tag, filters by tag and sorts by last edit,
+  name or age, all kept in the address. The editor renames a workflow in place and
+  tags it, and a published one with a webhook, schedule or table trigger gets an
+  **Active** switch, shown on its card too. A card's menu archives (pausing the
+  trigger), restores and deletes. New `PATCH /workflows/{id}`,
+  `PUT .../active`, `POST .../archive`, `POST .../unarchive` and
+  `DELETE /workflows/{id}`; a workflow now has `tags` (#1942, #1956).
 - **Import a CSV file into a table, and export one.** **Import** maps the file's
   columns to the table's, reads each value in its column's type and sends the rows
   200 at a time to a new `POST /tables/{id}/records/batch`, listing every row that

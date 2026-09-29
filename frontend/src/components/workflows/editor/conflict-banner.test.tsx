@@ -56,6 +56,8 @@ function serverDetail(): WorkflowDetail {
     owner_user_id: null,
     current_version_id: null,
     live_trigger: null,
+    tags: [],
+    trigger_active: null,
     draft_revision: 12,
     created_at: null,
     updated_at: null,

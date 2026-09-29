@@ -28,7 +28,10 @@ import {
   SheetTitle,
   Skeleton,
 } from "@/components/ui";
-import { useNodeCatalog, useWorkflow } from "@/hooks";
+import { useNodeCatalog, useWorkflow, useWorkflowActions } from "@/hooks";
+import { TagsEditor } from "@/components/workflows/tags-editor";
+import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
+import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import type { AgentStatus } from "@/types/agents";
@@ -77,6 +80,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
   const { workflow, isLoading, saveDraft, publish, restore } = useWorkflow(id);
+  const actions = useWorkflowActions();
   const restoreVersion = useRestoreVersion(restore.mutateAsync);
   const { nodes } = useNodeCatalog();
   const canEdit = workflow?.can_edit === true;
@@ -131,7 +135,16 @@ export default function WorkflowEditorPage({ params }: PageProps) {
     );
   }
 
-  const statusBadge = <AgentStatusBadge status={workflow.status as AgentStatus} />;
+  const statusBadge = (
+    <div className="flex flex-wrap items-center gap-2">
+      <AgentStatusBadge status={workflow.status as AgentStatus} />
+      <TagsEditor
+        tags={workflow.tags}
+        canEdit={canEdit}
+        onChange={(tags) => actions.update.mutate({ id: workflow.id, update: { tags } })}
+      />
+    </div>
+  );
 
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
@@ -141,12 +154,24 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
         className="mb-0 md:mb-0"
-        title={workflow.name}
+        title={
+          <WorkflowTitle
+            name={workflow.name}
+            canEdit={canEdit}
+            onRename={(name) => actions.update.mutate({ id: workflow.id, update: { name } })}
+          />
+        }
         description={workflow.description ?? undefined}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
           <div className="flex items-center gap-2">
+            <ActiveSwitch
+              workflow={workflow}
+              canEdit={canEdit}
+              pending={actions.setActive.isPending}
+              onChange={(active) => actions.setActive.mutate({ id: workflow.id, active })}
+            />
             <Button variant="outline" asChild>
               <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
                 <Activity className="h-4 w-4" />

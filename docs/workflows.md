@@ -36,6 +36,22 @@ of a published version.
     it. **Clear filter** returns the full list. A workflow shared with you shows
     under the same list once you have `workflows:view`.
 
+### Finding, naming and retiring a workflow { #finding-naming-and-retiring-a-workflow }
+
+Above the cards, a search finds a workflow by its name, description or tags, a tag
+filter narrows the list to one tag, and the order is the last edit, the name or the
+newest first. All of it is kept in the address, so a reload or a shared link shows
+the same list. In the editor, click the name to rename the workflow - its handle, the
+part API callers use, stays - and **+ Tag** files it under a tag.
+
+A published workflow whose trigger runs on its own - a webhook, a schedule or a new
+table record - has an **Active** switch in the editor's header, and its card says
+**Active** or **Paused**. Switching it off pauses the trigger at once; switching it
+on resumes it as its publisher, so it needs permission to run the workflow. A card's
+**...** menu archives a workflow, which pauses its trigger too. An archived one can
+be restored, still paused, or deleted with its versions, runs and shares; one whose
+runs have not ended is refused with `WORKFLOW_IN_USE`.
+
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
 The **canvas** is where a workflow's steps and connections appear, and it has the

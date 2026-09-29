@@ -20,14 +20,17 @@ surfaces that list what they can start.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowVersion
+from app.repositories import virtual_table_trigger as table_trigger_repo
 from app.repositories import workflow as workflow_repo
-from app.schemas.workflow_exposure import WorkflowExposureRead
+from app.repositories import workflow_exposure as workflow_exposure_repo
+from app.schemas.workflow_exposure import WorkflowExposureRead, WorkflowExposureUpdate
 from app.services.access import WORKFLOW, resolve_access
 from app.services.virtual_tables.triggers import TableTriggerService
 from app.services.workflow_exposure import WorkflowExposureService
@@ -106,6 +109,48 @@ class WorkflowTriggerSync:
             self.db, workflow=workflow, update_data={"live_trigger": trigger}
         )
         return SwitchedOn(trigger=trigger, exposure=exposure, webhook_secret=secret)
+
+    async def states(self, organization_id: UUID, workflow_ids: list[UUID]) -> dict[UUID, bool]:
+        """Whether each workflow's unattended trigger is on, for those that have one."""
+        states = await workflow_exposure_repo.active_by_workflow(
+            self.db, organization_id=organization_id, workflow_ids=workflow_ids
+        )
+        states.update(
+            await table_trigger_repo.active_by_workflow(
+                self.db, organization_id=organization_id, workflow_ids=workflow_ids
+            )
+        )
+        return states
+
+    async def set_active(self, ctx: AuthContext, workflow: Workflow, active: bool) -> None:
+        """Switch the live version's unattended trigger on or pause it.
+
+        The caller has been let edit and run the workflow: resumed, the trigger
+        runs as its publisher again.
+
+        Raises:
+            BadRequestError: The live version starts by hand, from an API call or
+                from chat, so there is nothing to switch.
+        """
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if exposure is not None:
+            await self.exposures.set_active(
+                ctx, workflow.id, exposure.id, WorkflowExposureUpdate(is_active=active)
+            )
+            return
+        if await self.tables.set_active_for_workflow(ctx, workflow, active) is None:
+            raise BadRequestError(
+                message="This workflow starts by hand, from an API call or from chat, "
+                "so it has no trigger to switch on or off",
+                details={"workflow_id": str(workflow.id)},
+            )
+
+    async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Pause whatever trigger the workflow has - what archiving it does."""
+        await self.exposures.pause(ctx, workflow)
+        await self.tables.set_active_for_workflow(ctx, workflow, False)
 
 
 __all__ = ["SwitchedOn", "WorkflowTriggerSync"]

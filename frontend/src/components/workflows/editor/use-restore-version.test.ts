@@ -65,6 +65,8 @@ function detail(revision: number, draft: WorkflowGraph | null = RESTORED): Workf
     owner_user_id: null,
     current_version_id: null,
     live_trigger: null,
+    tags: [],
+    trigger_active: null,
     draft_revision: revision,
     created_at: null,
     updated_at: null,

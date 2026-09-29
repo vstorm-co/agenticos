@@ -139,6 +139,12 @@ async def update(db: AsyncSession, *, workflow: Workflow, update_data: dict) -> 
     return workflow
 
 
+async def delete(db: AsyncSession, workflow: Workflow) -> None:
+    """Delete the workflow; its versions, runs, triggers and approvals go with it by cascade."""
+    await db.delete(workflow)
+    await db.flush()
+
+
 async def next_version_number(db: AsyncSession, *, workflow_id: UUID) -> int:
     """The next version number for a workflow, starting at 1."""
     current = await db.scalar(

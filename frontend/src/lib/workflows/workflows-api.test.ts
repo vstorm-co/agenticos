@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import {
+  archiveWorkflow,
   createWorkflow,
+  deleteWorkflow,
+  setWorkflowActive,
+  unarchiveWorkflow,
+  updateWorkflow,
   getNodeCatalog,
   getWorkflow,
   getWorkflowVersion,
@@ -18,7 +23,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
+    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   };
 });
 
@@ -112,5 +117,23 @@ describe("workflows-api", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf-1/versions/v-2/restore", {
       expected_revision: 3,
     });
+  });
+});
+
+describe("managing a workflow", () => {
+  it("renames, switches, archives, restores and deletes one", async () => {
+    await updateWorkflow("wf", { tags: ["a"] });
+    await setWorkflowActive("wf", false);
+    await archiveWorkflow("wf");
+    await unarchiveWorkflow("wf");
+    await deleteWorkflow("wf");
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/workflows/wf", { tags: ["a"] });
+    expect(apiClient.put).toHaveBeenCalledWith("/workflows/wf/active", { is_active: false });
+    expect(vi.mocked(apiClient.post).mock.calls).toEqual([
+      ["/workflows/wf/archive"],
+      ["/workflows/wf/unarchive"],
+    ]);
+    expect(apiClient.delete).toHaveBeenCalledWith("/workflows/wf");
   });
 });

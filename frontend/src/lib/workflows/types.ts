@@ -221,6 +221,13 @@ export interface WorkflowRead {
    * trigger (by hand) or was never published.
    */
   live_trigger: string | null;
+  /** Labels the workflow is filed under, lower case, each once. */
+  tags: string[];
+  /**
+   * Whether the published version's unattended trigger - a webhook, a schedule,
+   * a new table record - is on; null when it has none.
+   */
+  trigger_active: boolean | null;
   draft_revision: number;
   created_at: string | null;
   updated_at: string | null;
@@ -530,4 +537,11 @@ export interface WorkflowApprovalRead {
 export interface WorkflowApprovalList {
   items: WorkflowApprovalRead[];
   total: number;
+}
+
+/** Rename a workflow, describe it or tag it. An absent field is kept. Mirrors `WorkflowUpdate`. */
+export interface WorkflowUpdate {
+  name?: string;
+  description?: string | null;
+  tags?: string[];
 }

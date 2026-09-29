@@ -128,6 +128,7 @@ export {
   useWorkflowVersions,
   useWorkflows,
 } from "./use-workflows";
+export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowApprovals } from "./use-workflow-approvals";

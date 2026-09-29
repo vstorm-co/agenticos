@@ -38,6 +38,16 @@ REGISTRY_PATH = "app.services.workflow_registry"
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _no_live_triggers():
+    """The session here is a mock with no triggers to read: none of these workflows has one."""
+    with patch(
+        "app.services.workflow_registry.WorkflowTriggerSync.states",
+        new=AsyncMock(return_value={}),
+    ):
+        yield
+
+
 def _ctx(role: str = OrgRoleName.OWNER.value, *, org_id=None, user_id=None) -> AuthContext:
     return AuthContext(
         user_id=user_id or uuid.uuid4(), organization_id=org_id or uuid.uuid4(), role=role

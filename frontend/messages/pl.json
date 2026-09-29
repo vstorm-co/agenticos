@@ -942,7 +942,36 @@
       "liveRunTitle": "Test run",
       "liveRunSteps": "{count, plural, one {# krok gotowy} few {# kroki gotowe} many {# kroków gotowych} other {# kroku gotowego}}",
       "liveRunOpen": "Otwórz run",
-      "liveRunClose": "Ukryj run"
+      "liveRunClose": "Ukryj run",
+      "activeOn": "Aktywny",
+      "activeOff": "Wstrzymany",
+      "activeHintOn": "Jego wyzwalacz sam uruchamia przebiegi. Wyłącz, aby go wstrzymać.",
+      "activeHintOff": "Jego wyzwalacz jest wstrzymany. Włącz, aby znów uruchamiał przebiegi.",
+      "activeTurnedOn": "Workflow włączony.",
+      "activeTurnedOff": "Workflow wstrzymany.",
+      "renameHint": "Kliknij, aby zmienić nazwę",
+      "renameLabel": "Nazwa workflow",
+      "addTag": "Tag",
+      "tagPlaceholder": "Dodaj tag i naciśnij Enter",
+      "removeTag": "Usuń tag {tag}",
+      "archivedToast": "Workflow zarchiwizowany. Jego wyzwalacz jest wstrzymany.",
+      "restoredToast": "Workflow przywrócony.",
+      "deletedToast": "Workflow usunięty.",
+      "moreFor": "Więcej dla {name}",
+      "archive": "Archiwizuj",
+      "restore": "Przywróć",
+      "delete": "Usuń",
+      "deleteTitle": "Usunąć {name}?",
+      "deleteDescription": "Jego wersje, przebiegi i udostępnienia znikną razem z nim i nie da się tego cofnąć. Workflow z trwającymi przebiegami nie zostanie usunięty.",
+      "searchPlaceholder": "Szukaj workflow",
+      "filterByTag": "Filtruj po tagu",
+      "allTags": "Wszystkie tagi",
+      "sortBy": "Sortuj workflow",
+      "sort": {
+        "edited": "Ostatnio edytowane",
+        "name": "Nazwa",
+        "created": "Najnowsze"
+      }
     }
   },
   "rag": {

@@ -17,6 +17,7 @@ from app.api.deps import Auth, WorkflowRegistrySvc, require
 from app.core.permissions import Perm
 from app.schemas.workflow import (
     NodeCatalog,
+    WorkflowActiveUpdate,
     WorkflowCreate,
     WorkflowDetail,
     WorkflowDraftUpdate,
@@ -24,6 +25,7 @@ from app.schemas.workflow import (
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
+    WorkflowUpdate,
     WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRestore,
@@ -68,6 +70,49 @@ async def create_workflow(data: WorkflowCreate, service: WorkflowRegistrySvc, ct
 async def get_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
     """One workflow with the graph currently being edited."""
     return await service.get(ctx, workflow_id)
+
+
+@router.patch("/{workflow_id}", response_model=WorkflowDetail)
+async def update_workflow(
+    workflow_id: UUID, data: WorkflowUpdate, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """Rename a workflow, or change its description or tags. Its handle stays."""
+    return await service.update(ctx, workflow_id, data)
+
+
+@router.put("/{workflow_id}/active", response_model=WorkflowDetail)
+async def set_workflow_active(
+    workflow_id: UUID, data: WorkflowActiveUpdate, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """Switch on or pause the trigger the published version starts from on its own.
+
+    A webhook, a schedule or a new table record; `trigger_active` in the answer
+    says where it now stands. A version started by hand, over the API or from chat
+    has none, and is refused with `BAD_REQUEST`.
+    """
+    return await service.set_active(ctx, workflow_id, data.is_active)
+
+
+@router.post("/{workflow_id}/archive", response_model=WorkflowDetail)
+async def archive_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
+    """Retire a workflow, keeping its versions and runs, and pause its trigger."""
+    return await service.archive(ctx, workflow_id)
+
+
+@router.post("/{workflow_id}/unarchive", response_model=WorkflowDetail)
+async def unarchive_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
+    """Bring an archived workflow back. Its trigger stays paused until switched on."""
+    return await service.unarchive(ctx, workflow_id)
+
+
+@router.delete("/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_workflow(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> None:
+    """Permanently remove a workflow with its versions, runs and shares.
+
+    Refused with `WORKFLOW_IN_USE` (409) while one of its runs has not ended, or
+    when runs of another workflow were started by its runs.
+    """
+    await service.delete(ctx, workflow_id)
 
 
 @router.get("/{workflow_id}/versions", response_model=WorkflowVersionList)

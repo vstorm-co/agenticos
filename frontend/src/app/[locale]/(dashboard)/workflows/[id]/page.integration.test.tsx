@@ -20,7 +20,16 @@ import WorkflowEditorPage from "./page";
  * composition decision directly; the real store drives the seed effect.
  */
 
-const state = vi.hoisted(() => ({ canEdit: true, status: "draft" as string }));
+const state = vi.hoisted(() => ({
+  canEdit: true,
+  status: "draft" as string,
+  live: false,
+  triggerActive: null as boolean | null,
+}));
+const actions = vi.hoisted(() => ({
+  update: { mutate: vi.fn() },
+  setActive: { mutate: vi.fn(), isPending: false },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -38,6 +47,8 @@ const WORKFLOW: WorkflowDetail = {
   owner_user_id: null,
   current_version_id: null,
   live_trigger: null,
+  tags: [],
+  trigger_active: null,
   draft_revision: 3,
   created_at: null,
   updated_at: null,
@@ -53,6 +64,9 @@ vi.mock("@/hooks", () => ({
       ...WORKFLOW,
       status: state.status,
       can_edit: state.canEdit && state.status !== "archived",
+      current_version_id: state.live ? "v1" : null,
+      trigger_active: state.triggerActive,
+      tags: ["sales"],
     },
     isLoading: false,
     saveDraft: { mutateAsync: vi.fn() },
@@ -60,6 +74,7 @@ vi.mock("@/hooks", () => ({
     restore: { mutateAsync: vi.fn() },
   }),
   useNodeCatalog: () => ({ nodes: [] }),
+  useWorkflowActions: () => actions,
 }));
 
 vi.mock("@/components/workflows/canvas", () => ({
@@ -122,6 +137,9 @@ async function openHistory() {
 beforeEach(() => {
   state.canEdit = true;
   state.status = "draft";
+  state.live = false;
+  state.triggerActive = null;
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -190,5 +208,61 @@ describe("the workflow editor page permission gate", () => {
     await openHistory();
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
     expect(screen.queryByTestId("version-history")).not.toBeInTheDocument();
+  });
+});
+
+describe("the workflow editor page header", () => {
+  it("renames the workflow where its name stands, keeping the old one on Escape", async () => {
+    await renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "My Workflow" }));
+    const field = screen.getByRole("textbox", { name: "Workflow name" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "Lead intake{Enter}");
+    expect(actions.update.mutate).toHaveBeenCalledWith({
+      id: "w1",
+      update: { name: "Lead intake" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "My Workflow" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Workflow name" }), "x{Escape}");
+    expect(actions.update.mutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "My Workflow" })).toBeInTheDocument();
+  });
+
+  it("tags the workflow and takes a tag off", async () => {
+    await renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Remove tag sales" }));
+    expect(actions.update.mutate).toHaveBeenCalledWith({ id: "w1", update: { tags: [] } });
+
+    await userEvent.click(screen.getByRole("button", { name: "Tag" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Tag" }), "  Nightly {Enter}");
+    expect(actions.update.mutate).toHaveBeenLastCalledWith({
+      id: "w1",
+      update: { tags: ["sales", "nightly"] },
+    });
+  });
+
+  it("switches a live workflow's trigger from the header", async () => {
+    state.live = true;
+    state.triggerActive = true;
+    await renderPage();
+
+    await userEvent.click(await screen.findByRole("switch"));
+
+    expect(actions.setActive.mutate).toHaveBeenCalledWith({ id: "w1", active: false });
+  });
+
+  it("shows a reader the trigger's state without a switch, a name they cannot edit", async () => {
+    state.canEdit = false;
+    state.live = true;
+    state.triggerActive = false;
+    await renderPage();
+
+    expect(await screen.findByText("Paused")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "My Workflow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove tag sales" })).not.toBeInTheDocument();
   });
 });

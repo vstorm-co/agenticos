@@ -13,14 +13,24 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, AppException, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
+from app.db.updates import writable
+from app.repositories import resource_grant_repo
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import (
     NodeCatalog,
     NodeCatalogEntry,
@@ -32,6 +42,7 @@ from app.schemas.workflow import (
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
+    WorkflowUpdate,
     WorkflowVersionDetail,
     WorkflowVersionList,
     WorkflowVersionRead,
@@ -107,7 +118,15 @@ class WorkflowRevisionConflictError(AppException):
         )
 
 
-def _read(workflow: Workflow) -> WorkflowRead:
+class WorkflowInUseError(AppException):
+    """The workflow cannot be deleted while it is still in use (409). Nothing was removed."""
+
+    message = "This workflow is still in use"
+    code = "WORKFLOW_IN_USE"
+    status_code = 409
+
+
+def _read(workflow: Workflow, *, trigger_active: bool | None = None) -> WorkflowRead:
     return WorkflowRead(
         id=workflow.id,
         slug=workflow.slug,
@@ -118,6 +137,8 @@ def _read(workflow: Workflow) -> WorkflowRead:
         owner_user_id=workflow.owner_user_id,
         current_version_id=workflow.current_version_id,
         live_trigger=workflow.live_trigger,
+        tags=list(workflow.tags),
+        trigger_active=trigger_active,
         draft_revision=workflow.draft_revision,
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
@@ -186,9 +207,11 @@ def _parse_submitted_graph(raw: dict[str, Any]) -> WorkflowGraph:
     return derive_scopes(graph)
 
 
-def _detail(workflow: Workflow, *, can_edit: bool) -> WorkflowDetail:
+def _detail(
+    workflow: Workflow, *, can_edit: bool, trigger_active: bool | None = None
+) -> WorkflowDetail:
     return WorkflowDetail(
-        **_read(workflow).model_dump(),
+        **_read(workflow, trigger_active=trigger_active).model_dump(),
         draft_graph=_parse_draft_graph(workflow),
         can_edit=can_edit,
     )
@@ -381,7 +404,13 @@ class WorkflowRegistryService:
             skip=skip,
             limit=limit,
         )
-        return WorkflowList(items=[_read(item) for item in items], total=total)
+        states = await WorkflowTriggerSync(self.db).states(
+            ctx.organization_id, [item.id for item in items]
+        )
+        return WorkflowList(
+            items=[_read(item, trigger_active=states.get(item.id)) for item in items],
+            total=total,
+        )
 
     async def get(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowDetail:
         """One workflow, with the draft graph currently being edited."""
@@ -389,7 +418,160 @@ class WorkflowRegistryService:
         can_edit = workflow.status != WorkflowStatus.ARCHIVED.value and await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
         )
-        return _detail(workflow, can_edit=can_edit)
+        return await self._detail(workflow, can_edit=can_edit)
+
+    async def update(
+        self, ctx: AuthContext, workflow_id: UUID, data: WorkflowUpdate
+    ) -> WorkflowDetail:
+        """Rename the workflow, change its description or its tags. Its handle stays.
+
+        Raises:
+            NotFoundError: The workflow is out of reach, or this caller may not edit it.
+            WorkflowArchivedError: The workflow is archived.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        self._ensure_editable(workflow)
+        changes = writable(data, over=Workflow)
+        if data.tags is not None:
+            # In the order given, each once: `Sales` and `sales` are one tag.
+            changes["tags"] = list(dict.fromkeys(data.tags))
+        if not changes:
+            return await self._detail(workflow, can_edit=True)
+        updated = await workflow_repo.update(self.db, workflow=workflow, update_data=changes)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="workflow.updated",
+            target_type="workflow",
+            target_id=str(workflow.id),
+            details={"fields": sorted(changes)},
+        )
+        return await self._detail(updated, can_edit=True)
+
+    async def set_active(self, ctx: AuthContext, workflow_id: UUID, active: bool) -> WorkflowDetail:
+        """Switch the published version's unattended trigger on, or pause it.
+
+        Raises:
+            NotFoundError: The workflow is out of reach, or this caller may not edit it.
+            WorkflowArchivedError: The workflow is archived.
+            AuthorizationError: The caller may edit the workflow but not run it - the
+                trigger runs as its publisher, who must be able to.
+            BadRequestError: The live version has no trigger that runs unattended.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        self._ensure_editable(workflow)
+        if not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        ):
+            raise AuthorizationError(
+                message="This trigger runs as its publisher, so you need to be able to run it",
+                details={"workflow_id": str(workflow.id)},
+            )
+        await WorkflowTriggerSync(self.db).set_active(ctx, workflow, active)
+        return await self._detail(workflow, can_edit=True)
+
+    async def archive(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowDetail:
+        """Retire a workflow, keeping its versions and runs, and pause its trigger.
+
+        An archived workflow cannot be edited or run, so whatever started it on
+        its own - a webhook, a schedule, a new table record - is paused rather
+        than left to be refused on every delivery. Restoring it leaves the trigger
+        paused, for its owner to switch back on.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        if workflow.status == WorkflowStatus.ARCHIVED.value:
+            return await self._detail(workflow, can_edit=False)
+        await WorkflowTriggerSync(self.db).pause(ctx, workflow)
+        updated = await workflow_repo.update(
+            self.db, workflow=workflow, update_data={"status": WorkflowStatus.ARCHIVED.value}
+        )
+        await self._audit(ctx, workflow, "workflow.archived")
+        return await self._detail(updated, can_edit=False)
+
+    async def unarchive(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowDetail:
+        """Bring a retired workflow back: published if it has a version, else a draft.
+
+        Raises:
+            BadRequestError: The workflow is not archived.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        if workflow.status != WorkflowStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Workflow '{workflow.name}' is not archived",
+                details={"workflow_id": str(workflow.id), "status": workflow.status},
+            )
+        restored = (
+            WorkflowStatus.PUBLISHED.value
+            if workflow.current_version_id is not None
+            else WorkflowStatus.DRAFT.value
+        )
+        updated = await workflow_repo.update(
+            self.db, workflow=workflow, update_data={"status": restored}
+        )
+        await self._audit(ctx, workflow, "workflow.unarchived")
+        return await self._detail(updated, can_edit=True)
+
+    async def delete(self, ctx: AuthContext, workflow_id: UUID) -> None:
+        """Permanently remove a workflow, its versions, its runs and its shares.
+
+        Refused while one of its runs has not ended - it would be removed from under
+        a worker still running it - and when runs of another workflow were started
+        by its runs, whose chain would lose its start. Archiving keeps all of that.
+
+        Raises:
+            NotFoundError: The workflow is out of reach, or this caller may not edit it.
+            WorkflowInUseError: A run has not ended, or another workflow's runs
+                descend from this one's.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
+        unfinished = await workflow_run_repo.count_unfinished_runs(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if unfinished:
+            raise WorkflowInUseError(
+                message=f"{unfinished} of this workflow's runs have not ended. "
+                "Cancel them or let them finish, then delete it.",
+                details={"workflow_id": str(workflow.id), "unfinished_runs": unfinished},
+            )
+        await resource_grant_repo.delete_for_resource(
+            self.db,
+            organization_id=ctx.organization_id,
+            resource_type=WORKFLOW.key,
+            resource_id=workflow.id,
+        )
+        try:
+            async with self.db.begin_nested():
+                await workflow_repo.delete(self.db, workflow)
+        except IntegrityError:
+            raise WorkflowInUseError(
+                message="Runs of another workflow were started by this one's. Archive it instead.",
+                details={"workflow_id": str(workflow_id)},
+            ) from None
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="workflow.deleted",
+            target_type="workflow",
+            target_id=str(workflow_id),
+            details={"name": workflow.name},
+        )
+
+    async def _audit(self, ctx: AuthContext, workflow: Workflow, action: str) -> None:
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action=action,
+            target_type="workflow",
+            target_id=str(workflow.id),
+        )
+
+    async def _detail(self, workflow: Workflow, *, can_edit: bool) -> WorkflowDetail:
+        """The workflow as the editor reads it, with whether its trigger is on."""
+        states = await WorkflowTriggerSync(self.db).states(workflow.organization_id, [workflow.id])
+        return _detail(workflow, can_edit=can_edit, trigger_active=states.get(workflow.id))
 
     async def list_versions(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowVersionList:
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
@@ -472,7 +654,7 @@ class WorkflowRegistryService:
                 "draft_revision": workflow.draft_revision + 1,
             },
         )
-        return _detail(updated, can_edit=True)
+        return await self._detail(updated, can_edit=True)
 
     async def restore_version(
         self,
@@ -527,7 +709,7 @@ class WorkflowRegistryService:
             target_id=str(workflow.id),
             details={"version": version.version},
         )
-        return _detail(updated, can_edit=True)
+        return await self._detail(updated, can_edit=True)
 
     async def publish(
         self, ctx: AuthContext, workflow_id: UUID, data: WorkflowPublish
