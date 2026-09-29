@@ -54,6 +54,7 @@ const WORKFLOW = {
   description: null,
   status: "published",
   current_version_id: "v1",
+  live_trigger: "trigger.chat",
 };
 
 beforeEach(() => {

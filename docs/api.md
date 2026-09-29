@@ -97,9 +97,14 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 
 This starts a run of the workflow's published version and answers `201` at
 once; the nodes run in the background. `input` is what the graph's
-[`core.input`](reference/workflow-nodes.md#core-input) node hands on, at most
-`WORKFLOW_RUN_MAX_INPUT_BYTES` as JSON (`413` past it). `"mode": "test"` runs the current draft
-instead and needs `workflows:edit`. `deadline_seconds` (up to thirty days) sets
+[`core.input`](reference/workflow-nodes.md#core-input) trigger hands on, at most
+`WORKFLOW_RUN_MAX_INPUT_BYTES` as JSON (`413` past it). Only a version that starts
+from that trigger, or from none, is started here: any other answers `409
+WORKFLOW_TRIGGER_MISMATCH`, because a webhook, a schedule, a chat message or a
+table record starts it. `"mode": "test"` runs the current draft instead, from any
+trigger, and needs `workflows:edit`.
+
+`deadline_seconds` (up to thirty days) sets
 a deadline that is checked each time a node is about to be dispatched: the
 first node due after it passes fails the run with `DEADLINE_EXCEEDED`, while a
 node already running, or a run parked on an approval, is not interrupted by it. The route is rate-limited per caller like the agent run route,
@@ -133,12 +138,15 @@ allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks and schedules { #workflow-webhooks-and-schedules }
 
-`/api/v1/workflows/{id}/exposures` lists a workflow's webhooks and schedules,
-creates one (`POST`), changes one (`PATCH .../{exposure_id}`) and deletes one;
-`POST .../{exposure_id}/rotate-secret` replaces a webhook's secret. Setting one up
-needs `workflows:edit` and `workflows:run` on the workflow, because it runs as
-you. A webhook's `reveal_secret` is in the create and rotate responses only, and
-its `webhook_url` is where the sender delivers:
+A workflow whose trigger node is a webhook or a schedule gets its exposure when
+that version is published, and the publish response carries it as `exposure`. A
+webhook's signing secret is in the publish's `webhook_secret` the first time it is
+switched on, and nowhere else. `GET /api/v1/workflows/{id}/exposure` reads it back,
+or `null` for a workflow that starts another way. `PATCH
+.../exposures/{exposure_id}` with `{"is_active": false}` pauses it, and `POST
+.../exposures/{exposure_id}/rotate-secret` replaces a webhook's secret and returns
+the new one once. Both need `workflows:edit` and `workflows:run` on the workflow. A
+webhook's `webhook_url` is where the sender delivers:
 
 ```bash
 BODY='{"lead": 42}'
@@ -178,18 +186,11 @@ curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
 `expected_revision` required once it exists. `POST .../records/query` filters and
 sorts one page at a time.
 
-`POST .../triggers` runs a published workflow for every record added from then on,
-as you. `input_mapping` names what the run starts with: a column id, `@author` or
-`@record_id`. `GET .../triggers/{trigger_id}/admissions` lists what it decided about
-each record. See [Triggers](virtual-tables.md#triggers).
-
-```bash
-curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
-```
+A workflow whose trigger node is **New table record** runs for every record added
+to its table once it is published. `GET .../triggers` lists the workflows that
+start from a table, `PATCH .../triggers/{trigger_id}` with `{"is_active": false}`
+pauses one, and `GET .../triggers/{trigger_id}/admissions` lists what it decided
+about each record. See [Triggers](virtual-tables.md#triggers).
 
 ## The ML services
 

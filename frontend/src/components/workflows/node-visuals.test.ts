@@ -23,7 +23,8 @@ describe("nodeVisual", () => {
 
 describe("categoryRank", () => {
   it("orders groups the way a workflow reads, and an unknown one last", () => {
-    expect(categoryRank("core")).toBe(0);
+    expect(categoryRank("triggers")).toBe(0);
+    expect(categoryRank("core")).toBe(1);
     expect(categoryRank("tables")).toBeLessThan(categoryRank("error"));
     expect(categoryRank("files")).toBeLessThan(categoryRank("code"));
     expect(categoryRank("custom")).toBe(CATEGORY_ORDER.length);

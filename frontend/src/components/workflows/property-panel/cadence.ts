@@ -1,9 +1,9 @@
 import { type IntervalUnit, intervalToUnit, parseCron, unitToSeconds } from "@/lib/trigger-format";
-import type { WorkflowExposureRead, WorkflowExposureUpdate } from "@/lib/workflows/types";
 
 /**
- * The three ways the schedule form sets a cadence: every so often, daily at a
- * time, or a crontab for anything else. All evaluated in UTC by the server.
+ * The three ways the Schedule trigger's form sets a cadence: every so often,
+ * daily at a time, or a crontab for anything else. All evaluated in UTC by the
+ * server.
  */
 export type CadenceMode = "interval" | "daily" | "cron";
 
@@ -16,7 +16,14 @@ export interface CadenceDraft {
   cron: string;
 }
 
-/** A new schedule opens on "every hour" - often enough to see it work. */
+/** The cadence fields of `ScheduleTriggerConfig`, as the node's config stores them. */
+export interface CadenceConfig {
+  schedule_kind: "interval" | "cron";
+  interval_seconds: number | null;
+  cron_expression: string | null;
+}
+
+/** A new schedule opens on "every hour" - the node's own default. */
 export const DEFAULT_CADENCE: CadenceDraft = {
   mode: "interval",
   count: "1",
@@ -25,26 +32,24 @@ export const DEFAULT_CADENCE: CadenceDraft = {
   cron: "0 9 * * 1-5",
 };
 
-/** The form's cadence, seeded from a schedule that already exists. */
-export function cadenceDraftOf(exposure: WorkflowExposureRead): CadenceDraft {
-  if (exposure.schedule_kind === "cron" && exposure.cron_expression) {
-    const parsed = parseCron(exposure.cron_expression);
+/** The form's cadence, seeded from what the node's config holds. */
+export function cadenceDraftOf(config: Partial<CadenceConfig>): CadenceDraft {
+  if (config.schedule_kind === "cron" && config.cron_expression) {
+    const parsed = parseCron(config.cron_expression);
     if (parsed.freq === "daily") return { ...DEFAULT_CADENCE, mode: "daily", time: parsed.time };
-    return { ...DEFAULT_CADENCE, mode: "cron", cron: exposure.cron_expression };
+    return { ...DEFAULT_CADENCE, mode: "cron", cron: config.cron_expression };
   }
-  const { unit, count } = intervalToUnit(exposure.interval_seconds ?? 3600);
+  const { unit, count } = intervalToUnit(config.interval_seconds ?? 3600);
   return { ...DEFAULT_CADENCE, mode: "interval", unit, count: String(count) };
 }
 
 /**
- * What the draft sends, or null while it cannot be scheduled - a count under
- * a minute, a time that is not `HH:MM`, a crontab that is not five fields.
- * The server re-validates the crontab; this only keeps an obviously
- * unschedulable form from being submitted.
+ * What the draft writes into the node's config, or null while it cannot be
+ * scheduled - a count under a minute, a time that is not `HH:MM`, a crontab
+ * that is not five fields. Publishing re-validates the crontab; this only keeps
+ * an obviously unschedulable cadence out of the graph.
  */
-export function cadenceBody(
-  draft: CadenceDraft,
-): Pick<WorkflowExposureUpdate, "schedule_kind" | "interval_seconds" | "cron_expression"> | null {
+export function cadenceBody(draft: CadenceDraft): CadenceConfig | null {
   if (draft.mode === "interval") {
     const count = Number(draft.count);
     // A whole number of minutes at least - the server's floor, since its heartbeat

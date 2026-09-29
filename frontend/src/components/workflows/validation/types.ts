@@ -24,9 +24,10 @@ export type ValidationCode =
   | "binding-source-node-missing"
   // Resource resolution the client can mirror (no deployment scopes, no database).
   | "unknown-definition"
-  // Rule 1 — exactly one input.
+  // Rule 1 — exactly one input, and a trigger is it.
   | "entry-not-in-graph"
   | "entry-is-edge-target"
+  | "trigger-not-entry"
   // Rule 2 — reachable outputs.
   | "unreachable-node"
   // Rule 3 — type compatibility.
@@ -70,6 +71,7 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "unknown-definition": "validationUnknownDefinition",
   "entry-not-in-graph": "validationEntryNotInGraph",
   "entry-is-edge-target": "validationEntryIsEdgeTarget",
+  "trigger-not-entry": "validationTriggerNotEntry",
   "unreachable-node": "validationUnreachableNode",
   "edge-source-port-unknown": "validationEdgeSourcePortUnknown",
   "edge-target-port-unknown": "validationEdgeTargetPortUnknown",

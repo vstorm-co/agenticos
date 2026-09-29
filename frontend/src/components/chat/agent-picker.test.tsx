@@ -282,6 +282,7 @@ const workflow = (id: string, name: string, overrides: Partial<WorkflowRead> = {
     description: null,
     status: "published",
     current_version_id: "v1",
+    live_trigger: "trigger.chat",
     ...overrides,
   }) as WorkflowRead;
 
@@ -291,6 +292,8 @@ describe("workflows in the chat's picker", () => {
       workflow("w1", "Lead triage", { description: "Scores new leads." }),
       workflow("w2", "Drafted", { current_version_id: null }),
       workflow("w3", "Retired", { status: "archived" }),
+      // Live, but it starts from a webhook: the chat's door does not run it.
+      workflow("w4", "Inbound", { live_trigger: "trigger.webhook" }),
     ]);
     selectedWorkflowId.mockReturnValue(null);
     mayRun.mockReturnValue(true);
@@ -303,6 +306,7 @@ describe("workflows in the chat's picker", () => {
     expect(group.textContent).toContain("Scores new leads.");
     expect(group.textContent).not.toContain("Drafted");
     expect(group.textContent).not.toContain("Retired");
+    expect(group.textContent).not.toContain("Inbound");
     await userEvent.click(screen.getByRole("radio", { name: /Lead triage/ }));
     expect(selectWorkflow).toHaveBeenCalledWith("w1");
   });

@@ -6,6 +6,7 @@ import {
   Bot,
   Braces,
   Bug,
+  CalendarClock,
   CircleX,
   Code2,
   Download,
@@ -19,13 +20,16 @@ import {
   Globe,
   ImageIcon,
   Library,
+  MessageSquare,
   Play,
   Repeat,
   ScanText,
   ShieldAlert,
   Table2,
+  TableProperties,
   Terminal,
   Upload,
+  Webhook,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +60,10 @@ const TONE_CLASS: Record<NodeTone, string> = {
 
 const BY_ID: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
   "core.input": { icon: Play, tone: "neutral" },
+  "trigger.chat": { icon: MessageSquare, tone: "neutral" },
+  "trigger.webhook": { icon: Webhook, tone: "neutral" },
+  "trigger.schedule": { icon: CalendarClock, tone: "neutral" },
+  "trigger.table_record": { icon: TableProperties, tone: "neutral" },
   "core.output": { icon: Flag, tone: "neutral" },
   "logic.if": { icon: GitBranch, tone: "logic" },
   "logic.merge": { icon: GitMerge, tone: "logic" },
@@ -92,6 +100,7 @@ const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
 
 /** The order palette groups appear in: how a workflow reads, start to finish. */
 export const CATEGORY_ORDER = [
+  "triggers",
   "core",
   "agent",
   "knowledge",

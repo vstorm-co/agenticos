@@ -15,6 +15,7 @@ function insertAt(x: number, y: number): string {
     edge: null,
     bindings: [],
     becomesEntry: false,
+    replaces: null,
   });
   return id;
 }
@@ -46,6 +47,7 @@ function detail(revision: number): WorkflowDetail {
     visibility: "org",
     owner_user_id: null,
     current_version_id: null,
+    live_trigger: null,
     draft_revision: revision,
     created_at: null,
     updated_at: null,

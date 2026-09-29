@@ -1,17 +1,18 @@
 """`core.input` - registration and nothing else. See `_handler.py` and `README.md`."""
 
 from app.workflows._registry import register
-from app.workflows.contracts.definition import NodeDefinition, Port
+from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
 from app.workflows.contracts.io import WorkflowInputPayload
 from app.workflows.nodes.core_input._handler import handle
+from app.workflows.triggers import MANUAL
 
 register(
     NodeDefinition(
-        id="core.input",
+        id=MANUAL,
         version=1,
-        name="Input",
-        category="core",
-        description="Where the workflow starts: the payload the run was started with.",
+        name="Manual or API",
+        category=TRIGGER_CATEGORY,
+        description="Start by hand, from the API or over a WebSocket, with the payload you give.",
         kind="action",
         config_schema=None,
         input_schema=None,

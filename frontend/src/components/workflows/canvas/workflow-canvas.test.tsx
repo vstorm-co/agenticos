@@ -76,6 +76,7 @@ function workflow(): WorkflowDetail {
     visibility: "private",
     owner_user_id: null,
     current_version_id: null,
+    live_trigger: null,
     draft_revision: 0,
     created_at: null,
     updated_at: null,
@@ -419,6 +420,7 @@ describe("WorkflowCanvas", () => {
           edge: null,
           bindings: [],
           becomesEntry: false,
+          replaces: null,
         }),
       );
 

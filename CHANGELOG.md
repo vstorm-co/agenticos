@@ -27,16 +27,16 @@ Two things are versioned separately from this file and worth knowing about:
   scrolled into view, a trackpad or wheel pans the canvas while a pinch zooms,
   and steps added inside a loop now show in its body at once instead of only
   after a reload.
-- **A table can run a workflow for every record added to it.** A table's
-  **Triggers** sheet sets one up: a published workflow, pinned to the version
-  live at the time and run as the member who set it up, filters judged on the
-  record as it was created, and a mapping of columns, the record's author or its
-  id into the run's input. It starts for records added in the console, over the API, by
-  an agent or by another workflow, and only for those added while it is on. Each
-  record is decided once per trigger, and a trigger's history shows each
+- **A table can run a workflow for every record added to it.** A workflow
+  that starts from a **New table record** trigger runs, once published, for
+  every record added to its table that matches the trigger's filters as it was
+  created - in the console, over the API, by an agent or by another workflow -
+  as the member who published it, with the whole record as its input. Only
+  records added while it is on start it. Each record is decided once per
+  trigger, and the table's **Triggers** pauses each one and shows every
   decision without the record's values. A chain of runs writing into each
   other's tables stops at the first trigger it already passed, and a column a
-  trigger uses cannot be archived out from under it (#1785).
+  trigger filters on cannot be archived out from under it (#1785).
 - **Workflows can fetch, read, convert and hand on files, and run Python.** A
   file a step makes is stored as a file of its run and passed on as a `FileRef`,
   and a step reads one only if its own run made it or was started with it, so an
@@ -51,16 +51,18 @@ Two things are versioned separately from this file and worth knowing about:
   organization's sandbox host, reconnecting instead of restarting. `agent.run`
   shows bound images to the agent as pictures, and a run's page lists its files
   for download (#1791).
-- **A workflow can be started from outside the console, and answer in the
-  chat.** The editor's **Triggers** sheet shows how to start it from the HTTP API
-  and adds the two ways in that nobody stands at: a **webhook**, whose sender
-  signs each delivery with a secret shown once and names it with an
-  `X-Delivery-Id` so a retry never runs it twice, and a **schedule** - every so
-  often, daily at a time or on a cron expression, in UTC. Both are pinned to the
-  version that was live when they were made and run as the member who set them
-  up, checked afresh on every fire. `/api/v1/ws/workflow-runs` starts or follows
-  a run and streams its events, resuming from a cursor after a dropped
-  connection. The chat's picker of who answers lists published workflows too: a
+- **A workflow starts from a trigger on its canvas, and can answer in the
+  chat.** The palette's **Triggers** - **Manual or API**, **Chat message**,
+  **Webhook**, **Schedule** and **New table record** - are the first node of a
+  workflow, one per workflow, and **New workflow** starts from the one picked.
+  Publishing switches the trigger on and runs it as the publisher; the next
+  publish takes it over. A **webhook** gets an address and a signing secret,
+  shown once at that publish, and names each delivery with an `X-Delivery-Id`
+  so a retry never runs it twice; a **schedule** runs every so often, daily at
+  a time or on a cron expression, in UTC. The editor's **Trigger** sheet shows
+  the live one, pauses it and rotates a secret. `/api/v1/ws/workflow-runs`
+  starts or follows a run, resuming from a cursor after a dropped connection.
+  The chat's picker lists the workflows that start from a chat message: a
   message starts a run, and its status card and answer land in the thread, even
   if the chat was closed meanwhile (#1792).
 - **The workflow editor, its runs and the tables pages look and work like the

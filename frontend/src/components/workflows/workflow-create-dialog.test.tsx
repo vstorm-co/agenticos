@@ -17,24 +17,37 @@ function wrap(node: ReactNode) {
 }
 
 describe("WorkflowCreateDialog", () => {
-  it("offers a blank canvas and every shipped template", () => {
+  it("offers every way a workflow starts and every shipped template", () => {
     render(
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy={false} />),
     );
-    expect(screen.getByText("Blank workflow")).toBeInTheDocument();
+    for (const start of [
+      "Manual or API",
+      "Chat message",
+      "Webhook",
+      "Schedule",
+      "New table record",
+    ]) {
+      expect(screen.getByText(start)).toBeInTheDocument();
+    }
     // "Use" appears once per template.
     expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(WORKFLOW_TEMPLATES.length);
   });
 
-  it("chooses a blank draft with no seed graph", async () => {
+  it("starts a new workflow from the trigger chosen, as its entry and only node", async () => {
     const onChoose = vi.fn();
     render(
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={onChoose} busy={false} />),
     );
 
-    await userEvent.click(screen.getByText("Blank workflow"));
+    await userEvent.click(screen.getByText("Webhook"));
 
-    expect(onChoose).toHaveBeenCalledWith({ name: "Untitled workflow", graph: null });
+    const [{ name, graph }] = onChoose.mock.calls[0]!;
+    expect(name).toBe("Untitled workflow");
+    expect(graph.nodes).toEqual([
+      expect.objectContaining({ id: graph.entry_node_id, definition_id: "trigger.webhook" }),
+    ]);
+    expect([graph.edges, graph.bindings]).toEqual([[], []]);
   });
 
   it("chooses a template's seed graph", async () => {

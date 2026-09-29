@@ -1,5 +1,5 @@
 ---
-source_sha: "fe75fd081391"
+source_sha: "7e49be8b2876"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -30,14 +30,55 @@ Kilka zasad obowiązuje każdy węzeł:
   [polityka](#error-handling) węzła ustala, jak często jest ponawiany, jak długo
   może trwać wywołanie i dokąd trafia błąd.
 
-## core.input { #core-input }
+## Wyzwalacze { #triggers }
 
-Miejsce, w którym workflow się zaczyna. Przekazuje grafowi wejście runa jako
-`payload`, cokolwiek dostarczyła wywołująca powierzchnia, i nazywa tę
-powierzchnię w `triggered_by`. Wejście jest zamrażane przy przyjęciu runa i ma
-najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES`.
+Workflow startuje od jednego wyzwalacza, węzła, od którego zaczyna się jego graf.
+Publikacja wersji włącza jej wyzwalacz; zobacz
+[Uruchamianie workflow spoza konsoli](../workflows.md#starting-a-workflow-from-outside-the-console).
+Każdy wyzwalacz przekazuje kolejnym krokom to, od czego jego powierzchnia uruchomiła
+run, zamrożone przy przyjęciu runa i najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES`. Run
+testowy uruchomiony z wejściem innego kształtu kończy wyzwalacz błędem
+`TRIGGER_INPUT_INVALID`. Drugi wyzwalacz albo wyzwalacz, od którego graf się nie
+zaczyna, jest odrzucany przy publikacji.
+
+### core.input { #core-input }
+
+**Manual or API.** Uruchamiany ręcznie, przez API albo przez WebSocket. Przekazuje
+grafowi wejście runa jako `payload`, cokolwiek wysłał wywołujący, i nazywa
+powierzchnię w `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+### trigger.chat { #trigger-chat }
+
+**Chat message.** Uruchamiany wiadomością na czacie, gdy ten workflow wybrano do
+odpowiedzi. Tekst jego `core.output` trafia z powrotem do tej rozmowy.
+
+::: app.workflows.nodes._triggers.ChatTriggerOutput
+
+### trigger.webhook { #trigger-webhook }
+
+**Webhook.** Uruchamiany podpisanym dostarczeniem na własny adres workflow, który
+pierwsza publikacja węzła tworzy razem z sekretem do podpisu.
+
+::: app.workflows.nodes._triggers.WebhookTriggerOutput
+
+### trigger.schedule { #trigger-schedule }
+
+**Schedule.** Uruchamiany według zegara, w UTC i najczęściej raz na minutę.
+
+::: app.workflows.nodes._triggers.ScheduleTriggerConfig
+
+::: app.workflows.nodes._triggers.ScheduleTriggerOutput
+
+### trigger.table_record { #trigger-table-record }
+
+**New table record.** Uruchamiany rekordem dodanym do jego tabeli, który pasuje do
+każdego filtra w chwili dodania. Publikacja wymaga dostępu do odczytu tabeli.
+
+::: app.workflows.nodes._triggers.TableRecordTriggerConfig
+
+::: app.workflows.nodes._triggers.TableRecordTriggerOutput
 
 ## core.output { #core-output }
 

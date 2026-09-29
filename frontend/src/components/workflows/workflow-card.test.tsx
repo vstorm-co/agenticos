@@ -16,6 +16,7 @@ function workflow(overrides: Partial<WorkflowRead> = {}): WorkflowRead {
     visibility: "org",
     owner_user_id: null,
     current_version_id: "v1",
+    live_trigger: "core.input",
     draft_revision: 3,
     created_at: null,
     updated_at: "2026-09-01T10:00:00Z",

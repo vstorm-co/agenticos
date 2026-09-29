@@ -14,7 +14,7 @@ import {
   VersionHistory,
   useRestoreVersion,
 } from "@/components/workflows/editor";
-import { ExposuresPanel } from "@/components/workflows/exposures";
+import { TriggerPanel } from "@/components/workflows/triggers";
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
 import {
@@ -81,6 +81,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const canEdit = workflow?.can_edit === true;
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
+  const draft = useWorkflowEditorStore((state) => state.graph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
   const seededId = useRef<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -190,8 +191,10 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             <SheetClose onClick={() => setTriggersOpen(false)} />
           </SheetHeader>
           <div className="p-4">
-            {/* Mounted with the sheet, so the list is read only when someone looks. */}
-            {triggersOpen && <ExposuresPanel workflow={workflow} canEdit={canEdit} />}
+            {/* Mounted with the sheet, so its state is read only when someone looks. */}
+            {triggersOpen && (
+              <TriggerPanel workflow={workflow} draft={draft} catalog={nodes} canEdit={canEdit} />
+            )}
           </div>
         </SheetContent>
       </Sheet>

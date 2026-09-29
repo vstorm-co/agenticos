@@ -99,6 +99,12 @@ class Workflow(Base, TimestampMixin):
         # need deferred constraints on both inserts and deletes for no benefit.
         nullable=True,
     )
+    # The `definition_id` of the trigger the current version starts from -
+    # `core.input`, `trigger.chat`, `trigger.webhook`... - or null for a version
+    # whose entry is no trigger, which starts by hand. Written on publish beside
+    # `current_version_id`, so a surface listing the workflows it can start
+    # (the chat's picker) filters on a column rather than parsing every graph.
+    live_trigger: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

@@ -12,6 +12,7 @@ import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import { usePermissions, useWorkflow, useWorkflowRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { sampleRunInput, startsByHand } from "@/lib/workflows/triggers";
 import { formatDateTime, formatRunDuration } from "@/lib/utils";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
@@ -36,7 +37,12 @@ export default function WorkflowRunsPage({ params }: PageProps) {
   const { can } = usePermissions();
   const [startOpen, setStartOpen] = useState(false);
   const canTest = can(Perm.workflowsEdit) && workflow?.status !== "archived";
-  const canRunLive = can(Perm.workflowsRun) && workflow?.current_version_id != null;
+  // Only a version that starts by hand is started from here: every other
+  // trigger has its own surface, and the server refuses this door for it.
+  const canRunLive =
+    can(Perm.workflowsRun) &&
+    workflow?.current_version_id != null &&
+    startsByHand(workflow.live_trigger);
 
   const columns: Column<WorkflowRunRead>[] = [
     {
@@ -114,6 +120,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           canRunLive={canRunLive}
           canTest={canTest}
           busy={start.isPending}
+          sampleInput={sampleRunInput(workflow?.draft_graph ?? null)}
           onStart={({ mode, input }) =>
             start.mutate(
               { workflow_id: id, mode, input },

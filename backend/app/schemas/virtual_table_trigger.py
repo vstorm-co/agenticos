@@ -3,61 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
-
-from pydantic import Field, field_validator
 
 from app.db.models.virtual_table_trigger import AdmissionStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.virtual_table import RecordFilter
 
 MAX_FILTERS = 20
-MAX_MAPPING_KEYS = 50
-
-
-def _distinct_keys(value: Any) -> Any:
-    """Refuse two mapping keys that are the same once trimmed.
-
-    The schema trims every string, dictionary keys included, so `"email"` and
-    `" email"` would otherwise collapse into one key and silently drop a source.
-    """
-    if isinstance(value, dict):
-        trimmed = [str(key).strip() for key in value]
-        if len(trimmed) != len(set(trimmed)):
-            raise ValueError("Two mapping keys are the same once spaces are trimmed")
-    return value
-
-
-class TableTriggerCreate(BaseSchema):
-    """A trigger on the table in the path, running the workflow's live version as you.
-
-    Every filter must hold on the record as it was created. Each `input_mapping`
-    key becomes a key of the run's `payload`, taking a column's value (by column
-    id), the record's author (`@author`) or the record's own id (`@record_id`).
-    """
-
-    workflow_id: UUID
-    name: str | None = Field(default=None, max_length=120)
-    filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
-    input_mapping: dict[str, str] = Field(default_factory=dict, max_length=MAX_MAPPING_KEYS)
-
-    _distinct = field_validator("input_mapping", mode="before")(_distinct_keys)
 
 
 class TableTriggerUpdate(BaseSchema):
-    """Rename, switch on or off, re-filter, re-map, or move to the live version.
+    """Pause or resume a trigger. Its table, filters and version are its workflow's
+    trigger node, which a publish switches on; it keeps running as the publisher."""
 
-    The trigger runs as you from then on.
-    """
-
-    name: str | None = Field(default=None, max_length=120)
-    is_active: bool | None = None
-    filters: list[RecordFilter] | None = Field(default=None, max_length=MAX_FILTERS)
-    input_mapping: dict[str, str] | None = Field(default=None, max_length=MAX_MAPPING_KEYS)
-    pin_current_version: bool = False
-
-    _distinct = field_validator("input_mapping", mode="before")(_distinct_keys)
+    is_active: bool
 
 
 class TableTriggerRead(BaseSchema, TimestampSchema):
@@ -67,10 +26,9 @@ class TableTriggerRead(BaseSchema, TimestampSchema):
     workflow_name: str
     workflow_version_id: UUID
     version_number: int
-    name: str | None
+    node_instance_id: UUID
     revision: int
     filters: list[RecordFilter]
-    input_mapping: dict[str, str]
     execution_principal_user_id: UUID | None
     is_active: bool
     activated_at: datetime | None

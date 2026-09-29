@@ -28,6 +28,8 @@ interface StartRunDialogProps {
   /** Whether this caller may test the draft (`workflows:edit`). */
   canTest: boolean;
   busy?: boolean;
+  /** What the input starts as - the draft's trigger's shape, for a test run. */
+  sampleInput?: Record<string, unknown>;
   onStart: (start: { mode: "real" | "test"; input: Record<string, unknown> }) => void;
 }
 
@@ -46,8 +48,8 @@ export function parseRunInput(text: string): Record<string, unknown> | string {
 /**
  * Start a run by hand - of the draft, to try it, or of the published version.
  *
- * The input is what `core.input` hands the graph as `payload`: a JSON object,
- * typed here the way an API caller would send it.
+ * The input is what the trigger hands the graph: a JSON object, typed here the
+ * way an API caller would send it, and prefilled in the draft trigger's shape.
  */
 export function StartRunDialog({
   open,
@@ -55,11 +57,14 @@ export function StartRunDialog({
   canRunLive,
   canTest,
   busy,
+  sampleInput = {},
   onStart,
 }: StartRunDialogProps) {
   const t = useTranslations("pages.workflows");
   const [mode, setMode] = useState<"real" | "test">(canTest ? "test" : "real");
-  const [text, setText] = useState("{\n  \n}");
+  const [text, setText] = useState(() =>
+    Object.keys(sampleInput).length > 0 ? JSON.stringify(sampleInput, null, 2) : "{\n  \n}",
+  );
   const parsed = parseRunInput(text);
   const invalid = typeof parsed === "string";
 

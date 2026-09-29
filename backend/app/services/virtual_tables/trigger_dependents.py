@@ -25,13 +25,12 @@ async def table_trigger_dependents(
     column_ids: frozenset[UUID] | None,
     caller: AuthContext,
 ) -> list[Dependent]:
-    """Triggers that filter or map on a column being archived - switched off ones
-    too, which would otherwise come back on filtering on a column that is gone.
+    """Triggers that filter on a column being archived - paused ones too, which
+    would otherwise come back on filtering on a column that is gone.
 
     Archiving the whole table is not refused: its triggers fire on nothing once
-    it takes no writes, and deleting them is a separate decision. Every trigger
-    is the caller's to fix, since `tables:edit` on the table is what changing or
-    removing one takes.
+    it takes no writes. A trigger is fixed in its workflow - the trigger node's
+    filters, then a publish - and is named here so the caller knows which.
     """
     if column_ids is None:
         return []
@@ -41,8 +40,7 @@ async def table_trigger_dependents(
         db, table_id=table_id, organization_id=organization_id
     ):
         filtered = {str(item.get("column_id")) for item in trigger.filters}
-        mapped = set(trigger.input_mapping.values())
-        if named & (filtered | mapped):
+        if named & filtered:
             found.append(Dependent(kind="table_trigger", id=trigger.id))
     return found
 

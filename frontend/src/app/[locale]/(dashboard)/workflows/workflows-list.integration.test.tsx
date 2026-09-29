@@ -61,6 +61,7 @@ function workflow(name: string, status: WorkflowRead["status"]): WorkflowRead {
     visibility: "private",
     owner_user_id: "u1",
     current_version_id: status === "published" ? "v1" : null,
+    live_trigger: null,
     draft_revision: 0,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-01T00:00:00Z",
@@ -143,13 +144,13 @@ describe("the workflows list", () => {
     expect(apiClient.get).not.toHaveBeenCalledWith("/workflows");
   });
 
-  it("opens the blank/template dialog from New workflow", async () => {
+  it("opens the start/template dialog from New workflow", async () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByText("Live");
 
     await userEvent.click(screen.getByRole("button", { name: "New workflow" }));
 
-    expect(await screen.findByText("Blank workflow")).toBeInTheDocument();
+    expect(await screen.findByText("How does it start?")).toBeInTheDocument();
     expect(screen.getByText("Two-step sequence")).toBeInTheDocument();
   });
 });

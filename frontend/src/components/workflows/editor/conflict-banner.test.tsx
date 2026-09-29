@@ -55,6 +55,7 @@ function serverDetail(): WorkflowDetail {
     visibility: "org",
     owner_user_id: null,
     current_version_id: null,
+    live_trigger: null,
     draft_revision: 12,
     created_at: null,
     updated_at: null,

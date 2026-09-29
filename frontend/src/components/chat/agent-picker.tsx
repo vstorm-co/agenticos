@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useAgents, usePermissions, useWorkflows } from "@/hooks";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
+import { CHAT_TRIGGER } from "@/lib/workflows/triggers";
 import type { WorkflowRead } from "@/lib/workflows/types";
 import type { Agent } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -21,9 +22,14 @@ import { Perm } from "@/types/permissions";
  */
 const isRunnable = (agent: Agent): boolean => agent.status === "published";
 
-/** A workflow the chat can hand a message to: one with a live version to run. */
+/**
+ * A workflow the chat can hand a message to: one whose live version starts from
+ * a chat message - the only trigger the chat's door runs.
+ */
 export const isChattable = (workflow: WorkflowRead): boolean =>
-  workflow.current_version_id !== null && workflow.status !== "archived";
+  workflow.current_version_id !== null &&
+  workflow.status !== "archived" &&
+  workflow.live_trigger === CHAT_TRIGGER;
 
 /**
  * Who answers, as its own control beside the composer.

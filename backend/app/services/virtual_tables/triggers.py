@@ -1,10 +1,10 @@
 """`TableTriggerService` - run a workflow when a record is added (#1785).
 
-Setting one up needs `tables:edit` on the table and `workflows:run` on the
-workflow, because it runs as the member doing it: whoever creates or changes a
-trigger becomes the one its runs act as, and nobody can name someone else. The
-workflow's live version is pinned when the trigger is made, and moves only when
-asked.
+A workflow whose trigger node is `trigger.table_record` is subscribed to its
+table when a version is published (`app.services.workflow_triggers`): the
+trigger runs that version as the member who published it, and nobody can name
+someone else. A later publish moves it to the new version. Pausing and resuming
+from the table need `tables:edit`.
 
 Switching a trigger on takes the table's schema lock, the one record writes
 wait on, before stamping `activated_at`. A write that started before the switch
@@ -30,7 +30,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import (
     VirtualTable,
@@ -53,7 +53,6 @@ from app.schemas.virtual_table import ColumnDef, RecordFilter
 from app.schemas.virtual_table_trigger import (
     TableTriggerAdmissionList,
     TableTriggerAdmissionRead,
-    TableTriggerCreate,
     TableTriggerList,
     TableTriggerRead,
     TableTriggerUpdate,
@@ -63,20 +62,12 @@ from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
-    WorkflowNotRunnableError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_execution.facade import Causation, WorkflowExecutionService
+from app.workflows.nodes._triggers import TableRecordTriggerConfig, TableRecordTriggerOutput
 
 logger = logging.getLogger(__name__)
-
-AUTHOR = "@author"
-"""The mapping source naming the record's author - not a column."""
-
-RECORD_ID = "@record_id"
-"""The mapping source naming the record itself, for a run that changes it back."""
-
-_BUILT_IN_SOURCES = frozenset({AUTHOR, RECORD_ID})
 
 MAX_DEPTH = 5
 """How many table triggers deep one chain of runs may go before the next is blocked."""
@@ -146,106 +137,104 @@ class TableTriggerService(Operations):
         )
         return TableTriggerList(items=[await self._trigger_read(trigger) for trigger in triggers])
 
-    async def create(
-        self, ctx: AuthContext, table_id: UUID, data: TableTriggerCreate
-    ) -> TableTriggerRead:
-        """A trigger on the table, pinned to the workflow's live version, switched on.
+    async def switch_on(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        node_id: UUID,
+        config: TableRecordTriggerConfig,
+    ) -> VirtualTableTrigger:
+        """Subscribe a version just published to its table's new records, as its publisher.
+
+        The row the same node had on the same table takes the new version and
+        filters over, as a new revision; a trigger on another table or node is
+        replaced. Switching one on - new, or paused until now - stamps
+        `activated_at` under the table's schema lock, so no record added before
+        this publish starts it.
 
         Raises:
-            NotFoundError: The table or the workflow is out of reach.
-            AuthorizationError: The caller may edit the table but not run the workflow.
-            WorkflowNotRunnableError: The workflow has never been published.
-            BadRequestError: A filter or a mapping names something the table lacks.
+            NotFoundError: The table is out of reach.
+            TableArchivedError: The table is archived.
+            BadRequestError: A filter names no live column or misfits its type.
         """
-        # Locked: the same lock a record write waits on, so `activated_at` is a
-        # boundary no write can straddle.
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        table = await self._load_table(ctx, config.table.table_id, Perm.TABLES_VIEW, lock=True)
         self._ensure_live(table)
-        workflow = await self._runnable_workflow(ctx, data.workflow_id)
-        if workflow.current_version_id is None:
-            raise WorkflowNotRunnableError(workflow_id=workflow.id)
-        columns = await self._columns(table)
-        filters = _checked_filters(columns, data.filters)
-        mapping = _checked_mapping(columns, data.input_mapping)
-        trigger = await trigger_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            table_id=table.id,
-            workflow_id=workflow.id,
-            workflow_version_id=workflow.current_version_id,
-            name=data.name,
-            revision=1,
-            filters=filters,
-            input_mapping=mapping,
-            execution_principal_user_id=ctx.subject_id,
-            is_active=True,
-            activated_at=trigger_repo.activation_time(),
+        filters = _checked_filters(await self._columns(table), config.filters)
+        trigger = await trigger_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
+        if trigger is not None and (trigger.node_instance_id, trigger.table_id) != (
+            node_id,
+            table.id,
+        ):
+            await self._remove(ctx, trigger)
+            trigger = None
+        if trigger is None:
+            trigger = await trigger_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                table_id=table.id,
+                workflow_id=workflow.id,
+                workflow_version_id=version.id,
+                node_instance_id=node_id,
+                revision=1,
+                filters=filters,
+                execution_principal_user_id=ctx.subject_id,
+                is_active=True,
+                activated_at=trigger_repo.activation_time(),
+            )
+            await trigger_repo.add_revision(self.db, trigger=trigger)
+            await self._audit(ctx, trigger, "table.trigger_created")
+            return trigger
+        changes: dict[str, Any] = {
+            "workflow_version_id": version.id,
+            "filters": filters,
+            "execution_principal_user_id": ctx.subject_id,
+            "revision": trigger.revision + 1,
+            "is_active": True,
+        }
+        if not trigger.is_active:
+            changes["activated_at"] = trigger_repo.activation_time()
+        trigger = await trigger_repo.update(self.db, trigger=trigger, update_data=changes)
         await trigger_repo.add_revision(self.db, trigger=trigger)
-        await self._audit(ctx, trigger, "table.trigger_created")
-        return await self._trigger_read(trigger)
+        await self._audit(ctx, trigger, "table.trigger_updated")
+        return trigger
 
-    async def update(
+    async def switch_off(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Remove the workflow's table trigger: its live version starts some other way.
+
+        Runs it already started keep going.
+        """
+        trigger = await trigger_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if trigger is not None:
+            await self._remove(ctx, trigger)
+
+    async def set_active(
         self, ctx: AuthContext, table_id: UUID, trigger_id: UUID, data: TableTriggerUpdate
     ) -> TableTriggerRead:
-        """Change a trigger; it runs as the caller from then on.
+        """Pause or resume a trigger; it keeps running as whoever published it.
 
-        Switching it back on stamps a new `activated_at`, so the records added
-        while it was off never start it.
-
-        Raises:
-            NotFoundError: The table, the trigger or its workflow is out of reach.
-            AuthorizationError: The caller may edit the table but not run the workflow.
-            WorkflowNotRunnableError: `pin_current_version` with nothing published.
-            BadRequestError: A filter or a mapping names something the table lacks.
-        """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
-        self._ensure_live(table)
-        trigger = await self._trigger(ctx, table.id, trigger_id)
-        workflow = await self._runnable_workflow(ctx, trigger.workflow_id)
-        columns = await self._columns(table)
-        changes: dict[str, Any] = {"execution_principal_user_id": ctx.subject_id}
-        if "name" in data.model_fields_set:
-            changes["name"] = data.name
-        if data.filters is not None:
-            changes["filters"] = _checked_filters(columns, data.filters)
-        if data.input_mapping is not None:
-            changes["input_mapping"] = _checked_mapping(columns, data.input_mapping)
-        if data.pin_current_version:
-            if workflow.current_version_id is None:
-                raise WorkflowNotRunnableError(workflow_id=workflow.id)
-            changes["workflow_version_id"] = workflow.current_version_id
-        if data.is_active is not None:
-            changes["is_active"] = data.is_active
-            if data.is_active and not trigger.is_active:
-                changes["activated_at"] = trigger_repo.activation_time()
-        configured = {"filters", "input_mapping", "workflow_version_id"} & set(changes)
-        if (
-            configured
-            or changes["execution_principal_user_id"] != trigger.execution_principal_user_id
-        ):
-            changes["revision"] = trigger.revision + 1
-        trigger = await trigger_repo.update(self.db, trigger=trigger, update_data=changes)
-        if "revision" in changes:
-            await trigger_repo.add_revision(self.db, trigger=trigger)
-        await self._audit(
-            ctx,
-            trigger,
-            "table.trigger_updated",
-            changed=sorted(key for key in changes if key != "execution_principal_user_id"),
-        )
-        return await self._trigger_read(trigger)
-
-    async def delete(self, ctx: AuthContext, table_id: UUID, trigger_id: UUID) -> None:
-        """Remove a trigger. Runs it already started keep going.
+        Resuming stamps a new `activated_at`, so the records added while it was
+        paused never start it.
 
         Raises:
             NotFoundError: The table or the trigger is out of reach.
+            TableArchivedError: The table is archived.
         """
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        self._ensure_live(table)
         trigger = await self._trigger(ctx, table.id, trigger_id)
-        await self._audit(ctx, trigger, "table.trigger_deleted")
-        await trigger_repo.delete(self.db, trigger=trigger)
+        changes: dict[str, Any] = {"is_active": data.is_active}
+        if data.is_active and not trigger.is_active:
+            changes["activated_at"] = trigger_repo.activation_time()
+        trigger = await trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        await self._audit(
+            ctx, trigger, "table.trigger_resumed" if data.is_active else "table.trigger_paused"
+        )
+        return await self._trigger_read(trigger)
 
     async def admissions(
         self, ctx: AuthContext, table_id: UUID, trigger_id: UUID, *, skip: int, limit: int
@@ -272,24 +261,9 @@ class TableTriggerService(Operations):
             )
         return trigger
 
-    async def _runnable_workflow(self, ctx: AuthContext, workflow_id: UUID) -> Workflow:
-        workflow = await workflow_repo.get(
-            self.db, workflow_id, organization_id=ctx.organization_id
-        )
-        if workflow is None or not await resolve_access(
-            self.db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
-        ):
-            raise NotFoundError(
-                message="Workflow not found", details={"workflow_id": str(workflow_id)}
-            )
-        if workflow.status == WorkflowStatus.ARCHIVED.value or not await resolve_access(
-            self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
-        ):
-            raise AuthorizationError(
-                message="A trigger runs as you, so you need to be able to run its workflow",
-                details={"workflow_id": str(workflow_id)},
-            )
-        return workflow
+    async def _remove(self, ctx: AuthContext, trigger: VirtualTableTrigger) -> None:
+        await self._audit(ctx, trigger, "table.trigger_deleted")
+        await trigger_repo.delete(self.db, trigger=trigger)
 
     async def _trigger_read(self, trigger: VirtualTableTrigger) -> TableTriggerRead:
         workflow = await workflow_repo.get(
@@ -305,10 +279,9 @@ class TableTriggerService(Operations):
             workflow_name=workflow.name if workflow is not None else "",
             workflow_version_id=trigger.workflow_version_id,
             version_number=version.version if version is not None else 0,
-            name=trigger.name,
+            node_instance_id=trigger.node_instance_id,
             revision=trigger.revision,
             filters=[RecordFilter.model_validate(item) for item in trigger.filters],
-            input_mapping=trigger.input_mapping,
             execution_principal_user_id=trigger.execution_principal_user_id,
             is_active=trigger.is_active,
             activated_at=trigger.activated_at,
@@ -355,28 +328,6 @@ def _checked_filters(columns: list[ColumnDef], filters: list[RecordFilter]) -> l
             RecordFilter(column_id=column.id, op=condition.op, value=value).model_dump(mode="json")
         )
     return stored
-
-
-def _checked_mapping(columns: list[ColumnDef], mapping: dict[str, str]) -> dict[str, str]:
-    """The mapping with its keys trimmed, refused when a key is blank or a source is
-    neither a live column nor one of `@author` and `@record_id`. Two keys that are the
-    same once trimmed are refused by the request schema, before they collapse."""
-    live = {str(column.id) for column in columns if not column.archived}
-    checked: dict[str, str] = {}
-    for raw, source in mapping.items():
-        key = raw.strip()
-        if not key or len(key) > 64:
-            raise BadRequestError(
-                message="A mapping key must be 1 to 64 characters",
-                details={"field": "input_mapping"},
-            )
-        if source not in _BUILT_IN_SOURCES and source not in live:
-            raise BadRequestError(
-                message=f"'{key}' takes its value from a column this table does not have",
-                details={"field": f"input_mapping.{key}"},
-            )
-        checked[key] = source
-    return checked
 
 
 class TableTriggerConsumer:
@@ -505,14 +456,17 @@ class TableTriggerConsumer:
         ):
             await record(AdmissionStatus.BLOCKED, AdmissionReason.QUOTA)
             return None
-        built_in = {
-            AUTHOR: str(snapshot.actor_user_id) if snapshot.actor_user_id else None,
-            RECORD_ID: str(event.record_id),
-        }
-        payload = {
-            key: built_in[source] if source in built_in else values.get(source)
-            for key, source in trigger.input_mapping.items()
-        }
+        payload = TableRecordTriggerOutput(
+            table_id=table.id,
+            record_id=event.record_id,
+            values=values,
+            fields={
+                column.label: values[str(column.id)]
+                for column in columns.values()
+                if not column.archived and str(column.id) in values
+            },
+            author_id=snapshot.actor_user_id,
+        ).model_dump(mode="json")
         causation = Causation(
             root_run_id=causing.root_run_id if causing is not None else None,
             causation_run_id=causing.id if causing is not None else None,

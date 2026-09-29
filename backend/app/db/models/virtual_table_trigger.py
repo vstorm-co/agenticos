@@ -2,17 +2,18 @@
 
 Record writes already leave a `VirtualTableOutbox` row in the transaction that
 creates the record - whichever surface wrote it: the console, the API, an agent's
-table tool or a workflow's table step. A trigger is what reads those rows. It
-names a table and a published workflow version, filters on the record as it was
-created, maps its values onto the run's input, and runs as the member who set it
-up. The record's author is only ever data the run can read, never whose
-authority it runs with.
+table tool or a workflow's table step. A trigger is what reads those rows: the
+live form of a workflow's `trigger.table_record` node, written when a version
+with one is published (`app.services.workflow_triggers`). It names a table and
+the published version, filters on the record as it was created, hands the run
+the whole record, and runs as the member who published it. The record's author
+is only ever data the run can read, never whose authority it runs with.
 
 `activated_at` is the subscription boundary. A record committed before the
 trigger was switched on - or while it was off - never starts it, which is what
 keeps activation from replaying a backlog.
 
-Every configuration write keeps an immutable `VirtualTableTriggerRevision`, and
+Every publish that changes it keeps an immutable `VirtualTableTriggerRevision`, and
 every event a trigger judged keeps a `TableTriggerAdmission`: queued (a run),
 filtered, blocked or failed, with a coarse reason and never the record's data.
 `(trigger_id, outbox_event_id)` is unique, which is what makes each event admit
@@ -82,20 +83,18 @@ class VirtualTableTrigger(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("workflows.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     workflow_version_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("workflow_versions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # The trigger node this row switches on; another node replaces the row.
+    node_instance_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # `RecordFilter`s by column id, all of which must hold on the creation snapshot.
     filters: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
-    # Payload key -> a column id, `@author` for the record's creator or `@record_id`.
-    input_mapping: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, default=dict)
-    # Whoever set it up or last changed it - never someone they name. SET NULL
+    # Whoever published the version it runs - never someone they name. SET NULL
     # keeps the history; a null principal admits nothing (`FAILED`).
     execution_principal_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -107,6 +106,7 @@ class VirtualTableTrigger(Base, TimestampMixin):
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
+        UniqueConstraint("workflow_id", name="uq_table_trigger_workflow"),
         CheckConstraint(
             "NOT is_active OR activated_at IS NOT NULL", name="ck_table_trigger_active_since"
         ),
@@ -115,7 +115,7 @@ class VirtualTableTrigger(Base, TimestampMixin):
 
 class VirtualTableTriggerRevision(Base):
     """One configuration a trigger had - never updated, so a past decision can
-    always be traced to the filter, mapping, principal and version that made it."""
+    always be traced to the filter, principal and version that made it."""
 
     __tablename__ = "virtual_table_trigger_revisions"
 
@@ -130,7 +130,6 @@ class VirtualTableTriggerRevision(Base):
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     workflow_version_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     filters: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
-    input_mapping: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False)
     execution_principal_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )

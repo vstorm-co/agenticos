@@ -25,14 +25,55 @@ A few rules hold for every node:
   [policy](#error-handling) sets how often it is retried, how long a call may
   take and where a failure goes.
 
-## core.input { #core-input }
+## Triggers { #triggers }
 
-Where a workflow starts. It hands the graph the run's input as `payload`,
-whatever the invoking surface supplied, and names the surface in
-`triggered_by`. The input is frozen when the run is admitted, and is at most
-`WORKFLOW_RUN_MAX_INPUT_BYTES`.
+A workflow starts from one trigger, the node its graph begins at. Publishing a
+version switches its trigger on; see
+[Starting a workflow from outside the console](../workflows.md#starting-a-workflow-from-outside-the-console).
+Each trigger hands the steps after it what its surface started the run with, frozen
+when the run is admitted and at most `WORKFLOW_RUN_MAX_INPUT_BYTES`. A test run
+started with an input of another shape fails the trigger with
+`TRIGGER_INPUT_INVALID`. A second trigger, or a trigger that is not where the graph
+starts, is refused at publish.
+
+### core.input { #core-input }
+
+**Manual or API.** Started by hand, from the API or over a WebSocket. It hands the
+graph the run's input as `payload`, whatever the caller sent, and names the surface
+in `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+### trigger.chat { #trigger-chat }
+
+**Chat message.** Started by a message in the chat, with this workflow picked to
+answer. Its `core.output` text is written back into that conversation.
+
+::: app.workflows.nodes._triggers.ChatTriggerOutput
+
+### trigger.webhook { #trigger-webhook }
+
+**Webhook.** Started by a signed delivery to the workflow's own address, which the
+first publish of the node creates along with its signing secret.
+
+::: app.workflows.nodes._triggers.WebhookTriggerOutput
+
+### trigger.schedule { #trigger-schedule }
+
+**Schedule.** Started on a clock, in UTC and at most once a minute.
+
+::: app.workflows.nodes._triggers.ScheduleTriggerConfig
+
+::: app.workflows.nodes._triggers.ScheduleTriggerOutput
+
+### trigger.table_record { #trigger-table-record }
+
+**New table record.** Started by a record added to its table that matches every
+filter as it was added. Publishing it needs read access to the table.
+
+::: app.workflows.nodes._triggers.TableRecordTriggerConfig
+
+::: app.workflows.nodes._triggers.TableRecordTriggerOutput
 
 ## core.output { #core-output }
 

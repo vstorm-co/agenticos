@@ -211,6 +211,17 @@ describe("NodeForm sections", () => {
     renderForm({ definition: makeDefinition({ id: "bare" }) });
     expect(screen.getByText("This node has no configurable fields.")).toBeVisible();
   });
+
+  it("says how a trigger with nothing to set starts a run, in place of the empty message", () => {
+    renderForm({ definition: makeDefinition({ id: "trigger.webhook", category: "triggers" }) });
+    expect(screen.getByText(/its own address and signing secret/)).toBeVisible();
+  });
+
+  it("sets a Schedule trigger up in its own words rather than as raw fields", () => {
+    renderForm({ definition: makeDefinition({ id: "trigger.schedule", category: "triggers" }) });
+    expect(screen.getByLabelText("Every")).toBeVisible();
+    expect(screen.queryByText("Configuration")).toBeNull();
+  });
 });
 
 describe("config leaves", () => {

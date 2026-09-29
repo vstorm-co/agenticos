@@ -42,24 +42,23 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_for_workflow(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+) -> WorkflowExposure | None:
+    """The workflow's exposure, if its live trigger is a webhook or a schedule."""
+    result = await db.execute(
+        select(WorkflowExposure).where(
+            WorkflowExposure.workflow_id == workflow_id,
+            WorkflowExposure.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_id(db: AsyncSession, exposure_id: UUID) -> WorkflowExposure | None:
     """An exposure by id alone, for a webhook delivery - which carries no tenant
     header and is authenticated by the exposure's own secret instead."""
     return await db.get(WorkflowExposure, exposure_id)
-
-
-async def list_for_workflow(
-    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
-) -> list[WorkflowExposure]:
-    result = await db.execute(
-        select(WorkflowExposure)
-        .where(
-            WorkflowExposure.workflow_id == workflow_id,
-            WorkflowExposure.organization_id == organization_id,
-        )
-        .order_by(WorkflowExposure.created_at, WorkflowExposure.id)
-    )
-    return list(result.scalars().all())
 
 
 async def update(

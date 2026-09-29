@@ -121,7 +121,7 @@ export function validateGraph(
   const problems: RawProblem[] = [
     ...missingVersions(graph, definitions),
     ...cycle.problems,
-    ...rule1SingleEntry(graph),
+    ...rule1SingleEntry(graph, definitions),
     ...rule2ReachableOutputs(graph, nodeScope),
     ...rule3TypeCompatibility(graph, definitions),
     ...rule4BranchLocalAvailability(graph, dominators),

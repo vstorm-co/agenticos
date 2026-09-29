@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { cn } from "@/lib/utils";
+import { isTrigger } from "@/lib/workflows/triggers";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import type { EditorSelection } from "@/stores/workflow-editor-store";
 import {
@@ -201,7 +202,7 @@ export function PanelShell({
               upsertBinding={upsertBinding}
               removeBinding={removeBinding}
             />
-            {selectedNode.definition_id !== "loop.item" && (
+            {selectedNode.definition_id !== "loop.item" && !isTrigger(definition) && (
               <div className="border-border border-t pt-4">
                 <PolicySection
                   definition={definition}

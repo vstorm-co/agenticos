@@ -23,9 +23,8 @@ from app.core.permissions import AuthContext
 from app.main import app
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
-    WorkflowExposureCreated,
-    WorkflowExposureList,
     WorkflowExposureRead,
+    WorkflowExposureWithSecret,
 )
 
 pytestmark = pytest.mark.anyio
@@ -40,8 +39,8 @@ def _read(**overrides) -> dict:
         "workflow_id": uuid.uuid4(),
         "workflow_version_id": uuid.uuid4(),
         "version_number": 1,
+        "node_instance_id": uuid.uuid4(),
         "adapter": "webhook",
-        "name": None,
         "is_active": True,
         "execution_principal_user_id": _CTX.user_id,
         "run_input": {},
@@ -71,39 +70,38 @@ class TestExposureRoutes:
     async def test_each_route_hands_the_service_its_workflow_and_answers_in_shape(self, wired):
         client, service = wired
         workflow_id, exposure_id = uuid.uuid4(), uuid.uuid4()
-        base = f"{settings.API_V1_STR}/workflows/{workflow_id}/exposures"
-        created = WorkflowExposureCreated(**_read(id=exposure_id), reveal_secret="s")
-        service.list_for_workflow = AsyncMock(
-            return_value=WorkflowExposureList(items=[WorkflowExposureRead(**_read())])
-        )
-        service.create = AsyncMock(return_value=created)
-        service.update = AsyncMock(return_value=WorkflowExposureRead(**_read(is_active=False)))
-        service.delete = AsyncMock(return_value=None)
-        service.rotate_secret = AsyncMock(return_value=created)
+        base = f"{settings.API_V1_STR}/workflows/{workflow_id}"
+        rotated = WorkflowExposureWithSecret(**_read(id=exposure_id), reveal_secret="s")
+        service.get_for_workflow = AsyncMock(return_value=WorkflowExposureRead(**_read()))
+        service.set_active = AsyncMock(return_value=WorkflowExposureRead(**_read(is_active=False)))
+        service.rotate_secret = AsyncMock(return_value=rotated)
 
-        assert (await client.get(base)).status_code == 200
-        made = await client.post(base, json={"adapter": "webhook"})
-        assert made.status_code == 201 and made.json()["reveal_secret"] == "s"
-        assert made.json()["webhook_url"].endswith(f"/api/v1/workflow-webhooks/{exposure_id}")
-        changed = await client.patch(f"{base}/{exposure_id}", json={"is_active": False})
+        read = await client.get(f"{base}/exposure")
+        assert read.status_code == 200 and read.json()["adapter"] == "webhook"
+        changed = await client.patch(f"{base}/exposures/{exposure_id}", json={"is_active": False})
         assert changed.json()["is_active"] is False
-        deleted = await client.delete(f"{base}/{exposure_id}")
-        assert deleted.status_code == 204
-        rotated = await client.post(f"{base}/{exposure_id}/rotate-secret")
-        assert rotated.json()["reveal_secret"] == "s"
+        secret = await client.post(f"{base}/exposures/{exposure_id}/rotate-secret")
+        assert secret.json()["reveal_secret"] == "s"
+        assert secret.json()["webhook_url"].endswith(f"/api/v1/workflow-webhooks/{exposure_id}")
 
-        service.delete.assert_awaited_once_with(_CTX, workflow_id, exposure_id)
-        assert service.update.await_args.args[3].is_active is False
+        service.get_for_workflow.assert_awaited_once_with(_CTX, workflow_id)
+        assert service.set_active.await_args.args[:3] == (_CTX, workflow_id, exposure_id)
+        assert service.set_active.await_args.args[3].is_active is False
 
-    async def test_a_schedule_with_no_cadence_never_reaches_the_service(self, wired):
+    async def test_a_workflow_with_no_exposure_answers_null(self, wired):
         client, service = wired
-        service.create = AsyncMock()
-        refused = await client.post(
-            f"{settings.API_V1_STR}/workflows/{uuid.uuid4()}/exposures",
-            json={"adapter": "schedule"},
+        service.get_for_workflow = AsyncMock(return_value=None)
+        read = await client.get(f"{settings.API_V1_STR}/workflows/{uuid.uuid4()}/exposure")
+        assert (read.status_code, read.json()) == (200, None)
+
+    async def test_a_pause_without_its_flag_never_reaches_the_service(self, wired):
+        client, service = wired
+        service.set_active = AsyncMock()
+        refused = await client.patch(
+            f"{settings.API_V1_STR}/workflows/{uuid.uuid4()}/exposures/{uuid.uuid4()}", json={}
         )
         assert refused.status_code == 422
-        service.create.assert_not_awaited()
+        service.set_active.assert_not_awaited()
 
     async def test_a_delivery_is_handed_over_as_raw_bytes_and_headers(self, wired):
         client, service = wired

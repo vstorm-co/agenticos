@@ -11,6 +11,7 @@ function insertAt(x: number, y: number, becomesEntry = false): string {
     edge: null,
     bindings: [],
     becomesEntry,
+    replaces: null,
   });
   return id;
 }
@@ -280,6 +281,7 @@ describe("useWorkflowEditorStore graph slice", () => {
       },
       bindings: [binding],
       becomesEntry: false,
+      replaces: null,
     });
 
     const state = store.getState();
@@ -297,6 +299,102 @@ describe("useWorkflowEditorStore graph slice", () => {
     store.getState().undo();
     expect(store.getState().graph?.nodes).toHaveLength(2);
     expect(store.getState().graph?.edges).toHaveLength(seededGraph().edges.length);
+  });
+
+  it("insertNode puts a new trigger in the old one's place, keeping its wires and readers", () => {
+    const store = useWorkflowEditorStore;
+    const read: Binding = {
+      target_node_id: "b",
+      target_field: "text",
+      source: { kind: "node_output", node_id: "t", port: "out", field_path: ["body"] },
+    };
+    const literal: Binding = {
+      target_node_id: "b",
+      target_field: "other",
+      source: { kind: "literal", value: 1 },
+    };
+    const into: Binding = {
+      target_node_id: "t",
+      target_field: "x",
+      source: { kind: "literal", value: 2 },
+    };
+    store.getState().seedGraph({
+      entry_node_id: "t",
+      nodes: [
+        {
+          id: "t",
+          definition_id: "core.input",
+          definition_version: 1,
+          config: {},
+          layout: { x: 0, y: 0 },
+        },
+        {
+          id: "b",
+          definition_id: "act",
+          definition_version: 1,
+          config: {},
+          layout: { x: 300, y: 0 },
+        },
+        {
+          id: "c",
+          definition_id: "act",
+          definition_version: 1,
+          config: {},
+          layout: { x: 600, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "t",
+          source_port: "out",
+          target_node_id: "b",
+          target_port: "in",
+        },
+        {
+          id: "e2",
+          source_node_id: "b",
+          source_port: "out",
+          target_node_id: "c",
+          target_port: "in",
+        },
+        {
+          id: "e3",
+          source_node_id: "c",
+          source_port: "out",
+          target_node_id: "t",
+          target_port: "in",
+        },
+      ],
+      bindings: [read, literal, into],
+      scopes: [],
+    });
+
+    store.getState().insertNode({
+      node: {
+        id: "w",
+        definition_id: "trigger.webhook",
+        definition_version: 1,
+        config: {},
+        layout: { x: 0, y: 0 },
+      },
+      edge: null,
+      bindings: [],
+      becomesEntry: true,
+      replaces: "t",
+    });
+
+    const graph = store.getState().graph!;
+    expect(graph.entry_node_id).toBe("w");
+    expect(graph.nodes.map((item) => item.id)).toEqual(["b", "c", "w"]);
+    expect(graph.edges.map((item) => [item.id, item.source_node_id, item.target_node_id])).toEqual([
+      ["e1", "w", "b"],
+      ["e2", "b", "c"],
+    ]);
+    expect(graph.bindings).toEqual([
+      { ...read, source: { ...read.source, node_id: "w" } },
+      literal,
+    ]);
   });
 
   it("insertNode makes a step the start when told to, even with no graph seeded", () => {

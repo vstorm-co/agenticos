@@ -16,7 +16,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AuthenticationError
@@ -261,9 +261,19 @@ class TestStartAndFollow:
         assert kinds[-1] == events.EventKind.RUN_CANCELLED and len(kinds) >= 2
 
 
+async def _starts_from_chat(factory: async_sessionmaker[AsyncSession], workflow: Workflow) -> None:
+    """What publishing a version that starts from a chat message records."""
+    async with factory() as db:
+        await db.execute(
+            update(Workflow).where(Workflow.id == workflow.id).values(live_trigger="trigger.chat")
+        )
+        await db.commit()
+
+
 class TestTheChatsDoor:
     async def test_a_chat_turn_writes_the_message_and_freezes_the_reply_destination(self, factory):
         owner, org, workflow = await _tenant(factory)
+        await _starts_from_chat(factory, workflow)
         async with factory() as db:
             conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=owner.id)
             db.add(conversation)
@@ -297,10 +307,34 @@ class TestTheChatsDoor:
         assert run is not None
         assert (run.triggered_by, run.input, run.reply_conversation_id) == (
             "chat",
-            {"prompt": "Summarise the leads"},
+            {
+                "prompt": "Summarise the leads",
+                "conversation_id": str(conversation.id),
+                "user_id": str(owner.id),
+            },
             conversation.id,
         )
         assert [(m.role, m.content) for m in messages] == [("user", "Summarise the leads")]
+
+    async def test_a_workflow_that_does_not_start_from_a_chat_message_is_refused(self, factory):
+        owner, org, workflow = await _tenant(factory)
+        async with factory() as db:
+            conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=owner.id)
+            db.add(conversation)
+            await db.commit()
+        socket = _Socket()
+        with _signed_in(owner):
+            await _session(socket, org).handle_frame(
+                {
+                    "type": "start",
+                    "workflow_id": str(workflow.id),
+                    "conversation_id": str(conversation.id),
+                    "message": "Hello",
+                }
+            )
+        assert socket.of("error")[0]["code"] == "WORKFLOW_TRIGGER_MISMATCH"
+        async with factory() as db:
+            assert (await db.execute(select(WorkflowRun))).first() is None
 
     @pytest.mark.security
     @pytest.mark.parametrize("whose", ["someone-else", "missing", "no-message"])

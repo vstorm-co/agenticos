@@ -1,4 +1,5 @@
 import { HIDDEN_CATEGORIES } from "@/components/workflows/node-visuals";
+import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeDefinition } from "@/lib/workflows/types";
 
 /**
@@ -27,14 +28,15 @@ export function ownsAScope(definition: NodeDefinition): boolean {
  * `scopePath` is the store's foreach path, root-to-current (empty at the root).
  * A loop's own `loop.item` and `loop.yield` exist only inside a body, so they are
  * offered only there; a loop is offered while nesting has not reached
- * {@link MAX_SCOPE_NESTING_DEPTH}; and the debug nodes are never offered to a
- * builder at all.
+ * {@link MAX_SCOPE_NESTING_DEPTH}; a trigger - where a run begins - only at the
+ * top level; and the debug nodes are never offered to a builder at all.
  */
 export function isAddableInScope(
   definition: NodeDefinition,
   scopePath: readonly string[],
 ): boolean {
   if (HIDDEN_CATEGORIES.has(definition.category)) return false;
+  if (isTrigger(definition)) return scopePath.length === 0;
   if (definition.loop_body_only) return scopePath.length > 0;
   if (!ownsAScope(definition)) return true;
   return scopePath.length < MAX_SCOPE_NESTING_DEPTH;

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { CopyableValue } from "@/components/workflows/exposures/copyable-value";
+import { CopyableValue } from "./copyable-value";
 
 interface WebhookSecretDialogProps {
   url: string;

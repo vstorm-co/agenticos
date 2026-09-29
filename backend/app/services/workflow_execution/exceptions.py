@@ -45,6 +45,34 @@ class WorkflowAdmissionQuotaError(AppException):
         )
 
 
+class WorkflowArchivedError(AppException):
+    """A write, or a new run, was attempted on an archived workflow (409)."""
+
+    message = "This workflow is archived and cannot be edited"
+    code = "WORKFLOW_ARCHIVED"
+    status_code = 409
+
+    def __init__(self, *, workflow_id: UUID, message: str | None = None) -> None:
+        super().__init__(message=message, details={"workflow_id": workflow_id})
+
+
+class WorkflowTriggerMismatchError(AppException):
+    """The run was asked for through a door the live version's trigger is not (409).
+
+    A workflow starts from one trigger, and only that trigger's surface starts
+    its published version: a workflow that starts from a webhook is not run by
+    hand, and one that starts from a chat message is not run from the API. A
+    test run of the draft takes any trigger.
+    """
+
+    message = "This workflow does not start this way"
+    code = "WORKFLOW_TRIGGER_MISMATCH"
+    status_code = 409
+
+    def __init__(self, *, workflow_id: UUID, trigger: str | None, door: str) -> None:
+        super().__init__(details={"workflow_id": workflow_id, "trigger": trigger, "door": door})
+
+
 class WorkflowNotRunnableError(AppException):
     """Nothing to run: no published version (`real`) or no draft graph (`test`) (409)."""
 

@@ -12,13 +12,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_trigger as trigger_repo
 from app.schemas.virtual_table import ColumnDef, ColumnTypeName, FilterOp, RecordFilter
-from app.schemas.virtual_table_trigger import TableTriggerCreate, TableTriggerUpdate
-from app.services.virtual_tables.triggers import TableTriggerService, holds
+from app.services.virtual_tables.triggers import TableTriggerService, _checked_filters, holds
 
 pytestmark = pytest.mark.anyio
 
@@ -97,22 +96,17 @@ async def test_the_service_reads_a_triggers_admissions_through_its_table() -> No
     listed.assert_awaited_once_with(service.db, trigger_id=trigger.id, skip=5, limit=10)
 
 
-@pytest.mark.parametrize(
-    "schema",
-    [
-        lambda mapping: TableTriggerCreate(workflow_id=uuid.uuid4(), input_mapping=mapping),
-        lambda mapping: TableTriggerUpdate(input_mapping=mapping),
-    ],
-    ids=["create", "update"],
-)
-def test_two_mapping_keys_the_same_once_trimmed_are_refused(schema) -> None:
-    """Trimmed silently, one of the two sources would replace the other."""
-    with pytest.raises(ValidationError, match="same once spaces are trimmed"):
-        schema({"email": "c1", " email": "@author"})
-    assert schema({"email": "c1", "by": "@author"}).input_mapping == {
-        "email": "c1",
-        "by": "@author",
-    }
-    # Not a mapping at all is the type check's to refuse, not this one's.
-    with pytest.raises(ValidationError, match="valid dictionary"):
-        schema(["email"])
+def test_a_filter_that_stopped_fitting_since_publish_validated_it_is_refused() -> None:
+    """Publishing checks the filters before it takes the table's lock; a column
+    archived in between is refused here, when the trigger is written."""
+    score = ColumnDef(id=uuid.uuid4(), label="Score", type="integer")
+    gone = ColumnDef(id=uuid.uuid4(), label="Gone", type="text", archived=True)
+    with pytest.raises(BadRequestError) as missing:
+        _checked_filters([score, gone], [RecordFilter(column_id=gone.id, op="eq", value="x")])
+    assert missing.value.details == {"field": "filters.0.column_id"}
+    with pytest.raises(BadRequestError) as misfit:
+        _checked_filters([score], [RecordFilter(column_id=score.id, op="contains", value=1)])
+    assert misfit.value.details == {"field": "filters.0"}
+    assert _checked_filters([score], [RecordFilter(column_id=score.id, op="gt", value=7)]) == [
+        {"column_id": str(score.id), "op": "gt", "value": 7}
+    ]

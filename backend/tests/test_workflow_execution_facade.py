@@ -23,13 +23,13 @@ from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunMode, WorkflowRunStatus
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowArchivedError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService, _node_run_read
-from app.services.workflow_registry import WorkflowArchivedError
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -64,6 +64,7 @@ def _workflow(**overrides: object) -> MagicMock:
     workflow.visibility = Visibility.PRIVATE.value
     workflow.status = WorkflowStatus.PUBLISHED.value
     workflow.current_version_id = uuid.uuid4()
+    workflow.live_trigger = "core.input"
     workflow.draft_graph = _graph().model_dump(mode="json")
     for field, value in overrides.items():
         setattr(workflow, field, value)

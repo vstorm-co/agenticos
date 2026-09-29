@@ -24,6 +24,7 @@ import {
   UNKNOWN,
 } from "./schema";
 import { ERROR_PORT } from "@/lib/workflows/ports";
+import { isTrigger } from "@/lib/workflows/triggers";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
 
@@ -80,13 +81,20 @@ export function missingVersions(graph: WorkflowGraph, definitions: DefinitionMap
     );
 }
 
-// Rule 1 — exactly one input.
+// Rule 1 — exactly one input, and a trigger is it.
 
-export function rule1SingleEntry(graph: WorkflowGraph): RawProblem[] {
+/**
+ * The entry is a node no edge reaches, and a workflow starts from one trigger:
+ * any trigger that is not the entry is refused on its own node, since it names a
+ * way in that would never run the steps after it.
+ */
+export function rule1SingleEntry(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
   if (!nodeIds(graph).has(graph.entry_node_id)) return [graphLevel("entry-not-in-graph")];
   const incoming = new Set(graph.edges.map((e) => e.target_node_id));
   if (incoming.has(graph.entry_node_id)) return [graphLevel("entry-is-edge-target")];
-  return [];
+  return graph.nodes
+    .filter((n) => n.id !== graph.entry_node_id && isTrigger(definitionFor(definitions, n.id)))
+    .map((n) => node(n.id, "trigger-not-entry"));
 }
 
 // Rule 2 — reachable outputs.

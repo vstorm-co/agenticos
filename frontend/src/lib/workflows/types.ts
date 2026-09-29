@@ -215,6 +215,12 @@ export interface WorkflowRead {
   visibility: string;
   owner_user_id: Uuid | null;
   current_version_id: Uuid | null;
+  /**
+   * The trigger node the published version starts from - `core.input`,
+   * `trigger.chat`, `trigger.webhook`, ... - or null when it starts from no
+   * trigger (by hand) or was never published.
+   */
+  live_trigger: string | null;
   draft_revision: number;
   created_at: string | null;
   updated_at: string | null;
@@ -246,6 +252,17 @@ export interface WorkflowVersionRead {
   published_by_user_id: Uuid | null;
   budget_limit: number | null;
   created_at: string | null;
+}
+
+/**
+ * The publish response: the new version, and the trigger it switched on.
+ * Mirrors `WorkflowPublished`. `webhook_secret` is a webhook's signing secret,
+ * only on the publish that first switched that webhook on.
+ */
+export interface WorkflowPublished extends WorkflowVersionRead {
+  trigger: string | null;
+  exposure: WorkflowExposureRead | null;
+  webhook_secret: string | null;
 }
 
 /**
@@ -452,17 +469,17 @@ export type ExposureAdapter = "webhook" | "schedule";
 export type ExposureScheduleKind = "interval" | "cron";
 
 /**
- * One way in to a workflow that runs it unattended - a signed webhook or a
- * schedule. Mirrors `WorkflowExposureRead`. Pinned to one published version:
- * publishing again changes nothing until the exposure is moved to it.
+ * A workflow's webhook or schedule - its trigger node, switched on by a publish.
+ * Mirrors `WorkflowExposureRead`. The version it runs is the one that switched
+ * it on, and it runs as the member who published that version.
  */
 export interface WorkflowExposureRead {
   id: Uuid;
   workflow_id: Uuid;
   workflow_version_id: Uuid;
   version_number: number;
+  node_instance_id: Uuid;
   adapter: ExposureAdapter;
-  name: string | null;
   is_active: boolean;
   execution_principal_user_id: Uuid | null;
   run_input: Record<string, unknown>;
@@ -477,33 +494,12 @@ export interface WorkflowExposureRead {
   created_at: string | null;
 }
 
-/** The create and rotate response - carries a webhook's signing secret, once. */
-export interface WorkflowExposureCreated extends WorkflowExposureRead {
-  reveal_secret: string | null;
+/** The rotate response - carries a webhook's new signing secret, once. */
+export interface WorkflowExposureWithSecret extends WorkflowExposureRead {
+  reveal_secret: string;
 }
 
-export interface WorkflowExposureList {
-  items: WorkflowExposureRead[];
-}
-
-/** What creating an exposure sends. Mirrors `WorkflowExposureCreate`. */
-export interface WorkflowExposureCreate {
-  adapter: ExposureAdapter;
-  name?: string | null;
-  run_input?: Record<string, unknown>;
-  schedule_kind?: ExposureScheduleKind;
-  interval_seconds?: number | null;
-  cron_expression?: string | null;
-}
-
-/** What editing one sends. Mirrors `WorkflowExposureUpdate`. */
+/** Pause or resume it. Mirrors `WorkflowExposureUpdate`. */
 export interface WorkflowExposureUpdate {
-  name?: string | null;
-  is_active?: boolean;
-  run_input?: Record<string, unknown>;
-  schedule_kind?: ExposureScheduleKind;
-  interval_seconds?: number | null;
-  cron_expression?: string | null;
-  /** Move the exposure to the workflow's current published version. */
-  pin_current_version?: boolean;
+  is_active: boolean;
 }

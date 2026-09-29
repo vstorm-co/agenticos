@@ -6,8 +6,9 @@ run and then its events as they are written:
 * `{"type": "start", "workflow_id", "input"}` starts a run of the live version
   as the connected member, the same admission a `POST /workflow-runs` makes.
   With a `conversation_id` of the member's own and a `message`, it is the
-  chat's door instead: the message is written to that conversation, the run
-  starts with `{"prompt": message}`, and its answer is written back there when
+  chat's door instead, for a workflow that starts from a chat message: the
+  message is written to that conversation, the run starts with the message,
+  the conversation and the member, and its answer is written back there when
   it ends.
 * `{"type": "attach", "run_id", "after"}` follows a run already going, from a
   cursor a previous event carried. A client that lost its connection
@@ -158,7 +159,11 @@ class WorkflowRunSocket:
                 ctx,
                 frame.workflow_id,
                 triggered_by=WorkflowRunTrigger.CHAT,
-                run_input={"prompt": frame.message},
+                run_input={
+                    "prompt": frame.message,
+                    "conversation_id": str(conversation.id),
+                    "user_id": str(ctx.user_id),
+                },
                 reply_conversation_id=conversation.id,
             )
 

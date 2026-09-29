@@ -1,5 +1,5 @@
 ---
-source_sha: "78c9367c5b34"
+source_sha: "35f32898440e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -226,25 +226,25 @@ konfiguracja nie jest przepisywana.
 
 ## Wyzwalacze { #triggers }
 
-**Wyzwalacze** na stronie tabeli uruchamiają opublikowany [workflow](workflows.md) dla
-każdego rekordu dodanego do tabeli, niezależnie od drogi: w konsoli, przez API, przez
-narzędzie tabel agenta albo krok tabeli innego workflow. Upsert, który tworzy rekord,
-go uruchamia; taki, który rekord aktualizuje, nie. Konfiguracja wymaga `tables:edit` na
-tabeli i prawa do uruchamiania workflow, bo wyzwalacz działa jako członek, który go
-skonfigurował albo ostatnio zmienił, nigdy jako autor rekordu. Dostęp tego członka jest
-sprawdzany ponownie przy każdym rekordzie.
+[Workflow](workflows.md#when-a-table-record-is-added), którego węzłem wyzwalacza jest
+**New table record**, po publikacji uruchamia się dla każdego rekordu dodanego do jego
+tabeli, niezależnie od drogi: w konsoli, przez API, przez narzędzie tabel agenta albo
+krok tabeli innego workflow. Upsert, który tworzy rekord, go uruchamia; taki, który
+rekord aktualizuje, nie. Publikacja wymaga dostępu do odczytu tabeli i prawa do
+uruchamiania workflow, bo działa on jako członek, który go opublikował, nigdy jako autor
+rekordu. Dostęp tego członka jest sprawdzany ponownie przy każdym rekordzie.
 
-Wyzwalacz jest przypięty do wersji, która była żywa w chwili jego utworzenia. Ponowna
-publikacja workflow niczego nie zmienia, dopóki **Użyj aktywnej wersji** go nie
-przesunie. Jego filtry używają operatorów z [Listowania i filtrowania](#listing-and-filtering)
+Wyzwalacz uruchamia wersję, która go włączyła, a następna publikacja przenosi go na
+nową wersję. Jego filtry używają operatorów z [Listowania i filtrowania](#listing-and-filtering)
 i są oceniane na rekordzie w chwili utworzenia, więc późniejsza edycja ani go nie
-uruchamia, ani nie zatrzymuje. Mapowanie wejścia określa, od czego startuje run: każdy
-klucz staje się kluczem `payload` z wartością kolumny, `@author` (id tego, kto dodał
-rekord) albo `@record_id`, czyli id samego rekordu, żeby run mógł go zmienić z powrotem
-przez `table.record.update`.
+uruchamia, ani nie zatrzymuje. Przekazuje runowi cały rekord: `record_id`, `values`
+według id kolumn, te same wartości jako `fields` według etykiet oraz `author_id`, żeby
+run mógł go zmienić z powrotem przez `table.record.update`. **Triggers** na stronie
+tabeli wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
+otwiera jego historię.
 
-Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie, także
-ponowne, bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
+Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -
+publikacja albo wznowienie - bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
 rekord zatwierdzony przed tą chwilą go nie uruchomi, a nic dodanego, gdy był wyłączony,
 nie zostanie odtworzone. Heartbeat workera odczytuje zdarzenie outbox każdego nowego
 rekordu w ciągu około dziesięciu sekund. Decyduje raz na wyzwalacz i zapisuje decyzję;
@@ -263,9 +263,10 @@ Workflow, który zapisuje do tabeli, może uruchomić jej wyzwalacze, i tak dale
 kolejne tabele. Każdy run niesie łańcuch, do którego należy, a wyzwalacz, przez który
 łańcuch już przeszedł, jest blokowany zamiast uruchamiany ponownie - to powstrzymuje
 dwa workflow dodające rekordy do swoich tabel przed zapętleniem. Kolumny, którą
-wyzwalacz filtruje albo mapuje, nie da się zarchiwizować, dopóki wyzwalacz nie zostanie
-zmieniony albo usunięty, nawet gdy jest wyłączony. Archiwizacja całej tabeli jest
-dozwolona, a jej wyzwalacze już nigdy nie wystartują.
+wyzwalacz filtruje, nie da się zarchiwizować, dopóki wyzwalacz jego workflow nie
+przestanie po niej filtrować i nie zostanie opublikowany, nawet gdy jest wstrzymany, a
+tabeli, od której startuje opublikowany workflow, nie da się zarchiwizować, dopóki ten
+workflow nie zacznie startować inaczej.
 
 ## Co zatwierdza się razem { #what-commits-together }
 

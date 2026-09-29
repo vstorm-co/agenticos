@@ -1,5 +1,5 @@
 ---
-source_sha: "03af9f3de9f1"
+source_sha: "414894e5a034"
 ---
 
 # Workflows { #workflows }
@@ -18,9 +18,11 @@ sí no tiene recorrido.
 
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** abre un diálogo que te deja empezar desde un lienzo en blanco o
-desde una plantilla. **Blank workflow** es un lienzo vacío para construir desde cero.
-Las plantillas son puntos de partida listos — **Starter**, un único paso para
+**New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
+plantilla. **How does it start?** ofrece los cinco triggers - **Manual or API**,
+**Chat message**, **Webhook**, **Schedule** y **New table record** -, cada uno un
+lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
+listos — **Starter**, un único paso para
 renombrar y conectar, y **Two-step sequence**, dos pasos ya conectados para un flujo
 lineal. Elige una con **Use** y aterrizas en el editor.
 
@@ -276,20 +278,34 @@ renderizada, la salida de un script -, cada uno descargable.
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
-**Triggers**, en la cabecera del editor, enumera todas las vías de entrada a un
-workflow. Algunas no necesitan configuración. Quien pueda ejecutar el workflow puede
-iniciarlo como sí mismo desde la [API HTTP](api.md#running-a-workflow), por un
-WebSocket o en el chat, y cada una de estas vías ejecuta la versión en vivo y se
-comprueba, factura y audita como un run iniciado aquí. Otras se configuran una vez y
-luego se disparan solas: un webhook firmado, una programación y un trigger sobre una
-tabla, que se configura en la propia tabla.
+Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
+**Triggers**, arriba en la paleta, tiene cinco: **Manual or API**, **Chat message**,
+**Webhook**, **Schedule** y **New table record**. Añadir uno a un workflow que ya
+tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
+bindings que salían del anterior salen del nuevo. **New workflow** empieza un
+workflow por el trigger que elijas ahí.
+
+Publicar una versión es lo que enciende su trigger. Un webhook, una programación y un
+trigger de tabla ejecutan entonces esa versión como el miembro que la publicó, y la
+siguiente publicación los pasa a la nueva versión. Una publicación que empieza por
+otro trigger apaga el anterior. **Trigger**, en la cabecera del editor, muestra el
+trigger en vivo y su estado, y avisa cuando el draft empieza de otra forma.
+
+Una versión que empieza por **Manual or API**, o sin ningún trigger, la inicia quien
+pueda ejecutarla, como sí mismo: **Start a run** en Runs, la
+[API HTTP](api.md#running-a-workflow) o un WebSocket. Cada run se comprueba, factura y
+audita como uno iniciado aquí. Esas vías no inician ningún otro trigger, y cada otro
+trigger tiene la suya. Un run de prueba del draft acepta cualquier trigger, y **Start
+a run** lo abre con una entrada con la forma de ese trigger.
 
 ### Desde el chat { #from-the-chat }
 
-El selector del chat de quién responde enumera los workflows publicados debajo de los
-agentes. Con uno elegido, cada mensaje inicia un run de él, con el mensaje como
-`payload.prompt`. El hilo muestra una tarjeta con el estado del run y un enlace a sus
-pasos, y la respuesta del workflow la sigue cuando el run termina.
+El selector del chat de quién responde enumera, debajo de los agentes, los workflows
+publicados que empiezan por **Chat message**. Con uno elegido, cada mensaje inicia un
+run de él, y el trigger pasa a los pasos siguientes el mensaje como `prompt`, con el
+`conversation_id` y el `user_id` de quien lo envió. El hilo muestra una tarjeta con el
+estado del run y un enlace a sus pasos, y la respuesta del workflow la sigue cuando el
+run termina.
 
 La respuesta se escribe en la conversación cuando el run termina, siga el chat abierto
 o no, así que al volver a abrir la conversación se lee de nuevo. Un run escribe en la
@@ -307,36 +323,44 @@ lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-ove
 
 ### Un webhook o una programación { #a-webhook-or-a-schedule }
 
-**New webhook** y **New schedule** añaden una vía de entrada ante la que nadie está.
-Cada una queda fijada a la versión que estaba en vivo cuando se creó: volver a
-publicar no cambia nada hasta que **Use the live version** la mueve. Cada una se
-ejecuta como el miembro que la configuró o la cambió por última vez, y su acceso se
-comprueba de nuevo en cada disparo. Un webhook cuyo miembro ya no puede ejecutar el
-workflow rechaza sus entregas, y una programación así se desactiva y queda registrada
-en el registro de auditoría.
+Un trigger **Webhook** recibe su dirección y su **signing secret** la primera vez que
+se publica una versión que lo tiene. La publicación muestra el secreto una vez, y las
+publicaciones posteriores del mismo nodo conservan ambos; un nodo de webhook borrado y
+añadido de nuevo recibe una dirección nueva.
 
-El **signing secret** de un webhook se muestra una vez, cuando se crea o se sustituye.
-El remitente firma con él el cuerpo exacto de la petición, HMAC-SHA256 en
-`X-Signature-256`, y nombra cada entrega en `X-Delivery-Id`; las cabeceras propias de
-GitHub también funcionan. El cuerpo JSON de cada entrega es la entrada de su run. Un
-reintento que repite un id recibe como respuesta el primer run y no inicia nada,
-porque el id se guarda junto con el run que admitió, en una sola transacción.
+El remitente firma con el secreto el
+cuerpo exacto de la petición, HMAC-SHA256 en `X-Signature-256`, y nombra cada entrega
+en `X-Delivery-Id`; las cabeceras propias de GitHub también funcionan. El trigger pasa
+el JSON de la entrega como `body`, con su `delivery_id`. Un reintento que repite un id
+recibe como respuesta el primer run y no inicia nada, porque el id se guarda junto con
+el run que admitió, en una sola transacción.
 
-Una programación se ejecuta cada cierto tiempo, a diario a una hora fija o según una
-expresión cron, todo en UTC y como mucho una vez por minuto. Su **Input** es aquello
-con lo que empieza cada run. Un tic que encuentra el último run aún en marcha se
-omite en lugar de apilar un segundo run detrás, y un tic que la cuota de admisión
-rechaza espera al siguiente.
+Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
+según una expresión cron, todo en UTC y como mucho una vez por minuto. Su **Input** es
+aquello con lo que empieza cada run, pasado como `input` junto al `fired_at` del tic.
+Un tic que encuentra el último run aún en marcha se omite en lugar de apilar un
+segundo run detrás, y un tic que la cuota de admisión rechaza espera al siguiente.
+
+Los dos se ejecutan como el miembro que publicó la versión, y su acceso se comprueba
+de nuevo en cada disparo. Un webhook cuyo miembro ya no puede ejecutar el workflow
+rechaza sus entregas, y una programación así se desactiva y queda registrada en el
+registro de auditoría. **Pause**, en la hoja **Trigger**, detiene cualquiera de los
+dos sin publicar, y **New secret** sustituye el secreto de un webhook; el anterior
+deja de verificarse al instante.
 
 ### Cuando se añade un registro a una tabla { #when-a-table-record-is-added }
 
-**Triggers**, en una tabla, ejecuta un workflow publicado por cada registro que se le
-añade: desde la consola, la API, un agent o el paso de tabla de otro workflow. Como un
-webhook, un trigger queda fijado a una versión y se ejecuta como el miembro que lo
-configuró. Sus filtros eligen qué registros lo inician, y su mapeo llena `payload` con
-el valor de una columna, el autor del registro o el id del propio registro. Un run iniciado así lleva la cadena de
-triggers por la que pasó, así que un workflow que vuelve a escribir en la tabla cuyo
-trigger lo inició se bloquea en lugar de entrar en bucle. Consulta
+Un trigger **New table record** nombra una tabla y filtra cada registro tal como se
+añadió: desde la consola, la API, un agent o el paso de tabla de otro workflow. Pasa
+el registro: su `record_id`, sus `values` por id de columna, los mismos valores como
+`fields` por etiqueta y el `author_id` de quien lo añadió. Publicarlo requiere acceso
+de lectura a la tabla, y un registro añadido antes de la publicación nunca lo inicia.
+Un run iniciado así lleva la cadena de triggers por la que pasó, así que un workflow
+que vuelve a escribir en la tabla cuyo trigger lo inició se bloquea en lugar de entrar
+en bucle.
+
+**Triggers**, en la propia tabla, enumera los workflows que empiezan por ella, los
+pausa y reanuda, y muestra lo que cada uno decidió sobre cada registro. Consulta
 [Virtual Tables](virtual-tables.md#triggers).
 
 ## Cuando algo sale mal { #when-something-goes-wrong }
@@ -359,11 +383,12 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
 | **Needs attention** | Se interrumpió un paso que pudo haber actuado | Comprueba si su efecto ocurrió y, si no, cancela el run e inicia uno nuevo. Reanudarlo desde la consola aún no está construido |
-| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow cambie el webhook, la programación o el trigger, para que se ejecute como él |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
+| `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
 | `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |
 | El historial de un trigger de tabla dice **Blocked** | El run se habría iniciado a sí mismo de nuevo, o su cadena llegó demasiado hondo | Consulta [Triggers](virtual-tables.md#triggers) |
-| Un webhook responde `403` | La firma no coincide con el cuerpo, o el miembro con el que se ejecuta ya no puede ejecutar el workflow | Firma exactamente los bytes enviados con el secreto actual, o que un miembro que pueda ejecutarlo cambie el webhook |
+| Un webhook responde `403` | La firma no coincide con el cuerpo, o el miembro con el que se ejecuta ya no puede ejecutar el workflow | Firma exactamente los bytes enviados con el secreto actual, o que un miembro que pueda ejecutarlo lo vuelva a publicar |
 
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 
@@ -406,7 +431,7 @@ Copiar y pegar tienen tres límites:
 ## Resumen { #recap }
 
 - Un workflow es **un draft que editas y una versión publicada e inmutable que se
-  ejecuta** — empieza uno en blanco o desde una plantilla, y **Duplicate** copia un
+  ejecuta** — empieza uno desde un trigger o una plantilla, y **Duplicate** copia un
   draft en un workflow nuevo.
 - La **paleta** añade pasos por arrastre o clic; el **lienzo** los conecta y rechaza
   una conexión entre puertos incompatibles.
@@ -421,9 +446,9 @@ Copiar y pegar tienen tres límites:
   draft** vuelve a convertir una de ellas en el draft.
 - Cada acción tiene una **ruta de teclado**, y los atajos de edición son inertes en una
   versión publicada de solo lectura.
-- **Triggers** inician un workflow desde la API, un WebSocket o el chat, como quien lo
-  pide, y desde un **webhook** firmado o una **programación** fijados a una versión y
-  ejecutados como el miembro que los configuró.
+- Un workflow empieza por un nodo **trigger** - a mano o por la API, un mensaje del
+  chat, un **webhook** firmado, una **programación** o un registro nuevo de tabla -,
+  y **publicar** lo enciende, ejecutándose como el miembro que publicó.
 - La **política** de un paso fija sus intentos, su límite de tiempo y si sus fallos
   salen por un puerto **Error**; el cuerpo de un paso **For each** se ejecuta de
   **Loop item** a **Loop result** una vez por elemento.

@@ -6,12 +6,14 @@ version, and is checked at that moment. A door nobody stands at needs one. A
 signed webhook and a schedule fire on their own, so each is a row here saying
 which published version it runs and as whom.
 
-Like :class:`app.db.models.agent_trigger.AgentTrigger`, an exposure is
-operational state and not part of the graph: it is added, paused and removed
-without publishing, and it carries what a graph cannot travel with - a
-principal, a sealed secret, a clock. Unlike an agent's exposure it is **pinned**
-to one `WorkflowVersion`: publishing must never change what a live webhook runs,
-so moving an exposure to a newer version is its own explicit, audited write.
+The graph says *that* a workflow starts from a webhook or a schedule - its
+trigger node - and an exposure is that node switched on: what a graph cannot
+travel with, a principal, a sealed secret, a clock. Publishing writes it
+(`app.services.workflow_triggers`): the new version takes the row over, runs as
+the member who published it, and a trigger the new version no longer has is
+removed. A workflow has one trigger, so it has at most one exposure, and the
+row is kept across versions while its node is - a webhook's address and secret
+survive a publish. Pausing is the one change made beside the graph.
 """
 
 import enum
@@ -74,7 +76,6 @@ class WorkflowExposure(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("workflows.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     # The version every fire runs - never re-resolved from the workflow's
     # current one. CASCADE only because a version goes when its workflow does.
@@ -83,10 +84,12 @@ class WorkflowExposure(Base, TimestampMixin):
         ForeignKey("workflow_versions.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # The trigger node this row switches on. A publish whose trigger is another
+    # node - one deleted and re-added - replaces the row, and its address.
+    node_instance_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     adapter: Mapped[str] = mapped_column(String(16), nullable=False)
-    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    # The member a fired run acts as: whoever created the row or last changed
-    # it, since whoever decided it should run answers for what it does. Checked
+    # The member a fired run acts as: whoever published the version it runs,
+    # since whoever decided it should run answers for what it does. Checked
     # afresh on every fire. SET NULL so deleting the account keeps the history;
     # a null principal is a row that can no longer fire, not licence to run as
     # nobody, and is disabled when it next comes due.
@@ -96,8 +99,8 @@ class WorkflowExposure(Base, TimestampMixin):
         nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    # What a schedule hands `core.input` as its payload - a clock has no body.
-    # A webhook's payload is each delivery's own body, so this stays `{}`.
+    # The input a schedule starts every run with, from its node's configuration
+    # - a clock has no body. A webhook's is each delivery's own, so this stays `{}`.
     run_input: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     # A webhook's HMAC key, sealed for the organization through the vault, and
@@ -125,6 +128,7 @@ class WorkflowExposure(Base, TimestampMixin):
     # Declared here as well as in the migration: the integration tests build the
     # schema from the models.
     __table_args__ = (
+        UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
         CheckConstraint("adapter IN ('webhook', 'schedule')", name="ck_workflow_exposure_adapter"),
         # One shape per adapter: a webhook has a sealed secret and none of the
         # clock; a schedule has exactly one cadence field and a next fire, and

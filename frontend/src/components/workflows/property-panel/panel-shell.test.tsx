@@ -100,6 +100,25 @@ describe("PanelShell with nothing selected", () => {
       />,
     );
     expect(screen.queryByText("When it is slow or fails")).toBeNull();
+    // Nor for a trigger: it hands on what the run started with, and never retries.
+    const webhook = node("W", "trigger.webhook");
+    rerender(
+      <PanelShell
+        graph={graph({ entry: "W", nodes: [webhook] })}
+        selectedNode={webhook}
+        selection={{ nodeIds: ["W"], edgeIds: [] }}
+        catalog={makeCatalog([
+          { ...DEBUG_ECHO, id: "trigger.webhook", name: "Webhook", category: "triggers" },
+        ])}
+        problems={[]}
+        updateNodeConfig={vi.fn()}
+        updateNodePolicy={vi.fn()}
+        upsertBinding={vi.fn()}
+        removeBinding={vi.fn()}
+        onSelectNode={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("When it is slow or fails")).toBeNull();
   });
 });
 

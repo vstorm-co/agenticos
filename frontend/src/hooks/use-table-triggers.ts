@@ -7,15 +7,12 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
-  createTableTrigger,
-  deleteTableTrigger,
   listTableTriggerAdmissions,
   listTableTriggers,
   updateTableTrigger,
 } from "@/lib/table-triggers-api";
-import type { TableTriggerCreate, TableTriggerUpdate } from "@/types/tables";
 
-/** A table's triggers, and every write to them. */
+/** A table's triggers, and pausing or resuming one - they are made by publishing. */
 export function useTableTriggers(tableId: string) {
   const t = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
@@ -28,29 +25,16 @@ export function useTableTriggers(tableId: string) {
     queryKey: key,
     queryFn: () => listTableTriggers(tableId),
   });
-  const create = useMutation({
-    mutationFn: (body: TableTriggerCreate) => createTableTrigger(tableId, body),
-    onSuccess: () => {
+  const setActive = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      updateTableTrigger(tableId, id, { is_active: active }),
+    onSuccess: (trigger) => {
       refresh();
-      toast.success(t("created"));
+      toast.success(trigger.is_active ? t("resumed") : t("paused"));
     },
     onError: fail,
   });
-  const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: TableTriggerUpdate }) =>
-      updateTableTrigger(tableId, id, body),
-    onSuccess: refresh,
-    onError: fail,
-  });
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteTableTrigger(tableId, id),
-    onSuccess: () => {
-      refresh();
-      toast.success(t("deleted"));
-    },
-    onError: fail,
-  });
-  return { triggers: data?.items ?? [], isLoading, create, update, remove };
+  return { triggers: data?.items ?? [], isLoading, setActive };
 }
 
 /** What each added record led to, for one trigger - read while its history is open. */

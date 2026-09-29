@@ -1,14 +1,17 @@
 """Run a workflow from a webhook and a schedule, and answer in the chat (#1792).
 
 `workflow_exposures` holds the unattended doors - a signed webhook or a
-schedule - each pinned to one published version and run as one member.
+schedule - each the live form of one trigger node, pinned to the published
+version that switched it on and run as the member who published it. A
+workflow has one trigger, so it has at most one exposure.
 `workflow_webhook_deliveries` records every admitted delivery id beside the run
 it admitted, so a provider's retry answers with that run instead of starting
 another. `workflow_runs.reply_conversation_id` is the conversation a
-chat-started run writes its result to, frozen at admission.
+chat-started run writes its result to, frozen at admission, and
+`workflows.live_trigger` names the trigger its published version starts from.
 
-Both tables are new and the column is nullable, so no existing row changes. The
-downgrade drops all three.
+Both tables are new and both columns are nullable, so no existing row changes.
+The downgrade drops all four.
 
 Revision ID: 0111_workflow_exposures
 Revises: 0110_table_create_receipts
@@ -35,8 +38,8 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("workflow_id", sa.UUID(), nullable=False),
         sa.Column("workflow_version_id", sa.UUID(), nullable=False),
+        sa.Column("node_instance_id", sa.UUID(), nullable=False),
         sa.Column("adapter", sa.String(length=16), nullable=False),
-        sa.Column("name", sa.String(length=120), nullable=True),
         sa.Column("execution_principal_user_id", sa.UUID(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("run_input", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -98,6 +101,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("workflow_exposures_pkey")),
+        sa.UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
     )
     op.create_index(
         "ix_workflow_exposure_due",
@@ -110,12 +114,6 @@ def upgrade() -> None:
         op.f("workflow_exposures_organization_id_idx"),
         "workflow_exposures",
         ["organization_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("workflow_exposures_workflow_id_idx"),
-        "workflow_exposures",
-        ["workflow_id"],
         unique=False,
     )
     op.create_table(
@@ -169,9 +167,11 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
+    op.add_column("workflows", sa.Column("live_trigger", sa.String(length=64), nullable=True))
 
 
 def downgrade() -> None:
+    op.drop_column("workflows", "live_trigger")
     op.drop_constraint(
         op.f("workflow_runs_reply_conversation_id_fkey"), "workflow_runs", type_="foreignkey"
     )
@@ -181,7 +181,6 @@ def downgrade() -> None:
         table_name="workflow_webhook_deliveries",
     )
     op.drop_table("workflow_webhook_deliveries")
-    op.drop_index(op.f("workflow_exposures_workflow_id_idx"), table_name="workflow_exposures")
     op.drop_index(op.f("workflow_exposures_organization_id_idx"), table_name="workflow_exposures")
     op.drop_index(
         "ix_workflow_exposure_due",

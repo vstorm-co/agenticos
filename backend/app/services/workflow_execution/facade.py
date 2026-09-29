@@ -52,15 +52,17 @@ from app.schemas.workflow_run import (
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import admission, delivery, dispatcher, events
 from app.services.workflow_execution.exceptions import (
+    WorkflowArchivedError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
+    WorkflowTriggerMismatchError,
 )
-from app.services.workflow_registry import WorkflowArchivedError
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
+from app.workflows.triggers import CHAT, MANUAL
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,16 @@ def _read(run: WorkflowRun) -> WorkflowRunRead:
     )
 
 
+# The triggers each door a member stands at starts in `real` mode. A version
+# whose entry is no trigger starts by hand, as `core.input` does. The unattended
+# doors - webhook, schedule, table - run only the version that switched them on.
+_DOOR_TRIGGERS: dict[WorkflowRunTrigger, frozenset[str | None]] = {
+    WorkflowRunTrigger.API: frozenset({None, MANUAL}),
+    WorkflowRunTrigger.WEBSOCKET: frozenset({None, MANUAL}),
+    WorkflowRunTrigger.CHAT: frozenset({CHAT}),
+}
+
+
 class WorkflowExecutionService:
     """Start, cancel, read and tail runs of a workflow."""
 
@@ -162,6 +174,10 @@ class WorkflowExecutionService:
                 ones, in both `real` and `test` mode.
             WorkflowNotRunnableError: `real` mode with no published version,
                 or `test` mode with no valid, structurally sound draft graph.
+            WorkflowTriggerMismatchError: `real` mode through a door the live
+                version's trigger is not - the API or a WebSocket for a workflow
+                that starts from anything but "Manual or API", the chat for one
+                that does not start from a chat message.
             WorkflowRunInputTooLargeError: `run_input` is over
                 `WORKFLOW_RUN_MAX_INPUT_BYTES`.
             WorkflowAdmissionQuotaError: Admitting this run would push the
@@ -173,6 +189,14 @@ class WorkflowExecutionService:
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
                 workflow_id=workflow.id, message="This workflow is archived and cannot be run"
+            )
+        if (
+            mode is WorkflowRunMode.REAL
+            and workflow.current_version_id is not None
+            and workflow.live_trigger not in _DOOR_TRIGGERS[triggered_by]
+        ):
+            raise WorkflowTriggerMismatchError(
+                workflow_id=workflow.id, trigger=workflow.live_trigger, door=triggered_by.value
             )
         # `test` mode executes the *draft*, not something an editor already
         # reviewed and froze into a version - `workflows:run` alone (as

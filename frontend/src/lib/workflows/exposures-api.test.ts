@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 
 import {
-  createWorkflowExposure,
-  deleteWorkflowExposure,
-  listWorkflowExposures,
+  getWorkflowExposure,
   rotateWorkflowExposureSecret,
   updateWorkflowExposure,
 } from "./exposures-api";
@@ -21,12 +19,9 @@ vi.mock("@/lib/api-client", async () => {
 beforeEach(() => vi.clearAllMocks());
 
 describe("exposures-api", () => {
-  it("reads and writes one workflow's exposures under its own path", async () => {
-    await listWorkflowExposures("wf");
-    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/exposures");
-
-    await createWorkflowExposure("wf", { adapter: "webhook" });
-    expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/exposures", { adapter: "webhook" });
+  it("reads and writes one workflow's exposure under its own path", async () => {
+    await getWorkflowExposure("wf");
+    expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/exposure");
 
     await updateWorkflowExposure("wf", "e1", { is_active: false });
     expect(apiClient.patch).toHaveBeenCalledWith("/workflows/wf/exposures/e1", {
@@ -35,8 +30,5 @@ describe("exposures-api", () => {
 
     await rotateWorkflowExposureSecret("wf", "e1");
     expect(apiClient.post).toHaveBeenCalledWith("/workflows/wf/exposures/e1/rotate-secret");
-
-    await deleteWorkflowExposure("wf", "e1");
-    expect(apiClient.delete).toHaveBeenCalledWith("/workflows/wf/exposures/e1");
   });
 });

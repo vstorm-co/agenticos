@@ -34,7 +34,15 @@ import {
   type WorkflowGraph,
 } from "@/lib/workflows/types";
 
+import {
+  CHAT_TRIGGER,
+  MANUAL_TRIGGER,
+  SCHEDULE_TRIGGER,
+  WEBHOOK_TRIGGER,
+} from "@/lib/workflows/triggers";
+
 import { BindingField } from "./binding-field";
+import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
 import {
   classify,
@@ -51,6 +59,16 @@ import {
   type Schema,
   type UnionShape,
 } from "./schema-model";
+
+/**
+ * What a trigger with nothing to configure says instead of "no settings": how a
+ * run begins through it, and what it hands the steps after it.
+ */
+const TRIGGER_HINTS: Record<string, string> = {
+  [MANUAL_TRIGGER]: "triggerHintManual",
+  [CHAT_TRIGGER]: "triggerHintChat",
+  [WEBHOOK_TRIGGER]: "triggerHintWebhook",
+};
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
@@ -650,6 +668,12 @@ export function NodeForm({
     removeBinding,
   };
 
+  if (definition.id === SCHEDULE_TRIGGER) {
+    return (
+      <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+    );
+  }
+
   const configSchema = definition.config_schema;
   const inputSchema = definition.input_schema;
   const configFields =
@@ -659,7 +683,12 @@ export function NodeForm({
   const inputDefs = inputSchema === null ? {} : defsOf(inputSchema);
 
   if (configFields.length === 0 && inputFields.length === 0) {
-    return <p className="text-muted-foreground text-xs">{t("nodeFormNoFields")}</p>;
+    const hint = TRIGGER_HINTS[definition.id];
+    return (
+      <p className="text-muted-foreground text-xs">
+        {hint === undefined ? t("nodeFormNoFields") : t(hint)}
+      </p>
+    );
   }
 
   return (

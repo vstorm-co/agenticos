@@ -5,7 +5,7 @@ import type {
   WorkflowDetail,
   WorkflowDraftUpdate,
   WorkflowPublish,
-  WorkflowVersionRead,
+  WorkflowPublished,
 } from "@/lib/workflows/types";
 
 import { AutosaveStatusIndicator } from "./autosave-status";
@@ -18,7 +18,7 @@ interface EditorActionsProps {
   /** `useWorkflow(id).saveDraft.mutateAsync`, owned here by the autosave loop. */
   saveDraft: (update: WorkflowDraftUpdate) => Promise<WorkflowDetail>;
   /** `useWorkflow(id).publish.mutateAsync`. */
-  publish: (input: WorkflowPublish) => Promise<WorkflowVersionRead>;
+  publish: (input: WorkflowPublish) => Promise<WorkflowPublished>;
 }
 
 /**

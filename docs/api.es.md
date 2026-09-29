@@ -1,5 +1,5 @@
 ---
-source_sha: "65515c947c35"
+source_sha: "b6170683f77a"
 ---
 
 # La API HTTP { #the-http-api }
@@ -106,16 +106,19 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 
 Esto inicia un run de la versión publicada del workflow y responde `201` de
 inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
-su lugar el borrador actual y exige `workflows:edit`. `deadline_seconds` (hasta
+su lugar el borrador actual, desde cualquier trigger, y exige `workflows:edit`.
+`deadline_seconds` (hasta
 treinta días) fija un plazo que se comprueba cada vez que un nodo va a
 despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con
 `DEADLINE_EXCEEDED`, mientras que un nodo ya en ejecución, o un run que espera
 una aprobación, no se interrumpe por ello. La ruta tiene un límite por llamante como
 la de runs de agents, y responde `429` con `Retry-After` al superarlo.
 
-`input` es lo que el nodo [`core.input`](reference/workflow-nodes.md#core-input)
+`input` es lo que el trigger [`core.input`](reference/workflow-nodes.md#core-input)
 del grafo pasa adelante, como mucho `WORKFLOW_RUN_MAX_INPUT_BYTES` en JSON (`413`
-si lo supera).
+si lo supera). Aquí solo se inicia una versión que empieza por ese trigger o sin
+ninguno: cualquier otra responde `409 WORKFLOW_TRIGGER_MISMATCH`, porque la inicia un
+webhook, una programación, un mensaje del chat o un registro de tabla.
 
 `GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost`,
 `error` y, cuando su nodo [`core.output`](reference/workflow-nodes.md#core-output) ya se ha ejecutado, su `output`, y `POST /api/v1/workflow-runs/{id}/cancel` lo detiene. `GET
@@ -146,12 +149,15 @@ minuto que `POST /workflow-runs`, y pasada esta recibe `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks y programaciones { #workflow-webhooks-and-schedules }
 
-`/api/v1/workflows/{id}/exposures` enumera los webhooks y las programaciones de un
-workflow, crea uno (`POST`), cambia uno (`PATCH .../{exposure_id}`) y borra uno;
-`POST .../{exposure_id}/rotate-secret` sustituye el secreto de un webhook.
-Configurarlo requiere `workflows:edit` y `workflows:run` sobre el workflow, porque se
-ejecuta como tú. El `reveal_secret` de un webhook solo está en las respuestas de
-creación y rotación, y su `webhook_url` es la dirección a la que entrega el remitente:
+Un workflow cuyo nodo trigger es un webhook o una programación recibe su exposure al
+publicarse esa versión, y la respuesta de la publicación la lleva como `exposure`. El
+secreto de firma de un webhook está en el `webhook_secret` de la publicación que lo
+enciende por primera vez, y en ningún otro sitio. `GET /api/v1/workflows/{id}/exposure`
+la vuelve a leer, o devuelve `null` para un workflow que empieza de otra forma. `PATCH
+.../exposures/{exposure_id}` con `{"is_active": false}` la pausa, y `POST
+.../exposures/{exposure_id}/rotate-secret` sustituye el secreto de un webhook y
+devuelve el nuevo una vez. Ambos requieren `workflows:edit` y `workflows:run` sobre el
+workflow. La `webhook_url` de un webhook es la dirección a la que entrega el remitente:
 
 ```bash
 BODY='{"lead": 42}'
@@ -192,18 +198,11 @@ que leíste por última vez; una desfasada es `409 REVISION_CONFLICT`. `PUT
 `expected_revision` obligatoria cuando ya existe. `POST .../records/query` filtra y
 ordena página a página.
 
-`POST .../triggers` ejecuta un workflow publicado por cada registro añadido desde ese
-momento, como tú. `input_mapping` dice con qué empieza el run: un id de columna,
-`@author` o `@record_id`. `GET .../triggers/{trigger_id}/admissions` lista lo que
-decidió sobre cada registro. Consulta [Triggers](virtual-tables.md#triggers).
-
-```bash
-curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
-```
+Un workflow cuyo nodo trigger es **New table record** se ejecuta, una vez publicado,
+por cada registro que se añade a su tabla. `GET .../triggers` enumera los workflows
+que empiezan por una tabla, `PATCH .../triggers/{trigger_id}` con `{"is_active": false}`
+pausa uno, y `GET .../triggers/{trigger_id}/admissions` lista lo que decidió sobre
+cada registro. Consulta [Triggers](virtual-tables.md#triggers).
 
 ## Los servicios de ML { #the-ml-services }
 

@@ -45,6 +45,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
+from app.db.models.virtual_table_trigger import VirtualTableTrigger
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     DispatchOutbox,
@@ -56,13 +57,12 @@ from app.db.models.workflow_run import (
 )
 from app.main import app
 from app.schemas.virtual_table import ColumnInput, ColumnTypeName, TableCreate, TableRead
-from app.schemas.virtual_table_trigger import TableTriggerCreate
 from app.schemas.workflow import WorkflowCreate, WorkflowDraftUpdate, WorkflowPublish
 from app.services.agent_registry import AgentRegistryService
 from app.services.file_storage import LocalFileStorage
 from app.services.rag.models import SearchResult
 from app.services.virtual_tables.facade import VirtualTableService
-from app.services.virtual_tables.triggers import TableTriggerConsumer, TableTriggerService
+from app.services.virtual_tables.triggers import TableTriggerConsumer
 from app.services.workflow_execution import WorkflowExecutionService, dispatcher
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.services.workflow_registry import WorkflowRegistryService
@@ -354,7 +354,7 @@ async def test_a_chat_question_is_answered_from_the_knowledge_base_into_the_thre
         db.add_all([collection, conversation])
         await db.commit()
     answerer = await world.agent("You answer from the handbook.")
-    entry = _node("core.input")
+    entry = _node("trigger.chat")
     search = _node("knowledge.search", {"collection_ids": [str(collection.id)], "top_k": 3})
     ask = _node("agent.run", {"agent": answerer})
     output = _node("core.output")
@@ -363,8 +363,8 @@ async def test_a_chat_question_is_answered_from_the_knowledge_base_into_the_thre
         nodes=(entry, search, ask, output),
         edges=tuple(_chain(entry, search, ask, output)),
         bindings=(
-            _bind(search, "query", entry, "payload", "prompt"),
-            _bind(ask, "prompt", entry, "payload", "prompt"),
+            _bind(search, "query", entry, "prompt"),
+            _bind(ask, "prompt", entry, "prompt"),
             _bind(ask, "sources", search, "sources"),
             _bind(output, "text", ask, "text"),
         ),
@@ -374,7 +374,11 @@ async def test_a_chat_question_is_answered_from_the_knowledge_base_into_the_thre
     run_id = await world.start(
         workflow_id,
         triggered_by=WorkflowRunTrigger.CHAT,
-        run_input={"prompt": "How long do refunds take?"},
+        run_input={
+            "prompt": "How long do refunds take?",
+            "conversation_id": str(conversation.id),
+            "user_id": str(world.owner.id),
+        },
         reply_conversation_id=conversation.id,
     )
     run = await drive(await world.seeded(run_id, graph))
@@ -456,14 +460,13 @@ class _LeadPipeline:
 
 async def _lead_pipeline(world: _World) -> _LeadPipeline:
     leads = await world.table("Leads", ("Email", "text"), ("Score", "integer"), ("Tier", "text"))
-    email = next(column.id for column in leads.columns if column.label == "Email")
     analyst = await world.agent("You score leads.")
     schema = {
         "type": "object",
         "properties": {"Score": {"type": "integer"}, "Tier": {"type": "string"}},
         "required": ["Score", "Tier"],
     }
-    entry = _node("core.input")
+    entry = _node("trigger.table_record", _pin(leads))
     analyse = _node("agent.run", {"agent": analyst, "structured_output_schema": schema})
     record_update = _node("table.record.update", _pin(leads))
     notify = _node(
@@ -476,26 +479,23 @@ async def _lead_pipeline(world: _World) -> _LeadPipeline:
         nodes=(entry, analyse, record_update, notify, output),
         edges=tuple(_chain(entry, analyse, record_update, notify, output)),
         bindings=(
-            _bind(analyse, "prompt", entry, "payload", "email"),
-            _bind(record_update, "record_id", entry, "payload", "record_id"),
+            _bind(analyse, "prompt", entry, "fields", "Email"),
+            _bind(record_update, "record_id", entry, "record_id"),
             _bind(record_update, "values", analyse, "structured"),
-            _bind(notify, "message", entry, "payload", "email"),
+            _bind(notify, "message", entry, "fields", "Email"),
             _bind(output, "structured", record_update, "fields"),
         ),
     )
+    # Publishing is what subscribes it to the table's new records.
     workflow_id = await world.workflow(graph, "Score new leads")
     async with world.factory() as db:
-        trigger = await TableTriggerService(db).create(
-            world.ctx,
-            leads.id,
-            TableTriggerCreate(
-                workflow_id=workflow_id,
-                input_mapping={"email": str(email), "record_id": "@record_id"},
-            ),
-        )
-        await db.commit()
+        trigger_id = (
+            await db.execute(
+                select(VirtualTableTrigger.id).where(VirtualTableTrigger.workflow_id == workflow_id)
+            )
+        ).scalar_one()
     return _LeadPipeline(
-        leads=leads, graph=graph, update=record_update, analyse=analyse, trigger_id=trigger.id
+        leads=leads, graph=graph, update=record_update, analyse=analyse, trigger_id=trigger_id
     )
 
 

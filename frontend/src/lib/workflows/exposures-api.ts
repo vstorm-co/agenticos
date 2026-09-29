@@ -1,31 +1,27 @@
 /**
- * API client for a workflow's exposures - its webhooks and schedules,
+ * API client for a workflow's exposure - its webhook or schedule,
  * `backend/app/api/routes/v1/workflow_exposures.py`.
  *
- * Thin wrappers over `apiClient`, one per route; `use-workflow-exposures.ts`
- * calls these, components never do.
+ * Publishing a version whose trigger node is one of them is what makes it; here
+ * it is read, paused and resumed, and a webhook's secret rotated. Thin wrappers
+ * over `apiClient`, one per route; `use-workflow-exposure.ts` calls these,
+ * components never do.
  */
 
 import { apiClient } from "@/lib/api-client";
 import type {
-  WorkflowExposureCreate,
-  WorkflowExposureCreated,
-  WorkflowExposureList,
   WorkflowExposureRead,
   WorkflowExposureUpdate,
+  WorkflowExposureWithSecret,
 } from "@/lib/workflows/types";
 
-const root = (workflowId: string) => `/workflows/${workflowId}/exposures`;
+const root = (workflowId: string) => `/workflows/${workflowId}`;
 
-export async function listWorkflowExposures(workflowId: string): Promise<WorkflowExposureList> {
-  return apiClient.get<WorkflowExposureList>(root(workflowId));
-}
-
-export async function createWorkflowExposure(
+/** The webhook or schedule the live version starts from, or null when it starts another way. */
+export async function getWorkflowExposure(
   workflowId: string,
-  body: WorkflowExposureCreate,
-): Promise<WorkflowExposureCreated> {
-  return apiClient.post<WorkflowExposureCreated>(root(workflowId), body);
+): Promise<WorkflowExposureRead | null> {
+  return apiClient.get<WorkflowExposureRead | null>(`${root(workflowId)}/exposure`);
 }
 
 export async function updateWorkflowExposure(
@@ -33,20 +29,15 @@ export async function updateWorkflowExposure(
   exposureId: string,
   body: WorkflowExposureUpdate,
 ): Promise<WorkflowExposureRead> {
-  return apiClient.patch<WorkflowExposureRead>(`${root(workflowId)}/${exposureId}`, body);
-}
-
-export async function deleteWorkflowExposure(
-  workflowId: string,
-  exposureId: string,
-): Promise<void> {
-  await apiClient.delete(`${root(workflowId)}/${exposureId}`);
+  return apiClient.patch<WorkflowExposureRead>(`${root(workflowId)}/exposures/${exposureId}`, body);
 }
 
 /** A new signing secret for a webhook; the old one stops verifying at once. */
 export async function rotateWorkflowExposureSecret(
   workflowId: string,
   exposureId: string,
-): Promise<WorkflowExposureCreated> {
-  return apiClient.post<WorkflowExposureCreated>(`${root(workflowId)}/${exposureId}/rotate-secret`);
+): Promise<WorkflowExposureWithSecret> {
+  return apiClient.post<WorkflowExposureWithSecret>(
+    `${root(workflowId)}/exposures/${exposureId}/rotate-secret`,
+  );
 }

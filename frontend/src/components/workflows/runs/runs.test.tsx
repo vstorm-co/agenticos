@@ -43,6 +43,15 @@ describe("StartRunDialog", () => {
     expect(onStart).toHaveBeenCalledWith({ mode: "test", input: { lead: 7 } });
   });
 
+  it("opens on the input the draft's trigger would hand on", async () => {
+    const onStart = mount({ sampleInput: { body: {}, delivery_id: "test" } });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).toHaveBeenCalledWith({
+      mode: "test",
+      input: { body: {}, delivery_id: "test" },
+    });
+  });
+
   it("starts the published version when that is all this caller may run", async () => {
     const onStart = mount({ canTest: false });
     fireEvent.change(screen.getByLabelText("Input (JSON)"), { target: { value: "" } });

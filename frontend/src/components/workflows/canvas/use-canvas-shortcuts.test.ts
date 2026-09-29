@@ -15,6 +15,7 @@ function insertAt(x: number, y: number): string {
     edge: null,
     bindings: [],
     becomesEntry: false,
+    replaces: null,
   });
   return id;
 }

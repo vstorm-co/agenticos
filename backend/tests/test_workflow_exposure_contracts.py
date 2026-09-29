@@ -1,8 +1,9 @@
-"""The shapes a workflow exposure accepts, and a chat run's answer (#1792).
+"""The schedule a trigger node accepts, and a chat run's answer (#1792).
 
-The database CHECK says the same things about the columns; these are the 422s
-a request gets instead of an IntegrityError, and the one branch of a chat
-answer the end-to-end suite does not reach - a run with a text answer.
+The database CHECK says the same things about an exposure's columns; these are
+the problems a publish reports on the node instead of an IntegrityError, and
+the one branch of a chat answer the end-to-end suite does not reach - a run
+with a text answer.
 """
 
 from __future__ import annotations
@@ -13,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.workflow_exposure import WorkflowExposureCreate, WorkflowExposureUpdate
 from app.services.workflow_execution import delivery
+from app.workflows.nodes._triggers import ScheduleTriggerConfig
 
 pytestmark = pytest.mark.anyio
 
@@ -22,47 +23,33 @@ pytestmark = pytest.mark.anyio
 @pytest.mark.parametrize(
     "fields",
     [
-        {"adapter": "webhook", "schedule_kind": "interval", "interval_seconds": 60},
-        {"adapter": "webhook", "run_input": {"a": 1}},
-        {"adapter": "schedule"},
-        {"adapter": "schedule", "schedule_kind": "interval"},
-        {"adapter": "schedule", "schedule_kind": "interval", "interval_seconds": 30},
-        {
-            "adapter": "schedule",
-            "schedule_kind": "interval",
-            "interval_seconds": 60,
-            "cron_expression": "* * * * *",
-        },
-        {"adapter": "schedule", "schedule_kind": "cron"},
-        {
-            "adapter": "schedule",
-            "schedule_kind": "cron",
-            "cron_expression": "* * * * *",
-            "interval_seconds": 60,
-        },
-        {"adapter": "schedule", "schedule_kind": "cron", "cron_expression": "0 0 31 2 *"},
+        {"schedule_kind": "interval", "interval_seconds": None},
+        {"schedule_kind": "interval", "interval_seconds": 30},
+        {"schedule_kind": "cron"},
+        {"schedule_kind": "cron", "cron_expression": "0 0 31 2 *"},
+        {"schedule_kind": "cron", "cron_expression": "not cron"},
     ],
     ids=[
-        "webhook-with-cadence",
-        "webhook-with-input",
-        "schedule-without-kind",
         "interval-without-seconds",
         "interval-under-the-floor",
-        "interval-with-cron",
         "cron-without-expression",
-        "cron-with-interval",
         "cron-that-never-fires",
+        "cron-that-does-not-parse",
     ],
 )
-def test_a_create_that_could_never_be_stored_is_a_422(fields):
+def test_a_schedule_trigger_that_could_never_fire_is_refused(fields):
     with pytest.raises(ValidationError):
-        WorkflowExposureCreate.model_validate(fields)
+        ScheduleTriggerConfig.model_validate(fields)
 
 
-def test_an_update_names_a_cadence_with_its_kind():
-    with pytest.raises(ValidationError, match="needs its schedule_kind"):
-        WorkflowExposureUpdate(interval_seconds=120)
-    assert WorkflowExposureUpdate(is_active=False).schedule_kind is None
+def test_a_schedule_trigger_defaults_to_hourly():
+    config = ScheduleTriggerConfig()
+    assert (config.schedule_kind, config.interval_seconds, config.input) == ("interval", 3600, {})
+    # A cron schedule keeps the interval's default, which switching it on ignores.
+    assert (
+        ScheduleTriggerConfig(schedule_kind="cron", cron_expression="0 9 * * 1-5").cron_expression
+        == "0 9 * * 1-5"
+    )
 
 
 async def test_a_chat_run_with_a_text_answer_says_it_in_the_message():

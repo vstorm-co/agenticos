@@ -85,7 +85,7 @@ from app.schemas.virtual_table import ColumnDef
 from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
-from app.workflows.contracts.definition import NodeDefinition, Port
+from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
 from app.workflows.contracts.io import FileRef, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
@@ -598,12 +598,28 @@ async def table_ref_problems(
 
 
 def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
+    """One way in: the entry is a node no edge reaches, and a trigger is the entry.
+
+    A workflow starts from exactly one trigger - the node naming how a run is
+    admitted - so a second one is refused, and so is a trigger that is not where
+    the graph starts: it would name a way in that never runs the steps after it.
+    """
     if graph.entry_node_id not in graph.node_by_id:
         return [("entry_node_id", "The entry node is not one of this graph's nodes")]
     incoming = {edge.target_node_id for edge in graph.edges}
     if graph.entry_node_id in incoming:
         return [("entry_node_id", "The entry node cannot be the target of any edge")]
-    return []
+    triggers = [
+        node.id
+        for node in graph.nodes
+        if (definition := _try_get_definition(node)) is not None
+        and definition.category == TRIGGER_CATEGORY
+    ]
+    return [
+        (f"nodes.{node_id}", "A workflow starts from one trigger, and this is not it")
+        for node_id in triggers
+        if node_id != graph.entry_node_id
+    ]
 
 
 # Rule 2 - reachable outputs

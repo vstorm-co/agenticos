@@ -40,10 +40,9 @@ def _read() -> TableTriggerRead:
         workflow_name="Follow up",
         workflow_version_id=uuid.uuid4(),
         version_number=1,
-        name=None,
+        node_instance_id=uuid.uuid4(),
         revision=1,
         filters=[],
-        input_mapping={},
         execution_principal_user_id=_CTX.user_id,
         is_active=True,
         activated_at=now,
@@ -66,38 +65,26 @@ async def test_each_route_hands_the_service_the_table_and_trigger_in_its_path(wi
     client, service = wired
     made = _read()
     service.list_for_table = AsyncMock(return_value=TableTriggerList(items=[made]))
-    service.create = AsyncMock(return_value=made)
-    service.update = AsyncMock(return_value=made)
-    service.delete = AsyncMock(return_value=None)
+    service.set_active = AsyncMock(return_value=made)
     service.admissions = AsyncMock(return_value=TableTriggerAdmissionList(items=[], total=0))
 
     assert (await client.get(_BASE)).json()["items"][0]["id"] == str(made.id)
-    created = await client.post(_BASE, json={"workflow_id": str(made.workflow_id)})
-    assert created.status_code == 201
     patched = await client.patch(f"{_BASE}/{made.id}", json={"is_active": False})
     assert patched.status_code == 200
     history = await client.get(f"{_BASE}/{made.id}/admissions?skip=2&limit=5")
     assert history.json() == {"items": [], "total": 0}
-    removed = await client.delete(f"{_BASE}/{made.id}")
-    assert removed.status_code == 204
 
     service.list_for_table.assert_awaited_once_with(_CTX, _TABLE)
-    assert service.update.await_args.args[:3] == (_CTX, _TABLE, made.id)
+    assert service.set_active.await_args.args[:3] == (_CTX, _TABLE, made.id)
+    assert service.set_active.await_args.args[3].is_active is False
     service.admissions.assert_awaited_once_with(_CTX, _TABLE, made.id, skip=2, limit=5)
-    service.delete.assert_awaited_once_with(_CTX, _TABLE, made.id)
 
 
-async def test_a_mapping_or_filter_list_over_its_limit_is_a_422(wired) -> None:
+async def test_a_pause_without_its_flag_is_a_422(wired) -> None:
     client, service = wired
-    service.create = AsyncMock()
+    service.set_active = AsyncMock()
 
-    answer = await client.post(
-        _BASE,
-        json={
-            "workflow_id": str(uuid.uuid4()),
-            "input_mapping": {f"k{index}": "@author" for index in range(51)},
-        },
-    )
+    answer = await client.patch(f"{_BASE}/{uuid.uuid4()}", json={"name": "x"})
 
     assert answer.status_code == 422
-    service.create.assert_not_awaited()
+    service.set_active.assert_not_awaited()

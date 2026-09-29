@@ -1,5 +1,5 @@
 ---
-source_sha: "fe75fd081391"
+source_sha: "7e49be8b2876"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -31,14 +31,55 @@ Algunas reglas valen para todos los nodos:
   [política](#error-handling) propia de un nodo fija cuántas veces se reintenta,
   cuánto puede durar una llamada y adónde va un fallo.
 
-## core.input { #core-input }
+## Triggers { #triggers }
 
-Donde empieza un workflow. Entrega al grafo la entrada del run como `payload`,
-lo que haya aportado la superficie que lo invoca, y nombra esa superficie en
-`triggered_by`. La entrada se congela al admitir el run y ocupa como mucho
-`WORKFLOW_RUN_MAX_INPUT_BYTES`.
+Un workflow empieza por un trigger, el nodo en el que empieza su grafo. Publicar una
+versión enciende su trigger; consulta
+[Iniciar un workflow desde fuera de la consola](../workflows.md#starting-a-workflow-from-outside-the-console).
+Cada trigger pasa a los pasos siguientes aquello con lo que su superficie inició el
+run, congelado al admitir el run y como mucho `WORKFLOW_RUN_MAX_INPUT_BYTES`. Un run de
+prueba iniciado con una entrada de otra forma hace fallar el trigger con
+`TRIGGER_INPUT_INVALID`. Un segundo trigger, o un trigger por el que no empieza el
+grafo, se rechaza al publicar.
+
+### core.input { #core-input }
+
+**Manual or API.** Se inicia a mano, desde la API o por un WebSocket. Entrega al grafo
+la entrada del run como `payload`, lo que haya enviado quien llama, y nombra la
+superficie en `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+### trigger.chat { #trigger-chat }
+
+**Chat message.** Se inicia con un mensaje en el chat, con este workflow elegido para
+responder. El texto de su `core.output` se escribe de vuelta en esa conversación.
+
+::: app.workflows.nodes._triggers.ChatTriggerOutput
+
+### trigger.webhook { #trigger-webhook }
+
+**Webhook.** Se inicia con una entrega firmada a la dirección propia del workflow, que
+la primera publicación del nodo crea junto con su secreto de firma.
+
+::: app.workflows.nodes._triggers.WebhookTriggerOutput
+
+### trigger.schedule { #trigger-schedule }
+
+**Schedule.** Se inicia según un reloj, en UTC y como mucho una vez por minuto.
+
+::: app.workflows.nodes._triggers.ScheduleTriggerConfig
+
+::: app.workflows.nodes._triggers.ScheduleTriggerOutput
+
+### trigger.table_record { #trigger-table-record }
+
+**New table record.** Se inicia con un registro añadido a su tabla que cumple cada
+filtro tal como se añadió. Publicarlo requiere acceso de lectura a la tabla.
+
+::: app.workflows.nodes._triggers.TableRecordTriggerConfig
+
+::: app.workflows.nodes._triggers.TableRecordTriggerOutput
 
 ## core.output { #core-output }
 

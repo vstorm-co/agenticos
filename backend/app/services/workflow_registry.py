@@ -30,6 +30,7 @@ from app.schemas.workflow import (
     WorkflowDraftUpdate,
     WorkflowList,
     WorkflowPublish,
+    WorkflowPublished,
     WorkflowRead,
     WorkflowVersionDetail,
     WorkflowVersionList,
@@ -38,6 +39,8 @@ from app.schemas.workflow import (
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
+from app.services.workflow_execution.exceptions import WorkflowArchivedError
+from app.services.workflow_triggers import WorkflowTriggerSync
 from app.workflows._registry import all_node_definitions
 from app.workflows.contracts.io import TableIORef
 from app.workflows.graph.errors import GraphValidationError
@@ -83,17 +86,6 @@ def _numbered_name(base: str, n: int) -> str:
     return f"{base[: _NAME_LIMIT - len(suffix)].rstrip()}{suffix}"
 
 
-class WorkflowArchivedError(AppException):
-    """A write, or a new run, was attempted on an archived workflow (409)."""
-
-    message = "This workflow is archived and cannot be edited"
-    code = "WORKFLOW_ARCHIVED"
-    status_code = 409
-
-    def __init__(self, *, workflow_id: UUID, message: str | None = None) -> None:
-        super().__init__(message=message, details={"workflow_id": workflow_id})
-
-
 class WorkflowRevisionConflictError(AppException):
     """The draft changed since the caller read it (409). Nothing was written.
 
@@ -125,6 +117,7 @@ def _read(workflow: Workflow) -> WorkflowRead:
         visibility=workflow.visibility,
         owner_user_id=workflow.owner_user_id,
         current_version_id=workflow.current_version_id,
+        live_trigger=workflow.live_trigger,
         draft_revision=workflow.draft_revision,
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
@@ -532,8 +525,9 @@ class WorkflowRegistryService:
 
     async def publish(
         self, ctx: AuthContext, workflow_id: UUID, data: WorkflowPublish
-    ) -> WorkflowVersionRead:
-        """Validate the draft graph and freeze it as the next version.
+    ) -> WorkflowPublished:
+        """Validate the draft graph, freeze it as the next version, and switch its
+        trigger on (`WorkflowTriggerSync`).
 
         `expected_revision`-gated so a publish racing a draft edit cannot
         promote a stale draft. `validate_graph` runs only after the revision
@@ -544,6 +538,8 @@ class WorkflowRegistryService:
             WorkflowArchivedError: The workflow refuses edits.
             WorkflowRevisionConflictError: Someone changed the draft since it was read.
             GraphValidationError: The graph fails a publish-time rule.
+            AuthorizationError: Its trigger runs unattended, as the publisher, who
+                may edit the workflow but not run it.
         """
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
         self._ensure_editable(workflow)
@@ -583,13 +579,17 @@ class WorkflowRegistryService:
             target_id=str(workflow.id),
             details={"version": version_number},
         )
-        return WorkflowVersionRead(
+        switched = await WorkflowTriggerSync(self.db).switch_on(ctx, workflow, version, graph)
+        return WorkflowPublished(
             id=version.id,
             version=version.version,
             note=version.note,
             published_by_user_id=version.published_by_user_id,
             budget_limit=float(version.budget_limit) if version.budget_limit is not None else None,
             created_at=version.created_at,
+            trigger=switched.trigger,
+            exposure=switched.exposure,
+            webhook_secret=switched.webhook_secret,
         )
 
     async def _load(

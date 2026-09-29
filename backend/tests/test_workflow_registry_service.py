@@ -29,6 +29,7 @@ from app.services.workflow_registry import (
     WorkflowRevisionConflictError,
     slugify,
 )
+from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import NodeInstance, NodePosition, ScopeBoundary, WorkflowGraph
 
@@ -66,6 +67,7 @@ def _workflow(ctx: AuthContext, **overrides):
     workflow.draft_revision = 0
     workflow.draft_graph = _empty_graph().model_dump(mode="json")
     workflow.current_version_id = None
+    workflow.live_trigger = None
     workflow.created_at = None
     workflow.updated_at = None
     for field, value in overrides.items():
@@ -476,14 +478,24 @@ class TestPublish:
             patch(
                 f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(return_value=workflow)
             ) as update,
+            patch(f"{REGISTRY_PATH}.WorkflowTriggerSync") as sync,
         ):
+            sync.return_value.switch_on = AsyncMock(
+                return_value=SwitchedOn(trigger=None, exposure=None, webhook_secret=None)
+            )
             result = await WorkflowRegistryService(_db()).publish(
                 ctx, workflow.id, WorkflowPublish(expected_revision=0)
             )
         assert result.version == 1
+        assert result.trigger is None
         assert create_version.call_args.kwargs["version"] == 1
         assert update.call_args.kwargs["update_data"]["status"] == WorkflowStatus.PUBLISHED.value
         assert update.call_args.kwargs["update_data"]["current_version_id"] == version.id
+        # The version just frozen is the one whose trigger is switched on.
+        switched_ctx, switched_workflow, switched_version, _ = (
+            sync.return_value.switch_on.call_args.args
+        )
+        assert (switched_ctx, switched_workflow, switched_version) == (ctx, workflow, version)
 
     async def test_an_invalid_graph_is_refused_and_nothing_is_created(self):
         ctx = _ctx(OrgRoleName.OWNER.value)

@@ -1,7 +1,8 @@
 """Run a workflow when a Virtual Table record is added (#1785).
 
-`virtual_table_triggers` names a table, a pinned workflow version, filters on the
-record as created, an input mapping, and the member it runs as.
+`virtual_table_triggers` is the live form of a workflow's new-record trigger
+node: a table, the published version that switched it on, filters on the record
+as created, and the member who published it, whom it runs as.
 `virtual_table_trigger_revisions` keeps every configuration it has had, and
 `table_trigger_admissions` what it decided about each created record - unique
 per `(trigger, event)`, which is what admits an event once. The downgrade drops
@@ -40,10 +41,9 @@ def upgrade() -> None:
         sa.Column("table_id", sa.UUID(), nullable=False),
         sa.Column("workflow_id", sa.UUID(), nullable=False),
         sa.Column("workflow_version_id", sa.UUID(), nullable=False),
-        sa.Column("name", sa.String(length=120), nullable=True),
+        sa.Column("node_instance_id", sa.UUID(), nullable=False),
         sa.Column("revision", sa.Integer(), nullable=False),
         sa.Column("filters", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("input_mapping", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("execution_principal_user_id", sa.UUID(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("activated_at", sa.DateTime(timezone=True), nullable=True),
@@ -89,6 +89,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("virtual_table_triggers_pkey")),
+        sa.UniqueConstraint("workflow_id", name="uq_table_trigger_workflow"),
     )
     op.create_index(
         op.f("virtual_table_triggers_organization_id_idx"),
@@ -100,12 +101,6 @@ def upgrade() -> None:
         op.f("virtual_table_triggers_table_id_idx"),
         "virtual_table_triggers",
         ["table_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("virtual_table_triggers_workflow_id_idx"),
-        "virtual_table_triggers",
-        ["workflow_id"],
         unique=False,
     )
     op.create_table(
@@ -168,7 +163,6 @@ def upgrade() -> None:
         sa.Column("revision", sa.Integer(), nullable=False),
         sa.Column("workflow_version_id", sa.UUID(), nullable=False),
         sa.Column("filters", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("input_mapping", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("execution_principal_user_id", sa.UUID(), nullable=True),
         sa.Column(
             "created_at",
@@ -197,9 +191,6 @@ def downgrade() -> None:
         op.f("table_trigger_admissions_organization_id_idx"), table_name="table_trigger_admissions"
     )
     op.drop_table("table_trigger_admissions")
-    op.drop_index(
-        op.f("virtual_table_triggers_workflow_id_idx"), table_name="virtual_table_triggers"
-    )
     op.drop_index(op.f("virtual_table_triggers_table_id_idx"), table_name="virtual_table_triggers")
     op.drop_index(
         op.f("virtual_table_triggers_organization_id_idx"), table_name="virtual_table_triggers"

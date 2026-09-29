@@ -14,9 +14,10 @@ no walkthrough.
 
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** opens a dialog that starts you from a blank canvas or a
-template. **Blank workflow** is an empty canvas to build from scratch. The
-templates are ready-made starting points — **Starter**, a single step to rename
+**New workflow** opens a dialog that starts you from a trigger or a template.
+**How does it start?** offers the five triggers - **Manual or API**, **Chat
+message**, **Webhook**, **Schedule** and **New table record** - each an otherwise
+empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
 
@@ -270,19 +271,34 @@ refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Fil
 
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
-**Triggers** in the editor's header lists every way into a workflow. Some need
-nothing set up. Anyone who may run the workflow can start it as themselves from
-the [HTTP API](api.md#running-a-workflow), over a WebSocket or in the chat, and
-each of these runs the live version and is checked, billed and audited like a run
-started here. Others are set up once and then fire on their own: a signed webhook,
-a schedule, and a trigger on a table, which is set up on the table itself.
+A workflow starts from one **trigger**, the first node on its canvas. The
+**Triggers** group at the top of the palette holds five: **Manual or API**, **Chat
+message**, **Webhook**, **Schedule** and **New table record**. Adding one to a
+workflow that already has a trigger replaces it in place, and the wires and
+bindings that leave the old one leave the new one. **New workflow** starts a
+workflow from the trigger you pick there.
+
+Publishing a version is what switches its trigger on. A webhook, a schedule and a
+table trigger then run that version as the member who published it, and the next
+publish moves them to the new version. A publish that starts from a different
+trigger switches the old one off. **Trigger** in the editor's header shows the live
+trigger and its state, and says when the draft starts differently.
+
+A version that starts from **Manual or API**, or from no trigger at all, is started
+by whoever may run it, as themselves: **Start a run** under Runs, the
+[HTTP API](api.md#running-a-workflow) or a WebSocket. Each run is checked, billed
+and audited like one started here. Those doors start no other trigger, and each
+other trigger has a door of its own. A test run of the draft takes any trigger, and
+**Start a run** opens it on an input in that trigger's shape.
 
 ### From the chat { #from-the-chat }
 
-The chat's picker of who answers lists the published workflows below the agents.
-With one picked, each message starts a run of it, with the message as
-`payload.prompt`. The thread shows a card with the run's status and a link to its
-steps, and the workflow's answer follows it once the run ends.
+The chat's picker of who answers lists, below the agents, the published workflows
+that start from **Chat message**. With one picked, each message starts a run of it,
+and the trigger hands the steps after it the message as `prompt`, with the
+`conversation_id` and the `user_id` of whoever sent it. The thread shows a card with
+the run's status and a link to its steps, and the workflow's answer follows it once
+the run ends.
 
 The answer is written into the conversation when the run ends, whether or not the
 chat is still open, so reopening the conversation reads it back. A run writes to
@@ -300,34 +316,40 @@ The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
 
 ### A webhook or a schedule { #a-webhook-or-a-schedule }
 
-**New webhook** and **New schedule** add a way in that nobody stands at. Each is
-pinned to the version that was live when it was made: publishing again changes
-nothing until **Use the live version** moves it. Each runs as the member who set
-it up or last changed it, and that member's access is checked afresh on every
-fire. A webhook whose member can no longer run the workflow refuses its
-deliveries, and such a schedule is switched off and recorded in the audit trail.
+A **Webhook** trigger gets its address and **signing secret** the first time a
+version with it is published. The publish shows the secret once, and later
+publishes of the same node keep both; a webhook node deleted and added again gets a
+new address. The sender signs the exact request body with the secret, HMAC-SHA256
+in `X-Signature-256`, and names each delivery in `X-Delivery-Id`; GitHub's own
+headers work as well. The trigger hands on the delivery's JSON as `body`, with its
+`delivery_id`. A retry that repeats an id is answered with the first run and starts
+nothing, because the id is recorded with the run it admitted, in one transaction.
 
-A webhook's **signing secret** is shown once, when it is made or replaced. The
-sender signs the exact request body with it, HMAC-SHA256 in `X-Signature-256`,
-and names each delivery in `X-Delivery-Id`; GitHub's own headers work as well.
-Each delivery's JSON body is its run's input. A retry that repeats an id is
-answered with the first run and starts nothing, because the id is recorded with
-the run it admitted, in one transaction.
+A **Schedule** trigger runs every so often, daily at a set time or on a cron
+expression, all in UTC and at most once a minute. Its **Input** is what every run
+starts with, handed on as `input` beside the `fired_at` of the tick. A tick that
+finds the last run still going is skipped rather than stacking a second run behind
+it, and a tick the admission quota refuses waits for the next one.
 
-A schedule runs every so often, daily at a set time or on a cron expression, all
-in UTC and at most once a minute. Its **Input** is what every run starts with. A
-tick that finds the last run still going is skipped rather than stacking a second
-run behind it, and a tick the admission quota refuses waits for the next one.
+Both run as the member who published the version, and that member's access is
+checked afresh on every fire. A webhook whose member can no longer run the workflow
+refuses its deliveries, and such a schedule is switched off and recorded in the
+audit trail. **Pause** in the **Trigger** sheet stops either without a publish, and
+**New secret** replaces a webhook's secret; the old one stops verifying at once.
 
 ### When a table record is added { #when-a-table-record-is-added }
 
-A table's **Triggers** runs a published workflow for every record added to it,
-from the console, the API, an agent or another workflow's table step. Like a
-webhook, a trigger is pinned to a version and runs as the member who set it up.
-Its filters pick which records start it, and its mapping fills `payload` with a
-column's value, the record's author or the record's own id. A run started this way carries the chain
-of triggers it came through, so a workflow that writes back into a table whose
-trigger started it is blocked rather than looping. See
+A **New table record** trigger names a table and filters on each record as it was
+added, from the console, the API, an agent or another workflow's table step. It
+hands on the record: its `record_id`, its `values` by column id, the same values as
+`fields` by label, and the `author_id` of whoever added it. Publishing it needs
+read access to the table, and a record added before the publish never starts it. A
+run started this way carries the chain of triggers it came through, so a workflow
+that writes back into a table whose trigger started it is blocked rather than
+looping.
+
+The table's own **Triggers** lists the workflows that start from it, pauses and
+resumes them, and shows what each decided about every record. See
 [Virtual Tables](virtual-tables.md#triggers).
 
 ## When something goes wrong { #when-something-goes-wrong }
@@ -350,11 +372,12 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 | What you see | Why | What to do |
 |---|---|---|
 | **Needs attention** | A step that may have acted was interrupted | Check whether its effect happened, then cancel the run and start a new one if it did not. Resuming it from the console is not built yet |
-| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow change the webhook, schedule or trigger, so it runs as them |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
+| `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
 | `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |
 | A table trigger's history says **Blocked** | The run would have started itself again, or its chain went too deep | See [Triggers](virtual-tables.md#triggers) |
-| A webhook answers `403` | The signature does not match the body, or the member it runs as can no longer run the workflow | Sign the exact bytes sent with the current secret, or have a member who may run it change the webhook |
+| A webhook answers `403` | The signature does not match the body, or the member it runs as can no longer run the workflow | Sign the exact bytes sent with the current secret, or have a member who may run it publish it again |
 
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 
@@ -398,7 +421,7 @@ Copy and paste have three limits:
 ## Recap
 
 - A workflow is a **draft you edit and a published, immutable version that
-  runs** — start one blank or from a template, and **Duplicate** copies a draft
+  runs** — start one from a trigger or a template, and **Duplicate** copies a draft
   into a fresh workflow.
 - The **palette** adds steps by drag or click; the **canvas** wires them, and it
   refuses a connection between incompatible ports.
@@ -413,9 +436,9 @@ Copy and paste have three limits:
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version.
-- **Triggers** start a workflow from the API, a WebSocket or the chat, as whoever
-  asks, and from a signed **webhook** or a **schedule** pinned to one version and
-  run as the member who set it up.
+- A workflow starts from one **trigger** node - by hand or the API, a chat
+  message, a signed **webhook**, a **schedule** or a new table record - and
+  **publishing** switches it on, running as the member who published.
 - A step's **policy** sets its tries, its time limit and whether its failures
   leave by an **Error** port; a **For each** step's body runs from **Loop item** to
   **Loop result** once per item.

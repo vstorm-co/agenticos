@@ -1,5 +1,5 @@
 ---
-source_sha: "03af9f3de9f1"
+source_sha: "414894e5a034"
 ---
 
 # Workflows { #workflows }
@@ -19,9 +19,11 @@ abspielt; der Editor selbst hat keine Führung.
 
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
-**New workflow** öffnet einen Dialog, der Sie mit einer leeren Zeichenfläche oder
-einer Vorlage beginnen lässt. **Blank workflow** ist eine leere Zeichenfläche zum
-Aufbau von Grund auf. Die Vorlagen sind fertige Ausgangspunkte — **Starter**, ein
+**New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
+beginnen lässt. **How does it start?** bietet die fünf Trigger an - **Manual or
+API**, **Chat message**, **Webhook**, **Schedule** und **New table record** -, jeder
+eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
+Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
 bereits verbundene Schritte für einen linearen Ablauf. Wählen Sie eine mit **Use**,
 und Sie landen im Editor.
@@ -304,21 +306,37 @@ gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
-**Triggers** in der Kopfzeile des Editors listet jeden Weg in einen Workflow. Manche
-brauchen keine Einrichtung. Wer den Workflow ausführen darf, kann ihn als er selbst
-über die [HTTP-API](api.md#running-a-workflow), über einen WebSocket oder im Chat
-starten, und jeder dieser Wege führt die Live-Version aus und wird geprüft,
-abgerechnet und auditiert wie ein hier gestarteter Run. Andere werden einmal
-eingerichtet und lösen dann von selbst aus: ein signierter Webhook, ein Zeitplan und
-ein Trigger auf einer Tabelle, der an der Tabelle selbst eingerichtet wird.
+Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
+Zeichenfläche. Die Gruppe **Triggers** oben in der Palette enthält fünf: **Manual or
+API**, **Chat message**, **Webhook**, **Schedule** und **New table record**. Einen
+davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
+seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
+den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
+wählen.
+
+Erst das Veröffentlichen einer Version schaltet ihren Trigger ein. Ein Webhook, ein
+Zeitplan und ein Tabellen-Trigger führen dann diese Version als das Mitglied aus, das
+sie veröffentlicht hat, und die nächste Veröffentlichung verschiebt sie auf die neue
+Version. Eine Veröffentlichung, die mit einem anderen Trigger startet, schaltet den
+alten ab. **Trigger** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
+Zustand und sagt, wann der Draft anders startet.
+
+Eine Version, die mit **Manual or API** oder ganz ohne Trigger startet, startet jeder,
+der sie ausführen darf, als er selbst: **Start a run** unter Runs, die
+[HTTP-API](api.md#running-a-workflow) oder ein WebSocket. Jeder Run wird geprüft,
+abgerechnet und auditiert wie ein hier gestarteter. Diese Wege starten keinen anderen
+Trigger, und jeder andere Trigger hat einen eigenen. Ein Test-Run des Drafts nimmt
+jeden Trigger, und **Start a run** öffnet ihn mit einer Eingabe in der Form dieses
+Triggers.
 
 ### Aus dem Chat { #from-the-chat }
 
-Die Auswahl im Chat, wer antwortet, listet die veröffentlichten Workflows unter den
-Agenten. Ist einer gewählt, startet jede Nachricht einen Run davon, mit der Nachricht
-als `payload.prompt`. Der Thread zeigt eine Karte mit dem Status des Runs und einem
-Link zu seinen Schritten, und die Antwort des Workflows folgt darunter, sobald der Run
-endet.
+Die Auswahl im Chat, wer antwortet, listet unter den Agenten die veröffentlichten
+Workflows, die mit **Chat message** starten. Ist einer gewählt, startet jede
+Nachricht einen Run davon, und der Trigger gibt den folgenden Schritten die Nachricht
+als `prompt` weiter, mit der `conversation_id` und der `user_id` des Absenders. Der
+Thread zeigt eine Karte mit dem Status des Runs und einem Link zu seinen Schritten,
+und die Antwort des Workflows folgt darunter, sobald der Run endet.
 
 Die Antwort wird in die Unterhaltung geschrieben, wenn der Run endet, ob der Chat noch
 offen ist oder nicht, sodass ein erneutes Öffnen der Unterhaltung sie wieder liest.
@@ -338,39 +356,46 @@ Streams erneut. Die Frames stehen in [Die HTTP-API](api.md#following-a-run-over-
 
 ### Ein Webhook oder ein Zeitplan { #a-webhook-or-a-schedule }
 
-**New webhook** und **New schedule** fügen einen Weg hinzu, an dem niemand steht.
-Jeder ist an die Version gebunden, die beim Anlegen live war: Erneutes Veröffentlichen
-ändert nichts, bis **Use the live version** ihn verschiebt. Jeder läuft als das
-Mitglied, das ihn eingerichtet oder zuletzt geändert hat, und dessen Zugriff wird bei
-jedem Auslösen neu geprüft. Ein Webhook, dessen Mitglied den Workflow nicht mehr
-ausführen darf, weist seine Zustellungen ab, und ein solcher Zeitplan wird abgeschaltet
-und im Audit-Trail vermerkt.
-
-Das **Signing Secret** eines Webhooks wird einmal angezeigt, wenn es erstellt oder
-ersetzt wird. Der Absender signiert damit den exakten Request-Body, HMAC-SHA256 in
+Ein **Webhook**-Trigger erhält seine Adresse und sein **Signing Secret**, wenn eine
+Version mit ihm zum ersten Mal veröffentlicht wird. Die Veröffentlichung zeigt das
+Secret einmal, und spätere Veröffentlichungen desselben Knotens behalten beides; ein
+Webhook-Knoten, der gelöscht und neu hinzugefügt wird, erhält eine neue Adresse. Der
+Absender signiert mit dem Secret den exakten Request-Body, HMAC-SHA256 in
 `X-Signature-256`, und benennt jede Zustellung in `X-Delivery-Id`; GitHubs eigene
-Header funktionieren ebenfalls. Der JSON-Body jeder Zustellung ist die Eingabe ihres
-Runs. Ein Retry, der eine ID wiederholt, wird mit dem ersten Run beantwortet und
-startet nichts, weil die ID zusammen mit dem Run, den sie zugelassen hat, in einer
-Transaktion gespeichert wird.
+Header funktionieren ebenfalls. Der Trigger gibt das JSON der Zustellung als `body`
+weiter, mit ihrer `delivery_id`. Ein Retry, der eine ID wiederholt, wird mit dem
+ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den sie
+zugelassen hat, in einer Transaktion gespeichert wird.
 
-Ein Zeitplan läuft in einem festen Abstand, täglich zu einer festen Uhrzeit oder nach
-einem Cron-Ausdruck, alles in UTC und höchstens einmal pro Minute. Sein **Input** ist
-das, womit jeder Run beginnt. Ein Takt, der den letzten Run noch laufend vorfindet,
-wird übersprungen, statt einen zweiten Run dahinter zu stapeln, und ein Takt, den die
+Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
+Uhrzeit oder nach einem Cron-Ausdruck, alles in UTC und höchstens einmal pro Minute.
+Sein **Input** ist das, womit jeder Run beginnt, weitergegeben als `input` neben dem
+`fired_at` des Takts. Ein Takt, der den letzten Run noch laufend vorfindet, wird
+übersprungen, statt einen zweiten Run dahinter zu stapeln, und ein Takt, den die
 Zulassungsquote ablehnt, wartet auf den nächsten.
+
+Beide laufen als das Mitglied, das die Version veröffentlicht hat, und dessen Zugriff
+wird bei jedem Auslösen neu geprüft. Ein Webhook, dessen Mitglied den Workflow nicht
+mehr ausführen darf, weist seine Zustellungen ab, und ein solcher Zeitplan wird
+abgeschaltet und im Audit-Trail vermerkt. **Pause** im Sheet **Trigger** hält beide
+ohne Veröffentlichung an, und **New secret** ersetzt das Secret eines Webhooks; das
+alte verifiziert sofort nicht mehr.
 
 ### Wenn ein Tabellen-Datensatz hinzukommt { #when-a-table-record-is-added }
 
-**Trigger** einer Tabelle führt einen veröffentlichten Workflow für jeden Datensatz
-aus, der ihr hinzugefügt wird - in der Konsole, über die API, durch einen Agent oder
-den Tabellenschritt eines anderen Workflows. Wie ein Webhook ist ein Trigger an eine
-Version gebunden und läuft als das Mitglied, das ihn eingerichtet hat. Seine Filter
-wählen, welche Datensätze ihn starten, und seine Zuordnung füllt `payload` mit dem
-Wert einer Spalte, dem Autor des Datensatzes oder seiner eigenen id. Ein so gestarteter Run trägt die
-Kette der Trigger, die er durchlief, sodass ein Workflow, der in die Tabelle
-zurückschreibt, deren Trigger ihn startete, blockiert wird statt im Kreis zu laufen.
-Siehe [Virtual Tables](virtual-tables.md#triggers).
+Ein **New table record**-Trigger nennt eine Tabelle und filtert jeden Datensatz so,
+wie er hinzugefügt wurde - in der Konsole, über die API, durch einen Agent oder den
+Tabellenschritt eines anderen Workflows. Er gibt den Datensatz weiter: seine
+`record_id`, seine `values` nach Spalten-ID, dieselben Werte als `fields` nach
+Beschriftung und die `author_id` dessen, der ihn hinzugefügt hat. Das Veröffentlichen
+braucht Lesezugriff auf die Tabelle, und ein Datensatz, der vor der Veröffentlichung
+hinzukam, startet ihn nie. Ein so gestarteter Run trägt die Kette der Trigger, die er
+durchlief, sodass ein Workflow, der in die Tabelle zurückschreibt, deren Trigger ihn
+startete, blockiert wird statt im Kreis zu laufen.
+
+**Triggers** der Tabelle selbst listet die Workflows, die mit ihr starten, pausiert
+und setzt sie fort und zeigt, was jeder über jeden Datensatz entschieden hat. Siehe
+[Virtual Tables](virtual-tables.md#triggers).
 
 ## Wenn etwas schiefgeht { #when-something-goes-wrong }
 
@@ -395,11 +420,12 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
 | **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen | Prüfen Sie, ob seine Wirkung eingetreten ist, brechen Sie dann den Run ab und starten Sie einen neuen, falls nicht. Ihn in der Konsole fortzusetzen ist noch nicht gebaut |
-| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, ändert den Webhook, den Zeitplan oder den Trigger, damit er als es läuft |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
+| `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
 | `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |
 | Der Verlauf eines Tabellen-Triggers zeigt **Blockiert** | Der Run hätte sich selbst erneut gestartet, oder seine Kette ging zu tief | Siehe [Trigger](virtual-tables.md#triggers) |
-| Ein Webhook antwortet `403` | Die Signatur passt nicht zum Body, oder das Mitglied, als das er läuft, darf den Workflow nicht mehr ausführen | Signieren Sie genau die gesendeten Bytes mit dem aktuellen Secret, oder ein Mitglied, das ihn ausführen darf, ändert den Webhook |
+| Ein Webhook antwortet `403` | Die Signatur passt nicht zum Body, oder das Mitglied, als das er läuft, darf den Workflow nicht mehr ausführen | Signieren Sie genau die gesendeten Bytes mit dem aktuellen Secret, oder ein Mitglied, das ihn ausführen darf, veröffentlicht ihn erneut |
 
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 
@@ -447,8 +473,8 @@ Kopieren und Einfügen haben drei Grenzen:
 ## Zusammenfassung { #recap }
 
 - Ein Workflow ist **ein Draft, den Sie bearbeiten, und eine veröffentlichte,
-  unveränderliche Version, die läuft** — starten Sie einen leer oder aus einer
-  Vorlage, und **Duplicate** kopiert einen Draft in einen frischen Workflow.
+  unveränderliche Version, die läuft** — starten Sie einen mit einem Trigger oder
+  aus einer Vorlage, und **Duplicate** kopiert einen Draft in einen frischen Workflow.
 - Die **Palette** fügt Schritte per Ziehen oder Klick hinzu; die **Zeichenfläche**
   verdrahtet sie und lehnt eine Verbindung zwischen inkompatiblen Ports ab.
 - Eine Kante legt die **Reihenfolge** fest, Bindings tragen die **Werte**; das Verbinden
@@ -462,9 +488,10 @@ Kopieren und Einfügen haben drei Grenzen:
   draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
   schreibgeschützten veröffentlichten Version wirkungslos.
-- **Triggers** starten einen Workflow über die API, einen WebSocket oder den Chat als
-  derjenige, der fragt, und über einen signierten **Webhook** oder einen **Zeitplan**,
-  der an eine Version gebunden ist und als das Mitglied läuft, das ihn eingerichtet hat.
+- Ein Workflow startet mit einem **Trigger**-Knoten - von Hand oder per API, einer
+  Chatnachricht, einem signierten **Webhook**, einem **Zeitplan** oder einem neuen
+  Tabellen-Datensatz -, und das **Veröffentlichen** schaltet ihn ein, als das
+  veröffentlichende Mitglied.
 - Die **Policy** eines Schritts legt seine Versuche, sein Zeitlimit und fest, ob
   seine Fehler über einen **Error**-Port hinausgehen; der Körper eines **For
   each**-Schritts läuft einmal pro Element von **Loop item** bis **Loop result**.

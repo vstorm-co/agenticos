@@ -1,10 +1,11 @@
-"""`WorkflowExposureService` - a workflow's webhooks and schedules (#1792).
+"""`WorkflowExposureService` - a workflow's webhook or schedule (#1792).
 
-Setting one up is an editor's job, and it runs as whoever set it up: creating,
-changing and removing need `workflows:edit` on the workflow, and the member doing
-it must be able to run it too, since every fire acts with their authority. That
-authority is read afresh on every fire - a member who has since lost the
-workflow, or left, stops the webhook answering and the schedule firing.
+A workflow that starts from a webhook or a schedule trigger node gets its
+exposure when a version is published (`app.services.workflow_triggers`), and
+runs as the member who published it. That authority is read afresh on every
+fire - a member who has since lost the workflow, or left, stops the webhook
+answering and the schedule firing. Pausing, resuming and rotating a webhook's
+secret need `workflows:edit` and `workflows:run` on the workflow.
 
 Firing ends in the one admission path every surface shares
 (`WorkflowExecutionService.admit_pinned`), on the version the exposure pinned.
@@ -39,22 +40,20 @@ from app.repositories import workflow_exposure as workflow_exposure_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_exposure import (
     WebhookAdmitted,
-    WorkflowExposureCreate,
-    WorkflowExposureCreated,
-    WorkflowExposureList,
     WorkflowExposureRead,
     WorkflowExposureUpdate,
+    WorkflowExposureWithSecret,
 )
 from app.services import trigger_events
 from app.services.access import WORKFLOW, resolve_access
 from app.services.agent_trigger import _next_fire
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
-    WorkflowNotRunnableError,
+    WorkflowArchivedError,
     WorkflowRunInputTooLargeError,
 )
 from app.services.workflow_execution.facade import WorkflowExecutionService
-from app.services.workflow_registry import WorkflowArchivedError
+from app.workflows.nodes._triggers import ScheduleTriggerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ def _read(exposure: WorkflowExposure, version: int) -> WorkflowExposureRead:
         workflow_version_id=exposure.workflow_version_id,
         version_number=version,
         adapter=ExposureAdapter(exposure.adapter),
-        name=exposure.name,
+        node_instance_id=exposure.node_instance_id,
         is_active=exposure.is_active,
         execution_principal_user_id=exposure.execution_principal_user_id,
         run_input=exposure.run_input,
@@ -108,125 +107,148 @@ class WorkflowExposureService:
         self.db = db
         self.runs = WorkflowExecutionService(db)
 
-    async def list_for_workflow(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowExposureList:
-        """Every exposure of a workflow this caller may view."""
-        workflow = await self._workflow(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
-        exposures = await workflow_exposure_repo.list_for_workflow(
-            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
-        )
-        return WorkflowExposureList(
-            items=[_read(exposure, await self._version_number(exposure)) for exposure in exposures]
-        )
-
-    async def create(
-        self, ctx: AuthContext, workflow_id: UUID, data: WorkflowExposureCreate
-    ) -> WorkflowExposureCreated:
-        """A new webhook or schedule on the workflow's current published version.
-
-        A webhook's signing secret is minted here and returned this once.
+    async def get_for_workflow(
+        self, ctx: AuthContext, workflow_id: UUID
+    ) -> WorkflowExposureRead | None:
+        """The workflow's webhook or schedule, if its live version starts from one.
 
         Raises:
-            NotFoundError: The workflow does not exist, or this caller may not
-                edit it.
-            AuthorizationError: The caller may edit it but not run it - the
-                authority every fire would act with.
-            WorkflowArchivedError: The workflow is archived.
-            WorkflowNotRunnableError: It has never been published.
+            NotFoundError: The workflow does not exist, or this caller may not view it.
         """
-        workflow = await self._editable(ctx, workflow_id)
-        if workflow.current_version_id is None:
-            raise WorkflowNotRunnableError(workflow_id=workflow.id)
-        now = datetime.now(UTC)
-        secret: str | None = None
-        fields: dict[str, Any] = {}
-        if data.adapter is ExposureAdapter.WEBHOOK:
-            secret = secrets.token_urlsafe(32)
-            sealed = seal(secret, scope=VaultScope.organization(ctx.organization_id))
-            fields = {
-                "secret_encrypted": sealed.ciphertext,
-                "secret_key_version": sealed.key_version,
-            }
-        else:
-            kind = cast(ExposureScheduleKind, data.schedule_kind)
-            fields = {
-                "schedule_kind": kind.value,
-                "interval_seconds": data.interval_seconds,
-                "cron_expression": data.cron_expression,
-                "next_fire_at": _next_fire(
-                    schedule_kind=kind.value,
-                    interval_seconds=data.interval_seconds,
-                    cron_expression=data.cron_expression,
-                    now=now,
-                ),
-            }
+        workflow = await self._workflow(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if exposure is None:
+            return None
+        return _read(exposure, await self._version_number(exposure))
+
+    async def switch_on_webhook(
+        self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
+    ) -> tuple[WorkflowExposureRead, str | None]:
+        """The webhook of a version just published, run as its publisher.
+
+        The row the same node had is kept - its address and signing secret with
+        it - and takes the new version over; a first publish of the node makes
+        one, and mints the secret returned here this once.
+        """
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.WEBHOOK)
+        live = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+        }
+        if exposure is not None:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=live
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            return _read(exposure, version.version), None
+        secret = secrets.token_urlsafe(32)
+        sealed = seal(secret, scope=VaultScope.organization(ctx.organization_id))
         exposure = await workflow_exposure_repo.create(
             self.db,
             organization_id=ctx.organization_id,
             workflow_id=workflow.id,
-            workflow_version_id=workflow.current_version_id,
-            adapter=data.adapter.value,
-            name=data.name,
-            execution_principal_user_id=ctx.subject_id,
-            is_active=True,
-            run_input=data.run_input,
+            node_instance_id=node_id,
+            adapter=ExposureAdapter.WEBHOOK.value,
+            run_input={},
+            secret_encrypted=sealed.ciphertext,
+            secret_key_version=sealed.key_version,
+            **live,
+        )
+        await self._audit(ctx, exposure, "workflow.exposure_created")
+        return _read(exposure, version.version), secret
+
+    async def switch_on_schedule(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        version: WorkflowVersion,
+        node_id: UUID,
+        config: ScheduleTriggerConfig,
+    ) -> WorkflowExposureRead:
+        """The schedule of a version just published, run as its publisher.
+
+        Its clock restarts from now when it is new, its cadence changed or it
+        was paused - a paused schedule does not owe the runs it missed - and
+        otherwise keeps the tick it was counting to.
+        """
+        exposure = await self._reusable(ctx, workflow, node_id, ExposureAdapter.SCHEDULE)
+        now = datetime.now(UTC)
+        interval = config.interval_seconds if config.schedule_kind == "interval" else None
+        cron = config.cron_expression if config.schedule_kind == "cron" else None
+        fields: dict[str, Any] = {
+            "workflow_version_id": version.id,
+            "execution_principal_user_id": ctx.subject_id,
+            "is_active": True,
+            "run_input": config.input,
+            "schedule_kind": config.schedule_kind,
+            "interval_seconds": interval,
+            "cron_expression": cron,
+        }
+        if (
+            exposure is None
+            or not exposure.is_active
+            or (exposure.schedule_kind, exposure.interval_seconds, exposure.cron_expression)
+            != (config.schedule_kind, interval, cron)
+        ):
+            fields["next_fire_at"] = _next_fire(
+                schedule_kind=config.schedule_kind,
+                interval_seconds=interval,
+                cron_expression=cron,
+                now=now,
+            )
+        if exposure is not None:
+            exposure = await workflow_exposure_repo.update(
+                self.db, exposure=exposure, update_data=fields
+            )
+            await self._audit(ctx, exposure, "workflow.exposure_updated")
+            return _read(exposure, version.version)
+        exposure = await workflow_exposure_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            workflow_id=workflow.id,
+            node_instance_id=node_id,
+            adapter=ExposureAdapter.SCHEDULE.value,
             **fields,
         )
         await self._audit(ctx, exposure, "workflow.exposure_created")
-        return WorkflowExposureCreated(
-            **_read(exposure, await self._version_number(exposure)).model_dump(),
-            reveal_secret=secret,
-        )
+        return _read(exposure, version.version)
 
-    async def update(
+    async def switch_off(self, ctx: AuthContext, workflow: Workflow) -> None:
+        """Remove the workflow's exposure: its live version starts some other way.
+
+        Runs it already admitted keep going.
+        """
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if exposure is not None:
+            await self._remove(ctx, exposure)
+
+    async def set_active(
         self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID, data: WorkflowExposureUpdate
     ) -> WorkflowExposureRead:
-        """Pause, rename, retime, re-input, or move an exposure to the live version.
-
-        Whoever changes an exposure becomes the member it runs as: they decided
-        what it does from now on, so it acts with their authority, not with that
-        of whoever set it up.
+        """Pause or resume the exposure. A schedule resumed counts from now.
 
         Raises:
             NotFoundError: The workflow or the exposure is not reachable.
             AuthorizationError: The caller may edit the workflow but not run it.
             WorkflowArchivedError: The workflow is archived.
-            BadRequestError: A cadence change on a webhook.
-            WorkflowNotRunnableError: `pin_current_version` on a workflow with
-                no published version.
         """
         workflow = await self._editable(ctx, workflow_id)
         exposure = await self._exposure(ctx, workflow, exposure_id)
-        changes: dict[str, Any] = {"execution_principal_user_id": ctx.subject_id}
-        # Sent as null, a name is cleared and the row falls back to its default label.
-        if "name" in data.model_fields_set:
-            changes["name"] = data.name
-        if data.is_active is not None:
-            changes["is_active"] = data.is_active
-        if data.run_input is not None:
-            changes["run_input"] = data.run_input
-        if data.pin_current_version:
-            if workflow.current_version_id is None:
-                raise WorkflowNotRunnableError(workflow_id=workflow.id)
-            changes["workflow_version_id"] = workflow.current_version_id
-        if data.schedule_kind is not None:
-            if exposure.adapter != ExposureAdapter.SCHEDULE.value:
-                raise BadRequestError(
-                    message="Only a schedule has a cadence",
-                    details={"exposure_id": str(exposure.id)},
-                )
-            changes["schedule_kind"] = data.schedule_kind.value
-            changes["interval_seconds"] = data.interval_seconds
-            changes["cron_expression"] = data.cron_expression
-        # A schedule's clock restarts from now whenever its cadence changes or it
-        # resumes: a paused schedule does not owe the runs it missed.
-        resumed = data.is_active is True and not exposure.is_active
-        if exposure.adapter == ExposureAdapter.SCHEDULE.value and (
-            data.schedule_kind is not None or resumed
+        changes: dict[str, Any] = {"is_active": data.is_active}
+        if (
+            data.is_active
+            and not exposure.is_active
+            and exposure.adapter == ExposureAdapter.SCHEDULE.value
         ):
             changes["next_fire_at"] = _next_fire(
-                schedule_kind=changes.get("schedule_kind", exposure.schedule_kind),
-                interval_seconds=changes.get("interval_seconds", exposure.interval_seconds),
-                cron_expression=changes.get("cron_expression", exposure.cron_expression),
+                schedule_kind=cast(str, exposure.schedule_kind),
+                interval_seconds=exposure.interval_seconds,
+                cron_expression=exposure.cron_expression,
                 now=datetime.now(UTC),
             )
         exposure = await workflow_exposure_repo.update(
@@ -235,27 +257,13 @@ class WorkflowExposureService:
         await self._audit(
             ctx,
             exposure,
-            "workflow.exposure_updated",
-            changed=sorted(key for key in changes if key != "execution_principal_user_id"),
+            "workflow.exposure_resumed" if data.is_active else "workflow.exposure_paused",
         )
         return _read(exposure, await self._version_number(exposure))
 
-    async def delete(self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID) -> None:
-        """Remove an exposure. Runs it already admitted keep going.
-
-        Raises:
-            NotFoundError: The workflow or the exposure is not reachable.
-            AuthorizationError: The caller may edit the workflow but not run it.
-            WorkflowArchivedError: The workflow is archived.
-        """
-        workflow = await self._editable(ctx, workflow_id)
-        exposure = await self._exposure(ctx, workflow, exposure_id)
-        await self._audit(ctx, exposure, "workflow.exposure_deleted")
-        await workflow_exposure_repo.delete(self.db, exposure=exposure)
-
     async def rotate_secret(
         self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID
-    ) -> WorkflowExposureCreated:
+    ) -> WorkflowExposureWithSecret:
         """A new signing secret for a webhook, returned once; the old one stops verifying.
 
         Raises:
@@ -279,11 +287,10 @@ class WorkflowExposureService:
             update_data={
                 "secret_encrypted": sealed.ciphertext,
                 "secret_key_version": sealed.key_version,
-                "execution_principal_user_id": ctx.subject_id,
             },
         )
         await self._audit(ctx, exposure, "workflow.exposure_secret_rotated")
-        return WorkflowExposureCreated(
+        return WorkflowExposureWithSecret(
             **_read(exposure, await self._version_number(exposure)).model_dump(),
             reveal_secret=secret,
         )
@@ -357,7 +364,11 @@ class WorkflowExposureService:
             )
         ctx, workflow, version = fire
         run, entry_node_run_id = await self.runs.admit_pinned(
-            ctx, workflow, version, triggered_by=WorkflowRunTrigger.WEBHOOK, run_input=payload
+            ctx,
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.WEBHOOK,
+            run_input={"body": payload, "delivery_id": delivery_id},
         )
         await workflow_exposure_repo.create_delivery(
             self.db,
@@ -421,7 +432,7 @@ class WorkflowExposureService:
                         workflow,
                         version,
                         triggered_by=WorkflowRunTrigger.SCHEDULE,
-                        run_input=exposure.run_input,
+                        run_input={"fired_at": now.isoformat(), "input": exposure.run_input},
                     )
             except (WorkflowAdmissionQuotaError, WorkflowRunInputTooLargeError) as exc:
                 logger.warning(
@@ -531,6 +542,25 @@ class WorkflowExposureService:
                 details={"workflow_id": str(workflow_id)},
             )
         return workflow
+
+    async def _reusable(
+        self, ctx: AuthContext, workflow: Workflow, node_id: UUID, adapter: ExposureAdapter
+    ) -> WorkflowExposure | None:
+        """The workflow's exposure if it is this node's, of this kind - else none,
+        after removing whatever other trigger's exposure the workflow had."""
+        exposure = await workflow_exposure_repo.get_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        if exposure is None:
+            return None
+        if exposure.node_instance_id == node_id and exposure.adapter == adapter.value:
+            return exposure
+        await self._remove(ctx, exposure)
+        return None
+
+    async def _remove(self, ctx: AuthContext, exposure: WorkflowExposure) -> None:
+        await self._audit(ctx, exposure, "workflow.exposure_deleted")
+        await workflow_exposure_repo.delete(self.db, exposure=exposure)
 
     async def _exposure(
         self, ctx: AuthContext, workflow: Workflow, exposure_id: UUID

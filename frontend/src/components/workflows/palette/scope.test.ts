@@ -50,6 +50,12 @@ describe("isAddableInScope", () => {
     expect(isAddableInScope(action, ["fe-1"])).toBe(true);
   });
 
+  it("offers a trigger only at the top level, where a run begins", () => {
+    const webhook = def({ id: "trigger.webhook", kind: "action", category: "triggers" });
+    expect(isAddableInScope(webhook, [])).toBe(true);
+    expect(isAddableInScope(webhook, ["fe-1"])).toBe(false);
+  });
+
   it("offers a boundary-shaped node at the root scope", () => {
     expect(isAddableInScope(foreach, [])).toBe(true);
   });

@@ -2,36 +2,33 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpCircle, History, Pencil, Plus, Trash2, Workflow } from "lucide-react";
+import { History, Workflow } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
 import {
   Badge,
   Button,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   Switch,
 } from "@/components/ui";
-import { useTableTriggerAdmissions, useTableTriggers, useWorkflows } from "@/hooks";
+import { useTableTriggerAdmissions, useTableTriggers } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ColumnDef, TableTriggerRead } from "@/types/tables";
 
-import { TriggerDialog } from "./trigger-dialog";
-
-type Editing = { trigger?: TableTriggerRead } | null;
-
 /**
  * The workflows a table runs when a record is added - in the table's Triggers sheet.
  *
- * Each runs the version that was live when it was set up, as the member who set
- * it up, for records that match its filters as they were created, whether they
- * were added in the console, by the API, by an agent or by another workflow.
- * A record added before a trigger was switched on never starts it.
+ * A trigger is a workflow's "New table record" node: publishing the workflow
+ * switches it on, and it runs that version as the member who published it, for
+ * records that match its filters as they were created - added in the console,
+ * by the API, by an agent or by another workflow. A record added before it was
+ * switched on never starts it. Here each can be paused and its decisions read;
+ * its table and filters are changed in its workflow.
  */
 export function TableTriggersPanel({
   tableId,
@@ -43,12 +40,8 @@ export function TableTriggersPanel({
   canEdit: boolean;
 }) {
   const t = useTranslations("pages.tables.triggers");
-  const { triggers, isLoading, create, update, remove } = useTableTriggers(tableId);
-  const { workflows } = useWorkflows();
-  const [editing, setEditing] = useState<Editing>(null);
+  const { triggers, isLoading, setActive } = useTableTriggers(tableId);
   const [history, setHistory] = useState<TableTriggerRead | null>(null);
-  const [deleting, setDeleting] = useState<TableTriggerRead | null>(null);
-  const busy = create.isPending || update.isPending || remove.isPending;
   const labels = new Map(columns.map((column) => [column.id, column.label]));
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
@@ -62,153 +55,63 @@ export function TableTriggersPanel({
         </p>
       ) : (
         <ul className="space-y-2">
-          {triggers.map((trigger) => {
-            const workflow = workflows.find((item) => item.id === trigger.workflow_id);
-            const behind =
-              workflow?.current_version_id != null &&
-              workflow.current_version_id !== trigger.workflow_version_id;
-            return (
-              <li
-                key={trigger.id}
-                className={cn("rounded-lg border p-3", !trigger.is_active && "bg-muted/30")}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                    <Workflow aria-hidden="true" className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {trigger.name ?? trigger.workflow_name}
-                    </p>
-                    <p className="text-muted-foreground truncate text-xs">
-                      {t("runs", {
-                        workflow: trigger.workflow_name,
-                        version: trigger.version_number,
-                      })}
-                    </p>
-                    <p className="text-muted-foreground mt-1 text-[0.6875rem]">
-                      {trigger.filters.length === 0
-                        ? t("everyRecord")
-                        : t("whenFiltered", {
-                            columns: trigger.filters
-                              .map((filter) => labels.get(filter.column_id) ?? filter.column_id)
-                              .join(", "),
-                          })}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {canEdit && (
-                      <Switch
-                        checked={trigger.is_active}
-                        disabled={busy}
-                        aria-label={t("active", { name: trigger.name ?? trigger.workflow_name })}
-                        onCheckedChange={(active) =>
-                          update.mutate({ id: trigger.id, body: { is_active: active } })
-                        }
-                      />
-                    )}
-                    {!canEdit && !trigger.is_active && (
-                      <Badge variant="secondary">{t("off")}</Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t("historyOf", { name: trigger.name ?? trigger.workflow_name })}
-                      onClick={() => setHistory(trigger)}
-                    >
-                      <History className="h-4 w-4" />
-                    </Button>
-                    {canEdit && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t("editNamed", {
-                            name: trigger.name ?? trigger.workflow_name,
-                          })}
-                          disabled={busy}
-                          onClick={() => setEditing({ trigger })}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t("deleteNamed", {
-                            name: trigger.name ?? trigger.workflow_name,
-                          })}
-                          disabled={busy}
-                          onClick={() => setDeleting(trigger)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+          {triggers.map((trigger) => (
+            <li
+              key={trigger.id}
+              className={cn("rounded-lg border p-3", !trigger.is_active && "bg-muted/30")}
+            >
+              <div className="flex items-start gap-3">
+                <span className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                  <Workflow aria-hidden="true" className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={ROUTES.WORKFLOW_DETAIL(trigger.workflow_id)}
+                    className="block truncate text-sm font-medium underline-offset-2 hover:underline"
+                  >
+                    {trigger.workflow_name}
+                  </Link>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {t("runs", { version: trigger.version_number })}
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-[0.6875rem]">
+                    {trigger.filters.length === 0
+                      ? t("everyRecord")
+                      : t("whenFiltered", {
+                          columns: trigger.filters
+                            .map((filter) => labels.get(filter.column_id) ?? filter.column_id)
+                            .join(", "),
+                        })}
+                  </p>
                 </div>
-                {behind && (
-                  <div className="bg-muted/50 text-muted-foreground mt-2 flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-xs">
-                    <span>{t("behind")}</span>
-                    {canEdit && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7"
-                        disabled={busy}
-                        onClick={() =>
-                          update.mutate({ id: trigger.id, body: { pin_current_version: true } })
-                        }
-                      >
-                        <ArrowUpCircle className="h-3.5 w-3.5" />
-                        {t("repin")}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
+                <div className="flex shrink-0 items-center gap-1">
+                  {canEdit && (
+                    <Switch
+                      checked={trigger.is_active}
+                      disabled={setActive.isPending}
+                      aria-label={t("active", { name: trigger.workflow_name })}
+                      onCheckedChange={(active) => setActive.mutate({ id: trigger.id, active })}
+                    />
+                  )}
+                  {!canEdit && !trigger.is_active && <Badge variant="secondary">{t("off")}</Badge>}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("historyOf", { name: trigger.workflow_name })}
+                    onClick={() => setHistory(trigger)}
+                  >
+                    <History className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </li>
+          ))}
         </ul>
       )}
-      {canEdit && (
-        <Button variant="outline" size="sm" onClick={() => setEditing({})}>
-          <Plus className="h-4 w-4" />
-          {t("new")}
-        </Button>
-      )}
-
-      {editing && (
-        <TriggerDialog
-          columns={columns}
-          workflows={workflows}
-          trigger={editing.trigger}
-          busy={busy}
-          onOpenChange={(open) => !open && setEditing(null)}
-          onSubmit={(body) => {
-            const done = { onSuccess: () => setEditing(null) };
-            if (editing.trigger) {
-              const { workflow_id: _workflow, ...changes } = body;
-              update.mutate({ id: editing.trigger.id, body: changes }, done);
-            } else {
-              create.mutate(body, done);
-            }
-          }}
-        />
-      )}
+      <p className="text-muted-foreground text-xs">{t("howToAdd")}</p>
       {history && (
         <AdmissionsDialog tableId={tableId} trigger={history} onClose={() => setHistory(null)} />
       )}
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={t("deleteTitle")}
-        description={t("deleteConfirm")}
-        confirmLabel={t("delete")}
-        destructive
-        onConfirm={() => {
-          if (deleting) remove.mutate(deleting.id);
-        }}
-      />
     </div>
   );
 }
@@ -230,9 +133,7 @@ function AdmissionsDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {t("historyTitle", { name: trigger.name ?? trigger.workflow_name })}
-          </DialogTitle>
+          <DialogTitle>{t("historyTitle", { name: trigger.workflow_name })}</DialogTitle>
         </DialogHeader>
         {isLoading ? (
           <LoadingState variant="skeleton-panel" rows={3} />

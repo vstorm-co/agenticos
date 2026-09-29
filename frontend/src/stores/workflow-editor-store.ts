@@ -102,6 +102,13 @@ export interface NodeInsertion {
   edge: WorkflowEdge | null;
   bindings: Binding[];
   becomesEntry: boolean;
+  /**
+   * The node this one takes the place of - the workflow's trigger, when another
+   * is added. Its wires leave from the new node instead, through the same port,
+   * and the bindings that read it read the new node: a builder switching how a
+   * workflow starts keeps the flow they built after it.
+   */
+  replaces: Uuid | null;
 }
 
 export interface HistoryFlags {
@@ -399,14 +406,33 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
     },
 
-    insertNode: ({ node, edge, bindings, becomesEntry }) => {
+    insertNode: ({ node, edge, bindings, becomesEntry, replaces }) => {
       const base = get().graph ?? EMPTY_GRAPH;
+      const kept =
+        replaces === null
+          ? base
+          : {
+              ...base,
+              nodes: base.nodes.filter((item) => item.id !== replaces),
+              edges: base.edges
+                .filter((item) => item.target_node_id !== replaces)
+                .map((item) =>
+                  item.source_node_id === replaces ? { ...item, source_node_id: node.id } : item,
+                ),
+              bindings: base.bindings
+                .filter((item) => item.target_node_id !== replaces)
+                .map((item) =>
+                  item.source.kind === "node_output" && item.source.node_id === replaces
+                    ? { ...item, source: { ...item.source, node_id: node.id } }
+                    : item,
+                ),
+            };
       commit({
-        ...base,
-        entry_node_id: becomesEntry ? node.id : base.entry_node_id,
-        nodes: [...base.nodes, node],
-        edges: edge === null ? base.edges : [...base.edges, edge],
-        bindings: [...base.bindings, ...bindings],
+        ...kept,
+        entry_node_id: becomesEntry ? node.id : kept.entry_node_id,
+        nodes: [...kept.nodes, node],
+        edges: edge === null ? kept.edges : [...kept.edges, edge],
+        bindings: [...kept.bindings, ...bindings],
       });
       set({ selection: { nodeIds: [node.id], edgeIds: [] }, revealNodeId: node.id });
     },

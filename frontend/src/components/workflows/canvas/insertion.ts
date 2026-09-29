@@ -11,6 +11,8 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
+import { isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
+
 import { autoBindings, isConnectionValid, isErrorPort } from "./graph-adapter";
 import { currentScopeId, scopedGraph } from "./scope-view";
 
@@ -25,11 +27,13 @@ import { currentScopeId, scopedGraph } from "./scope-view";
  * the bindings a same-shaped wire implies. So building a straight flow is a run
  * of clicks in the palette, and nothing ever lands on top of something else.
  *
- * Two cases are different. A step with no input - a starting step like `Input` -
- * goes *before* the workflow's current start, becomes the entry and is wired into
- * it. And inside a loop body every new step is wired in: body membership is
- * derived from the wires out of the loop, so an unwired step would drop out of the
- * body the user is looking at and reappear at the top level.
+ * Three cases are different. A workflow starts from one trigger, so a trigger
+ * added to a workflow that has one *replaces* it: it takes the old one's place,
+ * its wires and the bindings read from it. A step with no input otherwise - a
+ * first trigger - goes *before* the workflow's current start, becomes the entry
+ * and is wired into it. And inside a loop body every new step is wired in: body
+ * membership is derived from the wires out of the loop, so an unwired step would
+ * drop out of the body the user is looking at and reappear at the top level.
  */
 
 /** The footprint a node card takes on the canvas, for placement only. */
@@ -190,6 +194,19 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
   definitions.set(id, definition);
   const input = inputsOf(definition)[0];
 
+  if (input === undefined && isTrigger(definition) && scopePath.length === 0) {
+    const current = triggerNodeOf(graph, request.definitions);
+    if (current !== null) {
+      return {
+        node: { ...blank(definition, id), layout: dropAt ?? current.layout },
+        edge: null,
+        bindings: [],
+        becomesEntry: current.id === graph.entry_node_id,
+        replaces: current.id,
+      };
+    }
+  }
+
   // A starting step goes before the current start, and becomes it.
   if (input === undefined) {
     const entry = graph.nodes.find((node) => node.id === graph.entry_node_id);
@@ -220,6 +237,7 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
       edge: link?.edge ?? null,
       bindings: link?.bindings ?? [],
       becomesEntry: atRoot && (entry === undefined || entryInput !== undefined),
+      replaces: null,
     };
   }
 
@@ -257,6 +275,7 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     edge: link?.edge ?? null,
     bindings: link?.bindings ?? [],
     becomesEntry: graph.nodes.length === 0,
+    replaces: null,
   };
 }
 

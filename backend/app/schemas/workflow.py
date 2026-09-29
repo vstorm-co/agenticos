@@ -14,6 +14,7 @@ from pydantic import Field
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.workflow_exposure import WorkflowExposureRead
 from app.workflows.graph.model import WorkflowGraph
 
 
@@ -28,6 +29,12 @@ class WorkflowRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    live_trigger: str | None = Field(
+        default=None,
+        description="The trigger node the published version starts from - `core.input`, "
+        "`trigger.chat`, `trigger.webhook`, `trigger.schedule`, `trigger.table_record` - "
+        "or null when it starts from no trigger (by hand) or was never published",
+    )
     draft_revision: int
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -119,6 +126,19 @@ class WorkflowVersionRead(BaseSchema):
     published_by_user_id: UUID | None = None
     budget_limit: float | None = None
     created_at: datetime | None = None
+
+
+class WorkflowPublished(WorkflowVersionRead):
+    """The publish response: the new version, and the trigger it switched on.
+
+    `exposure` is the webhook or schedule the version now runs from, with the
+    webhook's address; `webhook_secret` is that webhook's signing secret,
+    returned only by the publish that first switched it on and never again.
+    """
+
+    trigger: str | None = None
+    exposure: WorkflowExposureRead | None = None
+    webhook_secret: str | None = None
 
 
 class WorkflowVersionDetail(WorkflowVersionRead):

@@ -32,32 +32,30 @@ beforeEach(() => {
 });
 
 describe("useTableTriggers", () => {
-  it("lists a table's triggers and refreshes after each write", async () => {
+  it("lists a table's triggers, pauses and resumes one, and refreshes after each", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "t1" }] });
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "t2" });
-    vi.mocked(apiClient.patch).mockResolvedValue({ id: "t1" });
-    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    vi.mocked(apiClient.patch)
+      .mockResolvedValueOnce({ id: "t1", is_active: false })
+      .mockResolvedValueOnce({ id: "t1", is_active: true });
     const { result } = renderHook(() => useTableTriggers("tbl"), { wrapper });
 
     await waitFor(() => expect(result.current.triggers).toEqual([{ id: "t1" }]));
-    result.current.create.mutate({ workflow_id: "wf" });
-    await waitFor(() => expect(result.current.create.isSuccess).toBe(true));
-    result.current.update.mutate({ id: "t1", body: { is_active: false } });
-    await waitFor(() => expect(result.current.update.isSuccess).toBe(true));
-    result.current.remove.mutate("t1");
-    await waitFor(() => expect(result.current.remove.isSuccess).toBe(true));
+    await result.current.setActive.mutateAsync({ id: "t1", active: false });
+    expect(apiClient.patch).toHaveBeenCalledWith("/tables/tbl/triggers/t1", { is_active: false });
+    expect(toastSuccess).toHaveBeenLastCalledWith("Trigger paused");
+    await result.current.setActive.mutateAsync({ id: "t1", active: true });
+    expect(toastSuccess).toHaveBeenLastCalledWith("Trigger resumed");
 
-    expect(toastSuccess).toHaveBeenCalledTimes(2);
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(3));
   });
 
   it("says why a write was refused", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
-    vi.mocked(apiClient.post).mockRejectedValue(new Error("nope"));
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
     const { result } = renderHook(() => useTableTriggers("tbl"), { wrapper });
 
     expect(result.current.triggers).toEqual([]);
-    result.current.create.mutate({ workflow_id: "wf" });
+    result.current.setActive.mutate({ id: "t1", active: true });
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });

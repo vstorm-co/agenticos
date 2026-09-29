@@ -1,6 +1,9 @@
 # core.input
 
-The node a graph starts from. It hands the graph what the run was started with:
+The manual trigger: a run started by hand, from the HTTP API or over the
+workflow-run WebSocket. Named **Manual or API** in the editor; the other ways in
+are triggers of their own (`trigger.chat`, `trigger.webhook`, `trigger.schedule`,
+`trigger.table_record`). It hands the graph what the run was started with:
 `payload` (whatever the invoking surface supplied) and `triggered_by` (which
 surface that was: `api`, `chat`, `webhook`, `schedule`, `table_created`, ...).
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "03af9f3de9f1"
+source_sha: "414894e5a034"
 ---
 
 # Workflows { #workflows }
@@ -18,9 +18,10 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** otwiera okno, które pozwala zacząć od pustej kanwy lub od szablonu.
-**Blank workflow** to pusta kanwa do budowania od zera. Szablony to gotowe punkty
-wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
+**New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
+**How does it start?** oferuje pięć wyzwalaczy - **Manual or API**, **Chat
+message**, **Webhook**, **Schedule** i **New table record** - każdy jako poza nim
+pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
 
@@ -270,20 +271,35 @@ Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. J
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
-**Triggers** w nagłówku edytora wymienia każdą drogę do workflow. Niektóre nie
-wymagają żadnej konfiguracji. Każdy, kto może uruchomić workflow, może go uruchomić
-jako on sam z [HTTP API](api.md#running-a-workflow), przez WebSocket albo na czacie,
-i każda z tych dróg uruchamia żywą wersję oraz jest sprawdzana, rozliczana i
-audytowana tak samo jak run uruchomiony tutaj. Inne konfiguruje się raz, a potem
-odpalają same: podpisany webhook, harmonogram i wyzwalacz na tabeli, konfigurowany
-na samej tabeli.
+Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
+**Triggers** na górze palety ma ich pięć: **Manual or API**, **Chat message**,
+**Webhook**, **Schedule** i **New table record**. Dodanie jednego do workflow, który
+ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
+wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
+wyzwalacza, który tam wybierzesz.
+
+To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram i wyzwalacz tabeli
+uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
+publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
+wyzwalacza, wyłącza stary. **Trigger** w nagłówku edytora pokazuje żywy wyzwalacz i
+jego stan oraz mówi, kiedy szkic startuje inaczej.
+
+Wersję, która startuje od **Manual or API** albo w ogóle bez wyzwalacza, uruchamia
+każdy, kto może ją uruchomić, jako on sam: **Start a run** w Runs,
+[HTTP API](api.md#running-a-workflow) albo WebSocket. Każdy run jest sprawdzany,
+rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiają
+żadnego innego wyzwalacza, a każdy inny wyzwalacz ma własną. Run testowy szkicu
+przyjmuje dowolny wyzwalacz, a **Start a run** otwiera go z wejściem w kształcie
+tego wyzwalacza.
 
 ### Z czatu { #from-the-chat }
 
-Wybór tego, kto odpowiada na czacie, wymienia opublikowane workflow pod agentami. Gdy
-wybrany jest workflow, każda wiadomość uruchamia jego run, z wiadomością jako
-`payload.prompt`. Wątek pokazuje kartę ze statusem runa i linkiem do jego kroków, a
-odpowiedź workflow pojawia się pod nią, gdy run się skończy.
+Wybór tego, kto odpowiada na czacie, wymienia pod agentami opublikowane workflow,
+które startują od **Chat message**. Gdy wybrany jest jeden z nich, każda wiadomość
+uruchamia jego run, a wyzwalacz przekazuje kolejnym krokom wiadomość jako `prompt`,
+razem z `conversation_id` i `user_id` nadawcy. Wątek pokazuje kartę ze statusem runa
+i linkiem do jego kroków, a odpowiedź workflow pojawia się pod nią, gdy run się
+skończy.
 
 Odpowiedź jest zapisywana w rozmowie, gdy run się kończy, niezależnie od tego, czy
 czat jest jeszcze otwarty, więc ponowne otwarcie rozmowy ją odczytuje. Run pisze do
@@ -301,36 +317,43 @@ ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-
 
 ### Webhook albo harmonogram { #a-webhook-or-a-schedule }
 
-**New webhook** i **New schedule** dodają drogę, przy której nikt nie stoi. Każda
-jest przypięta do wersji, która była żywa, gdy ją utworzono: ponowna publikacja
-niczego nie zmienia, dopóki **Use the live version** jej nie przeniesie. Każda
-działa jako członek, który ją skonfigurował albo ostatnio zmienił, a jego dostęp jest
-sprawdzany od nowa przy każdym odpaleniu. Webhook, którego członek nie może już
-uruchomić workflow, odrzuca dostarczenia, a taki harmonogram jest wyłączany i
-odnotowywany w dzienniku audytu.
+Wyzwalacz **Webhook** dostaje adres i **signing secret** przy pierwszej publikacji
+wersji, która go zawiera. Publikacja pokazuje sekret raz, a kolejne publikacje tego
+samego węzła zachowują oba; węzeł webhooka usunięty i dodany ponownie dostaje nowy
+adres. Nadawca podpisuje sekretem dokładną treść żądania, HMAC-SHA256 w
+`X-Signature-256`, i nazywa każde dostarczenie w `X-Delivery-Id`; własne nagłówki
+GitHuba też działają. Wyzwalacz przekazuje JSON dostarczenia jako `body`, razem z
+jego `delivery_id`. Ponowienie, które powtarza id, dostaje odpowiedź z pierwszym
+runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuściło,
+w jednej transakcji.
 
-**Signing secret** webhooka jest pokazywany raz, gdy jest tworzony albo wymieniany.
-Nadawca podpisuje nim dokładną treść żądania, HMAC-SHA256 w `X-Signature-256`, i
-nazywa każde dostarczenie w `X-Delivery-Id`; własne nagłówki GitHuba też działają.
-JSON-owa treść każdego dostarczenia jest wejściem jego runa. Ponowienie, które
-powtarza id, dostaje odpowiedź z pierwszym runem i niczego nie uruchamia, bo id jest
-zapisywane razem z runem, który wpuściło, w jednej transakcji.
-
-Harmonogram uruchamia się co jakiś czas, codziennie o ustalonej godzinie albo według
-wyrażenia cron, wszystko w UTC i najczęściej raz na minutę. Jego **Input** to to, od
-czego zaczyna każdy run. Tyknięcie, które zastaje poprzedni run wciąż trwający, jest
-pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
+Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
+albo według wyrażenia cron, wszystko w UTC i najczęściej raz na minutę. Jego
+**Input** to to, od czego zaczyna każdy run, przekazywane jako `input` obok
+`fired_at` danego tyknięcia. Tyknięcie, które zastaje poprzedni run wciąż trwający,
+jest pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
 przyjęć czeka na następne.
+
+Oba działają jako członek, który opublikował wersję, a jego dostęp jest sprawdzany od
+nowa przy każdym odpaleniu. Webhook, którego członek nie może już uruchomić
+workflow, odrzuca dostarczenia, a taki harmonogram jest wyłączany i odnotowywany w
+dzienniku audytu. **Pause** w arkuszu **Trigger** zatrzymuje każdy z nich bez
+publikacji, a **New secret** wymienia sekret webhooka; stary od razu przestaje
+przechodzić weryfikację.
 
 ### Gdy przybędzie rekord tabeli { #when-a-table-record-is-added }
 
-**Wyzwalacze** tabeli uruchamiają opublikowany workflow dla każdego dodanego do niej
-rekordu - z konsoli, przez API, przez agenta albo krok tabeli innego workflow. Jak
-webhook, wyzwalacz jest przypięty do wersji i działa jako członek, który go
-skonfigurował. Filtry wybierają, które rekordy go uruchamiają, a mapowanie wypełnia
-`payload` wartością kolumny, autorem rekordu albo id samego rekordu. Run uruchomiony w ten sposób niesie
-łańcuch wyzwalaczy, przez które przeszedł, więc workflow zapisujący z powrotem do
-tabeli, której wyzwalacz go uruchomił, jest blokowany zamiast się zapętlić. Zobacz
+Wyzwalacz **New table record** wskazuje tabelę i filtruje każdy rekord taki, jakim go
+dodano - z konsoli, przez API, przez agenta albo krok tabeli innego workflow.
+Przekazuje rekord: jego `record_id`, `values` według id kolumn, te same wartości jako
+`fields` według etykiet oraz `author_id` tego, kto go dodał. Publikacja wymaga
+dostępu do odczytu tabeli, a rekord dodany przed publikacją nigdy go nie uruchamia.
+Run uruchomiony w ten sposób niesie łańcuch wyzwalaczy, przez które przeszedł, więc
+workflow zapisujący z powrotem do tabeli, której wyzwalacz go uruchomił, jest
+blokowany zamiast się zapętlić.
+
+**Triggers** samej tabeli wymienia workflow, które od niej startują, wstrzymuje je i
+wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
 
 ## Gdy coś pójdzie nie tak { #when-something-goes-wrong }
@@ -353,11 +376,12 @@ każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
 | Co widzisz | Dlaczego | Co zrobić |
 |---|---|---|
 | **Wymaga uwagi** | Przerwano krok, który mógł zadziałać | Sprawdź, czy jego efekt nastąpił, a potem anuluj run i uruchom nowy, jeśli nie. Wznowienie go z konsoli nie jest jeszcze zbudowane |
-| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, zmieni webhook, harmonogram albo wyzwalacz, żeby działał jako on |
+| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
+| `WORKFLOW_TRIGGER_MISMATCH` | Run zażądano drogą, którą nie jest żywy wyzwalacz: ręcznie albo przez API dla workflow startującego od webhooka, albo na czacie dla takiego, który nie startuje od wiadomości na czacie | Uruchom go tak, jak mówi jego wyzwalacz, albo przetestuj szkic, który przyjmuje dowolny wyzwalacz |
 | `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |
 | `REVISION_CONFLICT` | Ktoś zmienił rekord po tym, jak krok go odczytał | Skieruj błąd kroku przez `error.handle` do świeżego odczytu |
 | Historia wyzwalacza tabeli mówi **Zablokowany** | Run uruchomiłby sam siebie ponownie albo jego łańcuch sięgnął za głęboko | Zobacz [Wyzwalacze](virtual-tables.md#triggers) |
-| Webhook odpowiada `403` | Podpis nie pasuje do treści albo członek, jako który działa, nie może już uruchamiać workflow | Podpisz dokładnie wysłane bajty bieżącym sekretem albo niech członek, który może go uruchamiać, zmieni webhook |
+| Webhook odpowiada `403` | Podpis nie pasuje do treści albo członek, jako który działa, nie może już uruchamiać workflow | Podpisz dokładnie wysłane bajty bieżącym sekretem albo niech członek, który może go uruchamiać, opublikuje go ponownie |
 
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 
@@ -401,7 +425,7 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 ## Podsumowanie { #recap }
 
 - Workflow to **draft, który edytujesz, i opublikowana, niezmienna wersja, która
-  działa** — zacznij go pusty lub z szablonu, a **Duplicate** kopiuje draft do
+  działa** — zacznij go od wyzwalacza lub z szablonu, a **Duplicate** kopiuje draft do
   nowego workflow.
 - **Paleta** dodaje kroki przez przeciągnięcie lub kliknięcie; **kanwa** je łączy i
   odrzuca połączenie między niezgodnymi portami.
@@ -416,9 +440,9 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu.
-- **Triggers** uruchamiają workflow z API, przez WebSocket albo na czacie, jako ten,
-  kto pyta, oraz z podpisanego **webhooka** albo **harmonogramu** przypiętego do
-  jednej wersji i działającego jako członek, który go skonfigurował.
+- Workflow startuje od jednego węzła **wyzwalacza** - ręcznie lub przez API, od
+  wiadomości na czacie, podpisanego **webhooka**, **harmonogramu** albo nowego
+  rekordu tabeli - a **publikacja** go włącza i działa jako członek, który publikował.
 - **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą
   portem **Error**; ciało kroku **For each** wykonuje się od **Loop item** do **Loop
   result** raz na każdy element.

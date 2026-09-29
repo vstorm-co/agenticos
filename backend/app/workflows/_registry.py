@@ -134,6 +134,10 @@ def load_builtins() -> None:
         table_record_update,
         table_record_upsert,
         text_extract,
+        trigger_chat,
+        trigger_schedule,
+        trigger_table_record,
+        trigger_webhook,
     )
 
     _builtins_loaded = True

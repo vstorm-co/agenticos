@@ -208,18 +208,10 @@ export function emptyViewConfig(): TableViewConfig {
   };
 }
 
-/** Where one payload key's value comes from: a column's id, the record's author or its id. */
-export type TriggerMappingSource = string;
-
-/** The token a mapping names the record's author with - not a column. */
-export const AUTHOR_SOURCE = "@author";
-
-/** The token a mapping names the record's own id with, for a run that changes it back. */
-export const RECORD_ID_SOURCE = "@record_id";
-
 /**
- * A workflow a table runs when a record is added. Mirrors `TableTriggerRead`.
- * Pinned to one published version and run as the member who set it up.
+ * A workflow a table runs when a record is added - its "New table record"
+ * trigger node, switched on by publishing it. Mirrors `TableTriggerRead`. It runs
+ * the version that switched it on, as the member who published that version.
  */
 export interface TableTriggerRead {
   id: string;
@@ -228,10 +220,9 @@ export interface TableTriggerRead {
   workflow_name: string;
   workflow_version_id: string;
   version_number: number;
-  name: string | null;
+  node_instance_id: string;
   revision: number;
   filters: RecordFilter[];
-  input_mapping: Record<string, TriggerMappingSource>;
   execution_principal_user_id: string | null;
   is_active: boolean;
   activated_at: string | null;
@@ -242,19 +233,9 @@ export interface TableTriggerList {
   items: TableTriggerRead[];
 }
 
-export interface TableTriggerCreate {
-  workflow_id: string;
-  name?: string | null;
-  filters?: RecordFilter[];
-  input_mapping?: Record<string, TriggerMappingSource>;
-}
-
+/** Pause or resume it. Mirrors `TableTriggerUpdate`. */
 export interface TableTriggerUpdate {
-  name?: string | null;
-  is_active?: boolean;
-  filters?: RecordFilter[];
-  input_mapping?: Record<string, TriggerMappingSource>;
-  pin_current_version?: boolean;
+  is_active: boolean;
 }
 
 export type AdmissionStatus = "queued" | "filtered" | "blocked" | "failed";

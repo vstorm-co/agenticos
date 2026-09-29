@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEBUG_ECHO, echo, graph } from "@/components/workflows/validation/fixtures";
 import { ApiError } from "@/lib/api-error";
-import type { WorkflowGraph, WorkflowVersionRead } from "@/lib/workflows/types";
+import type { NodeDefinition, WorkflowGraph, WorkflowPublished } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { PublishDialog } from "./publish-dialog";
@@ -19,7 +19,7 @@ const EMPTY_GRAPH: WorkflowGraph = {
 
 const VALID_GRAPH = graph({ entry: "a", nodes: [echo("a")] });
 
-function publishedVersion(): WorkflowVersionRead {
+function publishedVersion(overrides: Partial<WorkflowPublished> = {}): WorkflowPublished {
   return {
     id: "v1",
     version: 1,
@@ -27,8 +27,22 @@ function publishedVersion(): WorkflowVersionRead {
     published_by_user_id: null,
     budget_limit: null,
     created_at: null,
+    trigger: null,
+    exposure: null,
+    webhook_secret: null,
+    ...overrides,
   };
 }
+
+const WEBHOOK: NodeDefinition = {
+  ...DEBUG_ECHO,
+  id: "trigger.webhook",
+  name: "Webhook",
+  category: "triggers",
+  input_schema: null,
+  config_schema: null,
+  ports: [DEBUG_ECHO.ports[1]!],
+};
 
 function seed(graphValue: WorkflowGraph | null, revision: number | null) {
   act(() => {
@@ -77,9 +91,49 @@ describe("PublishDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("names the trigger it switches on, and shows a new webhook's secret once", async () => {
+    const hook = graph({ entry: "w", nodes: [{ ...echo("w"), definition_id: "trigger.webhook" }] });
+    seed(hook, 3);
+    const url = "https://agents.example.com/api/v1/workflow-webhooks/e1";
+    const publish = vi.fn().mockResolvedValue(
+      publishedVersion({
+        trigger: "trigger.webhook",
+        exposure: { webhook_url: url } as WorkflowPublished["exposure"],
+        webhook_secret: "s3cret",
+      }),
+    );
+    render(<PublishDialog catalog={[WEBHOOK]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    expect(screen.getByText(/It starts from Webhook/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    expect(await screen.findByDisplayValue(url)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("says a draft with no trigger starts by hand, and a republished webhook shows nothing", async () => {
+    seed(VALID_GRAPH, 2);
+    const publish = vi.fn().mockResolvedValue(
+      publishedVersion({
+        exposure: { webhook_url: "https://x" } as WorkflowPublished["exposure"],
+      }),
+    );
+    render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    expect(screen.getByText(/It has no trigger/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("surfaces a server refusal on the offending node and selects it on click", async () => {
     seed(VALID_GRAPH, 5);
-    const publish = vi.fn().mockRejectedValue(graphError("nodes.a", "This node lost its resource"));
+    // A node's own field after its id still names that node.
+    const publish = vi
+      .fn()
+      .mockRejectedValue(graphError("nodes.a.config.table", "This node lost its resource"));
     render(<PublishDialog catalog={[DEBUG_ECHO]} publish={publish} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Publish/ }));

@@ -1,5 +1,5 @@
 ---
-source_sha: "fe75fd081391"
+source_sha: "7e49be8b2876"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -32,14 +32,59 @@ Einige Regeln gelten für jeden Knoten:
   oft er wiederholt wird, wie lange ein Aufruf dauern darf und wohin ein Fehler
   geht.
 
-## core.input { #core-input }
+## Trigger { #triggers }
 
-Wo ein Workflow beginnt. Er gibt dem Graphen die Eingabe des Runs als `payload`,
-was auch immer die aufrufende Oberfläche geliefert hat, und nennt diese
-Oberfläche in `triggered_by`. Die Eingabe wird beim Annehmen des Runs
-eingefroren und umfasst höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES`.
+Ein Workflow startet mit einem Trigger, dem Knoten, mit dem sein Graph beginnt. Das
+Veröffentlichen einer Version schaltet ihren Trigger ein; siehe
+[Einen Workflow von außerhalb der Konsole starten](../workflows.md#starting-a-workflow-from-outside-the-console).
+Jeder Trigger gibt den folgenden Schritten das weiter, womit seine Oberfläche den Run
+gestartet hat, beim Annehmen des Runs eingefroren und höchstens
+`WORKFLOW_RUN_MAX_INPUT_BYTES`. Ein Test-Run, der mit einer Eingabe anderer Form
+gestartet wird, lässt den Trigger mit `TRIGGER_INPUT_INVALID` fehlschlagen. Ein zweiter
+Trigger oder ein Trigger, mit dem der Graph nicht beginnt, wird beim Veröffentlichen
+abgelehnt.
+
+### core.input { #core-input }
+
+**Manual or API.** Von Hand, über die API oder über einen WebSocket gestartet. Er gibt
+dem Graphen die Eingabe des Runs als `payload`, was auch immer der Aufrufer gesendet
+hat, und nennt die Oberfläche in `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+### trigger.chat { #trigger-chat }
+
+**Chat message.** Von einer Nachricht im Chat gestartet, in dem dieser Workflow zum
+Antworten gewählt ist. Der Text seines `core.output` wird in diese Unterhaltung
+zurückgeschrieben.
+
+::: app.workflows.nodes._triggers.ChatTriggerOutput
+
+### trigger.webhook { #trigger-webhook }
+
+**Webhook.** Von einer signierten Zustellung an die eigene Adresse des Workflows
+gestartet, die die erste Veröffentlichung des Knotens zusammen mit seinem
+Signatur-Secret anlegt.
+
+::: app.workflows.nodes._triggers.WebhookTriggerOutput
+
+### trigger.schedule { #trigger-schedule }
+
+**Schedule.** Nach der Uhr gestartet, in UTC und höchstens einmal pro Minute.
+
+::: app.workflows.nodes._triggers.ScheduleTriggerConfig
+
+::: app.workflows.nodes._triggers.ScheduleTriggerOutput
+
+### trigger.table_record { #trigger-table-record }
+
+**New table record.** Von einem Datensatz gestartet, der seiner Tabelle hinzugefügt
+wird und beim Hinzufügen jedem Filter entspricht. Das Veröffentlichen braucht
+Lesezugriff auf die Tabelle.
+
+::: app.workflows.nodes._triggers.TableRecordTriggerConfig
+
+::: app.workflows.nodes._triggers.TableRecordTriggerOutput
 
 ## core.output { #core-output }
 

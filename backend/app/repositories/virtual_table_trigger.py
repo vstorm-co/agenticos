@@ -41,7 +41,6 @@ async def add_revision(db: AsyncSession, *, trigger: VirtualTableTrigger) -> Non
             revision=trigger.revision,
             workflow_version_id=trigger.workflow_version_id,
             filters=trigger.filters,
-            input_mapping=trigger.input_mapping,
             execution_principal_user_id=trigger.execution_principal_user_id,
         )
     )
@@ -56,6 +55,19 @@ async def get(
             VirtualTableTrigger.id == trigger_id,
             VirtualTableTrigger.organization_id == organization_id,
             VirtualTableTrigger.table_id == table_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_for_workflow(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+) -> VirtualTableTrigger | None:
+    """The workflow's table trigger, if its live trigger is a new table record."""
+    result = await db.execute(
+        select(VirtualTableTrigger).where(
+            VirtualTableTrigger.workflow_id == workflow_id,
+            VirtualTableTrigger.organization_id == organization_id,
         )
     )
     return result.scalar_one_or_none()

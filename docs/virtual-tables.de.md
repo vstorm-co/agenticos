@@ -1,5 +1,5 @@
 ---
-source_sha: "78c9367c5b34"
+source_sha: "35f32898440e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -243,26 +243,26 @@ alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
 
 ## Trigger { #triggers }
 
-**Trigger** auf der Seite einer Tabelle führt einen veröffentlichten
-[Workflow](workflows.md) für jeden Datensatz aus, der der Tabelle hinzugefügt wird, egal
-auf welchem Weg: in der Konsole, über die API, durch das Tabellen-Tool eines Agents oder
-den Tabellenschritt eines anderen Workflows. Ein Upsert, der einen Datensatz anlegt,
-startet ihn; einer, der ihn aktualisiert, nicht. Einrichten braucht `tables:edit` auf der
-Tabelle und das Recht, den Workflow auszuführen, denn der Trigger läuft als das Mitglied,
-das ihn eingerichtet oder zuletzt geändert hat, nie als der Autor des Datensatzes. Dessen
-Zugriff wird bei jedem Datensatz erneut geprüft.
+Ein [Workflow](workflows.md#when-a-table-record-is-added), dessen Trigger-Knoten **New
+table record** ist, läuft nach der Veröffentlichung für jeden Datensatz, der seiner
+Tabelle hinzugefügt wird, egal auf welchem Weg: in der Konsole, über die API, durch das
+Tabellen-Tool eines Agents oder den Tabellenschritt eines anderen Workflows. Ein Upsert,
+der einen Datensatz anlegt, startet ihn; einer, der ihn aktualisiert, nicht. Das
+Veröffentlichen braucht Lesezugriff auf die Tabelle und das Recht, den Workflow
+auszuführen, denn er läuft als das Mitglied, das ihn veröffentlicht hat, nie als der Autor
+des Datensatzes. Dessen Zugriff wird bei jedem Datensatz erneut geprüft.
 
-Ein Trigger ist an die Version gebunden, die beim Anlegen live war. Erneutes
-Veröffentlichen ändert nichts, bis **Live-Version verwenden** ihn verschiebt. Seine Filter
-nutzen die Operatoren aus [Auflisten und Filtern](#listing-and-filtering) und werden am
-Datensatz geprüft, wie er angelegt wurde, sodass eine spätere Änderung ihn weder startet
-noch stoppt. Seine Eingabezuordnung legt fest, womit der Run beginnt: Jeder Schlüssel wird
-ein Schlüssel von `payload`, mit dem Wert einer Spalte, `@author` (der id dessen, der den
-Datensatz hinzugefügt hat) oder `@record_id`, der id des Datensatzes selbst, damit der Run
-ihn mit `table.record.update` zurück ändern kann.
+Der Trigger führt die Version aus, die ihn eingeschaltet hat, und die nächste
+Veröffentlichung verschiebt ihn auf die neue Version. Seine Filter nutzen die Operatoren
+aus [Auflisten und Filtern](#listing-and-filtering) und werden am Datensatz geprüft, wie
+er angelegt wurde, sodass eine spätere Änderung ihn weder startet noch stoppt. Er gibt dem
+Run den ganzen Datensatz: `record_id`, `values` nach Spalten-ID, dieselben Werte als
+`fields` nach Beschriftung und `author_id`, damit der Run ihn mit `table.record.update`
+zurück ändern kann. **Triggers** auf der Seite der Tabelle listet die Workflows, die mit
+ihr starten, pausiert und setzt jeden fort und öffnet seinen Verlauf.
 
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
-Das Einschalten, auch erneut, nimmt die Schema-Sperre der Tabelle, auf die jeder
+Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder
 Schreibzugriff wartet, sodass kein vorher committeter Datensatz ihn je startet und nichts
 nachgeholt wird, was hinzukam, während er aus war. Ein Worker-Heartbeat liest das
 Outbox-Ereignis jedes neuen Datensatzes innerhalb von etwa zehn Sekunden. Er entscheidet
@@ -282,9 +282,10 @@ Ein Workflow, der in eine Tabelle schreibt, kann deren Trigger starten, und so w
 über weitere Tabellen. Jeder Run trägt die Kette, zu der er gehört, und ein Trigger, den
 die Kette schon durchlaufen hat, wird blockiert statt erneut gestartet - so laufen zwei
 Workflows, die Datensätze in die Tabellen des jeweils anderen schreiben, nicht im Kreis.
-Eine Spalte, auf die ein Trigger filtert oder abbildet, kann nicht archiviert werden, bis
-der Trigger geändert oder entfernt ist, auch wenn er ausgeschaltet ist. Die ganze Tabelle
-zu archivieren ist erlaubt, und ihre Trigger starten dann nie wieder.
+Eine Spalte, auf die ein Trigger filtert, kann nicht archiviert werden, bis der Trigger
+seines Workflows nicht mehr auf sie filtert und veröffentlicht ist, auch wenn er pausiert
+ist, und eine Tabelle, mit der ein veröffentlichter Workflow startet, kann nicht archiviert
+werden, bis dieser Workflow anders startet.
 
 ## Was gemeinsam committet { #what-commits-together }
 

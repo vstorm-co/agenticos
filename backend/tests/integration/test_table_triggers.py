@@ -1,9 +1,11 @@
 """A table's triggers against a real Postgres (#1785).
 
+A trigger is a workflow's "New table record" node, switched on by publishing.
 What only the database can show: that every way a record is added leaves the
 event a trigger reads, that an event admits at most once per trigger however
-often it is consumed, that the activation boundary holds, and that a chain of
-runs writing into each other's tables stops at the trigger it already passed.
+often it is consumed, that the activation boundary holds across publishes and
+pauses, and that a chain of runs writing into each other's tables stops at the
+trigger it already passed.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.deps import AgentDeps
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -57,7 +59,8 @@ from app.schemas.virtual_table import (
     TableCreate,
     TableRead,
 )
-from app.schemas.virtual_table_trigger import TableTriggerCreate, TableTriggerUpdate
+from app.schemas.virtual_table_trigger import TableTriggerUpdate
+from app.schemas.workflow import WorkflowPublish
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
 from app.services.virtual_tables.triggers import (
@@ -66,11 +69,10 @@ from app.services.virtual_tables.triggers import (
     TableTriggerConsumer,
     TableTriggerService,
 )
-from app.services.workflow_execution.exceptions import (
-    WorkflowNotRunnableError,
-    WorkflowRunInputTooLargeError,
-)
+from app.services.workflow_execution.exceptions import WorkflowRunInputTooLargeError
+from app.services.workflow_registry import WorkflowRegistryService
 from app.workflows.contracts.io import Binding, LiteralValue, TableIORef
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import SeededRun, drive, seed_member
 
@@ -93,22 +95,26 @@ def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInsta
     )
 
 
-def _echo_graph() -> WorkflowGraph:
-    entry = _node("debug.echo", {"message": "hi"})
-    return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+def _ref(table: TableRead) -> dict[str, Any]:
+    return TableIORef(table_id=table.id, schema_version=table.schema_version).model_dump(
+        mode="json"
+    )
 
 
-def _writes_into(table: TableRead) -> WorkflowGraph:
-    """A graph whose one real step adds a record to `table`."""
-    entry = _node("core.input")
-    create = _node(
-        "table.record.create",
+def _on_new_record(
+    table: TableRead, *, filters: list[RecordFilter] | None = None, into: TableRead | None = None
+) -> WorkflowGraph:
+    """A workflow a new record in `table` starts - that adds a record to `into`, if given."""
+    entry = _node(
+        "trigger.table_record",
         {
-            "table": TableIORef(table_id=table.id, schema_version=table.schema_version).model_dump(
-                mode="json"
-            )
+            "table": _ref(table),
+            "filters": [item.model_dump(mode="json") for item in filters or []],
         },
     )
+    if into is None:
+        return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+    create = _node("table.record.create", {"table": _ref(into)})
     return WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, create),
@@ -132,6 +138,11 @@ def _writes_into(table: TableRead) -> WorkflowGraph:
     )
 
 
+def _by_hand() -> WorkflowGraph:
+    entry = _node("core.input")
+    return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+
+
 @dataclass
 class _World:
     factory: async_sessionmaker[AsyncSession]
@@ -149,9 +160,7 @@ class _World:
     async def table(self, name: str) -> TableRead:
         return await _table(self.factory, self.ctx, name)
 
-    async def workflow(
-        self, graph: WorkflowGraph | None = None, *, published: bool = True
-    ) -> Workflow:
+    async def workflow(self) -> Workflow:
         async with self.factory() as db:
             workflow = Workflow(
                 id=uuid.uuid4(),
@@ -159,51 +168,71 @@ class _World:
                 owner_user_id=self.owner.id,
                 slug=f"wf-{uuid.uuid4().hex[:8]}",
                 name="Follow up",
-                status=WorkflowStatus.PUBLISHED.value,
+                status=WorkflowStatus.DRAFT.value,
                 visibility=Visibility.ORG.value,
-                draft_graph=(graph or _echo_graph()).model_dump(mode="json"),
             )
             db.add(workflow)
-            await db.flush()
-            if published:
-                await self.publish(db, workflow, graph or _echo_graph(), number=1)
             await db.commit()
         return workflow
 
-    @staticmethod
     async def publish(
-        db: AsyncSession, workflow: Workflow, graph: WorkflowGraph, *, number: int
+        self, workflow: Workflow, graph: WorkflowGraph, *, ctx: AuthContext | None = None
     ) -> WorkflowVersion:
-        version = WorkflowVersion(
-            id=uuid.uuid4(),
-            workflow_id=workflow.id,
-            organization_id=workflow.organization_id,
-            version=number,
-            graph=graph.model_dump(mode="json"),
-        )
-        db.add(version)
-        await db.flush()
-        await db.execute(
-            update(Workflow).where(Workflow.id == workflow.id).values(current_version_id=version.id)
-        )
+        """Make `graph` the draft and publish it, as a member does in the editor."""
+        async with self.factory() as db:
+            current = await db.get(Workflow, workflow.id)
+            assert current is not None
+            current.draft_graph = graph.model_dump(mode="json")
+            await db.flush()
+            published = await WorkflowRegistryService(db).publish(
+                ctx or self.ctx,
+                workflow.id,
+                WorkflowPublish(expected_revision=current.draft_revision),
+            )
+            await db.commit()
+            version = await db.get(WorkflowVersion, published.id)
+        assert version is not None
         return version
 
     async def trigger(
         self,
-        workflow: Workflow,
+        workflow: Workflow | None = None,
         *,
         table: TableRead | None = None,
         ctx: AuthContext | None = None,
-        **fields: Any,
+        filters: list[RecordFilter] | None = None,
+        into: TableRead | None = None,
     ) -> uuid.UUID:
+        """Publish `workflow` - a new one when not given - to start from a new record
+        in `table`, and return the trigger that publish switched on."""
+        workflow = workflow or await self.workflow()
+        graph = _on_new_record(table or self.leads, filters=filters, into=into)
+        await self.publish(workflow, graph, ctx=ctx)
         async with self.factory() as db:
-            made = await TableTriggerService(db).create(
-                ctx or self.ctx,
-                (table or self.leads).id,
-                TableTriggerCreate(workflow_id=workflow.id, **fields),
+            return (
+                await db.execute(
+                    select(VirtualTableTrigger.id).where(
+                        VirtualTableTrigger.workflow_id == workflow.id
+                    )
+                )
+            ).scalar_one()
+
+    async def trigger_of(self, workflow: Workflow) -> VirtualTableTrigger:
+        async with self.factory() as db:
+            return (
+                await db.execute(
+                    select(VirtualTableTrigger).where(
+                        VirtualTableTrigger.workflow_id == workflow.id
+                    )
+                )
+            ).scalar_one()
+
+    async def pause(self, trigger_id: uuid.UUID, *, active: bool = False) -> None:
+        async with self.factory() as db:
+            await TableTriggerService(db).set_active(
+                self.ctx, self.leads.id, trigger_id, TableTriggerUpdate(is_active=active)
             )
             await db.commit()
-        return made.id
 
     async def add(self, values: dict[str, Any], table: TableRead | None = None) -> None:
         target = table or self.leads
@@ -289,16 +318,9 @@ def _statuses(rows: list[TableTriggerAdmission]) -> list[tuple[str, str | None]]
     return [(row.status, row.reason) for row in rows]
 
 
-async def test_an_added_record_starts_the_live_version_with_its_mapped_values(world: _World):
+async def test_an_added_record_starts_the_live_version_with_the_record(world: _World):
     workflow = await world.workflow()
-    trigger_id = await world.trigger(
-        workflow,
-        input_mapping={
-            "email": str(world.column("Email")),
-            "by": "@author",
-            "record_id": "@record_id",
-        },
-    )
+    trigger_id = await world.trigger(workflow)
 
     await world.add({"Email": "ada@example.com", "Score": 90})
     pairs = await world.consume()
@@ -309,19 +331,24 @@ async def test_an_added_record_starts_the_live_version_with_its_mapped_values(wo
     run = await world.run(pairs[0][0])
     assert run.triggered_by == WorkflowRunTrigger.TABLE_CREATED.value
     (record_id,) = await _record_ids(world)
+    email, score = str(world.column("Email")), str(world.column("Score"))
     assert run.input == {
-        "email": "ada@example.com",
-        "by": str(world.owner.id),
+        "table_id": str(world.leads.id),
         "record_id": str(record_id),
+        "values": {email: "ada@example.com", score: 90},
+        "fields": {"Email": "ada@example.com", "Score": 90},
+        "author_id": str(world.owner.id),
     }
     assert run.execution_principal_user_id == world.owner.id
     assert run.visited_trigger_ids == [str(trigger_id)]
     assert (run.depth, run.root_run_id, run.causation_run_id) == (0, run.id, None)
+    # The trigger node hands the graph what the run was started with.
+    ended = await world.drive(run.id, _on_new_record(world.leads))
+    assert ended.status == WorkflowRunStatus.SUCCEEDED.value
 
 
 async def test_an_event_admits_once_however_often_it_is_consumed(world: _World):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
     await world.add({"Email": "a@x"})
 
     first = await world.consume()
@@ -338,8 +365,7 @@ async def test_an_event_admits_once_however_often_it_is_consumed(world: _World):
 async def test_every_way_a_record_is_added_starts_it_and_an_upsert_update_does_not(
     world: _World, engine: AsyncEngine
 ):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
     email = str(world.column("Email"))
 
     # The console and the HTTP API: one service method behind both.
@@ -388,9 +414,7 @@ async def test_every_way_a_record_is_added_starts_it_and_an_upsert_update_does_n
 
 
 async def test_filters_hold_on_the_record_as_it_was_created(world: _World):
-    workflow = await world.workflow()
     trigger_id = await world.trigger(
-        workflow,
         filters=[
             RecordFilter(column_id=world.column("Score"), op="gt", value=80),
             RecordFilter(column_id=world.column("VIP"), op="eq", value=True),
@@ -412,33 +436,35 @@ async def test_filters_hold_on_the_record_as_it_was_created(world: _World):
 
 async def test_a_record_added_before_it_was_on_never_starts_it(world: _World):
     workflow = await world.workflow()
+    graph = _on_new_record(world.leads)
     await world.add({"Email": "early@x"})
-    trigger_id = await world.trigger(workflow)
-    async with world.factory() as db:
-        await TableTriggerService(db).update(
-            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
-        )
-        await db.commit()
+    await world.publish(workflow, graph)
+    trigger_id = (await world.trigger_of(workflow)).id
+    await world.pause(trigger_id)
     await world.add({"Email": "while-off@x"})
     await world.consume()
-    async with world.factory() as db:
-        back_on = await TableTriggerService(db).update(
-            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=True)
-        )
-        await db.commit()
+    await world.pause(trigger_id, active=True)
     await world.add({"Email": "after@x"})
+    await world.consume()
+    await world.pause(trigger_id)
+    await world.add({"Email": "paused-again@x"})
+    # Publishing switches a paused trigger back on - from now, not from the pause.
+    await world.publish(workflow, graph)
+    assert (await world.trigger_of(workflow)).id == trigger_id
     await world.consume()
 
     # The record added before it existed was consumed with no trigger on the
-    # table; the one added while it was off, with it switched off.
-    assert _statuses(await world.admissions(trigger_id)) == [("queued", None)]
-    assert back_on.is_active and back_on.revision == 1
+    # table, the first one added while it was off with it switched off, and the
+    # second after the publish switched it back on - as added before that.
+    assert _statuses(await world.admissions(trigger_id)) == [
+        ("queued", None),
+        ("filtered", "pre_activation"),
+    ]
 
 
 async def test_a_pre_activation_event_still_pending_is_filtered(world: _World):
-    workflow = await world.workflow()
     await world.add({"Email": "early@x"})
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
 
     await world.consume()
 
@@ -447,7 +473,6 @@ async def test_a_pre_activation_event_still_pending_is_filtered(world: _World):
 
 @pytest.mark.security
 async def test_a_principal_who_lost_access_fails_the_admission(world: _World):
-    workflow = await world.workflow()
     async with world.factory() as db:
         member = User(
             id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@x.com", hashed_password="x", is_active=True
@@ -461,7 +486,6 @@ async def test_a_principal_who_lost_access_fails_the_admission(world: _World):
         )
         await db.commit()
     trigger_id = await world.trigger(
-        workflow,
         ctx=AuthContext(user_id=member.id, organization_id=world.org.id, role="admin"),
     )
     async with world.factory() as db:
@@ -479,11 +503,8 @@ async def test_a_principal_who_lost_access_fails_the_admission(world: _World):
 
 
 @pytest.mark.security
-async def test_a_trigger_runs_as_whoever_last_changed_it_and_a_deactivated_one_fails(
-    world: _World,
-):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+async def test_a_trigger_whose_publisher_was_deactivated_fails(world: _World):
+    trigger_id = await world.trigger()
     async with world.factory() as db:
         await db.execute(update(User).where(User.id == world.owner.id).values(is_active=False))
         await db.commit()
@@ -496,11 +517,13 @@ async def test_a_trigger_runs_as_whoever_last_changed_it_and_a_deactivated_one_f
 
 async def test_a_loop_through_two_tables_stops_at_the_trigger_it_already_passed(world: _World):
     contacts = await world.table("Contacts")
-    into_contacts, into_leads = _writes_into(contacts), _writes_into(world.leads)
-    first = await world.workflow(into_contacts)
-    second = await world.workflow(into_leads)
-    a = await world.trigger(first)
-    b = await world.trigger(second, table=contacts)
+    into_contacts = _on_new_record(world.leads, into=contacts)
+    into_leads = _on_new_record(contacts, into=world.leads)
+    first, second = await world.workflow(), await world.workflow()
+    await world.publish(first, into_contacts)
+    await world.publish(second, into_leads)
+    a = (await world.trigger_of(first)).id
+    b = (await world.trigger_of(second)).id
 
     await world.add({"Email": "start@x"})
     ((r1, _entry),) = await world.consume()
@@ -518,10 +541,9 @@ async def test_a_loop_through_two_tables_stops_at_the_trigger_it_already_passed(
 
 async def test_a_chain_too_deep_or_too_long_is_blocked(world: _World):
     contacts = await world.table("Contacts")
-    graph = _writes_into(contacts)
-    first = await world.workflow(graph)
-    trigger_id = await world.trigger(await world.workflow(), table=contacts)
-    await world.trigger(first)
+    graph = _on_new_record(world.leads, into=contacts)
+    await world.publish(await world.workflow(), graph)
+    trigger_id = await world.trigger(table=contacts)
     await world.add({"Email": "start@x"})
     ((root, _entry),) = await world.consume()
 
@@ -545,8 +567,7 @@ async def test_a_chain_too_deep_or_too_long_is_blocked(world: _World):
 
 
 async def test_a_record_whose_creation_is_gone_fails_as_unavailable(world: _World):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
     await world.add({"Email": "a@x"})
     async with world.factory() as db:
         await db.execute(delete(VirtualTableRecordHistory))
@@ -558,8 +579,7 @@ async def test_a_record_whose_creation_is_gone_fails_as_unavailable(world: _Worl
 
 
 async def test_an_input_the_run_refuses_is_blocked_as_a_quota(world: _World):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow, input_mapping={"email": str(world.column("Email"))})
+    trigger_id = await world.trigger()
     await world.add({"Email": "a@x"})
 
     with patch(
@@ -573,106 +593,63 @@ async def test_an_input_the_run_refuses_is_blocked_as_a_quota(world: _World):
         assert (await db.execute(select(WorkflowRun))).first() is None
 
 
-async def test_setting_one_up_is_refused_for_what_the_caller_cannot_reach(world: _World):
+async def test_a_publish_is_refused_for_a_table_or_filter_that_does_not_fit(world: _World):
     workflow = await world.workflow()
-    draft = await world.workflow(published=False)
-    email = world.column("Email")
+    missing = TableRead.model_validate({**world.leads.model_dump(), "id": uuid.uuid4()})
+    refusals = {
+        "table": _on_new_record(missing),
+        "filters.0.column_id": _on_new_record(
+            world.leads, filters=[RecordFilter(column_id=uuid.uuid4(), op="eq", value="x")]
+        ),
+        "filters.0": _on_new_record(
+            world.leads,
+            filters=[RecordFilter(column_id=world.column("VIP"), op="contains", value="x")],
+        ),
+    }
+    for field, graph in refusals.items():
+        with pytest.raises(GraphValidationError) as refused:
+            await world.publish(workflow, graph)
+        entry = str(graph.entry_node_id)
+        assert any(
+            problem["field"] == f"nodes.{entry}.config.{field}"
+            for problem in refused.value.details["fields"]
+        ), refused.value.details
     async with world.factory() as db:
-        service = TableTriggerService(db)
-        with pytest.raises(WorkflowNotRunnableError):
-            await service.create(
-                world.ctx, world.leads.id, TableTriggerCreate(workflow_id=draft.id)
-            )
-        with pytest.raises(NotFoundError):
-            await service.create(
-                world.ctx, world.leads.id, TableTriggerCreate(workflow_id=uuid.uuid4())
-            )
-        with pytest.raises(BadRequestError, match="column this table does not have"):
-            await service.create(
-                world.ctx,
-                world.leads.id,
-                TableTriggerCreate(
-                    workflow_id=workflow.id,
-                    filters=[RecordFilter(column_id=uuid.uuid4(), op="eq", value="x")],
-                ),
-            )
-        with pytest.raises(BadRequestError):
-            await service.create(
-                world.ctx,
-                world.leads.id,
-                TableTriggerCreate(
-                    workflow_id=workflow.id,
-                    filters=[RecordFilter(column_id=world.column("Score"), op="gt", value="high")],
-                ),
-            )
-        with pytest.raises(BadRequestError, match="1 to 64"):
-            await service.create(
-                world.ctx,
-                world.leads.id,
-                TableTriggerCreate(workflow_id=workflow.id, input_mapping={" ": str(email)}),
-            )
-        with pytest.raises(BadRequestError, match="'x' takes its value"):
-            await service.create(
-                world.ctx,
-                world.leads.id,
-                TableTriggerCreate(workflow_id=workflow.id, input_mapping={"x": "nope"}),
-            )
+        assert (await db.execute(select(VirtualTableTrigger))).first() is None
         with pytest.raises(NotFoundError, match="Trigger not found"):
-            await service.update(world.ctx, world.leads.id, uuid.uuid4(), TableTriggerUpdate())
+            await TableTriggerService(db).set_active(
+                world.ctx, world.leads.id, uuid.uuid4(), TableTriggerUpdate(is_active=True)
+            )
 
 
 @pytest.mark.security
-async def test_a_member_who_may_edit_the_table_but_not_run_the_workflow_is_refused(
+async def test_a_publisher_who_may_not_run_the_workflow_cannot_make_it_run_as_them(
     world: _World,
 ):
+    with (
+        patch("app.services.workflow_triggers.resolve_access", new=AsyncMock(return_value=False)),
+        pytest.raises(AuthorizationError, match="runs as you"),
+    ):
+        await world.trigger()
     async with world.factory() as db:
-        workflow = Workflow(
-            id=uuid.uuid4(),
-            organization_id=world.org.id,
-            owner_user_id=world.owner.id,
-            slug=f"wf-{uuid.uuid4().hex[:8]}",
-            name="Archived",
-            status=WorkflowStatus.ARCHIVED.value,
-            visibility=Visibility.ORG.value,
-            draft_graph=_echo_graph().model_dump(mode="json"),
-        )
-        db.add(workflow)
-        await db.flush()
-        await _World.publish(db, workflow, _echo_graph(), number=1)
-        await db.commit()
-        with pytest.raises(AuthorizationError, match="runs as you"):
-            await TableTriggerService(db).create(
-                world.ctx, world.leads.id, TableTriggerCreate(workflow_id=workflow.id)
-            )
+        assert (await db.execute(select(VirtualTableTrigger))).first() is None
 
 
-async def test_a_change_keeps_a_revision_and_moves_to_the_live_version_only_when_asked(
-    world: _World,
-):
+async def test_a_new_version_takes_it_over_as_a_new_revision(world: _World):
     workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow, name="Hot")
+    trigger_id = await world.trigger(workflow)
+    node_id = (await world.trigger_of(workflow)).node_instance_id
+    graph = _on_new_record(
+        world.leads, filters=[RecordFilter(column_id=world.column("VIP"), op="eq", value=True)]
+    )
+    same_node = WorkflowGraph(
+        entry_node_id=node_id,
+        nodes=(NodeInstance(**{**graph.nodes[0].model_dump(), "id": node_id}),),
+    )
+    live = await world.publish(workflow, same_node)
+
     async with world.factory() as db:
-        live = await _World.publish(db, workflow, _echo_graph(), number=2)
-        await db.commit()
-    async with world.factory() as db:
-        service = TableTriggerService(db)
-        renamed = await service.update(
-            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(name=None)
-        )
-        assert (renamed.name, renamed.revision, renamed.version_number) == (None, 1, 1)
-        moved = await service.update(
-            world.ctx,
-            world.leads.id,
-            trigger_id,
-            TableTriggerUpdate(
-                pin_current_version=True,
-                filters=[RecordFilter(column_id=world.column("VIP"), op="eq", value=True)],
-                input_mapping={"who": "@author"},
-            ),
-        )
-        await db.commit()
-    assert (moved.workflow_version_id, moved.version_number, moved.revision) == (live.id, 2, 2)
-    async with world.factory() as db:
+        listed = await TableTriggerService(db).list_for_table(world.ctx, world.leads.id)
         revisions = (
             await db.execute(
                 select(VirtualTableTriggerRevision.revision)
@@ -681,25 +658,30 @@ async def test_a_change_keeps_a_revision_and_moves_to_the_live_version_only_when
             )
         ).scalars()
         assert list(revisions) == [1, 2]
-        listed = await TableTriggerService(db).list_for_table(world.ctx, world.leads.id)
-        assert [item.id for item in listed.items] == [trigger_id]
+    (moved,) = listed.items
+    assert (moved.id, moved.workflow_version_id, moved.version_number) == (trigger_id, live.id, 2)
+    assert (moved.revision, moved.node_instance_id) == (2, node_id)
+    assert [item.column_id for item in moved.filters] == [world.column("VIP")]
 
 
-async def test_pinning_the_live_version_of_a_workflow_since_unpublished_is_refused(
+async def test_another_node_or_table_replaces_it_and_starting_another_way_removes_it(
     world: _World,
 ):
     workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    first = await world.trigger(workflow)
+    second = await world.trigger(workflow)
+    assert second != first
+    contacts = await world.table("Contacts")
+    third = await world.trigger(workflow, table=contacts)
     async with world.factory() as db:
-        await db.execute(
-            update(Workflow).where(Workflow.id == workflow.id).values(current_version_id=None)
-        )
-        await db.commit()
+        remaining = (await db.execute(select(VirtualTableTrigger))).scalars().all()
+    assert [(item.id, item.table_id) for item in remaining] == [(third, contacts.id)]
+
+    await world.publish(workflow, _by_hand())
     async with world.factory() as db:
-        with pytest.raises(WorkflowNotRunnableError):
-            await TableTriggerService(db).update(
-                world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(pin_current_version=True)
-            )
+        assert (await db.execute(select(VirtualTableTrigger))).first() is None
+        stored = await db.get(Workflow, workflow.id)
+    assert stored is not None and stored.live_trigger == "core.input"
 
 
 def _keeping(table: TableRead, *labels: str) -> list[ColumnInput]:
@@ -711,14 +693,11 @@ def _keeping(table: TableRead, *labels: str) -> list[ColumnInput]:
     ]
 
 
-async def test_archiving_a_column_a_trigger_uses_is_refused(world: _World):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow, input_mapping={"score": str(world.column("Score"))})
-    async with world.factory() as db:
-        await TableTriggerService(db).update(
-            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
-        )
-        await db.commit()
+async def test_archiving_a_column_a_trigger_filters_on_is_refused(world: _World):
+    trigger_id = await world.trigger(
+        filters=[RecordFilter(column_id=world.column("Score"), op="gt", value=1)]
+    )
+    await world.pause(trigger_id)
 
     async with world.factory() as db:
         with pytest.raises(SchemaDependencyError) as refused:
@@ -770,15 +749,11 @@ async def http(world: _World, mock_redis: MagicMock) -> AsyncIterator[AsyncClien
     app.dependency_overrides.clear()
 
 
-async def test_the_routes_set_one_up_list_what_it_decided_and_remove_it(
+async def test_the_routes_list_it_pause_it_and_say_what_it_decided(
     world: _World, http: AsyncClient
 ):
-    workflow = await world.workflow()
+    trigger_id = str(await world.trigger())
     base = f"{settings.API_V1_STR}/tables/{world.leads.id}"
-
-    created = await http.post(f"{base}/triggers", json={"workflow_id": str(workflow.id)})
-    assert created.status_code == 201, created.text
-    trigger_id = created.json()["id"]
     record = await http.post(
         f"{base}/records", json={"values": {str(world.column("Email")): "api@x"}}
     )
@@ -787,23 +762,21 @@ async def test_the_routes_set_one_up_list_what_it_decided_and_remove_it(
 
     listed = await http.get(f"{base}/triggers")
     assert [item["id"] for item in listed.json()["items"]] == [trigger_id]
-    patched = await http.patch(f"{base}/triggers/{trigger_id}", json={"name": "API"})
-    assert patched.json()["name"] == "API"
+    assert listed.json()["items"][0]["workflow_name"] == "Follow up"
+    paused = await http.patch(f"{base}/triggers/{trigger_id}", json={"is_active": False})
+    assert paused.json()["is_active"] is False
     history = await http.get(f"{base}/triggers/{trigger_id}/admissions")
     assert history.json()["total"] == 1
     assert history.json()["items"][0]["status"] == "queued"
     assert "api@x" not in history.text
-
-    removed = await http.delete(f"{base}/triggers/{trigger_id}")
-    assert removed.status_code == 204
-    async with world.factory() as db:
-        assert (await db.execute(select(VirtualTableTrigger))).first() is None
+    # Made and removed by publishing its workflow, not here.
+    assert (await http.post(f"{base}/triggers", json={})).status_code == 405
+    assert (await http.delete(f"{base}/triggers/{trigger_id}")).status_code == 405
 
 
 @pytest.mark.security
 async def test_a_trigger_whose_member_is_gone_admits_nothing(world: _World):
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
     async with world.factory() as db:
         # What deleting the member's account leaves: `SET NULL`, and the history.
         await db.execute(
@@ -819,30 +792,25 @@ async def test_a_trigger_whose_member_is_gone_admits_nothing(world: _World):
     assert _statuses(await world.admissions(trigger_id)) == [("failed", "permission_denied")]
 
 
-async def test_archiving_the_whole_table_is_not_held_up_by_its_triggers(world: _World):
+async def test_archiving_the_table_a_workflow_starts_from_names_that_workflow(world: _World):
     workflow = await world.workflow()
-    await world.trigger(workflow, input_mapping={"email": str(world.column("Email"))})
+    await world.trigger(workflow)
 
     async with world.factory() as db:
-        archived = await VirtualTableService(db).archive_table(world.ctx, world.leads.id)
-        await db.commit()
+        with pytest.raises(SchemaDependencyError) as refused:
+            await VirtualTableService(db).archive_table(world.ctx, world.leads.id)
 
-    assert archived.archived_at is not None
+    assert str(workflow.id) in json.dumps(refused.value.details, default=str)
 
 
 async def test_a_trigger_switched_off_after_the_list_was_read_starts_nothing(world: _World):
     """The consumer lists a table's triggers once per event; one switched off in
     between is re-read under its lock and judged off, not by the stale copy."""
-    workflow = await world.workflow()
-    trigger_id = await world.trigger(workflow)
+    trigger_id = await world.trigger()
     async with world.factory() as db:
         stale = await db.get(VirtualTableTrigger, trigger_id)
     await world.add({"Email": "a@x"})
-    async with world.factory() as db:
-        await TableTriggerService(db).update(
-            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
-        )
-        await db.commit()
+    await world.pause(trigger_id)
 
     with patch(
         "app.services.virtual_tables.triggers.trigger_repo.list_for_table",

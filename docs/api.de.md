@@ -1,5 +1,5 @@
 ---
-source_sha: "65515c947c35"
+source_sha: "b6170683f77a"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -109,8 +109,10 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 ```
 
 Das startet einen Run der veröffentlichten Version des Workflows und antwortet
-sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Knoten [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). `"mode": "test"` führt
-stattdessen den aktuellen Entwurf aus und verlangt `workflows:edit`.
+sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Trigger [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). Hier startet nur eine Version, die mit diesem Trigger oder ohne einen startet: jede andere antwortet `409
+WORKFLOW_TRIGGER_MISMATCH`, weil ein Webhook, ein Zeitplan, eine Chatnachricht oder ein Tabellen-Datensatz sie startet. `"mode": "test"` führt
+stattdessen den aktuellen Entwurf aus, mit jedem Trigger, und verlangt `workflows:edit`.
+
 `deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
 geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
 Knoten lässt den Run mit `DEADLINE_EXCEEDED` fehlschlagen, während ein bereits
@@ -150,12 +152,16 @@ bekommt darüber hinaus `RATE_LIMIT_EXCEEDED`.
 
 ### Webhooks und Zeitpläne { #workflow-webhooks-and-schedules }
 
-`/api/v1/workflows/{id}/exposures` listet die Webhooks und Zeitpläne eines Workflows,
-legt einen an (`POST`), ändert einen (`PATCH .../{exposure_id}`) und löscht einen;
-`POST .../{exposure_id}/rotate-secret` ersetzt das Secret eines Webhooks. Das
-Einrichten braucht `workflows:edit` und `workflows:run` auf dem Workflow, weil er als
-du läuft. Das `reveal_secret` eines Webhooks steht nur in den Antworten auf Anlegen
-und Rotieren, und seine `webhook_url` ist die Adresse, an die der Absender zustellt:
+Ein Workflow, dessen Trigger-Knoten ein Webhook oder ein Zeitplan ist, erhält seine
+Exposure, wenn diese Version veröffentlicht wird, und die Antwort der
+Veröffentlichung trägt sie als `exposure`. Das Signatur-Secret eines Webhooks steht im
+`webhook_secret` der Veröffentlichung, die ihn zum ersten Mal einschaltet, und
+nirgendwo sonst. `GET /api/v1/workflows/{id}/exposure` liest sie zurück, oder `null`
+für einen Workflow, der anders startet. `PATCH .../exposures/{exposure_id}` mit
+`{"is_active": false}` pausiert sie, und `POST .../exposures/{exposure_id}/rotate-secret`
+ersetzt das Secret eines Webhooks und gibt das neue einmal zurück. Beide verlangen
+`workflows:edit` und `workflows:run` auf dem Workflow. Die `webhook_url` eines
+Webhooks ist die Adresse, an die der Absender zustellt:
 
 ```bash
 BODY='{"lead": 42}'
@@ -197,19 +203,12 @@ REVISION_CONFLICT`. `PUT .../records/by-external-id/{external_id}` legt den Date
 an oder aktualisiert ihn, mit `expected_revision`, sobald er existiert. `POST
 .../records/query` filtert und sortiert seitenweise.
 
-`POST .../triggers` führt einen veröffentlichten Workflow für jeden ab dann
-hinzugefügten Datensatz aus, als Sie. `input_mapping` legt fest, womit der Run beginnt:
-eine Spalten-id, `@author` oder `@record_id`. `GET .../triggers/{trigger_id}/admissions`
-listet, was er über jeden Datensatz entschieden hat. Siehe
-[Trigger](virtual-tables.md#triggers).
-
-```bash
-curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
-```
+Ein Workflow, dessen Trigger-Knoten **New table record** ist, läuft nach der
+Veröffentlichung für jeden Datensatz, der seiner Tabelle hinzugefügt wird. `GET
+.../triggers` listet die Workflows, die mit einer Tabelle starten, `PATCH
+.../triggers/{trigger_id}` mit `{"is_active": false}` pausiert einen, und `GET
+.../triggers/{trigger_id}/admissions` listet, was er über jeden Datensatz entschieden
+hat. Siehe [Trigger](virtual-tables.md#triggers).
 
 ## Die ML-Dienste { #the-ml-services }
 

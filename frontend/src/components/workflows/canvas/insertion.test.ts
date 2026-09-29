@@ -75,6 +75,15 @@ function definitionsOf(g: WorkflowGraph, byId: Record<string, NodeDefinition>) {
   );
 }
 
+const WEBHOOK = def("trigger.webhook", [port("out", "output")], {
+  input_schema: null,
+  category: "triggers",
+});
+const MANUAL = def("core.input", [port("out", "output")], {
+  input_schema: null,
+  category: "triggers",
+});
+
 const BY_ID = { "core.input": INPUT, step: STEP, sink: SINK, "control.foreach": LOOP };
 
 function plan(
@@ -235,6 +244,49 @@ describe("planInsertion", () => {
       definition: STEP,
     });
     expect(planned.node.id).toMatch(/[0-9a-f-]{36}/);
+  });
+});
+
+describe("planInsertion with triggers", () => {
+  const TRIGGERS = { ...BY_ID, "core.input": MANUAL, "trigger.webhook": WEBHOOK };
+  const planWith = (g: WorkflowGraph, definition: NodeDefinition, extra = {}) =>
+    planInsertion({
+      graph: g,
+      definitions: definitionsOf(g, TRIGGERS),
+      scopePath: [],
+      selectedIds: [],
+      definition,
+      id: "new",
+      ...extra,
+    });
+
+  it("replaces the workflow's trigger in its place, as the start", () => {
+    const g = graph(
+      [node("m", MANUAL, 40, 60), node("a", STEP, RIGHT, 0)],
+      [edge("m", "out", "a")],
+    );
+    expect(planWith(g, WEBHOOK)).toMatchObject({
+      node: { id: "new", definition_id: "trigger.webhook", layout: { x: 40, y: 60 } },
+      edge: null,
+      bindings: [],
+      becomesEntry: true,
+      replaces: "m",
+    });
+    expect(planWith(g, WEBHOOK, { dropAt: { x: 7, y: 8 } }).node.layout).toEqual({ x: 7, y: 8 });
+  });
+
+  it("replaces a trigger that is not the start without making the new one the start", () => {
+    const g = graph([node("a", STEP), node("m", MANUAL, 400, 0)], [], "a");
+    expect(planWith(g, WEBHOOK)).toMatchObject({ replaces: "m", becomesEntry: false });
+  });
+
+  it("puts a first trigger before the start, as any starting step goes", () => {
+    const g = graph([node("a", STEP, 400, 0)]);
+    expect(planWith(g, WEBHOOK)).toMatchObject({
+      replaces: null,
+      becomesEntry: true,
+      edge: expect.objectContaining({ source_node_id: "new", target_node_id: "a" }),
+    });
   });
 });
 

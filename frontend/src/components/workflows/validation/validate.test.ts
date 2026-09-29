@@ -128,7 +128,22 @@ const FOREACH = makeDefinition({
   ports: [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
 });
 
+const WEBHOOK = makeDefinition({
+  id: "trigger.webhook",
+  category: "triggers",
+  ports: [port("out", "output", PLAIN_OUTPUT)],
+  output_schema: PLAIN_OUTPUT,
+});
+const SCHEDULE = makeDefinition({
+  id: "trigger.schedule",
+  category: "triggers",
+  ports: [port("out", "output", PLAIN_OUTPUT)],
+  output_schema: PLAIN_OUTPUT,
+});
+
 const CATALOG = makeCatalog([
+  WEBHOOK,
+  SCHEDULE,
   DEBUG_ECHO,
   CONSUMER,
   CONSUMER_NOREQ,
@@ -235,6 +250,17 @@ describe("drift parity — graphs the backend refuses", () => {
       edges: [edge("e1", "a", "out", "b", "in")],
     });
     expect(codesOf(run(g))).toEqual(["entry-is-edge-target", "unreachable-node"]);
+  });
+
+  it("rule 1 — a trigger that is not where the graph starts", () => {
+    const g = graph({
+      entry: "w",
+      nodes: [node("w", "trigger.webhook"), node("s", "trigger.schedule")],
+    });
+    expect(run(g)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ nodeId: "s", code: "trigger-not-entry" })]),
+    );
+    expect(codesOf(run(graph({ entry: "w", nodes: [node("w", "trigger.webhook")] })))).toEqual([]);
   });
 
   it("rule 2 — a second unreachable source node", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "65515c947c35"
+source_sha: "b6170683f77a"
 ---
 
 # API HTTP { #the-http-api }
@@ -103,8 +103,11 @@ curl -X POST "$BASE/api/v1/workflow-runs" \
 ```
 
 To uruchamia run opublikowanej wersji workflowu i od razu odpowiada `201`;
-węzły działają w tle. `input` to to, co przekazuje dalej węzeł [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). `"mode": "test"` uruchamia zamiast tego bieżący draft i
-wymaga `workflows:edit`. `deadline_seconds` (do trzydziestu dni) ustawia termin
+węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.input`](reference/workflow-nodes.md#core-input) grafu, najwyżej `WORKFLOW_RUN_MAX_INPUT_BYTES` jako JSON (powyżej `413`). Tutaj uruchamia się tylko wersja, która startuje od tego wyzwalacza albo bez żadnego: każda inna odpowiada `409
+WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
+wymaga `workflows:edit`.
+
+`deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
 po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
 albo run czekający na zatwierdzenie nie są przez niego przerywane. Trasa ma limit żądań na wywołującego, tak jak trasa runów agenta, i
@@ -139,12 +142,15 @@ sam limit na minutę co `POST /workflow-runs`, a po jego przekroczeniu dostaje
 
 ### Webhooki i harmonogramy { #workflow-webhooks-and-schedules }
 
-`/api/v1/workflows/{id}/exposures` wymienia webhooki i harmonogramy workflow, tworzy
-je (`POST`), zmienia (`PATCH .../{exposure_id}`) i usuwa; `POST
-.../{exposure_id}/rotate-secret` wymienia sekret webhooka. Skonfigurowanie jednego
-wymaga `workflows:edit` i `workflows:run` na workflow, bo działa on jako ty.
-`reveal_secret` webhooka jest tylko w odpowiedziach na utworzenie i rotację, a jego
-`webhook_url` to adres, na który dostarcza nadawca:
+Workflow, którego węzłem wyzwalacza jest webhook albo harmonogram, dostaje swoją
+ekspozycję przy publikacji tej wersji, a odpowiedź na publikację niesie ją jako
+`exposure`. Sekret do podpisu webhooka jest w `webhook_secret` publikacji, która
+pierwszy raz go włącza, i nigdzie indziej. `GET /api/v1/workflows/{id}/exposure`
+odczytuje ją z powrotem albo zwraca `null` dla workflow, który startuje inaczej.
+`PATCH .../exposures/{exposure_id}` z `{"is_active": false}` ją wstrzymuje, a `POST
+.../exposures/{exposure_id}/rotate-secret` wymienia sekret webhooka i raz zwraca
+nowy. Oba wymagają `workflows:edit` i `workflows:run` na workflow. `webhook_url`
+webhooka to adres, na który dostarcza nadawca:
 
 ```bash
 BODY='{"lead": 42}'
@@ -184,18 +190,11 @@ którą ostatnio odczytałeś; nieaktualna to `409 REVISION_CONFLICT`. `PUT
 istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje i sortuje po
 jednej stronie naraz.
 
-`POST .../triggers` uruchamia opublikowany workflow dla każdego rekordu dodanego od tej
-chwili, jako ty. `input_mapping` określa, od czego startuje run: id kolumny, `@author`
-albo `@record_id`. `GET .../triggers/{trigger_id}/admissions` wymienia, co zdecydował o
-każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).
-
-```bash
-curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
-```
+Workflow, którego węzłem wyzwalacza jest **New table record**, po publikacji
+uruchamia się dla każdego rekordu dodanego do jego tabeli. `GET .../triggers`
+wymienia workflow, które startują od tabeli, `PATCH .../triggers/{trigger_id}` z
+`{"is_active": false}` wstrzymuje jeden, a `GET .../triggers/{trigger_id}/admissions`
+wymienia, co zdecydował o każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).
 
 ## Usługi ML { #the-ml-services }
 

@@ -27,6 +27,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.main import app
 from app.services.workflow_registry import WorkflowRegistryService
+from app.services.workflow_triggers import SwitchedOn
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
@@ -62,6 +63,7 @@ def _workflow(**overrides: object):
     workflow.draft_revision = 0
     workflow.draft_graph = _graph().model_dump(mode="json")
     workflow.current_version_id = None
+    workflow.live_trigger = None
     workflow.created_at = None
     workflow.updated_at = None
     for field, value in overrides.items():
@@ -326,7 +328,11 @@ async def test_publishing_a_valid_graph_answers_201_shaped_version(owner_client:
         patch(f"{REGISTRY_PATH}.workflow_repo.next_version_number", new=AsyncMock(return_value=1)),
         patch(f"{REGISTRY_PATH}.workflow_repo.create_version", new=AsyncMock(return_value=version)),
         patch(f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(return_value=workflow)),
+        patch(f"{REGISTRY_PATH}.WorkflowTriggerSync") as sync,
     ):
+        sync.return_value.switch_on = AsyncMock(
+            return_value=SwitchedOn(trigger="core.input", exposure=None, webhook_secret=None)
+        )
         async with owner_client() as http:
             response = await http.post(
                 _url(f"/{workflow.id}/publish"), json={"note": "first cut", "expected_revision": 0}
@@ -335,6 +341,9 @@ async def test_publishing_a_valid_graph_answers_201_shaped_version(owner_client:
     body = response.json()
     assert body["version"] == 1
     assert body["note"] == "first cut"
+    assert body["trigger"] == "core.input"
+    assert body["exposure"] is None
+    assert body["webhook_secret"] is None
 
 
 async def test_listing_versions_returns_every_published_version(owner_client: OpenClient):

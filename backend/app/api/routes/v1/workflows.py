@@ -22,10 +22,10 @@ from app.schemas.workflow import (
     WorkflowDraftUpdate,
     WorkflowList,
     WorkflowPublish,
+    WorkflowPublished,
     WorkflowRead,
     WorkflowVersionDetail,
     WorkflowVersionList,
-    WorkflowVersionRead,
     WorkflowVersionRestore,
 )
 
@@ -113,9 +113,14 @@ async def update_workflow_draft(
     return await service.update_draft(ctx, workflow_id, data)
 
 
-@router.post("/{workflow_id}/publish", response_model=WorkflowVersionRead)
+@router.post("/{workflow_id}/publish", response_model=WorkflowPublished)
 async def publish_workflow(
     workflow_id: UUID, data: WorkflowPublish, service: WorkflowRegistrySvc, ctx: Auth
 ) -> Any:
-    """Validate the draft graph and freeze it as the version that runs."""
+    """Validate the draft graph, freeze it as the version that runs, and switch on
+    the trigger it starts from.
+
+    A webhook or schedule trigger comes back in `exposure`, running as you; a
+    webhook's signing secret is in `webhook_secret` on the publish that first
+    switched it on, and nowhere else."""
     return await service.publish(ctx, workflow_id, data)

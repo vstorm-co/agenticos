@@ -14,10 +14,10 @@ import type {
   WorkflowDraftUpdate,
   WorkflowList,
   WorkflowPublish,
+  WorkflowPublished,
   WorkflowRead,
   WorkflowVersionDetail,
   WorkflowVersionList,
-  WorkflowVersionRead,
   WorkflowVersionRestore,
 } from "@/lib/workflows/types";
 
@@ -82,12 +82,15 @@ export async function updateWorkflowDraft(
   return apiClient.patch<WorkflowDetail>(`${ROOT}/${workflowId}/draft`, update);
 }
 
-/** Validate the draft graph server-side and freeze it as the version that runs. */
+/**
+ * Validate the draft graph server-side, freeze it as the version that runs, and
+ * switch on the trigger it starts from.
+ */
 export async function publishWorkflow(
   workflowId: string,
   publish: WorkflowPublish,
-): Promise<WorkflowVersionRead> {
-  return apiClient.post<WorkflowVersionRead>(`${ROOT}/${workflowId}/publish`, publish);
+): Promise<WorkflowPublished> {
+  return apiClient.post<WorkflowPublished>(`${ROOT}/${workflowId}/publish`, publish);
 }
 
 /**

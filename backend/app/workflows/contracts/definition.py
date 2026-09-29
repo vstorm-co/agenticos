@@ -38,6 +38,9 @@ class Port:
 
 
 NodeHandler = Callable[[BaseModel | None, BaseModel | None], Awaitable[NodeResult]]
+
+TRIGGER_CATEGORY = "triggers"
+"""The category of the nodes a workflow starts from - one per workflow, and its entry."""
 """What a node actually does: `(config, input) -> NodeResult`.
 
 Both arguments are already validated against `config_schema`/`input_schema`
