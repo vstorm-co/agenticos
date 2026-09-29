@@ -346,6 +346,28 @@ class TestUpdateDraft:
             )
         assert workflow.draft_graph["scopes"] == []
 
+    async def test_a_draft_with_every_step_deleted_is_stored_as_no_graph(self):
+        # Regression: the editor sends a graph with no steps and no entry once
+        # the last step is deleted, which failed to parse and left the draft
+        # unsaved behind "Save failed - will retry".
+        ctx = _ctx(OrgRoleName.OWNER.value)
+        workflow = _workflow(ctx)
+        empty = {"entry_node_id": "", "nodes": [], "edges": [], "bindings": [], "scopes": []}
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.get_for_update",
+                new=AsyncMock(return_value=workflow),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.workflow_repo.update", new=AsyncMock(return_value=workflow)
+            ) as update,
+        ):
+            await WorkflowRegistryService(_db()).update_draft(
+                ctx, workflow.id, WorkflowDraftUpdate(graph=empty, expected_revision=0)
+            )
+        assert update.await_args.kwargs["update_data"]["draft_graph"] is None
+
     async def test_an_oversized_draft_is_refused_before_it_is_persisted(self, monkeypatch):
         """The node/edge/binding ceiling exists to keep publish's dominator
         computation bounded, but it is checked here too - refusing an

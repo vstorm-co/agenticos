@@ -449,6 +449,11 @@ class WorkflowRegistryService:
     ) -> WorkflowDetail:
         """Replace the draft graph, if it is still at `expected_revision`.
 
+        A graph with no steps is stored as no graph at all, the draft a new
+        workflow starts with: it has no entry to name, and a builder who
+        deleted every step is part-way through an edit, not submitting a
+        malformed one.
+
         Raises:
             WorkflowArchivedError: The workflow refuses edits.
             WorkflowRevisionConflictError: Someone changed the draft since it was read.
@@ -457,12 +462,13 @@ class WorkflowRegistryService:
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
         self._ensure_editable(workflow)
         self._check_revision(workflow, data.expected_revision)
-        graph = _parse_submitted_graph(data.graph)
+        empty = data.graph.get("nodes") == []
+        graph = None if empty else _parse_submitted_graph(data.graph).model_dump(mode="json")
         updated = await workflow_repo.update(
             self.db,
             workflow=workflow,
             update_data={
-                "draft_graph": graph.model_dump(mode="json"),
+                "draft_graph": graph,
                 "draft_revision": workflow.draft_revision + 1,
             },
         )
