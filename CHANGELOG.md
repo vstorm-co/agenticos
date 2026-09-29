@@ -55,6 +55,11 @@ Two things are versioned separately from this file and worth knowing about:
   the OCR settings while scanned pages are not read, a new skill's body shows
   an example of what to write, and a Mattermost bot's server URL hint says
   what address to paste instead of repeating an example of one.
+- **The agent builder says what is already true.** The model panel reads
+  "In use" while its fields show the agent's model, instead of offering a
+  "Use this model" button that selected it again. The monthly limit field
+  says what a blank one means, and when no bot is free to bind, the sentence
+  saying so links to Channels.
 - **Headers and lists hold together across the console.** A page's actions
   sit level with its title instead of at the foot of a long description, and
   an agent's status badges sit under its name. On a phone, a list card's title

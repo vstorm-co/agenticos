@@ -1306,23 +1306,36 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="monthly">{t("monthlyUsd")}</Label>
-                <Input
-                  id="monthly"
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={spec.budget?.monthly_usd ?? ""}
-                  disabled={!canEdit}
-                  onChange={(event) =>
-                    update({
-                      budget: {
-                        ...spec.budget,
-                        monthly_usd: event.target.value ? Number(event.target.value) : null,
-                      },
-                    })
-                  }
-                  placeholder={t("noLimit")}
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm"
+                  >
+                    $
+                  </span>
+                  <Input
+                    id="monthly"
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={spec.budget?.monthly_usd ?? ""}
+                    disabled={!canEdit}
+                    onChange={(event) =>
+                      update({
+                        budget: {
+                          ...spec.budget,
+                          monthly_usd: event.target.value ? Number(event.target.value) : null,
+                        },
+                      })
+                    }
+                    placeholder={t("noLimit")}
+                    aria-describedby="monthly-hint"
+                    className="pl-7"
+                  />
+                </div>
+                <p id="monthly-hint" className="text-muted-foreground text-xs">
+                  {t("monthlyUsdHint")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
@@ -1338,8 +1351,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     update({ max_steps: event.target.value ? Number(event.target.value) : null })
                   }
                   placeholder={t("n100Default")}
+                  aria-describedby="max-steps-hint"
                 />
-                <p className="text-muted-foreground text-xs">{t("howManyModelRequests")}</p>
+                <p id="max-steps-hint" className="text-muted-foreground text-xs">
+                  {t("howManyModelRequests")}
+                </p>
               </div>
             </CardContent>
           </Card>

@@ -233,15 +233,16 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
 
   // Whether the form is still showing the model it *started* on, untouched.
   //
-  // What makes pre-filling safe: pressing the button without changing anything
-  // selects that model again rather than minting a second row saying the same
-  // thing. Narrowed to `selected` rather than "any profile with this pair", which
-  // was the first attempt and was wrong twice over. It renamed the button whenever
-  // the organization happened to already have the pair - so a flow that deliberately
-  // re-adds one found no "Add model" to press - and worse, it would then have
-  // *selected the old profile* while ignoring the endpoint, the key and the name
-  // somebody had just typed. A form with any of those filled in is creating
-  // something, whatever its first two fields say.
+  // What makes pre-filling safe: untouched, the form is showing the model in
+  // use, so the form says so in place of a button - it used to offer "Use
+  // this model", which selected the model already selected. Narrowed to `selected` rather
+  // than "any profile with this pair", which was the first attempt and was wrong
+  // twice over. It renamed the button whenever the organization happened to
+  // already have the pair - so a flow that deliberately re-adds one found no
+  // "Add model" to press - and worse, it would then have *selected the old
+  // profile* while ignoring the endpoint, the key and the name somebody had
+  // just typed. A form with any of those filled in is creating something,
+  // whatever its first two fields say.
   const unchanged =
     selected !== undefined &&
     provider?.id === selected.provider &&
@@ -252,14 +253,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     // provider can re-point a model at the other, and a submit that ignored this
     // would select the old profile and silently drop the key just picked.
     (secretId === "" || secretId === (selected.secret_id ?? ""));
-  const already = unchanged ? selected : undefined;
 
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
-    // A model the organization already has needs no key decision: it has whatever
-    // it was created with, and this submit only selects it.
-    (already !== undefined || chosenKey !== "" || keyOptional) &&
+    (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
   // Both ways of choosing a key, because a refusal that outlives the value it
@@ -273,10 +271,6 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(NO_FAILURE);
-    if (already !== undefined) {
-      onCreated(already);
-      return;
-    }
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -508,15 +502,23 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
       <div className="flex items-center gap-2 pt-1">
-        <Button
-          type="button"
-          size="sm"
-          disabled={disabled || !canSubmit || createProfile.isPending}
-          onClick={submit}
-        >
-          {already === undefined && <Plus className="h-4 w-4" />}
-          {already === undefined ? t("addModel") : t("useThisModel")}
-        </Button>
+        {unchanged ? (
+          // A state, not an action: there is nothing to add until a field changes.
+          <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
+            <Check className="text-success h-4 w-4" />
+            {t("modelInUse")}
+          </span>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || createProfile.isPending}
+            onClick={submit}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addModel")}
+          </Button>
+        )}
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
             {t("cancel")}
