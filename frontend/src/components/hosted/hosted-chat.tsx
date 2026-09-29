@@ -6,6 +6,7 @@ import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
+import { useFollowContent } from "@/hooks/use-follow-content";
 import { TurnParts } from "@/components/chat/turn-parts";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Button, Input } from "@/components/ui";
@@ -317,6 +318,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   );
   const socketRef = useRef<WebSocket | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const threadContentRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const filePicker = useRef<HTMLInputElement | null>(null);
 
@@ -368,6 +370,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     const thread = threadRef.current;
     if (thread !== null) thread.scrollTop = thread.scrollHeight;
   }, [turns, thinking]);
+  // And on growth the turns do not announce: an answer's last words are revealed
+  // over frames after its turn has stopped changing.
+  useFollowContent(threadRef, threadContentRef);
 
   const startFresh = useCallback(() => {
     mintVisitorKey(config.public_key);
@@ -507,37 +512,39 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </header>
 
-      <div ref={threadRef} className="flex-1 scrollbar-thin space-y-3 overflow-y-auto py-4">
-        {/* Markdown, like the answer and for the same reason: the operator writes it
-            in a Markdown editor, so printing the asterisks would be the one place on
-            this page that shows the source instead of the text. Never sent to the
-            model - a greeting in the model's history is a turn the agent thinks it
-            took. */}
-        {config.welcome !== "" && turns.length === 0 && (
-          <div className="text-muted-foreground prose-sm max-w-none text-sm">
-            <MarkdownContent content={config.welcome} />
-          </div>
-        )}
-        {turns.map((turn, index) => (
-          <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
-        ))}
-        {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
-        {closed !== null && (
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            <span>
-              {closed === "too-many"
-                ? t("tooManyConnections")
-                : closed === "lost"
-                  ? t("connectionLost")
-                  : t("unavailable")}
-            </span>
-            {closed === "lost" && (
-              <Button variant="ghost" size="sm" onClick={reconnect}>
-                {t("reconnect")}
-              </Button>
-            )}
-          </div>
-        )}
+      <div ref={threadRef} className="flex-1 scrollbar-thin overflow-y-auto py-4">
+        <div ref={threadContentRef} className="space-y-3">
+          {/* Markdown, like the answer and for the same reason: the operator writes it
+              in a Markdown editor, so printing the asterisks would be the one place on
+              this page that shows the source instead of the text. Never sent to the
+              model - a greeting in the model's history is a turn the agent thinks it
+              took. */}
+          {config.welcome !== "" && turns.length === 0 && (
+            <div className="text-muted-foreground prose-sm max-w-none text-sm">
+              <MarkdownContent content={config.welcome} />
+            </div>
+          )}
+          {turns.map((turn, index) => (
+            <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
+          ))}
+          {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
+          {closed !== null && (
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+              <span>
+                {closed === "too-many"
+                  ? t("tooManyConnections")
+                  : closed === "lost"
+                    ? t("connectionLost")
+                    : t("unavailable")}
+              </span>
+              {closed === "lost" && (
+                <Button variant="ghost" size="sm" onClick={reconnect}>
+                  {t("reconnect")}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {uploading && (

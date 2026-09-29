@@ -30,7 +30,7 @@ import shlex
 from binascii import Error as BinasciiError
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any
@@ -1069,27 +1069,51 @@ class SandboxWorkspaceService:
                 cases, so an id cannot be used to find out which workspaces exist
                 - in another organization, or in a colleague's conversation.
         """
+        row = await self._workspace_of(ctx, workspace_id)
+        return row, await self._tiled(ctx, row)
+
+    async def _workspace_of(self, ctx: AuthContext, workspace_id: UUID) -> AgentWorkspace:
+        """The workspace by its id, when this caller may read it - see :meth:`files_of`."""
         row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
         if row is None or not await self._may_read(ctx, row):
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
-        return row, await self._browsable(ctx, row)
+        return row
+
+    async def _conversation_workspace(
+        self, ctx: AuthContext, conversation_id: UUID
+    ) -> AgentWorkspace | None:
+        """The workspace a conversation keeps, if it keeps one - see :meth:`listing`."""
+        rows = await workspace_repo.list_for_conversation(
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+        )
+        return rows[0] if rows else None
 
     async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
-        """A workspace's browsable entries, with what each file's tile draws."""
+        """A workspace's browsable entries, without tiles.
+
+        What reading one file needs: whether the path is listed. Tiles are for a
+        listing somebody looks at - drawing them before a read cost up to a
+        budget of image reads and decodes to open a single file.
+        """
         contents = await self._entries(ctx, row)
-        entries = browsable(contents.entries)
-        previews, thumbnails, _budget = await self._tiles(
-            ctx, row, [entry for entry in entries if not entry.get("is_dir")], HOST_THUMBNAIL_BUDGET
-        )
         return WorkspaceContents(
-            entries=entries,
+            entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
             truncated=contents.truncated,
-            previews=previews,
-            thumbnails=thumbnails,
         )
+
+    async def _tiled(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
+        """A workspace's browsable entries, with what each file's tile draws."""
+        contents = await self._browsable(ctx, row)
+        previews, thumbnails, _budget = await self._tiles(
+            ctx,
+            row,
+            [entry for entry in contents.entries if not entry.get("is_dir")],
+            HOST_THUMBNAIL_BUDGET,
+        )
+        return replace(contents, previews=previews, thumbnails=thumbnails)
 
     async def _tiles(
         self, ctx: AuthContext, row: AgentWorkspace, files: list[FileInfo], budget: int
@@ -1157,8 +1181,8 @@ class SandboxWorkspaceService:
             BadRequestError: If the host cannot be read, or cannot serve this file
                 as bytes.
         """
-        row, contents = await self.files_of(ctx, workspace_id)
-        return await self._bytes_from(ctx, row, contents, path)
+        row = await self._workspace_of(ctx, workspace_id)
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
 
     async def read_bytes(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> bytes:
         """One file as bytes, addressed through the conversation that holds it.
@@ -1176,14 +1200,13 @@ class SandboxWorkspaceService:
             BadRequestError: If the host cannot be read, or cannot serve this file
                 as bytes.
         """
-        found = await self.listing(ctx, conversation_id=conversation_id)
-        if found is None:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             raise NotFoundError(
                 message="This conversation keeps no files",
                 details={"conversation_id": str(conversation_id)},
             )
-        row, contents = found
-        return await self._bytes_from(ctx, row, contents, path)
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
 
     async def _bytes_from(
         self, ctx: AuthContext, row: AgentWorkspace, contents: WorkspaceContents, path: str
@@ -1246,7 +1269,8 @@ class SandboxWorkspaceService:
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
-        row, contents = await self.files_of(ctx, workspace_id)
+        row = await self._workspace_of(ctx, workspace_id)
+        contents = await self._browsable(ctx, row)
         if _absent(row, contents, path):
             return None
         return await self._read_from(ctx, row, path)
@@ -1265,13 +1289,10 @@ class SandboxWorkspaceService:
         a conversation from last week cost nothing and work at all after its
         session was reaped.
         """
-        rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
-        )
-        if not rows:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             return None
-        row = rows[0]
-        return row, await self._browsable(ctx, row)
+        return row, await self._tiled(ctx, row)
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
@@ -1372,10 +1393,9 @@ class SandboxWorkspaceService:
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
-        found = await self.listing(ctx, conversation_id=conversation_id)
-        if found is None:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             return None
-        row, _ = found
         return await self._read_from(ctx, row, path)
 
     async def _read_from(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:

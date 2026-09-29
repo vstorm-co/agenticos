@@ -32,8 +32,8 @@ interface DocPeekProps {
  * card that holds it (a `group`) lifts the page and fans the stack; the motion
  * is in `globals.css` beside the reduced-motion rule that removes it.
  *
- * Decorative by construction: the stack is `aria-hidden`, and the card around
- * it carries the name and description a screen reader announces.
+ * Decorative by construction: the whole peek is `aria-hidden`, and the card
+ * around it carries the name and description a screen reader announces.
  */
 export function DocPeek({
   sheets = 0,
@@ -45,15 +45,18 @@ export function DocPeek({
 }: DocPeekProps) {
   const behind = Math.max(0, Math.min(2, sheets));
   return (
+    // Hidden whole, not sheet by sheet: inside a card's button the excerpt would
+    // otherwise become part of its accessible name, read before the title.
     <div
+      aria-hidden
       className={cn(
         "bg-peek-well relative overflow-hidden",
         size === "compact" && "peek-compact",
         className,
       )}
     >
-      {behind >= 2 && <span aria-hidden className="peek-sheet peek-sheet-2 bg-peek-sheet" />}
-      {behind >= 1 && <span aria-hidden className="peek-sheet peek-sheet-1 bg-peek-sheet" />}
+      {behind >= 2 && <span className="peek-sheet peek-sheet-2 bg-peek-sheet" />}
+      {behind >= 1 && <span className="peek-sheet peek-sheet-1 bg-peek-sheet" />}
       <div
         className={cn(
           "peek-paper bg-peek-paper",

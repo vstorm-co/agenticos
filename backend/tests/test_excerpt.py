@@ -28,3 +28,27 @@ def test_it_is_bounded_by_lines_and_by_characters():
 def test_an_empty_body_has_nothing_to_show():
     assert excerpt("") == ""
     assert excerpt("---\nname: x\n---\n\n") == ""
+
+
+def test_a_large_body_is_read_lazily_rather_than_split_whole():
+    # A listing summarizes up to fifty bodies; `splitlines()` on each allocated
+    # every line of it to keep eight.
+    class Body(str):
+        def splitlines(self, keepends: bool = False) -> list[str]:
+            raise AssertionError("split the whole body")
+
+    body = Body("# Title\n" + "short\n" * 100_000)
+
+    assert excerpt(body) == "# Title\n" + "\n".join(["short"] * (EXCERPT_LINES - 1))
+
+
+def test_windows_line_endings_leave_no_carriage_returns():
+    assert excerpt("---\r\nname: x\r\n---\r\n# Title\r\nBody") == "# Title\nBody"
+
+
+def test_a_long_front_matter_is_dropped_whole():
+    fields = "\n".join(f"field_{n}: value" for n in range(EXCERPT_LINES * 2))
+
+    assert excerpt(f"---\n{fields}\n---\n# Title") == "# Title"
+    # And an unclosed one still shows only its first lines.
+    assert excerpt(f"---\n{fields}").count("\n") == EXCERPT_LINES - 1

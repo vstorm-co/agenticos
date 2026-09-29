@@ -2,8 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ARTIFACT_SANDBOX } from "@/components/artifacts/artifact-frame";
 import { useArtifactView } from "@/hooks/use-artifacts";
+import { cn } from "@/lib/utils";
+
+/**
+ * No permissions at all: no scripts, no dialogs, no forms. A listing mounts a
+ * page nobody asked to open, so a page that loops, spawns workers or calls
+ * `alert()` on load would stall every reader of `/artifacts`. The thumbnail
+ * shows the page's markup and styles; a page drawn only by script shows blank
+ * here and whole once opened, where it runs in `ARTIFACT_SANDBOX`.
+ */
+const THUMBNAIL_SANDBOX = "";
 
 /** The width the page is laid out at before it is scaled into the card. */
 const VIEWPORT_WIDTH = 1280;
@@ -52,13 +61,14 @@ function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
  * The real page rather than a screenshot, because none is kept: an artifact is
  * the HTML an agent published, and this is the one place in a listing that can
  * show what a report looks like before it is opened. It is loaded only once the
- * card nears the viewport - the signed address is a request per card and the
- * frame runs the page's script - and it runs in the same sandbox the detail
- * page uses, never with `allow-same-origin`.
+ * card nears the viewport - the signed address is a request per card - and in
+ * a sandbox that allows nothing, see `THUMBNAIL_SANDBOX`.
  *
  * Inert: no pointer events, out of the tab order and hidden from assistive
  * technology, because the card around it is the link and carries the title.
- * Until it paints, the paper shows placeholder lines; then the page fades in.
+ * Until it paints, the paper shows pulsing placeholder lines; then the page
+ * fades in. If the address cannot be had, the lines stay and stop pulsing - a
+ * card that pulses forever says "loading" about something that never will.
  */
 export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; title: string }) {
   const box = useRef<HTMLDivElement>(null);
@@ -66,18 +76,19 @@ export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; t
   const scale = useFitScale(box);
   const view = useArtifactView(artifactId, null, near);
   const [loaded, setLoaded] = useState(false);
+  const line = cn("bg-muted rounded", !view.isError && "animate-pulse");
 
   return (
     <div ref={box} className="relative h-full w-full overflow-hidden">
       {!loaded && (
-        <div aria-hidden className="space-y-2 p-3.5">
-          <div className="bg-muted h-2.5 w-2/5 animate-pulse rounded" />
-          <div className="bg-muted h-2 w-4/5 animate-pulse rounded" />
-          <div className="bg-muted h-2 w-3/5 animate-pulse rounded" />
+        <div aria-hidden data-unavailable={view.isError} className="space-y-2 p-3.5">
+          <div className={cn(line, "h-2.5 w-2/5")} />
+          <div className={cn(line, "h-2 w-4/5")} />
+          <div className={cn(line, "h-2 w-3/5")} />
           <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="bg-muted h-8 animate-pulse rounded" />
-            <div className="bg-muted h-8 animate-pulse rounded" />
-            <div className="bg-muted h-8 animate-pulse rounded" />
+            <div className={cn(line, "h-8")} />
+            <div className={cn(line, "h-8")} />
+            <div className={cn(line, "h-8")} />
           </div>
         </div>
       )}
@@ -85,7 +96,7 @@ export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; t
         <iframe
           src={view.data.url}
           title={title}
-          sandbox={ARTIFACT_SANDBOX}
+          sandbox={THUMBNAIL_SANDBOX}
           referrerPolicy="no-referrer"
           loading="lazy"
           tabIndex={-1}

@@ -22,6 +22,18 @@ describe("DocPeek", () => {
     expect(screen.getByText("+3 files")).toBeInTheDocument();
   });
 
+  it("stays out of the accessible name of the card it sits in", () => {
+    // Inside a card's button the excerpt was read out before the card's title.
+    render(
+      <button type="button">
+        <DocPeek badge="+3 files">first lines of the body</DocPeek>
+        Refund policy
+      </button>,
+    );
+
+    expect(screen.getByRole("button")).toHaveAccessibleName("Refund policy");
+  });
+
   it("tucks the page in for a small tile", () => {
     const { container } = render(<DocPeek size="compact">page</DocPeek>);
 

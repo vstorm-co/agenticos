@@ -466,8 +466,10 @@ describe("the workspace panel", () => {
       );
       await openPanel();
 
-      expect(screen.getByRole("img", { name: "shot.png" })).toBeVisible();
-      expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+      // `hidden`: the thumbnail sits in the card's decorative peek, which is
+      // out of the accessibility tree - the card's own name is what is read.
+      expect(screen.getByRole("img", { name: "shot.png", hidden: true })).toBeVisible();
+      expect(screen.queryByRole("img", { name: "scan.tiff", hidden: true })).toBeNull();
     });
 
     it("counts them on the button beside the agent's own", async () => {

@@ -1032,6 +1032,39 @@ class TestServingAFileAsBytes:
 
         assert data == png
 
+    async def test_reading_one_file_draws_no_thumbnails(self, monkeypatch, mock_db_session):
+        """Tiles are for a listing somebody looks at. The read paths shared the
+        listing that draws them, so opening one file on a container host read and
+        decoded up to a budget of images first - and an image, twice."""
+        from pydantic_ai_backends import remote as remote_module
+
+        png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        reads: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return [
+                    {"path": "/a.png", "size": len(png), "is_dir": False},
+                    {"path": "/b.png", "size": len(png), "is_dir": False},
+                    {"path": "/c.png", "size": len(png), "is_dir": False},
+                ]
+
+            def read_bytes(self, session_id, path):
+                reads.append(path)
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        await SandboxWorkspaceService(mock_db_session).read_bytes_of(_ctx(), row.id, path="/b.png")
+
+        assert reads == ["/b.png"]
+
     async def test_a_text_file_a_container_host_does_not_have_is_missing(
         self, monkeypatch, mock_db_session
     ):

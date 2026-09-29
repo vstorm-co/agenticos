@@ -686,7 +686,8 @@ describe("WorkspaceBrowser", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByRole("img", { name: "/chart.png" })).toBeVisible();
+      // `hidden`: the tile's peek is decorative and out of the accessibility tree.
+      expect(screen.getByRole("img", { name: "/chart.png", hidden: true })).toBeVisible();
     });
 
     it("draws an image with no thumbnail as its mark, not a broken picture", async () => {

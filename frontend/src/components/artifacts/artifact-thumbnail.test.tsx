@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ARTIFACT_SANDBOX } from "./artifact-frame";
 import { ArtifactThumbnail } from "./artifact-thumbnail";
 
 const useArtifactViewMock = vi.fn();
@@ -66,7 +65,9 @@ describe("ArtifactThumbnail", () => {
     act(() => seen.resize?.([]));
 
     const frame = container.querySelector("iframe")!;
-    expect(frame.getAttribute("sandbox")).toBe(ARTIFACT_SANDBOX);
+    // Allowing nothing: a listing must not run the page's script, which could
+    // loop or call `alert()` for every reader of the grid.
+    expect(frame.getAttribute("sandbox")).toBe("");
     expect(frame).toHaveAttribute("tabindex", "-1");
     expect(frame).toHaveAttribute("aria-hidden", "true");
     expect(frame.style.transform).toBe("scale(0.5)");
@@ -76,5 +77,20 @@ describe("ArtifactThumbnail", () => {
 
     expect(frame).toHaveAttribute("data-loaded", "true");
     expect(screen.getByTitle("Report")).toBe(frame);
+  });
+
+  it("stops pulsing once the address is refused, rather than loading forever", () => {
+    const seen = installObservers();
+    useArtifactViewMock.mockReturnValue({ data: undefined, isError: false });
+    const { container, rerender } = render(<ArtifactThumbnail artifactId="a1" title="Report" />);
+    act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+
+    useArtifactViewMock.mockReturnValue({ data: undefined, isError: true });
+    rerender(<ArtifactThumbnail artifactId="a1" title="Report" />);
+
+    expect(container.querySelector("[data-unavailable='true']")).not.toBeNull();
+    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(0);
+    expect(container.querySelector("iframe")).toBeNull();
   });
 });
