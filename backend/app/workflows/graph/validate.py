@@ -1145,15 +1145,20 @@ def _rule_5_exclusive_merge(
     return problems
 
 
+EXCLUSIVE_BRANCHING = frozenset(
+    {"logic.if", ERROR_HANDLE, "decide.yes_no", "decide.choose", "decide.score"}
+)
+"""The steps that leave by exactly one of their output ports on every run."""
+
+
 def _branches_exclusively(node: NodeInstance, definition: NodeDefinition | None) -> bool:
     """Whether exactly one of this node's output ports is ever taken per run.
 
-    `logic.if` takes `true` or `false`, `error.handle` one branch, and a node that
-    routes its errors leaves by `out` or by `error` - never both.
+    `logic.if` takes `true` or `false`, `error.handle` one branch, a decision
+    step one of its answers or `unsure`, and a node that routes its errors
+    leaves by `out` or by `error` - never both.
     """
-    return node.routes_errors or (
-        definition is not None and definition.id in ("logic.if", ERROR_HANDLE)
-    )
+    return node.routes_errors or (definition is not None and definition.id in EXCLUSIVE_BRANCHING)
 
 
 def _branches_diverge_at(

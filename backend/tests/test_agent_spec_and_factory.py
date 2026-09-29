@@ -802,7 +802,7 @@ class TestAStructuredAnswer:
         assert result.output == {"score": 91, "tier": "hot"}
         assert any("at score: 'high' is not of type 'integer'" in text for text in seen)
 
-    def test_a_run_parked_on_an_approval_passes_the_schema_check(self):
+    def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""
         parked = DeferredToolRequests()
         assert _fits_schema(_SCORE)(parked) is parked

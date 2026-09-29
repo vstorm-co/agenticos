@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3c35a2dc6a"
+source_sha: "c777f531d8e2"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -133,6 +133,38 @@ busca en menos colecciones de las que nombra el grafo.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## Decisiones { #decisions }
+
+Tres pasos hacen a Jev, de TypeSafe, una pregunta tipada sobre un `text` enlazado,
+con una clave de API de TypeSafe del vault. Jev no escribe texto: responde la
+pregunta con una confianza de 0 a 1, en una sola petición, y solo puede responder
+con una de las respuestas que el paso permite. Por debajo del `min_confidence` del
+paso, sale por su puerto `unsure`, así que el workflow decide ahí qué hace una
+persona o un agent con un caso dudoso.
+
+| Paso | Pregunta | Sale por |
+|---|---|---|
+| `decide.yes_no` | una pregunta de sí o no | `yes`, `no` o `unsure` |
+| `decide.choose` | cuál de hasta 255 opciones encaja | `out` con la `choice`, o `unsure` |
+| `decide.score` | dónde queda el texto en una escala de 2 a 10 niveles | `out` con el `score`, o `unsure` |
+
+La clave se comprueba al publicar y se vuelve a leer en cada run. Una clave que ya
+no existe o no está compartida hace fallar el paso con `SECRET_NOT_USABLE`, un
+modelo que no responde con `DECISION_FAILED`, que se reintenta según la política
+del paso, y un despliegue construido sin el extra `browser` con
+`DECISION_MODEL_UNAVAILABLE`. Un merge puede volver a unir las ramas de una
+decisión, como las de un paso If / else.
+
+::: app.workflows.nodes._decide.DecisionConfig
+
+::: app.workflows.nodes.decide_choose._handler.ChooseConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.decide_score._handler.ScoreConfig
+    options:
+      show_bases: false
 
 ## agent.run { #agent-run }
 

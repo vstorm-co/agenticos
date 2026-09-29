@@ -28,6 +28,18 @@ import { isTrigger } from "@/lib/workflows/triggers";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
 
+/**
+ * The steps that leave by exactly one output port on every run, so a merge may
+ * rejoin their branches - `validate.py`'s `EXCLUSIVE_BRANCHING`, less
+ * `error.handle`, whose branches the client does not mirror.
+ */
+const EXCLUSIVE_BRANCHING: ReadonlySet<string> = new Set([
+  "logic.if",
+  "decide.yes_no",
+  "decide.choose",
+  "decide.score",
+]);
+
 function node(nodeId: string, code: RawProblem["code"], params?: RawProblem["params"]): RawProblem {
   return { nodeId, edgeId: null, field: null, code, params };
 }
@@ -227,7 +239,7 @@ export function rule5ExclusiveMerge(
       continue;
     }
     const commonDefinition = definitionFor(definitions, common);
-    if (commonDefinition === null || commonDefinition.id !== "logic.if") {
+    if (commonDefinition === null || !EXCLUSIVE_BRANCHING.has(commonDefinition.id)) {
       problems.push(node(n.id, "merge-not-from-if"));
       continue;
     }

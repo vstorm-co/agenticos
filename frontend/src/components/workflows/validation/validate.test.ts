@@ -109,6 +109,16 @@ const IF = makeDefinition({
     port("otherwise", "output", null),
   ],
 });
+const YES_NO = makeDefinition({
+  id: "decide.yes_no",
+  kind: "control",
+  ports: [
+    port("in", "input", null),
+    port("yes", "output", null),
+    port("no", "output", null),
+    port("unsure", "output", null),
+  ],
+});
 const MERGE = makeDefinition({
   id: "logic.merge",
   ports: [port("in", "input", null), port("out", "output", null)],
@@ -144,6 +154,7 @@ const SCHEDULE = makeDefinition({
 const CATALOG = makeCatalog([
   WEBHOOK,
   SCHEDULE,
+  YES_NO,
   DEBUG_ECHO,
   CONSUMER,
   CONSUMER_NOREQ,
@@ -207,6 +218,27 @@ describe("drift parity — happy graphs the backend publishes", () => {
         edge("e3", "branch", "otherwise", "else", "in"),
         edge("e4", "then", "out", "m", "in"),
         edge("e5", "else", "out", "m", "in"),
+      ],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("a merge from a decision step, which takes one answer per run", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("ask", "decide.yes_no"),
+        echo("yes"),
+        echo("no"),
+        node("m", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "ask", "in"),
+        edge("e2", "ask", "yes", "yes", "in"),
+        edge("e3", "ask", "no", "no", "in"),
+        edge("e4", "yes", "out", "m", "in"),
+        edge("e5", "no", "out", "m", "in"),
       ],
     });
     expect(run(g)).toEqual([]);

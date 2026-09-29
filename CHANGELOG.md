@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow steps that decide with TypeSafe's Jev.** **Yes or no**, **Choose
+  one** (of up to 255 options) and **Score** (against a rubric of 2 to 10
+  described levels) ask Jev a typed question about a bound text with a
+  TypeSafe key from the vault, and answer in one request with a confidence.
+  The answer can only be one the step allows, and below the step's confidence
+  floor it leaves by an **Unsure** port instead, so a doubtful case goes where
+  the workflow says. A merge may rejoin a decision's branches.
 - **An agent can answer with data rather than prose.** The Builder's **Answer
   format** turns an agent's answer into an object of named, typed fields - or
   any JSON Schema, edited as JSON - stored as `output_schema` in the spec. The

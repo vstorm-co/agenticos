@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3c35a2dc6a"
+source_sha: "c777f531d8e2"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -141,6 +141,39 @@ Collections, als der Graph nennt.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## Entscheidungen { #decisions }
+
+Drei Schritte stellen TypeSafes Jev eine typisierte Frage zu einem gebundenen
+`text`, mit einem TypeSafe-API-Key aus dem Vault. Jev schreibt keinen Text: Er
+beantwortet die Frage mit einer Konfidenz von 0 bis 1, in einer Anfrage, und kann
+nur mit einer der Antworten antworten, die der Schritt zulässt. Unter dem
+`min_confidence` des Schritts verlässt er ihn stattdessen über seinen Port
+`unsure`, sodass ein Workflow dort entscheidet, was ein Mensch oder ein Agent mit
+einem zweifelhaften Fall tut.
+
+| Schritt | Fragt | Verlässt über |
+|---|---|---|
+| `decide.yes_no` | eine Ja-oder-Nein-Frage | `yes`, `no` oder `unsure` |
+| `decide.choose` | welche von bis zu 255 Optionen passt | `out` mit der `choice`, oder `unsure` |
+| `decide.score` | wo der Text auf einer Skala von 2 bis 10 Stufen liegt | `out` mit dem `score`, oder `unsure` |
+
+Der Key wird beim Veröffentlichen geprüft und bei jedem Run neu gelesen. Ein Key,
+der weg oder nicht mehr geteilt ist, lässt den Schritt mit `SECRET_NOT_USABLE`
+fehlschlagen, ein Modell, das nicht antwortet, mit `DECISION_FAILED`, das nach der
+Policy des Schritts wiederholt wird, und eine Bereitstellung ohne das Extra
+`browser` mit `DECISION_MODEL_UNAVAILABLE`. Ein Merge darf die Zweige einer
+Entscheidung wieder zusammenführen, wie die eines If-/Else-Schritts.
+
+::: app.workflows.nodes._decide.DecisionConfig
+
+::: app.workflows.nodes.decide_choose._handler.ChooseConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.decide_score._handler.ScoreConfig
+    options:
+      show_bases: false
 
 ## agent.run { #agent-run }
 

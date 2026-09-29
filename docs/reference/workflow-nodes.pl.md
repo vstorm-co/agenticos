@@ -1,5 +1,5 @@
 ---
-source_sha: "fc3c35a2dc6a"
+source_sha: "c777f531d8e2"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -132,6 +132,37 @@ niż wskazuje graf.
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 
 ::: app.workflows.contracts.io.SourceRef
+
+## Decyzje { #decisions }
+
+Trzy kroki zadają Jev od TypeSafe typowane pytanie o powiązany `text`, z kluczem
+API TypeSafe z vaulta. Jev nie pisze tekstu: odpowiada na pytanie z pewnością od 0
+do 1, w jednym żądaniu, i może odpowiedzieć tylko jedną z odpowiedzi, na które krok
+pozwala. Poniżej `min_confidence` kroku wychodzi on portem `unsure`, więc to
+workflow decyduje, co człowiek albo agent zrobi z wątpliwym przypadkiem.
+
+| Krok | Pyta | Wychodzi portem |
+|---|---|---|
+| `decide.yes_no` | o tak albo nie | `yes`, `no` albo `unsure` |
+| `decide.choose` | która z maksymalnie 255 opcji pasuje | `out` z `choice` albo `unsure` |
+| `decide.score` | gdzie tekst leży na skali od 2 do 10 poziomów | `out` ze `score` albo `unsure` |
+
+Klucz jest sprawdzany przy publikacji i odczytywany ponownie przy każdym runie.
+Klucz, którego już nie ma albo nie jest udostępniony, kończy krok błędem
+`SECRET_NOT_USABLE`, model, który nie odpowiada, błędem `DECISION_FAILED`,
+ponawianym zgodnie z polityką kroku, a wdrożenie zbudowane bez extra `browser`
+błędem `DECISION_MODEL_UNAVAILABLE`. Merge może połączyć gałęzie decyzji tak jak
+gałęzie kroku If / else.
+
+::: app.workflows.nodes._decide.DecisionConfig
+
+::: app.workflows.nodes.decide_choose._handler.ChooseConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.decide_score._handler.ScoreConfig
+    options:
+      show_bases: false
 
 ## agent.run { #agent-run }
 

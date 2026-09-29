@@ -128,6 +128,37 @@ collections than the graph names.
 
 ::: app.workflows.contracts.io.SourceRef
 
+## Decisions { #decisions }
+
+Three steps ask TypeSafe's Jev a typed question about a bound `text`, with a
+TypeSafe API key from the vault. Jev does not write text: it answers the
+question with a confidence from 0 to 1, in one request, and it can only answer
+with one of the answers the step allows. Below the step's `min_confidence` the
+step leaves by its `unsure` port instead, so a workflow decides there what a
+person or an agent does with a doubtful case.
+
+| Step | Asks | Leaves by |
+|---|---|---|
+| `decide.yes_no` | a yes-or-no question | `yes`, `no` or `unsure` |
+| `decide.choose` | which of up to 255 options fits | `out` with the `choice`, or `unsure` |
+| `decide.score` | where the text sits on a rubric of 2 to 10 levels | `out` with the `score`, or `unsure` |
+
+The key is checked at publish and read again on every run. A key that is gone
+or unshared fails the step with `SECRET_NOT_USABLE`, a model that does not
+answer with `DECISION_FAILED`, which is retried as the step's policy says, and a
+deployment built without the `browser` extra with `DECISION_MODEL_UNAVAILABLE`.
+A merge may rejoin a decision's branches, as it rejoins an If / else step's.
+
+::: app.workflows.nodes._decide.DecisionConfig
+
+::: app.workflows.nodes.decide_choose._handler.ChooseConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.decide_score._handler.ScoreConfig
+    options:
+      show_bases: false
+
 ## agent.run { #agent-run }
 
 Asks a published agent, at the exact version the step pins, through the same
