@@ -136,9 +136,13 @@ run history. The run is recorded with the surface `workflow`. Bound `sources`
 are appended to the prompt as numbered context. An approval-gated tool call
 parks the step, and the decision resumes the same agent run.
 
-With `structured_output_schema`, the answer must be a JSON object that
-satisfies the schema before anything downstream runs. Otherwise the step fails
-with `STRUCTURED_OUTPUT_MISMATCH`.
+An agent with an answer format of its own hands its object on as `structured`.
+`structured_output_schema` asks for another shape in its place: the agent is run
+with that schema, and an answer that breaks it is sent back to the model to be
+fixed. The object is checked once more before anything downstream runs. An
+agent that never produces one that fits fails the step with `AGENT_RUN_FAILED`,
+and an answer with no object where one was asked for fails it with
+`STRUCTURED_OUTPUT_MISMATCH`.
 
 | Agent run ended | Step result |
 |---|---|

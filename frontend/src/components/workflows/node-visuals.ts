@@ -17,12 +17,15 @@ import {
   Flag,
   GitBranch,
   GitMerge,
+  Gauge,
   Globe,
   ImageIcon,
+  ListChecks,
   Library,
   MessageSquare,
   Play,
   Repeat,
+  Scale,
   ScanText,
   ShieldAlert,
   Table2,
@@ -84,6 +87,9 @@ const BY_ID: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
   "image.transform": { icon: ImageIcon, tone: "file" },
   "code.python.simple": { icon: Code2, tone: "code" },
   "code.python.sandbox": { icon: Terminal, tone: "code" },
+  "decide.yes_no": { icon: Scale, tone: "logic" },
+  "decide.choose": { icon: ListChecks, tone: "logic" },
+  "decide.score": { icon: Gauge, tone: "logic" },
 };
 
 const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
@@ -103,6 +109,7 @@ export const CATEGORY_ORDER = [
   "triggers",
   "core",
   "agent",
+  "decide",
   "knowledge",
   "data",
   "tables",

@@ -5936,7 +5936,8 @@
       "http": "HTTP",
       "notification": "Notifications",
       "debug": "Debug",
-      "triggers": "Triggers"
+      "triggers": "Triggers",
+      "decide": "Decisions"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -6177,5 +6178,37 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "answerFormat": {
+    "title": "Answer format",
+    "description": "Whether the agent answers in prose or with data of a fixed shape - for an API, a workflow step or a system that reads the answer.",
+    "label": "It answers",
+    "text": "In text",
+    "structured": "With structured data",
+    "textHint": "Free-form prose, as in a chat.",
+    "structuredHint": "An object with these fields. The model is asked for it and sent back to fix an answer that does not fit; the API returns it as structured, the chat shows it as JSON.",
+    "schema": "JSON Schema",
+    "fieldName": "Field",
+    "fieldType": "Type",
+    "fieldDescription": "What goes in {name}",
+    "fieldDescriptionPlaceholder": "What goes here, in a line the model reads",
+    "fieldRequired": "Always present",
+    "removeField": "Remove {name}",
+    "addField": "Add a field",
+    "editAsJson": "Edit as JSON Schema",
+    "editAsFields": "Edit as fields",
+    "types": {
+      "string": "Text",
+      "number": "Number",
+      "integer": "Whole number",
+      "boolean": "Yes or no",
+      "string_list": "List of text"
+    },
+    "invalid": {
+      "notJson": "This is not valid JSON.",
+      "notObject": "The schema must describe an object: \"type\": \"object\"."
+    },
+    "agentsOwn": "As the agent answers",
+    "agentsOwnHint": "The agent's own answer format: text, or the object its answer format names."
   }
 }

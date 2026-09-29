@@ -1,5 +1,5 @@
 ---
-source_sha: "7e49be8b2876"
+source_sha: "fc3c35a2dc6a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -141,9 +141,12 @@ agenta. Run jest zapisywany z powierzchnią `workflow`. Zbindowane `sources` są
 dopisywane do promptu jako numerowany kontekst. Wywołanie narzędzia wymagające
 zatwierdzenia zatrzymuje krok, a decyzja wznawia ten sam run agenta.
 
-Z `structured_output_schema` odpowiedź musi być obiektem JSON spełniającym
-schemat, zanim cokolwiek dalej się wykona. W przeciwnym razie krok kończy się
-błędem `STRUCTURED_OUTPUT_MISMATCH`.
+Agent z własnym formatem odpowiedzi przekazuje swój obiekt jako `structured`.
+`structured_output_schema` prosi w zamian o inny kształt: agent jest uruchamiany
+z tym schematem, a odpowiedź, która go łamie, wraca do modelu do poprawki. Obiekt
+jest sprawdzany jeszcze raz, zanim cokolwiek dalej się wykona. Agent, który nigdy
+nie da pasującego obiektu, kończy krok błędem `AGENT_RUN_FAILED`, a odpowiedź bez
+obiektu tam, gdzie o niego proszono, błędem `STRUCTURED_OUTPUT_MISMATCH`.
 
 | Jak zakończył się run agenta | Wynik kroku |
 |---|---|

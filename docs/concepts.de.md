@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "552010905ca7"
 ---
 
 # Begriffe { #concepts }
@@ -47,6 +47,15 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
     Neue Felder bekommen Vorgabewerte, sodass ein heute veröffentlichter Agent
     auch nach einem Upgrade noch lädt. Ein Feld zu entfernen oder umzubenennen
     ist eine Migration, keine Bearbeitung.
+
+!!! info "Eine Antwort kann Daten sein"
+
+    Standardmäßig antwortet ein Agent in Text. Stellen Sie **Answer format** auf
+    strukturierte Daten oder `output_schema` im Spec, und er antwortet stattdessen
+    mit einem Objekt benannter Felder: Das Modell wird um diese Form gebeten, und
+    eine Antwort, die sie verletzt, geht zum Korrigieren zurück, bevor der Run
+    endet. Die API gibt das Objekt als `structured` zurück, Chat und Kanäle zeigen
+    es als JSON-Block, und ein `agent.run`-Schritt gibt es weiter.
 
 !!! info "Ein Template ist ein Spec, den jemand schon geschrieben hat"
 

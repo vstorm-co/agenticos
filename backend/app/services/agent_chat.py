@@ -41,6 +41,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.factory import AgentOutput, answer_text
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -67,7 +68,7 @@ logger = logging.getLogger(__name__)
 # Iterating the run is the caller's job; this is how it is handed back the
 # iterator. Typed against the agent the factory builds, so a surface that
 # forwards events cannot quietly be given a different kind of run.
-type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+type ChatStream = Callable[[AgentRun[AgentDeps, AgentOutput]], Awaitable[None]]
 
 # Told once per turn, before the model answers, which of the agent's personal MCP
 # services this person cannot reach - so a surface can draw the button that
@@ -178,13 +179,14 @@ def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
         ) from exc
 
 
-def display_output(output: str | DeferredToolRequests) -> str:
+def display_output(output: AgentOutput) -> str:
     """The text to show for whatever a run ended with.
 
     A run can end without an answer: when the approval gate parks a
     side-effecting call, Pydantic AI ends the run with the calls waiting on a
     human. There is no model text to show then, and the object itself is not
-    something a client can render.
+    something a client can render. An answer in the agent's `output_schema` is
+    shown as that object in a JSON block (:func:`answer_text`).
 
     Empty, then - and deliberately not a sentence about the queue. This value
     becomes the assistant message's `content`, so a notice put here is stored as
@@ -196,7 +198,9 @@ def display_output(output: str | DeferredToolRequests) -> str:
     empty answer here too (:meth:`AgentRunnerService._run`), so this is the whole
     platform's answer rather than this one's.
     """
-    return output if isinstance(output, str) else ""
+    if isinstance(output, DeferredToolRequests):
+        return ""
+    return answer_text(output)
 
 
 @dataclass(frozen=True)
@@ -474,7 +478,9 @@ class ChatAgentRunner:
                     prepared.built.capabilities,
                     ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
-            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            status, output, _structured, paused = _classify_output(
+                result, parked=prepared.approvals.parked
+            )
             finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled

@@ -1,5 +1,5 @@
 ---
-source_sha: "7e49be8b2876"
+source_sha: "fc3c35a2dc6a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -151,9 +151,13 @@ Guardrails und Run-Historie des Agents. Der Run wird mit der Oberfläche
 den Prompt angehängt. Ein freigabepflichtiger Tool-Aufruf hält den Schritt an,
 und die Entscheidung setzt denselben Agent-Run fort.
 
-Mit `structured_output_schema` muss die Antwort ein JSON-Objekt sein, das das
-Schema erfüllt, bevor irgendetwas danach läuft. Sonst schlägt der Schritt mit
-`STRUCTURED_OUTPUT_MISMATCH` fehl.
+Ein Agent mit eigenem Antwortformat gibt sein Objekt als `structured` weiter.
+`structured_output_schema` verlangt stattdessen eine andere Form: Der Agent läuft
+mit diesem Schema, und eine Antwort, die es verletzt, geht zum Korrigieren an das
+Modell zurück. Das Objekt wird noch einmal geprüft, bevor irgendetwas danach läuft.
+Ein Agent, der nie ein passendes liefert, lässt den Schritt mit `AGENT_RUN_FAILED`
+fehlschlagen, und eine Antwort ohne Objekt, wo eines verlangt war, mit
+`STRUCTURED_OUTPUT_MISMATCH`.
 
 | Wie der Agent-Run endete | Ergebnis des Schritts |
 |---|---|

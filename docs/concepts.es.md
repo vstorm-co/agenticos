@@ -1,5 +1,5 @@
 ---
-source_sha: "e10c0995c043"
+source_sha: "552010905ca7"
 ---
 
 # Conceptos { #concepts }
@@ -45,6 +45,15 @@ El spec cumple dos reglas, y son las que lo hacen útil.
     Los campos nuevos llevan valores por defecto, así que un agent publicado hoy
     sigue cargando después de una actualización. Quitar o renombrar un campo es
     una migración, no una edición.
+
+!!! info "Una respuesta puede ser datos"
+
+    Por defecto, un agent responde en texto. Pon **Answer format** en datos
+    estructurados, o `output_schema` en el spec, y responderá con un objeto de
+    campos con nombre: al modelo se le pide esa forma, y una respuesta que la
+    incumple vuelve para corregirse antes de que termine el run. La API devuelve el
+    objeto como `structured`, el chat y los canales lo muestran como un bloque
+    JSON, y un paso `agent.run` lo pasa adelante.
 
 !!! info "Una plantilla es un spec que ya escribió alguien"
 

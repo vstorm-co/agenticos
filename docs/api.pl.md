@@ -1,5 +1,5 @@
 ---
-source_sha: "b6170683f77a"
+source_sha: "cae716a8d56d"
 ---
 
 # API HTTP { #the-http-api }
@@ -62,7 +62,10 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 Odpowiedź niesie identyfikator runa, wynik i status. Dwa opcjonalne pola w ciele
 warto znać: `conversation_id` kontynuuje istniejący wątek, a `environment_id`
-wybiera, [które środowisko](environments.md) odpowiada.
+wybiera, [które środowisko](environments.md) odpowiada. Agent z
+[formatem odpowiedzi](concepts.md#spec) odpowiada obiektem: jest on w `structured`,
+już sprawdzony względem `output_schema` agenta, a `output` pokazuje ten sam obiekt
+jako blok JSON.
 
 !!! info "Wywołujący API nie może obejść nadzoru"
 

@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import {
@@ -69,6 +70,10 @@ const TRIGGER_HINTS: Record<string, string> = {
   [CHAT_TRIGGER]: "triggerHintChat",
   [WEBHOOK_TRIGGER]: "triggerHintWebhook",
 };
+
+/** `agent.run`'s answer-shape override, edited as the Builder edits an agent's own. */
+const AGENT_RUN = "agent.run";
+const STRUCTURED_OUTPUT = "structured_output_schema";
 
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
@@ -698,19 +703,33 @@ export function NodeForm({
           <h3 className="text-xs font-semibold tracking-wide uppercase">
             {t("nodeFormConfigSection")}
           </h3>
-          {configFields.map((entry) => (
-            <ConfigNode
-              key={entry.name}
-              schema={entry.schema}
-              name={entry.name}
-              required={entry.required}
-              path={[entry.name]}
-              defs={configDefs}
-              ctx={ctx}
-              value={node.config[entry.name]}
-              onChange={(next) => updateNodeConfig(node.id, setKey(node.config, entry.name, next))}
-            />
-          ))}
+          {configFields.map((entry) =>
+            definition.id === AGENT_RUN && entry.name === STRUCTURED_OUTPUT ? (
+              <AnswerFormatForm
+                key={entry.name}
+                value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
+                }
+                disabled={disabled}
+                keepsOwn
+              />
+            ) : (
+              <ConfigNode
+                key={entry.name}
+                schema={entry.schema}
+                name={entry.name}
+                required={entry.required}
+                path={[entry.name]}
+                defs={configDefs}
+                ctx={ctx}
+                value={node.config[entry.name]}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next))
+                }
+              />
+            ),
+          )}
         </section>
       )}
       {inputFields.length > 0 && (

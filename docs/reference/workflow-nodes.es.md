@@ -1,5 +1,5 @@
 ---
-source_sha: "7e49be8b2876"
+source_sha: "fc3c35a2dc6a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -143,9 +143,12 @@ guardrails y el historial de runs del agent. El run se registra con la superfici
 Una llamada a una herramienta que requiere aprobación detiene el paso, y la
 decisión reanuda el mismo run del agent.
 
-Con `structured_output_schema`, la respuesta debe ser un objeto JSON que cumpla
-el esquema antes de que se ejecute nada después. Si no, el paso falla con
-`STRUCTURED_OUTPUT_MISMATCH`.
+Un agent con un formato de respuesta propio pasa su objeto como `structured`.
+`structured_output_schema` pide otra forma en su lugar: el agent se ejecuta con
+ese esquema, y una respuesta que lo incumple vuelve al modelo para corregirla. El
+objeto se comprueba una vez más antes de que se ejecute nada después. Un agent que
+nunca produce uno que encaje hace fallar el paso con `AGENT_RUN_FAILED`, y una
+respuesta sin objeto donde se pidió uno, con `STRUCTURED_OUTPUT_MISMATCH`.
 
 | Cómo terminó el run del agent | Resultado del paso |
 |---|---|

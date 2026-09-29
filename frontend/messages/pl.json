@@ -3582,7 +3582,8 @@
       "notification": "Powiadomienia",
       "debug": "Debugowanie",
       "core": "Zakończenie",
-      "triggers": "Wyzwalacze"
+      "triggers": "Wyzwalacze",
+      "decide": "Decyzje"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -3829,5 +3830,37 @@
     "add": "Dodaj",
     "mappingAdded": "Mapowanie dodane",
     "mappingDeleted": "Mapowanie usunięte"
+  },
+  "answerFormat": {
+    "title": "Format odpowiedzi",
+    "description": "Czy agent odpowiada tekstem, czy danymi o stałym kształcie - dla API, kroku workflow albo systemu, który czyta odpowiedź.",
+    "label": "Odpowiada",
+    "text": "Tekstem",
+    "structured": "Danymi strukturalnymi",
+    "textHint": "Swobodny tekst, jak na czacie.",
+    "structuredHint": "Obiekt z tymi polami. Model dostaje o niego prośbę i jest odsyłany do poprawki, gdy odpowiedź nie pasuje; API zwraca go jako structured, a czat pokazuje jako JSON.",
+    "schema": "JSON Schema",
+    "fieldName": "Pole",
+    "fieldType": "Typ",
+    "fieldDescription": "Co trafia do {name}",
+    "fieldDescriptionPlaceholder": "Co tu trafia, jednym zdaniem, które przeczyta model",
+    "fieldRequired": "Zawsze obecne",
+    "removeField": "Usuń {name}",
+    "addField": "Dodaj pole",
+    "editAsJson": "Edytuj jako JSON Schema",
+    "editAsFields": "Edytuj jako pola",
+    "types": {
+      "string": "Tekst",
+      "number": "Liczba",
+      "integer": "Liczba całkowita",
+      "boolean": "Tak lub nie",
+      "string_list": "Lista tekstów"
+    },
+    "invalid": {
+      "notJson": "To nie jest poprawny JSON.",
+      "notObject": "Schemat musi opisywać obiekt: \"type\": \"object\"."
+    },
+    "agentsOwn": "Tak, jak odpowiada agent",
+    "agentsOwnHint": "Własny format odpowiedzi agenta: tekst albo obiekt, który ten format opisuje."
   }
 }

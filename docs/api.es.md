@@ -1,5 +1,5 @@
 ---
-source_sha: "b6170683f77a"
+source_sha: "cae716a8d56d"
 ---
 
 # La API HTTP { #the-http-api }
@@ -62,7 +62,10 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 La respuesta trae el id del run, la salida y el estado. Conviene conocer dos
 campos opcionales del cuerpo: `conversation_id` continúa un hilo existente, y
-`environment_id` elige [qué entorno](environments.md) responde.
+`environment_id` elige [qué entorno](environments.md) responde. Un agent con un
+[formato de respuesta](concepts.md#spec) responde con un objeto: está en
+`structured`, ya validado contra el `output_schema` del agent, y `output` muestra
+el mismo objeto como un bloque JSON.
 
 !!! info "Un llamante de la API no puede esquivar el governance"
 

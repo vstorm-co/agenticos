@@ -50,6 +50,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
@@ -166,6 +167,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
   const tAgents = useTranslations("agents");
+  const tAnswer = useTranslations("answerFormat");
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
@@ -1146,6 +1148,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
                 onToggle={() => toggleCapability(THINKING_ID)}
                 onChange={updateCapability}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          <Card data-tour="agent-answer-format">
+            <CardHeader>
+              <CardTitle>{tAnswer("title")}</CardTitle>
+              <CardDescription>{tAnswer("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AnswerFormatForm
+                value={spec.output_schema ?? null}
+                onChange={(output_schema) => update({ output_schema })}
                 disabled={!canEdit}
               />
             </CardContent>

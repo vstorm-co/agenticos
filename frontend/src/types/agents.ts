@@ -291,6 +291,12 @@ export interface AgentSpec {
   subagents?: SubagentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /**
+   * The JSON Schema of the agent's answer, when it answers with data rather than
+   * prose - an object of this shape, validated before the run ends. Null or
+   * absent is a free-text answer.
+   */
+  output_schema?: Record<string, unknown> | null;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.

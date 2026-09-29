@@ -632,6 +632,14 @@ class AgentRunResult(BaseSchema):
 
     run_id: UUID
     output: str
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer as an object, for an agent with an `output_schema`: it fits "
+            "that schema, and `output` shows the same object as a JSON block. Null "
+            "for a free-text answer, and for a run that parked or stopped"
+        ),
+    )
     status: str
     cost_usd: Decimal
     cost_is_partial: bool = Field(

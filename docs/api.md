@@ -56,7 +56,10 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 The response carries the run id, the output and the status. Two optional fields
 in the body are worth knowing: `conversation_id` continues an existing thread,
-and `environment_id` picks [which environment](environments.md) answers.
+and `environment_id` picks [which environment](environments.md) answers. An
+agent with an [answer format](concepts.md#spec) answers with an object: it is in
+`structured`, already validated against the agent's `output_schema`, and `output`
+shows the same object as a JSON block.
 
 !!! info "An API caller cannot route around governance"
 

@@ -33,12 +33,15 @@ shown. The prompt is never sent to a fresh run.
 
 ## Structured answers
 
-Set `structured_output_schema` to a JSON Schema, and the agent's final text must
-be a JSON object that satisfies it. It is checked before the next step runs. A
-mismatch fails the step with `STRUCTURED_OUTPUT_MISMATCH`, naming the path and
-the rule broken but not the answer. Nothing downstream, such as a table write,
-sees an answer of the wrong shape. Tell the agent in its instructions or the
-prompt to answer in JSON.
+An agent with an **Answer format** of its own hands its object on as
+`structured`. Set `structured_output_schema` to ask for another shape: the
+agent runs with that JSON Schema in place of its own, the model answers with an
+object of it, and an answer that breaks it is sent back to be fixed. The object
+is checked once more before the next step runs, naming the path and the rule
+broken but never the answer. An agent that never fits fails the step with
+`AGENT_RUN_FAILED`; an answer with no object where one was asked for fails it
+with `STRUCTURED_OUTPUT_MISMATCH`. Nothing downstream, such as a table write,
+sees an answer of the wrong shape.
 
 ## Failures
 

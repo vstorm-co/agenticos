@@ -92,7 +92,9 @@ async def test_an_approval_parks_the_node_on_the_agent_run(runner):
 async def test_a_wake_continues_the_same_run_and_books_only_what_it_added(runner, monkeypatch):
     parked_id = uuid.uuid4()
     finished = _run(RunStatus.COMPLETED, cost="0.05")
-    runner.resume.return_value = SimpleNamespace(output="Approved and sent.", run=finished)
+    runner.resume.return_value = SimpleNamespace(
+        output="Approved and sent.", run=finished, structured=None
+    )
     monkeypatch.setattr(agent_node, "_cost_so_far", AsyncMock(return_value=Decimal("0.01")))
 
     result, scope = await _call(resumed=parked_id)
@@ -156,9 +158,38 @@ def test_a_schema_that_is_not_a_json_schema_is_refused_with_the_config():
         AgentRunConfig.model_validate({"agent": _AGENT, "structured_output_schema": {"type": 5}})
 
 
-def test_a_fenced_answer_with_nothing_inside_is_not_json():
-    result = agent_node._structured("```", {"type": "object"})
-    assert isinstance(result, Failed) and result.error.message == "The answer is not JSON"
+def test_an_agent_that_answered_in_text_has_no_object_to_hand_on():
+    result = agent_node._structured(None, {"type": "object"})
+    assert isinstance(result, Failed) and result.error.code == "STRUCTURED_OUTPUT_MISMATCH"
+    assert result.error.message == "The agent answered in text, not with an object"
+
+
+async def test_the_step_asks_for_its_schema_and_hands_on_the_agents_object(runner):
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}}}
+
+    async def execute(*_args, structured, **kwargs):
+        assert kwargs["output_schema"] == schema
+        structured.append({"score": 87})
+        return '```json\n{"score": 87}\n```', _run(RunStatus.COMPLETED)
+
+    runner.execute.side_effect = execute
+
+    result, _scope = await _call(config={"structured_output_schema": schema})
+
+    assert isinstance(result, Completed) and result.output.structured == {"score": 87}
+
+
+async def test_an_agent_with_its_own_answer_format_hands_its_object_on(runner):
+    async def execute(*_args, structured, **kwargs):
+        assert kwargs["output_schema"] is None
+        structured.append({"tier": "warm"})
+        return "", _run(RunStatus.COMPLETED)
+
+    runner.execute.side_effect = execute
+
+    result, _scope = await _call()
+
+    assert isinstance(result, Completed) and result.output.structured == {"tier": "warm"}
 
 
 async def test_an_unreachable_agent_is_a_problem_on_its_field(monkeypatch):
@@ -175,3 +206,21 @@ async def test_an_unreachable_agent_is_a_problem_on_its_field(monkeypatch):
     )
 
     assert problems == [("agent", "Agent version not found")]
+
+
+async def test_an_object_that_breaks_the_steps_schema_fails_before_the_next_step(runner):
+    """The runner asks for the shape and the model is sent back to fix it, but the
+    step checks once more: nothing downstream reads an answer of the wrong shape."""
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}}}
+
+    async def execute(*_args, structured, **_kwargs):
+        structured.append({"score": "high"})
+        return "", _run(RunStatus.COMPLETED)
+
+    runner.execute.side_effect = execute
+
+    result, _scope = await _call(config={"structured_output_schema": schema})
+
+    assert isinstance(result, Failed) and result.error.code == "STRUCTURED_OUTPUT_MISMATCH"
+    # Where and which rule, never the value: the value is the agent's answer.
+    assert result.error.details == {"path": "score", "rule": "type"}

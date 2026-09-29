@@ -25,7 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -92,7 +92,7 @@ def _no_prefect_submission():
 class _Agents:
     """One model for every agent: each answers by the marker in its instructions."""
 
-    def __init__(self, answers: dict[str, str]) -> None:
+    def __init__(self, answers: dict[str, str | dict[str, Any]]) -> None:
         self.answers = answers
         self.prompts: dict[str, list[str]] = {marker: [] for marker in answers}
         self.calls = 0
@@ -114,14 +114,20 @@ class _Agents:
                         asked.append(content)
             marker = next(key for key in self.answers if any(key in text for text in told))
             self.prompts[marker] += asked
-            return ModelResponse(parts=[TextPart(self.answers[marker])])
+            answer = self.answers[marker]
+            if isinstance(answer, dict):
+                # Asked for an object: it is handed back as the output tool's arguments.
+                return ModelResponse(
+                    parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=answer)]
+                )
+            return ModelResponse(parts=[TextPart(answer)])
 
         return FunctionModel(respond)
 
 
 @pytest.fixture
 def agents(monkeypatch: pytest.MonkeyPatch):
-    def install(answers: dict[str, str]) -> _Agents:
+    def install(answers: dict[str, str | dict[str, Any]]) -> _Agents:
         recorder = _Agents(answers)
         monkeypatch.setattr(
             "app.agents.model_resolver.build_model", lambda *_args: recorder.model()
@@ -402,7 +408,7 @@ async def test_a_chat_question_is_answered_from_the_knowledge_base_into_the_thre
 async def test_two_agents_answer_in_turn_each_on_what_the_one_before_said(world: _World, agents):
     recorder = agents(
         {
-            "You extract the facts.": '{"company": "Acme", "seats": 40}',
+            "You extract the facts.": {"company": "Acme", "seats": 40},
             "You write the reply.": "Acme wants 40 seats; I will send a quote.",
         }
     )
@@ -438,7 +444,10 @@ async def test_two_agents_answer_in_turn_each_on_what_the_one_before_said(world:
     assert run.output["text"] == "Acme wants 40 seats; I will send a quote."
     assert run.output["structured"] == {"company": "Acme", "seats": 40}
     assert recorder.prompts["You extract the facts."] == ["Hi, Acme here, 40 seats?"]
-    assert recorder.prompts["You write the reply."] == ['{"company": "Acme", "seats": 40}']
+    # The writer reads the extractor's answer as text: the object, as a JSON block.
+    assert recorder.prompts["You write the reply."] == [
+        '```json\n{\n  "company": "Acme",\n  "seats": 40\n}\n```'
+    ]
     async with world.factory() as db:
         answered = (
             (await db.execute(select(AgentRun).order_by(AgentRun.created_at))).scalars().all()
@@ -579,7 +588,7 @@ def _cell(record: VirtualTableRecord, table: TableRead, label: str) -> Any:
 async def test_a_lead_added_over_the_api_is_scored_written_back_and_announced(
     world: _World, agents, mock_redis: MagicMock
 ):
-    recorder = agents({"You score leads.": '{"Score": 91, "Tier": "hot"}'})
+    recorder = agents({"You score leads.": {"Score": 91, "Tier": "hot"}})
     pipeline = await _lead_pipeline(world)
 
     record_id = await _post_lead(world, pipeline, mock_redis)
@@ -789,7 +798,7 @@ async def _reconcile(seeded: SeededRun) -> None:
 async def test_a_worker_dying_after_the_write_back_replays_it_instead_of_writing_twice(
     world: _World, agents, mock_redis: MagicMock
 ):
-    agents({"You score leads.": '{"Score": 91, "Tier": "hot"}'})
+    agents({"You score leads.": {"Score": 91, "Tier": "hot"}})
     pipeline = await _lead_pipeline(world)
     record_id = await _post_lead(world, pipeline, mock_redis)
     seeded = await world.seeded(await _fire(world), pipeline.graph)
@@ -812,7 +821,7 @@ async def test_a_worker_dying_inside_a_model_call_asks_a_person_rather_than_payi
 ):
     """`agent.run` promises nothing about a retry, so an attempt nobody saw end
     is not run again on its own: the run waits for someone to decide."""
-    recorder = agents({"You score leads.": '{"Score": 91, "Tier": "hot"}'})
+    recorder = agents({"You score leads.": {"Score": 91, "Tier": "hot"}})
     pipeline = await _lead_pipeline(world)
     record_id = await _post_lead(world, pipeline, mock_redis)
     seeded = await world.seeded(await _fire(world), pipeline.graph)
@@ -833,7 +842,7 @@ async def test_a_worker_dying_inside_a_model_call_asks_a_person_rather_than_payi
 async def test_a_member_who_loses_access_halfway_stops_the_journey_before_the_write(
     world: _World, agents, mock_redis: MagicMock
 ):
-    agents({"You score leads.": '{"Score": 91, "Tier": "hot"}'})
+    agents({"You score leads.": {"Score": 91, "Tier": "hot"}})
     pipeline = await _lead_pipeline(world)
     record_id = await _post_lead(world, pipeline, mock_redis)
     seeded = await world.seeded(await _fire(world), pipeline.graph)

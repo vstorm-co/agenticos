@@ -1503,6 +1503,44 @@ class TestRunAccounting:
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
     @pytest.mark.anyio
+    async def test_an_answer_in_the_agents_schema_is_handed_over_as_an_object(self):
+        """The text is the object as a JSON block, for a surface that shows text;
+        the object itself goes to the caller that asked for it, and the shape a
+        caller replaced the version's with reaches `prepare`."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output={"score": 87}))
+        schema = {"type": "object", "properties": {"score": {"type": "integer"}}}
+
+        structured: list[dict[str, Any]] = []
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(
+                _ctx(), uuid.uuid4(), "score it", output_schema=schema, structured=structured
+            )
+
+        assert output == '```json\n{\n  "score": 87\n}\n```'
+        assert structured == [{"score": 87}]
+        assert prepare.await_args.kwargs["output_schema"] == schema
+
+    @pytest.mark.anyio
+    async def test_a_text_answer_leaves_the_structured_list_empty(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="the answer"))
+
+        structured: list[dict[str, Any]] = []
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello", structured=structured)
+
+        assert structured == []
+
+    @pytest.mark.anyio
     async def test_an_unexpected_error_propagates_but_is_still_accounted(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
@@ -1998,6 +2036,7 @@ class TestParking:
             "dynamic_specialists": [],
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
+            "output_schema": None,
             "plan": [],
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
@@ -2354,6 +2393,18 @@ class TestResume:
         build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
 
         assert build.call_args.kwargs["gate_every_tool"] is False
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_is_asked_for_the_shape_its_caller_asked_for(self):
+        """A workflow step's answer shape is not the version's own, so it travels on
+        the park: the answer that arrives after an approval is the object the step
+        is waiting on, whoever pressed resume."""
+        schema = {"type": "object", "properties": {"score": {"type": "integer"}}}
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}, "output_schema": schema}
+        )
+
+        assert build.call_args.args[0].output_schema == schema
 
     @pytest.mark.anyio
     async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):

@@ -387,6 +387,7 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     return AgentRunResult(
         run_id=run.id,
         output=segment.output,
+        structured=segment.structured,
         status=run.status,
         cost_usd=run.cost_usd,
         cost_is_partial=run.cost_is_partial,

@@ -5796,7 +5796,8 @@
       "notification": "Benachrichtigungen",
       "debug": "Debug",
       "core": "Abschluss",
-      "triggers": "Auslöser"
+      "triggers": "Auslöser",
+      "decide": "Entscheidungen"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -6043,5 +6044,37 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "answerFormat": {
+    "title": "Antwortformat",
+    "description": "Ob der Agent in Text antwortet oder mit Daten fester Form - für eine API, einen Workflow-Schritt oder ein System, das die Antwort liest.",
+    "label": "Er antwortet",
+    "text": "In Text",
+    "structured": "Mit strukturierten Daten",
+    "textHint": "Freier Text, wie im Chat.",
+    "structuredHint": "Ein Objekt mit diesen Feldern. Das Modell wird darum gebeten und zum Korrigieren zurückgeschickt, wenn die Antwort nicht passt; die API gibt es als structured zurück, der Chat zeigt es als JSON.",
+    "schema": "JSON-Schema",
+    "fieldName": "Feld",
+    "fieldType": "Typ",
+    "fieldDescription": "Was in {name} steht",
+    "fieldDescriptionPlaceholder": "Was hier hineingehört, in einem Satz, den das Modell liest",
+    "fieldRequired": "Immer vorhanden",
+    "removeField": "{name} entfernen",
+    "addField": "Feld hinzufügen",
+    "editAsJson": "Als JSON-Schema bearbeiten",
+    "editAsFields": "Als Felder bearbeiten",
+    "types": {
+      "string": "Text",
+      "number": "Zahl",
+      "integer": "Ganze Zahl",
+      "boolean": "Ja oder nein",
+      "string_list": "Liste von Texten"
+    },
+    "invalid": {
+      "notJson": "Das ist kein gültiges JSON.",
+      "notObject": "Das Schema muss ein Objekt beschreiben: \"type\": \"object\"."
+    },
+    "agentsOwn": "Wie der Agent antwortet",
+    "agentsOwnHint": "Das eigene Antwortformat des Agenten: Text oder das Objekt, das dieses Format beschreibt."
   }
 }

@@ -14,10 +14,13 @@ the dispatcher calls it again with `resumed_agent_run_id`, and the handler
 continues *that* run. Starting a new one would re-send the prompt and drop the
 decision.
 
-**A structured answer is checked before anything downstream reads it.** With
-`structured_output_schema` set, the agent's final text must parse as JSON and
-validate against that schema; if it does not, the node fails with
-`STRUCTURED_OUTPUT_MISMATCH` and nothing after it runs.
+**A structured answer is asked for, not parsed out of prose.** With
+`structured_output_schema` set, the agent is run with that schema in place of
+its own `output_schema`: the model answers with an object of that shape, and is
+sent back to fix one that breaks it. An agent with an `output_schema` of its own
+hands its object on the same way. The object is checked against the schema once
+more before anything downstream reads it, and a node whose agent answered no
+object, or one that does not fit, fails with `STRUCTURED_OUTPUT_MISMATCH`.
 
 Cost is reported to the workflow run as it lands on the agent run - for a
 resumed run, only what the continuation added.
@@ -25,7 +28,6 @@ resumed run, only what the continuation added.
 
 from __future__ import annotations
 
-import json
 import logging
 from decimal import Decimal
 from typing import Any
@@ -37,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import checked_output_schema
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -90,19 +93,13 @@ class AgentRunConfig(BaseModel):
     )
     structured_output_schema: dict[str, Any] | None = Field(
         default=None,
-        description="A JSON Schema the agent's answer must be JSON for, checked before the next step.",
+        description=(
+            "The JSON Schema of an object the agent answers with, in place of its own "
+            "answer format. Empty keeps the agent's."
+        ),
     )
 
-    @field_validator("structured_output_schema")
-    @classmethod
-    def _a_schema(cls, schema: dict[str, Any] | None) -> dict[str, Any] | None:
-        if schema is None:
-            return None
-        try:
-            validators.validator_for(schema).check_schema(schema)
-        except jsonschema_errors.SchemaError as exc:
-            raise ValueError(f"This is not a valid JSON Schema: {exc.message}") from exc
-        return schema
+    _a_schema = field_validator("structured_output_schema")(checked_output_schema)
 
 
 class AgentRunInput(BaseModel):
@@ -163,20 +160,12 @@ def _prompt(node_input: AgentRunInput) -> str:
     )
 
 
-def _structured(text: str, schema: dict[str, Any]) -> dict[str, Any] | Failed:
-    """The answer as a JSON object that satisfies `schema`, or why it is not one."""
-    body = text.strip()
-    if body.startswith("```"):
-        body = body.split("\n", 1)[1] if "\n" in body else ""
-        body = body.rsplit("```", 1)[0]
-    try:
-        value = json.loads(body)
-    except json.JSONDecodeError:
-        return _mismatch("The answer is not JSON")
-    if not isinstance(value, dict):
-        return _mismatch("The answer is JSON but not an object")
+def _structured(answer: dict[str, Any] | None, schema: dict[str, Any]) -> dict[str, Any] | Failed:
+    """The agent's object if it satisfies `schema`, or why it does not."""
+    if answer is None:
+        return _mismatch("The agent answered in text, not with an object")
     error = jsonschema_errors.best_match(
-        validators.validator_for(schema)(schema).iter_errors(value)
+        validators.validator_for(schema)(schema).iter_errors(answer)
     )
     if error is not None:
         # The path and the rule broken, not the message: it quotes the offending
@@ -186,7 +175,7 @@ def _structured(text: str, schema: dict[str, Any]) -> dict[str, Any] | Failed:
             path="/".join(str(part) for part in error.absolute_path),
             rule=str(error.validator),
         )
-    return value
+    return answer
 
 
 def _mismatch(message: str, **details: Any) -> Failed:
@@ -201,7 +190,11 @@ async def _cost_so_far(db: AsyncSession, agent_run_id: UUID, organization_id: UU
 
 
 def _settled(
-    run: AgentRun, text: str, config: AgentRunConfig, node_input: AgentRunInput
+    run: AgentRun,
+    text: str,
+    answer: dict[str, Any] | None,
+    config: AgentRunConfig,
+    node_input: AgentRunInput,
 ) -> NodeResult:
     """What the agent run's final status means for this node."""
     status = RunStatus(run.status)
@@ -233,9 +226,9 @@ def _settled(
                 details={"agent_run_id": str(run.id), "status": status.value},
             )
         )
-    structured: dict[str, Any] | None = None
+    structured = answer
     if config.structured_output_schema is not None:
-        checked = _structured(text, config.structured_output_schema)
+        checked = _structured(answer, config.structured_output_schema)
         if isinstance(checked, Failed):
             return checked
         structured = checked
@@ -285,12 +278,13 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     db, current.resumed_agent_run_id, current.organization_id
                 )
                 segment = await runner.resume(current.auth, current.resumed_agent_run_id)
-                text, run = segment.output, segment.run
+                text, run, answer = segment.output, segment.run, segment.structured
             else:
                 before = Decimal(0)
                 images = await _images(node_input.attachments)
                 if isinstance(images, Failed):
                     return images
+                answers: list[dict[str, Any]] = []
                 text, run = await runner.execute(
                     current.auth,
                     config.agent.agent_id,
@@ -299,7 +293,10 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     surface=RunSurface.WORKFLOW,
                     version_id=config.agent.version_id,
                     content=images,
+                    output_schema=config.structured_output_schema,
+                    structured=answers,
                 )
+                answer = answers[0] if answers else None
     except AppException as exc:
         return Failed(error=workflow_error(exc))
     except Exception:
@@ -315,4 +312,4 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     spent = run.cost_usd - before
     if spent > 0 or run.cost_is_partial:
         context.report_cost(max(spent, Decimal(0)), partial=run.cost_is_partial)
-    return _settled(run, text, config, node_input)
+    return _settled(run, text, answer, config, node_input)

@@ -217,6 +217,39 @@ describe("NodeForm sections", () => {
     expect(screen.getByText(/its own address and signing secret/)).toBeVisible();
   });
 
+  it("edits an agent step's answer shape as the Builder edits an agent's own", async () => {
+    const agentRun = makeDefinition({
+      id: "agent.run",
+      config_schema: {
+        type: "object",
+        properties: { structured_output_schema: { type: "object" } },
+      } as Schema,
+    });
+    const shaped = { type: "object", properties: { score: { type: "integer" } }, required: [] };
+    const { updateNodeConfig } = renderForm({
+      definition: agentRun,
+      config: { structured_output_schema: shaped },
+    });
+    expect(screen.getByDisplayValue("score")).toBeVisible();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "It answers" }));
+    await userEvent.click(screen.getByRole("option", { name: "As the agent answers" }));
+    // Back to the agent's own: the override leaves the config altogether.
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("opens an agent step with no override on the agent's own format", () => {
+    const agentRun = makeDefinition({
+      id: "agent.run",
+      config_schema: {
+        type: "object",
+        properties: { structured_output_schema: { type: "object" } },
+      } as Schema,
+    });
+    renderForm({ definition: agentRun });
+    expect(screen.getByText("As the agent answers")).toBeVisible();
+  });
+
   it("sets a Schedule trigger up in its own words rather than as raw fields", () => {
     renderForm({ definition: makeDefinition({ id: "trigger.schedule", category: "triggers" }) });
     expect(screen.getByLabelText("Every")).toBeVisible();

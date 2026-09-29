@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An agent can answer with data rather than prose.** The Builder's **Answer
+  format** turns an agent's answer into an object of named, typed fields - or
+  any JSON Schema, edited as JSON - stored as `output_schema` in the spec. The
+  model is asked for that shape through Pydantic AI's structured output, and an
+  answer that breaks the schema is sent back to be fixed before the run ends.
+  The run API returns the object as `structured`, the chat and the channels
+  show it as a JSON block, and an `agent.run` step hands it on or asks for a
+  shape of its own; a run parked on an approval resumes asking for the same
+  shape.
 - **Building a workflow is a run of clicks.** Clicking a step in the palette
   adds it after the selected step, or at the end of the flow in view, wired in
   when the ports fit and clear of every other step; a starting step goes before

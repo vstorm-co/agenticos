@@ -14,7 +14,14 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from pydantic_ai.messages import BinaryContent, ModelMessage, ModelRequest, ModelResponse, TextPart
+from pydantic_ai.messages import (
+    BinaryContent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -50,8 +57,10 @@ pytestmark = pytest.mark.anyio
 class _Model:
     """What the model is told, and what it answers."""
 
-    def __init__(self, answer: str) -> None:
-        self.answer = answer
+    def __init__(self, answer: str | dict[str, Any] | list[dict[str, Any]]) -> None:
+        # A list is one answer per model request, in order - an object the
+        # agent is sent back to fix, then the one it fixes it with.
+        self.answers = list(answer) if isinstance(answer, list) else [answer]
         self.instructions: list[str] = []
         self.prompts: list[str] = []
         self.pictures: list[str] = []
@@ -78,14 +87,19 @@ class _Model:
                             self.prompts.append(content)
                         elif part.part_kind == "system-prompt":
                             self.instructions.append(content)
-            return ModelResponse(parts=[TextPart(self.answer)])
+            answer = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+            if isinstance(answer, dict):
+                return ModelResponse(
+                    parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=answer)]
+                )
+            return ModelResponse(parts=[TextPart(answer)])
 
         return FunctionModel(respond)
 
 
 @pytest.fixture
 def model(monkeypatch: pytest.MonkeyPatch):
-    def install(answer: str) -> _Model:
+    def install(answer: str | dict[str, Any] | list[dict[str, Any]]) -> _Model:
         recorder = _Model(answer)
         monkeypatch.setattr(
             "app.agents.model_resolver.build_model", lambda *_args: recorder.function_model()
@@ -280,7 +294,7 @@ async def test_a_step_keeps_running_the_version_it_pins_after_a_newer_one_is_pub
 async def test_a_structured_answer_is_parsed_and_checked_against_its_schema(
     engine: AsyncEngine, model
 ):
-    model('```json\n{"score": 87, "tier": "warm"}\n```')
+    model({"score": 87, "tier": "warm"})
     schema = {
         "type": "object",
         "properties": {"score": {"type": "integer"}, "tier": {"type": "string"}},
@@ -295,22 +309,29 @@ async def test_a_structured_answer_is_parsed_and_checked_against_its_schema(
     assert run.output["structured"] == {"score": 87, "tier": "warm"}
 
 
-@pytest.mark.parametrize(
-    "answer",
-    ['{"score": "high"}', "Pretty warm, I would say", "[87]"],
-    ids=["wrong-type", "not-json", "not-an-object"],
-)
-async def test_an_answer_of_the_wrong_shape_fails_before_the_next_step(
-    engine: AsyncEngine, model, answer: str
+async def test_an_answer_that_breaks_the_schema_is_sent_back_to_be_fixed(
+    engine: AsyncEngine, model
 ):
-    model(answer)
+    recorder = model([{"score": "high"}, {"score": 87}])
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}}, "required": ["score"]}
+    seeded = await _setup(engine, lambda a, v: _graph(a, v, structured_output_schema=schema))
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None and run.output["structured"] == {"score": 87}
+    assert recorder.answers == [{"score": 87}]
+
+
+async def test_an_answer_that_never_fits_fails_before_the_next_step(engine: AsyncEngine, model):
+    model({"score": "high"})
     schema = {"type": "object", "properties": {"score": {"type": "integer"}}, "required": ["score"]}
     seeded = await _setup(engine, lambda a, v: _graph(a, v, structured_output_schema=schema))
 
     run = await drive(seeded)
 
     assert run.status == WorkflowRunStatus.FAILED.value
-    assert run.error is not None and run.error["code"] == "STRUCTURED_OUTPUT_MISMATCH"
+    assert run.error is not None and run.error["code"] == "AGENT_RUN_FAILED"
     # The answer itself is not repeated in the error a viewer of the workflow reads.
     assert "high" not in str(run.error) and "warm" not in str(run.error)
     # Nothing downstream ran: the output step never got a node run at all.
