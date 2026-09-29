@@ -3,6 +3,8 @@
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { nodeVisual } from "@/components/workflows/node-visuals";
+import { cn } from "@/lib/utils";
 import type { ValidationProblem } from "@/components/workflows/validation";
 import type { EditorSelection } from "@/stores/workflow-editor-store";
 import {
@@ -12,12 +14,14 @@ import {
   type NodeCatalog,
   type NodeDefinition,
   type NodeInstance,
+  type NodePolicy,
   type Uuid,
   type WorkflowEdge,
   type WorkflowGraph,
 } from "@/lib/workflows/types";
 
 import { NodeForm } from "./node-form";
+import { PolicySection } from "./policy-section";
 import {
   fieldErrors,
   nodeLevelProblems,
@@ -58,6 +62,7 @@ export interface PanelShellProps {
   problems: ValidationProblem[];
   disabled?: boolean;
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
   upsertBinding: (binding: Binding) => void;
   removeBinding: (targetNodeId: Uuid, targetField: string) => void;
   /** Select a node from a problem link. */
@@ -75,6 +80,7 @@ export function PanelShell({
   problems,
   disabled,
   updateNodeConfig,
+  updateNodePolicy,
   upsertBinding,
   removeBinding,
   onSelectNode,
@@ -82,19 +88,48 @@ export function PanelShell({
 }: PanelShellProps) {
   const t = useTranslations("workflows");
 
-  const frame = (title: string, badge: React.ReactNode, body: React.ReactNode) => (
-    <section
-      aria-label={t("panelTitle")}
-      data-workflow-region="property-panel"
-      className="border-border space-y-3 rounded-xl border p-4"
-    >
-      <header className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">{title}</h2>
-        {badge}
-      </header>
-      {body}
-    </section>
-  );
+  const frame = (
+    title: string,
+    badge: React.ReactNode,
+    body: React.ReactNode,
+    node?: { definition: NodeDefinition | null; instance: NodeInstance },
+  ) => {
+    const visual =
+      node === undefined
+        ? null
+        : nodeVisual(node.instance.definition_id, node.definition?.category ?? "");
+    const Icon = visual?.icon;
+    return (
+      <section
+        aria-label={t("panelTitle")}
+        data-workflow-region="property-panel"
+        className="space-y-4 p-4"
+      >
+        <header className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start gap-2.5">
+            {visual !== null && Icon !== undefined && (
+              <span
+                className={cn(
+                  "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                  visual.tileClass,
+                )}
+              >
+                <Icon aria-hidden="true" className="size-4" />
+              </span>
+            )}
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-medium">{title}</h2>
+              {node?.definition && (
+                <p className="text-muted-foreground text-xs">{node.definition.description}</p>
+              )}
+            </div>
+          </div>
+          {badge}
+        </header>
+        {body}
+      </section>
+    );
+  };
 
   if (graph === null) {
     return frame(
@@ -166,10 +201,21 @@ export function PanelShell({
               upsertBinding={upsertBinding}
               removeBinding={removeBinding}
             />
+            {selectedNode.definition_id !== "loop.item" && (
+              <div className="border-border border-t pt-4">
+                <PolicySection
+                  definition={definition}
+                  node={selectedNode}
+                  disabled={disabled}
+                  updateNodePolicy={updateNodePolicy}
+                />
+              </div>
+            )}
           </>
         )}
         <ProblemsFooter problems={problems} onSelectNode={onSelectNode} />
       </div>,
+      { definition, instance: selectedNode },
     );
   }
 
@@ -201,9 +247,24 @@ export function PanelShell({
   return frame(
     t("panelTitle"),
     null,
-    <div className="space-y-3">
+    <div className="space-y-4">
       <p className="text-muted-foreground text-xs">{t("panelEmpty")}</p>
-      <ProblemsFooter problems={problems} onSelectNode={onSelectNode} />
+      <dl className="grid grid-cols-2 gap-2">
+        {[
+          { label: t("panelStepCount"), value: graph.nodes.length },
+          { label: t("panelConnectionCount"), value: graph.edges.length },
+        ].map((figure) => (
+          <div key={figure.label} className="bg-muted/50 rounded-lg px-3 py-2">
+            <dt className="text-muted-foreground text-xs">{figure.label}</dt>
+            <dd className="text-lg font-medium tabular-nums">{figure.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {problems.length === 0 ? (
+        <p className="text-muted-foreground text-xs">{t("panelNoProblems")}</p>
+      ) : (
+        <ProblemsFooter problems={problems} onSelectNode={onSelectNode} defaultOpen />
+      )}
     </div>,
   );
 }

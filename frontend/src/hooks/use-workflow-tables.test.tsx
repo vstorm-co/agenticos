@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkflowTable, useWorkflowTables } from "./use-workflow-tables";
-import * as api from "@/lib/workflows/tables-api";
+import * as api from "@/lib/tables-api";
 import { ApiError } from "@/lib/api-error";
 
-vi.mock("@/lib/workflows/tables-api", () => ({
+vi.mock("@/lib/tables-api", () => ({
   listTables: vi.fn(),
   getTable: vi.fn(),
 }));

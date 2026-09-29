@@ -1973,7 +1973,9 @@ async def _settle_synthetic(
             node_instance_id=node_run.node_instance_id,
             scope_path=node_run.scope_path,
         ),
-        retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+        # No guarantee, because no call: what marks the attempt as the
+        # dispatcher's own record rather than a try at the node's effect.
+        retry_guarantee=None,
         started_at=now,
     )
     await workflow_run_repo.settle_attempt(

@@ -1,5 +1,5 @@
 ---
-source_sha: "4c0274482af7"
+source_sha: "6947676d3d3e"
 ---
 
 # Workflows { #workflows }
@@ -24,10 +24,11 @@ Las plantillas son puntos de partida listos — **Starter**, un único paso para
 renombrar y conectar, y **Two-step sequence**, dos pasos ya conectados para un flujo
 lineal. Elige una con **Use** y aterrizas en el editor.
 
-La lista agrupa cada workflow que puedes ver por estado — **Drafts** que aún estás
-construyendo, las versiones **Published** que se ejecutan y los **Archived** — y
-**Filter by status** acota a uno. El badge de cada fila muestra **Draft**,
-**Published** o **Archived**.
+La lista muestra cada workflow que puedes ver como una tarjeta: su estado, quién
+puede alcanzarlo, si tiene una versión en vivo y cuándo se editó por última vez.
+**Filter by status** la acota a los **Drafts** que aún estás construyendo, los
+**Published** que se ejecutan o los **Archived**. Desde una tarjeta abres el editor,
+los runs del workflow o una copia.
 
 **Duplicate** copia el draft actual de un workflow en uno nuevo llamado *{name}
 (copy)*. Un duplicado es un workflow nuevo con su propio draft, nunca una copia de una
@@ -42,22 +43,30 @@ versión publicada.
 
 ## El lienzo y la paleta { #the-canvas-and-the-palette }
 
-El **lienzo** es donde aparecen los pasos y las conexiones de un workflow. Un **nodo**
-es un paso; una **arista** es una conexión que fija el orden: el paso al que apunta se
-ejecuta después de aquel del que sale. El lienzo se desplaza y hace zoom, y sus controles están en la esquina —
-no hay minimapa.
+El **lienzo** es donde aparecen los pasos y las conexiones de un workflow, y el
+editor le da toda la ventana bajo la cabecera: la paleta a su izquierda, el panel
+**Properties** a su derecha. Un **nodo** es un paso; una **arista** es una conexión
+que fija el orden: el paso al que apunta se ejecuta después de aquel del que sale.
 
-La paleta **Nodes** al lado enumera los tipos de nodo que tu deployment ha
-registrado, agrupados por categoría, cada uno con icono, nombre y descripción.
-**Search nodes** filtra la lista. Añades un paso de dos maneras:
+Cada nodo es una tarjeta con el icono del paso, su nombre y una línea de para qué
+está configurado - una condición, una URL, el número de campos mapeados - y un paso
+con más de una salida nombra sus puertos: **true** y **false**, **Each item** y
+**Done**, y un puerto **Error** rojo en un paso que gestiona sus errores. El lienzo
+se desplaza y hace zoom, y sus controles están en la esquina - no hay minimapa.
+
+La paleta **Nodes** enumera los tipos de nodo que tu deployment ha registrado, en
+grupos que siguen cómo se lee un workflow - **Start and finish**, **Agents**,
+**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - cada grupo
+plegable, cada fila con un icono, un nombre y su descripción. **Search nodes** filtra
+la lista. Añades un paso de dos maneras:
 
 - **Arrastra** un nodo desde la paleta al lienzo — la ruta del puntero.
 - **Haz clic** en un nodo para añadirlo cerca del centro de la vista — la ruta de
   teclado y táctil, que no necesita arrastrar.
 
-La paleta muestra lo que es válido donde estás. Dentro del cuerpo de un bucle oculta
-las clases de nodo que no pueden vivir ahí, así que la lista que ves siempre se puede
-añadir en el scope que estás editando.
+La paleta muestra lo que es válido donde estás. **Loop item** y **Loop result**
+solo aparecen dentro del cuerpo de un bucle, porque fuera de él no significan nada,
+y se ofrece un bucle hasta que los bucles están tan anidados como permite publicar.
 
 !!! note "El catálogo de nodos crece con el tiempo"
 
@@ -116,6 +125,23 @@ está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla 
 ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
 un aviso visible y no una ruptura silenciosa.
 
+### Cuando un paso es lento o falla { #when-a-step-is-slow-or-fails }
+
+Bajo los campos de un paso, **When it is slow or fails** fija su política. **Handle
+errors** da al paso un puerto **Error**: un fallo que sus reintentos no resolvieron
+sale por él, hacia un paso **Handle error** o lo que conectes, en lugar de hacer
+fallar el run. **Tries** es cuántas veces se intenta el paso en total, y **Wait
+between tries** y **First wait** fijan la pausa entre intentos. Un paso cuya llamada
+no es seguro repetir, como ejecutar un agent, lo dice y nunca se reintenta. **Time
+limit** corta una llamada tras esos segundos. Qué hace cada ajuste durante el run
+está en la [referencia de nodos](reference/workflow-nodes.md#error-handling).
+
+Un binding a un valor sin forma declarada - el elemento actual de un bucle, el
+payload de un trigger - ofrece bajo la fuente un campo **Field inside it**, donde
+escribes la ruta dentro de ese valor, como `record_id` o `fields.Email`. El run
+comprueba esa ruta cuando el paso se despacha, porque solo el run sabe qué contiene
+el valor.
+
 ## Conexiones y scope de foreach { #connections-and-foreach-scope }
 
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
@@ -141,13 +167,19 @@ connection**. Pulsa el botón o `Backspace` y la conexión desaparece, mientras 
 pasos se quedan. Las conexiones de una versión publicada no se pueden seleccionar, así
 que no se pueden borrar.
 
-Un paso `foreach` ejecuta su cuerpo una vez por cada elemento de una lista. El cuerpo
-no es un documento aparte — es parte del mismo grafo plano, mostrado por sí solo.
-**Open body** en el paso entra en esa vista, y las migas **Workflow scope** muestran
-dónde estás, desde **Workflow** en la raíz hasta el bucle que abriste. Cada miga
-navega de vuelta hacia fuera. La paleta y las fuentes de binding siguen el scope en el
-que estás, así que lo que puedes añadir y de dónde puedes leer son siempre los válidos
-en ese nivel.
+Un paso **For each** ejecuta su cuerpo una vez por cada elemento de una lista. El
+cuerpo no es un documento aparte - es parte del mismo grafo plano, mostrado por su
+cuenta. **Edit loop body** en el paso, que dice cuántos pasos contiene el cuerpo,
+entra en esa vista, y las migas **Workflow scope** en la esquina del lienzo muestran
+dónde estás, desde **Workflow** hasta el bucle que abriste. Cada miga vuelve hacia
+fuera.
+
+Un cuerpo empieza en **Loop item**, al que se conecta el puerto **Each item**
+del bucle, y termina en **Loop result**; nada en él vuelve al bucle, que continúa por
+**Done** cuando cada elemento ha pasado por el cuerpo. La paleta y las fuentes de
+binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
+cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
+[referencia de nodos](reference/workflow-nodes.md#loops).
 
 ## Retroalimentación de validación { #validation-feedback }
 
@@ -196,10 +228,10 @@ publicación se bloquea con **Fix the problems below before publishing**, así q
 versión que no validaría nunca se crea.
 
 Publicar no termina tu edición. El draft sigue existiendo con independencia de
-cualquier versión publicada, así que lo sigues editando enseguida, y cada versión
-publicada se lista bajo **Version history** con su release note. **View** abre una
-versión anterior en solo lectura — una versión publicada es de solo lectura, y para
-hacer cambios sigues editando el draft.
+cualquier versión publicada, así que lo sigues editando enseguida. **History** en la
+cabecera del editor abre cada versión publicada con su release note. **View** abre
+una versión anterior en solo lectura - una versión publicada es de solo lectura, y
+para hacer cambios sigues editando el draft.
 
 Para volver a una versión publicada, ábrela con **View** y elige **Restore to
 draft**. Tras confirmarlo, el draft toma el grafo de esa versión, y lo que no estaba
@@ -213,10 +245,22 @@ workflow archivado no se puede restaurar. Cada restauración queda en el
 
 ## Ejecutar un workflow { #running-a-workflow }
 
-La pestaña **Runs** de un workflow es donde aparecerán sus runs de prueba y de
-producción, paso a paso con sus inputs, salidas y costes. El historial de runs llega
-en cuanto se lance el runner de workflows; hasta entonces la pestaña muestra que aún
-no está disponible, y el editor sirve para construir y publicar.
+**Runs** en la cabecera del editor, y el icono de runs en la tarjeta de un
+workflow, abren sus runs, del más reciente al más antiguo, cada uno con su estado, si
+ejecutó el draft o la versión publicada, qué lo inició, cuándo, cuánto duró y cuánto
+costó. **Start a run** inicia uno a mano: **Test the draft** ejecuta el draft tal
+como está, y **Published version** ejecuta la versión en vivo. Su **Input (JSON)** es
+lo que el paso **Input** del workflow entrega como `payload`.
+
+Un run se abre con su duración, su coste y cuántos pasos dio, y luego con el error
+con el que terminó, si lo hubo. Junto a ellos está el grafo que ejecutó, con cada
+paso marcado por lo que el run hizo con él, sus intentos y su error, y los pasos a los
+que nunca llegó atenuados. **Open loop body** muestra las iteraciones de un bucle de
+la misma manera.
+
+La salida del run y cada paso que dio, iteración a iteración, están
+al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+detiene.
 
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 
@@ -274,3 +318,8 @@ Copiar y pegar tienen tres límites:
   draft** vuelve a convertir una de ellas en el draft.
 - Cada acción tiene una **ruta de teclado**, y los atajos de edición son inertes en una
   versión publicada de solo lectura.
+- La **política** de un paso fija sus intentos, su límite de tiempo y si sus fallos
+  salen por un puerto **Error**; el cuerpo de un paso **For each** se ejecuta de
+  **Loop item** a **Loop result** una vez por elemento.
+- **Runs** enumera cada run, **Start a run** prueba el draft o ejecuta la versión
+  publicada, y un run muestra su grafo paso a paso tal como ocurrió.

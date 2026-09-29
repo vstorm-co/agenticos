@@ -6,6 +6,7 @@ to reach them would be more contrived than informative.
 """
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -28,6 +29,7 @@ from app.workflows.graph.validate import (
     _reached_through,
     _resolve_field_path,
     _rule_12_policies,
+    _types_compatible,
     derive_scopes,
     instance_ports,
     node_scope_map,
@@ -817,3 +819,16 @@ def test_a_read_that_is_safe_to_repeat_may_retry():
     )
     graph = WorkflowGraph(entry_node_id=node.id, nodes=(node,))
     assert _rule_12_policies(graph, {node.id: _registry.get("http.request", 1)}) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "fits"),
+    [
+        (tuple[int, ...], list[Any], True),
+        (list[str], tuple[str, ...], True),
+        (tuple[str, ...], list[int], False),
+    ],
+    ids=["tuple-into-open-list", "list-into-tuple", "wrong-element"],
+)
+def test_a_list_and_a_tuple_bind_to_each_other_by_what_they_hold(source, target, fits):
+    assert _types_compatible(source, target) is fits

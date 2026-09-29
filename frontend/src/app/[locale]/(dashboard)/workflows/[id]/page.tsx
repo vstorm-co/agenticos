@@ -1,9 +1,11 @@
 "use client";
 
-import { use, useEffect, useRef } from "react";
-import { Workflow } from "lucide-react";
+import { use, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Activity, History, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { WorkflowCanvas } from "@/components/workflows/canvas";
 import {
@@ -14,10 +16,21 @@ import {
 } from "@/components/workflows/editor";
 import { NodePalette } from "@/components/workflows/palette";
 import { PropertyPanel } from "@/components/workflows/property-panel";
-import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
+import {
+  Button,
+  ListCard,
+  ListCardEmpty,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Skeleton,
+} from "@/components/ui";
 import { useNodeCatalog, usePermissions, useWorkflow } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
+import type { AgentStatus } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useWorkflowEditorStore } from "@/stores";
 
@@ -72,6 +85,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
   const seededId = useRef<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (workflow && seededId.current !== workflow.id) {
@@ -114,37 +128,73 @@ export default function WorkflowEditorPage({ params }: PageProps) {
     );
   }
 
+  const statusBadge = <AgentStatusBadge status={workflow.status as AgentStatus} />;
+
   return (
-    <div key={workflow.id} className="space-y-6">
+    // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
+    // in a fixed-height box scrolls the page instead of the graph.
+    <div key={workflow.id} className="flex min-h-[40rem] flex-1 flex-col gap-4 pb-6">
       <PageHeader
         title={workflow.name}
         description={t("draftRevision", { revision: workflow.draft_revision })}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
+        badges={statusBadge}
         actions={
-          canEdit ? (
-            <EditorActions
-              catalog={nodes}
-              saveDraft={saveDraft.mutateAsync}
-              publish={publish.mutateAsync}
-            />
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href={ROUTES.WORKFLOW_RUNS(workflow.id)}>
+                <Activity className="h-4 w-4" />
+                {t("runsTitle")}
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+              <History className="h-4 w-4" />
+              {t("history")}
+            </Button>
+            {canEdit && (
+              <EditorActions
+                catalog={nodes}
+                saveDraft={saveDraft.mutateAsync}
+                publish={publish.mutateAsync}
+              />
+            )}
+          </div>
         }
       />
       {canEdit && <ConflictBanner workflowId={workflow.id} />}
-      {canEdit ? (
-        <div className="grid gap-4 lg:grid-cols-[16rem_1fr_20rem]">
-          <NodePalette nodes={nodes} />
-          <WorkflowCanvas workflow={workflow} catalog={nodes} />
-          <PropertyPanel />
+      <div
+        data-workflow-editor
+        className="border-border bg-card flex min-h-0 flex-1 overflow-hidden rounded-xl border"
+      >
+        {canEdit && (
+          <aside className="border-border hidden w-64 shrink-0 flex-col border-r lg:flex">
+            <NodePalette nodes={nodes} />
+          </aside>
+        )}
+        <div className="relative min-w-0 flex-1">
+          <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
         </div>
-      ) : (
-        <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly />
-      )}
-      <VersionHistory
-        workflowId={workflow.id}
-        catalog={nodes}
-        onRestore={canEdit ? restoreVersion : undefined}
-      />
+        {canEdit && (
+          <aside className="border-border hidden w-80 shrink-0 overflow-y-auto border-l lg:block">
+            <PropertyPanel />
+          </aside>
+        )}
+      </div>
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{t("history")}</SheetTitle>
+            <SheetClose onClick={() => setHistoryOpen(false)} />
+          </SheetHeader>
+          <div className="p-4">
+            <VersionHistory
+              workflowId={workflow.id}
+              catalog={nodes}
+              onRestore={canEdit ? restoreVersion : undefined}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

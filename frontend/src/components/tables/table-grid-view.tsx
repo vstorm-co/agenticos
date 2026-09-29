@@ -1,6 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+
+import { selectChips } from "./option-chip";
 import { Column, DataTable, type TableSort } from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { formatCellValue } from "@/lib/format-cell-value";
@@ -38,7 +40,10 @@ export function TableGridView({
   const tableColumns: Column<RecordRead>[] = columns.map((column) => ({
     key: column.id,
     header: column.label,
-    cell: (record) => formatCellValue(column, record.values[column.id] ?? null, boolLabel) || "—",
+    cell: (record) => {
+      const value = record.values[column.id] ?? null;
+      return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel) || "—");
+    },
     sortable: column.type !== "multi_select",
   }));
 

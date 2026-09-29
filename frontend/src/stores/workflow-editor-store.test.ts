@@ -562,6 +562,36 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().graph?.nodes.find((node) => node.id === "a")?.config).toEqual({});
   });
 
+  it("updateNodePolicy replaces one node's policy, and clears it", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodePolicy("b", { on_error: "route" });
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.policy).toEqual({
+      on_error: "route",
+    });
+    store.getState().updateNodePolicy("b", null);
+    expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.policy).toBeNull();
+    expect(store.getState().isDirty).toBe(true);
+  });
+
+  it("updateNodePolicy is a no-op before seeding", () => {
+    store.getState().updateNodePolicy("b", { on_error: "route" });
+    expect(store.getState().graph).toBeNull();
+  });
+
+  it("switching scope drops the selection, since what was selected is no longer drawn", () => {
+    store.getState().seedGraph(seededGraph());
+    const selected = { nodeIds: ["a"], edgeIds: [] };
+    store.getState().setSelection(selected);
+    store.getState().enterScope("a");
+    expect(store.getState().selection.nodeIds).toEqual([]);
+    store.getState().setSelection(selected);
+    store.getState().exitScope();
+    expect(store.getState().selection.nodeIds).toEqual([]);
+    store.getState().setSelection(selected);
+    store.getState().setScopePath([]);
+    expect(store.getState().selection.nodeIds).toEqual([]);
+  });
+
   it("updateNodeConfig is a no-op before seeding", () => {
     store.getState().updateNodeConfig("b", { message: "hi" });
     expect(store.getState().graph).toBeNull();

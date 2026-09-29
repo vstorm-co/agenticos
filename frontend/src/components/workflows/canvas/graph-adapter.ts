@@ -1,6 +1,7 @@
 import type { Connection, Edge, Node } from "@xyflow/react";
 
 import { portSchema, portShapesCompatible, UNKNOWN } from "@/components/workflows/validation";
+import { ERROR_PORT, effectiveDefinition } from "@/lib/workflows/ports";
 import type { Binding, NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
 /**
@@ -20,7 +21,7 @@ import type { Binding, NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib
  * carrying the error-typed edge. One constant so the node handle and the edge
  * variant agree.
  */
-export const ERROR_PORT_ID = "error";
+export const ERROR_PORT_ID = ERROR_PORT;
 
 /** The catalog key a node instance resolves its definition by — id pinned to version. */
 function definitionKey(definitionId: string, version: number): string {
@@ -42,10 +43,15 @@ export function definitionsByNode(
   catalog: Map<string, NodeDefinition>,
 ): Map<string, NodeDefinition | null> {
   return new Map(
-    graph.nodes.map((instance) => [
-      instance.id,
-      catalog.get(definitionKey(instance.definition_id, instance.definition_version)) ?? null,
-    ]),
+    graph.nodes.map((instance) => {
+      const definition = catalog.get(
+        definitionKey(instance.definition_id, instance.definition_version),
+      );
+      return [
+        instance.id,
+        definition === undefined ? null : effectiveDefinition(instance, definition),
+      ];
+    }),
   );
 }
 

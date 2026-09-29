@@ -1,5 +1,5 @@
 ---
-source_sha: "52c1284c9aae"
+source_sha: "a92387168cdf"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -8,7 +8,7 @@ Jedna strona, każdy moduł, opisany. Zrzuty ekranu podążają za motywem, w kt
 czytasz tę stronę - przełącz go przełącznikiem w nagłówku, a każdy obraz na tej
 stronie przełączy się razem z nim.
 
-Zarejestrowane 01.09.2026 z działającego wdrożenia: 35 ekranów, 27 z nich w obu
+Zarejestrowane 01.09.2026 z działającego wdrożenia: 42 ekrany, 34 z nich w obu
 motywach pod `docs/assets/screens/`, nazwanych identycznie w `light/` i `dark/`.
 Osiem ekranów Buildera jest tylko w ciemnym motywie i mówią o tym tam, gdzie się
 pojawiają.
@@ -134,6 +134,57 @@ Każda wersja, jaką ten agent miał. Ta, która była na żywo w marcu, nadal j
 Ten sam agent jako graf: co do niego sięga i po co on sięga. Przerywana ramka to coś, do czego nic nie jest podpięte - budżet bez własnego sufitu czyta się jako luka, a nie jako wartość domyślna.
 
 ![Visual map](assets/screens/dark/builder-visual-map.webp)
+## Workflows i tabele { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+Katalog automatyzacji, po jednej karcie na każdą: jej status, kto może do niej dotrzeć, czy ma żywą wersję i kiedy ostatnio ją edytowano, a jej runy, edytor i kopia są jedno kliknięcie dalej.
+
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
+
+### Edytor workflow { #the-workflow-editor }
+
+Całe okno to przestrzeń robocza: paleta w kolejności, w jakiej czyta się workflow, graf jako karty mówiące, do czego ustawiony jest każdy krok, i właściwości tego, co jest zaznaczone. Pętla pokazuje, ile kroków zawiera jej ciało.
+
+![Edytor workflow](assets/screens/light/workflow-editor.webp#only-light)
+![Edytor workflow](assets/screens/dark/workflow-editor.webp#only-dark)
+
+### Ciało pętli { #a-loops-body }
+
+Wewnątrz pętli, z zaznaczonym jednym krokiem: tabela, do której zapisuje, i jej kolumny, id rekordu czytane z bieżącego elementu pętli, wartości, które zapisuje, oraz jego polityka - trzy próby i błędy kierowane czerwonym portem **Error** do obsługi błędu zamiast kończenia runa błędem.
+
+![Ciało pętli](assets/screens/light/workflow-loop-body.webp#only-light)
+![Ciało pętli](assets/screens/dark/workflow-loop-body.webp#only-dark)
+
+### Runy { #runs }
+
+Każdy run jednego workflow, od najnowszego: czy uruchomił draft czy opublikowaną wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run** testuje draft z Twoim własnym inputem.
+
+![Runy](assets/screens/light/workflow-runs.webp#only-light)
+![Runy](assets/screens/dark/workflow-runs.webp#only-dark)
+
+### Run { #a-run }
+
+Jeden run tak, jak przebiegł: graf, który wykonał, z każdym krokiem oznaczonym tym, co zrobił, wyjście, którym odpowiedział, i każdy krok, który wykonał, iteracja po iteracji.
+
+![Run](assets/screens/light/workflow-run.webp#only-light)
+![Run](assets/screens/dark/workflow-run.webp#only-dark)
+
+### Tabele { #tables }
+
+Typowane rekordy, które czytają i zapisują Twoi agenci, workflow i integracje, po jednej karcie na tabelę, z tym, kto może do niej dotrzeć, i wersją jej schematu.
+
+![Tabele](assets/screens/light/tables.webp#only-light)
+![Tabele](assets/screens/dark/tables.webp#only-dark)
+
+### Tabela { #a-table }
+
+Rekordy jednej tabeli po tym, jak run powyżej podniósł każdy niski wynik: wartości wyboru jako kolorowe chipy, a te same rekordy jako tablica kanban albo lista w sąsiedniej zakładce.
+
+![Tabela](assets/screens/light/table-detail.webp#only-light)
+![Tabela](assets/screens/dark/table-detail.webp#only-dark)
+
 ## Knowledge { #knowledge }
 
 ### Knowledge bases { #knowledge-bases }
@@ -283,7 +334,7 @@ Własna tożsamość i polityka tego wdrożenia: rejestracja, zaproszenia, komun
 
 ## Podsumowanie { #recap }
 
-- 27 modułów ma oba motywy w `docs/assets/screens/`, pod tą samą nazwą; osiem
+- 34 moduły ma oba motywy w `docs/assets/screens/`, pod tą samą nazwą; osiem
   ekranów Buildera jest tylko w ciemnym.
 - Na tej stronie obraz zapisuje się dwa razy, z `#only-light` i `#only-dark`;
   Material pokazuje ten, który pasuje do palety czytelnika.

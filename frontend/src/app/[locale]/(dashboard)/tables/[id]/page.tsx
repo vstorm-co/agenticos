@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Settings2, Share2 } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { HasMorePager } from "@/components/tables/has-more-pager";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
@@ -40,6 +41,7 @@ function parseTab(value: string | null): ViewKind {
 export default function TableDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const t = useTranslations("pages.tables.detail");
+  const tp = useTranslations("pages.tables");
 
   const [tabParam, setTabParam] = useUrlState("view");
   const tab = parseTab(tabParam);
@@ -121,6 +123,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         title={table.name}
         description={table.description ?? undefined}
+        breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline">{t(`visibility.${table.visibility}`)}</Badge>

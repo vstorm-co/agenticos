@@ -1,7 +1,7 @@
 "use client";
 
 import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
-import type { Binding, NodeInstance, Uuid, WorkflowGraph } from "@/lib/workflows/types";
+import type { Binding, NodeInstance, NodePolicy, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
 /**
  * The graph-editing surface the canvas leaf adds to the editor store in parallel
@@ -23,6 +23,8 @@ export interface WorkflowGraphActions {
   getGraph: () => WorkflowGraph | null;
   /** Replace one node's static `config` wholesale. */
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  /** Replace one node's policy wholesale; null clears it. */
+  updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
   /** Add or replace a binding, keyed by `(target_node_id, target_field)`. */
   upsertBinding: (binding: Binding) => void;
   /** Remove the binding on one field, if any. */

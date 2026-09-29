@@ -20,7 +20,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
-from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunMode, WorkflowRunStatus
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowNotRunnableError,
@@ -28,7 +28,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
-from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.services.workflow_execution.facade import WorkflowExecutionService, _node_run_read
 from app.services.workflow_registry import WorkflowArchivedError
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
@@ -688,3 +688,42 @@ class TestTriggerDispatch:
         trigger.assert_called_once_with(
             db, workflow_run_id=workflow_run_id, node_run_id=node_run_id
         )
+
+
+class TestNodeRunRead:
+    def test_a_step_reports_its_tries_its_spend_and_the_error_it_last_failed_with(self):
+        row = NodeRun(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[{"loop_node_id": "l", "index": 2}],
+            status="failed",
+            waiting_reason=None,
+        )
+
+        def attempt(
+            no: int, status: str, code: str | None, cost: str, guarantee: str | None = "idempotent"
+        ) -> NodeAttempt:
+            return NodeAttempt(
+                node_run_id=row.id,
+                attempt_no=no,
+                status=status,
+                retry_guarantee=guarantee,
+                result={"status": status, "error": {"code": code, "message": "m"}}
+                if code
+                else None,
+                cost=Decimal(cost),
+            )
+
+        read = _node_run_read(
+            row,
+            [
+                attempt(1, "failed", "FIRST", "0.10"),
+                attempt(2, "failed", "LAST", "0.05"),
+                # The dispatcher's own record of an output, not a try.
+                attempt(3, "completed", None, "0", guarantee=None),
+            ],
+        )
+
+        assert read.attempts == 2 and read.cost == pytest.approx(0.15)
+        assert read.error == {"code": "LAST", "message": "m"}
+        assert _node_run_read(row, []).error is None

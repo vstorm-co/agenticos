@@ -134,11 +134,8 @@ export default defineConfig({
         "src/components/workflows/history.ts",
         // The workflows visual editor's copy/paste clipboard leaf (#1787).
         "src/components/workflows/clipboard.ts",
-        // The workflow resource pickers (#1787) and their tables API module. The
-        // pickers dir is gated as a unit; `tables-api.ts` also matches `src/lib/**`
-        // above, listed here too so the pickers' data layer stays named beside them.
+        // The workflow resource pickers (#1787), gated as a unit.
         "src/components/workflows/pickers/**/*.{ts,tsx}",
-        "src/lib/workflows/tables-api.ts",
         // The workflows property panel (#1787): the form renderer, `BindingField`
         // and the validation display, gated as a unit like the pickers above.
         "src/components/workflows/property-panel/**/*.{ts,tsx}",
@@ -148,6 +145,11 @@ export default defineConfig({
         "src/components/workflows/editor/**/*.{ts,tsx}",
         // The workflows list-page create dialog (#1787).
         "src/components/workflows/workflow-create-dialog.tsx",
+        // The catalog card, the node look every editor surface shares, and the
+        // run views (#1790).
+        "src/components/workflows/workflow-card.tsx",
+        "src/components/workflows/node-visuals.ts",
+        "src/components/workflows/runs/**/*.{ts,tsx}",
       ],
       exclude: [
         "node_modules",

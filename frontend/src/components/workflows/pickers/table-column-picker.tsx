@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useWorkflowTable, useWorkflowTables } from "@/hooks";
-import type { ColumnDef, TableSummary } from "@/lib/workflows/tables-api";
+import type { ColumnDef, TableSummary } from "@/types/tables";
 import type { TableIORef } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 

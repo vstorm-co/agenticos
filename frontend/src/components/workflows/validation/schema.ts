@@ -172,13 +172,65 @@ export function portSchema(
   return UNKNOWN;
 }
 
+/** The schema of a value with no declared shape - Python's `Any`. */
+export const ANY_SCHEMA: JsonSchema = {};
+
+/** A union's members without `null`, or `null` when the schema is not a union. */
+function nonNullMembers(schema: JsonSchema): JsonSchema[] | null {
+  const members = schema["anyOf"] ?? schema["oneOf"];
+  if (!Array.isArray(members)) return null;
+  return members.filter(
+    (member): member is JsonSchema => isObject(member) && member["type"] !== "null",
+  );
+}
+
+/** Whether a schema says nothing at all about its value - `Any`, whatever its title. */
+function isAny(schema: JsonSchema): boolean {
+  return (
+    schema["type"] === undefined &&
+    schema["$ref"] === undefined &&
+    schema["properties"] === undefined &&
+    schema["anyOf"] === undefined &&
+    schema["oneOf"] === undefined &&
+    schema["enum"] === undefined &&
+    schema["const"] === undefined
+  );
+}
+
+/**
+ * Whether a path may reach into this value with no schema to follow - the analog
+ * of `_is_dynamic`: `Any`, or an object of `Any` (optionally `| None`), such as a
+ * trigger's payload, a mapped record or a loop's current item. What such a path
+ * finds is only known once the run has it, so the backend checks it when the node
+ * is dispatched, and here it resolves to {@link ANY_SCHEMA}.
+ */
+export function isDynamic(schema: ResolvedType): boolean {
+  if (schema === UNKNOWN || schema === null) return false;
+  const members = nonNullMembers(schema);
+  if (members !== null) return members.length === 1 && isDynamic(members[0] ?? null);
+  if (isAny(schema)) return true;
+  if (schema["type"] !== "object" || isObject(schema["properties"])) return false;
+  const values = schema["additionalProperties"];
+  return values === undefined || values === true || (isObject(values) && isAny(values));
+}
+
+/** An optional value's own schema - `X | None` read as `X` - or the schema unchanged. */
+function unwrapOptional(schema: JsonSchema, defs: Defs): JsonSchema {
+  const members = nonNullMembers(schema);
+  const [only] = members ?? [];
+  return members !== null && members.length === 1 && only !== undefined
+    ? resolveRef(only, defs)
+    : schema;
+}
+
 /**
  * The type a `NodeOutputRef` resolves to: walk `field_path` from the output port's
  * schema. The analog of `_resolve_field_path`.
  *
- * An empty path is the whole port value. A step into a scalar (no `properties`) or
- * a name the schema does not declare is {@link UNKNOWN}; a `null` control port with
- * an empty path stays `null`.
+ * An empty path is the whole port value. A path may pass through an optional
+ * model (`record: Record | None`), and anything past a dynamic value resolves to
+ * {@link ANY_SCHEMA}. A step into a scalar or a name the schema does not declare
+ * is {@link UNKNOWN}; a `null` control port with an empty path stays `null`.
  */
 export function resolveFieldType(
   definition: NodeDefinition,
@@ -190,12 +242,13 @@ export function resolveFieldType(
   const defs = defsOf(schema);
   let current: JsonSchema = schema;
   for (const part of fieldPath) {
-    const resolved = resolveRef(current, defs);
+    const resolved = unwrapOptional(resolveRef(current, defs), defs);
+    if (isDynamic(resolved)) return ANY_SCHEMA;
     const properties = resolved["properties"];
     if (!isObject(properties) || !isObject(properties[part])) return UNKNOWN;
     current = properties[part] as JsonSchema;
   }
-  return current;
+  return resolveRef(current, defs);
 }
 
 /**
@@ -215,11 +268,11 @@ export function outputFieldNames(
   const defs = defsOf(schema);
   let current: JsonSchema = schema;
   for (const part of fieldPath) {
-    const properties = resolveRef(current, defs)["properties"];
+    const properties = unwrapOptional(resolveRef(current, defs), defs)["properties"];
     if (!isObject(properties) || !isObject(properties[part])) return [];
     current = properties[part] as JsonSchema;
   }
-  const properties = resolveRef(current, defs)["properties"];
+  const properties = unwrapOptional(resolveRef(current, defs), defs)["properties"];
   return isObject(properties) ? Object.keys(properties) : [];
 }
 
@@ -239,7 +292,32 @@ export function fieldType(definition: NodeDefinition, fieldName: string): Resolv
   return UNKNOWN;
 }
 
-/** Whether two resolved terminal types are compatible — the analog of `_types_compatible`. */
+/**
+ * Whether two resolved terminal types are compatible - the analog of
+ * `_types_compatible`.
+ *
+ * `Any` on either side is left to the dispatcher. A free-form object takes any
+ * structured value. A union on either side, `null` set aside, fits when every
+ * source member fits some target member - a `str` binds to a `str | None` field.
+ * Anything else compares by the name the backend gives the type.
+ */
 export function typesCompatible(source: ResolvedType, target: ResolvedType): boolean {
-  return schemaTypeToken(source) === schemaTypeToken(target);
+  if (source === UNKNOWN || target === UNKNOWN) return false;
+  if (source === null || target === null)
+    return schemaTypeToken(source) === schemaTypeToken(target);
+  if (isAny(source) || isAny(target)) return true;
+  if (isDynamic(target) && (isDynamic(source) || isStructured(source))) return true;
+  const sourceMembers = nonNullMembers(source);
+  const targetMembers = nonNullMembers(target);
+  if (sourceMembers === null && targetMembers === null) {
+    return schemaTypeToken(source) === schemaTypeToken(target);
+  }
+  return (sourceMembers ?? [source]).every((member) =>
+    (targetMembers ?? [target]).some((candidate) => typesCompatible(member, candidate)),
+  );
+}
+
+/** A model or an object - what reaches a free-form field as the object it is stored as. */
+function isStructured(schema: JsonSchema): boolean {
+  return typeof schema["$ref"] === "string" || schema["type"] === "object";
 }

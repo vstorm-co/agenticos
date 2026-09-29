@@ -131,11 +131,13 @@ describe("WorkflowCanvas scope view", () => {
     expect(queryByText("Act")).toBeNull();
   });
 
-  it("offers no enter control when read-only", () => {
+  it("still opens a loop body when read-only, since entering one edits nothing", () => {
     seedForeach();
     const { container } = render(
       <WorkflowCanvas workflow={workflow()} catalog={CATALOG} readOnly />,
     );
-    expect(container.querySelector('button[aria-label="Open the body of For each"]')).toBeNull();
+    const open = container.querySelector('button[aria-label="Open the body of For each"]');
+    expect(open).not.toBeNull();
+    expect(open?.textContent).toContain("Open loop body");
   });
 });

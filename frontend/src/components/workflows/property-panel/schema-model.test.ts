@@ -67,6 +67,17 @@ describe("unwrapOptional", () => {
 });
 
 describe("classify", () => {
+  it("keeps a field that pins a resource one picker, whatever its shape", () => {
+    const shape = classify(
+      { anyOf: [{ $ref: "#/$defs/TableIORef", "x-resource": "table" }, { type: "null" }] },
+      { TableIORef: { type: "object", properties: { table_id: { type: "string" } } } },
+    );
+    expect(shape).toEqual({
+      kind: "leaf",
+      schema: { $ref: "#/$defs/TableIORef", "x-resource": "table" },
+    });
+  });
+
   it("classifies an object as a fieldset, dropping const-only and non-record fields", () => {
     const shape = classify(
       {

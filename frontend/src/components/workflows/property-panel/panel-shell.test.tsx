@@ -39,6 +39,7 @@ function mount(
       catalog={catalog}
       problems={options.problems ?? []}
       updateNodeConfig={vi.fn()}
+      updateNodePolicy={vi.fn()}
       upsertBinding={vi.fn()}
       removeBinding={vi.fn()}
       onSelectNode={onSelectNode}
@@ -47,6 +48,60 @@ function mount(
   );
   return { onSelectNode };
 }
+
+describe("PanelShell with nothing selected", () => {
+  it("shows the graph's size and says when nothing stands in the way", () => {
+    mount({
+      graph: graph({
+        entry: "A",
+        nodes: [echo("A"), echo("B")],
+        edges: [edge("e", "A", "out", "B", "in")],
+      }),
+    });
+    expect(screen.getByText("Steps").nextSibling).toHaveTextContent("2");
+    expect(screen.getByText("Connections").nextSibling).toHaveTextContent("1");
+    expect(screen.getByText("Nothing stands in the way of publishing.")).toBeVisible();
+  });
+
+  it("shows a selected step's policy section, and none for a loop's item", () => {
+    const withItem = makeCatalog([
+      DEBUG_ECHO,
+      { ...DEBUG_ECHO, id: "loop.item", name: "Loop item", loop_body_only: true },
+    ]);
+    const echoNode = echo("A");
+    const { rerender } = render(
+      <PanelShell
+        graph={graph({ entry: "A", nodes: [echoNode] })}
+        selectedNode={echoNode}
+        selection={{ nodeIds: ["A"], edgeIds: [] }}
+        catalog={catalog}
+        problems={[]}
+        updateNodeConfig={vi.fn()}
+        updateNodePolicy={vi.fn()}
+        upsertBinding={vi.fn()}
+        removeBinding={vi.fn()}
+        onSelectNode={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("When it is slow or fails")).toBeVisible();
+    const item = node("I", "loop.item");
+    rerender(
+      <PanelShell
+        graph={graph({ entry: "I", nodes: [item] })}
+        selectedNode={item}
+        selection={{ nodeIds: ["I"], edgeIds: [] }}
+        catalog={withItem}
+        problems={[]}
+        updateNodeConfig={vi.fn()}
+        updateNodePolicy={vi.fn()}
+        upsertBinding={vi.fn()}
+        removeBinding={vi.fn()}
+        onSelectNode={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("When it is slow or fails")).toBeNull();
+  });
+});
 
 describe("PanelShell states", () => {
   it("shows the empty state before a graph loads", () => {

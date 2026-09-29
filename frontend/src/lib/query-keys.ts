@@ -91,6 +91,12 @@ export const qk = {
     // list the picker filters in the browser, and one table for its live schema.
     tables: () => ["workflows", "tables"] as const,
     table: (id: string) => ["workflows", "tables", id] as const,
+    // A workflow's runs, and one run's state, steps and graph. Under the workflow
+    // so starting a run from its page refreshes the list beside it.
+    runs: (id: string) => ["workflows", id, "runs"] as const,
+    run: (runId: string) => ["workflows", "run", runId] as const,
+    runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
+    runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
   },
   channelBots: {
     list: () => ["channel-bots"] as const,

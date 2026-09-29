@@ -1,5 +1,5 @@
 ---
-source_sha: "04049240d780"
+source_sha: "1bc1faed14af"
 ---
 
 # API HTTP { #the-http-api }
@@ -116,6 +116,12 @@ po przekroczeniu limitu odpowiada `429` z `Retry-After`.
 od najstarszego, z `next_cursor` do odesłania jako `after`: pozostaje taki sam,
 dopóki nie ma nic nowszego, więc odpytywanie z nim śledzi trwający run. Kto może
 robić każdą z tych rzeczy, opisuje strona [Uprawnienia](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` wymienia każdy krok, który wykonał run,
+łącznie z iteracjami pętli, każdy z jego `scope_path`, statusem, próbami, kosztem i
+typowanym błędem, którym ostatnio się zakończył, a `GET
+/api/v1/workflow-runs/{id}/graph` zwraca graf, który run wykonuje: graf jego wersji
+albo snapshot draftu runa testowego.
 
 ## Usługi ML { #the-ml-services }
 

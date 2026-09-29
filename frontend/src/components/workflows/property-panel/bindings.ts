@@ -18,6 +18,7 @@
 
 import {
   availableSourceNodes,
+  isDynamic,
   outputFieldNames,
   resolveDefinitions,
   resolveFieldType,
@@ -123,6 +124,8 @@ export interface SourceCandidate {
   portLabel: string;
   /** The declared type of the port or field, shown to disambiguate same-named ports. */
   typeToken: string;
+  /** A value with no declared shape - a payload, a loop's item - which a path may reach into. */
+  dynamic: boolean;
 }
 
 /** How deep into a nested output the picker offers fields; deeper is left to the schema. */
@@ -178,11 +181,43 @@ export function sourceCandidates(
           nodeLabel: nodeDisplayName(definition.name, node.id, true),
           portLabel: port.label,
           typeToken: schemaTypeToken(sourceType),
+          dynamic: isDynamic(sourceType),
         });
       }
     }
   }
   return candidates;
+}
+
+/**
+ * The candidate a node-output binding was made from, and what its path adds past it.
+ *
+ * Its own key when the path is one the picker offers; otherwise the dynamic
+ * candidate the path reaches through (`item` then `record_id`), with the rest as
+ * `extraPath` - the part the author typed, since a free-form value has no fields
+ * to list.
+ */
+export function candidateForBinding(
+  candidates: readonly SourceCandidate[],
+  binding: Binding | undefined,
+): { candidate: SourceCandidate; extraPath: string[] } | undefined {
+  if (binding === undefined || binding.source.kind !== "node_output") return undefined;
+  const { node_id: nodeId, port, field_path: path } = binding.source;
+  const exact = candidates.find((candidate) => candidate.key === candidateKey(nodeId, port, path));
+  if (exact !== undefined) return { candidate: exact, extraPath: [] };
+  // At most one: the picker lists nothing past a dynamic value, so no dynamic
+  // candidate lies inside another.
+  const through = candidates.find(
+    (candidate) =>
+      candidate.dynamic &&
+      candidate.nodeId === nodeId &&
+      candidate.port === port &&
+      candidate.fieldPath.length < path.length &&
+      candidate.fieldPath.every((part, index) => path[index] === part),
+  );
+  return through === undefined
+    ? undefined
+    : { candidate: through, extraPath: path.slice(through.fieldPath.length) };
 }
 
 /** A candidate resolved from a `Select` value, or undefined when none matches. */

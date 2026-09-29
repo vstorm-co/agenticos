@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Plus, Table2 } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreateTableDialog } from "@/components/tables/create-table-dialog";
+import { TableCard } from "@/components/tables/table-card";
 import {
-  Badge,
   Button,
   ListCard,
   ListCardEmpty,
@@ -39,7 +38,7 @@ export default function TablesPage() {
   const router = useRouter();
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -68,9 +67,9 @@ export default function TablesPage() {
         data-tour="tables-catalog"
       >
         {isLoading && tables.length === 0 ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((row) => (
-              <Skeleton key={row} className="h-12 w-full" />
+              <Skeleton key={row} className="h-36 w-full rounded-xl" />
             ))}
           </div>
         ) : tables.length === 0 ? (
@@ -85,28 +84,15 @@ export default function TablesPage() {
             }
           />
         ) : (
-          <ul className="divide-border divide-y">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {tables.map((table) => (
-              <li key={table.id}>
-                <Link
-                  href={ROUTES.TABLE_DETAIL(table.id)}
-                  className="hover:bg-accent flex w-full items-center justify-between gap-3 px-1 py-2.5 text-left"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{table.name}</p>
-                    {table.description && (
-                      <p className="text-muted-foreground truncate text-xs">{table.description}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline">{t(`visibility.${table.visibility}`)}</Badge>
-                </Link>
-              </li>
+              <TableCard key={table.id} table={table} />
             ))}
-          </ul>
+          </div>
         )}
       </ListCard>
 
-      <div className="mt-4">
+      <div>
         <PaginationBar
           page={page}
           pageSize={PAGE_SIZE}

@@ -20,10 +20,11 @@ templates are ready-made starting points — **Starter**, a single step to renam
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
 
-The list groups every workflow you can see by status — **Drafts** you are still
-building, the **Published** versions that run, and the **Archived** ones — and
-**Filter by status** narrows to one. Each row's badge shows **Draft**,
-**Published** or **Archived**.
+The list shows every workflow you can see as a card: its status, who can reach
+it, whether a version is live, and when it was last edited. **Filter by status**
+narrows it to **Drafts** you are still building, the **Published** ones that run,
+or the **Archived** ones. From a card you open the editor, the workflow's runs, or
+a copy.
 
 **Duplicate** copies a workflow's current draft into a fresh one named
 *{name} (copy)*. A duplicate is a new workflow with its own draft, never a copy
@@ -38,23 +39,32 @@ of a published version.
 
 ## The canvas and the palette { #the-canvas-and-the-palette }
 
-The **canvas** is where a workflow's steps and connections appear. A **node** is
-one step; an **edge** is a connection that sets the order: the step it points to
-runs after the one it leaves.
-The canvas pans and zooms, and its controls sit in the corner — there is no
+The **canvas** is where a workflow's steps and connections appear, and the editor
+gives it the whole window below the header: the palette on its left, the
+**Properties** panel on its right. A **node** is one step; an **edge** is a
+connection that sets the order: the step it points to runs after the one it
+leaves.
+
+Each node is a card with the step's icon, its name and one line of what
+it is set up to do - a condition, a URL, the number of mapped fields - and a step
+with more than one way out lists its ports by name: **true** and **false**, **Each
+item** and **Done**, and a red **Error** port on a step that handles its errors.
+The canvas pans and zooms, and its controls sit in the corner - there is no
 minimap.
 
-The **Nodes** palette on the side lists the node types your deployment has
-registered, grouped by category, each with an icon, a name and a description.
-**Search nodes** filters the list. You add a step two ways:
+The **Nodes** palette lists the node types your deployment has registered, in
+groups that follow how a workflow reads - **Start and finish**, **Agents**,
+**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - each group
+folding away, each row with an icon, a name and its description. **Search nodes**
+filters the list. You add a step two ways:
 
 - **Drag** a node from the palette onto the canvas — the pointer path.
 - **Click** a node to add it near the center of the view — the keyboard and
   touch path, which needs no drag.
 
-The palette shows what is valid where you are. Inside a loop's body it hides node
-kinds that cannot live there, so the list you see is always addable at the scope
-you are editing.
+The palette shows what is valid where you are. **Loop item** and **Loop result**
+appear only inside a loop's body, since they mean nothing outside one, and a loop
+is offered until loops are nested as deep as publishing allows.
 
 !!! note "The node catalog grows over time"
 
@@ -114,6 +124,22 @@ picker has none. A table whose schema changed since it was bound says so and off
 **Rebind to the current schema**, so a stale column set is a visible prompt
 rather than a silent break.
 
+### When a step is slow or fails { #when-a-step-is-slow-or-fails }
+
+Below a step's fields, **When it is slow or fails** sets its policy. **Handle
+errors** gives the step an **Error** port: a failure its retries did not settle
+leaves through it, to a **Handle error** step or anything else you connect, instead
+of failing the run. **Tries** is how often the step is attempted in all, and **Wait
+between tries** and **First wait** set the pause between attempts. A step whose call
+is not safe to repeat, such as running an agent, says so and is never retried.
+**Time limit** cuts a call off after that many seconds. What each setting does at
+run time is in the [node reference](reference/workflow-nodes.md#error-handling).
+
+A binding to a value with no declared shape - a loop's current item, a trigger's
+payload - offers a **Field inside it** box under the source, where you type the path
+inside that value, such as `record_id` or `fields.Email`. The run checks that path
+when the step is dispatched, since only the run knows what the value holds.
+
 ## Connections and foreach scope { #connections-and-foreach-scope }
 
 You draw an edge by connecting one node's output port to another node's input
@@ -140,13 +166,18 @@ it. Press the button, or press `Backspace`, and the connection goes while the tw
 steps stay. The connections of a published version cannot be selected, so they
 cannot be deleted.
 
-A `foreach` step runs its body once per item in a list. The body is not a
-separate document — it is part of the same flat graph, shown on its own. **Open
-body** on the step enters that view, and the **Workflow scope** breadcrumb shows
-where you are, from **Workflow** at the root down to the loop you opened. Each
-crumb navigates back out. The palette and the binding sources follow the scope
-you are in, so what you can add and what you can read from are always the ones
-valid at that level.
+A **For each** step runs its body once per item in a list. The body is not a
+separate document - it is part of the same flat graph, shown on its own. **Edit
+loop body** on the step, which says how many steps the body holds, enters that
+view, and the **Workflow scope** breadcrumb in the canvas's corner shows where you
+are, from **Workflow** down to the loop you opened. Each crumb navigates back out.
+
+A body starts at **Loop item**, which the loop's **Each item** port connects to,
+and ends at **Loop result**; nothing in it connects back to the loop, which
+continues through **Done** once every item has been through the body. The palette
+and the binding sources follow the scope you are in, and a step in a body may read
+anything that ran before the loop. What the loop does is in the
+[node reference](reference/workflow-nodes.md#loops).
 
 ## Validation feedback { #validation-feedback }
 
@@ -195,10 +226,10 @@ problems, publishing is blocked with **Fix the problems below before
 publishing**, so a version that would not validate is never created.
 
 Publishing does not end your editing. The draft goes on existing independently of
-any published version, so you keep editing it straight away, and each published
-version is listed under **Version history** with its release note. **View** opens
-a past version read-only — a published version is read-only, and to make changes
-you go on editing the draft.
+any published version, so you keep editing it straight away. **History** in the
+editor's header opens every published version with its release note. **View**
+opens a past version read-only - a published version is read-only, and to make
+changes you go on editing the draft.
 
 To go back to a published version, open it with **View** and choose **Restore to
 draft**. After you confirm, the draft takes that version's graph, and whatever was
@@ -212,10 +243,21 @@ cannot be restored. Each restore is recorded in the [audit log](governance.md) a
 
 ## Running a workflow { #running-a-workflow }
 
-A workflow's **Runs** tab is where its test and production runs will appear, per
-step with their inputs, outputs and costs. Run history lands once the workflow
-runner ships; until then the tab shows that it is not available yet, and the
-editor is for building and publishing.
+**Runs** in the editor's header, and the runs icon on a workflow's card, open its
+runs, newest first, each with its status, whether it ran the draft or the published
+version, what started it, when, for how long and at what cost. **Start a run**
+starts one by hand: **Test the draft** runs the draft as it stands, and **Published
+version** runs the live one. Its **Input (JSON)** is what the workflow's **Input**
+step hands on as `payload`.
+
+A run opens on its duration, its cost and how many steps it took, then the error it
+ended with, if any. Beside them is the graph it executed, with each step marked by
+what the run did with it, its tries and its error, and the steps it never reached
+faded. **Open loop body** shows a loop's iterations the same way.
+
+The run's output
+and every step it took, iteration by iteration, sit alongside. A run still going
+refreshes itself every couple of seconds, and **Cancel run** stops it.
 
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 
@@ -274,3 +316,8 @@ Copy and paste have three limits:
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version.
+- A step's **policy** sets its tries, its time limit and whether its failures
+  leave by an **Error** port; a **For each** step's body runs from **Loop item** to
+  **Loop result** once per item.
+- **Runs** lists every run, **Start a run** tests the draft or runs the published
+  version, and a run shows its graph step by step as it happened.

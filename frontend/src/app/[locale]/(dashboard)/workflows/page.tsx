@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Plus, Workflow } from "lucide-react";
+import { Plus, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
-  Badge,
   Button,
   ListCard,
   ListCardEmpty,
@@ -20,6 +18,7 @@ import {
   SelectValue,
   useListControls,
 } from "@/components/ui";
+import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
 import { usePermissions, useWorkflows } from "@/hooks";
@@ -30,13 +29,6 @@ import type { WorkflowRead, WorkflowStatus } from "@/lib/workflows/types";
 type Filter = "all" | WorkflowStatus;
 
 const FILTERS: readonly Filter[] = ["all", "draft", "published", "archived"];
-
-/** The badge tint per status — draft muted, published affirmative, archived quiet. */
-const STATUS_VARIANT: Record<string, "secondary" | "default" | "outline"> = {
-  draft: "secondary",
-  published: "default",
-  archived: "outline",
-};
 
 /**
  * The workflows list — draft / published / archived, like the agents list.
@@ -156,32 +148,17 @@ export default function WorkflowsPage() {
           />
         ) : (
           <div className="space-y-4">
-            <ul className="divide-border divide-y">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {list.visible.map((workflow) => (
-                <li key={workflow.id} className="flex items-center gap-3 py-3">
-                  <Link
-                    href={ROUTES.WORKFLOW_DETAIL(workflow.id)}
-                    className="hover:text-foreground text-foreground min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                  >
-                    {workflow.name}
-                  </Link>
-                  <Badge variant={STATUS_VARIANT[workflow.status] ?? "secondary"}>
-                    {t(`status.${workflow.status}`)}
-                  </Badge>
-                  {canCreate ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={duplicate.isPending}
-                      aria-label={t("duplicateWorkflow", { name: workflow.name })}
-                      onClick={() => onDuplicate(workflow)}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </li>
+                <WorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  canCreate={canCreate}
+                  busy={duplicate.isPending && duplicate.variables?.sourceId === workflow.id}
+                  onDuplicate={() => onDuplicate(workflow)}
+                />
               ))}
-            </ul>
+            </div>
             <Pager
               page={list.page}
               pageCount={list.pageCount}

@@ -294,7 +294,7 @@ describe("the table detail page", () => {
     serve();
     renderPage();
 
-    expect(await screen.findByText("Orders")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Orders" })).toBeInTheDocument();
     expect(screen.getByText("Customer orders")).toBeInTheDocument();
     expect(screen.getByText("Team")).toBeInTheDocument();
   });

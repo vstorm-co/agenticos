@@ -33,10 +33,14 @@ class ForeachConfig(BaseModel):
 
     item_error_policy: Literal["stop", "collect"] = Field(
         default="stop",
+        title="When an item fails",
         description=(
-            "`stop` fails the loop at the first iteration that fails; `collect` records "
-            "the error in that item's place and carries on."
+            "Stop fails the loop at the first item that fails. Collect records the error "
+            "in that item's place and carries on with the rest."
         ),
+        json_schema_extra={
+            "x-enum-labels": {"stop": "Stop the loop", "collect": "Collect and carry on"}
+        },
     )
 
 

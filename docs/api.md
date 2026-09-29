@@ -113,6 +113,11 @@ oldest first, with a `next_cursor` to pass back as `after`: it stays the same
 while nothing newer exists, so polling with it tails a live run. Who may do each
 of these is in [Permissions](permissions.md#workflow-runs).
 
+`GET /api/v1/workflow-runs/{id}/nodes` lists every step the run took, loop
+iterations included, each with its `scope_path`, status, tries, cost and the typed
+error it last failed with, and `GET /api/v1/workflow-runs/{id}/graph` returns the
+graph the run executes: its version's, or a test run's draft snapshot.
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no

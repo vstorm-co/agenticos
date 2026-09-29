@@ -1,5 +1,5 @@
 ---
-source_sha: "04049240d780"
+source_sha: "1bc1faed14af"
 ---
 
 # La API HTTP { #the-http-api }
@@ -124,6 +124,12 @@ del run del más antiguo al más reciente, con un `next_cursor` que se devuelve
 como `after`: se mantiene igual mientras no exista nada más nuevo, así que
 consultar con él sigue un run en curso. Quién puede hacer cada cosa está en
 [Permisos](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` enumera cada paso que dio el run,
+iteraciones de bucle incluidas, cada uno con su `scope_path`, estado, intentos,
+coste y el error tipado con el que falló por última vez, y `GET
+/api/v1/workflow-runs/{id}/graph` devuelve el grafo que ejecuta el run: el de su
+versión o la instantánea del draft de un run de prueba.
 
 ## Los servicios de ML { #the-ml-services }
 

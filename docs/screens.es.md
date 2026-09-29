@@ -1,5 +1,5 @@
 ---
-source_sha: "52c1284c9aae"
+source_sha: "a92387168cdf"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -8,8 +8,8 @@ Una página, cada módulo, descrito. Las capturas siguen el tema en el que esté
 leyendo el sitio — cámbialo con el interruptor de la cabecera y cada imagen de
 esta página cambia con él.
 
-Capturadas el 1 de septiembre de 2026 desde un despliegue en marcha: 35
-pantallas, 27 de ellas en los dos temas bajo `docs/assets/screens/`, con
+Capturadas el 1 de septiembre de 2026 desde un despliegue en marcha: 42
+pantallas, 34 de ellas en los dos temas bajo `docs/assets/screens/`, con
 nombres idénticos en `light/` y `dark/`. Las ocho pantallas del Builder son
 solo oscuras, y lo dicen donde aparecen.
 
@@ -134,6 +134,57 @@ Cada versión que ha tenido este agent. La que estuvo en vivo en marzo sigue sie
 El mismo agent como grafo: qué lo alcanza y hacia qué alcanza él. Una caja discontinua es algo a lo que no hay nada enganchado — un budget sin tope propio se lee como un hueco y no como un valor por defecto.
 
 ![Visual map](assets/screens/dark/builder-visual-map.webp)
+## Workflows y tablas { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+El catálogo de automatizaciones, una tarjeta por cada una: su estado, quién puede alcanzarla, si tiene una versión en vivo y cuándo se editó por última vez, con sus runs, el editor y una copia a un clic.
+
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
+
+### El editor de workflows { #the-workflow-editor }
+
+Toda la ventana es el espacio de trabajo: la paleta en el orden en que se lee un workflow, el grafo como tarjetas que dicen para qué está configurado cada paso, y las propiedades de lo que esté seleccionado. Un bucle muestra cuántos pasos contiene su cuerpo.
+
+![El editor de workflows](assets/screens/light/workflow-editor.webp#only-light)
+![El editor de workflows](assets/screens/dark/workflow-editor.webp#only-dark)
+
+### El cuerpo de un bucle { #a-loops-body }
+
+Dentro de un bucle, con un paso seleccionado: la tabla que escribe y sus columnas, un id de registro leído del elemento actual del bucle, los valores que escribe y su política - tres intentos, y fallos encaminados por su puerto **Error** rojo hacia un gestor de errores en lugar de hacer fallar el run.
+
+![El cuerpo de un bucle](assets/screens/light/workflow-loop-body.webp#only-light)
+![El cuerpo de un bucle](assets/screens/dark/workflow-loop-body.webp#only-dark)
+
+### Runs { #runs }
+
+Cada run de un workflow, del más reciente al más antiguo: si ejecutó el draft o la versión publicada, qué lo inició, cuándo, cuánto duró y cuánto costó. **Start a run** prueba el draft con un input propio.
+
+![Runs](assets/screens/light/workflow-runs.webp#only-light)
+![Runs](assets/screens/dark/workflow-runs.webp#only-dark)
+
+### Un run { #a-run }
+
+Un run tal como ocurrió: el grafo que ejecutó, con cada paso marcado por lo que hizo, la salida con la que respondió y cada paso que dio, iteración a iteración.
+
+![Un run](assets/screens/light/workflow-run.webp#only-light)
+![Un run](assets/screens/dark/workflow-run.webp#only-dark)
+
+### Tablas { #tables }
+
+Registros tipados que tus agents, workflows e integraciones leen y escriben, una tarjeta por tabla con quién puede alcanzarla y su versión de esquema.
+
+![Tablas](assets/screens/light/tables.webp#only-light)
+![Tablas](assets/screens/dark/tables.webp#only-dark)
+
+### Una tabla { #a-table }
+
+Los registros de una tabla después de que el run de arriba subiera cada puntuación baja: los valores de selección como chips de colores, y los mismos registros como tablero kanban o lista a una pestaña.
+
+![Una tabla](assets/screens/light/table-detail.webp#only-light)
+![Una tabla](assets/screens/dark/table-detail.webp#only-dark)
+
 ## Knowledge { #knowledge }
 
 ### Knowledge bases { #knowledge-bases }
@@ -284,7 +335,7 @@ La identidad y la política propias de este despliegue: registro, invitaciones, 
 
 ## Resumen { #recap }
 
-- 27 módulos tienen los dos temas en `docs/assets/screens/`, con el mismo
+- 34 módulos tienen los dos temas en `docs/assets/screens/`, con el mismo
   nombre; las ocho pantallas del Builder son solo oscuras.
 - En este sitio una imagen se escribe dos veces, con `#only-light` y
   `#only-dark`; Material muestra la que coincide con la paleta del lector.

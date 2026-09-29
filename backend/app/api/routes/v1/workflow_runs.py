@@ -18,6 +18,8 @@ from app.api.deps import Auth, WorkflowExecutionSvc, limit_workflow_run, require
 from app.core.permissions import Perm
 from app.schemas.workflow_run import (
     WorkflowEventList,
+    WorkflowNodeRunList,
+    WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
     WorkflowRunStart,
@@ -74,6 +76,25 @@ async def get_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Aut
 async def cancel_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
     """Stop a run: no further node ever dispatches for it."""
     return await service.cancel(ctx, run_id)
+
+
+@router.get("/{run_id}/graph", response_model=WorkflowRunGraph)
+async def get_workflow_run_graph(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
+    """The graph this run executes - its version's, or a test run's draft snapshot."""
+    return await service.graph(ctx, run_id)
+
+
+@router.get("/{run_id}/nodes", response_model=WorkflowNodeRunList)
+async def list_workflow_run_nodes(
+    run_id: UUID,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+) -> Any:
+    """Every step of this run, loop iterations included: its status, tries, cost
+    and the error it last failed with."""
+    return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
 
 
 @router.get("/{run_id}/events", response_model=WorkflowEventList)

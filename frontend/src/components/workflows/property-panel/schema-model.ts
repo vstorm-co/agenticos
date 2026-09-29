@@ -204,7 +204,11 @@ function unionShape(schema: Schema, defs: Defs): UnionShape | null {
  * everything else (a scalar, a list of scalars, an untyped `anyOf`) is a leaf.
  */
 export function classify(raw: Schema, defs: Defs): Shape {
-  const schema = resolveRef(unwrapOptional(raw), defs);
+  // A field that pins a resource is one picker, whatever its shape: a table is a
+  // `TableIORef` object, but nobody should type its id and schema version by hand.
+  const pinned = unwrapOptional(raw);
+  if (resourceKind(pinned) !== null) return { kind: "leaf", schema: pinned };
+  const schema = resolveRef(pinned, defs);
   const union = unionShape(schema, defs);
   if (union !== null) return union;
   if (schema["type"] === "array") {

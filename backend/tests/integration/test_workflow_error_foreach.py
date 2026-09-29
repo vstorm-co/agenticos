@@ -39,7 +39,7 @@ from app.db.models.workflow_run import (
 )
 from app.schemas.virtual_table import ColumnInput, TableCreate, TableRead
 from app.services.virtual_tables.facade import VirtualTableService
-from app.services.workflow_execution import context, dispatcher
+from app.services.workflow_execution import WorkflowExecutionService, context, dispatcher
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler, Port, RetryGuarantee
@@ -923,3 +923,33 @@ async def test_an_approval_inside_an_iteration_resumes_that_iteration(
     assert run.status == WorkflowRunStatus.SUCCEEDED.value
     assert run.output is not None
     assert run.output["structured"]["results"] == [str(first), str(second)]
+
+
+async def test_a_run_lists_every_step_it_took_with_each_iterations_error(engine: AsyncEngine):
+    loop = _Loop(policy="collect", fail_on="grace")
+    seeded = await _run(engine, loop.graph, {"items": ITEMS})
+    await drive(seeded)
+
+    async with seeded.factory() as db:
+        listed = await WorkflowExecutionService(db).node_runs(seeded.ctx, seeded.run.id)
+
+    refused = [row for row in listed.items if row.node_instance_id == loop.refuse.id]
+    items = [row for row in listed.items if row.node_instance_id == loop.item.id]
+    assert listed.total == len(listed.items)
+    assert [row.scope_path[0]["index"] for row in items] == [0, 1, 2]
+    assert len(refused) == 3
+    failed = next(row for row in refused if row.status == NodeRunStatus.FAILED)
+    assert failed.error is not None and failed.error["code"] == "BAD_ITEM"
+    assert failed.attempts == 1 and failed.scope_path[0]["index"] == 1
+
+
+async def test_a_run_answers_with_the_graph_it_executes_its_loops_derived(engine: AsyncEngine):
+    loop = _Loop()
+    seeded = await _run(engine, loop.graph, {"items": []})
+
+    async with seeded.factory() as db:
+        answered = await WorkflowExecutionService(db).graph(seeded.ctx, seeded.run.id)
+
+    graph = WorkflowGraph.model_validate(answered.graph)
+    assert {node.id for node in graph.nodes} == {node.id for node in loop.graph.nodes}
+    assert [scope.scope_node_id for scope in graph.scopes] == [loop.loop.id]

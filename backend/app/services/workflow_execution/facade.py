@@ -23,6 +23,9 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import (
+    NodeAttempt,
+    NodeAttemptStatus,
+    NodeRun,
     NodeRunStatus,
     ResourceRefKind,
     WorkflowRun,
@@ -35,11 +38,14 @@ from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowEventRead,
+    WorkflowNodeRunList,
+    WorkflowNodeRunRead,
+    WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
-from app.services.workflow_execution import admission, events
+from app.services.workflow_execution import admission, dispatcher, events
 from app.services.workflow_execution.exceptions import (
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
@@ -326,6 +332,39 @@ class WorkflowExecutionService:
         )
         return WorkflowRunList(items=[_read(item) for item in items], total=total)
 
+    async def graph(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunGraph:
+        """The graph this run executes, loop scopes derived, as a run view draws it.
+
+        Raises:
+            WorkflowRunNotFoundError: No such run, or this caller may not see it.
+            WorkflowGraphUnresolvableError: The version no longer resolves.
+        """
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        graph = await dispatcher.resolve_graph(self.db, run)
+        return WorkflowRunGraph(graph=graph.model_dump(mode="json"))
+
+    async def node_runs(
+        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 200
+    ) -> WorkflowNodeRunList:
+        """Every step of a run, loop iterations included, with its tries, cost and error."""
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        rows, total = await workflow_run_repo.list_node_runs_page(
+            self.db,
+            workflow_run_id=run.id,
+            organization_id=ctx.organization_id,
+            skip=skip,
+            limit=limit,
+        )
+        attempts = await workflow_run_repo.list_attempts_of(
+            self.db, node_run_ids=[row.id for row in rows]
+        )
+        by_run: dict[UUID, list[NodeAttempt]] = {}
+        for attempt in attempts:
+            by_run.setdefault(attempt.node_run_id, []).append(attempt)
+        return WorkflowNodeRunList(
+            items=[_node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
+        )
+
     async def events_since(
         self, ctx: AuthContext, run_id: UUID, *, after: str | None, limit: int = 100
     ) -> WorkflowEventList:
@@ -464,3 +503,24 @@ class WorkflowExecutionService:
 
 
 __all__ = ["WorkflowExecutionService"]
+
+
+def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunRead:
+    """One node run as the API shows it: its latest failure, and what its tries cost."""
+    # An attempt with no retry guarantee is the dispatcher's own record - a loop
+    # item's element, a loop's collected results - not a try at the step.
+    tries = [attempt for attempt in attempts if attempt.retry_guarantee is not None]
+    failed = [attempt for attempt in tries if attempt.status == NodeAttemptStatus.FAILED.value]
+    latest_error = failed[-1].result.get("error") if failed and failed[-1].result else None
+    return WorkflowNodeRunRead(
+        id=row.id,
+        node_instance_id=row.node_instance_id,
+        scope_path=row.scope_path,
+        status=NodeRunStatus(row.status),
+        waiting_reason=row.waiting_reason,
+        attempts=len(tries),
+        cost=float(sum((attempt.cost for attempt in attempts), Decimal(0))),
+        error=latest_error,
+        started_at=row.started_at,
+        ended_at=row.ended_at,
+    )

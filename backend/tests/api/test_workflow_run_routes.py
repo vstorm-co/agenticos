@@ -310,6 +310,69 @@ class TestCancelRoute:
         assert response.json()["error"]["code"] == "WORKFLOW_RUN_TERMINAL"
 
 
+class TestNodesRoute:
+    async def test_listing_a_runs_steps(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        node_run = MagicMock(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="succeeded",
+            waiting_reason=None,
+            started_at=datetime.now(UTC),
+            ended_at=datetime.now(UTC),
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_node_runs_page",
+                new=AsyncMock(return_value=([node_run], 1)),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_attempts_of", new=AsyncMock(return_value=[])
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/nodes"))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        assert body["items"][0]["status"] == "succeeded" and body["items"][0]["attempts"] == 0
+
+
+class TestGraphRoute:
+    async def test_answering_with_the_graph_a_run_executes(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        entry = uuid.uuid4()
+        graph = WorkflowGraph.model_validate(
+            {
+                "entry_node_id": str(entry),
+                "nodes": [
+                    {
+                        "id": str(entry),
+                        "definition_id": "core.input",
+                        "definition_version": 1,
+                        "layout": {"x": 0, "y": 0},
+                    }
+                ],
+            }
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.dispatcher.resolve_graph", new=AsyncMock(return_value=graph)),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/graph"))
+        assert response.status_code == 200
+        assert response.json()["graph"]["entry_node_id"] == str(entry)
+
+
 class TestEventsRoute:
     async def test_listing_events_since_a_cursor(self, owner_client: OpenClient):
         run = _run_row()

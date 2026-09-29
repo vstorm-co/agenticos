@@ -12,6 +12,7 @@
  * #1786 control node produces one.
  */
 
+import { effectiveDefinition } from "@/lib/workflows/ports";
 import type {
   NodeCatalog,
   NodeDefinition,
@@ -41,7 +42,8 @@ export function resolveDefinitions(graph: WorkflowGraph, catalog: NodeCatalog): 
   const index = indexCatalog(catalog);
   const map: DefinitionMap = new Map();
   for (const node of graph.nodes) {
-    map.set(node.id, index.get(definitionKey(node.definition_id, node.definition_version)) ?? null);
+    const definition = index.get(definitionKey(node.definition_id, node.definition_version));
+    map.set(node.id, definition === undefined ? null : effectiveDefinition(node, definition));
   }
   return map;
 }

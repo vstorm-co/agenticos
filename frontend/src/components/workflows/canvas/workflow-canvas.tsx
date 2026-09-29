@@ -30,7 +30,7 @@ interface WorkflowCanvasProps {
  */
 export function WorkflowCanvas({ workflow, catalog, readOnly = false }: WorkflowCanvasProps) {
   return (
-    <div data-workflow-id={workflow.id}>
+    <div data-workflow-id={workflow.id} className="relative h-full">
       <ReactFlowProvider>
         <ScopeBreadcrumb catalog={catalog} />
         <WorkflowGraphView catalog={catalog} readOnly={readOnly} />

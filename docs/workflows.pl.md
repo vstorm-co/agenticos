@@ -1,5 +1,5 @@
 ---
-source_sha: "4c0274482af7"
+source_sha: "6947676d3d3e"
 ---
 
 # Workflows { #workflows }
@@ -24,10 +24,10 @@ wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
 
-Lista grupuje każdy workflow, który widzisz, według statusu — **Drafts**, które
-wciąż budujesz, opublikowane wersje **Published**, które działają, oraz **Archived**
-— a **Filter by status** zawęża do jednego. Badge każdego wiersza pokazuje
-**Draft**, **Published** lub **Archived**.
+Lista pokazuje każdy workflow, który widzisz, jako kartę: jego status, kto może do
+niego dotrzeć, czy ma żywą wersję i kiedy ostatnio go edytowano. **Filter by
+status** zawęża ją do **Drafts**, które wciąż budujesz, **Published**, które działają,
+albo **Archived**. Z karty otwierasz edytor, runy workflow albo kopię.
 
 **Duplicate** kopiuje bieżący draft workflow do nowego o nazwie *{name} (copy)*.
 Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
@@ -41,23 +41,31 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ## Kanwa i paleta { #the-canvas-and-the-palette }
 
-**Kanwa** to miejsce, gdzie pojawiają się kroki i połączenia workflow. **Węzeł** to
-jeden krok; **krawędź** to połączenie, które ustala kolejność: krok, na który wskazuje, wykonuje
-się po tym, z którego wychodzi.
-Kanwę można przesuwać i przybliżać, a jej elementy sterujące są w rogu — nie ma
-minimapy.
+**Kanwa** to miejsce, gdzie pojawiają się kroki i połączenia workflow, a edytor daje
+jej całe okno pod nagłówkiem: paletę po lewej, panel **Properties** po prawej.
+**Węzeł** to jeden krok; **krawędź** to połączenie, które ustala kolejność: krok, na
+który wskazuje, wykonuje się po tym, z którego wychodzi.
 
-Paleta **Nodes** z boku wymienia typy węzłów, które zarejestrowała Twoja
-deployment, pogrupowane według kategorii, każdy z ikoną, nazwą i opisem. **Search
-nodes** filtruje listę. Krok dodajesz na dwa sposoby:
+Każdy węzeł to karta z
+ikoną kroku, jego nazwą i jedną linią tego, do czego jest ustawiony - warunek, URL,
+liczba mapowanych pól - a krok z więcej niż jednym wyjściem wymienia porty z nazwy:
+**true** i **false**, **Each item** i **Done** oraz czerwony port **Error** na kroku,
+który obsługuje swoje błędy. Kanwę można przesuwać i przybliżać, a jej elementy
+sterujące są w rogu - nie ma minimapy.
+
+Paleta **Nodes** wymienia typy węzłów, które zarejestrowała Twoja deployment, w
+grupach ułożonych tak, jak czyta się workflow - **Start and finish**, **Agents**,
+**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - każdą grupę
+da się zwinąć, a każdy wiersz ma ikonę, nazwę i opis. **Search nodes** filtruje
+listę. Krok dodajesz na dwa sposoby:
 
 - **Przeciągnij** węzeł z palety na kanwę — droga dla wskaźnika.
 - **Kliknij** węzeł, aby dodać go blisko środka widoku — droga dla klawiatury i
   dotyku, która nie wymaga przeciągania.
 
-Paleta pokazuje, co jest tu ważne, gdzie właśnie jesteś. Wewnątrz ciała pętli
-ukrywa rodzaje węzłów, które nie mogą tam istnieć, więc lista, którą widzisz, jest
-zawsze możliwa do dodania w edytowanym scope.
+Paleta pokazuje, co jest ważne tam, gdzie jesteś. **Loop item** i **Loop result**
+pojawiają się tylko wewnątrz ciała pętli, bo poza nim nic nie znaczą, a pętla jest
+oferowana, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
 
 !!! note "Katalog węzłów rośnie z czasem"
 
@@ -116,6 +124,22 @@ utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole 
 **Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
 zachętą, a nie cichym pęknięciem.
 
+### Gdy krok jest wolny albo zawodzi { #when-a-step-is-slow-or-fails }
+
+Pod polami kroku sekcja **When it is slow or fails** ustala jego politykę. **Handle
+errors** daje krokowi port **Error**: błąd, którego ponowienia nie rozwiązały, wychodzi
+nim do kroku **Handle error** albo czegokolwiek innego, co podłączysz, zamiast
+kończyć run błędem. **Tries** to łączna liczba prób kroku, a **Wait between tries** i
+**First wait** ustalają przerwę między próbami. Krok, którego wywołania nie da się
+bezpiecznie powtórzyć, na przykład uruchomienie agenta, mówi o tym i nigdy nie jest
+ponawiany. **Time limit** przerywa wywołanie po tylu sekundach. Co każde ustawienie
+robi w trakcie runa, opisuje [referencja węzłów](reference/workflow-nodes.md#error-handling).
+
+Binding do wartości bez zadeklarowanego kształtu - bieżącego elementu pętli, payloadu
+triggera - oferuje pod źródłem pole **Field inside it**, w którym wpisujesz ścieżkę
+wewnątrz tej wartości, na przykład `record_id` albo `fields.Email`. Run sprawdza tę
+ścieżkę, gdy krok zostaje wysłany do wykonania, bo tylko run wie, co zawiera wartość.
+
 ## Połączenia i scope foreach { #connections-and-foreach-scope }
 
 Krawędź rysujesz, łącząc port wyjściowy jednego węzła z portem wejściowym innego
@@ -141,13 +165,19 @@ pokaże jego **From** i **To**, a na nim pojawi się przycisk **Delete connectio
 Naciśnij przycisk albo `Backspace`, a połączenie zniknie, podczas gdy oba kroki
 zostaną. Połączeń opublikowanej wersji nie można zaznaczyć, więc nie można ich usunąć.
 
-Krok `foreach` wykonuje swoje ciało raz na każdy element listy. Ciało nie jest
-osobnym dokumentem — jest częścią tego samego płaskiego grafu, pokazaną osobno.
-**Open body** na kroku wchodzi do tego widoku, a okruszki **Workflow scope**
-pokazują, gdzie jesteś, od **Workflow** w korzeniu w dół do pętli, którą otworzyłeś.
-Każdy okruszek nawiguje z powrotem na zewnątrz. Paleta i źródła binding podążają za
-scope, w którym jesteś, więc to, co możesz dodać i skąd możesz czytać, jest zawsze
-tym ważnym na danym poziomie.
+Krok **For each** wykonuje swoje ciało raz na każdy element listy. Ciało nie jest
+osobnym dokumentem - jest częścią tego samego płaskiego grafu, pokazaną osobno.
+**Edit loop body** na kroku, które podaje, ile kroków zawiera ciało, wchodzi do tego
+widoku, a okruszki **Workflow scope** w rogu kanwy pokazują, gdzie jesteś, od
+**Workflow** w dół do pętli, którą otworzyłeś. Każdy okruszek nawiguje z powrotem na
+zewnątrz.
+
+Ciało zaczyna się od **Loop item**, z którym łączy się port **Each item**
+pętli, i kończy na **Loop result**; nic w nim nie łączy się z powrotem z pętlą, która
+idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Paleta i źródła
+binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
+działało przed pętlą. Co robi pętla, opisuje
+[referencja węzłów](reference/workflow-nodes.md#loops).
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
@@ -195,9 +225,9 @@ zablokowane z **Fix the problems below before publishing**, więc wersja, która
 przeszła walidacji, nigdy nie powstaje.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
-opublikowanej wersji, więc edytujesz go od razu dalej, a każda opublikowana wersja
-jest wymieniona w **Version history** wraz ze swoją release note. **View** otwiera
-wcześniejszą wersję tylko do odczytu — opublikowana wersja jest tylko do odczytu, a
+opublikowanej wersji, więc edytujesz go od razu dalej. **History** w nagłówku edytora
+otwiera każdą opublikowaną wersję wraz z jej release note. **View** otwiera
+wcześniejszą wersję tylko do odczytu - opublikowana wersja jest tylko do odczytu, a
 aby wprowadzić zmiany, edytujesz draft dalej.
 
 Aby wrócić do opublikowanej wersji, otwórz ją przez **View** i wybierz **Restore to
@@ -212,10 +242,21 @@ a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafi
 
 ## Uruchamianie workflow { #running-a-workflow }
 
-Zakładka **Runs** workflow to miejsce, gdzie pojawią się jego testowe i produkcyjne
-runy, krok po kroku z ich inputami, wyjściami i kosztami. Historia runów pojawia się,
-gdy zostanie wydany runner workflow; do tego czasu zakładka pokazuje, że nie jest
-jeszcze dostępna, a edytor służy do budowania i publikowania.
+**Runs** w nagłówku edytora i ikona runów na karcie workflow otwierają jego runy,
+od najnowszego, każdy z jego statusem, tym, czy uruchomił draft czy opublikowaną
+wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run**
+uruchamia run ręcznie: **Test the draft** uruchamia draft w obecnym stanie, a
+**Published version** uruchamia żywą wersję. Jego **Input (JSON)** to to, co krok
+**Input** workflow przekazuje dalej jako `payload`.
+
+Run otwiera się na czasie trwania, koszcie i liczbie wykonanych kroków, a potem na
+błędzie, którym się zakończył, jeśli taki był. Obok jest graf, który wykonał, z każdym
+krokiem oznaczonym tym, co run z nim zrobił, jego próbami i błędem, oraz wyszarzonymi
+krokami, do których nigdy nie dotarł. **Open loop body** pokazuje w ten sam sposób
+iteracje pętli.
+
+Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
+Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje.
 
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 
@@ -274,3 +315,8 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu.
+- **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą
+  portem **Error**; ciało kroku **For each** wykonuje się od **Loop item** do **Loop
+  result** raz na każdy element.
+- **Runs** wymienia każdy run, **Start a run** testuje draft albo uruchamia
+  opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.

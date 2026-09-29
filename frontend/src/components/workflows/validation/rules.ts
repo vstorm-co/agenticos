@@ -23,6 +23,7 @@ import {
   typesCompatible,
   UNKNOWN,
 } from "./schema";
+import { ERROR_PORT } from "@/lib/workflows/ports";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
 
@@ -371,7 +372,10 @@ export function rule8NoParallelFanout(
   for (const [nodeId, byPort] of byNode) {
     const definition = definitionFor(definitions, nodeId);
     if (definition !== null && definition.kind === "control") continue;
-    const portsWithEdges = [...byPort.entries()].filter(([, edges]) => edges.length > 0);
+    // A routed failure leaves by `error` instead of by the step's output, never beside it.
+    const portsWithEdges = [...byPort.entries()].filter(
+      ([port, edges]) => edges.length > 0 && port !== ERROR_PORT,
+    );
     if (portsWithEdges.length > 1) problems.push(node(nodeId, "fanout-multiple-ports"));
     for (const [port, edges] of byPort) {
       if (edges.length > 1) {

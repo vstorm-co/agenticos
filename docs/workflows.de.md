@@ -1,5 +1,5 @@
 ---
-source_sha: "4c0274482af7"
+source_sha: "6947676d3d3e"
 ---
 
 # Workflows { #workflows }
@@ -26,10 +26,11 @@ einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
 bereits verbundene Schritte für einen linearen Ablauf. Wählen Sie eine mit **Use**,
 und Sie landen im Editor.
 
-Die Liste gruppiert jeden Workflow, den Sie sehen können, nach Status — **Drafts**,
-die Sie noch bauen, die **Published** Versionen, die laufen, und die **Archived** —
-und **Filter by status** grenzt auf einen ein. Das Badge jeder Zeile zeigt
-**Draft**, **Published** oder **Archived**.
+Die Liste zeigt jeden Workflow, den Sie sehen können, als Karte: seinen Status,
+wer ihn erreichen kann, ob eine Version live ist und wann er zuletzt bearbeitet
+wurde. **Filter by status** grenzt sie auf **Drafts** ein, die Sie noch bauen, auf die
+**Published**, die laufen, oder auf die **Archived**. Von einer Karte aus öffnen Sie
+den Editor, die Runs des Workflows oder eine Kopie.
 
 **Duplicate** kopiert den aktuellen Draft eines Workflows in einen frischen namens
 *{name} (copy)*. Ein Duplikat ist ein neuer Workflow mit eigenem Draft, nie eine
@@ -46,24 +47,34 @@ Kopie einer veröffentlichten Version.
 ## Die Zeichenfläche und die Palette { #the-canvas-and-the-palette }
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
-Workflows erscheinen. Ein **Knoten** ist ein Schritt; eine **Kante** ist eine
-Verbindung, die die Reihenfolge festlegt: Der Schritt, auf den sie zeigt, läuft nach dem,
-von dem sie ausgeht. Die Zeichenfläche
-lässt sich verschieben und zoomen, und ihre Bedienelemente sitzen in der Ecke —
-eine Minimap gibt es nicht.
+Workflows erscheinen, und der Editor gibt ihr das ganze Fenster unter der
+Kopfzeile: die Palette links, das **Properties**-Panel rechts. Ein **Knoten** ist ein
+Schritt; eine **Kante** ist eine Verbindung, die die Reihenfolge festlegt: Der
+Schritt, auf den sie zeigt, läuft nach dem, von dem sie ausgeht.
 
-Die **Nodes**-Palette an der Seite listet die Knotentypen, die Ihr Deployment
-registriert hat, gruppiert nach Kategorie, jeder mit Icon, Namen und Beschreibung.
-**Search nodes** filtert die Liste. Sie fügen einen Schritt auf zwei Wegen hinzu:
+Jeder Knoten ist
+eine Karte mit dem Icon des Schritts, seinem Namen und einer Zeile dazu, wofür er
+eingerichtet ist - eine Bedingung, eine URL, die Zahl gemappter Felder -, und ein
+Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
+**false**, **Each item** und **Done** und einen roten **Error**-Port bei einem
+Schritt, der seine Fehler behandelt. Die Zeichenfläche lässt sich verschieben und
+zoomen, und ihre Bedienelemente sitzen in der Ecke - eine Minimap gibt es nicht.
+
+Die **Nodes**-Palette listet die Knotentypen, die Ihr Deployment registriert hat,
+in Gruppen, die der Lesart eines Workflows folgen - **Start and finish**, **Agents**,
+**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** -, jede
+Gruppe lässt sich einklappen, jede Zeile hat Icon, Namen und Beschreibung. **Search
+nodes** filtert die Liste. Sie fügen einen Schritt auf zwei Wegen hinzu:
 
 - **Ziehen** Sie einen Knoten aus der Palette auf die Zeichenfläche — der Weg für
   den Zeiger.
 - **Klicken** Sie einen Knoten, um ihn nahe der Mitte der Ansicht hinzuzufügen —
   der Weg für Tastatur und Touch, der kein Ziehen braucht.
 
-Die Palette zeigt, was dort gültig ist, wo Sie gerade sind. Innerhalb des Körpers
-einer Schleife verbirgt sie Knotenarten, die dort nicht leben können, sodass die
-Liste, die Sie sehen, im gerade bearbeiteten Scope immer hinzufügbar ist.
+Die Palette zeigt, was dort gültig ist, wo Sie gerade sind. **Loop item** und
+**Loop result** erscheinen nur im Körper einer Schleife, weil sie außerhalb davon
+nichts bedeuten, und eine Schleife wird angeboten, bis Schleifen so tief
+verschachtelt sind, wie das Veröffentlichen erlaubt.
 
 !!! note "Der Knotenkatalog wächst mit der Zeit"
 
@@ -127,6 +138,25 @@ Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, 
 hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
 Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
 
+### Wenn ein Schritt langsam ist oder fehlschlägt { #when-a-step-is-slow-or-fails }
+
+Unter den Feldern eines Schritts legt **When it is slow or fails** seine Policy
+fest. **Handle errors** gibt dem Schritt einen **Error**-Port: Ein Fehler, den seine
+Wiederholungen nicht erledigt haben, verlässt ihn darüber, zu einem **Handle
+error**-Schritt oder was immer Sie anschließen, statt den Run fehlschlagen zu lassen.
+**Tries** ist, wie oft der Schritt insgesamt versucht wird, und **Wait between tries**
+und **First wait** legen die Pause zwischen den Versuchen fest. Ein Schritt, dessen
+Aufruf nicht sicher wiederholbar ist, etwa das Ausführen eines Agenten, sagt das und
+wird nie wiederholt. **Time limit** bricht einen Aufruf nach so vielen Sekunden ab.
+Was jede Einstellung zur Laufzeit tut, steht in der
+[Knoten-Referenz](reference/workflow-nodes.md#error-handling).
+
+Ein Binding an einen Wert ohne deklarierte Form - das aktuelle Element einer
+Schleife, den Payload eines Triggers - bietet unter der Quelle ein Feld **Field inside
+it**, in das Sie den Pfad innerhalb dieses Werts tippen, etwa `record_id` oder
+`fields.Email`. Der Run prüft diesen Pfad, wenn der Schritt ausgeführt wird, denn nur
+der Run weiß, was der Wert enthält.
+
 ## Verbindungen und foreach-Scope { #connections-and-foreach-scope }
 
 Sie ziehen eine Kante, indem Sie einen Ausgangs-Port eines Knotens mit einem
@@ -155,14 +185,20 @@ erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläc
 Verbindungen einer veröffentlichten Version lassen sich nicht auswählen und daher
 nicht löschen.
 
-Ein `foreach`-Schritt führt seinen Körper einmal pro Element in einer Liste aus.
-Der Körper ist kein eigenes Dokument — er ist Teil desselben flachen Graphen, nur
-für sich gezeigt. **Open body** am Schritt betritt diese Ansicht, und die
-Brotkrumen-Leiste **Workflow scope** zeigt, wo Sie sind, von **Workflow** an der
-Wurzel bis zu der Schleife, die Sie geöffnet haben. Jede Krume navigiert wieder
-hinaus. Die Palette und die Binding-Quellen folgen dem Scope, in dem Sie sind,
-sodass das, was Sie hinzufügen und woraus Sie lesen können, immer die auf dieser
-Ebene gültigen sind.
+Ein **For each**-Schritt führt seinen Körper einmal pro Element einer Liste aus.
+Der Körper ist kein eigenes Dokument - er ist Teil desselben flachen Graphen, für
+sich angezeigt. **Edit loop body** am Schritt, das angibt, wie viele Schritte der
+Körper enthält, öffnet diese Ansicht, und die **Workflow scope**-Brotkrumen in der
+Ecke der Zeichenfläche zeigen, wo Sie sind, von **Workflow** hinunter zur geöffneten
+Schleife. Jede Krume führt wieder hinaus.
+
+Ein Körper beginnt bei **Loop item**, mit
+dem der **Each item**-Port der Schleife verbunden ist, und endet bei **Loop result**;
+nichts darin führt zurück zur Schleife, die über **Done** weitergeht, sobald jedes
+Element den Körper durchlaufen hat. Palette und Binding-Quellen folgen dem Scope,
+in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
+lief. Was die Schleife tut, steht in der
+[Knoten-Referenz](reference/workflow-nodes.md#loops).
 
 ## Validierungs-Rückmeldung { #validation-feedback }
 
@@ -217,9 +253,9 @@ entsteht.
 
 Das Veröffentlichen beendet Ihr Bearbeiten nicht. Der Draft existiert weiter
 unabhängig von jeder veröffentlichten Version, sodass Sie ihn sofort weiter
-bearbeiten, und jede veröffentlichte Version wird unter **Version history** mit
-ihrer Release note gelistet. **View** öffnet eine frühere Version schreibgeschützt
-— eine veröffentlichte Version ist schreibgeschützt, und um Änderungen zu machen,
+bearbeiten. **History** in der Kopfzeile des Editors öffnet jede veröffentlichte
+Version mit ihrer Release note. **View** öffnet eine frühere Version schreibgeschützt
+- eine veröffentlichte Version ist schreibgeschützt, und um Änderungen zu machen,
 bearbeiten Sie den Draft weiter.
 
 Um zu einer veröffentlichten Version zurückzukehren, öffnen Sie sie mit **View** und
@@ -236,11 +272,23 @@ festgehalten.
 
 ## Einen Workflow ausführen { #running-a-workflow }
 
-Der **Runs**-Tab eines Workflows ist der Ort, an dem seine Test- und Produktions-Runs
-erscheinen werden, Schritt für Schritt mit ihren Inputs, Ausgaben und Kosten. Die
-Run-Historie kommt, sobald der Workflow-Runner ausgeliefert wird; bis dahin zeigt
-der Tab, dass sie noch nicht verfügbar ist, und der Editor dient dem Bauen und
-Veröffentlichen.
+**Runs** in der Kopfzeile des Editors und das Runs-Icon auf der Karte eines
+Workflows öffnen seine Runs, die neuesten zuerst, jeder mit seinem Status, ob er den
+Draft oder die veröffentlichte Version ausgeführt hat, was ihn gestartet hat, wann,
+wie lange und zu welchen Kosten. **Start a run** startet einen von Hand: **Test the
+draft** führt den Draft in seinem jetzigen Stand aus, **Published version** die
+Live-Version. Sein **Input (JSON)** ist das, was der **Input**-Schritt des Workflows
+als `payload` weitergibt.
+
+Ein Run öffnet mit seiner Dauer, seinen Kosten und der Zahl erledigter Schritte,
+dann mit dem Fehler, mit dem er endete, falls es einen gab. Daneben steht der Graph,
+den er ausgeführt hat, jeder Schritt markiert mit dem, was der Run mit ihm getan hat,
+seinen Versuchen und seinem Fehler, und die Schritte, die er nie erreicht hat,
+blass. **Open loop body** zeigt die Iterationen einer Schleife auf dieselbe Weise.
+
+Die Ausgabe des Runs und jeder Schritt, den er gemacht hat, Iteration für Iteration,
+stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
+run** stoppt ihn.
 
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 
@@ -303,3 +351,9 @@ Kopieren und Einfügen haben drei Grenzen:
   draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
   schreibgeschützten veröffentlichten Version wirkungslos.
+- Die **Policy** eines Schritts legt seine Versuche, sein Zeitlimit und fest, ob
+  seine Fehler über einen **Error**-Port hinausgehen; der Körper eines **For
+  each**-Schritts läuft einmal pro Element von **Loop item** bis **Loop result**.
+- **Runs** listet jeden Run, **Start a run** testet den Draft oder führt die
+  veröffentlichte Version aus, und ein Run zeigt seinen Graphen Schritt für Schritt,
+  wie er abgelaufen ist.

@@ -363,6 +363,34 @@ async def list_node_runs_of(
     return list(result.scalars().all())
 
 
+async def list_node_runs_page(
+    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID, skip: int, limit: int
+) -> tuple[list[NodeRun], int]:
+    """A page of a run's node runs, in the order they were created, and how many there are."""
+    where = [NodeRun.workflow_run_id == workflow_run_id, NodeRun.organization_id == organization_id]
+    total = await db.scalar(select(func.count()).select_from(NodeRun).where(*where)) or 0
+    result = await db.execute(
+        select(NodeRun)
+        .where(*where)
+        .order_by(NodeRun.created_at, NodeRun.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), total
+
+
+async def list_attempts_of(db: AsyncSession, *, node_run_ids: Sequence[UUID]) -> list[NodeAttempt]:
+    """Every attempt of the named node runs, oldest first per node run."""
+    if not node_run_ids:
+        return []
+    result = await db.execute(
+        select(NodeAttempt)
+        .where(NodeAttempt.node_run_id.in_(node_run_ids))
+        .order_by(NodeAttempt.attempt_no)
+    )
+    return list(result.scalars().all())
+
+
 async def list_live_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
     """A run's `NodeRun`s not yet ended - what ending the run has to close."""
     result = await db.execute(

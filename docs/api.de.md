@@ -1,5 +1,5 @@
 ---
-source_sha: "04049240d780"
+source_sha: "1bc1faed14af"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -126,6 +126,12 @@ Runs, älteste zuerst, mit einem `next_cursor`, den Sie als `after` zurückgeben
 Er bleibt gleich, solange nichts Neueres existiert, sodass Abfragen damit einem
 laufenden Run folgen. Wer was davon darf, steht unter
 [Berechtigungen](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` listet jeden Schritt, den der Run gemacht
+hat, Schleifeniterationen eingeschlossen, jeden mit seinem `scope_path`, Status,
+seinen Versuchen, Kosten und dem typisierten Fehler, mit dem er zuletzt
+fehlschlug, und `GET /api/v1/workflow-runs/{id}/graph` liefert den Graphen, den der
+Run ausführt: den seiner Version oder den Draft-Snapshot eines Test-Runs.
 
 ## Die ML-Dienste { #the-ml-services }
 

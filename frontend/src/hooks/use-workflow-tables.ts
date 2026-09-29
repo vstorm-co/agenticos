@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
-import { getTable, listTables } from "@/lib/workflows/tables-api";
+import { getTable, listTables } from "@/lib/tables-api";
 
 /** The largest page the tables route will answer (`limit: le=100`). */
 const MAX_TABLES_PAGE = 100;

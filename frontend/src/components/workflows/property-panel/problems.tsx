@@ -58,12 +58,15 @@ export function WarningBadge({ count }: { count: number }) {
 export function ProblemsFooter({
   problems,
   onSelectNode,
+  defaultOpen = false,
 }: {
   problems: readonly ValidationProblem[];
   onSelectNode: (nodeId: Uuid) => void;
+  /** Open from the start - where the list is what the panel has to show. */
+  defaultOpen?: boolean;
 }) {
   const t = useTranslations("workflows");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   if (problems.length === 0) return null;
 
   return (

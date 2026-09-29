@@ -4,7 +4,7 @@ One page, every module, described. Screenshots follow the theme you are
 reading the site in - switch it with the toggle in the header and every image
 on this page switches with it.
 
-Captured 2026-09-01 from a running deployment: 35 screens, 27 of them in both
+Captured 2026-09-01 from a running deployment: 42 screens, 34 of them in both
 themes under `docs/assets/screens/`, named identically in `light/` and `dark/`.
 The eight Builder screens are dark only, and say so where they appear.
 
@@ -129,6 +129,57 @@ Every version this agent has had. The one that was live in March is still readab
 The same agent as a graph: what reaches it, and what it reaches for. A dashed box is something nothing is attached to - a budget with no ceiling of its own reads as a gap rather than as a default.
 
 ![Visual map](assets/screens/dark/builder-visual-map.webp)
+## Workflows and tables
+
+### Workflows
+
+The catalog of automations, one card each: its status, who may reach it, whether a version is live and when it was last edited, with its runs, the editor and a copy a click away.
+
+![Workflows](assets/screens/light/workflows.webp#only-light)
+![Workflows](assets/screens/dark/workflows.webp#only-dark)
+
+### The workflow editor
+
+The whole window is the workspace: the palette in the order a workflow reads, the graph as cards that say what each step is set to do, and the properties of whatever is selected. A loop shows how many steps its body holds.
+
+![The workflow editor](assets/screens/light/workflow-editor.webp#only-light)
+![The workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)
+
+### A loop's body
+
+Inside a loop, one step selected: the table it writes and its columns, a record id read from the loop's current item, the values it writes, and its policy - three tries, and failures routed out of its red **Error** port to an error handler instead of failing the run.
+
+![A loop's body](assets/screens/light/workflow-loop-body.webp#only-light)
+![A loop's body](assets/screens/dark/workflow-loop-body.webp#only-dark)
+
+### Runs
+
+Every run of one workflow, newest first: whether it ran the draft or the published version, what started it, when, for how long and at what cost. **Start a run** tests the draft with an input of your own.
+
+![Runs](assets/screens/light/workflow-runs.webp#only-light)
+![Runs](assets/screens/dark/workflow-runs.webp#only-dark)
+
+### A run
+
+One run, as it happened: the graph it executed with each step marked by what it did, the output it answered with, and every step it took, iteration by iteration.
+
+![A run](assets/screens/light/workflow-run.webp#only-light)
+![A run](assets/screens/dark/workflow-run.webp#only-dark)
+
+### Tables
+
+Typed records your agents, workflows and integrations read and write, one card per table with who may reach it and its schema version.
+
+![Tables](assets/screens/light/tables.webp#only-light)
+![Tables](assets/screens/dark/tables.webp#only-dark)
+
+### A table
+
+The records of one table, after the run above raised every low score: select values as coloured chips, and the same records as a kanban board or a list a tab away.
+
+![A table](assets/screens/light/table-detail.webp#only-light)
+![A table](assets/screens/dark/table-detail.webp#only-dark)
+
 ## Knowledge
 
 ### Knowledge bases
@@ -277,7 +328,7 @@ This deployment's own identity and policy: sign-up, invitations, notices, and wh
 
 ## Recap
 
-- 27 modules have both themes in `docs/assets/screens/`, under the same name;
+- 34 modules have both themes in `docs/assets/screens/`, under the same name;
   the eight Builder screens are dark only.
 - On this site an image is written twice, with `#only-light` and `#only-dark`;
   Material shows the one matching the reader's palette.

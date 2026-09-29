@@ -84,21 +84,21 @@ describe("the workflows list", () => {
     render(<WorkflowsPage />, { wrapper });
 
     // The name is a link; the status badge beside it can carry the same word.
-    expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Draft" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Old" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open Live" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Draft" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Old" })).toBeInTheDocument();
   });
 
   it("narrows to one status when one is chosen", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByRole("link", { name: "Live" });
+    await screen.findByRole("link", { name: "Open Live" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
 
-    expect(screen.getByRole("link", { name: "Draft" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Live" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Old" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Draft" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Live" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open Old" })).toBeNull();
   });
 
   it("offers create and duplicate to a caller who may create", async () => {
@@ -155,19 +155,19 @@ describe("the workflows list past one page", () => {
 
   it("reaches a workflow on a later page through the pager", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByRole("link", { name: "Draft 1" });
+    await screen.findByRole("link", { name: "Open Draft 1" });
 
     // The 61st row is not on the first page of fifty.
-    expect(screen.queryByRole("link", { name: "FindMe" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open FindMe" })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
 
-    expect(await screen.findByRole("link", { name: "FindMe" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open FindMe" })).toBeInTheDocument();
   });
 
   it("finds a status match that is not on the first page", async () => {
     render(<WorkflowsPage />, { wrapper });
-    await screen.findByRole("link", { name: "Draft 1" });
+    await screen.findByRole("link", { name: "Open Draft 1" });
 
     // Filtering to Published surfaces the one match even though it sat past the
     // first page — the false negative Codex flagged, now fixed by filtering the
@@ -175,7 +175,7 @@ describe("the workflows list past one page", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Published" }));
 
-    expect(await screen.findByRole("link", { name: "FindMe" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Draft 1" })).toBeNull();
+    expect(await screen.findByRole("link", { name: "Open FindMe" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Draft 1" })).toBeNull();
   });
 });

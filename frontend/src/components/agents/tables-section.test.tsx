@@ -88,6 +88,29 @@ describe("TablesSection", () => {
     );
   });
 
+  it("changes one table's operations and leaves another's alone", async () => {
+    const onChange = mount({
+      tables: [
+        { table_id: "t-leads", operations: ["read"] },
+        { table_id: "t-orders", operations: ["read"] },
+      ],
+    });
+
+    const [, ordersUpdate] = screen.getAllByRole("button", { name: "Update" });
+    await userEvent.click(ordersUpdate as HTMLElement);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: {
+          tables: [
+            { table_id: "t-leads", operations: ["read"] },
+            { table_id: "t-orders", operations: ["read", "update"] },
+          ],
+        },
+      }),
+    );
+  });
+
   it("takes an operation off, and takes a table away", async () => {
     const onChange = mount({ tables: [{ table_id: "t-leads", operations: ["read", "create"] }] });
 

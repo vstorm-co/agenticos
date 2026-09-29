@@ -51,6 +51,7 @@ export {
   outputFieldNames,
   resolveFieldType,
   fieldType,
+  isDynamic,
   typesCompatible,
   schemaTypeToken,
 } from "./schema";

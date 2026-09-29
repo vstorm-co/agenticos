@@ -47,6 +47,7 @@ vi.mock("@/components/workflows/pickers", () => ({
       />
       <button type="button" aria-label="clear-table" onClick={() => onChange(null)} />
       <span>{value === null ? "table-none" : "table-set"}</span>
+      {(value as { column_ids?: unknown } | null)?.column_ids === null && <span>columns-all</span>}
     </div>
   ),
   SecretPicker: ({
@@ -248,6 +249,16 @@ describe("config leaves", () => {
     });
     await userEvent.click(screen.getByLabelText("clear-table"));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("reads a pinned table that leaves out what the server defaults", async () => {
+    const { updateNodeConfig } = renderForm({
+      config: { table: { table_id: "t", schema_version: 1 } },
+    });
+    expect(screen.getByText("table-set")).toBeVisible();
+    expect(screen.getByText("columns-all")).toBeVisible();
+    await userEvent.click(screen.getByLabelText("set-table"));
+    expect(updateNodeConfig).toHaveBeenCalled();
   });
 
   it("pins and clears a secret", async () => {

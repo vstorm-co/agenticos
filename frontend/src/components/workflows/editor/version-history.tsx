@@ -90,11 +90,10 @@ function VersionPreviewDialog({
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
-  const confirmRestore = async () => {
-    if (onRestore === undefined) return;
+  const restore = async (restoreVersion: (version: WorkflowVersionRead) => Promise<boolean>) => {
     setRestoring(true);
     try {
-      if (await onRestore(version)) onRestored();
+      if (await restoreVersion(version)) onRestored();
     } finally {
       setRestoring(false);
       setConfirming(false);
@@ -123,22 +122,24 @@ function VersionPreviewDialog({
         )}
       </div>
       {onRestore !== undefined && (
-        <DialogFooter>
-          <Button onClick={() => setConfirming(true)} disabled={restoring}>
-            <RotateCcw className="h-4 w-4" aria-hidden />
-            {t("versionRestore")}
-          </Button>
-        </DialogFooter>
+        <>
+          <DialogFooter>
+            <Button onClick={() => setConfirming(true)} disabled={restoring}>
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              {t("versionRestore")}
+            </Button>
+          </DialogFooter>
+          <ConfirmDialog
+            open={confirming}
+            onOpenChange={setConfirming}
+            title={t("versionRestoreTitle", { version: version.version })}
+            description={t("versionRestoreBody", { version: version.version })}
+            confirmLabel={t("versionRestore")}
+            loading={restoring}
+            onConfirm={() => restore(onRestore)}
+          />
+        </>
       )}
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={t("versionRestoreTitle", { version: version.version })}
-        description={t("versionRestoreBody", { version: version.version })}
-        confirmLabel={t("versionRestore")}
-        loading={restoring}
-        onConfirm={confirmRestore}
-      />
     </>
   );
 }

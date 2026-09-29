@@ -820,6 +820,8 @@ def _types_compatible(source: Any, target: Any) -> bool:
         _is_dynamic(source) or (isinstance(source, type) and issubclass(source, BaseModel))
     ):
         return True
+    if get_origin(source) in _SEQUENCES and get_origin(target) in _SEQUENCES:
+        return _sequences_compatible(source, target)
     source_members, target_members = _members(source), _members(target)
     if source_members == [source] and target_members == [target]:
         return _type_name(source) == _type_name(target)
@@ -830,6 +832,22 @@ def _types_compatible(source: Any, target: Any) -> bool:
     return all(
         any(_types_compatible(member, candidate) for candidate in target_members)
         for member in source_members
+    )
+
+
+_SEQUENCES = (list, tuple)
+
+
+def _sequences_compatible(source: Any, target: Any) -> bool:
+    """A list and a tuple are one JSON array: they bind to each other by element type.
+
+    A `table.record.query`'s `records` is a tuple and a loop's `items` a list;
+    both arrive as the same array, so only what they hold decides - and a
+    `list[Any]` takes anything.
+    """
+    target_item = next((arg for arg in get_args(target) if arg is not Ellipsis), Any)
+    return all(
+        _types_compatible(item, target_item) for item in get_args(source) if item is not Ellipsis
     )
 
 

@@ -43,6 +43,7 @@ export function PropertyPanel() {
       catalog={catalog}
       problems={problems}
       updateNodeConfig={store.updateNodeConfig}
+      updateNodePolicy={store.updateNodePolicy}
       upsertBinding={store.upsertBinding}
       removeBinding={store.removeBinding}
       onSelectNode={selectNode}

@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,6 +89,11 @@ async function renderPage() {
   });
 }
 
+/** History lives in a sheet the header's button opens. */
+async function openHistory() {
+  await userEvent.click(await screen.findByRole("button", { name: "History" }));
+}
+
 beforeEach(() => {
   state.canEdit = true;
   state.status = "draft";
@@ -108,6 +114,7 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("editor-actions")).toBeInTheDocument();
     expect(screen.getByTestId("property-panel")).toBeInTheDocument();
     expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
+    await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "true");
   });
 
@@ -123,6 +130,7 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
     // History stays readable, but a version cannot be restored over the draft.
+    await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
   });
 
@@ -140,6 +148,14 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
     expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
+    await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
+  });
+
+  it("closes the history sheet again", async () => {
+    await renderPage();
+    await openHistory();
+    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(screen.queryByTestId("version-history")).not.toBeInTheDocument();
   });
 });

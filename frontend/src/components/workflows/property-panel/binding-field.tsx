@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
+  Input,
   Label,
+  Textarea,
   Select,
   SelectContent,
   SelectItem,
@@ -13,19 +15,21 @@ import {
   Switch,
 } from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { isDynamic } from "@/components/workflows/validation";
 import type { Binding, NodeCatalog, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   bindingFor,
   candidateByKey,
-  candidateKey,
+  candidateForBinding,
   isNodeOutput,
   literalBinding,
   literalValueOf,
   nodeOutputBinding,
   sourceCandidates,
 } from "./bindings";
-import { labelOf, singleFieldSchema, type Schema } from "./schema-model";
+import type { SourceCandidate } from "./bindings";
+import { labelOf, singleFieldSchema, unwrapOptional, type Schema } from "./schema-model";
 
 export interface BindingFieldProps {
   /** The node this field belongs to. */
@@ -103,26 +107,22 @@ export function BindingField({
     }
   };
 
+  const current = candidateForBinding(candidates, binding);
+  const bindTo = (candidate: SourceCandidate, extraPath: readonly string[]) =>
+    onUpsert(
+      nodeOutputBinding(targetNodeId, targetField, candidate.nodeId, candidate.port, [
+        ...candidate.fieldPath,
+        ...extraPath,
+      ]),
+    );
+
   const chooseSource = (key: string) => {
     const candidate = candidateByKey(candidates, key);
     // The `Select` only emits a candidate's own key, so a lookup always resolves.
-    if (candidate !== undefined) {
-      onUpsert(
-        nodeOutputBinding(
-          targetNodeId,
-          targetField,
-          candidate.nodeId,
-          candidate.port,
-          candidate.fieldPath,
-        ),
-      );
-    }
+    if (candidate !== undefined) bindTo(candidate, []);
   };
 
-  const currentKey =
-    binding !== undefined && binding.source.kind === "node_output"
-      ? candidateKey(binding.source.node_id, binding.source.port, binding.source.field_path)
-      : "";
+  const currentKey = current?.candidate.key ?? "";
 
   const changeLiteral = (next: Record<string, unknown>) => {
     const value = next[name];
@@ -177,8 +177,48 @@ export function BindingField({
               </SelectContent>
             </Select>
           )}
+          {current?.candidate.dynamic && (
+            <div className="space-y-1">
+              <Label htmlFor={`${idPrefix}-path`} className="text-muted-foreground text-xs">
+                {t("bindingPathLabel")}
+              </Label>
+              <Input
+                // Uncontrolled, so a half-typed path is not written on every key;
+                // keyed so another node's or another source's path starts fresh.
+                key={`${targetNodeId}:${current.candidate.key}`}
+                id={`${idPrefix}-path`}
+                className="font-mono text-xs"
+                placeholder={t("bindingPathPlaceholder")}
+                disabled={disabled}
+                defaultValue={current.extraPath.join(".")}
+                onBlur={(event) =>
+                  bindTo(
+                    current.candidate,
+                    event.target.value
+                      .split(".")
+                      .map((part) => part.trim())
+                      .filter((part) => part.length > 0),
+                  )
+                }
+              />
+            </div>
+          )}
           {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
         </div>
+      ) : isDynamic(unwrapOptional(schema)) ? (
+        <JsonLiteral
+          key={`${targetNodeId}:${targetField}`}
+          id={`${idPrefix}-json`}
+          label={label}
+          value={literalValue}
+          error={error}
+          disabled={disabled}
+          onChange={(value) =>
+            value === undefined
+              ? onRemove(targetNodeId, targetField)
+              : onUpsert(literalBinding(targetNodeId, targetField, value))
+          }
+        />
       ) : (
         <SchemaForm
           schema={singleFieldSchema(name, schema, required)}
@@ -189,6 +229,60 @@ export function BindingField({
           onChange={changeLiteral}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * A free-form value typed as JSON - a record's `values`, an error's `details` -
+ * which no generated control can edit. Parsed when the box loses focus; a value
+ * that does not parse is reported and not written.
+ */
+function JsonLiteral({
+  id,
+  label,
+  value,
+  error,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: unknown;
+  error?: string;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const [invalid, setInvalid] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea
+        id={id}
+        className="font-mono text-xs"
+        rows={4}
+        disabled={disabled}
+        // i18n-exempt: JSON syntax shown as an example, and braces are ICU syntax in the catalog.
+        placeholder='{"Score": 100}'
+        defaultValue={value === undefined ? "" : JSON.stringify(value, null, 2)}
+        onBlur={(event) => {
+          const text = event.target.value.trim();
+          if (text === "") {
+            setInvalid(false);
+            onChange(undefined);
+            return;
+          }
+          try {
+            onChange(JSON.parse(text));
+            setInvalid(false);
+          } catch {
+            setInvalid(true);
+          }
+        }}
+      />
+      {invalid && <p className="text-destructive text-xs">{t("bindingJsonInvalid")}</p>}
+      {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }

@@ -101,7 +101,13 @@ describe("candidateKey / candidateByKey", () => {
 });
 
 describe("sourceCandidates", () => {
-  const label = { nodeLabel: "Echo · A", portLabel: "out", nodeId: "A", port: "out" };
+  const label = {
+    nodeLabel: "Echo · A",
+    portLabel: "out",
+    nodeId: "A",
+    port: "out",
+    dynamic: false,
+  };
 
   it("offers a reachable, type-compatible upstream output port", () => {
     const candidates = sourceCandidates(chain, catalog, "B", DEBUG_ECHO_OUTPUT);

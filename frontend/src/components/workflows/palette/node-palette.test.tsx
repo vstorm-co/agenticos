@@ -84,12 +84,22 @@ describe("NodePalette", () => {
   it("groups the catalog by category with a node under each", () => {
     render(<NodePalette nodes={CATALOG} />);
 
-    expect(screen.getByRole("heading", { name: "Network" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Timing" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Network" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Timing" })).toBeVisible();
     // Two nodes share the Logic category — one group header, both rows under it.
-    const logic = screen.getByRole("heading", { name: "Logic" }).parentElement as HTMLElement;
+    const logic = screen.getByRole("button", { name: "Logic" }).parentElement as HTMLElement;
     expect(within(logic).getByRole("button", { name: "Add Branch" })).toBeVisible();
     expect(within(logic).getByRole("button", { name: "Add For each" })).toBeVisible();
+  });
+
+  it("folds a group away and back", async () => {
+    render(<NodePalette nodes={CATALOG} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Logic" }));
+    expect(screen.queryByRole("button", { name: "Add Branch" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Logic" }));
+    expect(addButton("Branch")).toBeVisible();
   });
 
   it("shows an empty message when the catalog holds no node types", () => {
@@ -155,8 +165,8 @@ describe("NodePalette", () => {
     expect(setData).toHaveBeenCalledWith(NODE_DRAG_MIME, JSON.stringify(FETCH));
   });
 
-  it("hides a boundary-shaped node inside a foreach body but keeps the rest", () => {
-    seedStore(["fe-1"]);
+  it("hides a loop once loops are nested as deep as publishing allows", () => {
+    seedStore(["fe-1", "fe-2", "fe-3"]);
     render(<NodePalette nodes={CATALOG} />);
 
     expect(screen.queryByRole("button", { name: "Add For each" })).toBeNull();

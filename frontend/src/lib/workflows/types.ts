@@ -57,6 +57,8 @@ export interface NodeDefinition {
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
+  /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
+  loop_body_only?: boolean;
 }
 
 /** Every registered node type — the palette's backing list. Mirrors `NodeCatalog`. */
@@ -137,7 +139,26 @@ export interface NodeInstance {
   definition_id: string;
   definition_version: number;
   config: Record<string, unknown>;
+  policy?: NodePolicy | null;
   layout: NodePosition;
+}
+
+/** How many tries a failing step gets, and the wait between them. Mirrors `RetryPolicy`. */
+export interface RetryPolicy {
+  max_attempts: number;
+  backoff?: "fixed" | "exponential";
+  base_delay_seconds?: number;
+  max_delay_seconds?: number;
+}
+
+/**
+ * One node's time limit, retries and failure routing, beside its config. Mirrors
+ * `NodePolicy`. `on_error: "route"` gives the node an `error` output port.
+ */
+export interface NodePolicy {
+  timeout_seconds?: number | null;
+  retry?: RetryPolicy | null;
+  on_error?: "fail_run" | "route";
 }
 
 /** One control-flow or data-flow connection between two node ports. Mirrors `Edge`. */
@@ -324,4 +345,86 @@ export function nodeDisplayName(
   disambiguate = false,
 ): string {
   return disambiguate ? `${definitionName} · ${shortNodeId(nodeId)}` : definitionName;
+}
+
+// Runs - `app/schemas/workflow_run.py`
+
+export type WorkflowRunStatus =
+  | "queued"
+  | "running"
+  | "waiting_approval"
+  | "waiting_retry"
+  | "needs_attention"
+  | "budget_exceeded"
+  | "failed"
+  | "cancelled"
+  | "succeeded";
+
+export type NodeRunStatus =
+  | "pending"
+  | "running"
+  | "waiting"
+  | "needs_attention"
+  | "succeeded"
+  | "failed"
+  | "skipped"
+  | "cancelled";
+
+/** One run of a workflow. Mirrors `WorkflowRunRead`. */
+export interface WorkflowRunRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_version_id: Uuid | null;
+  mode: "real" | "test";
+  status: WorkflowRunStatus;
+  triggered_by: string;
+  budget_limit: number | null;
+  spent_cost: number;
+  cost_is_partial: boolean;
+  deadline_at: string | null;
+  paused_reason: string | null;
+  error: { code: string; message: string; details?: Record<string, unknown> } | null;
+  output: Record<string, unknown> | null;
+  root_run_id: Uuid;
+  causation_run_id: Uuid | null;
+  depth: number;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string | null;
+}
+
+export interface WorkflowRunList {
+  items: WorkflowRunRead[];
+  total: number;
+}
+
+/** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
+export interface WorkflowNodeRunRead {
+  id: Uuid;
+  node_instance_id: Uuid;
+  scope_path: { loop_node_id: Uuid; index: number }[];
+  status: NodeRunStatus;
+  waiting_reason: string | null;
+  attempts: number;
+  cost: number;
+  error: { code: string; message: string; details?: Record<string, unknown> } | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+export interface WorkflowNodeRunList {
+  items: WorkflowNodeRunRead[];
+  total: number;
+}
+
+/** What starting a run sends. Mirrors `WorkflowRunStart`. */
+export interface WorkflowRunStart {
+  workflow_id: Uuid;
+  mode?: "real" | "test";
+  input?: Record<string, unknown>;
+}
+
+/** Whether a run has ended for good. */
+export function isRunTerminal(status: WorkflowRunStatus): boolean {
+  return ["succeeded", "failed", "cancelled", "budget_exceeded"].includes(status);
 }

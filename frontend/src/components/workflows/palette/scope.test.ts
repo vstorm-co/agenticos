@@ -54,11 +54,22 @@ describe("isAddableInScope", () => {
     expect(isAddableInScope(foreach, [])).toBe(true);
   });
 
-  it("hides a boundary-shaped node once nesting reaches the limit", () => {
-    expect(isAddableInScope(foreach, ["fe-1"])).toBe(false);
+  it("offers a loop inside a loop until nesting reaches the publish limit", () => {
+    expect(isAddableInScope(foreach, ["fe-1", "fe-2"])).toBe(true);
+    expect(isAddableInScope(foreach, ["fe-1", "fe-2", "fe-3"])).toBe(false);
   });
 
-  it("caps foreach nesting at the outermost level", () => {
-    expect(MAX_SCOPE_NESTING_DEPTH).toBe(1);
+  it("caps nesting where publishing does", () => {
+    expect(MAX_SCOPE_NESTING_DEPTH).toBe(3);
+  });
+
+  it("offers a loop's own item and result steps only inside a body", () => {
+    const item = def({ id: "loop.item", kind: "control", loop_body_only: true });
+    expect(isAddableInScope(item, [])).toBe(false);
+    expect(isAddableInScope(item, ["fe-1"])).toBe(true);
+  });
+
+  it("never offers the debug nodes", () => {
+    expect(isAddableInScope(def({ id: "debug.echo", category: "debug" }), [])).toBe(false);
   });
 });

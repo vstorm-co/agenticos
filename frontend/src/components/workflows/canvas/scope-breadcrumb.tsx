@@ -56,14 +56,17 @@ export function ScopeBreadcrumb({ catalog }: ScopeBreadcrumbProps) {
   const rootLabel = t("scopeBreadcrumbRoot");
 
   return (
-    <nav aria-label={t("scopeBreadcrumbLabel")} className="mb-2">
+    <nav
+      aria-label={t("scopeBreadcrumbLabel")}
+      className="bg-background/90 border-border absolute top-3 left-3 z-10 rounded-lg border px-3 py-1.5 shadow-sm backdrop-blur"
+    >
       <ol className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
         <li>
           <button
             type="button"
             onClick={() => setScopePath([])}
             aria-label={t("scopeBreadcrumbNavigate", { name: rootLabel })}
-            className="hover:text-foreground underline"
+            className="hover:text-foreground"
           >
             {rootLabel}
           </button>
@@ -83,7 +86,7 @@ export function ScopeBreadcrumb({ catalog }: ScopeBreadcrumbProps) {
                   type="button"
                   onClick={() => setScopePath(scopePath.slice(0, index + 1))}
                   aria-label={t("scopeBreadcrumbNavigate", { name: crumb.label })}
-                  className="hover:text-foreground underline"
+                  className="hover:text-foreground"
                 >
                   {crumb.label}
                 </button>

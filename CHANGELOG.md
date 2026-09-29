@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The workflow editor, its runs and the tables pages look and work like the
+  rest of the console.** The editor fills the window: a palette grouped the way
+  a workflow reads, with loop steps offered only inside a loop and the debug
+  nodes gone; nodes drawn as cards that say what each step is set to do and
+  label every port (**true**/**false**, **Each item**/**Done**, a red **Error**);
+  and a properties panel with a policy section for retries, a time limit and
+  error routing, a real table picker, a path box for values with no fixed shape
+  and a JSON editor for free-form literals. History moved into a sheet. A
+  workflow's **Runs** page lists its runs and starts one by hand, and a run shows
+  its figures, its error, its output, every step it took and its graph coloured
+  by what each step did, loop iterations included - read from two new routes,
+  `GET /workflow-runs/{id}/nodes` and `GET /workflow-runs/{id}/graph`. Workflows
+  and tables list as cards, and a table's select values show as chips. The
+  editor, runs and tables are on the [screens page](docs/screens.md) in both
+  themes (#1790).
 - **Workflows can loop over a list and handle their own errors.**
   `control.foreach` runs its body once per item, in order and one at a time,
   from `loop.item` to `loop.yield`, and hands on every result in input order.
@@ -115,6 +130,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A list binds to a tuple and back.** Publishing refused binding a
+  `table.record.query`'s `records` into a loop's `items`, because one is a tuple
+  and the other a list; both are one JSON array, so only their element types are
+  compared now. The editor also stopped flagging bindings through a value with
+  no declared shape, and routed error ports, that publishing accepts (#1790).
+- **Starting or reading a workflow run from the console reached nothing.** The
+  console never forwarded `/workflow-runs`, so nothing it asked about runs got an
+  answer; it does now (#1790).
 - **Virtual Tables: what a tenant can store is now bounded.** History, receipts and
   the outbox had no ceiling, so one member could grow the shared database with tiny
   requests (#1823). A record's values are capped at `TABLES_MAX_RECORD_BYTES`

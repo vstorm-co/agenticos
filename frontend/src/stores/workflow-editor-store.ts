@@ -15,6 +15,7 @@ import type {
   Binding,
   NodeDefinition,
   NodeInstance,
+  NodePolicy,
   NodePosition,
   ScopeBoundary,
   Uuid,
@@ -161,6 +162,8 @@ export interface WorkflowEditorState {
   deleteSelection: () => void;
   /** Replace one node's static `config`. */
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
+  updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
   /** Set (or replace) the binding on one node field. */
   upsertBinding: (binding: Binding) => void;
   /** Remove the binding on one node field, if any. */
@@ -433,6 +436,13 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, nodes });
     },
 
+    updateNodePolicy: (nodeId, policy) => {
+      const { graph } = get();
+      if (graph === null) return;
+      const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, policy } : node));
+      commit({ ...graph, nodes });
+    },
+
     upsertBinding: (binding) => {
       const { graph } = get();
       if (graph === null) return;
@@ -498,9 +508,16 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     setSelection: (selection) => set({ selection }),
     clearSelection: () => set({ selection: EMPTY_SELECTION }),
 
-    setScopePath: (scopePath) => set({ scopePath }),
-    enterScope: (scopeNodeId) => set((state) => ({ scopePath: [...state.scopePath, scopeNodeId] })),
-    exitScope: () => set((state) => ({ scopePath: state.scopePath.slice(0, -1) })),
+    // Switching scope drops the selection: what was selected is no longer drawn,
+    // so xyflow could never deselect it, and the next click would add to it.
+    setScopePath: (scopePath) => set({ scopePath, selection: EMPTY_SELECTION }),
+    enterScope: (scopeNodeId) =>
+      set((state) => ({
+        scopePath: [...state.scopePath, scopeNodeId],
+        selection: EMPTY_SELECTION,
+      })),
+    exitScope: () =>
+      set((state) => ({ scopePath: state.scopePath.slice(0, -1), selection: EMPTY_SELECTION })),
 
     setClipboard: (clipboard) => set({ clipboard }),
     setHistoryFlags: (history) => set({ history }),

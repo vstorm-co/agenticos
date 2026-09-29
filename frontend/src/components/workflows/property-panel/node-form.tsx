@@ -202,8 +202,17 @@ function ResourcePin({
     );
   }
   if (kind === "table") {
+    // `kind` and `column_ids` have server defaults ("table", and null for every
+    // column), so a ref authored through the API may leave both out; the table id
+    // is what names one.
     const current =
-      isRecord(value) && value["kind"] === "table" ? (value as unknown as TableIORef) : null;
+      isRecord(value) && typeof value["table_id"] === "string"
+        ? ({
+            ...value,
+            kind: "table",
+            column_ids: value["column_ids"] ?? null,
+          } as unknown as TableIORef)
+        : null;
     return (
       <TableColumnPicker
         value={current}
@@ -249,9 +258,11 @@ function ConfigLeaf({
   const resource = resourceKind(schema);
 
   if (resource !== null) {
+    // The agent and table pickers label their own controls.
+    const labelled = resource === "agent" || resource === "table";
     return (
       <div className="space-y-1.5">
-        <Label>{label}</Label>
+        {!labelled && <Label>{label}</Label>}
         <ResourcePin
           kind={resource}
           schema={schema}

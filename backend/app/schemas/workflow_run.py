@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
+from app.db.models.workflow_run import NodeRunStatus, WorkflowRunMode, WorkflowRunStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 
 MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
@@ -70,6 +70,37 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
 
 class WorkflowRunList(BaseSchema):
     items: list[WorkflowRunRead]
+    total: int
+
+
+class WorkflowNodeRunRead(BaseSchema):
+    """One step of a run, in one loop iteration - what a run view colours its graph by.
+
+    `scope_path` is `[]` at the top level and names the loop and index inside a
+    `control.foreach` body. `error` is the latest failed attempt's typed error, the
+    same `WorkflowError` a run's own `error` carries - never a raw exception.
+    """
+
+    id: UUID
+    node_instance_id: UUID
+    scope_path: list[dict[str, Any]]
+    status: NodeRunStatus
+    waiting_reason: str | None
+    attempts: int
+    cost: float
+    error: dict[str, Any] | None
+    started_at: datetime | None
+    ended_at: datetime | None
+
+
+class WorkflowRunGraph(BaseSchema):
+    """The graph a run executes - its published version's, or a test run's draft snapshot."""
+
+    graph: dict[str, Any]
+
+
+class WorkflowNodeRunList(BaseSchema):
+    items: list[WorkflowNodeRunRead]
     total: int
 
 

@@ -82,7 +82,8 @@ describe("PropertyPanel", () => {
       getGraph: () => graph({ entry: "A", nodes: [node("A", "missing")] }),
     });
     render(<PropertyPanel />);
-    await userEvent.click(screen.getByRole("button", { name: "1 problem" }));
+    // With nothing selected the problems are what the panel has to show, so the
+    // list starts open.
     await userEvent.click(screen.getByRole("button", { name: /unknown node/ }));
     expect(setSelection).toHaveBeenCalledWith({ nodeIds: ["A"], edgeIds: [] });
   });

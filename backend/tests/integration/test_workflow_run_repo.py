@@ -1361,3 +1361,27 @@ class TestLoopScopes:
 
         assert latest[node_run.id].attempt_no == 2
         assert await workflow_run_repo.get_latest_attempts(db, node_run_ids=[]) == {}
+
+    async def test_a_runs_steps_are_paged_with_their_attempts(self, db: AsyncSession):
+        org = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        first = await _node_run(db, run)
+        await _node_run(db, run)
+        await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=first.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee=RetryGuarantee.IDEMPOTENT.value,
+            started_at=datetime.now(UTC),
+        )
+
+        page, total = await workflow_run_repo.list_node_runs_page(
+            db, workflow_run_id=run.id, organization_id=org.id, skip=0, limit=1
+        )
+        attempts = await workflow_run_repo.list_attempts_of(db, node_run_ids=[first.id])
+
+        assert total == 2 and len(page) == 1
+        assert [attempt.attempt_no for attempt in attempts] == [1]
+        assert await workflow_run_repo.list_attempts_of(db, node_run_ids=[]) == []

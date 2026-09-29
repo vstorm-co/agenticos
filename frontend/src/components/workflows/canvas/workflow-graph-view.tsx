@@ -1,7 +1,7 @@
 "use client";
 
 import { Background, type Connection, Controls, ReactFlow, useReactFlow } from "@xyflow/react";
-import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { readNodeDragData } from "@/components/workflows/palette";
@@ -35,6 +35,11 @@ interface WorkflowGraphViewProps {
   readOnly: boolean;
 }
 
+/** Frame a graph close enough to read: below 0.8 a node's text stops being legible. */
+const FIT_VIEW = { padding: 0.2, minZoom: 0.8, maxZoom: 1 };
+/** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
+const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
+
 /** The graph a blank editor shows before the page has seeded a draft. */
 const EMPTY_GRAPH: WorkflowGraph = {
   entry_node_id: "",
@@ -65,7 +70,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const addNode = useWorkflowEditorStore((state) => state.addNode);
   const selection = useWorkflowEditorStore((state) => state.selection);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
 
   const [connectSource, setConnectSource] = useState<ConnectEndpoint | null>(null);
   const regionRef = useRef<HTMLElement>(null);
@@ -156,6 +161,16 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     [readOnly, screenToFlowPosition, addNode],
   );
 
+  // A different scope is a different drawing: frame it, or entering a loop body
+  // leaves the viewport where the outer graph was and the body off-screen.
+  const scopeKey = scopePath.join("/");
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      void fitView(readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scopeKey, fitView, readOnly]);
+
   const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
 
   const interaction = useMemo(
@@ -183,7 +198,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       onKeyDown={onKeyDown}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className="border-border relative h-[32rem] overflow-hidden rounded-xl border outline-none"
+      className="bg-muted/30 relative h-full min-h-[28rem] overflow-hidden outline-none"
     >
       {activeGraph.nodes.length === 0 && (
         <p className="text-muted-foreground pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm">
@@ -208,11 +223,13 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           onDelete={focusRegion}
           colorMode={colorMode}
           fitView
+          fitViewOptions={readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW}
+          minZoom={0.3}
           proOptions={{ hideAttribution: true }}
           aria-label={t("canvasGraphLabel")}
         >
-          <Background />
-          <Controls />
+          <Background gap={20} size={1.5} />
+          <Controls showInteractive={false} position="bottom-right" />
         </ReactFlow>
       </CanvasInteractionProvider>
     </section>
