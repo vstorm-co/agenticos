@@ -6,7 +6,13 @@ import { AlertTriangle } from "lucide-react";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { ContextGallery } from "@/components/agents/context-gallery";
 import { SkillGallery } from "@/components/agents/skill-gallery";
-import { CONTEXT_ID, KNOWLEDGE_ID, SKILLS_ID } from "@/lib/agent-spec";
+import {
+  ARTIFACT_PAGES_SKILL,
+  ARTIFACTS_ID,
+  CONTEXT_ID,
+  KNOWLEDGE_ID,
+  SKILLS_ID,
+} from "@/lib/agent-spec";
 import type { KnowledgeBase } from "@/types";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -46,6 +52,7 @@ export function resourceTabKey(capabilityId: string): string | undefined {
   if (capabilityId === CONTEXT_ID) return "contextFilesHeading";
   if (capabilityId === KNOWLEDGE_ID) return "collectionsHeading";
   if (capabilityId === SKILLS_ID) return "skillsHeading";
+  if (capabilityId === ARTIFACTS_ID) return "artifactPagesHeading";
   return undefined;
 }
 
@@ -129,6 +136,29 @@ export function CapabilityResources({
           onToggle={resources.onSkillToggle}
           disabled={disabled}
         />
+      </ResourceGroup>
+    );
+  }
+
+  if (capabilityId === ARTIFACTS_ID) {
+    // The one skill this capability is better with, offered where the page is
+    // built rather than left for somebody to find in the Skills panel. Missing
+    // from this page of the organization's skills - deleted, renamed, or past
+    // the first page - it is simply not offered.
+    const pages = resources.skills.filter((skill) => skill.name === ARTIFACT_PAGES_SKILL);
+    return (
+      <ResourceGroup detail={t("artifactPagesDetail")} warning={null}>
+        {pages.length === 0 ? (
+          <p className="text-muted-foreground text-xs">{t("artifactPagesMissing")}</p>
+        ) : (
+          <SkillGallery
+            skills={pages}
+            total={pages.length}
+            selectedIds={resources.skillIds}
+            onToggle={resources.onSkillToggle}
+            disabled={disabled}
+          />
+        )}
       </ResourceGroup>
     );
   }

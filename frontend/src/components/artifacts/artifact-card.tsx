@@ -41,6 +41,11 @@ export function ArtifactCard({ artifact }: { artifact: Artifact }) {
             {artifact.name}
           </span>
           <span className="flex flex-wrap items-center gap-1.5">
+            {artifact.environment_name !== null && (
+              <Badge variant="outline" title={t("environmentBadge")}>
+                {artifact.environment_name}
+              </Badge>
+            )}
             {artifact.visibility === "org" && <Badge variant="secondary">{t("sharedOrg")}</Badge>}
             {artifact.public_url !== null && (
               <Badge variant="outline" className="gap-1">

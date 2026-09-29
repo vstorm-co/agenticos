@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ArtifactViewer } from "./artifact-viewer";
 import { ApiError } from "@/lib/api-error";
 import { useOrgStore } from "@/stores";
-import type { ArtifactDetail as ArtifactDetailData } from "@/types/artifact";
+import type { ArtifactDetail as ArtifactDetailData, ArtifactVersion } from "@/types/artifact";
 
 /**
  * What a reader and a manager each get on one artifact's page.
@@ -49,12 +49,24 @@ function detail(overrides: Partial<ArtifactDetailData> = {}): ArtifactDetailData
     visibility: "private",
     owner_user_id: "u1",
     agent_id: "ag1",
+    environment_id: null,
+    environment_name: null,
     public_url: null,
     published_at: "2026-09-22T10:00:00Z",
     current_version: null,
     created_at: "2026-09-01T10:00:00Z",
     updated_at: null,
     can_edit: false,
+    public_link: {
+      expires_at: null,
+      pinned_version_id: null,
+      pinned_version: null,
+      password_protected: false,
+      view_count: 0,
+      last_viewed_at: null,
+      embed_origins: [],
+      embed_url: null,
+    },
     ...overrides,
   };
 }
@@ -68,6 +80,8 @@ function state(artifact: ArtifactDetailData | null, overrides: Record<string, un
     refetch: vi.fn(),
     enablePublicLink: mutation(),
     disablePublicLink: mutation(),
+    updatePublicLink: mutation(),
+    restoreVersion: mutation(),
     remove: mutation(),
     ...overrides,
   };
@@ -223,6 +237,91 @@ describe("ArtifactViewer", () => {
     expect(screen.getByText("This artifact could not be loaded")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(hooks.refetch).toHaveBeenCalled();
+  });
+
+  it("names the environment a page was published from", () => {
+    useArtifactMock.mockReturnValue(state(detail({ environment_name: "staging" })));
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    expect(screen.getByText("staging")).toBeInTheDocument();
+  });
+
+  it("offers a manager looking at an older version to restore it, then follows the latest", async () => {
+    const versions: ArtifactVersion[] = [
+      {
+        id: "v2",
+        number: 2,
+        media_type: "text/html",
+        size_bytes: 1,
+        run_id: null,
+        created_at: "2026-09-22T10:00:00Z",
+      },
+      {
+        id: "v1",
+        number: 1,
+        media_type: "text/html",
+        size_bytes: 1,
+        run_id: null,
+        created_at: "2026-09-21T10:00:00Z",
+      },
+    ];
+    const hooks = state(detail({ can_edit: true, current_version: versions[0] }), { versions });
+    hooks.restoreVersion.mutate.mockImplementation(
+      (_id: string, options?: { onSuccess?: () => void }) => options?.onSuccess?.(),
+    );
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId="v1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Restore this version" }));
+    expect(hooks.restoreVersion.mutate).toHaveBeenCalledWith("v1", expect.anything());
+    expect(screen.queryByRole("button", { name: "Restore this version" })).toBeNull();
+  });
+
+  it("offers no restore to a reader, or on the current version", () => {
+    const current = {
+      id: "v2",
+      number: 2,
+      media_type: "text/html" as const,
+      size_bytes: 1,
+      run_id: null,
+      created_at: "2026-09-22T10:00:00Z",
+    };
+    const { rerender } = render(<></>);
+    for (const [overrides, versionId] of [
+      [{ can_edit: false, current_version: current }, "v1"],
+      [{ can_edit: true, current_version: current }, "v2"],
+      [{ can_edit: true, current_version: current }, null],
+    ] as const) {
+      useArtifactMock.mockReturnValue(state(detail(overrides)));
+      rerender(
+        <ArtifactViewer
+          artifactId="a1"
+          initialVersionId={versionId}
+          key={String(versionId) + overrides.can_edit}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Restore this version" })).toBeNull();
+    }
+  });
+
+  it("puts the link's settings behind Share for a manager, and saves them", async () => {
+    const hooks = state(detail({ can_edit: true, public_url: "https://c/a/k" }));
+    useArtifactMock.mockReturnValue(hooks);
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+
+    const dialog = await openShare();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save link settings" }));
+    expect(hooks.updatePublicLink.mutateAsync).toHaveBeenCalledWith({
+      expires_at: null,
+      pinned_version_id: null,
+      embed_origins: [],
+    });
+  });
+
+  it("shows a reader no link settings", async () => {
+    useArtifactMock.mockReturnValue(state(detail({ public_url: "https://c/a/k" })));
+    render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const dialog = await openShare();
+    expect(within(dialog).queryByRole("button", { name: "Save link settings" })).toBeNull();
   });
 
   it("waits for the artifact before drawing anything", () => {

@@ -65,9 +65,9 @@ describe("ArtifactThumbnail", () => {
     act(() => seen.resize?.([]));
 
     const frame = container.querySelector("iframe")!;
-    // Allowing nothing: a listing must not run the page's script, which could
-    // loop or call `alert()` for every reader of the grid.
-    expect(frame.getAttribute("sandbox")).toBe("");
+    // Script, so a chart a library draws is on the card (#1968), and nothing
+    // else: no dialogs over the grid, no popups, never this console's origin.
+    expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
     expect(frame).toHaveAttribute("tabindex", "-1");
     expect(frame).toHaveAttribute("aria-hidden", "true");
     expect(frame.style.transform).toBe("scale(0.5)");
@@ -77,6 +77,35 @@ describe("ArtifactThumbnail", () => {
 
     expect(frame).toHaveAttribute("data-loaded", "true");
     expect(screen.getByTitle("Report")).toBe(frame);
+  });
+
+  it("unmounts the page when the card leaves the viewport, and paints it again on return", () => {
+    const seen = installObservers();
+    useArtifactViewMock.mockReturnValue({
+      data: { url: "https://content.test/t" },
+      isError: false,
+    });
+    const { container } = render(<ArtifactThumbnail artifactId="a1" title="Report" />);
+
+    act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
+    fireEvent.load(container.querySelector("iframe")!);
+    expect(container.querySelector("[data-unavailable]")).toBeNull();
+
+    // A scripted page in a card nobody can see is stopped, not left running.
+    act(() => seen.intersection?.([{ isIntersecting: false, contentRect: { width: 0 } }]));
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("[data-unavailable]")).not.toBeNull();
+
+    act(() => seen.intersection?.([{ isIntersecting: true, contentRect: { width: 0 } }]));
+    expect(container.querySelector("iframe")).toHaveAttribute("data-loaded", "false");
+  });
+
+  it("ignores an observer call that reports no entry", () => {
+    const seen = installObservers();
+    useArtifactViewMock.mockReturnValue({ data: undefined });
+    render(<ArtifactThumbnail artifactId="a1" title="Report" />);
+    act(() => seen.intersection?.([]));
+    expect(useArtifactViewMock).toHaveBeenLastCalledWith("a1", null, false);
   });
 
   it("stops pulsing once the address is refused, rather than loading forever", () => {

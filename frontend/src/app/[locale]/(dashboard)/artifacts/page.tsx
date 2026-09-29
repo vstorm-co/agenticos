@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Lock, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentFilter } from "@/components/artifacts/agent-filter";
 import { ArtifactCard } from "@/components/artifacts/artifact-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -16,7 +17,7 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { usePermissions } from "@/hooks";
-import { useArtifacts } from "@/hooks/use-artifacts";
+import { useArtifactAgents, useArtifacts } from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 
@@ -31,15 +32,18 @@ export default function ArtifactsPage() {
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [query, setQuery] = useState("");
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const search = useDebounced(query);
   const { artifacts, total, isLoading, error, refetch } = useArtifacts({
     search,
+    agentId,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
   });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
-  const isFiltering = search.trim() !== "";
+  const agents = useArtifactAgents(!isLoadingPermissions && can(Perm.artifactsView));
+  const isFiltering = search.trim() !== "" || agentId !== null;
   const header = <PageHeader title={t("title")} description={t("description")} />;
 
   if (!isLoadingPermissions && !can(Perm.artifactsView)) {
@@ -60,15 +64,25 @@ export default function ArtifactsPage() {
         counted={error || isLoading ? null : t("count", { count: total })}
         controls={
           isFiltering || total > 0 ? (
-            <SearchInput
-              value={query}
-              onChange={(next) => {
-                setQuery(next);
-                setPage(0);
-              }}
-              placeholder={t("search")}
-              className="sm:w-56"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <AgentFilter
+                agents={agents}
+                value={agentId}
+                onChange={(next) => {
+                  setAgentId(next);
+                  setPage(0);
+                }}
+              />
+              <SearchInput
+                value={query}
+                onChange={(next) => {
+                  setQuery(next);
+                  setPage(0);
+                }}
+                placeholder={t("search")}
+                className="sm:w-56"
+              />
+            </div>
           ) : undefined
         }
       >

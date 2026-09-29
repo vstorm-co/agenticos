@@ -6,37 +6,43 @@ import { useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
 
 /**
- * No permissions at all: no scripts, no dialogs, no forms. A listing mounts a
- * page nobody asked to open, so a page that loops, spawns workers or calls
- * `alert()` on load would stall every reader of `/artifacts`. The thumbnail
- * shows the page's markup and styles; a page drawn only by script shows blank
- * here and whole once opened, where it runs in `ARTIFACT_SANDBOX`.
+ * Script, and nothing else: no dialogs, no forms, no popups, no same origin.
+ *
+ * Script because the pages that most need a preview are dashboards whose charts
+ * a library draws, and with none they were an empty canvas on their card (#1968).
+ * No `allow-modals`, so an `alert()` on load is a no-op rather than a dialog over
+ * the listing. What script still costs - a page that loops or spawns workers - is
+ * bounded by where it runs: a thumbnail is mounted only while its card is near
+ * the viewport and unmounted when it leaves (`useNearViewport`), so a listing of
+ * fifty runs the few a reader can see.
  */
-const THUMBNAIL_SANDBOX = "";
+const THUMBNAIL_SANDBOX = "allow-scripts";
 
 /** The width the page is laid out at before it is scaled into the card. */
 const VIEWPORT_WIDTH = 1280;
 const VIEWPORT_HEIGHT = 960;
 
 /**
- * Whether the element has come within a screen of the viewport - once true, it
- * stays true, so scrolling back does not unload a frame that already painted.
- * False where the browser has no observer (a test environment): nothing loads.
+ * Whether the element is within a screen of the viewport, now - not once.
+ * Scrolling away unmounts the frame, which is what stops a scripted page in a
+ * card nobody is looking at. False where the browser has no observer (a test
+ * environment): nothing loads.
  */
 function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
   const [near, setNear] = useState(false);
   useEffect(() => {
     const element = ref.current;
-    if (element === null || near || typeof IntersectionObserver === "undefined") return;
+    if (element === null || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) setNear(true);
+        const entry = entries[entries.length - 1];
+        if (entry) setNear(entry.isIntersecting);
       },
       { rootMargin: "240px" },
     );
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref, near]);
+  }, [ref]);
   return near;
 }
 
@@ -60,9 +66,9 @@ function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
  *
  * The real page rather than a screenshot, because none is kept: an artifact is
  * the HTML an agent published, and this is the one place in a listing that can
- * show what a report looks like before it is opened. It is loaded only once the
- * card nears the viewport - the signed address is a request per card - and in
- * a sandbox that allows nothing, see `THUMBNAIL_SANDBOX`.
+ * show what a report looks like before it is opened. It is loaded only while the
+ * card is near the viewport - the signed address is a request per card - and in
+ * a sandbox that allows script and nothing more, see `THUMBNAIL_SANDBOX`.
  *
  * Inert: no pointer events, out of the tab order and hidden from assistive
  * technology, because the card around it is the link and carries the title.
@@ -76,6 +82,13 @@ export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; t
   const scale = useFitScale(box);
   const view = useArtifactView(artifactId, null, near);
   const [loaded, setLoaded] = useState(false);
+  // A frame unmounted off screen paints again when it comes back, so the lines
+  // return with it rather than a blank card waiting for the load.
+  const [wasNear, setWasNear] = useState(near);
+  if (wasNear !== near) {
+    setWasNear(near);
+    if (!near) setLoaded(false);
+  }
   const line = cn("bg-muted rounded", !view.isError && "animate-pulse");
 
   return (
@@ -92,7 +105,7 @@ export function ArtifactThumbnail({ artifactId, title }: { artifactId: string; t
           </div>
         </div>
       )}
-      {view.data !== undefined && (
+      {near && view.data !== undefined && (
         <iframe
           src={view.data.url}
           title={title}
