@@ -23,6 +23,19 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// A page of five, not fifty: crossing a page boundary is the behaviour under
+// test, and fifty full cards per render ran past the timeout on a loaded CI runner.
+const TEST_PAGE = 5;
+vi.mock("@/components/ui/list-controls", async () => {
+  const actual = await vi.importActual<typeof import("@/components/ui/list-controls")>(
+    "@/components/ui/list-controls",
+  );
+  return {
+    ...actual,
+    useListControls: <T,>(args: Parameters<typeof actual.useListControls<T>>[0]) =>
+      actual.useListControls<T>({ ...args, pageSize: TEST_PAGE }),
+  };
+});
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/workflows",
@@ -142,12 +155,12 @@ describe("the workflows list", () => {
 });
 
 describe("the workflows list past one page", () => {
-  // Sixty drafts and, last of all, one published workflow — so the published one
-  // lands beyond the first page of fifty. This is the exact shape #1787 got
-  // wrong: the registry only ever showed the first page, and a status filter over
-  // it reported "no matches" for a match that was never on screen.
+  // A page of drafts and, last of all, one published workflow — so the published
+  // one lands beyond the first page. This is the exact shape #1787 got wrong: the
+  // registry only ever showed the first page, and a status filter over it
+  // reported "no matches" for a match that was never on screen.
   const MANY: WorkflowRead[] = [
-    ...Array.from({ length: 60 }, (_, i) => workflow(`Draft ${i + 1}`, "draft")),
+    ...Array.from({ length: TEST_PAGE + 1 }, (_, i) => workflow(`Draft ${i + 1}`, "draft")),
     workflow("FindMe", "published"),
   ];
 
@@ -157,7 +170,7 @@ describe("the workflows list past one page", () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByRole("link", { name: "Open Draft 1" });
 
-    // The 61st row is not on the first page of fifty.
+    // The last row is not on the first page.
     expect(screen.queryByRole("link", { name: "Open FindMe" })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
