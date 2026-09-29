@@ -1,5 +1,5 @@
 ---
-source_sha: "048eca92259d"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1214,6 +1214,17 @@ delegacja uruchomiona od nowa i tak wydała to, co wydała.
     serwery MCP powiązane z agentem, ten agent może zrobić bez pytania. To, które
     narzędzia serwera są wystawione, ustawia się na połączeniu, więc każdy agent
     z nim powiązany dostaje te same.
+
+### Krok workflow, który pyta osobę { #workflow-step-approvals }
+
+Workflow pyta krokiem [`human.approval`](reference/workflow-nodes.md#human-approval),
+a nie narzędziem za bramką: krok zapisuje własną prośbę - tytuł, podane mu
+szczegóły, kto może zdecydować i do kiedy - a jego run na nią czeka. Zakładka
+**Approvals** pokazuje je nad wywołaniami narzędzi, a decyzja budzi run, który idzie
+dalej według odpowiedzi. Decyzja jest ostateczna i trafia do dziennika audytu razem
+z tym, o co pytano. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
+oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
+swoje prośby.
 
 ## Alerty { #alerts }
 

@@ -88,6 +88,7 @@ from app.db.models.workflow_exposure import (
     WorkflowExposure,
     WorkflowWebhookDelivery,
 )
+from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.virtual_table_trigger import (
     AdmissionReason,
@@ -207,6 +208,8 @@ __all__ = [
     "ExposureScheduleKind",
     "WorkflowExposure",
     "WorkflowWebhookDelivery",
+    "WorkflowApproval",
+    "WorkflowApprovalStatus",
     "WorkflowFile",
     "AdmissionReason",
     "AdmissionStatus",

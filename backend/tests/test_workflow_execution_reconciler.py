@@ -385,6 +385,44 @@ class TestWakeStaleApprovalDecisions:
         assert await service.wake_stale_approval_decisions() == 0
 
 
+class TestWakeStaleStepApprovals:
+    """The `human.approval` backstop: the same insert, keyed by the step's own request."""
+
+    def _parked(self) -> NodeRun:
+        return _node_run(waiting_agent_run_id=None)
+
+    async def test_a_step_whose_request_was_decided_is_dispatched_again(self, repo):
+        node_run = self._parked()
+        repo.get_run_by_id_for_update.return_value = _run(id=node_run.workflow_run_id)
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        with patch(
+            f"{RECONCILER_PATH}.workflow_approval_repo.list_stale_waits",
+            new=AsyncMock(return_value=[node_run]),
+        ):
+            woken = await WorkflowReconcilerService(_nested_txn_db()).wake_stale_step_approvals()
+        assert woken == 1
+        repo.create_outbox.assert_awaited_once()
+
+    async def test_a_step_that_moved_on_or_raced_the_direct_wake_gets_no_second_row(self, repo):
+        moved, raced = self._parked(), self._parked()
+        repo.get_run_by_id_for_update.side_effect = [
+            _run(id=moved.workflow_run_id),
+            _run(id=raced.workflow_run_id),
+        ]
+        repo.get_node_run_by_id_for_update.side_effect = [
+            _node_run(id=moved.id, status=NodeRunStatus.SUCCEEDED.value),
+            raced,
+        ]
+        repo.create_outbox.side_effect = IntegrityError("insert", {}, Exception("dup"))
+        with patch(
+            f"{RECONCILER_PATH}.workflow_approval_repo.list_stale_waits",
+            new=AsyncMock(return_value=[moved, raced]),
+        ):
+            woken = await WorkflowReconcilerService(_nested_txn_db()).wake_stale_step_approvals()
+        assert woken == 0
+        repo.create_outbox.assert_awaited_once()
+
+
 class _FakeNestedTxn:
     async def __aenter__(self):
         return self

@@ -233,8 +233,8 @@ async def workflow_dispatch_poll_flow() -> int:
 @flow(name="workflow-reconcile", log_prints=True)
 async def workflow_reconcile_flow() -> dict[str, int]:
     """The slower sweep: reclaim stale claims, resolve orphaned attempts, wake
-    stale approval decisions. Structurally `stale_run_sweep_flow` applied to
-    three shapes of stranded workflow-execution row - see
+    stale approval decisions and `human.approval` steps. Structurally
+    `stale_run_sweep_flow` applied to four shapes of stranded workflow-execution row - see
     `app.services.workflow_execution.reconciler` for what each one is.
     """
     from app.services.workflow_execution.reconciler import WorkflowReconcilerService
@@ -247,11 +247,14 @@ async def workflow_reconcile_flow() -> dict[str, int]:
         resolved = await WorkflowReconcilerService(db).resolve_orphaned_attempts()
     async with get_worker_db_context() as db:
         woken = await WorkflowReconcilerService(db).wake_stale_approval_decisions()
+    async with get_worker_db_context() as db:
+        woken_steps = await WorkflowReconcilerService(db).wake_stale_step_approvals()
 
     result = {
         "reclaimed_claims": await _submit_each(stale_pairs),
         "resolved_attempts": resolved,
         "woken_approvals": woken,
+        "woken_step_approvals": woken_steps,
     }
     if any(result.values()):
         logger.warning("workflow_reconcile: %s", result)

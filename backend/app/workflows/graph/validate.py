@@ -1154,6 +1154,7 @@ EXCLUSIVE_BRANCHING = frozenset(
         "decide.score",
         "table.exists",
         "table.record.exists",
+        "human.approval",
     }
 )
 """The steps that leave by exactly one of their output ports on every run."""

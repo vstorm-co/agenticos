@@ -4477,7 +4477,11 @@
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "stepApprovalsTitle": "Workflow steps waiting on you",
+      "stepApprovalsCounted": "{count, plural, one {# waiting} other {# waiting}}",
+      "stepApprovalExpires": "expires {at}",
+      "stepApprovalNamed": "{count, plural, one {# named approver} other {# named approvers}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5948,7 +5952,8 @@
       "debug": "Debug",
       "triggers": "Triggers",
       "decide": "Decisions",
-      "channels": "Channels"
+      "channels": "Channels",
+      "people": "People"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",

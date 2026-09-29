@@ -1,5 +1,5 @@
 ---
-source_sha: "048eca92259d"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1295,6 +1295,18 @@ ausgegeben, was sie ausgegeben hat.
     gebundenen MCP-Server eines Agents können, kann dieser Agent tun, ohne zu
     fragen. Welche Tools eines Servers freigelegt sind, wird auf der Verbindung
     gesetzt, also bekommt jeder daran gebundene Agent dieselben.
+
+### Ein Workflow-Schritt, der eine Person fragt { #workflow-step-approvals }
+
+Ein Workflow fragt mit einem [`human.approval`](reference/workflow-nodes.md#human-approval)-Schritt
+statt mit einem abgesicherten Tool: Der Schritt schreibt seine eigene Anfrage -
+einen Titel, die ihm übergebenen Details, wer entscheiden darf und bis wann -, und
+sein Run wartet darauf. Der Tab **Approvals** listet sie über den Tool-Aufrufen,
+und eine Entscheidung weckt den Run, der nach der Antwort weitergeht. Eine
+Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten.
+Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
+Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
+bricht seine Anfragen ab.
 
 ## Alerts { #alerts }
 

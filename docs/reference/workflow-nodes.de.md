@@ -1,5 +1,5 @@
 ---
-source_sha: "bde58ee5ee6a"
+source_sha: "9c106e028ce7"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -294,6 +294,23 @@ abgeschlossen, wenn die Benachrichtigung geschrieben ist, die E-Mail wird danach
 zugestellt. Ein wiederholter Schritt schreibt keine zweite Benachrichtigung.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## human.approval { #human-approval }
+
+**Ask for approval** hält den Run an, bis eine Person freigibt oder ablehnt, was
+er gleich tun wird, und geht dann über `approved` oder `rejected` weiter. Wer
+freigibt, liest den `title` des Schritts und die daran gebundenen `details` im
+Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
+`approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
+benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
+läuft die Anfrage ab, und der Schritt geht über `rejected` mit
+`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab.
+Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
+Schleifeniteration nie zweimal nach demselben fragt.
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 
 ## Fehlerbehandlung { #error-handling }
 

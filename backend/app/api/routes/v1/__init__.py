@@ -37,7 +37,13 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import virtual_tables
-from app.api.routes.v1 import workflow_exposures, workflow_run_socket, workflow_runs, workflows
+from app.api.routes.v1 import (
+    workflow_approvals,
+    workflow_exposures,
+    workflow_run_socket,
+    workflow_runs,
+    workflows,
+)
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
@@ -96,6 +102,9 @@ v1_router.include_router(context_files.router, prefix="/context", tags=["context
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
+v1_router.include_router(
+    workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
+)
 v1_router.include_router(
     workflow_exposures.router, prefix="/workflows", tags=["workflows:exposures"]
 )

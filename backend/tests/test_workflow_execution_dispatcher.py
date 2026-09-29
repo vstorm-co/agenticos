@@ -1629,15 +1629,19 @@ class TestSettleWaiting:
         repo.create_outbox.assert_not_called()
 
     @pytest.mark.security
+    @pytest.mark.parametrize(
+        "asks_a_person", [False, True], ids=["nothing-to-wake-it", "a-request"]
+    )
     async def test_an_approval_wait_with_no_reported_agent_run_escalates_instead_of_parking(
-        self, repo, event_log, test_node
+        self, repo, event_log, test_node, asks_a_person
     ):
         """The durability contract an approval wait depends on: a handler
 
         declaring `Waiting(reason="approval")` must also call
-        `context.report_waiting_agent_run` - without an `agent_runs` id to
-        watch, neither the direct wake nor the reconciler's backstop can
-        ever find this node again. Rather than silently parking it
+        `context.report_waiting_agent_run`, or have written a pending
+        `workflow_approvals` row - without either to watch, neither the
+        direct wakes nor the reconciler's backstops can ever find this node
+        again. Rather than silently parking it
         unreachable forever, it escalates to `needs_attention` where a
         person will actually see it.
         """
@@ -1669,14 +1673,23 @@ class TestSettleWaiting:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = Waiting(reason="approval", resume_token="whatever-the-handler-sent")
-        await dispatcher.settle(
-            object(),
-            begun=begun,
-            outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
-        )
+        with patch(
+            f"{DISPATCHER_PATH}.workflow_approval_repo.has_pending",
+            new=AsyncMock(return_value=asks_a_person),
+        ):
+            await dispatcher.settle(
+                object(),
+                begun=begun,
+                outcome=dispatcher.HandlerOutcome(result=result, waiting_agent_run_id=None),
+            )
 
         # The attempt still records what genuinely happened...
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
+        if asks_a_person:
+            # A `human.approval` step's pending request is what wakes it.
+            assert node_run.status == NodeRunStatus.WAITING.value
+            assert run.status == WorkflowRunStatus.WAITING_APPROVAL.value
+            return
         # ...but the node run is not left parked as an unreachable
         # `waiting_approval` - it is escalated, not silently stranded.
         assert node_run.status == NodeRunStatus.NEEDS_ATTENTION.value

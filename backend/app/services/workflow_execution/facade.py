@@ -36,6 +36,7 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import (
@@ -424,6 +425,9 @@ class WorkflowExecutionService:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 
         await workflow_run_repo.cancel_live_outbox_for_run(self.db, workflow_run_id=run.id)
+        # A `human.approval` request left pending would sit in the queue asking
+        # for a decision that can no longer decide anything.
+        await workflow_approval_repo.cancel_pending_for_run(self.db, run.id)
         # A loop mid-iteration has no outbox row of its own to cancel - its row
         # is `running` until its last iteration ends - so it is ended here, with
         # every other row nothing will now settle.

@@ -4123,7 +4123,11 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "stepApprovalsTitle": "Workflow-Schritte, die auf dich warten",
+      "stepApprovalsCounted": "{count, plural, one {# wartet} other {# warten}}",
+      "stepApprovalExpires": "läuft ab {at}",
+      "stepApprovalNamed": "{count, plural, one {# benannte Freigabe} other {# benannte Freigaben}}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5801,7 +5805,8 @@
       "core": "Abschluss",
       "triggers": "Auslöser",
       "decide": "Entscheidungen",
-      "channels": "Kanäle"
+      "channels": "Kanäle",
+      "people": "Personen"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",

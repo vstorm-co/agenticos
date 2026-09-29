@@ -1,5 +1,5 @@
 ---
-source_sha: "048eca92259d"
+source_sha: "8f57f071cfd5"
 ---
 
 # Governance { #governance }
@@ -1185,6 +1185,17 @@ delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
     servidores MCP enlazados a un agent, ese agent lo puede hacer sin preguntar. Qué
     herramientas de un servidor quedan expuestas se fija en la conexión, así que cada
     agent enlazado a ella recibe las mismas.
+
+### Un paso de workflow que pregunta a una persona { #workflow-step-approvals }
+
+Un workflow pregunta con un paso [`human.approval`](reference/workflow-nodes.md#human-approval)
+en lugar de una herramienta protegida: el paso escribe su propia solicitud - un
+título, los detalles que recibió, quién puede decidir y hasta cuándo - y su run la
+espera. La pestaña **Approvals** las lista encima de las llamadas a herramientas, y
+decidir una despierta el run, que sigue según la respuesta. Una decisión es
+definitiva y queda en el registro de auditoría junto con lo que se preguntó. Un
+paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
+que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
 
 ## Alertas { #alerts }
 

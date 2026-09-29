@@ -30,9 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
+from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatcher
 from app.services.workflow_execution.approval_wake import still_waiting_on
+from app.services.workflow_execution.approvals import still_parked
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +132,36 @@ class WorkflowReconcilerService:
                 extra={"node_run_id": str(node_run.id), "attempt_id": str(fresh.id)},
             )
         return resolved
+
+    async def wake_stale_step_approvals(self, *, limit: int = 100) -> int:
+        """Dispatch again every `human.approval` step whose request was decided, or ran
+        out of time, and whose wake never came.
+
+        The step itself reads the outcome - an expired request is marked so as
+        the step reads it - so this only queues the dispatch, tolerating a race
+        with the direct wake the same way the tool-approval sweep does.
+        """
+        node_runs = await workflow_approval_repo.list_stale_waits(
+            self.db, now=datetime.now(UTC), limit=limit
+        )
+        woken = 0
+        for scanned in node_runs:
+            run = await workflow_run_repo.get_run_by_id_for_update(self.db, scanned.workflow_run_id)
+            node_run = await workflow_run_repo.get_node_run_by_id_for_update(self.db, scanned.id)
+            if run is None or node_run is None or not still_parked(run, node_run):
+                continue
+            try:
+                async with self.db.begin_nested():
+                    await workflow_run_repo.create_outbox(
+                        self.db,
+                        organization_id=run.organization_id,
+                        workflow_run_id=run.id,
+                        node_run_id=node_run.id,
+                    )
+            except IntegrityError:
+                continue
+            woken += 1
+        return woken
 
     async def wake_stale_approval_decisions(self, *, limit: int = 100) -> int:
         """Insert the backstop dispatch row for every decided approval whose

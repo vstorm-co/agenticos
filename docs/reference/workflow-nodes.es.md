@@ -1,5 +1,5 @@
 ---
-source_sha: "bde58ee5ee6a"
+source_sha: "9c106e028ce7"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -283,6 +283,22 @@ notificación queda escrita, y el email se entrega después. Un paso reintentado
 escribe una segunda notificación.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## human.approval { #human-approval }
+
+**Ask for approval** detiene el run hasta que una persona apruebe o rechace lo
+que está a punto de hacer, y sigue por `approved` o `rejected`. Quien aprueba lee
+el `title` del paso y los `details` vinculados en la pestaña **Approvals** de
+Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
+decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
+cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
+paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
+pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+iteración de un bucle nunca preguntan dos veces lo mismo.
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 
 ## Gestión de errores { #error-handling }
 

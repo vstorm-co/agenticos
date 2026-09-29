@@ -503,3 +503,31 @@ export interface WorkflowExposureWithSecret extends WorkflowExposureRead {
 export interface WorkflowExposureUpdate {
   is_active: boolean;
 }
+
+// Approvals - `app/schemas/workflow_approval.py`
+
+export type WorkflowApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "cancelled";
+
+/** One `human.approval` step's request, as the approver sees it. */
+export interface WorkflowApprovalRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_name: string;
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  title: string;
+  details: string | null;
+  /** Who may decide it; empty means anyone holding `approvals:decide`. */
+  approver_user_ids: Uuid[];
+  status: WorkflowApprovalStatus;
+  expires_at: string | null;
+  decided_by_user_id: Uuid | null;
+  decided_at: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface WorkflowApprovalList {
+  items: WorkflowApprovalRead[];
+  total: number;
+}

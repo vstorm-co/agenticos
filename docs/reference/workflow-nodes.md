@@ -273,6 +273,22 @@ A retried step writes no second notification.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
 
+## human.approval { #human-approval }
+
+**Ask for approval** stops the run until a person approves or rejects what it is
+about to do, then goes on by `approved` or `rejected`. The approver reads the
+step's `title` and the `details` bound to it, in the **Approvals** tab of
+Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
+decide, and they are notified in the app; left empty, anyone holding
+`approvals:decide` may. Past `timeout_hours` the request expires and the step
+leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
+it asked. Each run of the step asks once, so a retry or a loop iteration never
+asks twice for the same thing.
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
+
 ## Error handling { #error-handling }
 
 Every node takes an optional `policy` beside its config.

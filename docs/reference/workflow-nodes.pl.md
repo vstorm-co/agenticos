@@ -1,5 +1,5 @@
 ---
-source_sha: "bde58ee5ee6a"
+source_sha: "9c106e028ce7"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -280,6 +280,22 @@ zapisane, a mail wychodzi później. Ponowiony krok nie zapisuje drugiego
 powiadomienia.
 
 ::: app.workflows.nodes.notification_send._handler.NotificationSendConfig
+
+## human.approval { #human-approval }
+
+**Ask for approval** zatrzymuje run, dopóki osoba nie zatwierdzi albo nie odrzuci
+tego, co run ma zrobić, a potem idzie dalej przez `approved` albo `rejected`.
+Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
+**Approvals** w Activity albo przez `GET /api/v1/workflow-approvals`.
+`approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
+aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
+`timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
+`decision: "expired"`. Anulowanie runa anuluje jego prośby. Każdy przebieg kroku
+pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalConfig
+
+::: app.workflows.nodes.human_approval._handler.HumanApprovalOutput
 
 ## Obsługa błędów { #error-handling }
 

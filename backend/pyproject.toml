@@ -950,6 +950,11 @@ include = [
     # every file step reads through.
     "app/db/models/workflow_file.py",
     "app/repositories/workflow_file.py",
+    # What a `human.approval` step asks a person, and the queue deciding it.
+    "app/db/models/workflow_approval.py",
+    "app/repositories/workflow_approval.py",
+    "app/schemas/workflow_approval.py",
+    "app/api/routes/v1/workflow_approvals.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.
@@ -1400,6 +1405,11 @@ include = [
     # every file step reads through.
     "app/db/models/workflow_file.py",
     "app/repositories/workflow_file.py",
+    # What a `human.approval` step asks a person, and the queue deciding it.
+    "app/db/models/workflow_approval.py",
+    "app/repositories/workflow_approval.py",
+    "app/schemas/workflow_approval.py",
+    "app/api/routes/v1/workflow_approvals.py",
     # A table's triggers (#1785): the workflows a record added to it starts,
     # and every refusal between the two - before activation, a filter miss, a
     # cycle, a revoked principal - is a run that must not start.

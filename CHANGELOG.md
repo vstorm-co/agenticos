@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A workflow step that asks a person.** **Ask for approval** stops a run
+  until someone approves or rejects what it is about to do, then goes on by the
+  answer. The request shows its title and the details bound to it in the
+  Approvals tab, above the tool calls; named approvers are notified and are the
+  only ones who may decide it. A decision is final and audited, a request can
+  expire after a set time, and cancelling the run cancels it.
 - **A JavaScript step.** **JavaScript in a sandbox** runs a script on Node as
   the same durable job the Python sandbox step runs, on the organization's
   sandbox host: it reads the bound values as `args`, reads and writes the run's

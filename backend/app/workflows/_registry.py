@@ -127,6 +127,7 @@ def load_builtins() -> None:
         http_download,
         http_request,
         http_upload,
+        human_approval,
         image_transform,
         knowledge_search,
         logic_if,

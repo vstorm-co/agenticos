@@ -703,6 +703,15 @@ def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
 
 WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
 
+from app.services.workflow_execution.approvals import WorkflowApprovalService
+
+
+def get_workflow_approval_service(db: DBSession) -> WorkflowApprovalService:
+    return WorkflowApprovalService(db)
+
+
+WorkflowApprovalSvc = Annotated[WorkflowApprovalService, Depends(get_workflow_approval_service)]
+
 from app.services.workflow_exposure import WorkflowExposureService
 
 

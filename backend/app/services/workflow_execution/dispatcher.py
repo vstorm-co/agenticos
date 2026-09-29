@@ -75,6 +75,7 @@ from app.db.models.workflow_run import (
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution import budget, context, delivery, events
@@ -1297,13 +1298,17 @@ async def _settle_waiting(
             detail="Node waited for an external event, which workflow runs cannot deliver yet",
         )
         return
-    if result.reason == WaitingReason.APPROVAL.value and waiting_agent_run_id is None:
+    if (
+        result.reason == WaitingReason.APPROVAL.value
+        and waiting_agent_run_id is None
+        and not await workflow_approval_repo.has_pending(db, node_run.id)
+    ):
         # The one invariant that makes an approval wait durable: a handler
-        # declaring `Waiting(reason="approval")` must also report the
-        # `agent_runs` row through `context.report_waiting_agent_run` -
-        # without it, `NodeRun.waiting_agent_run_id` stays null and neither
-        # the direct wake (`find_node_run_waiting_on_agent_run`) nor
-        # `workflow-reconcile`'s backstop (`list_stale_approval_waits`) has
+        # declaring `Waiting(reason="approval")` must leave something a wake can
+        # find it by - the `agent_runs` row it reported through
+        # `context.report_waiting_agent_run`, or the pending `workflow_approvals`
+        # row a `human.approval` step wrote for this node run. Without either,
+        # neither the direct wakes nor `workflow-reconcile`'s backstops have
         # anything to key off to ever find this node again. Parking it as an
         # ordinary `waiting_approval` node would be silently unrecoverable;
         # `needs_attention` at least puts it somewhere a person looks.

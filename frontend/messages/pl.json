@@ -591,7 +591,11 @@
     },
     "runs": {
       "decidedByStandingConsent": "pominięte z góry dla konwersacji",
-      "surfaceWorkflow": "Workflow"
+      "surfaceWorkflow": "Workflow",
+      "stepApprovalsTitle": "Kroki workflow czekające na Ciebie",
+      "stepApprovalsCounted": "{count, plural, one {# czeka} few {# czekają} many {# czeka} other {# czeka}}",
+      "stepApprovalExpires": "wygasa {at}",
+      "stepApprovalNamed": "{count, plural, one {# wskazany zatwierdzający} few {# wskazanych zatwierdzających} many {# wskazanych zatwierdzających} other {# wskazanych zatwierdzających}}"
     },
     "settings": {
       "prefWorkflowNotification": "Powiadomienia z workflow",
@@ -3594,7 +3598,8 @@
       "core": "Zakończenie",
       "triggers": "Wyzwalacze",
       "decide": "Decyzje",
-      "channels": "Kanały"
+      "channels": "Kanały",
+      "people": "Ludzie"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",

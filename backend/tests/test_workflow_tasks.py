@@ -109,6 +109,7 @@ class TestReconcileFlowFanOut:
         reconciler.stale_claims = AsyncMock(return_value=[pair])
         reconciler.resolve_orphaned_attempts = AsyncMock(return_value=0)
         reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
+        reconciler.wake_stale_step_approvals = AsyncMock(return_value=0)
 
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
@@ -149,6 +150,7 @@ class TestSubmissionIsolation:
         reconciler.stale_claims = AsyncMock(return_value=[(uuid.uuid4(), uuid.uuid4())] * 2)
         reconciler.resolve_orphaned_attempts = AsyncMock(return_value=1)
         reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
+        reconciler.wake_stale_step_approvals = AsyncMock(return_value=0)
 
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
@@ -163,7 +165,12 @@ class TestSubmissionIsolation:
         ):
             result = await workflow_tasks.workflow_reconcile_flow()
 
-        assert result == {"reclaimed_claims": 1, "resolved_attempts": 1, "woken_approvals": 0}
+        assert result == {
+            "reclaimed_claims": 1,
+            "resolved_attempts": 1,
+            "woken_approvals": 0,
+            "woken_step_approvals": 0,
+        }
 
 
 class TestLeaseRenewal:

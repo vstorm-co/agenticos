@@ -38,6 +38,7 @@ import {
   TableProperties,
   Terminal,
   Upload,
+  UserCheck,
   Users,
   Webhook,
   Zap,
@@ -116,6 +117,7 @@ const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
   http: { icon: Globe, tone: "network" },
   notification: { icon: Bell, tone: "network" },
   channels: { icon: Hash, tone: "network" },
+  people: { icon: UserCheck, tone: "neutral" },
   debug: { icon: Bug, tone: "neutral" },
 };
 
@@ -125,6 +127,7 @@ export const CATEGORY_ORDER = [
   "core",
   "agent",
   "decide",
+  "people",
   "knowledge",
   "data",
   "tables",
