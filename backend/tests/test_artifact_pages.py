@@ -750,3 +750,40 @@ class TestAgentFilter:
             result = await _service().list_readable(ctx, agent_id=agent_id)
         assert listing.await_args.kwargs["agent_id"] == agent_id
         assert result.items[0].environment_name == "staging"
+
+
+class TestTheBundledSkill:
+    """`artifact-pages` is how an agent learns the library set exists."""
+
+    def _skill(self) -> Any:
+        from app.services import skill_library
+
+        skill = skill_library.get("artifact-pages")
+        assert skill is not None
+        return skill
+
+    def test_it_ships_with_its_templates_on_the_design_shelf(self) -> None:
+        skill = self._skill()
+        assert skill.category == "design"
+        assert {resource.name for resource in skill.resources} == {
+            "templates/dashboard.html",
+            "templates/report.html",
+        }
+
+    def test_every_library_file_it_names_is_one_the_deployment_serves(self) -> None:
+        """A renamed or upgraded library would otherwise leave the skill teaching
+        an address that answers 404 - and the page would draw nothing."""
+        import re
+
+        skill = self._skill()
+        texts = [skill.content, *(resource.content for resource in skill.resources)]
+        named = {name for text in texts for name in re.findall(r"lib/([\w.-]+\.(?:js|css))", text)}
+        assert named
+        assert named <= set(artifacts.ARTIFACT_LIBRARY)
+
+    def test_the_tool_text_names_the_same_set(self) -> None:
+        from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
+
+        tool = build_artifacts_toolset(workspace_backend=None).tools["publish_artifact"]
+        for name in artifacts.ARTIFACT_LIBRARY:
+            assert f"lib/{name}" in (tool.description or "")

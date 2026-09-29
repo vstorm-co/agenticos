@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weekly sales - 22 Sep 2026</title>
+  <link rel="stylesheet" href="lib/agenticos-1.css">
+  <script src="lib/chart-4.5.1.umd.min.js"></script>
+</head>
+<body>
+  <main class="ao-page">
+    <h1 id="title"></h1>
+    <p class="ao-subtitle" id="subtitle"></p>
+
+    <section class="ao-grid" id="kpis" aria-label="Key numbers"></section>
+
+    <section class="ao-card" style="margin-top: 1rem">
+      <h2 id="chart-title"></h2>
+      <div class="ao-chart"><canvas id="chart" role="img"></canvas></div>
+    </section>
+
+    <section class="ao-card" style="margin-top: 1rem">
+      <h2 id="table-title"></h2>
+      <table class="ao-table" id="table"></table>
+    </section>
+  </main>
+
+  <script>
+    // Replace this object; nothing below it needs to change.
+    const data = {
+      title: "Weekly sales - 22 Sep 2026",
+      subtitle: "Orders closed Monday to Sunday. Source: the CRM export of 22 Sep, 06:00 UTC.",
+      kpis: [
+        { label: "Revenue", value: "€48,200", change: "+6.1%", better: true },
+        { label: "Orders", value: "312", change: "+14", better: true },
+        { label: "Refunds", value: "9", change: "+3", better: false },
+      ],
+      chart: {
+        title: "Revenue by day",
+        labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        series: [{ name: "This week", values: [6100, 7200, 6900, 8100, 9400, 5800, 4700] }],
+      },
+      table: {
+        title: "Top accounts",
+        columns: ["Account", "Orders", "Revenue"],
+        numeric: [false, true, true],
+        rows: [
+          ["Northwind", "41", "€7,900"],
+          ["Contoso", "33", "€6,450"],
+          ["Fabrikam", "27", "€5,120"],
+        ],
+      },
+    };
+
+    const css = (name) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    document.title = data.title;
+    document.getElementById("title").textContent = data.title;
+    document.getElementById("subtitle").textContent = data.subtitle;
+
+    const kpis = document.getElementById("kpis");
+    for (const kpi of data.kpis) {
+      const card = document.createElement("div");
+      card.className = "ao-card";
+      const label = document.createElement("div");
+      label.className = "ao-kpi-label";
+      label.textContent = kpi.label;
+      const value = document.createElement("div");
+      value.className = "ao-kpi-value";
+      value.textContent = kpi.value;
+      const change = document.createElement("div");
+      change.className = kpi.better ? "ao-up" : "ao-down";
+      change.textContent = kpi.change;
+      card.append(label, value, change);
+      kpis.append(card);
+    }
+
+    document.getElementById("chart-title").textContent = data.chart.title;
+    const canvas = document.getElementById("chart");
+    canvas.setAttribute("aria-label", data.chart.title);
+    new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: data.chart.labels,
+        datasets: data.chart.series.map((series, index) => ({
+          label: series.name,
+          data: series.values,
+          borderColor: css(`--ao-series-${index + 1}`),
+          backgroundColor: css(`--ao-series-${index + 1}`),
+          tension: 0.3,
+        })),
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: { legend: { display: data.chart.series.length > 1 } },
+        scales: {
+          x: { ticks: { color: css("--ao-muted-fg") }, grid: { color: css("--ao-border") } },
+          y: { ticks: { color: css("--ao-muted-fg") }, grid: { color: css("--ao-border") } },
+        },
+      },
+    });
+
+    document.getElementById("table-title").textContent = data.table.title;
+    const table = document.getElementById("table");
+    const head = table.createTHead().insertRow();
+    data.table.columns.forEach((column, index) => {
+      const cell = document.createElement("th");
+      cell.textContent = column;
+      if (data.table.numeric[index]) cell.className = "ao-num";
+      head.append(cell);
+    });
+    const body = table.createTBody();
+    for (const row of data.table.rows) {
+      const line = body.insertRow();
+      row.forEach((value, index) => {
+        const cell = line.insertCell();
+        cell.textContent = value;
+        if (data.table.numeric[index]) cell.className = "ao-num";
+      });
+    }
+  </script>
+</body>
+</html>

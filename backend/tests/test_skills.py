@@ -1489,7 +1489,7 @@ class TestTheGalleryOnDisk:
 
         names = [s.name for i in skill_library.gallery() for s in i.skills]
         names += [entry.name for entry in skill_library.library()]
-        assert len(names) == 73
+        assert len(names) == 74
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")
