@@ -1,5 +1,5 @@
 ---
-source_sha: "c777f531d8e2"
+source_sha: "b1c12229773c"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -174,6 +174,40 @@ Entscheidung wieder zusammenführen, wie die eines If-/Else-Schritts.
 ::: app.workflows.nodes.decide_score._handler.ScoreConfig
     options:
       show_bases: false
+
+## Kanäle { #channels }
+
+Vier Schritte handeln als einer der Channel-Bots der Organisation - Slack,
+Mattermost oder Telegram - über denselben Adapter, über den seine Antworten
+gehen. Eine Nachricht, die ein Workflow sendet, kommt also von diesem Bot, und
+ein Schritt kann lesen, was der Bot lesen darf.
+
+| Schritt | Tut | Gibt weiter |
+|---|---|---|
+| `channel.send` | sendet eine Nachricht in einen Kanal oder einen Thread | wohin sie ging |
+| `channel.read` | liest die neuesten Nachrichten eines Kanals oder Threads | `messages`, älteste zuerst |
+| `channel.members` | listet die Personen in einem Kanal | `members`, mit ihren Plattform-IDs |
+| `channel.find` | findet Kanäle nach Namen | `channels` |
+
+Ein Bot spricht für die ganze Organisation, darum braucht das Handeln als Bot
+`channels:manage`: der Autor des Graphen zum Veröffentlichen, der Principal des
+Runs bei jedem Run. Ein gelöschter oder abgeschalteter Bot lässt den Schritt mit
+`CHANNEL_NOT_USABLE` fehlschlagen. Eine Plattform, die einem Bot etwas nicht
+erlaubt - Telegram beim Lesen des Verlaufs oder der Kanalsuche -, mit
+`CHANNEL_UNSUPPORTED`, und eine, die nicht antwortet, mit `CHANNEL_CALL_FAILED`.
+Senden wird nie von selbst wiederholt.
+
+::: app.workflows.nodes._channels.ChannelBotConfig
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadOutput
+
+::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
+
+::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
 
 ## agent.run { #agent-run }
 

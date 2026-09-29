@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow steps that talk in Slack, Mattermost and Telegram.** **Send a
+  message**, **Read messages**, **List people** and **Find channels** act as one
+  of the organization's channel bots, through the adapter its replies use, so a
+  workflow can post an alert, read a thread, look up who is in a channel or find
+  one by name. Acting as a bot needs `channels:manage`, checked at publish and on
+  every run, and the editor picks the bot from the organization's own.
 - **Workflow steps that decide with TypeSafe's Jev.** **Yes or no**, **Choose
   one** (of up to 255 options) and **Score** (against a rubric of 2 to 10
   described levels) ask Jev a typed question about a bound text with a

@@ -17,6 +17,19 @@ import type { Schema } from "./schema-model";
 // simple controls so the form's wiring — which picker, and what it writes — is
 // what is under test.
 vi.mock("@/components/workflows/pickers", () => ({
+  ChannelBotPicker: ({
+    value,
+    onChange,
+  }: {
+    value: string | null;
+    onChange: (v: unknown) => void;
+  }) => (
+    <div>
+      <button type="button" aria-label="set-bot" onClick={() => onChange("bot-1")} />
+      <button type="button" aria-label="clear-bot" onClick={() => onChange(null)} />
+      <span>{value ?? "bot-none"}</span>
+    </div>
+  ),
   AgentVersionPicker: ({
     value,
     onChange,
@@ -248,6 +261,25 @@ describe("NodeForm sections", () => {
     });
     renderForm({ definition: agentRun });
     expect(screen.getByText("As the agent answers")).toBeVisible();
+  });
+
+  it("pins a channel step's bot through the bot picker, and clears it", async () => {
+    const channelStep = makeDefinition({
+      id: "channel.send",
+      config_schema: {
+        type: "object",
+        properties: { bot_id: { "x-resource": "channel_bot", title: "Bot" } },
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({
+      definition: channelStep,
+      config: { bot_id: "bot-0" },
+    });
+    expect(screen.getByText("bot-0")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "set-bot" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { bot_id: "bot-1" });
+    await userEvent.click(screen.getByRole("button", { name: "clear-bot" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
   });
 
   it("sets a Schedule trigger up in its own words rather than as raw fields", () => {

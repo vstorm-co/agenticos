@@ -159,6 +159,38 @@ A merge may rejoin a decision's branches, as it rejoins an If / else step's.
     options:
       show_bases: false
 
+## Channels { #channels }
+
+Four steps act as one of the organization's channel bots - Slack, Mattermost or
+Telegram - through the adapter its replies already go through, so a message a
+workflow sends arrives as that bot, and a step can read what the bot may read.
+
+| Step | Does | Hands on |
+|---|---|---|
+| `channel.send` | posts a message to a channel, or a thread in it | where it was sent |
+| `channel.read` | reads the latest messages in a channel or a thread | `messages`, oldest first |
+| `channel.members` | lists the people in a channel | `members`, with their platform ids |
+| `channel.find` | finds channels by name | `channels` |
+
+A bot speaks for the whole organization, so acting as one needs
+`channels:manage`: the graph's author to publish, the run's principal on every
+run. A bot deleted or switched off stops the step with `CHANNEL_NOT_USABLE`. A
+platform that does not let a bot do something - Telegram reading history or
+searching channels - fails it with `CHANNEL_UNSUPPORTED`, and one that does not
+answer with `CHANNEL_CALL_FAILED`. Sending is never repeated on its own.
+
+::: app.workflows.nodes._channels.ChannelBotConfig
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadOutput
+
+::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
+
+::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
 ## agent.run { #agent-run }
 
 Asks a published agent, at the exact version the step pins, through the same

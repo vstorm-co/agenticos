@@ -17,6 +17,7 @@ import { SchemaForm } from "@/components/agents/schema-form";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import {
   AgentVersionPicker,
+  ChannelBotPicker,
   CollectionPicker,
   SecretPicker,
   TableColumnPicker,
@@ -239,6 +240,16 @@ function ResourcePin({
     return (
       <TableColumnPicker
         value={current}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "channel_bot") {
+    return (
+      <ChannelBotPicker
+        value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}
         error={error}

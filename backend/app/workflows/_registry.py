@@ -100,6 +100,10 @@ def load_builtins() -> None:
 
     from app.workflows.nodes import (  # noqa: F401 - imported for side effects
         agent_run,
+        channel_find,
+        channel_members,
+        channel_read,
+        channel_send,
         code_python_sandbox,
         code_python_simple,
         control_foreach,

@@ -13,6 +13,7 @@
  * - `TableColumnPicker` (`TableIORef`) — table then column, scoped to the table's
  *   current schema, with the schema-drift banner.
  * - `SecretPicker` (a vault secret id, never a value).
+ * - `ChannelBotPicker` (one of the organization's channel bots, by id).
  */
 
 export { CollectionPicker } from "@/components/agents/collection-picker";
@@ -23,3 +24,4 @@ export {
 } from "./agent-version-picker";
 export { TableColumnPicker, type TableColumnPickerProps } from "./table-column-picker";
 export { SecretPicker, type SecretPickerProps } from "./secret-picker";
+export { ChannelBotPicker, type ChannelBotPickerProps } from "./channel-bot-picker";

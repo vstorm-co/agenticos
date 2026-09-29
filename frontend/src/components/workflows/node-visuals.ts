@@ -19,19 +19,24 @@ import {
   GitMerge,
   Gauge,
   Globe,
+  Hash,
   ImageIcon,
   ListChecks,
   Library,
   MessageSquare,
+  MessageSquareText,
   Play,
   Repeat,
   Scale,
+  Search,
+  Send,
   ScanText,
   ShieldAlert,
   Table2,
   TableProperties,
   Terminal,
   Upload,
+  Users,
   Webhook,
   Zap,
   type LucideIcon,
@@ -90,6 +95,10 @@ const BY_ID: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
   "decide.yes_no": { icon: Scale, tone: "logic" },
   "decide.choose": { icon: ListChecks, tone: "logic" },
   "decide.score": { icon: Gauge, tone: "logic" },
+  "channel.send": { icon: Send, tone: "network" },
+  "channel.read": { icon: MessageSquareText, tone: "network" },
+  "channel.members": { icon: Users, tone: "network" },
+  "channel.find": { icon: Search, tone: "network" },
 };
 
 const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
@@ -101,6 +110,7 @@ const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
   code: { icon: Code2, tone: "code" },
   http: { icon: Globe, tone: "network" },
   notification: { icon: Bell, tone: "network" },
+  channels: { icon: Hash, tone: "network" },
   debug: { icon: Bug, tone: "neutral" },
 };
 
@@ -120,6 +130,7 @@ export const CATEGORY_ORDER = [
   "error",
   "http",
   "notification",
+  "channels",
 ] as const;
 
 /** Categories a builder never needs in the palette. */

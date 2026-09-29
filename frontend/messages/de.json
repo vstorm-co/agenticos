@@ -5797,7 +5797,8 @@
       "debug": "Debug",
       "core": "Abschluss",
       "triggers": "Auslöser",
-      "decide": "Entscheidungen"
+      "decide": "Entscheidungen",
+      "channels": "Kanäle"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -5840,7 +5841,14 @@
     "triggerHintChat": "Mitglieder wählen diesen Workflow im Chat. Die folgenden Schritte lesen die Nachricht als prompt, mit der Unterhaltung und dem Absender.",
     "triggerHintWebhook": "Die Veröffentlichung gibt diesem Workflow eine eigene Adresse und ein Signatur-Secret, die bei weiteren Veröffentlichungen gleich bleiben. Die folgenden Schritte lesen das JSON der Zustellung als body.",
     "publishTrigger": "Er startet mit {trigger}. Ein Webhook, Zeitplan oder Tabellenauslöser läuft nach der Veröffentlichung als Sie.",
-    "publishStartsByHand": "Er hat keinen Auslöser und startet daher von Hand oder per API."
+    "publishStartsByHand": "Er hat keinen Auslöser und startet daher von Hand oder per API.",
+    "pickerBotLabel": "Bot",
+    "pickerBotPlaceholder": "Bot auswählen",
+    "pickerBotOff": "Aus",
+    "pickerBotsEmpty": "Noch keine Channel-Bots.",
+    "pickerBotsAdd": "Unter Kanäle hinzufügen",
+    "pickerBotOrphaned": "Der Bot dieses Schritts ist weg - wählen Sie einen anderen.",
+    "pickerBotNeedsPermission": "Als Channel-Bot zu handeln erfordert channels:manage, das Sie nicht haben."
   },
   "artifacts": {
     "title": "Artefakte",

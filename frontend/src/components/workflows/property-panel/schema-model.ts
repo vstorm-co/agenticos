@@ -228,7 +228,7 @@ export function objectFields(schema: Schema, defs: Defs): FieldEntry[] {
 }
 
 /** Which resource picker a config leaf pins, from its `x-resource` keyword, or null. */
-export type ResourceKind = "agent" | "table" | "secret" | "collection" | "member";
+export type ResourceKind = "agent" | "table" | "secret" | "collection" | "member" | "channel_bot";
 
 const RESOURCE_KINDS: readonly ResourceKind[] = [
   "agent",
@@ -236,6 +236,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   "secret",
   "collection",
   "member",
+  "channel_bot",
 ];
 
 /** The resource a leaf pins through a picker, or null for an ordinary literal leaf. */

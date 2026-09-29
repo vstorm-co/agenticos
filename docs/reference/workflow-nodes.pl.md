@@ -1,5 +1,5 @@
 ---
-source_sha: "c777f531d8e2"
+source_sha: "b1c12229773c"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -163,6 +163,40 @@ gałęzie kroku If / else.
 ::: app.workflows.nodes.decide_score._handler.ScoreConfig
     options:
       show_bases: false
+
+## Kanały { #channels }
+
+Cztery kroki działają jako jeden z botów kanałów organizacji - Slack, Mattermost
+albo Telegram - przez ten sam adapter, którym idą jego odpowiedzi, więc
+wiadomość wysłana przez workflow przychodzi od tego bota, a krok może odczytać
+to, co bot może czytać.
+
+| Krok | Robi | Przekazuje dalej |
+|---|---|---|
+| `channel.send` | wysyła wiadomość na kanał albo do wątku | gdzie ją wysłano |
+| `channel.read` | czyta najnowsze wiadomości z kanału albo wątku | `messages`, od najstarszej |
+| `channel.members` | wymienia osoby na kanale | `members`, z ich id na platformie |
+| `channel.find` | szuka kanałów po nazwie | `channels` |
+
+Bot mówi w imieniu całej organizacji, więc działanie jako on wymaga
+`channels:manage`: od autora grafu przy publikacji i od podmiotu runa przy
+każdym runie. Bot usunięty albo wyłączony kończy krok błędem
+`CHANNEL_NOT_USABLE`. Platforma, która nie pozwala botowi czegoś zrobić -
+Telegram przy czytaniu historii albo szukaniu kanałów - kończy go błędem
+`CHANNEL_UNSUPPORTED`, a taka, która nie odpowiada, błędem `CHANNEL_CALL_FAILED`.
+Wysyłanie nigdy nie jest powtarzane samo.
+
+::: app.workflows.nodes._channels.ChannelBotConfig
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadConfig
+    options:
+      show_bases: false
+
+::: app.workflows.nodes.channel_read._handler.ChannelReadOutput
+
+::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
+
+::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
 
 ## agent.run { #agent-run }
 

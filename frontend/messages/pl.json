@@ -3583,7 +3583,8 @@
       "debug": "Debugowanie",
       "core": "Zakończenie",
       "triggers": "Wyzwalacze",
-      "decide": "Decyzje"
+      "decide": "Decyzje",
+      "channels": "Kanały"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -3626,7 +3627,14 @@
     "triggerHintChat": "Członkowie wybierają ten workflow w czacie. Kolejne kroki czytają wiadomość jako prompt, razem z rozmową i nadawcą.",
     "triggerHintWebhook": "Publikacja daje temu workflow własny adres i sekret do podpisu, które zostają takie same przy kolejnych publikacjach. Kolejne kroki czytają JSON dostawy jako body.",
     "publishTrigger": "Startuje od: {trigger}. Webhook, harmonogram lub wyzwalacz tabeli po publikacji działa jako Ty.",
-    "publishStartsByHand": "Nie ma wyzwalacza, więc uruchamia się ręcznie lub przez API."
+    "publishStartsByHand": "Nie ma wyzwalacza, więc uruchamia się ręcznie lub przez API.",
+    "pickerBotLabel": "Bot",
+    "pickerBotPlaceholder": "Wybierz bota",
+    "pickerBotOff": "Wyłączony",
+    "pickerBotsEmpty": "Nie ma jeszcze botów kanałów.",
+    "pickerBotsAdd": "Dodaj go w Kanałach",
+    "pickerBotOrphaned": "Bota, którego wskazuje ten krok, już nie ma - wybierz innego.",
+    "pickerBotNeedsPermission": "Działanie jako bot kanału wymaga channels:manage, którego nie masz."
   },
   "artifacts": {
     "title": "Artefakty",
