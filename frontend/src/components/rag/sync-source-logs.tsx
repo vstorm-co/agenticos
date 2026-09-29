@@ -53,21 +53,21 @@ function LogRow({ log }: { log: RAGSyncLog }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <span className="text-foreground text-xs font-medium capitalize">{log.status}</span>
-          <span className="text-foreground/45 font-mono text-[10px] tracking-wide uppercase">
+          <span className="text-muted-foreground font-mono text-[11px] tracking-wide uppercase">
             {log.mode}
           </span>
           {log.started_at && (
-            <span className="text-foreground/45 text-[10px]">
+            <span className="text-muted-foreground text-[11px]">
               {timeAgo(log.started_at, tTime, locale)}
             </span>
           )}
-          <span className="text-foreground/45 text-[10px]">{duration(log)}</span>
+          <span className="text-muted-foreground text-[11px]">{duration(log)}</span>
         </div>
         {log.status !== "running" && log.status !== "pending" && (
-          <p className="text-foreground/55 mt-0.5 text-[10px]">{outcome.join(" · ")}</p>
+          <p className="text-muted-foreground mt-0.5 text-[11px]">{outcome.join(" · ")}</p>
         )}
         {log.error_message && (
-          <p className="text-destructive mt-0.5 text-[10px] leading-snug">{log.error_message}</p>
+          <p className="text-destructive mt-0.5 text-[11px] leading-snug">{log.error_message}</p>
         )}
       </div>
     </div>
@@ -107,13 +107,13 @@ export function SyncSourceLogs({ logsPath }: SyncSourceLogsProps) {
         type="button"
         onClick={toggle}
         className={cn(
-          "text-foreground/55 hover:text-foreground flex w-full items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors",
+          "text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors",
         )}
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         {t("syncHistory")}
         {loaded && logs.length > 0 && (
-          <span className="text-foreground/35 ml-1">({logs.length})</span>
+          <span className="text-muted-foreground ml-1">({logs.length})</span>
         )}
       </button>
 
@@ -122,10 +122,10 @@ export function SyncSourceLogs({ logsPath }: SyncSourceLogsProps) {
           {loading ? (
             <div className="flex items-center gap-2 py-2">
               <Spinner className="h-3.5 w-3.5" />
-              <span className="text-foreground/45 text-xs">{t("loading")}</span>
+              <span className="text-muted-foreground text-xs">{t("loading")}</span>
             </div>
           ) : logs.length === 0 ? (
-            <p className="text-foreground/40 py-2 text-xs">{t("noSyncRunsYet")}</p>
+            <p className="text-muted-foreground py-2 text-xs">{t("noSyncRunsYet")}</p>
           ) : (
             logs.map((log) => <LogRow key={log.id} log={log} />)
           )}

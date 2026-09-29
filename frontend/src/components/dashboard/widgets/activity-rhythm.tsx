@@ -65,7 +65,7 @@ export function ActivityRhythmWidget({
               and the catalog is keyed the same way - the mapping stays in one
               place rather than being undone here and redone in a translation. */}
           <div
-            className="text-muted-foreground grid text-[10px] leading-none"
+            className="text-muted-foreground grid text-[11px] leading-none"
             // i18n-exempt: a CSS grid template, not words on screen
             style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}
           >
@@ -91,7 +91,7 @@ export function ActivityRhythmWidget({
           />
           <div aria-hidden />
           <div
-            className="text-muted-foreground grid text-[10px] leading-none tabular-nums"
+            className="text-muted-foreground grid text-[11px] leading-none tabular-nums"
             // i18n-exempt: a CSS grid template, not words on screen
             style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}
           >

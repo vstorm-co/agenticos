@@ -1,5 +1,5 @@
 ---
-source_sha: "b59d4c22327b"
+source_sha: "cf1144c4054a"
 ---
 
 # Konsola { #the-console }
@@ -168,6 +168,8 @@ zostanie zamknięty dla tego przeglądania.
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.
+Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
+poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 

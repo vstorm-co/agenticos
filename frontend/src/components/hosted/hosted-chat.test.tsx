@@ -216,7 +216,9 @@ describe("the hosted page", () => {
     act(() => socket().deliver({ type: "text_delta", data: { content: "days" } }));
     act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.getByText("30 days")).toBeInTheDocument();
+    // The streamed answer is paced onto the page over a few frames rather than
+    // painted in bursts, so it is awaited rather than read synchronously.
+    expect(await screen.findByText("30 days")).toBeInTheDocument();
     expect(screen.queryByText("Working on it…")).toBeNull();
   });
 
@@ -414,34 +416,41 @@ describe("what the page does with the frames it is sent", () => {
     expect(screen.getByText("Checking policy.")).toBeInTheDocument();
   });
 
-  it("keeps one bubble for a turn rather than one per frame", () => {
+  it("keeps one bubble for a turn rather than one per frame", async () => {
     render(<HostedChat config={config()} />);
 
     act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty " } }));
     act(() => socket().deliver({ type: "text_delta", data: { content: "days." } }));
+    // Ended, so the text is whole: mid-turn each word is its own span, and the
+    // last one waits in case it is still arriving.
+    act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(await screen.findByText("Thirty days.")).toBeInTheDocument();
   });
 
-  it("starts a new bubble once a turn is over", () => {
+  it("starts a new bubble once a turn is over", async () => {
     render(<HostedChat config={config()} />);
 
     act(() => socket().deliver({ type: "text_delta", data: { content: "First." } }));
     act(() => socket().deliver({ type: "complete", data: {} }));
     act(() => socket().deliver({ type: "text_delta", data: { content: "Second." } }));
+    act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.getByText("First.")).toBeInTheDocument();
-    expect(screen.getByText("Second.")).toBeInTheDocument();
+    // Found rather than got: a short answer flows in, and its words keep their
+    // fade-in spans until the last one has surfaced.
+    expect(await screen.findByText("First.")).toBeInTheDocument();
+    expect(await screen.findByText("Second.")).toBeInTheDocument();
   });
 
-  it("settles on what the run ended with", () => {
+  it("settles on what the run ended with", async () => {
     // A provider that streams no deltas leaves `final_result` as the only copy of
     // the answer, so it is assigned rather than appended.
     render(<HostedChat config={config()} />);
 
     act(() => socket().deliver({ type: "final_result", data: { output: "Thirty days." } }));
+    act(() => socket().deliver({ type: "complete", data: {} }));
 
-    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(await screen.findByText("Thirty days.")).toBeInTheDocument();
   });
 
   it("replaces an empty turn with the reason it produced nothing", () => {
@@ -590,7 +599,7 @@ describe("attaching a file", () => {
 });
 
 describe("a turn laid out the way web chat lays one out", () => {
-  it("keeps a turn's words and its work in the order they arrived", () => {
+  it("keeps a turn's words and its work in the order they arrived", async () => {
     // The reason the page holds `MessagePart[]` rather than a string and a list of
     // steps beside it: an agent that speaks, works, then speaks again is three
     // things in that sequence. The old shape rendered the whole answer above all of
@@ -605,10 +614,11 @@ describe("a turn laid out the way web chat lays one out", () => {
       }),
     );
     act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty days." } }));
+    act(() => socket().deliver({ type: "complete", data: {} }));
 
-    const said = screen.getByText("Let me look.");
+    const said = await screen.findByText("Let me look.");
     const step = screen.getByRole("button", { name: /Post Invoice/ });
-    const answered = screen.getByText("Thirty days.");
+    const answered = await screen.findByText("Thirty days.");
     expect(said.compareDocumentPosition(step)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(step.compareDocumentPosition(answered)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });

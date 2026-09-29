@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -179,6 +179,61 @@ async def test_a_filter_never_crosses_a_tenant(db: AsyncSession) -> None:
 
     assert items == []
     assert total == 0
+
+
+async def test_the_filter_choices_are_every_distinct_label_sorted(db: AsyncSession) -> None:
+    org, owner = await _org(db)
+    await _agent(db, org, owner, "A", categories=["support"], tags=["vip", "eu"])
+    await _agent(db, org, owner, "B", categories=["sales", "support"], tags=["eu"])
+    await _agent(db, org, owner, "C")
+
+    labels = await agent_repo.list_visible_labels(
+        db, organization_id=org.id, user_id=owner.id, see_all=True, shared_ids=[]
+    )
+
+    assert labels == (["sales", "support"], ["eu", "vip"])
+
+
+async def test_archived_agents_offer_choices_only_when_listed(db: AsyncSession) -> None:
+    org, owner = await _org(db)
+    archived = await _agent(db, org, owner, "Old", tags=["legacy"])
+    archived.status = AgentStatus.ARCHIVED.value
+    await db.flush()
+
+    hidden = await agent_repo.list_visible_labels(
+        db, organization_id=org.id, user_id=owner.id, see_all=True, shared_ids=[]
+    )
+    shown = await agent_repo.list_visible_labels(
+        db,
+        organization_id=org.id,
+        user_id=owner.id,
+        see_all=True,
+        shared_ids=[],
+        include_archived=True,
+    )
+
+    assert hidden == ([], [])
+    assert shown == ([], ["legacy"])
+
+
+@pytest.mark.security
+async def test_the_filter_choices_never_disclose_an_unseen_agent(db: AsyncSession) -> None:
+    """A private agent's labels stay out of another member's menu, and so does another org's."""
+    org, owner = await _org(db)
+    member = await _user(db)
+    await _agent(db, org, owner, "Secret", categories=["m-and-a"], tags=["project-x"])
+    shared = await _agent(db, org, owner, "Granted", tags=["granted"])
+    public = await _agent(db, org, owner, "Public", tags=["public"])
+    public.visibility = Visibility.ORG.value
+    other_org, other_owner = await _org(db)
+    await _agent(db, other_org, other_owner, "Elsewhere", tags=["elsewhere"])
+    await db.flush()
+
+    labels = await agent_repo.list_visible_labels(
+        db, organization_id=org.id, user_id=member.id, see_all=False, shared_ids=[shared.id]
+    )
+
+    assert labels == ([], ["granted", "public"])
 
 
 async def test_metadata_round_trips_stored_normalized(db: AsyncSession) -> None:

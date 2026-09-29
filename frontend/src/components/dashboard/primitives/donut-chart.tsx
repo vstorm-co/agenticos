@@ -84,7 +84,7 @@ export function DonutChart({
               <span className="text-muted-foreground min-w-0 flex-1 truncate">{row.name}</span>
             )}
             {row.share !== undefined ? (
-              <span className="text-muted-foreground/70 shrink-0 tabular-nums">
+              <span className="text-muted-foreground shrink-0 tabular-nums">
                 {formatShare(row.share, locale)}
               </span>
             ) : null}

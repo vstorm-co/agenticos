@@ -109,7 +109,7 @@ export function CodeArea({
           // The text itself is invisible - the underlay is what you read - but
           // the placeholder has to be its own colour, or an empty file is a
           // blank rectangle with nothing to say what goes in it.
-          "caret-foreground text-foreground/0 placeholder:text-muted-foreground/70 absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent outline-none",
+          "caret-foreground text-foreground/0 placeholder:text-muted-foreground absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent outline-none",
         )}
       />
     </div>

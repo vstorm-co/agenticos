@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
+import { SectionGlyph } from "@/components/states/section-glyph";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -32,11 +33,7 @@ export function EmptyState({
         className,
       )}
     >
-      {Icon && (
-        <div className="bg-muted text-muted-foreground mb-5 flex h-11 w-11 items-center justify-center rounded-xl">
-          <Icon className="h-5 w-5" />
-        </div>
-      )}
+      {Icon && <SectionGlyph icon={Icon} className="mb-5" />}
       <h3 className="text-foreground text-base font-semibold tracking-tight">{title}</h3>
       {description && (
         <p className="text-muted-foreground mt-1.5 max-w-sm text-sm leading-relaxed text-pretty">

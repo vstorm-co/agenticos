@@ -14,6 +14,7 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
     enabled: true,
     file_count: 0,
     built_in: false,
+    excerpt: "",
     ...overrides,
   };
 }

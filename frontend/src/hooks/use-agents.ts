@@ -172,6 +172,10 @@ export function useAgents({
   return {
     agents: data?.items ?? [],
     total: data?.total ?? 0,
+    // The facet filter's choices - every label on an agent the caller may list,
+    // unnarrowed by the filter itself.
+    categoryOptions: data?.categories ?? [],
+    tagOptions: data?.tags ?? [],
     isLoading,
     error,
     refetch,

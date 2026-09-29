@@ -12,7 +12,7 @@ import { ApiError } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { invitationFlowFrom } from "@/lib/invitation-links";
 
-const LABEL = "text-foreground/80 text-xs font-medium tracking-wider uppercase";
+const LABEL = "text-foreground text-sm font-medium";
 
 /**
  * Signing in with a company directory (LDAP) account.
@@ -71,7 +71,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
-          className="h-12 rounded-xl"
+          className="h-11 rounded-lg text-[15px]"
         />
       </div>
 
@@ -87,21 +87,17 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           required
           disabled={isLoading}
           autoComplete="current-password"
-          className="h-12 rounded-xl"
+          className="h-11 rounded-lg text-[15px]"
         />
       </div>
 
       {error && (
-        <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
+        <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
           {error}
         </p>
       )}
 
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-      >
+      <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
         {isLoading ? (
           t("loggingIn")
         ) : (

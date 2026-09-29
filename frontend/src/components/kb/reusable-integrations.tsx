@@ -174,7 +174,7 @@ function IntegrationRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
-        <p className="text-muted-foreground mt-0.5 font-mono text-[10px] tracking-wider uppercase">
+        <p className="text-muted-foreground mt-0.5 font-mono text-[11px] tracking-wider uppercase">
           {source.connector_type}
           {source.schedule_minutes
             ? ` · ${t("everyMinutes", { minutes: source.schedule_minutes })}`

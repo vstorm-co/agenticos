@@ -126,7 +126,7 @@ export function SlashCommandsManager() {
   return (
     <div className="space-y-8">
       {error && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-center justify-between rounded-xl border px-4 py-3 text-sm">
+        <div className="border-destructive/35 bg-destructive/[0.07] text-foreground flex items-center justify-between rounded-xl border px-4 py-3 text-sm">
           <span>{error}</span>
           <Button size="sm" variant="ghost" onClick={() => refresh()}>
             {t("retry")}
@@ -138,7 +138,7 @@ export function SlashCommandsManager() {
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("builtCommands")}</h3>
-            <p className="text-foreground/55 mt-0.5 text-xs">{t("disableAnyYouDon")}</p>
+            <p className="text-muted-foreground mt-0.5 text-xs">{t("disableAnyYouDon")}</p>
           </div>
         </div>
         <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
@@ -152,7 +152,7 @@ export function SlashCommandsManager() {
                       /{cmd.name}
                     </code>
                     {cmd.action.kind === "client" && (
-                      <span className="text-foreground/45 font-mono text-[10px] tracking-wider uppercase">
+                      <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
                         {t("local")}
                       </span>
                     )}
@@ -175,7 +175,7 @@ export function SlashCommandsManager() {
         <div className="flex items-baseline justify-between gap-3">
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
-            <p className="text-foreground/55 mt-0.5 text-xs">
+            <p className="text-muted-foreground mt-0.5 text-xs">
               {t.rich("slashShortcuts", { cmd: (chunks) => <code>{chunks}</code> })}
             </p>
           </div>
@@ -207,7 +207,7 @@ export function SlashCommandsManager() {
                 <button
                   type="button"
                   onClick={() => openEdit(record)}
-                  className="text-foreground/55 hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                  className="text-muted-foreground hover:bg-foreground/5 hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
                   title={t("edit")}
                   aria-label={t("edit2")}
                 >
@@ -216,7 +216,7 @@ export function SlashCommandsManager() {
                 <button
                   type="button"
                   onClick={() => handleDelete(record)}
-                  className="text-foreground/55 hover:bg-destructive/10 hover:text-destructive inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
                   title={t("delete")}
                   aria-label={t("delete2")}
                 >
@@ -239,7 +239,7 @@ export function SlashCommandsManager() {
             <div>
               <Label htmlFor="cmd-name">{t("name")}</Label>
               <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-foreground/45 font-mono text-sm">/</span>
+                <span className="text-muted-foreground font-mono text-sm">/</span>
                 <Input
                   id="cmd-name"
                   value={draftName}
@@ -249,7 +249,7 @@ export function SlashCommandsManager() {
                   autoFocus
                 />
               </div>
-              <p className="text-foreground/45 mt-1 text-[11px]">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {t("lowercaseLettersDigitsHyphens")}
               </p>
             </div>
@@ -264,7 +264,7 @@ export function SlashCommandsManager() {
                 maxLength={10_000}
                 className="mt-1.5 font-mono text-sm"
               />
-              <p className="text-foreground/45 mt-1 text-[11px]">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {t.rich("sentAsRegularUserMessage", {
                   name: draftName || t("commandNamePlaceholder"),
                   cmd: (chunks) => <code>{chunks}</code>,

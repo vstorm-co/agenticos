@@ -145,6 +145,12 @@ the person looking at it:
   fresh address each time they draw the frame, and minting one through a public
   link is itself limited per link.
 
+The **Artifacts** list draws each card's current page as a live thumbnail
+through the same frame, with the same `sandbox` list. The thumbnail is inert —
+no pointer events, out of the tab order, hidden from assistive technology — and
+its address is minted only once the card nears the viewport, so a long list does
+not mint one per artifact up front.
+
 On top of that, a deployment can serve content from a **separate registrable
 domain** by setting `ARTIFACT_ORIGIN` - for example
 `https://agenticos-content.example.net`, routed to the same API. The page is

@@ -54,7 +54,7 @@ export function GeneratedImageResult({ data }: { data: GeneratedImagePayload }) 
         className="border-foreground/10 max-h-[28rem] w-auto rounded-xl border"
       />
       {data.prompt && (
-        <figcaption className="text-foreground/55 mt-1 text-[11px] leading-relaxed">
+        <figcaption className="text-muted-foreground mt-1 text-xs leading-relaxed">
           {data.prompt}
         </figcaption>
       )}

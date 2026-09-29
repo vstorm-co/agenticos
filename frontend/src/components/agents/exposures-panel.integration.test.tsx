@@ -135,6 +135,11 @@ describe("ExposuresPanel", () => {
 
     expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
     expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
+    // And the fix is one click away rather than a page name to go and find.
+    expect(screen.getByRole("link", { name: "register another under Channels" })).toHaveAttribute(
+      "href",
+      "/channels",
+    );
   });
 
   it("says the same thing when this agent is on the only bot there is", async () => {

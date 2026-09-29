@@ -327,6 +327,7 @@ export function useChat(options: UseChatOptions = {}) {
               ...msg,
               id: message_id,
               isTemporaryId: false,
+              renderKey: msg.renderKey ?? msg.id,
             }));
             // And point the ref at it. Everything after this - `complete` writing
             // what the turn cost, an `error` marking the message failed - addresses
@@ -345,6 +346,7 @@ export function useChat(options: UseChatOptions = {}) {
                 ...msg,
                 id: message_id,
                 isTemporaryId: false,
+                renderKey: msg.renderKey ?? msg.id,
               }));
             }
           }

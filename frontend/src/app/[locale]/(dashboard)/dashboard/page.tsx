@@ -223,15 +223,15 @@ export default function DashboardPage() {
           onNewBlank={() => openEditor(true)}
           onDelete={removePreset}
         />
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEditor(false)}>
-          <LayoutGrid className="size-3.5" aria-hidden />
+        <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
+          <LayoutGrid className="size-4" aria-hidden />
           {t("edit.customize")}
         </Button>
       </div>
       {can(Perm.agentsRun) ? (
-        <Button asChild size="sm" className="gap-1.5">
+        <Button asChild className="gap-1.5">
           <Link href={ROUTES.CHAT}>
-            <MessageSquarePlus className="size-3.5" aria-hidden />
+            <MessageSquarePlus className="size-4" aria-hidden />
             {t("actions.newChat")}
           </Link>
         </Button>
@@ -316,7 +316,7 @@ export default function DashboardPage() {
                           ? t("edit.expand", { title: heading })
                           : t("edit.collapse", { title: heading })
                       }
-                      className="text-muted-foreground/70 hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
+                      className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
                     >
                       {collapsed ? (
                         <ChevronRight className="size-4" aria-hidden />
@@ -327,14 +327,14 @@ export default function DashboardPage() {
                     {coloured ? (
                       <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
                     ) : null}
-                    <span className="text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+                    <span className="text-muted-foreground truncate font-mono text-xs font-medium tracking-[0.1em] uppercase">
                       {heading}
                     </span>
                     <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
                   </h2>
                 ) : null}
                 {collapsed ? null : (
-                  <div className={cn(ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
+                  <div className={cn("rise-in", ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
                     {section.entries.map((entry, index) => {
                       const Widget = WIDGET_COMPONENTS[entry.widget];
                       // Width and height, both from the placement. The shipped

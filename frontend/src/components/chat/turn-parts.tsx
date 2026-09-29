@@ -3,7 +3,9 @@
 import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { cn } from "@/lib/utils";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
@@ -198,6 +200,9 @@ export function AskUserBlock({
  * its bubble precisely because it is the short one, and the contrast is what makes a
  * long transcript scannable at all.
  */
+/** How long a streamed word takes to fade in - `.stream-word` in globals.css. */
+const WORD_FADE_MS = 700;
+
 export function TextBubble({
   text,
   showCursor,
@@ -209,6 +214,10 @@ export function TextBubble({
   isUser: boolean;
   onCiteClick?: (index: number) => void;
 }) {
+  const visible = useSmoothText(text, showCursor && !isUser);
+  // Words keep their fade-in spans until the last one has finished fading: a fast
+  // model ends its turn while its final words are still surfacing.
+  const flowing = useLinger(showCursor || visible.length < text.length, WORD_FADE_MS);
   if (isUser) {
     // A panel rather than the inverted slab this was. `bg-foreground` made the
     // question the brightest object on the page, louder than the answer under
@@ -223,10 +232,15 @@ export function TextBubble({
   }
 
   return (
-    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
-      <MarkdownContent content={text} onCiteClick={onCiteClick} />
+    // While the turn streams, each new block - a paragraph, a list, a table - rises
+    // into place and each new word fades in, instead of appearing; both come off
+    // when the turn ends, so nothing already read ever animates again.
+    <div
+      className={cn("prose-sm max-w-none text-[15px] leading-relaxed", showCursor && "stream-in")}
+    >
+      <MarkdownContent content={visible} onCiteClick={onCiteClick} streaming={flowing} />
       {showCursor && (
-        <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
+        <span className="stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
   );

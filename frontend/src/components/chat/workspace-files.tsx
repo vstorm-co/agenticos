@@ -190,12 +190,14 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           says what kind of thing it is before the name is read, which a 288-pixel
           column of monospace paths did not. */}
       {files.length > 0 && (
-        <ul className="grid grid-cols-2 gap-2">
+        <ul className="rise-in grid grid-cols-2 gap-2">
           {files.map((file) => (
             <li key={file.path}>
               <FileCard
                 name={file.path.split("/").filter(Boolean).pop() ?? file.path}
                 size={file.size}
+                preview={file.preview}
+                imageUrl={file.thumbnail}
                 onOpen={() => setReading(file)}
                 className="w-full"
               />
@@ -213,7 +215,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           have nothing to read. */}
       {unstored.length > 0 && (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-[11px] font-medium">{t("attached")}</p>
+          <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
           <ul className="grid grid-cols-2 gap-2">
             {unstored.map((file) => (
               <li key={file.id}>

@@ -48,7 +48,7 @@ import { useTranslations } from "next-intl";
  */
 function TabCount({ children }: { children: React.ReactNode }) {
   return (
-    <span className="bg-foreground/10 text-foreground/80 ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums">
+    <span className="bg-foreground/10 text-foreground/80 ml-2 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums">
       {children}
     </span>
   );

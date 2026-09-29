@@ -25,7 +25,9 @@ export function SignupClosed() {
         <Lock className="h-5 w-5" aria-hidden />
       </span>
       <div className="space-y-2">
-        <h1 className="text-display-md text-foreground">{t("signupClosedHeading")}</h1>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance">
+          {t("signupClosedHeading")}
+        </h1>
         <p className="text-foreground/65 text-sm">{t("signupClosedBody", { app: appName })}</p>
       </div>
       <Link

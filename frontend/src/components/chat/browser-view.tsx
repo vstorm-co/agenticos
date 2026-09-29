@@ -35,7 +35,7 @@ export function Confidence({ value }: { value: number }) {
   const tone = value >= 0.7 ? "bg-brand" : value >= 0.4 ? "bg-foreground/45" : "bg-amber-500";
   return (
     <span
-      className="text-foreground/45 ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[10px] tabular-nums"
+      className="text-muted-foreground ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[11px] tabular-nums"
       title={t("browserConfidenceHint", { value: value.toFixed(2) })}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", tone)} aria-hidden />
@@ -52,10 +52,10 @@ export function StepRow({ step, last }: { step: BrowseStep; last: boolean }) {
         last && "bg-foreground/[0.06]",
       )}
     >
-      <span className="text-foreground/40 w-5 shrink-0 text-right font-mono text-[10px] tabular-nums">
+      <span className="text-muted-foreground w-5 shrink-0 text-right font-mono text-[11px] tabular-nums">
         {step.step}
       </span>
-      <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
+      <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]">
         {step.operation}
       </span>
       {/* Page-derived text. Rendered as text, never as markup. */}
@@ -102,7 +102,7 @@ export function Viewport({ browse, inset = false }: { browse: Browse; inset?: bo
     return (
       <div
         className={cn(
-          "text-foreground/45 flex aspect-[4/3] w-full items-center justify-center text-xs",
+          "text-muted-foreground flex aspect-[4/3] w-full items-center justify-center text-xs",
           !inset && "border-foreground/8 bg-foreground/[0.02] rounded-xl border",
         )}
       >
@@ -122,7 +122,7 @@ export function Viewport({ browse, inset = false }: { browse: Browse; inset?: bo
         className="block w-full"
       />
       {running && !inset && (
-        <span className="bg-background text-foreground/80 border-border absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] tabular-nums">
+        <span className="bg-background text-foreground/80 border-border absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[11px] tabular-nums">
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
           {progress}
         </span>
@@ -144,7 +144,7 @@ export function Outcome({ browse }: { browse: Browse }) {
         {t(`browserOutcome.${browse.outcome}`)}
       </p>
       {browse.detail && (
-        <p className="text-foreground/55 mt-1 text-xs leading-relaxed">{browse.detail}</p>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{browse.detail}</p>
       )}
     </div>
   );

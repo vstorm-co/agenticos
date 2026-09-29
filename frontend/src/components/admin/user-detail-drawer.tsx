@@ -181,14 +181,14 @@ export function UserDetailDrawer({
 
         <div className="flex-1 scrollbar-thin overflow-y-auto p-5">
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
+            <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[11px]">
               {subject.is_active ? t("active") : t("suspended")}
             </Badge>
             {/* One privilege, so one badge. There used to be a second one
                 printing `users.role`, which said "user" for every account on
                 the deployment - including the ones that administered it. */}
             {subject.is_app_admin && (
-              <Badge className="bg-brand text-brand-foreground border-transparent text-[10px]">
+              <Badge className="bg-brand text-brand-foreground border-transparent text-[11px]">
                 <Shield className="mr-1 h-3 w-3" />
                 {t("appAdmin")}
               </Badge>
@@ -270,7 +270,7 @@ export function UserDetailDrawer({
                       {membership.name}
                     </Link>
                     {membership.is_personal && (
-                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                      <Badge variant="outline" className="shrink-0 text-[11px]">
                         {t("personalOrg")}
                       </Badge>
                     )}

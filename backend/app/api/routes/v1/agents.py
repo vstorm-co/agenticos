@@ -238,7 +238,10 @@ async def list_agents(
         skip=skip,
         limit=limit,
     )
-    return AgentList(items=items, total=total)
+    categories, tags = await service.list_labels(
+        ctx, shared_with_me=shared_with_me, include_archived=include_archived
+    )
+    return AgentList(items=items, total=total, categories=categories, tags=tags)
 
 
 @router.post(

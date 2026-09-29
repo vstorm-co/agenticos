@@ -126,7 +126,7 @@ export function ConversationFilters({
         </Select>
       </div>
       {agentId !== null && (
-        <p className="text-muted-foreground text-[10px]">{t("agentFilterHint")}</p>
+        <p className="text-muted-foreground text-[11px]">{t("agentFilterHint")}</p>
       )}
     </div>
   );

@@ -535,6 +535,53 @@ class TestList:
         assert list_visible.call_args.kwargs["shared_ids"] == [granted]
 
     @pytest.mark.anyio
+    async def test_the_filter_choices_are_scoped_like_the_listing(self):
+        """A narrow role's choices come from what it may see, never the whole org."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible_labels",
+                new=AsyncMock(return_value=(["sales"], ["eu"])),
+            ) as list_labels,
+        ):
+            labels = await AgentRegistryService(_db()).list_labels(ctx, include_archived=True)
+
+        assert labels == (["sales"], ["eu"])
+        assert list_labels.call_args.kwargs["organization_id"] == ctx.organization_id
+        assert list_labels.call_args.kwargs["user_id"] == ctx.subject_id
+        assert list_labels.call_args.kwargs["see_all"] is False
+        assert list_labels.call_args.kwargs["shared_ids"] == [granted]
+        assert list_labels.call_args.kwargs["shared_with_me"] is False
+        assert list_labels.call_args.kwargs["include_archived"] is True
+
+    @pytest.mark.anyio
+    async def test_the_filter_choices_for_shared_with_me_look_up_grants(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        granted = uuid.uuid4()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted]),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible_labels",
+                new=AsyncMock(return_value=([], [])),
+            ) as list_labels,
+        ):
+            await AgentRegistryService(_db()).list_labels(ctx, shared_with_me=True)
+
+        assert list_labels.call_args.kwargs["see_all"] is True
+        assert list_labels.call_args.kwargs["shared_with_me"] is True
+        assert list_labels.call_args.kwargs["shared_ids"] == [granted]
+
+    @pytest.mark.anyio
     async def test_a_listed_agent_says_who_reaches_it_and_where_it_answers(self):
         """The gallery card reads 'shared with 3, on Slack' straight off the row.
 

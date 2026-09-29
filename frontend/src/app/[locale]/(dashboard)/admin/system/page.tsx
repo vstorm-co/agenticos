@@ -198,7 +198,7 @@ export default function SystemHealthPage() {
                       </span>
                     </div>
                     {check.latency_ms !== null && (
-                      <span className="text-muted-foreground text-[11px] tabular-nums">
+                      <span className="text-muted-foreground text-xs tabular-nums">
                         {t("latencyMs", { ms: check.latency_ms })}
                       </span>
                     )}

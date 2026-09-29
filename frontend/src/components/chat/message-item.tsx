@@ -48,7 +48,7 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
           </span>
         )}
       </span>
-      <span className="text-foreground/60 text-[11px] font-medium">
+      <span className="text-foreground/60 text-xs font-medium">
         {t("sourceCount", { count: sources.length })}
       </span>
     </button>
@@ -222,13 +222,13 @@ export function MessageItem({
             switched agents mid-way says so, instead of relabelling the whole
             thread with whatever is selected now. */}
         {!isUser && agent && !continuesTurn && (
-          <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {agent.name}
             {/* The version, where the transcript recorded one. An agent gets
                 rewritten; this turn was answered by one frozen spec, and that
                 is the thing "why did it say that" is a question about. */}
             {message.agentVersion !== undefined && (
-              <span className="text-foreground/40"> · v{message.agentVersion}</span>
+              <span className="text-muted-foreground"> · v{message.agentVersion}</span>
             )}
           </p>
         )}
@@ -299,9 +299,12 @@ export function MessageItem({
         )}
 
         {!message.isStreaming && hasBody && endsTurn && (
+          // The time and the cost surface on hover with the actions beside them:
+          // a column of receipts under every turn is noise while reading, and the
+          // numbers are one pointer move away when somebody wants them.
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
-              <span className="text-muted-foreground text-[10px]">
+              <span className="hover-reveal text-muted-foreground text-[11px]">
                 {new Date(message.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -314,12 +317,16 @@ export function MessageItem({
                  reader takes a truncated one as everything the agent had to say.
                  Beside the cost, because the two together are the whole account
                  of a turn that produced nothing usable and still spent money. */
-              <span className="text-muted-foreground flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
               </span>
             )}
-            {!isUser && footerUsage && <MessageCost usage={footerUsage} />}
+            {!isUser && footerUsage && (
+              <span className="hover-reveal">
+                <MessageCost usage={footerUsage} />
+              </span>
+            )}
             {message.content && (
               <CopyButton
                 text={message.content}
@@ -501,7 +508,7 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
         {filename}
       </span>
-      <Paperclip className="text-foreground/40 h-3.5 w-3.5 shrink-0" />
+      <Paperclip className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
     </a>
   );
 }

@@ -32,20 +32,26 @@ export default function RoutinesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} description={t("description")} />
-
-      {canCreate && (
-        <div className="flex flex-wrap gap-2" data-tour="routines-create">
-          <Button variant="outline" onClick={() => setCreatingSchedule(true)}>
-            <CalendarClock className="mr-2 h-4 w-4" />
-            {tt("newSchedule")}
-          </Button>
-          <Button variant="outline" onClick={() => setCreatingEvent(true)}>
-            <Zap className="mr-2 h-4 w-4" />
-            {tt("newEvent")}
-          </Button>
-        </div>
-      )}
+      {/* The two ways to start a routine are the page's primary actions, so they
+          sit where every other page keeps its create button - in the header. */}
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          canCreate ? (
+            <div className="flex flex-wrap gap-2" data-tour="routines-create">
+              <Button variant="outline" onClick={() => setCreatingEvent(true)}>
+                <Zap className="h-4 w-4" />
+                {tt("newEvent")}
+              </Button>
+              <Button onClick={() => setCreatingSchedule(true)}>
+                <CalendarClock className="h-4 w-4" />
+                {tt("newSchedule")}
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* The anchor is the wrapper, not the table: a card whose body is the whole
           org-wide list spotlights the viewport, which highlights nothing. */}

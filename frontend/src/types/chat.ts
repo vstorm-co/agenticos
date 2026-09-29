@@ -63,6 +63,12 @@ export interface ChatMessage {
   wasStopped?: boolean;
   /** True if message ID is a temporary client-minted id, not yet replaced by server ID */
   isTemporaryId?: boolean;
+  /**
+   * The temporary id a streamed message was rendered under, kept when the database
+   * id replaces it. The transcript keys on this first: a new key is a new bubble,
+   * and a remount at the end of a turn cut the reveal off mid-sentence.
+   */
+  renderKey?: string;
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */

@@ -91,7 +91,7 @@ function UnreadBadge({ count }: { count: number }) {
     <Badge
       variant="default"
       aria-label={t("unreadCount", { count })}
-      className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1 text-[10px] leading-none"
+      className="h-5 min-w-5 shrink-0 justify-center rounded-full px-1 text-[11px] leading-none"
     >
       {count > 99 ? "99+" : count}
     </Badge>

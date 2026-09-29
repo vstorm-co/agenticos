@@ -891,17 +891,15 @@ describe("the model the agent is already on", () => {
     expect(screen.getByLabelText("Model")).toHaveTextContent("openai/gpt-5.5");
   });
 
-  it("selects it again rather than minting a second row that says the same thing", async () => {
+  it("says the model is in use and offers nothing to press until a field changes", async () => {
     // What makes pre-filling the form safe. Without it, opening the panel and
-    // pressing the button would create a duplicate profile every time.
+    // pressing the button would create a duplicate profile every time - and the
+    // "Use this model" that replaced that selected the model already selected.
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
-    const selected = inUse();
-    const { onCreated } = mount({ selected });
+    mount({ selected: inUse() });
 
-    await userEvent.click(screen.getByRole("button", { name: "Use this model" }));
-
-    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
-    expect(onCreated).toHaveBeenCalledWith(selected);
+    expect(screen.getByText("In use")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
   });
 
   it("creates rather than reuses once an endpoint has been typed", async () => {
@@ -923,21 +921,12 @@ describe("the model the agent is already on", () => {
     // typed is making something new whatever its first two fields say.
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
     mount({ selected: inUse() });
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
     await userEvent.type(screen.getByLabelText("Name"), "the cheap one");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
-  });
-
-  it("needs no key decision to select a model the organization already has", async () => {
-    // It has whatever it was created with. Requiring one again would make the
-    // panel unusable for a provider whose key somebody else stored.
-    state.secrets = [];
-    mount({ selected: inUse() });
-
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeEnabled();
   });
 
   it("creates rather than reuses once a different key has been picked", async () => {
@@ -949,7 +938,7 @@ describe("the model the agent is already on", () => {
       secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
     ];
     mount({ selected: inUse({ secret_id: "s-1" }) });
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));

@@ -88,6 +88,10 @@ case-insensitively (a query value folds the way a stored one does, and a blank
 value is ignored). The filter only narrows what you could already see — it never
 crosses a tenant or a grant boundary.
 
+The response also carries `categories` and `tags`: every distinct label on the
+agents you could list, whatever the filter and the page — the choices a filter
+menu offers. A private agent you cannot see adds none.
+
 ## Running a workflow
 
 ```bash

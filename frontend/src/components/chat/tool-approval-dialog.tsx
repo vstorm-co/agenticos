@@ -75,7 +75,7 @@ export function ToolApprovalDialog({
               {/* Read-only, and scrolling rather than wrapping: a shell command is
                   read by its structure, and a 300-character one reflowed to the left
                   margin is unreadable in exactly the moment somebody has to judge it. */}
-              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-[11px] leading-relaxed whitespace-pre">
+              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed whitespace-pre">
                 {argumentLines(action)}
               </pre>
             </li>

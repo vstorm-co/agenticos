@@ -324,7 +324,7 @@
     "mapTreeTruncated": "Der Delegationsbaum ist größer, als eine Antwort durchläuft, seine tiefsten Teile sind also nicht gezeichnet.",
     "mapTreeUnavailable": "Der vollständige Delegationsbaum konnte nicht geladen werden, deshalb sind nur direkte Delegaten zu sehen.",
     "mattermostServerUrl": "Server-URL",
-    "mattermostServerUrlHint": "https://mattermost.ihre-firma.de",
+    "mattermostServerUrlHint": "Die Adresse, unter der Sie Mattermost im Browser öffnen, ohne Pfad",
     "mattermostWebhookToken": "Webhook-Token (optional)",
     "mattermostWebhookTokenHint": "Das Token, das Mattermost für den ausgehenden Webhook anzeigt",
     "maxTokens": "Max. Token",
@@ -383,7 +383,7 @@
     "openAgentPage": "{name} öffnen",
     "optionalPointModelAt": "Optional. Richten Sie dieses Modell auf ein Gateway oder einen Proxy statt auf die eigene API des Providers; authentifiziert wird weiterhin über den Schlüssel.",
     "organizationAposSOwn": "Die eigene Monatsobergrenze der Organisation steht nicht hier. Sie stoppt jeden Agent der Organisation, und der Autor eines Agents kann sie nicht anheben, deshalb geht ihre Warnung immer an die Admins.",
-    "organizationHasNoChannel": "Kein Bot ist frei zum Binden. Ein Bot antwortet als ein Agent, einer, der bereits einem anderen Agent dient, wird hier also nicht angeboten – registrieren Sie unter Kanäle einen weiteren.",
+    "organizationHasNoChannel": "Kein Bot ist frei zum Binden. Ein Bot antwortet als ein Agent, einer, der bereits einem anderen Agent dient, wird hier also nicht angeboten – <link>registrieren Sie unter Kanäle einen weiteren</link>.",
     "organizationHasNoCollections": "Diese Organisation hat noch keine Collections. Ein Agent ohne welche durchsucht nichts.",
     "organizationHasNoContext": "Diese Organisation hat noch keine Kontextdateien.",
     "organizationHasNoModels": "Diese Organisation hat noch keine Modelle. Ohne eines kann ein Agent nicht laufen.",
@@ -597,7 +597,7 @@
     "use": "Verwenden",
     "useCustomModel": "<mono>{name}</mono> verwenden",
     "useSavedModelCount": "Ein gespeichertes Modell verwenden ({count})",
-    "useThisModel": "Dieses Modell verwenden",
+    "modelInUse": "In Verwendung",
     "usingKey": "Verwendet <strong>{name}</strong>",
     "variableDescription": "Beschreibung von Variable {index}",
     "variableDescriptionPlaceholder": "In welchem Tarif dieser Besucher ist",
@@ -2220,7 +2220,6 @@
     "save": "Speichern",
     "saving": "Wird gespeichert …",
     "scannedPages": "Gescannte Seiten",
-    "scope": "Geltungsbereich",
     "selectKnowledgeBase": "Wissensdatenbank wählen …",
     "sendPicturesInsideDocument": "Die Bilder in einem Dokument an ein Modell senden und indexieren, was es dazu sagt. Braucht ein Modellprofil mit funktionierendem Schlüssel, was beim Speichern geprüft wird.",
     "servedBy": "bereitgestellt von {provider}",
@@ -2497,6 +2496,7 @@
     "connectAction": "Verbinden",
     "connectAnother": "Weiteres verbinden",
     "connectCheck": "Verbinden & prüfen",
+    "connectCustomForScope": "MCP-Server hinzufügen für {scope, select, organization {die Organisation} other {sich selbst}}",
     "connectForScope": "{name} verbinden für {scope, select, organization {die Organisation} other {sich selbst}}",
     "connected": "Verbunden",
     "connectedForOrg": "{name} steht den Agents dieser Organisation jetzt zur Verfügung.",
@@ -2516,7 +2516,7 @@
     "disconnectWarning": "„{name}“ trennen?",
     "displayName": "Name",
     "displayNameHint": "Wie diese Verbindung auf dem Bildschirm heißt. Optional — ohne Namen wird sie unter ihrem Tool-Präfix angezeigt.",
-    "displayNamePlaceholder": "Marketing-Workspace",
+    "displayNamePlaceholder": "Firmen-Wiki",
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",
     "editNamed": "„{name}“ bearbeiten",
@@ -2527,7 +2527,6 @@
     "finishConsentThenReturn": "Schließen Sie es im geöffneten Tab ab und kommen Sie zurück — der Server erscheint hier, sobald er autorisiert ist.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "Aus der öffentlichen MCP-Registry. Niemand hier hat ihn geprüft: Die Beschreibung stammt vom Herausgeber, und es gibt keinen Hinweis darauf, welches Credential er verlangt.",
-    "github": "github",
     "manageConnectionsOn": "Verbindungen auf {name} verwalten",
     "name": "Tool-Präfix",
     "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
@@ -3508,8 +3507,11 @@
       "filterByStatus": "Nach Status filtern",
       "filterByCategory": "Nach Kategorie filtern",
       "filterByTag": "Nach Tag filtern",
-      "removeCategoryFilter": "Kategoriefilter {value} entfernen",
-      "removeTagFilter": "Tag-Filter {value} entfernen",
+      "allCategories": "Alle Kategorien",
+      "categoryCount": "{count, plural, =1 {1 Kategorie} other {# Kategorien}}",
+      "allTags": "Alle Tags",
+      "tagCount": "{count, plural, =1 {1 Tag} other {# Tags}}",
+      "clearFilter": "Filter zurücksetzen",
       "categories": "Kategorien",
       "tags": "Tags",
       "discovery": "Kategorien und Tags",
@@ -3538,6 +3540,7 @@
       "model": "Modell",
       "modelSettings": "Modelleinstellungen",
       "monthlyUsd": "Monatlich (USD)",
+      "monthlyUsdHint": "Runs stoppen, sobald dieser Agent in einem Kalendermonat so viel ausgegeben hat. Leer lässt nur das Limit der Organisation gelten.",
       "moreActions": "Weitere Aktionen",
       "n100Default": "100 (Standard)",
       "namedMissing": "{name} (fehlt)",
@@ -3593,8 +3596,6 @@
       "skills": "Skills"
     },
     "auth": {
-      "agentHereDataNot": "Ein Agent ist hier Daten, kein Code – Instruktionen, ein Modell, eine Reihe von Capabilities. Er läuft auf dem Web-Chat, der HTTP-API und in Slack gleich, auf Ihrer Infrastruktur und mit Ihren Schlüsseln.",
-      "apache20Your": "Apache-2.0 · Ihre Infrastruktur · Ihre Schlüssel",
       "backSign": "Zurück zur Anmeldung",
       "checkSpamFolder": "Nichts zu sehen? Sehen Sie im Spam-Ordner nach, oder <link>versuchen Sie es erneut</link>.",
       "inboxIncoming": "Posteingang, <em>im Anflug.</em>",
@@ -3602,15 +3603,10 @@
       "magicLinkSent": "Wir haben einen Anmeldelink gesendet. Klicken Sie ihn zum Fortfahren – er läuft in 15 Minuten ab.",
       "magicLinkSentTo": "Wir haben einen Anmeldelink an <strong>{email}</strong> gesendet. Klicken Sie ihn zum Fortfahren – er läuft in 15 Minuten ab.",
       "missingExpiredLink": "Fehlender oder abgelaufener Link",
-      "operatingSystemHeading": "Bauen, betreiben und steuern Sie <em>die KI-Agents Ihres Unternehmens.</em>",
       "orReturnToSignIn": "Oder <link>zurück zur Anmeldung</link>.",
       "pageExpectsTokenFrom": "Diese Seite erwartet ein Token aus Ihrer E-Mail zum Zurücksetzen. Fordern Sie einen neuen Link an, um fortzufahren.",
-      "pitchAgents": "Agents, in einer Oberfläche gebaut, beim Veröffentlichen versioniert",
-      "pitchGovernance": "Budgets, Freigaben und ein Audit-Trail bei jedem Run",
-      "pitchKnowledge": "Wissen, Skills und Tools, pro Agent eingeschaltet",
       "requestNewLink": "Neuen Link anfordern",
       "resetPassword": "Passwort zurücksetzen",
-      "selfHostedOpenSource": "Selbst gehostet, Open Source",
       "tryAgain": "erneut versuchen"
     },
     "channelLink": {
@@ -3655,7 +3651,7 @@
       "editChannel": "Kanal bearbeiten",
       "editChannelDescription": "Ändern Sie, wie dieser Bot heißt, oder ersetzen Sie eines seiner Credentials. Ein Credential wird nie zurückgelesen, ein leer gelassenes Feld behält also den bereits gespeicherten Wert.",
       "mattermostServerUrl": "Server-URL",
-      "mattermostServerUrlHint": "https://mattermost.ihre-firma.de",
+      "mattermostServerUrlHint": "Die Adresse, unter der Sie Mattermost im Browser öffnen, ohne Pfad",
       "mattermostWebhookToken": "Webhook-Token (optional)",
       "mattermostWebhookTokenHint": "Das Token, das Mattermost für den ausgehenden Webhook anzeigt",
       "name": "Name",
@@ -3928,9 +3924,6 @@
       "onboardingTitle": "Loslegen",
       "onboardingUnderConstruction": "Das Onboarding ist im Aufbau",
       "pageError": "Seitenfehler:",
-      "pitchAgents": "Agents, in einer Oberfläche gebaut, beim Veröffentlichen versioniert",
-      "pitchGovernance": "Budgets, Freigaben und ein Audit-Trail bei jedem Run",
-      "pitchKnowledge": "Wissen, Skills und Tools, pro Agent eingeschaltet",
       "sectionFailed": "Dieser Abschnitt konnte nicht geladen werden",
       "shareLinkExpired": "Dieser Freigabelink ist möglicherweise abgelaufen oder widerrufen worden.",
       "shareLinkNotFound": "Freigabelink nicht gefunden",
@@ -5144,7 +5137,8 @@
         "legal": "Recht und freie Berufe",
         "manufacturing": "Produktion und Logistik"
       }
-    }
+    },
+    "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}"
   },
   "states": {
     "loading": "Wird geladen"
@@ -5939,7 +5933,8 @@
     "pageLink": "Link zu dieser Seite",
     "pageLinkWhy": "Öffnet die Seite für alle, die bereits Zugriff haben, nach der Anmeldung. Der Link allein gibt niemandem Zugriff.",
     "maybeOtherOrganization": "Wenn es Ihnen in einer anderen Organisation freigegeben wurde, wechseln Sie dorthin.",
-    "switchOrganization": "Organisation wechseln"
+    "switchOrganization": "Organisation wechseln",
+    "versionBadge": "v{version}"
   },
   "tables": {
     "cells": {

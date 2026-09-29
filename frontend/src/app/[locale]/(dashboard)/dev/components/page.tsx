@@ -64,7 +64,7 @@ function AccentPalette() {
               className="border-border h-10 rounded-md border"
               style={{ background: `var(--brand-${step})` }}
             />
-            <p className="text-muted-foreground text-center font-mono text-[10px]">{step}</p>
+            <p className="text-muted-foreground text-center font-mono text-[11px]">{step}</p>
           </div>
         ))}
       </div>

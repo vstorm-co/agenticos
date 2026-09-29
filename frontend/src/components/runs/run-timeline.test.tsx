@@ -338,8 +338,9 @@ describe("what the model was actually handed", () => {
 
     renderTimeline();
 
-    expect(screen.getByRole("img", { name: "shot.png" })).toBeVisible();
-    expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+    // `hidden`: the tile's peek is decorative and out of the accessibility tree.
+    expect(screen.getByRole("img", { name: "shot.png", hidden: true })).toBeVisible();
+    expect(screen.queryByRole("img", { name: "scan.tiff", hidden: true })).toBeNull();
   });
 
   it("puts the model, the cost and the context carried on the turn", () => {

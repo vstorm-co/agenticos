@@ -49,14 +49,14 @@ export async function LegalPage({ title, summary, lastUpdated, locale, children 
         <span className="eyebrow-badge mb-6">{t("eyebrow")}</span>
         <h1 className="text-display-lg mb-5">{title}</h1>
         {summary && <p className="text-foreground/70 text-lg leading-relaxed">{summary}</p>}
-        <p className="text-foreground/50 mt-6 font-mono text-xs tracking-wider uppercase">
+        <p className="text-muted-foreground mt-6 font-mono text-xs tracking-wider uppercase">
           {t("lastUpdated", { date: formatDate(lastUpdated, locale) })}
         </p>
 
         <article className="prose-legal mt-16">{children}</article>
 
         <nav className="border-foreground/10 mt-16 flex flex-wrap items-center gap-3 border-t pt-8">
-          <p className="text-foreground/45 font-mono text-[11px] tracking-wider uppercase">
+          <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
             {t("seeAlso")}
           </p>
           {related.map((r) => (

@@ -83,7 +83,7 @@ function WorkspaceFileCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{name}</span>
-        <span className="text-muted-foreground text-[11px]">
+        <span className="text-muted-foreground text-xs">
           {t(`kinds.${resolveFileKind(path)}`)}
           {suffix !== "" && <> · {suffix.toUpperCase()}</>}
         </span>
@@ -122,7 +122,7 @@ function FileCardActions({
 
   return (
     <span className="flex shrink-0 items-center gap-1">
-      {error !== null && <span className="text-destructive mr-1 text-[11px]">{error}</span>}
+      {error !== null && <span className="text-destructive mr-1 text-xs">{error}</span>}
       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onOpen}>
         {t("open")}
       </Button>
@@ -181,7 +181,7 @@ export function WorkspaceToolResult({
       )}
 
       {command !== null && (
-        <pre className="bg-muted text-foreground/80 overflow-x-auto rounded-md px-3 py-2 font-mono text-[11px]">
+        <pre className="bg-muted text-foreground/80 overflow-x-auto rounded-md px-3 py-2 font-mono text-xs">
           <span className="text-muted-foreground select-none">$ </span>
           {command}
         </pre>
@@ -214,12 +214,12 @@ export function WorkspaceToolResult({
       {finished && listed !== null && (
         <ul className="divide-border/60 divide-y">
           {listed.slice(0, 50).map((line) => (
-            <li key={line} className="truncate py-1 font-mono text-[11px]">
+            <li key={line} className="truncate py-1 font-mono text-xs">
               {line}
             </li>
           ))}
           {listed.length > 50 && (
-            <li className="text-muted-foreground py-1 text-[11px]">
+            <li className="text-muted-foreground py-1 text-xs">
               {t("moreEntries", { count: listed.length - 50 })}
             </li>
           )}
@@ -229,7 +229,7 @@ export function WorkspaceToolResult({
       {/* A command's output, which is neither a list nor a file: it is a terminal's,
           and folding its line breaks away would make a stack trace unreadable. */}
       {finished && toolCall.name === "execute" && resultText !== "" && (
-        <pre className="bg-foreground/[0.04] max-h-64 overflow-auto rounded-md p-3 font-mono text-[11px] whitespace-pre">
+        <pre className="bg-foreground/[0.04] max-h-64 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre">
           {resultText}
         </pre>
       )}
@@ -259,7 +259,7 @@ export function WorkspaceToolResult({
 function TextPanel({ text }: { text: string }) {
   return (
     <div className="relative">
-      <pre className="bg-muted max-h-64 overflow-auto rounded-md p-3 pr-9 text-[11px] whitespace-pre-wrap">
+      <pre className="bg-muted max-h-64 overflow-auto rounded-md p-3 pr-9 text-xs whitespace-pre-wrap">
         {text}
       </pre>
       <CopyButton text={text} className="absolute top-1 right-1 h-6 w-6 rounded-md" />

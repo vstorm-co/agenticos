@@ -128,7 +128,7 @@ export function AddWidgetDialog({
                   surfaces. The count is part of it because the answer to "is
                   this already there" is sometimes "twice". */}
               {count > 0 ? (
-                <span className="bg-foreground/8 text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-normal">
+                <span className="bg-foreground/8 text-muted-foreground rounded-full px-2 py-0.5 text-xs font-normal">
                   {t("edit.alreadyPlaced", { count })}
                 </span>
               ) : null}

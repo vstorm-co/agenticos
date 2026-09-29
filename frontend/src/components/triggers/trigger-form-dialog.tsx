@@ -631,7 +631,9 @@ export function TriggerFormDialog({
           <WizardSteps steps={steps} current={step} />
         </DialogHeader>
 
-        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        {/* Keyed on the step, so each one slides in rather than swapping in place -
+            the eye follows the wizard forward instead of re-reading the frame. */}
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -646,7 +648,9 @@ export function TriggerFormDialog({
           )}
 
           {step === "configure" && (
-            <div className="space-y-4">
+            // Side by side: the dialog is sized for the message step's editor,
+            // and two fields stretched across it read as a form nobody finished.
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               {agentId === null && (
                 <FormField label={t("agent")} htmlFor="trigger-agent">
                   <Select
@@ -1050,7 +1054,7 @@ function CronBuilder({
                       className={cn(
                         // The same pill the quick presets wear, so the two rows
                         // of toggles in this dialog read as one control family.
-                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
                         active
                           ? "bg-foreground text-background border-foreground"
                           : "text-foreground/65 hover:text-foreground hover:border-foreground/40",

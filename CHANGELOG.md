@@ -317,6 +317,72 @@ Two things are versioned separately from this file and worth knowing about:
   the step at once, because the same revision would conflict on every retry;
   route it with `error.handle` to a fresh read instead (#1790).
 
+## [0.0.514] - 2026-09-29
+
+### Changed
+
+- **Skill, context, artifact and file cards show what is inside them.** Each
+  card opens on a sheet of paper with the document's first lines on it: a
+  skill's body with one sheet stacked behind for each file it carries, a
+  context file's opening, an artifact's current page as a live sandboxed
+  thumbnail with its earlier versions stacked behind, and a file's first lines
+  or picture in Workspaces and in the chat's Files panel. Hovering a card lifts
+  the page and fans the stack. The skills and context listings return the
+  opening as `excerpt`, and the chat's and a workspace's file listings now
+  carry `preview` and `thumbnail`, as All files already did.
+- **A streaming answer flows onto the page.** Chat text is revealed at a steady
+  pace a whole word at a time, each word surfacing out of a soft blur, and each
+  new paragraph, list or table fades up as it arrives. The markdown renderer
+  rebuilt its element types on every render, which remounted the answer on
+  each streamed frame, and the bubble was replaced when the database id
+  arrived; both kept the text invisible until the turn ended. Anyone who asked
+  the system for less motion gets the text as it arrives.
+- **A turn's time and cost appear on hover**, with its copy, retry and rating
+  actions, instead of under every message. A stopped turn's marker stays.
+- **Dialogs, menus, selects and popovers animate.** Their enter and exit
+  classes compiled to nothing, so every overlay appeared and vanished in a
+  single frame. A dialog now rises onto a lighter, blurred veil. A wizard's
+  steps slide in, and its progress rail fills as it advances.
+- **The Activity table keeps one row to a line.** Agent and person names,
+  costs and durations no longer wrap, and token counts are grouped by digit.
+- **Easier to read, firmer to see.** Small and faded text was raised to a
+  readable size and contrast across the console (nothing under 11 px, no grey
+  under 4.5:1), borders and field edges are firmer, and status pills and
+  alerts keep their tone in the fill and edge while the words stay in text
+  colour - red words on a red badge are gone. The accent is neutral: toggles
+  are green when on, errors red, and each section keeps a small hue only on
+  its page tile and empty state. Dialogs are white with a rule above their
+  actions, and every field shares one height and edge.
+- **Sign-in is quieter.** Sign in, sign up and the password pages are a white
+  form beside a soft panel with the agent orb, without the badges and licence
+  line.
+- **Dialogs ask for less and explain more.** A custom MCP server's tool prefix
+  follows the name typed above it until it is edited, and its title reads
+  "Add an MCP server". A new knowledge base says who can search it and hides
+  the OCR settings while scanned pages are not read, a new skill's body shows
+  an example of what to write, and a Mattermost bot's server URL hint says
+  what address to paste instead of repeating an example of one.
+- **The agent builder says what is already true.** The model panel reads
+  "In use" while its fields show the agent's model, instead of offering a
+  "Use this model" button that selected it again. The monthly limit field
+  says what a blank one means, and when no bot is free to bind, the sentence
+  saying so links to Channels.
+- **Headers and lists hold together across the console.** A page's actions
+  sit level with its title instead of at the foot of a long description, and
+  an agent's status badges sit under its name. On a phone, a list card's title
+  no longer gets squeezed by its filters. Header buttons share one size.
+  Routines are started from the page header, and each row leads with the
+  routine's name. An organization card no longer reads "· admin" when it has
+  no tier. A workspace's empty preview shows a blank page, and the memory
+  settings tab stops drawing a second page title. The agent, knowledge base,
+  organization and MCP grids rise in like the others.
+- **The agents catalog filters by picking, not typing.** Category and tag are
+  now menus of the labels on the agents you can see - tick several to widen
+  the filter - rather than free-text boxes that matched nothing on a typo.
+  `GET /api/v1/agents` returns those choices as `categories` and `tags`,
+  drawn from the same visibility as the listing, so a private agent's labels
+  never appear in someone else's menu.
+
 ## [0.0.513] - 2026-09-28
 
 ### Changed

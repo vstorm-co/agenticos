@@ -1,5 +1,5 @@
 ---
-source_sha: "f3295524890a"
+source_sha: "32ecd84a00b7"
 ---
 
 # Sandbox { #the-sandbox }
@@ -501,6 +501,10 @@ rysuje najwyżej 24. Powyżej tego kafelek zostaje przy znaku.
 
 Workspace *przechowywany* nie płaci żadnego z tych kosztów — jego pliki i ich
 bajty są kolumną wiersza, który zestawienie już odczytało.
+
+Panel **Files** w czacie i własna lista plików workspace'u rysują kafle tak samo
+jak **All files**: pierwsze linie zapisanego pliku tekstowego, a obraz jako
+miniaturę w tym samym limicie.
 
 ## Jak długo cokolwiek przeżywa { #how-long-anything-survives }
 

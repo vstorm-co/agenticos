@@ -82,7 +82,7 @@ export function AttachmentRow({
         <Arrow direction="right" label={t("scrollAttachmentsRight")} onClick={() => scrollBy(1)} />
       )}
 
-      <span className="text-muted-foreground shrink-0 pl-1 text-[11px] whitespace-nowrap">
+      <span className="text-muted-foreground shrink-0 pl-1 text-xs whitespace-nowrap">
         {t("attachedCount", { count })}
       </span>
     </div>

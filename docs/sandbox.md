@@ -482,6 +482,10 @@ at most 24. Past that a tile keeps the glyph.
 A *stored* workspace pays neither — its files and their bytes are a column of the
 row the listing already read.
 
+The chat's **Files** panel and a workspace's own listing draw their tiles the
+way **All files** does: the first lines of a stored text file, and an image as a
+thumbnail within the same bound.
+
 ## How long anything survives
 
 Files live on the host, at `{SANDBOXD_WORKSPACE_ROOT}/{session_id}/workspace` —

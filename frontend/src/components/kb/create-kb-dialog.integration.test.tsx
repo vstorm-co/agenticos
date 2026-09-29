@@ -208,6 +208,23 @@ beforeEach(() => {
   serve();
 });
 
+describe("who can search it", () => {
+  it("says what each audience means, for the one that is chosen", async () => {
+    show();
+    const scope = screen.getByLabelText("Who can search it");
+    expect(scope).toHaveAccessibleDescription("Only you can see it, upload to it and search it.");
+
+    await userEvent.click(scope);
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Organization - all members" }),
+    );
+
+    expect(screen.getByLabelText("Who can search it")).toHaveAccessibleDescription(
+      "Everyone in this organization can find it and search it.",
+    );
+  });
+});
+
 describe("the embedding key picker", () => {
   it("draws the mark for every key it offers, and its masked tail", async () => {
     show();

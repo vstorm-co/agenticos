@@ -56,7 +56,7 @@ export function AgentSteps({ children, showAll = false, done = false }: AgentSte
           type="button"
           onClick={() => setOpened(true)}
           aria-expanded={false}
-          className="text-muted-foreground/70 hover:text-foreground flex items-center gap-2 py-1 text-[13px]"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-2 py-1 text-[13px]"
         >
           <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {t("earlierSteps", { count: earlier.length })}
@@ -139,7 +139,7 @@ export function AgentStep({
             "h-3.5 w-3.5 shrink-0",
             state === "error" && "text-destructive",
             state === "parked" && "text-amber-600",
-            state === "done" && "text-muted-foreground/70",
+            state === "done" && "text-muted-foreground",
           )}
           aria-hidden
         />
@@ -154,12 +154,12 @@ export function AgentStep({
         {label}
       </span>
       {detail !== null && detail !== undefined && (
-        <span className="text-muted-foreground/60 min-w-0 flex-1 truncate font-mono text-[11px]">
+        <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
           {detail}
         </span>
       )}
       {state === "parked" && (
-        <span className="shrink-0 text-[11px] text-amber-600">{t("awaitingApproval")}</span>
+        <span className="shrink-0 text-xs text-amber-600">{t("awaitingApproval")}</span>
       )}
       {state === "error" && (
         <X className="text-destructive h-3 w-3 shrink-0" aria-label={t("failed")} />
@@ -185,7 +185,7 @@ export function AgentStep({
             {line}
             <ChevronDown
               className={cn(
-                "text-muted-foreground/50 h-3 w-3 shrink-0 transition-transform",
+                "text-muted-foreground h-3 w-3 shrink-0 transition-transform",
                 "opacity-0 group-hover/step:opacity-100",
                 expanded && "rotate-180 opacity-100",
               )}
@@ -215,7 +215,7 @@ function StepsDone() {
   const t = useTranslations("chat.steps");
   return (
     <div className="flex items-center gap-2 py-1">
-      <Check className="text-muted-foreground/70 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <Check className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="text-muted-foreground text-[13px]">{t("done")}</span>
     </div>
   );

@@ -158,7 +158,7 @@ export function TurnRail({ entries, className }: TurnRailProps) {
         onClick={() => step(-1)}
         disabled={active === 0}
         aria-label={t("previous")}
-        className="text-muted-foreground/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+        className="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
       >
         <ChevronUp className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -183,7 +183,7 @@ export function TurnRail({ entries, className }: TurnRailProps) {
                   </span>
                 )}
                 <span className="min-w-0">
-                  <span className="text-muted-foreground block text-[11px] font-medium">
+                  <span className="text-muted-foreground block text-xs font-medium">
                     {entry.author}
                   </span>
                   {/* Two lines, and no more: the card is a label for a message,
@@ -229,7 +229,7 @@ export function TurnRail({ entries, className }: TurnRailProps) {
         onClick={() => step(1)}
         disabled={active === entries.length - 1}
         aria-label={t("next")}
-        className="text-muted-foreground/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+        className="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
       >
         <ChevronDown className="h-3.5 w-3.5" aria-hidden />
       </button>

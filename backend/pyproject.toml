@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.513"
+version = "0.0.514"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -633,6 +633,8 @@ include = [
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
     "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -1048,6 +1050,8 @@ include = [
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
     "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",

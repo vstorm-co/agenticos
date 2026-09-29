@@ -73,7 +73,7 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
               <McpServerIcon icon={entry?.icon ?? null} name={gap.name} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium">{gap.name}</span>
-                <span className="text-muted-foreground block text-[11px] leading-relaxed">
+                <span className="text-muted-foreground block text-xs leading-relaxed">
                   {connected ? t("nowConnected") : t(`gap.${gap.gap}`)}
                 </span>
               </span>

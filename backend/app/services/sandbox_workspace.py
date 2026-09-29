@@ -30,7 +30,7 @@ import shlex
 from binascii import Error as BinasciiError
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any
@@ -99,6 +99,12 @@ class WorkspaceContents:
     listing a person reads as the whole of what an agent is keeping, which for a
     workspace holding a checkout or a `node_modules` it is not.
     """
+
+    previews: dict[str, str] = field(default_factory=dict)
+    """The first lines of each stored text file, by path - what its tile peeks at."""
+
+    thumbnails: dict[str, str] = field(default_factory=dict)
+    """Each small image scaled to a `data:` URI, by path, within the fetch budget."""
 
 
 @dataclass(frozen=True)
@@ -986,27 +992,13 @@ class SandboxWorkspaceService:
                 unreadable += 1
                 continue
             entries = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
-            if overview.row.backend == "state":
-                stored = dict(overview.row.files or {})
-                files.extend(
-                    FlatEntry(
-                        overview=overview,
-                        info=entry,
-                        preview=stored_preview(stored.get(str(entry.get("path")))),
-                        thumbnail=stored_thumbnail(
-                            str(entry.get("path")), stored.get(str(entry.get("path")))
-                        ),
-                    )
-                    for entry in entries
-                )
-                continue
-            drawn, budget = await self._host_thumbnails(ctx, overview.row, entries, budget)
+            previews, thumbnails, budget = await self._tiles(ctx, overview.row, entries, budget)
             files.extend(
                 FlatEntry(
                     overview=overview,
                     info=entry,
-                    preview=None,
-                    thumbnail=drawn.get(str(entry.get("path"))),
+                    preview=previews.get(str(entry.get("path"))),
+                    thumbnail=thumbnails.get(str(entry.get("path"))),
                 )
                 for entry in entries
             )
@@ -1077,17 +1069,77 @@ class SandboxWorkspaceService:
                 cases, so an id cannot be used to find out which workspaces exist
                 - in another organization, or in a colleague's conversation.
         """
+        row = await self._workspace_of(ctx, workspace_id)
+        return row, await self._tiled(ctx, row)
+
+    async def _workspace_of(self, ctx: AuthContext, workspace_id: UUID) -> AgentWorkspace:
+        """The workspace by its id, when this caller may read it - see :meth:`files_of`."""
         row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
         if row is None or not await self._may_read(ctx, row):
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
+        return row
+
+    async def _conversation_workspace(
+        self, ctx: AuthContext, conversation_id: UUID
+    ) -> AgentWorkspace | None:
+        """The workspace a conversation keeps, if it keeps one - see :meth:`listing`."""
+        rows = await workspace_repo.list_for_conversation(
+            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+        )
+        return rows[0] if rows else None
+
+    async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
+        """A workspace's browsable entries, without tiles.
+
+        What reading one file needs: whether the path is listed. Tiles are for a
+        listing somebody looks at - drawing them before a read cost up to a
+        budget of image reads and decodes to open a single file.
+        """
         contents = await self._entries(ctx, row)
-        return row, WorkspaceContents(
+        return WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
             truncated=contents.truncated,
         )
+
+    async def _tiled(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
+        """A workspace's browsable entries, with what each file's tile draws."""
+        contents = await self._browsable(ctx, row)
+        previews, thumbnails, _budget = await self._tiles(
+            ctx,
+            row,
+            [entry for entry in contents.entries if not entry.get("is_dir")],
+            HOST_THUMBNAIL_BUDGET,
+        )
+        return replace(contents, previews=previews, thumbnails=thumbnails)
+
+    async def _tiles(
+        self, ctx: AuthContext, row: AgentWorkspace, files: list[FileInfo], budget: int
+    ) -> tuple[dict[str, str], dict[str, str], int]:
+        """Each file's preview and thumbnail, by path, and what is left of the budget.
+
+        A stored workspace's bytes are in the row already, so every text file gets
+        its first lines and every image its thumbnail at no cost. A host's are a
+        round trip per file, so only images are drawn, within `budget` - see
+        :meth:`_host_thumbnails`.
+        """
+        if row.backend == "state":
+            stored = dict(row.files or {})
+            previews: dict[str, str] = {}
+            thumbnails: dict[str, str] = {}
+            for entry in files:
+                path = str(entry.get("path"))
+                preview = stored_preview(stored.get(path))
+                if preview is not None:
+                    previews[path] = preview
+                thumbnail = stored_thumbnail(path, stored.get(path))
+                if thumbnail is not None:
+                    thumbnails[path] = thumbnail
+            return previews, thumbnails, budget
+        drawn, budget = await self._host_thumbnails(ctx, row, files, budget)
+        return {}, drawn, budget
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -1129,8 +1181,8 @@ class SandboxWorkspaceService:
             BadRequestError: If the host cannot be read, or cannot serve this file
                 as bytes.
         """
-        row, contents = await self.files_of(ctx, workspace_id)
-        return await self._bytes_from(ctx, row, contents, path)
+        row = await self._workspace_of(ctx, workspace_id)
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
 
     async def read_bytes(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> bytes:
         """One file as bytes, addressed through the conversation that holds it.
@@ -1148,14 +1200,13 @@ class SandboxWorkspaceService:
             BadRequestError: If the host cannot be read, or cannot serve this file
                 as bytes.
         """
-        found = await self.listing(ctx, conversation_id=conversation_id)
-        if found is None:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             raise NotFoundError(
                 message="This conversation keeps no files",
                 details={"conversation_id": str(conversation_id)},
             )
-        row, contents = found
-        return await self._bytes_from(ctx, row, contents, path)
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
 
     async def _bytes_from(
         self, ctx: AuthContext, row: AgentWorkspace, contents: WorkspaceContents, path: str
@@ -1218,7 +1269,8 @@ class SandboxWorkspaceService:
 
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
-        row, contents = await self.files_of(ctx, workspace_id)
+        row = await self._workspace_of(ctx, workspace_id)
+        contents = await self._browsable(ctx, row)
         if _absent(row, contents, path):
             return None
         return await self._read_from(ctx, row, path)
@@ -1237,18 +1289,10 @@ class SandboxWorkspaceService:
         a conversation from last week cost nothing and work at all after its
         session was reaped.
         """
-        rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
-        )
-        if not rows:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             return None
-        row = rows[0]
-        contents = await self._entries(ctx, row)
-        return row, WorkspaceContents(
-            entries=browsable(contents.entries),
-            unreadable_reason=contents.unreadable_reason,
-            truncated=contents.truncated,
-        )
+        return row, await self._tiled(ctx, row)
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
@@ -1349,10 +1393,9 @@ class SandboxWorkspaceService:
 
     async def read_text(self, ctx: AuthContext, *, conversation_id: UUID, path: str) -> str | None:
         """One file's text, or `None` when there is no such workspace or file."""
-        found = await self.listing(ctx, conversation_id=conversation_id)
-        if found is None:
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
             return None
-        row, _ = found
         return await self._read_from(ctx, row, path)
 
     async def _read_from(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:

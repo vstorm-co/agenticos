@@ -1,5 +1,5 @@
 ---
-source_sha: "cae716a8d56d"
+source_sha: "10772d5fcdb4"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -99,6 +99,11 @@ Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschr
 (ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
 ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
 überschreitet nie eine Tenant- oder Grant-Grenze.
+
+Die Antwort trägt außerdem
+`categories` und `tags`: jedes eindeutige Label auf den Agents, die Sie auflisten
+können, unabhängig von Filter und Seite — die Auswahl, die ein Filtermenü anbietet.
+Ein privater Agent, den Sie nicht sehen, trägt keines bei.
 
 ## Einen Workflow ausführen { #running-a-workflow }
 

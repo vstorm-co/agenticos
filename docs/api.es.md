@@ -1,5 +1,5 @@
 ---
-source_sha: "cae716a8d56d"
+source_sha: "10772d5fcdb4"
 ---
 
 # La API HTTP { #the-http-api }
@@ -96,6 +96,11 @@ faceta** y **AND entre facetas**, con coincidencia sin distinguir
 mayúsculas/minúsculas (un valor de consulta se pliega como uno almacenado, y un
 valor en blanco se ignora). El filtro solo estrecha lo que ya podías ver — nunca
 cruza una frontera de tenant ni de grant.
+
+La respuesta también trae `categories` y
+`tags`: cada etiqueta distinta en los agents que podrías listar, sea cual sea el
+filtro y la página — las opciones que ofrece un menú de filtro. Un agent privado que
+no puedes ver no aporta ninguna.
 
 ## Ejecutar un workflow { #running-a-workflow }
 

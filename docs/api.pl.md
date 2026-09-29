@@ -1,5 +1,5 @@
 ---
-source_sha: "cae716a8d56d"
+source_sha: "10772d5fcdb4"
 ---
 
 # API HTTP { #the-http-api }
@@ -94,6 +94,10 @@ grantem edycji na jednym agencie może go otagować.
 między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
 zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
 to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
+
+Odpowiedź niesie też `categories` i `tags`: każdą odrębną etykietę na agentach,
+które możesz wylistować, niezależnie od filtra i strony — wybory, które podaje menu
+filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
 
 ## Uruchamianie workflowu { #running-a-workflow }
 

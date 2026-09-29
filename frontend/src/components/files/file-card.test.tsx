@@ -50,6 +50,13 @@ describe("a file on a card", () => {
     expect(screen.getByText(/<!DOCTYPE html>/)).toBeVisible();
   });
 
+  it("reads a markdown file's first lines as the page they start", () => {
+    render(<FileCard name="notes.md" preview={"# Follow-ups\n- ask finance"} />);
+
+    expect(screen.getByText("Follow-ups")).toBeVisible();
+    expect(screen.getByText("ask finance")).toBeVisible();
+  });
+
   it("shows its mark when there is no preview to show", () => {
     // The band is reserved either way: cards of two heights in one strip read as two
     // kinds of thing.

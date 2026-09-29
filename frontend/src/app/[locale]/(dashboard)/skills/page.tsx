@@ -320,7 +320,7 @@ export default function SkillsPage() {
             />
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {skills.map((entry) => (
                   <SkillCard
                     key={entry.id}

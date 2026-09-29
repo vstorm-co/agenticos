@@ -259,7 +259,7 @@ export default function NotificationsSettingsPage() {
                     )}`;
                     return (
                       <div key={channel} className="flex flex-col items-center gap-1">
-                        <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+                        <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
                           {t(channel === "in_app" ? "inAppChannel" : "emailChannel")}
                         </span>
                         <Switch

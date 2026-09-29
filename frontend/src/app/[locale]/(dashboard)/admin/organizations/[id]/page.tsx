@@ -109,7 +109,7 @@ export default function AdminOrganizationDetailPage() {
                           {member.name ?? member.email}
                         </div>
                         {member.name && (
-                          <div className="text-muted-foreground truncate text-[11px]">
+                          <div className="text-muted-foreground truncate text-xs">
                             {member.email}
                           </div>
                         )}

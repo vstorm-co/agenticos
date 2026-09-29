@@ -79,7 +79,7 @@ export function McpToolPickerDialog({
         <DialogHeader>
           <DialogTitle>{t("toolsFrom", { name: toolPicker?.name ?? "" })}</DialogTitle>
         </DialogHeader>
-        <p className="text-foreground/55 shrink-0 text-xs">
+        <p className="text-muted-foreground shrink-0 text-xs">
           {toolPicker?.appliesTo === "agent"
             ? t("whichToolsAgent")
             : t("whichToolsConnection", { scope: toolPicker?.scope ?? "personal" })}
@@ -133,7 +133,7 @@ export function McpToolPickerDialog({
                 <span className="min-w-0 flex-1">
                   <span className="text-foreground block font-mono text-xs">{tool.name}</span>
                   {tool.description && (
-                    <span className="text-foreground/55 mt-0.5 block truncate text-xs">
+                    <span className="text-muted-foreground mt-0.5 block truncate text-xs">
                       {tool.description}
                     </span>
                   )}

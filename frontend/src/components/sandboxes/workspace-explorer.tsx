@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Download, Info, Search } from "lucide-react";
 
 import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
-import { Badge, Button, Input, Skeleton } from "@/components/ui";
+import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
 import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
@@ -306,7 +306,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                  rather than the name and a size. */
               renderFileMeta={(node) => (
                 <>
-                  <span className="text-muted-foreground shrink-0 text-[11px]">
+                  <span className="text-muted-foreground shrink-0 text-xs">
                     {node.file?.size == null ? "—" : formatBytes(node.file.size)}
                   </span>
                   <button
@@ -323,7 +323,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                  holding only `src/components/widget.tsx` counted zero and then
                  opened to reveal a file, which is a row contradicting itself. */
               renderFolderMeta={(node) => (
-                <span className="text-muted-foreground/70 shrink-0 pr-2 text-[10px]">
+                <span className="text-muted-foreground shrink-0 pr-2 text-[11px]">
                   {t("fileCount", { count: countFiles(node.children) })}
                 </span>
               )}
@@ -333,7 +333,14 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
 
         <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
           {chosen === null || kind === null ? (
-            <p className="text-muted-foreground m-auto p-6 text-center text-sm">{t("pickAFile")}</p>
+            // An empty page on the desk, waiting - the same paper the file cards
+            // draw, so the pane reads as "a document goes here".
+            <div className="m-auto flex flex-col items-center gap-4 p-6 text-center">
+              <DocPeek className="h-24 w-32 rounded-xl" size="compact">
+                <BlankPeek />
+              </DocPeek>
+              <p className="text-muted-foreground text-sm">{t("pickAFile")}</p>
+            </div>
           ) : (
             <>
               <div className="border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">
@@ -341,7 +348,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                 <span className="min-w-0 flex-1 truncate font-mono text-xs" title={chosen.path}>
                   {chosen.path}
                 </span>
-                <span className="text-muted-foreground shrink-0 text-[11px]">
+                <span className="text-muted-foreground shrink-0 text-xs">
                   {chosen.size == null ? "—" : formatBytes(chosen.size)}
                 </span>
                 {/* Every format with two renderings, which `hasSourceView` is the
@@ -418,7 +425,7 @@ function FileList({ source, files, selected, onSelect, showFullPath }: FileListP
               {showFullPath ? file.path : (file.path.split("/").pop() ?? file.path)}
             </span>
           </button>
-          <span className="text-muted-foreground shrink-0 text-[11px]">
+          <span className="text-muted-foreground shrink-0 text-xs">
             {file.size == null ? "—" : formatBytes(file.size)}
           </span>
           <button

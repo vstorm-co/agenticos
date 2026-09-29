@@ -3,6 +3,8 @@
 import type { LucideIcon } from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 
+import { SectionGlyph } from "@/components/states/section-glyph";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,8 +42,11 @@ export function ListCard({
 } & HTMLAttributes<HTMLDivElement>) {
   return (
     <Card {...rest}>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
+      {/* A column on a phone: beside a search box and three filters the title
+          was squeezed to "Catalo", and it is the one thing in the header that
+          says what the card is. */}
+      <CardHeader className="flex-col gap-3 space-y-0 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
           <CardDescription className="text-xs">
             {counted === null ? <Skeleton className="h-3 w-24" /> : counted}
@@ -118,9 +123,7 @@ export function ListCardEmpty({
 }) {
   return (
     <div className="px-6 py-16 text-center">
-      <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-        <Icon className="h-5 w-5" />
-      </div>
+      <SectionGlyph icon={Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (
         <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">{description}</p>

@@ -55,13 +55,11 @@ export function ConversationAgents({
         ))}
       </span>
       {showName && (
-        <span className="text-muted-foreground min-w-0 truncate text-[11px]">
+        <span className="text-muted-foreground min-w-0 truncate text-xs">
           {agents.length === 1 ? agents[0]!.name : t("agentCount", { count: agents.length })}
         </span>
       )}
-      {!showName && extra > 0 && (
-        <span className="text-muted-foreground text-[11px]">+{extra}</span>
-      )}
+      {!showName && extra > 0 && <span className="text-muted-foreground text-xs">+{extra}</span>}
     </span>
   );
 }

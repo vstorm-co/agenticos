@@ -57,6 +57,11 @@ category: support
 Most refund questions are decided by the order date and one exception. Check
 those before escalating anything.
 
+The **Skills** page shows the opening of each body on its card — front matter
+dropped, a few lines — with a sheet stacked behind it for each file the skill
+carries. `GET /api/v1/skills` returns that opening as `excerpt`; the body itself
+loads when a skill is opened.
+
 ## Decide without asking
 ...
 ```

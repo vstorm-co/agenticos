@@ -1,5 +1,5 @@
 ---
-source_sha: "14e5585228ca"
+source_sha: "854111718543"
 ---
 
 # Context-Dateien { #context-files }
@@ -34,6 +34,10 @@ Ursache für einen Agent, der entweder ignoriert, was man ihm gesagt hat, oder
 
 Die Faustregel: **Wenn es kurz und immer relevant ist, ist es eine Context-Datei.
 Wenn es lang ist, ist es Wissen. Wenn es ein Vorgehen ist, ist es ein Skill.**
+
+Die Seite **Context** zeigt auf jeder Karte den Anfang der Datei. `GET
+/api/v1/context` liefert ihn als `excerpt`: ein paar begrenzte Zeilen, nie den
+ganzen Inhalt.
 
 ## Zwei Modi, und der Unterschied sind die Kosten { #two-modes-and-the-difference-is-cost }
 

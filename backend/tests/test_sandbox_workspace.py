@@ -40,7 +40,11 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
-from app.services.sandbox_workspace import SandboxWorkspaceService, sandbox_config
+from app.services.sandbox_workspace import (
+    SandboxWorkspaceService,
+    WorkspaceContents,
+    sandbox_config,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -1027,6 +1031,39 @@ class TestServingAFileAsBytes:
         )
 
         assert data == png
+
+    async def test_reading_one_file_draws_no_thumbnails(self, monkeypatch, mock_db_session):
+        """Tiles are for a listing somebody looks at. The read paths shared the
+        listing that draws them, so opening one file on a container host read and
+        decoded up to a budget of images first - and an image, twice."""
+        from pydantic_ai_backends import remote as remote_module
+
+        png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        reads: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return [
+                    {"path": "/a.png", "size": len(png), "is_dir": False},
+                    {"path": "/b.png", "size": len(png), "is_dir": False},
+                    {"path": "/c.png", "size": len(png), "is_dir": False},
+                ]
+
+            def read_bytes(self, session_id, path):
+                reads.append(path)
+                return png
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        await SandboxWorkspaceService(mock_db_session).read_bytes_of(_ctx(), row.id, path="/b.png")
+
+        assert reads == ["/b.png"]
 
     async def test_a_text_file_a_container_host_does_not_have_is_missing(
         self, monkeypatch, mock_db_session
@@ -3853,3 +3890,74 @@ class TestWhatTheBrowserDoesNotShow:
         counted = await service.measured(_ctx(), overviews, hosts=False)
 
         assert counted.counts[row.id][0] == 1
+
+
+class TestAListingCarriesWhatEachTileDraws:
+    """The chat's Files panel and a workspace's own listing peek like All files does.
+
+    Before, only the flat view carried a preview and a thumbnail, so the same CSV
+    was its first lines on one screen and a grey glyph on the next.
+    """
+
+    @staticmethod
+    def _stored() -> dict[str, object]:
+        stored = StateBackend()
+        stored.write("/uploads/sales.csv", "region,value\nEU,41200\n")
+        stored.write("/out/chart.png", _png())
+        return dict(stored.files)
+
+    async def test_a_conversation_listing_previews_text_and_draws_images(
+        self, monkeypatch, mock_db_session
+    ):
+        row = _row(files=self._stored())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        contents = found[1]
+        assert contents.previews == {"/uploads/sales.csv": "region,value\nEU,41200\n"}
+        assert set(contents.thumbnails) == {"/out/chart.png"}
+        assert contents.thumbnails["/out/chart.png"].startswith("data:image/webp;base64,")
+
+    async def test_a_workspace_listing_carries_the_same(self, monkeypatch, mock_db_session):
+        row = _row(files=self._stored())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+
+        _found, contents = await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
+
+        assert set(contents.previews) == {"/uploads/sales.csv"}
+        assert set(contents.thumbnails) == {"/out/chart.png"}
+
+    async def test_a_host_backed_listing_draws_one_screen_of_images_and_previews_nothing(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+        entries = [
+            {"path": "/out/chart.png", "size": 10, "is_dir": False},
+            {"path": "/out", "size": None, "is_dir": True},
+        ]
+        monkeypatch.setattr(
+            service,
+            "_entries",
+            AsyncMock(return_value=WorkspaceContents(entries=entries)),
+        )
+        drawn = AsyncMock(return_value=({"/out/chart.png": "data:image/webp;base64,AA"}, 0))
+        monkeypatch.setattr(service, "_host_thumbnails", drawn)
+
+        found = await service.listing(_ctx(), conversation_id=uuid4())
+
+        assert found is not None
+        assert found[1].previews == {}
+        assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
+        # A directory is never fetched as an image, and one listing spends at most
+        # one screen of host reads.
+        assert [entry["path"] for entry in drawn.await_args.args[2]] == ["/out/chart.png"]
+        assert drawn.await_args.args[3] == HOST_THUMBNAIL_BUDGET

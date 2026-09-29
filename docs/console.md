@@ -158,7 +158,8 @@ closed for that browse.
 | **Admin** | The deployment itself: users, tenants, system, deployment settings | [The deployment](deployment.md) |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
-organization-local labels shown on each agent's card. You maintain an agent's
+organization-local labels shown on each agent's card. Each filter is a menu of the
+labels on the agents you can see; tick several to widen it. You maintain an agent's
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 

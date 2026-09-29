@@ -2332,6 +2332,7 @@
     "connect2": "Podłącz dla",
     "connectAction": "Podłącz",
     "connectCheck": "Podłącz i sprawdź",
+    "connectCustomForScope": "Dodaj serwer MCP dla {scope, select, organization {organizacji} other {siebie}}",
     "connectForScope": "Podłącz {name} dla {scope, select, organization {organizacji} other {siebie}}",
     "connected": "Podłączony",
     "connectedForOrg": "{name} jest teraz dostępny dla agentów tej organizacji.",
@@ -2353,7 +2354,6 @@
     "existingConnectionCannotChange": "Istniejące połączenie nie może zmienić właściciela.",
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
-    "github": "github",
     "name": "Nazwa",
     "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
     "namePrefixesToolNames": "Małe litery, cyfry i myślniki. Nazwa poprzedza nazwy narzędzi serwera, więc musi być unikalna {scope, select, organization {wśród serwerów organizacji} other {wśród Twoich serwerów}}.",
@@ -2502,7 +2502,8 @@
         "legal": "Prawo i doradztwo",
         "manufacturing": "Produkcja i logistyka"
       }
-    }
+    },
+    "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}"
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -3072,7 +3073,7 @@
     "mapTreeTruncated": "Drzewo delegacji jest większe, niż obejmuje jedna odpowiedź, więc jego najgłębsze części nie są narysowane.",
     "mapTreeUnavailable": "Nie udało się wczytać pełnego drzewa delegacji, więc pokazywane są tylko bezpośrednie delegaty.",
     "mattermostServerUrl": "URL serwera",
-    "mattermostServerUrlHint": "https://mattermost.your-company.com",
+    "mattermostServerUrlHint": "Adres, pod którym otwierasz Mattermost w przeglądarce, bez ścieżki",
     "mattermostWebhookToken": "Token webhooka (opcjonalny)",
     "mattermostWebhookTokenHint": "Token, który Mattermost pokazuje dla wychodzącego webhooka",
     "maxTokens": "Maks. tokenów",
@@ -3131,7 +3132,7 @@
     "openAgentPage": "Otwórz {name}",
     "optionalPointModelAt": "Opcjonalne. Skieruj ten model na bramkę lub proxy zamiast własnego API providera; klucz nadal jest tym, co uwierzytelnia.",
     "organizationAposSOwn": "Własny miesięczny limit organizacji nie znajduje się tutaj. Zatrzymuje on każdego agenta w organizacji, a autor agenta nie może go podnieść, więc jego alert zawsze trafia do administratorów.",
-    "organizationHasNoChannel": "Żaden bot nie jest wolny do powiązania. Bot odpowiada jako jeden agent, więc taki, który już obsługuje innego agenta, nie jest tutaj oferowany - zarejestruj kolejnego w sekcji Kanały.",
+    "organizationHasNoChannel": "Żaden bot nie jest wolny do powiązania. Bot odpowiada jako jeden agent, więc taki, który już obsługuje innego agenta, nie jest tutaj oferowany - <link>zarejestruj kolejnego w sekcji Kanały</link>.",
     "organizationHasNoCollections": "Ta organizacja nie ma jeszcze kolekcji. Agent bez nich niczego nie przeszukuje.",
     "organizationHasNoContext": "Ta organizacja nie ma jeszcze plików kontekstu.",
     "organizationHasNoModels": "Ta organizacja nie ma jeszcze modeli. Agent nie może działać bez modelu.",
@@ -3339,7 +3340,7 @@
     "use": "Użyj",
     "useCustomModel": "Użyj <mono>{name}</mono>",
     "useSavedModelCount": "Użyj zapisanego modelu ({count})",
-    "useThisModel": "Użyj tego modelu",
+    "modelInUse": "W użyciu",
     "usingKey": "Używa <strong>{name}</strong>",
     "variableDescription": "Opis zmiennej {index}",
     "variableDescriptionPlaceholder": "Na jakim planie jest ten odwiedzający",
@@ -3725,7 +3726,8 @@
     "pageLink": "Link do tej strony",
     "pageLinkWhy": "Otwiera stronę każdemu, kto ma już dostęp, po zalogowaniu. Samo wysłanie linku nikomu dostępu nie daje.",
     "maybeOtherOrganization": "Jeśli udostępniono go w innej organizacji, przełącz się na nią.",
-    "switchOrganization": "Przełącz organizację"
+    "switchOrganization": "Przełącz organizację",
+    "versionBadge": "v{version}"
   },
   "tables": {
     "cells": {

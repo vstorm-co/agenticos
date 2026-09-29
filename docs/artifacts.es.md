@@ -1,5 +1,5 @@
 ---
-source_sha: "aa172e0664f3"
+source_sha: "95e0b53485c2"
 ---
 
 # Artefactos { #artifacts }
@@ -161,6 +161,13 @@ consola ni a la persona que lo mira:
   contadas por dirección antes de leer nada. La consola y la página pública
   emiten una dirección nueva cada vez que dibujan el frame, y emitirla a través
   de un enlace público ya está limitado por enlace.
+
+La lista **Artifacts** dibuja la página actual de cada tarjeta como una
+miniatura en vivo, por el mismo frame y con la misma lista `sandbox`. La
+miniatura es inerte — sin eventos de puntero, fuera del orden de tabulación,
+oculta a las tecnologías de asistencia — y su dirección se emite solo cuando la
+tarjeta se acerca a la vista, así que una lista larga no emite de antemano una
+por artefacto.
 
 Además, un despliegue puede servir el contenido desde un **dominio registrable
 aparte** fijando `ARTIFACT_ORIGIN`, por ejemplo

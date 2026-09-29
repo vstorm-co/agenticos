@@ -665,7 +665,10 @@ describe("WorkspaceBrowser", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByText(/# Findings/)).toBeVisible();
+      // Markdown reads as the page it is - the heading drawn as a heading, not
+      // its hash - and the line under it stays a line.
+      expect(screen.getByText("Findings")).toBeVisible();
+      expect(screen.getByText("line two")).toBeVisible();
     });
 
     it("draws a stored image on its tile rather than a glyph", async () => {
@@ -683,7 +686,8 @@ describe("WorkspaceBrowser", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByRole("img", { name: "/chart.png" })).toBeVisible();
+      // `hidden`: the tile's peek is decorative and out of the accessibility tree.
+      expect(screen.getByRole("img", { name: "/chart.png", hidden: true })).toBeVisible();
     });
 
     it("draws an image with no thumbnail as its mark, not a broken picture", async () => {

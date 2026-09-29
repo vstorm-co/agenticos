@@ -154,7 +154,7 @@ export function ApprovalsTab({
         <span className="text-muted-foreground block text-xs">
           {approval.decided_by_email ?? "-"}
           {approval.decided_via === "standing" && (
-            <span className="text-muted-foreground/70 block text-[11px]">
+            <span className="text-muted-foreground block text-xs">
               {t("decidedByStandingConsent")}
             </span>
           )}

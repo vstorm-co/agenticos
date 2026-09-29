@@ -87,6 +87,32 @@ class TestListing:
         assert workspaces.listing.await_args.args[0].organization_id is not None
         assert set(workspaces.listing.await_args.kwargs) == {"conversation_id"}
 
+    async def test_each_file_carries_what_its_tile_draws(self, client: AsyncClient):
+        conversation = MagicMock(get_conversation=AsyncMock())
+        workspaces = MagicMock(
+            listing=AsyncMock(
+                return_value=(
+                    _row(),
+                    WorkspaceContents(
+                        entries=[
+                            {"path": "/sales.csv", "size": 20, "is_dir": False},
+                            {"path": "/chart.png", "size": 90, "is_dir": False},
+                        ],
+                        previews={"/sales.csv": "region,value"},
+                        thumbnails={"/chart.png": "data:image/webp;base64,AA"},
+                    ),
+                )
+            )
+        )
+        _override(conversation=conversation, workspaces=workspaces)
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+
+        items = {item["path"]: item for item in response.json()["items"]}
+        assert items["/sales.csv"]["preview"] == "region,value"
+        assert items["/sales.csv"]["thumbnail"] is None
+        assert items["/chart.png"]["thumbnail"] == "data:image/webp;base64,AA"
+
     async def test_a_files_modified_time_reaches_the_listing(self, client: AsyncClient):
         """The viewer's header shows `modified …` only when the row carries a time,
         and a stored workspace records one on every write (#500). A row without one

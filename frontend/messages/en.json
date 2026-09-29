@@ -324,7 +324,7 @@
     "mapTreeTruncated": "The delegation tree is larger than one response walks, so its deepest parts are not drawn.",
     "mapTreeUnavailable": "The full delegation tree could not be loaded, so only direct delegates are shown.",
     "mattermostServerUrl": "Server URL",
-    "mattermostServerUrlHint": "https://mattermost.your-company.com",
+    "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
@@ -383,7 +383,7 @@
     "openAgentPage": "Open {name}",
     "optionalPointModelAt": "Optional. Point this model at a gateway or proxy instead of the provider's own API; the key is still what authenticates.",
     "organizationAposSOwn": "The organization's own monthly cap is not here. It stops every agent in the organization and an agent's author cannot raise it, so its alert always goes to the admins.",
-    "organizationHasNoChannel": "No bot is free to bind. A bot answers as one agent, so one already serving another agent is not offered here - register another under Channels.",
+    "organizationHasNoChannel": "No bot is free to bind. A bot answers as one agent, so one already serving another agent is not offered here - <link>register another under Channels</link>.",
     "organizationHasNoCollections": "This organization has no collections yet. An agent with none searches nothing.",
     "organizationHasNoContext": "This organization has no context files yet.",
     "organizationHasNoModels": "This organization has no models yet. An agent cannot run without one.",
@@ -597,7 +597,7 @@
     "use": "Use",
     "useCustomModel": "Use <mono>{name}</mono>",
     "useSavedModelCount": "Use a saved model ({count})",
-    "useThisModel": "Use this model",
+    "modelInUse": "In use",
     "usingKey": "Using <strong>{name}</strong>",
     "variableDescription": "Variable {index} description",
     "variableDescriptionPlaceholder": "Which plan this visitor is on",
@@ -2233,7 +2233,6 @@
     "save": "Save",
     "saving": "Saving…",
     "scannedPages": "Scanned pages",
-    "scope": "Scope",
     "selectKnowledgeBase": "Select a knowledge base…",
     "sendPicturesInsideDocument": "Send the pictures inside a document to a model and index what it says about them. Needs a model profile with a working key, which is checked when this is saved.",
     "servedBy": "served by {provider}",
@@ -2281,7 +2280,11 @@
     "registering": "Registering…",
     "ocrServerSetting": "OCR server",
     "ocrServerHint": "Where LiteParse sends pages to be read. The built-in Tesseract runs inside the worker.",
-    "builtInTesseract": "Built-in Tesseract"
+    "builtInTesseract": "Built-in Tesseract",
+    "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
+    "whoCanSearchIt": "Who can search it",
+    "scopeHintPersonal": "Only you can see it, upload to it and search it.",
+    "scopeHintOrg": "Everyone in this organization can find it and search it."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -2628,6 +2631,7 @@
     "connectAction": "Connect",
     "connectAnother": "Connect another",
     "connectCheck": "Connect & check",
+    "connectCustomForScope": "Add an MCP server for {scope, select, organization {the organization} other {yourself}}",
     "connectForScope": "Connect {name} for {scope, select, organization {the organization} other {yourself}}",
     "connected": "Connected",
     "connectedForOrg": "{name} is now available to this organization's agents.",
@@ -2647,7 +2651,7 @@
     "disconnectWarning": "Disconnect \"{name}\"?",
     "displayName": "Name",
     "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix.",
-    "displayNamePlaceholder": "Marketing workspace",
+    "displayNamePlaceholder": "Company wiki",
     "documentation": "Documentation",
     "edit": "Edit",
     "editNamed": "Edit \"{name}\"",
@@ -2658,9 +2662,9 @@
     "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
-    "github": "github",
     "manageConnectionsOn": "Manage connections on {name}",
     "name": "Tool prefix",
+    "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",
     "namePrefixesToolNames": "Lowercase letters, digits and hyphens. The model reads it before every tool call, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
     "needsAuthorization": "Needs authorization",
@@ -3853,8 +3857,11 @@
       "filterByStatus": "Filter by status",
       "filterByCategory": "Filter by category",
       "filterByTag": "Filter by tag",
-      "removeCategoryFilter": "Remove category filter {value}",
-      "removeTagFilter": "Remove tag filter {value}",
+      "allCategories": "All categories",
+      "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
+      "allTags": "All tags",
+      "tagCount": "{count, plural, =1 {1 tag} other {# tags}}",
+      "clearFilter": "Clear filter",
       "categories": "Categories",
       "tags": "Tags",
       "discovery": "Categories and tags",
@@ -3883,6 +3890,7 @@
       "model": "Model",
       "modelSettings": "Model settings",
       "monthlyUsd": "Monthly (USD)",
+      "monthlyUsdHint": "Runs stop once this agent spends this much in a calendar month. Blank leaves only the organization's limit.",
       "moreActions": "More actions",
       "n100Default": "100 (default)",
       "namedMissing": "{name} (missing)",
@@ -3941,8 +3949,6 @@
       "labelCount": "{used} of {max}"
     },
     "auth": {
-      "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",
-      "apache20Your": "Apache-2.0 · your infrastructure · your keys",
       "backSign": "Back to sign in",
       "checkSpamFolder": "Don't see it? Check your spam folder, or <link>try again</link>.",
       "inboxIncoming": "Inbox, <em>incoming.</em>",
@@ -3950,16 +3956,12 @@
       "magicLinkSent": "We sent a sign-in link. Click it to continue - expires in 15 minutes.",
       "magicLinkSentTo": "We sent a sign-in link to <strong>{email}</strong>. Click it to continue - expires in 15 minutes.",
       "missingExpiredLink": "Missing or expired link",
-      "operatingSystemHeading": "Build, run and govern <em>your company's</em> AI agents.",
       "orReturnToSignIn": "Or <link>return to sign in</link>.",
       "pageExpectsTokenFrom": "This page expects a token from your reset email. Request a new link to continue.",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "requestNewLink": "Request a new link",
       "resetPassword": "Reset password",
-      "selfHostedOpenSource": "Self-hosted, open source",
-      "tryAgain": "try again"
+      "tryAgain": "try again",
+      "tagline": "One place to <b>build</b>, <b>run</b> and <b>govern</b> your company’s AI agents."
     },
     "channelLink": {
       "connectThisAccount": "Connect this account",
@@ -4003,7 +4005,7 @@
       "editChannel": "Edit channel",
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
-      "mattermostServerUrlHint": "https://mattermost.your-company.com",
+      "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
       "mattermostWebhookToken": "Webhook token (optional)",
       "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
       "name": "Name",
@@ -4276,9 +4278,6 @@
       "onboardingTitle": "Get started",
       "onboardingUnderConstruction": "Onboarding is under construction",
       "pageError": "Page error:",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "sectionFailed": "This section failed to load",
       "shareLinkExpired": "This share link may have expired or been revoked.",
       "shareLinkNotFound": "Share link not found",
@@ -5278,7 +5277,9 @@
         "legal": "Legal and professional services",
         "manufacturing": "Manufacturing and logistics"
       }
-    }
+    },
+    "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
+    "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it."
   },
   "states": {
     "loading": "Loading"
@@ -6073,7 +6074,8 @@
     "pageLink": "Link to this page",
     "pageLinkWhy": "Opens the page for anyone who already has access, after they sign in. Sending it gives nobody access by itself.",
     "maybeOtherOrganization": "If it was shared with you in another organization, switch to it.",
-    "switchOrganization": "Switch organization"
+    "switchOrganization": "Switch organization",
+    "versionBadge": "v{version}"
   },
   "tables": {
     "cells": {

@@ -123,6 +123,13 @@ class SkillSummary(BaseSchema):
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"
     )
+    excerpt: str = Field(
+        default="",
+        description=(
+            "The body's first lines, front matter dropped and bounded, so a card can "
+            "show what the skill says without the listing carrying every body"
+        ),
+    )
 
 
 class SkillList(BaseSchema):

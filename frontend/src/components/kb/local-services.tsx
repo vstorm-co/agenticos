@@ -119,7 +119,7 @@ function LocalServiceRow({
             ? t("deploymentWideNamed", { name: service.name })
             : service.name}
         </p>
-        <p className="text-muted-foreground mt-0.5 truncate font-mono text-[10px] tracking-wider">
+        <p className="text-muted-foreground mt-0.5 truncate font-mono text-[11px] tracking-wider">
           {service.kind === "embedding" ? t("embeddingServer") : t("ocrServer")}
           {` · ${service.base_url}`}
         </p>

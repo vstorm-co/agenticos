@@ -14,6 +14,8 @@ export { AnimatedAmount, AnimatedTally } from "./animated-number";
 export { BellGlyph, RingingBell, type BellGlyphProps } from "./bell-glyph";
 export { ListCard, ListCardControlsRow, ListCardEmpty, ListCardFootRow } from "./list-card";
 export { Badge, badgeVariants } from "./badge";
+export { DocPeek } from "./doc-peek";
+export { BlankPeek, TextPeek } from "./text-peek";
 export { SortButton } from "./sort-button";
 export type { SortDirection } from "./sort-button";
 export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "./sheet";

@@ -223,6 +223,17 @@ class AgentDetail(AgentRead):
 class AgentList(BaseSchema):
     items: list[AgentRead]
     total: int
+    categories: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every distinct category on the agents the caller may list - the "
+            "filter's choices, unaffected by the filter and paging that shaped `items`"
+        ),
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Every distinct tag on the agents the caller may list, the same way",
+    )
 
 
 class AgentCreate(BaseSchema):

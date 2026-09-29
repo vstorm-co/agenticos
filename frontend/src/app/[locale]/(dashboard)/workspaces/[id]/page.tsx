@@ -30,7 +30,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
     // by exactly the padding - a scrollbar on every page that would otherwise
     // have none.
     <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <PageHeader title={t("workspace")} description={t("whatOneAgentKeeping")} />
+      {/* No bottom margin of its own: the column's gap is the spacing here, and
+          the two added up to a band of nothing above the explorer. */}
+      <PageHeader
+        title={t("workspace")}
+        description={t("whatOneAgentKeeping")}
+        className="mb-0 md:mb-0"
+      />
       <div data-tour="workspace-files" className="flex min-h-0 flex-1 flex-col">
         <WorkspaceExplorer workspaceId={id} />
       </div>

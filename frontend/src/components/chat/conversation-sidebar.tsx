@@ -127,7 +127,7 @@ function ConversationItem({
               than an avatar-sized block, and the star and the kebab only take
               their space on hover. */}
           <span className="block truncate">{displayTitle}</span>
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 truncate text-[10px]">
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 truncate text-[11px]">
             {/* How long ago, not which calendar day. "Sep 21" and "Sep 22" on a
                 list somebody opened this morning is a date they have to
                 subtract from today to read; "2 hours ago" is the answer. It
@@ -515,13 +515,13 @@ function ConversationList({
           </div>
         ) : (
           <div className="space-y-1">
-            <p className="text-muted-foreground px-1 pb-1 text-[10px]">
+            <p className="text-muted-foreground px-1 pb-1 text-[11px]">
               {ts("counted", { count: total })}
             </p>
             {bands.map(({ key, heading, rows }) => (
               <div key={key} className="space-y-1">
                 {heading !== null && (
-                  <p className="text-muted-foreground flex items-center gap-1 px-1 pt-1 text-[10px] font-medium tracking-wide uppercase">
+                  <p className="text-muted-foreground flex items-center gap-1 px-1 pt-1 text-[11px] font-medium tracking-wide uppercase">
                     <Star className="h-3 w-3 fill-current" aria-hidden />
                     {heading}
                   </p>

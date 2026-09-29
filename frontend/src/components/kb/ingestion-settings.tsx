@@ -247,7 +247,11 @@ export function IngestionSettings({
           />
         )}
 
-        {value.pdf_parser === "liteparse" && (
+        {/* Where scanned pages go, how finely they are rendered and in which
+            language they are read only mean something while scanned pages are
+            read at all - with OCR off they were three settings that changed
+            nothing, shown to everybody. */}
+        {value.pdf_parser === "liteparse" && value.ocr && (
           <OptionalSetting
             htmlFor={id("ocr-server")}
             label={t("ocrServerSetting")}
@@ -330,48 +334,52 @@ export function IngestionSettings({
               />
             </OptionalSetting>
 
-            <OptionalSetting
-              htmlFor={id("dpi")}
-              label={t("ocrResolutionDpi")}
-              description={t("howFinelyPageRendered")}
-              error={errors.liteparse_dpi}
-              disabled={disabled}
-            >
-              <Input
-                id={id("dpi")}
-                type="number"
-                min={INGESTION_LIMITS.liteparseDpi.min}
-                max={INGESTION_LIMITS.liteparseDpi.max}
-                value={Number.isNaN(value.liteparse_dpi) ? "" : value.liteparse_dpi}
-                disabled={disabled}
-                aria-invalid={errors.liteparse_dpi !== undefined}
-                aria-describedby={
-                  errors.liteparse_dpi === undefined ? undefined : `${id("dpi")}-error`
-                }
-                onChange={(event) => set("liteparse_dpi", toNumber(event.target.value))}
-              />
-            </OptionalSetting>
+            {value.ocr && (
+              <>
+                <OptionalSetting
+                  htmlFor={id("dpi")}
+                  label={t("ocrResolutionDpi")}
+                  description={t("howFinelyPageRendered")}
+                  error={errors.liteparse_dpi}
+                  disabled={disabled}
+                >
+                  <Input
+                    id={id("dpi")}
+                    type="number"
+                    min={INGESTION_LIMITS.liteparseDpi.min}
+                    max={INGESTION_LIMITS.liteparseDpi.max}
+                    value={Number.isNaN(value.liteparse_dpi) ? "" : value.liteparse_dpi}
+                    disabled={disabled}
+                    aria-invalid={errors.liteparse_dpi !== undefined}
+                    aria-describedby={
+                      errors.liteparse_dpi === undefined ? undefined : `${id("dpi")}-error`
+                    }
+                    onChange={(event) => set("liteparse_dpi", toNumber(event.target.value))}
+                  />
+                </OptionalSetting>
 
-            <OptionalSetting
-              htmlFor={id("ocr-language")}
-              label={t("ocrLanguage")}
-              description={t("ocrLanguageHint")}
-              error={errors.ocr_language}
-              disabled={disabled}
-            >
-              <Input
-                id={id("ocr-language")}
-                value={value.ocr_language}
-                disabled={disabled}
-                spellCheck={false}
-                placeholder={t("eng")}
-                aria-invalid={errors.ocr_language !== undefined}
-                aria-describedby={
-                  errors.ocr_language === undefined ? undefined : `${id("ocr-language")}-error`
-                }
-                onChange={(event) => set("ocr_language", event.target.value)}
-              />
-            </OptionalSetting>
+                <OptionalSetting
+                  htmlFor={id("ocr-language")}
+                  label={t("ocrLanguage")}
+                  description={t("ocrLanguageHint")}
+                  error={errors.ocr_language}
+                  disabled={disabled}
+                >
+                  <Input
+                    id={id("ocr-language")}
+                    value={value.ocr_language}
+                    disabled={disabled}
+                    spellCheck={false}
+                    placeholder={t("eng")}
+                    aria-invalid={errors.ocr_language !== undefined}
+                    aria-describedby={
+                      errors.ocr_language === undefined ? undefined : `${id("ocr-language")}-error`
+                    }
+                    onChange={(event) => set("ocr_language", event.target.value)}
+                  />
+                </OptionalSetting>
+              </>
+            )}
 
             <OptionalSetting
               htmlFor={id("timeout")}

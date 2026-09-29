@@ -77,6 +77,28 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
+  it("draws each file's first lines on its tile, as All files does", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          {
+            path: "/report.csv",
+            size: 2048,
+            is_dir: false,
+            modified_at: null,
+            preview: "month,total",
+            thumbnail: null,
+          },
+        ],
+        total: 1,
+      }),
+    );
+    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    await openPanel();
+
+    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+  });
+
   it("says whose files these are", async () => {
     draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
     await openPanel();
@@ -444,8 +466,10 @@ describe("the workspace panel", () => {
       );
       await openPanel();
 
-      expect(screen.getByRole("img", { name: "shot.png" })).toBeVisible();
-      expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+      // `hidden`: the thumbnail sits in the card's decorative peek, which is
+      // out of the accessibility tree - the card's own name is what is read.
+      expect(screen.getByRole("img", { name: "shot.png", hidden: true })).toBeVisible();
+      expect(screen.queryByRole("img", { name: "scan.tiff", hidden: true })).toBeNull();
     });
 
     it("counts them on the button beside the agent's own", async () => {

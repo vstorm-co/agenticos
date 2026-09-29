@@ -118,13 +118,16 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
 
       <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Globe className="text-foreground/40 h-4 w-4 shrink-0" aria-hidden />
+          <Globe className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
           <div className="min-w-0">
             <h2 className="text-foreground truncate text-sm font-semibold">
               {browse.title || t("browserHeading")}
             </h2>
             {browse.url && (
-              <p className="text-foreground/45 truncate font-mono text-[10px]" title={browse.url}>
+              <p
+                className="text-muted-foreground truncate font-mono text-[11px]"
+                title={browse.url}
+              >
                 {browse.url}
               </p>
             )}
@@ -134,7 +137,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
           type="button"
           onClick={close}
           aria-label={t("browserClose")}
-          className="text-foreground/50 hover:text-foreground hover:bg-foreground/8 shrink-0 rounded-md p-1 transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 shrink-0 rounded-md p-1 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -149,7 +152,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
       >
         {browse.goal && (
           <p className="text-foreground/60 text-xs leading-relaxed">
-            <span className="text-foreground/40 font-mono text-[10px] tracking-wider uppercase">
+            <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
               {t("browserGoal")}
             </span>
             <br />
@@ -162,7 +165,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
 
         {browse.steps.length > 0 && (
           <section className="space-y-1">
-            <h3 className="text-foreground/45 px-2 font-mono text-[10px] tracking-wider uppercase">
+            <h3 className="text-muted-foreground px-2 font-mono text-[11px] tracking-wider uppercase">
               {t("browserSteps")}
             </h3>
             <ul className="space-y-0.5">

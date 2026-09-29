@@ -66,8 +66,8 @@ export function ResetPasswordForm({ token }: Props) {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">{t("eyebrow")}</span>
-        <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
+        <span className="text-muted-foreground text-sm font-medium">{t("eyebrow")}</span>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
           {t("heading")}
         </h1>
         <p className="text-foreground/65 text-sm">{t("intro")}</p>
@@ -75,10 +75,7 @@ export function ResetPasswordForm({ token }: Props) {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">
-          <Label
-            htmlFor="new-pw"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="new-pw" className="text-foreground text-sm font-medium">
             {t("newPassword")}
           </Label>
           <Input
@@ -89,7 +86,7 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className="h-12 rounded-xl"
+            className="h-11 rounded-lg text-[15px]"
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -110,10 +107,7 @@ export function ResetPasswordForm({ token }: Props) {
                   />
                 ))}
               </div>
-              <p
-                aria-live="polite"
-                className="text-foreground/55 font-mono text-[11px] tracking-wider uppercase"
-              >
+              <p aria-live="polite" className="text-muted-foreground text-xs font-medium">
                 {strengthLabel}
               </p>
             </div>
@@ -121,10 +115,7 @@ export function ResetPasswordForm({ token }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label
-            htmlFor="confirm-pw"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="confirm-pw" className="text-foreground text-sm font-medium">
             {t("confirm")}
           </Label>
           <Input
@@ -135,7 +126,7 @@ export function ResetPasswordForm({ token }: Props) {
             required
             autoComplete="new-password"
             disabled={submitting}
-            className={`h-12 rounded-xl ${confirm && !matches ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-[15px] ${confirm && !matches ? "border-destructive" : ""}`}
           />
           {confirm && !matches && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">
@@ -152,16 +143,12 @@ export function ResetPasswordForm({ token }: Props) {
         </div>
 
         {error && (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
+          <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
             {error}
           </p>
         )}
 
-        <Button
-          type="submit"
-          disabled={submitting}
-          className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-        >
+        <Button type="submit" disabled={submitting} className="h-11 w-full text-[15px]">
           {submitting ? (
             t("submitting")
           ) : (
@@ -174,7 +161,7 @@ export function ResetPasswordForm({ token }: Props) {
 
         <Link
           href={ROUTES.LOGIN}
-          className="text-foreground/55 hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("backToSignIn")}

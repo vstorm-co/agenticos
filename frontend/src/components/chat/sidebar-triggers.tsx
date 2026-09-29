@@ -134,7 +134,7 @@ function SidebarTriggerItem({
         >
           {title}
         </span>
-        <span className="text-muted-foreground block truncate text-[11px]">
+        <span className="text-muted-foreground block truncate text-xs">
           <TriggerSummary trigger={trigger} />
         </span>
       </button>
