@@ -49,6 +49,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **Sign-in is quieter.** Sign in, sign up and the password pages are a white
   form beside a soft panel with the agent orb, without the badges and licence
   line.
+- **Dialogs ask for less and explain more.** A custom MCP server's tool prefix
+  follows the name typed above it until it is edited, and its title reads
+  "Add an MCP server". A new knowledge base says who can search it and hides
+  the OCR settings while scanned pages are not read, a new skill's body shows
+  an example of what to write, and a Mattermost bot's server URL hint says
+  what address to paste instead of repeating an example of one.
 - **Headers and lists hold together across the console.** A page's actions
   sit level with its title instead of at the foot of a long description, and
   an agent's status badges sit under its name. On a phone, a list card's title

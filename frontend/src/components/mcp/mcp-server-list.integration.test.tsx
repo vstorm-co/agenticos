@@ -697,6 +697,36 @@ describe("naming a connection something a person can read", () => {
     );
   });
 
+  it("offers a custom server's tool prefix from its name until the prefix is edited", async () => {
+    // A hand-typed server has no catalog key, so the prefix used to start
+    // empty and every custom connection needed the same name typed twice.
+    await mount();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a custom server" }));
+    const form = within(await screen.findByRole("dialog"));
+    expect(
+      form.getByRole("heading", { name: "Add an MCP server for the organization" }),
+    ).toBeInTheDocument();
+
+    await userEvent.type(form.getByLabelText("Name"), "Company Wiki");
+    expect(form.getByLabelText("Tool prefix")).toHaveValue("company-wiki");
+
+    await userEvent.clear(form.getByLabelText("Tool prefix"));
+    await userEvent.type(form.getByLabelText("Tool prefix"), "kb");
+    await userEvent.type(form.getByLabelText("Name"), " EU");
+    expect(form.getByLabelText("Tool prefix")).toHaveValue("kb");
+  });
+
+  it("leaves a catalog server's prefix alone while its name is typed", async () => {
+    await mount();
+
+    await userEvent.click(within(githubRow()).getByRole("button", { name: "Connect" }));
+    const form = within(await screen.findByRole("dialog"));
+    await userEvent.type(form.getByLabelText("Name"), "Company Wiki");
+
+    expect(form.getByLabelText("Tool prefix")).toHaveValue("github");
+  });
+
   it("sends nothing for a label left empty", async () => {
     // An absent label is not `""`: the connection shows its slug, which is what
     // it did before this field existed.

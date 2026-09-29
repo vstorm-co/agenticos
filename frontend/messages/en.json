@@ -324,7 +324,7 @@
     "mapTreeTruncated": "The delegation tree is larger than one response walks, so its deepest parts are not drawn.",
     "mapTreeUnavailable": "The full delegation tree could not be loaded, so only direct delegates are shown.",
     "mattermostServerUrl": "Server URL",
-    "mattermostServerUrlHint": "https://mattermost.your-company.com",
+    "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
@@ -2596,6 +2596,7 @@
     "connectAction": "Connect",
     "connectAnother": "Connect another",
     "connectCheck": "Connect & check",
+    "connectCustomForScope": "Add an MCP server for {scope, select, organization {the organization} other {yourself}}",
     "connectForScope": "Connect {name} for {scope, select, organization {the organization} other {yourself}}",
     "connected": "Connected",
     "connectedForOrg": "{name} is now available to this organization's agents.",
@@ -2615,7 +2616,7 @@
     "disconnectWarning": "Disconnect \"{name}\"?",
     "displayName": "Name",
     "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix.",
-    "displayNamePlaceholder": "Marketing workspace",
+    "displayNamePlaceholder": "Company wiki",
     "documentation": "Documentation",
     "edit": "Edit",
     "editNamed": "Edit \"{name}\"",
@@ -2626,9 +2627,9 @@
     "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
     "fromRegistry": "Registry",
     "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
-    "github": "github",
     "manageConnectionsOn": "Manage connections on {name}",
     "name": "Tool prefix",
+    "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",
     "namePrefixesToolNames": "Lowercase letters, digits and hyphens. The model reads it before every tool call, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
     "needsAuthorization": "Needs authorization",
@@ -3692,7 +3693,7 @@
       "editChannel": "Edit channel",
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
-      "mattermostServerUrlHint": "https://mattermost.your-company.com",
+      "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
       "mattermostWebhookToken": "Webhook token (optional)",
       "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
       "name": "Name",
@@ -4865,7 +4866,8 @@
         "manufacturing": "Manufacturing and logistics"
       }
     },
-    "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}"
+    "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
+    "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it."
   },
   "states": {
     "loading": "Loading"

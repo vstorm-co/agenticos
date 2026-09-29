@@ -111,6 +111,10 @@ function ConnectionForm({
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  // A server typed in by hand has no catalog key to seed the prefix from, so
+  // the prefix follows the name until the person edits it themselves.
+  const custom = draft.row.entry === null && draft.existing === null;
+  const [prefixEdited, setPrefixEdited] = useState(false);
 
   // The hint under the radio group. It used to be rendered as the *key* -
   // `authTokenHint` on screen, in every locale (#446).
@@ -122,7 +126,9 @@ function ConnectionForm({
         <DialogTitle>
           {draft.existing
             ? t("editNamed", { name: draft.existing.name })
-            : t("connectForScope", { name: draft.row.name, scope })}
+            : custom
+              ? t("connectCustomForScope", { scope })
+              : t("connectForScope", { name: draft.row.name, scope })}
         </DialogTitle>
       </DialogHeader>
       <div className="space-y-4" data-tour="mcp-dialog-form">
@@ -135,7 +141,10 @@ function ConnectionForm({
           <Input
             id="mcp-label"
             value={label}
-            onChange={(event) => setLabel(event.target.value)}
+            onChange={(event) => {
+              setLabel(event.target.value);
+              if (custom && !prefixEdited) setName(slugForPrefix(event.target.value));
+            }}
             placeholder={t("displayNamePlaceholder")}
             maxLength={64}
             className="mt-1.5"
@@ -147,8 +156,11 @@ function ConnectionForm({
           <Input
             id="mcp-name"
             value={name}
-            onChange={(event) => setName(event.target.value.toLowerCase())}
-            placeholder={t("github")}
+            onChange={(event) => {
+              setName(event.target.value.toLowerCase());
+              setPrefixEdited(true);
+            }}
+            placeholder={t("prefixPlaceholder")}
             maxLength={32}
             className="mt-1.5"
           />
