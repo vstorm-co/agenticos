@@ -1,5 +1,5 @@
 ---
-source_sha: "b1c12229773c"
+source_sha: "c9ad7448f523"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -387,6 +387,26 @@ tabla nueva como una referencia a la que se puede enlazar el `table` de un nodo
 posterior, y el id de cada columna por etiqueta. Una tabla que lee o escribe un
 workflow vivo, o una columna que fija, no se puede archivar mientras la versión
 actual de ese workflow la use.
+
+Cuatro pasos más leen qué tablas tiene la organización, y no cambian nada.
+
+| Paso | Hace | Sale por |
+|---|---|---|
+| `table.list` | enumera las tablas que ve el principal, buscadas por nombre | `out`, con `tables` y `total` |
+| `table.describe` | lee el nombre y las columnas de una tabla | `out`, con `columns` |
+| `table.exists` | si existe una tabla con exactamente este nombre | `yes`, con su id, o `no` |
+| `table.record.exists` | si algún registro coincide con los filtros | `yes`, con el id del primero, o `no` |
+
+`table.exists` compara el nombre entero sin distinguir mayúsculas, así que un
+workflow puede crear su tabla la primera vez que se ejecuta y reutilizarla
+después. Las dos preguntas salen por exactamente un puerto, y un `logic.merge`
+puede volver a unir las ramas.
+
+::: app.workflows.nodes.table_list._handler.TableListOutput
+
+::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
+
+::: app.workflows.nodes.table_record_exists._handler.TableRecordExistsConfig
 
 ::: app.workflows.nodes._tables.TableRecordOutput
 

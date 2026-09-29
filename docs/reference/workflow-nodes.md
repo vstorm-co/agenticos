@@ -371,6 +371,25 @@ new table as a reference a later node's `table` can be bound to, and each column
 id by label. A table that a live workflow reads or writes, or a column it pins,
 cannot be archived while that workflow's current version uses it.
 
+Four more steps read what the organization's tables are, and change nothing.
+
+| Step | Does | Leaves by |
+|---|---|---|
+| `table.list` | lists the tables the principal sees, searched by name | `out`, with `tables` and `total` |
+| `table.describe` | reads one table's name and columns | `out`, with `columns` |
+| `table.exists` | whether a table of this exact name exists | `yes`, with its id, or `no` |
+| `table.record.exists` | whether any record matches the filters | `yes`, with the first one's id, or `no` |
+
+`table.exists` matches the whole name without regard to case, so a workflow can
+create its table the first time it runs and reuse it after. The two questions
+leave by exactly one port, and a `logic.merge` can join the branches again.
+
+::: app.workflows.nodes.table_list._handler.TableListOutput
+
+::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
+
+::: app.workflows.nodes.table_record_exists._handler.TableRecordExistsConfig
+
 ::: app.workflows.nodes._tables.TableRecordOutput
 
 ::: app.workflows.nodes.table_record_get._handler.TableRecordLookup

@@ -25,7 +25,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
-from app.db.models.workflow_run import WorkflowRunStatus
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRunStatus
 from app.schemas.virtual_table import (
     ColumnInput,
     RecordCreate,
@@ -588,3 +588,139 @@ async def test_a_column_is_blocked_only_where_a_workflow_pins_it(engine: AsyncEn
                 ctx, table.id, SchemaUpdate(expected_version=2, columns=[])
             )
     assert email.label == "Email"
+
+
+async def test_tables_are_listed_and_one_is_described_for_the_steps_after(engine: AsyncEngine):
+    member, table = await _world(engine)
+    entry = _node("core.input")
+    listed = _node("table.list", {"limit": 10})
+    described = _node("table.describe", _pin(table))
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, listed, described, output),
+        edges=_chain(entry, listed, described, output),
+        bindings=(
+            _literal(listed, "search", "lea"),
+            _bind(output, "structured", _ref(described)),
+        ),
+    )
+
+    run = await drive(await _run(engine, member, graph))
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    async with async_sessionmaker(engine)() as db:
+        attempt = (
+            await db.execute(
+                select(NodeAttempt.result)
+                .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
+                .where(NodeRun.node_instance_id == listed.id)
+            )
+        ).scalar_one()
+    found = attempt["output"]
+    assert found["total"] == 1 and found["tables"][0]["name"] == "Leads"
+    assert run.output is not None
+    shape = run.output["structured"]
+    assert (shape["name"], shape["schema_version"]) == ("Leads", table.schema_version)
+    assert [(column["label"], column["type"]) for column in shape["columns"]] == [
+        ("Email", "text"),
+        ("Score", "integer"),
+    ]
+
+
+async def _branch_taken(engine: AsyncEngine, member, graph: WorkflowGraph) -> dict[str, str]:
+    run = await drive(await _run(engine, member, graph))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    async with async_sessionmaker(engine)() as db:
+        rows = (await db.execute(select(NodeRun))).scalars().all()
+    return {str(row.node_instance_id): row.status for row in rows}
+
+
+@pytest.mark.parametrize(("name", "port"), [("LEADS", "yes"), ("Lead", "no")])
+async def test_a_table_is_found_by_its_whole_name_whatever_the_case(
+    engine: AsyncEngine, name: str, port: str
+):
+    member, _table = await _world(engine)
+    entry = _node("core.input")
+    exists = _node("table.exists")
+    yes, no = _node("core.output"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, exists, yes, no),
+        edges=(
+            *_chain(entry, exists),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=exists.id,
+                source_port="yes",
+                target_node_id=yes.id,
+                target_port="in",
+            ),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=exists.id,
+                source_port="no",
+                target_node_id=no.id,
+                target_port="in",
+            ),
+        ),
+        bindings=(_literal(exists, "name", name),),
+    )
+
+    statuses = await _branch_taken(engine, member, graph)
+
+    taken, skipped = (yes, no) if port == "yes" else (no, yes)
+    assert statuses[str(taken.id)] == "succeeded"
+    assert statuses.get(str(skipped.id), "skipped") == "skipped"
+
+
+@pytest.mark.parametrize(("score", "port"), [(10, "yes"), (99, "no")])
+async def test_a_record_that_matches_every_filter_takes_the_yes_branch(
+    engine: AsyncEngine, score: int, port: str
+):
+    member, table = await _world(engine)
+    async with async_sessionmaker(engine)() as db:
+        await VirtualTableService(db).create_record(
+            AuthContext(user_id=member[0].id, organization_id=member[1].id, role="owner"),
+            table.id,
+            RecordCreate(values={str(table.columns[1].id): 10}),
+        )
+        await db.commit()
+    entry = _node("core.input")
+    exists = _node(
+        "table.record.exists",
+        {
+            **_pin(table),
+            "filters": [{"column_id": str(table.columns[1].id), "op": "eq", "value": score}],
+        },
+    )
+    yes, no = _node("core.output"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, exists, yes, no),
+        edges=(
+            *_chain(entry, exists),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=exists.id,
+                source_port="yes",
+                target_node_id=yes.id,
+                target_port="in",
+            ),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=exists.id,
+                source_port="no",
+                target_node_id=no.id,
+                target_port="in",
+            ),
+        ),
+        bindings=(
+            _bind(yes, "structured", NodeOutputRef(node_id=exists.id, port="yes", field_path=())),
+        ),
+    )
+
+    statuses = await _branch_taken(engine, member, graph)
+
+    taken = yes if port == "yes" else no
+    assert statuses[str(taken.id)] == "succeeded"

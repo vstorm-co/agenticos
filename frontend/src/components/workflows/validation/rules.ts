@@ -38,6 +38,8 @@ const EXCLUSIVE_BRANCHING: ReadonlySet<string> = new Set([
   "decide.yes_no",
   "decide.choose",
   "decide.score",
+  "table.exists",
+  "table.record.exists",
 ]);
 
 function node(nodeId: string, code: RawProblem["code"], params?: RawProblem["params"]): RawProblem {

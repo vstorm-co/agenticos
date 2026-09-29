@@ -1,5 +1,5 @@
 ---
-source_sha: "b1c12229773c"
+source_sha: "c9ad7448f523"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -382,6 +382,27 @@ tabelę jako referencję, do której można zbindować `table` kolejnego węzła
 każdej kolumny po etykiecie. Tabeli, którą czyta albo zapisuje żywy workflow, ani
 kolumny, którą przypina, nie da się zarchiwizować, dopóki używa jej bieżąca wersja
 tego workflow.
+
+Cztery kolejne kroki odczytują, jakie tabele ma organizacja, i niczego nie
+zmieniają.
+
+| Krok | Robi | Wychodzi przez |
+|---|---|---|
+| `table.list` | wymienia tabele widoczne dla podmiotu, szukane po nazwie | `out`, z `tables` i `total` |
+| `table.describe` | czyta nazwę i kolumny jednej tabeli | `out`, z `columns` |
+| `table.exists` | czy istnieje tabela o dokładnie tej nazwie | `yes`, z jej id, albo `no` |
+| `table.record.exists` | czy jakikolwiek rekord pasuje do filtrów | `yes`, z id pierwszego, albo `no` |
+
+`table.exists` porównuje całą nazwę bez względu na wielkość liter, więc workflow
+może utworzyć swoją tabelę przy pierwszym uruchomieniu, a potem jej używać. Oba
+pytania wychodzą dokładnie jednym portem, a `logic.merge` może z powrotem
+połączyć gałęzie.
+
+::: app.workflows.nodes.table_list._handler.TableListOutput
+
+::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
+
+::: app.workflows.nodes.table_record_exists._handler.TableRecordExistsConfig
 
 ::: app.workflows.nodes._tables.TableRecordOutput
 

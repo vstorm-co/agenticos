@@ -1,5 +1,5 @@
 ---
-source_sha: "b1c12229773c"
+source_sha: "c9ad7448f523"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -403,6 +403,27 @@ trägt die neue Tabelle als Referenz, an die das `table` eines späteren Knotens
 gebunden werden kann, und die ID jeder Spalte nach Label. Eine Tabelle, die ein
 lebender Workflow liest oder schreibt, oder eine Spalte, die er festlegt, kann nicht
 archiviert werden, solange die aktuelle Version dieses Workflows sie nutzt.
+
+Vier weitere Schritte lesen, welche Tabellen die Organisation hat, und ändern
+nichts.
+
+| Schritt | Tut | Verlässt über |
+|---|---|---|
+| `table.list` | listet die Tabellen, die der Principal sieht, nach Namen gesucht | `out`, mit `tables` und `total` |
+| `table.describe` | liest Namen und Spalten einer Tabelle | `out`, mit `columns` |
+| `table.exists` | ob eine Tabelle genau dieses Namens existiert | `yes`, mit ihrer ID, oder `no` |
+| `table.record.exists` | ob ein Datensatz zu den Filtern passt | `yes`, mit der ID des ersten, oder `no` |
+
+`table.exists` vergleicht den ganzen Namen ohne Rücksicht auf Groß- und
+Kleinschreibung, sodass ein Workflow seine Tabelle beim ersten Lauf anlegen und
+danach wiederverwenden kann. Beide Fragen verlassen den Schritt über genau einen
+Port, und ein `logic.merge` kann die Zweige wieder zusammenführen.
+
+::: app.workflows.nodes.table_list._handler.TableListOutput
+
+::: app.workflows.nodes.table_describe._handler.TableDescribeOutput
+
+::: app.workflows.nodes.table_record_exists._handler.TableRecordExistsConfig
 
 ::: app.workflows.nodes._tables.TableRecordOutput
 

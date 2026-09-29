@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow steps that read what a table is.** **List tables**, **Describe a
+  table**, **Table exists?** and **Record exists?** let a workflow find a table,
+  read its columns, create one only the first time it runs, or branch on whether
+  a matching record is already there. The two questions leave by `yes` or `no`.
 - **Workflow steps that talk in Slack, Mattermost and Telegram.** **Send a
   message**, **Read messages**, **List people** and **Find channels** act as one
   of the organization's channel bots, through the adapter its replies use, so a
