@@ -1,0 +1,69 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { DEBUG_ECHO } from "@/components/workflows/validation/fixtures";
+import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+import { NodeEditorDialog } from "./node-editor-dialog";
+
+const store = useWorkflowEditorStore;
+
+function node(id: string, definitionId = "debug.echo", config = {}): NodeInstance {
+  return { id, definition_id: definitionId, definition_version: 1, config, layout: { x: 0, y: 0 } };
+}
+
+function seed(...nodes: NodeInstance[]) {
+  const graph: WorkflowGraph = {
+    entry_node_id: nodes[0]?.id ?? "",
+    nodes,
+    edges: [],
+    bindings: [],
+    scopes: [],
+  };
+  store.getState().seedGraph(graph);
+}
+
+afterEach(() => store.getState().teardown());
+
+describe("NodeEditorDialog", () => {
+  it("opens nothing until a step is being edited", () => {
+    seed(node("a"));
+    const { container } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows the step's name, what it does and its settings, and closes on Done", async () => {
+    seed(node("a", "debug.echo", { message: "hi" }));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+
+    expect(screen.getByRole("heading", { name: "Echo" })).toBeTruthy();
+    expect(screen.getByText(DEBUG_ECHO.description)).toBeTruthy();
+    expect(screen.getByDisplayValue("hi")).toBeTruthy();
+    expect(store.getState().selection.nodeIds).toEqual(["a"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(store.getState().editingNodeId).toBeNull();
+  });
+
+  it("deletes the step it shows", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete step" }));
+    expect(store.getState().graph?.nodes.map((item) => item.id)).toEqual(["a"]);
+    expect(store.getState().editingNodeId).toBeNull();
+  });
+
+  it("reads without writing on a read-only editor, and says when a step's type is unknown", () => {
+    seed(node("u", "gone.step"));
+    store.getState().editNode("u");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} readOnly />);
+    expect(screen.queryByRole("button", { name: "Delete step" })).toBeNull();
+    expect(screen.getByText("This node's type is not in the catalog.")).toBeTruthy();
+    // Its problem - a type nobody can publish - is said above everything else.
+    expect(screen.getByLabelText(/problem/)).toBeTruthy();
+  });
+});

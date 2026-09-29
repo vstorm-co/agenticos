@@ -1,4 +1,4 @@
-"""`channel.send`: post a message to a channel as one of the organization's bots.
+"""`<platform>.message.send`: post a message to a channel as one of the organization's bots.
 
 The text is sent as the bot, through the same adapter its replies go through,
 to a channel - or a thread in it - the step is bound to. A platform's own
@@ -12,7 +12,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.channels.base import ChannelAdapter, OutgoingMessage
 from app.workflows.contracts.results import Completed, NodeResult
-from app.workflows.nodes._channels import ChannelBotConfig, failed, with_bot
+from app.workflows.nodes._channels import (
+    ChannelBotConfig,
+    NodeHandler,
+    Platform,
+    failed,
+    with_bot,
+)
 
 
 class ChannelSendInput(BaseModel):
@@ -20,10 +26,15 @@ class ChannelSendInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    channel_id: str = Field(min_length=1, max_length=255, description="The platform's channel id")
-    text: str = Field(min_length=1, max_length=40_000)
+    channel_id: str = Field(
+        min_length=1, max_length=255, title="Channel", description="The platform's channel id"
+    )
+    text: str = Field(min_length=1, max_length=40_000, title="Message")
     thread_id: str | None = Field(
-        default=None, max_length=255, description="Answer inside this thread instead"
+        default=None,
+        max_length=255,
+        title="Thread",
+        description="Answer inside this thread instead",
     )
 
 
@@ -36,25 +47,30 @@ class ChannelSendOutput(BaseModel):
     thread_id: str | None = None
 
 
-async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
-    """Send the message as the step's bot."""
-    if not isinstance(config, ChannelBotConfig) or not isinstance(node_input, ChannelSendInput):
-        return failed("CHANNEL_NOT_CONFIGURED", "This step needs a bot, a channel and a text")
+def handler_on(platform: Platform) -> NodeHandler:
+    """The step for one platform: the same call, made only as a bot of that platform."""
 
-    async def send(adapter: ChannelAdapter, token: str, base_url: str | None) -> NodeResult:
-        await adapter.send_message(
-            token,
-            OutgoingMessage(
-                platform_chat_id=node_input.channel_id,
-                text=node_input.text,
-                reply_to_message_id=node_input.thread_id,
-                api_base_url=base_url,
-            ),
-        )
-        return Completed[ChannelSendOutput](
-            output=ChannelSendOutput(
-                channel_id=node_input.channel_id, thread_id=node_input.thread_id
+    async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+        """Send the message as the step's bot."""
+        if not isinstance(config, ChannelBotConfig) or not isinstance(node_input, ChannelSendInput):
+            return failed("CHANNEL_NOT_CONFIGURED", "This step needs a bot, a channel and a text")
+
+        async def send(adapter: ChannelAdapter, token: str, base_url: str | None) -> NodeResult:
+            await adapter.send_message(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=node_input.channel_id,
+                    text=node_input.text,
+                    reply_to_message_id=node_input.thread_id,
+                    api_base_url=base_url,
+                ),
             )
-        )
+            return Completed[ChannelSendOutput](
+                output=ChannelSendOutput(
+                    channel_id=node_input.channel_id, thread_id=node_input.thread_id
+                )
+            )
 
-    return await with_bot(config, send)
+        return await with_bot(config, platform, send)
+
+    return handle

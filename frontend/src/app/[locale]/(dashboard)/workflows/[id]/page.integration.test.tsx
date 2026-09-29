@@ -10,7 +10,7 @@ import WorkflowEditorPage from "./page";
 
 /**
  * The editor page's permission gate (#1787): a caller with only `workflows:view`
- * gets a read-only canvas and none of the edit chrome — no palette, no
+ * gets a read-only canvas and none of the edit chrome — no Add step, no
  * autosave/publish actions, no property panel, no conflict banner — so no
  * autosave fires to 403. A caller with `workflows:edit` gets the full editor.
  * This is the "not rendered, then 403" rule proven with an integration test, per
@@ -67,11 +67,10 @@ vi.mock("@/components/workflows/canvas", () => ({
     <div data-testid="canvas" data-readonly={String(readOnly)} />
   ),
 }));
-vi.mock("@/components/workflows/palette", () => ({
-  NodePalette: () => <div data-testid="palette" />,
-}));
-vi.mock("@/components/workflows/property-panel", () => ({
-  PropertyPanel: () => <div data-testid="property-panel" />,
+vi.mock("@/components/workflows/node-editor", () => ({
+  NodeEditorDialog: ({ readOnly = false }: { readOnly?: boolean }) => (
+    <div data-testid="node-editor" data-readonly={String(readOnly)} />
+  ),
 }));
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,
@@ -96,7 +95,7 @@ async function renderPage() {
 
 /** History lives in a sheet the header's button opens. */
 async function openHistory() {
-  await userEvent.click(await screen.findByRole("button", { name: "History" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Versions" }));
 }
 
 beforeEach(() => {
@@ -115,9 +114,8 @@ describe("the workflow editor page permission gate", () => {
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "false");
-    expect(screen.getByTestId("palette")).toBeInTheDocument();
     expect(screen.getByTestId("editor-actions")).toBeInTheDocument();
-    expect(screen.getByTestId("property-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
     await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "true");
@@ -129,10 +127,9 @@ describe("the workflow editor page permission gate", () => {
 
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");
-    // No autosave/publish, no palette, no property panel, no conflict banner.
+    // No autosave/publish and no conflict banner; a step's settings open read-only.
     expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
     // History stays readable, but a version cannot be restored over the draft.
     await openHistory();
@@ -141,7 +138,7 @@ describe("the workflow editor page permission gate", () => {
 
   it("renders an archived workflow read-only even for a caller who could edit it", async () => {
     // The backend's `_ensure_editable` rejects every write to an archived
-    // workflow, so an editor-role caller still takes the read-only path — palette,
+    // workflow, so an editor-role caller still takes the read-only path — Add step,
     // actions, autosave and publish must not mount to 403 (#1787).
     state.canEdit = true;
     state.status = "archived";
@@ -150,8 +147,7 @@ describe("the workflow editor page permission gate", () => {
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("editor-actions")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("palette")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("property-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("conflict-banner")).not.toBeInTheDocument();
     await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");

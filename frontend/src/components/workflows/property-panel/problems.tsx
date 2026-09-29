@@ -68,7 +68,7 @@ export function WarningBadge({ count }: { count: number }) {
   const t = useTranslations("workflows");
   if (count === 0) return null;
   return (
-    <Badge variant="warning" aria-label={t("panelWarningCount", { count })}>
+    <Badge variant="destructive" aria-label={t("panelWarningCount", { count })}>
       <AlertTriangle className="h-3.5 w-3.5" />
       {count}
     </Badge>

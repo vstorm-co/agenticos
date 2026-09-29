@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8e70d5d607"
+source_sha: "230d798db3af"
 ---
 
 # Workflows { #workflows }
@@ -11,7 +11,7 @@ publikujesz jako niezmienną wersję — to ten sam kształt, który ma
 [agent](concepts.md): draft, który edytujesz, i opublikowana wersja, która
 działa.
 
-Ta strona opisuje edytor wizualny: listę, kanwę i paletę, sposób konfiguracji
+Ta strona opisuje edytor wizualny: listę, kanwę i wybór kroków, sposób konfiguracji
 węzła, autozapis i publikowanie oraz drogi klawiaturowe przez to wszystko. Edytor
 znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 **"?"**, które odtwarza przewodnik po tej liście; sam edytor nie ma przewodnika.
@@ -40,82 +40,80 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
     wpada żaden wiersz. **Clear filter** przywraca pełną listę. Workflow
     udostępniony Tobie pojawia się na tej samej liście, gdy masz `workflows:view`.
 
-## Kanwa i paleta { #the-canvas-and-the-palette }
+## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
 
-**Kanwa** to miejsce, gdzie pojawiają się kroki i połączenia workflow, a edytor daje
-jej całe okno pod nagłówkiem: paletę po lewej, panel **Properties** po prawej.
-**Węzeł** to jeden krok; **krawędź** to połączenie, które ustala kolejność: krok, na
-który wskazuje, wykonuje się po tym, z którego wychodzi.
+**Kanwa** to miejsce, w którym pojawiają się kroki i połączenia workflow, i ma całą
+szerokość edytora pod nagłówkiem. **Węzeł** to jeden krok; **krawędź** to
+połączenie ustalające kolejność: krok, na który wskazuje, działa po tym, z którego
+wychodzi.
 
-Każdy węzeł to karta z
-ikoną kroku, jego nazwą i jedną linią tego, do czego jest ustawiony - warunek, URL,
-liczba mapowanych pól - a krok z więcej niż jednym wyjściem wymienia porty z nazwy:
-**true** i **false**, **Each item** i **Done** oraz czerwony port **Error** na kroku,
-który obsługuje swoje błędy. Gładzik albo kółko myszy przesuwa kanwę, a
-szczypanie - albo Ctrl lub Cmd z kółkiem - ją przybliża; elementy sterujące są w
-rogu i nie ma minimapy.
+Każdy węzeł to karta z ikoną kroku, jego nazwą i jedną linią pod nią: co krok ma
+robić - warunek, URL, liczba zmapowanych pól - albo grupa, do której należy, na
+przykład **Slack** czy **Tables**. Krok z więcej niż jednym wyjściem wymienia porty z
+nazwy: **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** w
+kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma czerwony
+znacznik. Gładzik albo kółko myszy przesuwa kanwę, a gest szczypania - albo Ctrl lub
+Cmd z kółkiem - ją przybliża; jej przyciski są w rogu.
 
-Paleta **Nodes** wymienia typy węzłów, które zarejestrowała Twoja deployment, w
-grupach ułożonych tak, jak czyta się workflow - **Start and finish**, **Agents**,
-**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - każdą grupę
-da się zwinąć, a każdy wiersz ma ikonę, nazwę i opis. **Search nodes** filtruje
-listę. Krok dodajesz na trzy sposoby:
+Kroki wybiera się w **wyborze kroków**. Pokazuje sekcje - **Start**, **AI**,
+**Flow**, **Data**, **Apps and the web** - z grupami pod każdą. Grupa taka jak
+**Slack**, **Tables** czy **Jev decisions** otwiera się na swoje kroki, a grupa z jednym
+krokiem jest tym krokiem. **Search steps** znajduje dowolny krok po nazwie, tym, co
+robi, albo po grupie. Krok dodajesz na cztery sposoby:
 
-- **Kliknij** węzeł w palecie albo naciśnij na nim Enter: zostaje dodany po
-  zaznaczonym kroku albo na końcu widocznego flow i połączony z nim, gdy porty
-  pasują - prosty flow to seria kliknięć. Krok startowy, taki jak **Input**, trafia
-  za to przed obecny start i sam nim zostaje.
-- **+** obok wyjścia kroku otwiera wyszukiwarkę kroków, które mogą przyjść dalej,
-  i dodaje wybrany po tym wyjściu.
-- **Przeciągnij** węzeł z palety, żeby postawić go dokładnie tam, gdzie go
-  upuścisz, bez połączeń.
+- **+** w lewym górnym rogu kanwy - albo **Add step** na środku pustej kanwy -
+  otwiera wybór. Krok trafia za zaznaczony krok albo na koniec widocznego przepływu i
+  łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
+  start i staje się nim.
+- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
+- **Prawy przycisk** na kanwie: **Add a step here** pokazuje te same sekcje i grupy, a
+  krok trafia tam, gdzie kliknąłeś.
+- **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
 
-Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, więc otwierają się jego
-**Properties**, a kanwa przewija się do niego, gdy wypadnie poza widok. Wewnątrz
-ciała pętli każdy nowy krok zostaje do niego podłączony, więc w nim zostaje.
+Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
+gdy jakieś ma, a kanwa przewija się do niego, gdy wypada poza widok. W ciele pętli
+każdy nowy krok zostaje wpięty w ciało, więc tam zostaje. Wybór pokazuje to, co jest
+poprawne tam, gdzie jesteś: **Loop item** i **Loop result** tylko w ciele pętli, a
+pętlę, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
 
-Paleta pokazuje, co jest ważne tam, gdzie jesteś. **Loop item** i **Loop result**
-pojawiają się tylko wewnątrz ciała pętli, bo poza nim nic nie znaczą, a pętla jest
-oferowana, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
+Prawy przycisk na kroku daje **Open settings**, **Duplicate** i **Delete step**;
+prawy przycisk na kanwie daje też **Paste**, **Undo**, **Redo** i **Fit to view**. Gdy
+zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
 
-!!! note "Katalog węzłów rośnie z czasem"
+!!! note "Katalog kroków rośnie z czasem"
 
-    Paletę zasilają zarejestrowane węzły deployment, a nie stała lista. Na początku
-    katalog jest mały; więcej rodzajów węzłów — wywołanie agenta, odczyt i zapis
-    tabeli, rozgałęzienia i pętle — dochodzi, gdy rejestrują je późniejsze
-    milestone'y, i pojawiają się w palecie w tej samej chwili, bez zmiany w
+    Wybór zasila lista węzłów zarejestrowanych we wdrożeniu, a nie stała lista.
+    Rodzaj węzła zarejestrowany później pojawia się w nim od razu, bez zmiany
     workflow, który już zbudowałeś.
 
 ## Konfigurowanie węzła { #configuring-a-node }
 
-Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
+Co robi każdy węzeł, z czym się go konfiguruje i co znaczą jego błędy, opisuje
 [referencja węzłów](reference/workflow-nodes.md).
 
-Zaznacz węzeł, a po prawej otworzy się panel **Properties**. Jego pola dzielą się na
-dwie sekcje. **Configuration** trzyma statyczne ustawienia — stałe wybory, które nie
-zmieniają się z jednego run na następny, w tym zasoby, do których krok jest
-przypięty. **Inputs** trzyma wartości, które krok odczytuje, gdy działa.
+Kliknij krok, a jego ustawienia otworzą się w oknie nad kanwą: nazwa, co robi i każdy
+problem blokujący publikację, nad polami. Każda zmiana zapisuje się w drafcie od razu,
+więc **Done** tylko zamyka okno, a **Delete step** usuwa krok. Pola dzielą się na dwie
+sekcje. **Configuration** trzyma ustawienia statyczne — stałe wybory, które nie
+zmieniają się między runami, w tym zasoby przypięte do kroku. **Inputs** trzyma
+wartości, które krok czyta w trakcie działania.
 
-Input wypełnia się na jeden z dwóch sposobów, a przełącznik **Bind** obok pola
-przełącza między nimi:
+Input wypełnia się na jeden z dwóch sposobów, a **Value** i **From a step** obok jego
+etykiety przełączają między nimi:
 
-- **Literał** — wpisujesz wartość wprost w pole, tym samym elementem sterującym,
-  którego wymaga typ pola.
-- **Binding** — odczytujesz wartość z wyjścia innego kroku. **Bind** zmienia pole w
-  wybór **Source**, którego opcjami są wyjścia wcześniejszych kroków rzeczywiście
-  osiągalne tutaj i niosące zgodny typ — całe wyjście kroku albo jedno pole w nim —
-  każde pokazane jako *{node} · {port} ({type})*, a pole jako
-  *{node} · {port} → {field} ({type})*. Pole bez niczego zgodnego wcześniej mówi
-  **No compatible upstream outputs**, zamiast oferować nieprawidłowy wybór.
+- **Wartość** — wpisujesz ją wprost w pole, tą samą kontrolką, jakiej wymaga typ pola.
+- **From a step** — czytasz wartość z wyjścia innego kroku. Pole zmienia się w wybór
+  **Source**, którego opcje to wyjścia wcześniejszych kroków faktycznie osiągalne w
+  tym miejscu i o zgodnym typie — całe wyjście kroku albo jedno pole w nim — każde
+  pokazane jako *{node} · {port} ({type})* albo *{node} · {port} → {field} ({type})*
+  dla pola. Pole, dla którego nic wcześniej nie pasuje, mówi **No compatible upstream
+  outputs** zamiast proponować błędny wybór.
 
 Wymagany input bez wartości to problem walidacji, oznaczony na węźle, a nie
-wypełniany cichą wartością domyślną. Niektóre pola trzymają ustrukturyzowane
-wartości: listę wierszy, do której dodajesz przez **Add row**, zmieniasz kolejność i
-usuwasz, albo typowany wybór, który wymienia pod-formularz pod sobą. Panel schodzi
-w nie rekurencyjnie, zamiast wysyłać Cię na osobny ekran.
-
-Zaznacz więcej niż jeden węzeł, a panel zgłasza, ile jest zaznaczonych; zaznacz
-krawędź, a pokazuje **From** i **To** połączenia.
+uzupełniony cichą wartością domyślną. Niektóre pola trzymają wartości złożone: listę
+wierszy, do której **Add row** dodaje, którą przestawiasz i z której usuwasz, albo
+typowany wybór, który podmienia formularz pod nim. Okno wchodzi w nie rekurencyjnie,
+zamiast odsyłać do osobnego ekranu.
 
 ### Wybór zasobów { #resource-pickers }
 
@@ -167,12 +165,10 @@ wyjścia Echo z wejściem Relay — wiąże też każdy input celu z polem o tej
 na źródle. Pole, które już związałeś, zostaje nietknięte.
 
 Gdy kształty się różnią albo
-port nie niesie danych, nic nie jest wiązane i każde źródło wybierasz sam przez
-**Bind**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
-krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w panelu.
+port nie niesie danych, nic nie jest wiązane i każde źródło wybierasz sam przez **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
+krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w ustawieniach kroku.
 
-Aby usunąć połączenie, zaznacz je: kliknij linię, a zostanie narysowana grubiej, panel
-pokaże jego **From** i **To**, a na nim pojawi się przycisk **Delete connection**.
+Aby usunąć połączenie, zaznacz je: kliknij linię, a zostanie narysowana grubiej i pojawi się na niej przycisk **Delete connection**.
 Naciśnij przycisk albo `Backspace`, a połączenie zniknie, podczas gdy oba kroki
 zostaną. Połączeń opublikowanej wersji nie można zaznaczyć, więc nie można ich usunąć.
 
@@ -185,18 +181,13 @@ zewnątrz.
 
 Ciało zaczyna się od **Loop item**, z którym łączy się port **Each item**
 pętli, i kończy na **Loop result**; nic w nim nie łączy się z powrotem z pętlą, która
-idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Paleta i źródła
-binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
+idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Wybór kroków i źródła binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
 działało przed pętlą. Co robi pętla, opisuje
 [referencja węzłów](reference/workflow-nodes.md#loops).
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
-Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Zaznaczony
-węzeł z problemem nosi badge liczący jego problemy w nagłówku panelu; pole z problemem
-pokazuje swój komunikat inline; a zwijana lista u dołu panelu zbiera problemy razem,
-każdy pod nazwą swojego węzła i pola. Wybranie problemu zaznacza ten węzeł i
-przewija do niego płótno, a każdy węzeł z problemem jest też oznaczony na płótnie.
+Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i licznik w swoich ustawieniach, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **Ready to publish** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
 
 Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
 przez więcej niż jedno źródło, połączenie, którego porty niosą różne kształty, krok,
@@ -273,7 +264,7 @@ Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. J
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze palety ma ich pięć: **Manual or API**, **Chat message**,
+**Triggers** na górze wyboru kroków ma ich pięć: **Manual or API**, **Chat message**,
 **Webhook**, **Schedule** i **New table record**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
@@ -391,7 +382,7 @@ każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
 
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 
-Każda część edytora ma drogę, która nie wymaga wskaźnika. Kliknięcie węzła w palecie
+Każda część edytora ma drogę, która nie wymaga wskaźnika. Wybór kroków to lista, po której poruszasz się strzałkami i wybierasz Enterem, a kliknięcie węzła w nim
 dodaje go bez przeciągania, każdy element sterujący z samą ikoną nosi wypowiadaną
 etykietę, a kanwa przyjmuje fokus klawiatury, więc możesz przechodzić tabem po jej
 krokach i połączeniach. Połączenie da się wykonać z klawiatury: zacznij je przy
@@ -424,8 +415,7 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - **Połączenie podróżuje tylko ze swoimi dwoma krokami.** Zaznaczenie samego połączenia
   i skopiowanie niczego nie robi.
 - **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
-  jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w panelu
-  **Properties** lub w palecie zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
+  jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w ustawieniach kroku lub w wyborze kroków zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
   ich użyjesz.
 
 ## Podsumowanie { #recap }
@@ -433,11 +423,11 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - Workflow to **draft, który edytujesz, i opublikowana, niezmienna wersja, która
   działa** — zacznij go od wyzwalacza lub z szablonu, a **Duplicate** kopiuje draft do
   nowego workflow.
-- **Paleta** dodaje kroki przez przeciągnięcie lub kliknięcie; **kanwa** je łączy i
+- **Wybór kroków** dodaje kroki - z **+**, z wyjścia kroku albo prawym przyciskiem; **kanwa** je łączy i
   odrzuca połączenie między niezgodnymi portami.
 - Krawędź ustala **kolejność**, a bindingi niosą **wartości**; połączenie portów o tym
   samym kształcie tworzy bindingi za Ciebie.
-- Inputy węzła to **literał albo binding** — **Bind** czyta wartość z osiągalnego,
+- Inputy węzła to **wartość albo binding** — **From a step** czyta wartość z osiągalnego,
   zgodnego typem wyjścia wcześniejszego kroku.
 - Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
   lub **Reload**.

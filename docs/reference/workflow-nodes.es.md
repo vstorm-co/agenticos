@@ -1,5 +1,5 @@
 ---
-source_sha: "9c106e028ce7"
+source_sha: "52656b71f423"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -178,24 +178,25 @@ decisión, como las de un paso If / else.
 
 ## Canales { #channels }
 
-Cuatro pasos actúan como uno de los bots de canales de la organización - Slack,
-Mattermost o Telegram - a través del mismo adaptador por el que van sus
-respuestas, así que un mensaje que envía un workflow llega de ese bot, y un paso
-puede leer lo que el bot puede leer.
+Slack, Mattermost y Telegram tienen cada uno su propio grupo de pasos, que actúan
+como uno de los bots de la organización en esa plataforma a través del mismo
+adaptador por el que van sus respuestas, así que un mensaje que envía un workflow
+llega de ese bot, y un paso puede leer lo que el bot puede leer. Una plataforma solo
+tiene los pasos que sus bots pueden dar.
 
-| Paso | Hace | Pasa adelante |
-|---|---|---|
-| `channel.send` | envía un mensaje a un canal o a un hilo | dónde se envió |
-| `channel.read` | lee los mensajes más recientes de un canal o hilo | `messages`, del más antiguo |
-| `channel.members` | enumera las personas de un canal | `members`, con sus ids de la plataforma |
-| `channel.find` | busca canales por nombre | `channels` |
+| Paso | Slack | Mattermost | Telegram | Pasa adelante |
+|---|---|---|---|---|
+| **Send a message** (`<platform>.message.send`) | sí | sí | sí | dónde se envió |
+| **Read messages** (`<platform>.messages.read`) | sí | sí | - | `messages`, del más antiguo |
+| **List members** (`<platform>.members.list`) | sí | sí | administradores | `members`, con sus ids de la plataforma |
+| **Find channels** (`<platform>.channels.find`) | sí | sí | - | `channels` |
 
-Un bot habla por toda la organización, así que actuar como él requiere
-`channels:manage`: al autor del grafo para publicar, y al principal del run en
-cada run. Un bot borrado o apagado hace fallar el paso con `CHANNEL_NOT_USABLE`.
-Una plataforma que no deja a un bot hacer algo - Telegram al leer el historial o
-buscar canales - lo hace fallar con `CHANNEL_UNSUPPORTED`, y una que no responde,
-con `CHANNEL_CALL_FAILED`. El envío nunca se repite solo.
+Un paso solo acepta un bot de su propia plataforma, y un bot habla por toda la
+organización, así que actuar como él requiere `channels:manage`: al autor del grafo
+para publicar, y al principal del run en cada run. Un bot borrado, apagado o de otra
+plataforma hace fallar el paso con `CHANNEL_NOT_USABLE`. Una plataforma que rechaza
+una llamada al ejecutarse lo hace fallar con `CHANNEL_UNSUPPORTED`, y una que no
+responde, con `CHANNEL_CALL_FAILED`. El envío nunca se repite solo.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 

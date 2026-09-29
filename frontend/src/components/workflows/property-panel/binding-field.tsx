@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { cn } from "@/lib/utils";
+
 import {
   Input,
   Label,
@@ -12,7 +14,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
 } from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { isDynamic } from "@/components/workflows/validation";
@@ -133,15 +134,32 @@ export function BindingField({
   const literalValue = literalValueOf(binding);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground text-xs">{t("bindingToggleCaption")}</span>
-        <Switch
-          aria-label={t("bindingToggleLabel", { field: label })}
-          checked={bindingMode}
-          disabled={disabled}
-          onCheckedChange={toggle}
-        />
+    // The mode sits in the label's row, at its right: whether the field holds a
+    // value typed here or one an earlier step hands on.
+    <div className="relative space-y-2">
+      <div
+        role="radiogroup"
+        aria-label={t("bindingToggleLabel", { field: label })}
+        className="bg-muted absolute top-0 right-0 z-10 flex rounded-md p-0.5 text-[11px]"
+      >
+        {[false, true].map((fromStep) => (
+          <button
+            key={String(fromStep)}
+            type="button"
+            role="radio"
+            aria-checked={bindingMode === fromStep}
+            disabled={disabled}
+            onClick={() => bindingMode !== fromStep && toggle(fromStep)}
+            className={cn(
+              "rounded px-2 py-0.5 font-medium transition-colors disabled:opacity-50",
+              bindingMode === fromStep
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {fromStep ? t("bindingModeStep") : t("bindingModeValue")}
+          </button>
+        ))}
       </div>
 
       {bindingMode ? (

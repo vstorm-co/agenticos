@@ -170,23 +170,24 @@ A merge may rejoin a decision's branches, as it rejoins an If / else step's.
 
 ## Channels { #channels }
 
-Four steps act as one of the organization's channel bots - Slack, Mattermost or
-Telegram - through the adapter its replies already go through, so a message a
-workflow sends arrives as that bot, and a step can read what the bot may read.
+Slack, Mattermost and Telegram each have a group of steps of their own that act
+as one of the organization's bots on that platform, through the adapter its replies
+already go through, so a message a workflow sends arrives as that bot, and a step
+can read what the bot may read. A platform has only the steps its bots can take.
 
-| Step | Does | Hands on |
-|---|---|---|
-| `channel.send` | posts a message to a channel, or a thread in it | where it was sent |
-| `channel.read` | reads the latest messages in a channel or a thread | `messages`, oldest first |
-| `channel.members` | lists the people in a channel | `members`, with their platform ids |
-| `channel.find` | finds channels by name | `channels` |
+| Step | Slack | Mattermost | Telegram | Hands on |
+|---|---|---|---|---|
+| **Send a message** (`<platform>.message.send`) | yes | yes | yes | where it was sent |
+| **Read messages** (`<platform>.messages.read`) | yes | yes | - | `messages`, oldest first |
+| **List members** (`<platform>.members.list`) | yes | yes | administrators | `members`, with their platform ids |
+| **Find channels** (`<platform>.channels.find`) | yes | yes | - | `channels` |
 
-A bot speaks for the whole organization, so acting as one needs
-`channels:manage`: the graph's author to publish, the run's principal on every
-run. A bot deleted or switched off stops the step with `CHANNEL_NOT_USABLE`. A
-platform that does not let a bot do something - Telegram reading history or
-searching channels - fails it with `CHANNEL_UNSUPPORTED`, and one that does not
-answer with `CHANNEL_CALL_FAILED`. Sending is never repeated on its own.
+A step takes a bot of its own platform only, and a bot speaks for the whole
+organization, so acting as one needs `channels:manage`: the graph's author to
+publish, the run's principal on every run. A bot deleted, switched off or of another
+platform stops the step with `CHANNEL_NOT_USABLE`. A platform that refuses a call at
+run time fails it with `CHANNEL_UNSUPPORTED`, and one that does not answer with
+`CHANNEL_CALL_FAILED`. Sending is never repeated on its own.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 

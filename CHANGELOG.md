@@ -217,6 +217,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Deleting every step of a workflow no longer fails its autosave.** A draft
+  with no steps is stored as no graph, the draft a new workflow starts with,
+  instead of being refused and retried behind "Save failed".
 - **The sandbox script steps run on a real sandbox host.** They asked for a
   connection kind no host can be registered as, so every run failed with
   `SANDBOX_UNAVAILABLE` and every publish was refused. They now run on a
@@ -313,6 +316,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The workflow editor gives the canvas the whole width.** The node palette and
+  the properties panel are gone: steps are added from a picker - a quiet **+** at
+  the canvas's corner, **Add step** on an empty canvas, the **+** beside an output,
+  or a right click where the step should go - that lists sections, then groups
+  such as Slack or Tables, then their steps. A step's settings open in a dialog
+  when it is clicked, and open by themselves when a step that has any is added.
+  Right-clicking a step duplicates or deletes it. Each field says beside its label
+  whether it holds a value or one from an earlier step. Every tile is neutral, and
+  a card shows its group under its name instead of a truncated description. The
+  editor's **History** is now **Versions**, so it is not mistaken for its runs.
+- **Slack, Mattermost and Telegram have steps of their own.** The generic channel
+  steps became one group per platform - Send a message, Read messages, List
+  members and Find channels where the platform allows them - each taking only a
+  bot of its platform, checked at publish and on every run.
 - **The workflow editor points at what stops a publish.** A step with a
   problem is marked on the canvas, each problem names its step and field, and
   choosing one selects the step and brings it into view; the publish dialog

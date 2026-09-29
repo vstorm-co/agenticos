@@ -89,6 +89,17 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
   const outputs: Port[] = definition?.ports.filter((port) => port.kind === "output") ?? [];
   const connecting = connectSource !== null;
   const summary = nodeSummary(instance, t);
+  // Under the name, what the step is set to do - or else which group it belongs
+  // to ("Slack", "Tables"), which a long description would only truncate.
+  const category = definition?.category ?? null;
+  const group =
+    category === null
+      ? null
+      : category === "triggers"
+        ? t("cardTrigger")
+        : t.has(`category.${category}`)
+          ? t(`category.${category}`)
+          : null;
   // A single ordinary output needs no label: the wire leaving the card says it all.
   const labelledOutputs = outputs.length > 1 || outputs.some(isErrorPort);
   const policy = instance.policy ?? null;
@@ -192,14 +203,15 @@ export function WorkflowNode({ data, selected }: NodeProps<WorkflowFlowNode>) {
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}
             </span>
           </div>
-          {(summary ?? definition?.description) && (
+          {(summary ?? group) !== null && (
             <p
+              title={definition?.description}
               className={cn(
                 "text-muted-foreground truncate text-xs",
                 instance.definition_id === "logic.if" && summary !== null && "font-mono",
               )}
             >
-              {summary ?? definition?.description}
+              {summary ?? group}
             </p>
           )}
         </div>

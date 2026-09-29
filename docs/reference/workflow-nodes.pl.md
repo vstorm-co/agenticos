@@ -1,5 +1,5 @@
 ---
-source_sha: "9c106e028ce7"
+source_sha: "52656b71f423"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -175,25 +175,25 @@ gałęzie kroku If / else.
 
 ## Kanały { #channels }
 
-Cztery kroki działają jako jeden z botów kanałów organizacji - Slack, Mattermost
-albo Telegram - przez ten sam adapter, którym idą jego odpowiedzi, więc
-wiadomość wysłana przez workflow przychodzi od tego bota, a krok może odczytać
-to, co bot może czytać.
+Slack, Mattermost i Telegram mają każdy własną grupę kroków, które działają jako
+jeden z botów organizacji na tej platformie, przez ten sam adapter, którym idą jego
+odpowiedzi, więc wiadomość wysłana przez workflow przychodzi od tego bota, a krok może
+odczytać to, co bot może czytać. Platforma ma tylko te kroki, które jej boty mogą
+wykonać.
 
-| Krok | Robi | Przekazuje dalej |
-|---|---|---|
-| `channel.send` | wysyła wiadomość na kanał albo do wątku | gdzie ją wysłano |
-| `channel.read` | czyta najnowsze wiadomości z kanału albo wątku | `messages`, od najstarszej |
-| `channel.members` | wymienia osoby na kanale | `members`, z ich id na platformie |
-| `channel.find` | szuka kanałów po nazwie | `channels` |
+| Krok | Slack | Mattermost | Telegram | Przekazuje dalej |
+|---|---|---|---|---|
+| **Send a message** (`<platform>.message.send`) | tak | tak | tak | gdzie ją wysłano |
+| **Read messages** (`<platform>.messages.read`) | tak | tak | - | `messages`, od najstarszej |
+| **List members** (`<platform>.members.list`) | tak | tak | administratorzy | `members`, z ich id na platformie |
+| **Find channels** (`<platform>.channels.find`) | tak | tak | - | `channels` |
 
-Bot mówi w imieniu całej organizacji, więc działanie jako on wymaga
-`channels:manage`: od autora grafu przy publikacji i od podmiotu runa przy
-każdym runie. Bot usunięty albo wyłączony kończy krok błędem
-`CHANNEL_NOT_USABLE`. Platforma, która nie pozwala botowi czegoś zrobić -
-Telegram przy czytaniu historii albo szukaniu kanałów - kończy go błędem
-`CHANNEL_UNSUPPORTED`, a taka, która nie odpowiada, błędem `CHANNEL_CALL_FAILED`.
-Wysyłanie nigdy nie jest powtarzane samo.
+Krok przyjmuje tylko bota swojej platformy, a bot mówi w imieniu całej
+organizacji, więc działanie jako on wymaga `channels:manage`: od autora grafu przy
+publikacji i od podmiotu runa przy każdym runie. Bot usunięty, wyłączony albo z innej
+platformy kończy krok błędem `CHANNEL_NOT_USABLE`. Platforma, która odmawia wywołania
+w trakcie runa, kończy go błędem `CHANNEL_UNSUPPORTED`, a taka, która nie odpowiada,
+błędem `CHANNEL_CALL_FAILED`. Wysyłanie nigdy nie jest powtarzane samo.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a92387168cdf"
+source_sha: "9c1a3f3e2325"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -145,7 +145,7 @@ Katalog automatyzacji, po jednej karcie na każdą: jej status, kto może do nie
 
 ### Edytor workflow { #the-workflow-editor }
 
-Całe okno to przestrzeń robocza: paleta w kolejności, w jakiej czyta się workflow, graf jako karty mówiące, do czego ustawiony jest każdy krok, i właściwości tego, co jest zaznaczone. Pętla pokazuje, ile kroków zawiera jej ciało.
+Kanwa ma całą szerokość: graf jako karty mówiące, do czego ustawiony jest każdy krok albo do jakiej grupy należy, ustawienia kroku w oknie nad nią i każdy krok do dodania o jedno kliknięcie - albo jeden prawy przycisk - stąd. Pętla pokazuje, ile kroków zawiera jej ciało.
 
 ![Edytor workflow](assets/screens/light/workflow-editor.webp#only-light)
 ![Edytor workflow](assets/screens/dark/workflow-editor.webp#only-dark)

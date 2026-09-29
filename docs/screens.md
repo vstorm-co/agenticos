@@ -140,7 +140,7 @@ The catalog of automations, one card each: its status, who may reach it, whether
 
 ### The workflow editor
 
-The whole window is the workspace: the palette in the order a workflow reads, the graph as cards that say what each step is set to do, and the properties of whatever is selected. A loop shows how many steps its body holds.
+The canvas has the whole width: the graph as cards that say what each step is set to do or which group it belongs to, a step's settings in a dialog over it, and every step to add one click - or one right click - away. A loop shows how many steps its body holds.
 
 ![The workflow editor](assets/screens/light/workflow-editor.webp#only-light)
 ![The workflow editor](assets/screens/dark/workflow-editor.webp#only-dark)

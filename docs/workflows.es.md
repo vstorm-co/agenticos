@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8e70d5d607"
+source_sha: "230d798db3af"
 ---
 
 # Workflows { #workflows }
@@ -10,7 +10,7 @@ resultado, iterar sobre una lista. Lo construyes en un lienzo, conectas los paso
 entre sí y lo publicas como una versión inmutable — la misma forma que tiene un
 [agent](concepts.md): un draft que editas y una versión publicada que se ejecuta.
 
-Esta página describe el editor visual: la lista, el lienzo y la paleta, cómo se
+Esta página describe el editor visual: la lista, el lienzo y el selector de pasos, cómo se
 configura un nodo, el autoguardado y la publicación, y las rutas de teclado por todo
 ello. El editor está en **Workflows** en la consola. La página de **lista** de
 Workflows tiene un **"?"** que reproduce un recorrido por esa lista; el editor en
@@ -43,82 +43,84 @@ versión publicada.
     ninguna fila. **Clear filter** devuelve la lista completa. Un workflow compartido
     contigo aparece en la misma lista en cuanto tienes `workflows:view`.
 
-## El lienzo y la paleta { #the-canvas-and-the-palette }
+## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
 
-El **lienzo** es donde aparecen los pasos y las conexiones de un workflow, y el
-editor le da toda la ventana bajo la cabecera: la paleta a su izquierda, el panel
-**Properties** a su derecha. Un **nodo** es un paso; una **arista** es una conexión
-que fija el orden: el paso al que apunta se ejecuta después de aquel del que sale.
+El **lienzo** es donde aparecen los pasos y las conexiones de un workflow, y tiene
+todo el ancho del editor bajo la cabecera. Un **nodo** es un paso; una **arista** es
+una conexión que fija el orden: el paso al que apunta se ejecuta después del paso del
+que sale.
 
-Cada nodo es una tarjeta con el icono del paso, su nombre y una línea de para qué
-está configurado - una condición, una URL, el número de campos mapeados - y un paso
-con más de una salida nombra sus puertos: **true** y **false**, **Each item** y
-**Done**, y un puerto **Error** rojo en un paso que gestiona sus errores. El lienzo
-se mueve con el trackpad o la rueda del ratón, y un pellizco - o Ctrl o Cmd con la
-rueda - le hace zoom; sus controles están en la esquina y no hay minimapa.
+Cada nodo es una tarjeta con el icono del paso, su nombre y una línea debajo: lo que
+está configurado para hacer - una condición, una URL, el número de campos mapeados -
+o si no, el grupo al que pertenece, como **Slack** o **Tables**. Un paso con más de una
+salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
+puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
+publicación lleva una marca roja. Un trackpad o la rueda del ratón mueve el lienzo, y
+un pellizco - o Ctrl o Cmd con la rueda - lo amplía; sus controles están en la esquina.
 
-La paleta **Nodes** enumera los tipos de nodo que tu deployment ha registrado, en
-grupos que siguen cómo se lee un workflow - **Start and finish**, **Agents**,
-**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - cada grupo
-plegable, cada fila con un icono, un nombre y su descripción. **Search nodes** filtra
-la lista. Añades un paso de tres maneras:
+Los pasos se eligen en el **selector de pasos**. Muestra secciones - **Start**, **AI**,
+**Flow**, **Data**, **Apps and the web** - con sus grupos debajo. Un grupo como
+**Slack**, **Tables** o **Jev decisions** se abre a sus pasos, y un grupo de un solo
+paso es ese paso. **Search steps** encuentra cualquier paso por su nombre, por lo que
+hace o por su grupo. Añades un paso de cuatro maneras:
 
-- **Haz clic** en un nodo de la paleta, o pulsa Enter sobre él: se añade después
-  del paso seleccionado, o al final del flujo a la vista, y se conecta a él cuando
-  sus puertos encajan - un flujo lineal es una serie de clics. Un paso de inicio
-  como **Input** va en cambio antes del inicio actual y pasa a serlo.
-- **+** junto a la salida de un paso abre una búsqueda de los pasos que pueden
-  venir después, y añade el elegido tras esa salida.
-- **Arrastra** un nodo desde la paleta para ponerlo justo donde lo sueltas, sin
-  conectar.
+- **+** arriba a la izquierda del lienzo - o **Add step** en el centro de un lienzo
+  vacío - abre el selector. El paso va tras el paso seleccionado, o al final del flujo
+  a la vista, conectado a él cuando sus puertos encajan. Un paso de inicio va en
+  cambio antes del inicio actual y pasa a serlo.
+- **+** junto a la salida de un paso abre el selector para el paso que va tras esa
+  salida.
+- **Clic derecho** en el lienzo: **Add a step here** muestra las mismas secciones y
+  grupos, y el paso aparece donde hiciste clic.
+- **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
 
-Un paso nuevo nunca cae encima de otro, queda seleccionado para que se abran sus
-**Properties**, y el lienzo se desplaza hasta él cuando cae fuera de la vista.
-Dentro del cuerpo de un bucle cada paso nuevo se conecta al cuerpo, así que se
-queda en él.
+Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
+tiene alguno, y el lienzo se desplaza hasta él cuando queda fuera de la vista. Dentro
+del cuerpo de un bucle cada paso nuevo se conecta al cuerpo, así que se queda ahí. El
+selector muestra lo que es válido donde estás: **Loop item** y **Loop result** solo
+dentro del cuerpo de un bucle, y un bucle mientras los bucles no estén anidados tan
+hondo como permite la publicación.
 
-La paleta muestra lo que es válido donde estás. **Loop item** y **Loop result**
-solo aparecen dentro del cuerpo de un bucle, porque fuera de él no significan nada,
-y se ofrece un bucle hasta que los bucles están tan anidados como permite publicar.
+Un clic derecho en un paso ofrece **Open settings**, **Duplicate** y **Delete step**; un
+clic derecho en el lienzo ofrece además **Paste**, **Undo**, **Redo** y **Fit to
+view**. Con varios pasos seleccionados, una barra abajo los borra juntos.
 
-!!! note "El catálogo de nodos crece con el tiempo"
+!!! note "El catálogo de pasos crece con el tiempo"
 
-    La paleta se nutre de los nodos registrados del deployment, no de una lista fija.
-    Al principio el catálogo es pequeño; más clases de nodo — llamar a un agent, leer
-    y escribir una tabla, ramificar y hacer bucles — llegan a medida que milestones
-    posteriores los registran, y aparecen en la paleta en el momento en que lo hacen,
-    sin cambio alguno en un workflow que ya construiste.
+    El selector se alimenta de los nodos registrados en el despliegue, no de una lista
+    fija. Un tipo de nodo registrado más tarde aparece en él en cuanto se registra, sin
+    cambiar un workflow que ya construiste.
 
 ## Configurar un nodo { #configuring-a-node }
 
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
 [referencia de nodos](reference/workflow-nodes.md).
 
-Selecciona un nodo y el panel **Properties** se abre a la derecha. Sus campos caen en
-dos secciones. **Configuration** contiene ajustes estáticos — las opciones fijas que
-no cambian de un run al siguiente, incluidos los recursos a los que un paso está
-fijado. **Inputs** contiene los valores que un paso lee cuando se ejecuta.
+Haz clic en un paso y sus ajustes se abren en un diálogo sobre el lienzo: su nombre,
+qué hace y cualquier problema que bloquee la publicación, encima de sus campos. Cada
+cambio se guarda en el draft al hacerlo, así que **Done** solo cierra el diálogo y
+**Delete step** quita el paso. Los campos se dividen en dos secciones.
+**Configuration** guarda los ajustes estáticos — las elecciones fijas que no cambian de
+una ejecución a otra, incluidos los recursos a los que está fijado un paso. **Inputs**
+guarda los valores que un paso lee al ejecutarse.
 
-Un input se rellena de una de dos maneras, y el conmutador **Bind** junto al campo
-alterna entre ellas:
+Un input se rellena de una de dos maneras, y **Value** y **From a step** junto a su
+etiqueta alternan entre ellas:
 
-- **Un literal** — escribes el valor directamente en el campo, con el mismo control
-  que exige el tipo del campo.
-- **Un binding** — lees el valor de la salida de otro paso. **Bind** convierte el
-  campo en un selector **Source** cuyas opciones son las salidas previas realmente
-  alcanzables aquí y que llevan un tipo compatible — la salida entera de un paso o un
-  campo dentro de ella —, cada una mostrada como *{node} · {port} ({type})*, y un campo
-  como *{node} · {port} → {field} ({type})*. Un campo sin nada compatible antes dice
-  **No compatible upstream outputs**, en vez de ofrecer una elección no válida.
+- **Un valor** — lo escribes directamente en el campo, con el mismo control que pide el
+  tipo del campo.
+- **From a step** — lees el valor de la salida de otro paso. El campo se convierte en
+  un selector **Source** cuyas opciones son las salidas previas realmente alcanzables
+  aquí y de tipo compatible — la salida entera de un paso o un campo dentro de ella —,
+  cada una mostrada como *{node} · {port} ({type})*, o *{node} · {port} → {field}
+  ({type})* para un campo. Un campo sin nada compatible antes dice **No compatible
+  upstream outputs** en lugar de ofrecer una elección inválida.
 
 Un input obligatorio sin valor es un problema de validación, señalado en el nodo y no
-rellenado con un valor por defecto silencioso. Algunos campos contienen valores
-estructurados: una lista de filas a la que añades con **Add row**, reordenas y quitas,
-o una elección tipada que intercambia el sub-formulario de debajo. El panel desciende
-recursivamente en ellos, en vez de enviarte a una pantalla aparte.
-
-Selecciona más de un nodo y el panel informa de cuántos están seleccionados;
-selecciona una arista y muestra el **From** y el **To** de la conexión.
+rellenado con un valor por defecto silencioso. Algunos campos guardan valores
+estructurados: una lista de filas a la que **Add row** añade, que reordenas y de la
+que quitas, o una elección tipada que cambia el subformulario de debajo. El diálogo
+entra en ellos en lugar de mandarte a otra pantalla.
 
 ### Selectores de recursos { #resource-pickers }
 
@@ -170,13 +172,11 @@ también enlaza cada input del destino con el campo del mismo nombre de la fuent
 que ya habías enlazado se deja como está.
 
 Cuando las formas difieren, o un puerto no lleva
-datos, no se enlaza nada y eliges cada fuente tú mismo con **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) deshace la
+datos, no se enlaza nada y eliges cada fuente tú mismo con **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) deshace la
 conexión junto con sus bindings, y borrar una arista más tarde deja sus bindings donde
-estaban, así que quítalos o vuelve a enlazarlos en el panel.
+estaban, así que quítalos o vuelve a enlazarlos en los ajustes del paso.
 
-Para borrar una conexión, selecciónala: haz clic en el cable y se dibuja más grueso,
-el panel muestra su **From** y su **To**, y aparece sobre él un botón **Delete
-connection**. Pulsa el botón o `Backspace` y la conexión desaparece, mientras los dos
+Para borrar una conexión, selecciónala: haz clic en el cable y se dibuja más grueso y aparece sobre él un botón **Delete connection**. Pulsa el botón o `Backspace` y la conexión desaparece, mientras los dos
 pasos se quedan. Las conexiones de una versión publicada no se pueden seleccionar, así
 que no se pueden borrar.
 
@@ -189,19 +189,13 @@ fuera.
 
 Un cuerpo empieza en **Loop item**, al que se conecta el puerto **Each item**
 del bucle, y termina en **Loop result**; nada en él vuelve al bucle, que continúa por
-**Done** cuando cada elemento ha pasado por el cuerpo. La paleta y las fuentes de
-binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
+**Done** cuando cada elemento ha pasado por el cuerpo. El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
 cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 [referencia de nodos](reference/workflow-nodes.md#loops).
 
 ## Retroalimentación de validación { #validation-feedback }
 
-El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Un
-nodo seleccionado con un problema lleva un badge que cuenta sus problemas en la
-cabecera del panel; un campo con un problema muestra su mensaje inline; y una lista
-plegable al pie del panel reúne los problemas, cada uno bajo el nombre de su nodo y
-su campo. Elegir uno selecciona ese nodo y lo trae a la vista, y cada nodo con un
-problema también queda marcado en el lienzo.
+El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y un recuento en sus ajustes, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **Ready to publish** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
 
 Los mensajes nombran el fallo concreto: un input obligatorio sin valor, un input
 puesto por más de una fuente, una conexión cuyos puertos llevan formas distintas, un
@@ -280,7 +274,7 @@ renderizada, la salida de un script -, cada uno descargable.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en la paleta, tiene cinco: **Manual or API**, **Chat message**,
+**Triggers**, arriba en el selector de pasos, tiene cinco: **Manual or API**, **Chat message**,
 **Webhook**, **Schedule** y **New table record**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
@@ -399,8 +393,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 
-Cada parte del editor tiene una ruta que no necesita puntero. Hacer clic en un nodo de
-la paleta lo añade sin arrastrar, cada control de solo icono lleva una etiqueta
+Cada parte del editor tiene una ruta que no necesita puntero. El selector de pasos es una lista que recorres con las flechas y de la que eliges con Enter, cada control de solo icono lleva una etiqueta
 hablada, y el lienzo toma el foco de teclado para que puedas tabular por sus pasos y
 conexiones. Una conexión se puede hacer desde el teclado: empieza una en un nodo y
 luego termínala en un destino compatible.
@@ -432,7 +425,7 @@ Copiar y pegar tienen tres límites:
   no hace nada.
 - **Los atajos pertenecen al lienzo.** Funcionan mientras el foco está en el lienzo, y
   hacer clic en cualquier parte de él — un paso, el lienzo vacío, una conexión — lo
-  mantiene ahí. Con el foco en el panel **Properties** o en la paleta, las teclas son de
+  mantiene ahí. Con el foco en los ajustes de un paso o en el selector de pasos, las teclas son de
   esos campos, así que haz clic en el lienzo antes de pulsarlas.
 
 ## Resumen { #recap }
@@ -440,11 +433,11 @@ Copiar y pegar tienen tres límites:
 - Un workflow es **un draft que editas y una versión publicada e inmutable que se
   ejecuta** — empieza uno desde un trigger o una plantilla, y **Duplicate** copia un
   draft en un workflow nuevo.
-- La **paleta** añade pasos por arrastre o clic; el **lienzo** los conecta y rechaza
+- El **selector de pasos** añade pasos - desde **+**, la salida de un paso o un clic derecho; el **lienzo** los conecta y rechaza
   una conexión entre puertos incompatibles.
 - Una arista fija el **orden** y los bindings llevan los **valores**; conectar puertos
   de la misma forma crea los bindings por ti.
-- Los inputs de un nodo son **un literal o un binding** — **Bind** lee un valor de una
+- Los inputs de un nodo son **un valor o un binding** — **From a step** lee un valor de una
   salida previa alcanzable y de tipo compatible.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
   **Overwrite** o **Reload**.

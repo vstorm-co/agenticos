@@ -1,5 +1,5 @@
 ---
-source_sha: "9c106e028ce7"
+source_sha: "52656b71f423"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -187,25 +187,26 @@ Entscheidung wieder zusammenführen, wie die eines If-/Else-Schritts.
 
 ## Kanäle { #channels }
 
-Vier Schritte handeln als einer der Channel-Bots der Organisation - Slack,
-Mattermost oder Telegram - über denselben Adapter, über den seine Antworten
-gehen. Eine Nachricht, die ein Workflow sendet, kommt also von diesem Bot, und
-ein Schritt kann lesen, was der Bot lesen darf.
+Slack, Mattermost und Telegram haben jeweils eine eigene Gruppe von Schritten, die
+als einer der Bots der Organisation auf dieser Plattform handeln, über denselben
+Adapter, über den seine Antworten gehen. Eine Nachricht, die ein Workflow sendet,
+kommt also von diesem Bot, und ein Schritt kann lesen, was der Bot lesen darf. Eine
+Plattform hat nur die Schritte, die ihre Bots ausführen können.
 
-| Schritt | Tut | Gibt weiter |
-|---|---|---|
-| `channel.send` | sendet eine Nachricht in einen Kanal oder einen Thread | wohin sie ging |
-| `channel.read` | liest die neuesten Nachrichten eines Kanals oder Threads | `messages`, älteste zuerst |
-| `channel.members` | listet die Personen in einem Kanal | `members`, mit ihren Plattform-IDs |
-| `channel.find` | findet Kanäle nach Namen | `channels` |
+| Schritt | Slack | Mattermost | Telegram | Gibt weiter |
+|---|---|---|---|---|
+| **Send a message** (`<platform>.message.send`) | ja | ja | ja | wohin sie ging |
+| **Read messages** (`<platform>.messages.read`) | ja | ja | - | `messages`, älteste zuerst |
+| **List members** (`<platform>.members.list`) | ja | ja | Administratoren | `members`, mit ihren Plattform-IDs |
+| **Find channels** (`<platform>.channels.find`) | ja | ja | - | `channels` |
 
-Ein Bot spricht für die ganze Organisation, darum braucht das Handeln als Bot
-`channels:manage`: der Autor des Graphen zum Veröffentlichen, der Principal des
-Runs bei jedem Run. Ein gelöschter oder abgeschalteter Bot lässt den Schritt mit
-`CHANNEL_NOT_USABLE` fehlschlagen. Eine Plattform, die einem Bot etwas nicht
-erlaubt - Telegram beim Lesen des Verlaufs oder der Kanalsuche -, mit
-`CHANNEL_UNSUPPORTED`, und eine, die nicht antwortet, mit `CHANNEL_CALL_FAILED`.
-Senden wird nie von selbst wiederholt.
+Ein Schritt nimmt nur einen Bot seiner eigenen Plattform, und ein Bot spricht für
+die ganze Organisation, darum braucht das Handeln als Bot `channels:manage`: der
+Autor des Graphen zum Veröffentlichen, der Principal des Runs bei jedem Run. Ein
+gelöschter, abgeschalteter oder zu einer anderen Plattform gehörender Bot lässt den
+Schritt mit `CHANNEL_NOT_USABLE` fehlschlagen. Eine Plattform, die einen Aufruf zur
+Laufzeit ablehnt, mit `CHANNEL_UNSUPPORTED`, und eine, die nicht antwortet, mit
+`CHANNEL_CALL_FAILED`. Senden wird nie von selbst wiederholt.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 

@@ -4,7 +4,6 @@ import { ReactFlowProvider } from "@xyflow/react";
 
 import type { NodeDefinition, WorkflowDetail } from "@/lib/workflows/types";
 
-import { ScopeBreadcrumb } from "./scope-breadcrumb";
 import { WorkflowGraphView } from "./workflow-graph-view";
 
 import "@xyflow/react/dist/style.css";
@@ -32,7 +31,6 @@ export function WorkflowCanvas({ workflow, catalog, readOnly = false }: Workflow
   return (
     <div data-workflow-id={workflow.id} className="relative h-full">
       <ReactFlowProvider>
-        <ScopeBreadcrumb catalog={catalog} />
         <WorkflowGraphView catalog={catalog} readOnly={readOnly} />
       </ReactFlowProvider>
     </div>

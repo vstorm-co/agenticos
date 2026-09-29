@@ -25,21 +25,30 @@ from app.agents.capabilities.channel_tools._directory import (
 )
 from app.core.permissions import AuthContext
 from app.services.workflow_execution import context
+from app.workflows._registry import REGISTRY, load_builtins
 from app.workflows.contracts.results import Completed, Failed
 from app.workflows.nodes import _channels
-from app.workflows.nodes._channels import ChannelBotConfig, check_bot
+from app.workflows.nodes._channels import ChannelBotConfig, check_bot_on
 from app.workflows.nodes.channel_find._handler import ChannelFindConfig, ChannelFindInput
-from app.workflows.nodes.channel_find._handler import handle as find
+from app.workflows.nodes.channel_find._handler import handler_on as find_on
 from app.workflows.nodes.channel_members._handler import ChannelMembersConfig, ChannelMembersInput
-from app.workflows.nodes.channel_members._handler import handle as members
+from app.workflows.nodes.channel_members._handler import handler_on as members_on
 from app.workflows.nodes.channel_read._handler import ChannelReadConfig, ChannelReadInput
-from app.workflows.nodes.channel_read._handler import handle as read
+from app.workflows.nodes.channel_read._handler import handler_on as read_on
 from app.workflows.nodes.channel_send._handler import ChannelSendInput
-from app.workflows.nodes.channel_send._handler import handle as send
+from app.workflows.nodes.channel_send._handler import handler_on as send_on
 
 pytestmark = pytest.mark.anyio
 
 BOT = {"bot_id": str(uuid.uuid4())}
+
+# The stand-in bot is a Mattermost one, so these are the Mattermost steps.
+send, read, members, find = (
+    send_on("mattermost"),
+    read_on("mattermost"),
+    members_on("mattermost"),
+    find_on("mattermost"),
+)
 
 
 def _dispatch() -> context.DispatchContext:
@@ -217,29 +226,59 @@ class TestWhoMayActAsABot:
     @pytest.mark.parametrize(
         ("role", "bot", "usable"),
         [
-            ("owner", MagicMock(is_active=True), True),
-            ("owner", MagicMock(is_active=False), False),
+            ("owner", MagicMock(is_active=True, platform="slack"), True),
+            ("owner", MagicMock(is_active=True, platform="mattermost"), False),
+            ("owner", MagicMock(is_active=False, platform="slack"), False),
             ("owner", None, False),
-            ("viewer", MagicMock(is_active=True), False),
+            ("viewer", MagicMock(is_active=True, platform="slack"), False),
         ],
-        ids=["active", "switched-off", "gone", "no-channels-manage"],
+        ids=["active", "another-platform", "switched-off", "gone", "no-channels-manage"],
     )
-    async def test_only_a_member_who_manages_channels_acts_as_an_active_bot(
+    async def test_only_a_member_who_manages_channels_acts_as_an_active_bot_of_the_platform(
         self, monkeypatch, role, bot, usable
     ):
         lookup = AsyncMock(return_value=bot)
         monkeypatch.setattr(_channels.channel_bot_repo, "get_for_org", lookup)
 
-        problems = await check_bot(
+        problems = await check_bot_on("slack")(
             MagicMock(), self._ctx(role), ChannelBotConfig.model_validate(BOT)
         )
 
         assert (problems == []) is usable
         if not usable:
-            assert problems[0][0] == "bot_id"
+            assert problems[0][0] == "bot_id" and "Slack bot" in problems[0][1]
         if role == "viewer":
             # Refused before the bot is even looked up.
             lookup.assert_not_awaited()
 
     async def test_a_config_of_another_step_is_not_this_checks_to_judge(self):
-        assert await check_bot(MagicMock(), MagicMock(), MagicMock()) == []
+        assert await check_bot_on("slack")(MagicMock(), MagicMock(), MagicMock()) == []
+
+
+class TestThePlatformSteps:
+    def test_each_platform_has_the_steps_its_bots_can_take(self):
+        load_builtins()
+        steps = {
+            key for key in REGISTRY if key.split(".")[0] in {"slack", "mattermost", "telegram"}
+        }
+        assert steps == {
+            *(
+                f"{p}.{op}"
+                for p in ("slack", "mattermost")
+                for op in ("message.send", "messages.read", "members.list", "channels.find")
+            ),
+            "telegram.message.send",
+            "telegram.members.list",
+        }
+
+    def test_a_step_offers_only_its_platforms_bots(self):
+        load_builtins()
+        definition = REGISTRY["telegram.members.list"][1]
+        assert definition.name == "List administrators"
+        assert definition.category == "telegram"
+        field = definition.config_schema.model_json_schema()["properties"]["bot_id"]
+        assert (field["x-resource"], field["x-platform"], field["title"]) == (
+            "channel_bot",
+            "telegram",
+            "Telegram bot",
+        )

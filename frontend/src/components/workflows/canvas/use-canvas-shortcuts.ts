@@ -10,7 +10,7 @@ import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workf
 const PASTE_OFFSET = { x: 32, y: 32 };
 
 /** Copy the current selection into the store clipboard, if anything is selected. */
-function copyToClipboard(store: WorkflowEditorState): void {
+export function copyToClipboard(store: WorkflowEditorState): void {
   const graph = store.getGraph();
   if (graph === null) return;
   const clip = copySelection(graph, store.selection);
@@ -18,7 +18,7 @@ function copyToClipboard(store: WorkflowEditorState): void {
 }
 
 /** Paste the store clipboard back into the graph with fresh ids, if it holds one. */
-function pasteFromClipboard(store: WorkflowEditorState): void {
+export function pasteFromClipboard(store: WorkflowEditorState): void {
   if (store.clipboard === null) return;
   const { clipboard } = pasteClipboard(store.clipboard, () => crypto.randomUUID(), PASTE_OFFSET);
   store.insertSubgraph(clipboard);

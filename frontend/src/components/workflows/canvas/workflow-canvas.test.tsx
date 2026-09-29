@@ -404,7 +404,7 @@ describe("WorkflowCanvas", () => {
     );
     expect(container.querySelector('[data-workflow-region="canvas"]')).toBeTruthy();
     expect(queryByText("Act")).toBeNull();
-    expect(getByText("Your workflow's steps and connections appear here.")).toBeTruthy();
+    expect(getByText("Add a step to start the workflow.")).toBeTruthy();
   });
 
   it("adds a node dropped from the palette at the drop point", () => {

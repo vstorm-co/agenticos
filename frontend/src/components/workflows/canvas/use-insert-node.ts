@@ -16,7 +16,8 @@ export interface InsertOptions {
 export type InsertNode = (definition: NodeDefinition, options?: InsertOptions) => void;
 
 /**
- * Add a step to the working graph, placed and wired by {@link planInsertion}.
+ * Add a step to the working graph, placed and wired by {@link planInsertion},
+ * and open its settings when it has any.
  *
  * Reads the graph, the scope and the selection at the moment of the add rather
  * than subscribing to them, so the palette and every node's "+" can hold one
@@ -24,22 +25,27 @@ export type InsertNode = (definition: NodeDefinition, options?: InsertOptions) =
  */
 export function useInsertNode(catalog: NodeDefinition[]): InsertNode {
   const insertNode = useWorkflowEditorStore((state) => state.insertNode);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
   const catalogMap = useMemo(() => buildCatalogMap(catalog), [catalog]);
   return useCallback(
     (definition, options = {}) => {
       const { graph, scopePath, selection } = useWorkflowEditorStore.getState();
       if (graph === null) return;
-      insertNode(
-        planInsertion({
-          graph,
-          definitions: definitionsByNode(graph, catalogMap),
-          scopePath,
-          selectedIds: selection.nodeIds,
-          definition,
-          ...options,
-        }),
-      );
+      const planned = planInsertion({
+        graph,
+        definitions: definitionsByNode(graph, catalogMap),
+        scopePath,
+        selectedIds: selection.nodeIds,
+        definition,
+        ...options,
+      });
+      insertNode(planned);
+      // A step with something to set opens its settings at once: it is added to
+      // be configured, and a builder should not have to find it and click it.
+      if (definition.config_schema !== null || definition.input_schema !== null) {
+        editNode(planned.node.id);
+      }
     },
-    [insertNode, catalogMap],
+    [insertNode, editNode, catalogMap],
   );
 }

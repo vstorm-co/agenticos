@@ -84,9 +84,7 @@ describe("BindingField literal mode", () => {
 describe("BindingField binding mode", () => {
   it("toggles to a source picker and stores the chosen output", async () => {
     const { onUpsert } = mount({ schema: DEBUG_ECHO_OUTPUT });
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Bind DebugEchoOutput to another node" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Source for DebugEchoOutput" }));
     await userEvent.click(screen.getByRole("option", { name: /out/ }));
     expect(onUpsert).toHaveBeenCalledWith({
@@ -107,9 +105,7 @@ describe("BindingField binding mode", () => {
         },
       ],
     });
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Bind DebugEchoOutput to another node" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     expect(onRemove).toHaveBeenCalledWith("B", "message");
   });
 
@@ -125,22 +121,24 @@ describe("BindingField binding mode", () => {
       ],
     });
     // Starts in binding mode because a node-output binding exists.
-    const toggle = screen.getByRole("switch", { name: "Bind DebugEchoOutput to another node" });
-    expect(toggle).toBeChecked();
-    await userEvent.click(toggle);
+    expect(screen.getByRole("radio", { name: "From a step" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Value" }));
     expect(onRemove).toHaveBeenCalledWith("B", "message");
   });
 
   it("says so when no upstream output is compatible", async () => {
     mount({ schema: INTEGER });
-    await userEvent.click(screen.getByRole("switch", { name: "Bind Message to another node" }));
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     expect(screen.getByText("No compatible upstream outputs")).toBeVisible();
   });
 
   it("offers a field of an upstream output for a scalar input and stores it with its path", async () => {
     // Echo's `out` carries an object; a string input can only take one of its fields.
     const { onUpsert } = mount({ schema: { type: "string", title: "Message" } });
-    await userEvent.click(screen.getByRole("switch", { name: "Bind Message to another node" }));
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Source for Message" }));
     await userEvent.click(screen.getByRole("option", { name: "Echo · A · out → echoed (string)" }));
     expect(onUpsert).toHaveBeenCalledWith({
@@ -169,17 +167,13 @@ describe("BindingField binding mode", () => {
 
   it("shows a field error under the source picker", async () => {
     mount({ schema: DEBUG_ECHO_OUTPUT, error: "Unfilled" });
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Bind DebugEchoOutput to another node" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     expect(screen.getByText("Unfilled")).toBeVisible();
   });
 
   it("marks a required field in binding mode", async () => {
     mount({ schema: DEBUG_ECHO_OUTPUT, required: true });
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Bind DebugEchoOutput to another node" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
     expect(screen.getByText("*")).toBeVisible();
   });
 });

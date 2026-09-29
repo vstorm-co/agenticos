@@ -157,6 +157,8 @@ export interface WorkflowEditorState {
   selection: EditorSelection;
   /** A node just added, for the canvas to scroll to once; null when there is none. */
   revealNodeId: Uuid | null;
+  /** The step whose settings are open in the editor's dialog; null when none is. */
+  editingNodeId: Uuid | null;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -177,6 +179,8 @@ export interface WorkflowEditorState {
   clearReveal: () => void;
   /** Select a step and ask the canvas to bring it into view - a problem pointing at it. */
   focusNode: (nodeId: Uuid) => void;
+  /** Open one step's settings, selecting it; `null` closes them. */
+  editNode: (nodeId: Uuid | null) => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
    * implies, as one edit - a single undo takes back both.
@@ -262,6 +266,7 @@ const CLEARED = {
   scopePath: [] as Uuid[],
   selection: EMPTY_SELECTION,
   revealNodeId: null,
+  editingNodeId: null,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
@@ -443,6 +448,13 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     focusNode: (nodeId) =>
       set({ selection: { nodeIds: [nodeId], edgeIds: [] }, revealNodeId: nodeId }),
+
+    editNode: (nodeId) =>
+      set(
+        nodeId === null
+          ? { editingNodeId: null }
+          : { editingNodeId: nodeId, selection: { nodeIds: [nodeId], edgeIds: [] } },
+      ),
 
     connectNodes: (connection, bindings = []) => {
       const { graph } = get();

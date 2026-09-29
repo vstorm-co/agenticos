@@ -6,8 +6,7 @@ list. You build it on a canvas, wire the steps together, and publish it as an
 immutable version — the same shape an [agent](concepts.md) has, a draft you edit
 and a published version that runs.
 
-This page is the visual editor: the list, the canvas and palette, how a node is
-configured, autosave and publishing, and the keyboard paths through all of it.
+This page is the visual editor: the list, the canvas and the step picker, how a node is configured, autosave and publishing, and the keyboard paths through all of it.
 The editor lives under **Workflows** in the console. The Workflows **list** page
 carries a **"?"** that replays a walkthrough of that list; the editor itself has
 no walkthrough.
@@ -38,50 +37,52 @@ of a published version.
     it. **Clear filter** returns the full list. A workflow shared with you shows
     under the same list once you have `workflows:view`.
 
-## The canvas and the palette { #the-canvas-and-the-palette }
+## The canvas and adding steps { #the-canvas-and-the-palette }
 
-The **canvas** is where a workflow's steps and connections appear, and the editor
-gives it the whole window below the header: the palette on its left, the
-**Properties** panel on its right. A **node** is one step; an **edge** is a
-connection that sets the order: the step it points to runs after the one it
-leaves.
+The **canvas** is where a workflow's steps and connections appear, and it has the
+editor's whole width below the header. A **node** is one step; an **edge** is a
+connection that sets the order: the step it points to runs after the one it leaves.
 
-Each node is a card with the step's icon, its name and one line of what
-it is set up to do - a condition, a URL, the number of mapped fields - and a step
-with more than one way out lists its ports by name: **true** and **false**, **Each
-item** and **Done**, and a red **Error** port on a step that handles its errors.
-A trackpad or a mouse wheel moves the canvas, and a pinch - or Ctrl or Cmd with
-the wheel - zooms it; its controls sit in the corner and there is no minimap.
+Each node is a card with the step's icon, its name and one line under it: what it
+is set up to do - a condition, a URL, the number of mapped fields - or else the
+group it belongs to, such as **Slack** or **Tables**. A step with more than one way
+out lists its ports by name: **true** and **false**, **Each item** and **Done**,
+and a red **Error** port on a step that handles its errors. A step that stops a
+publish carries a red mark.
 
-The **Nodes** palette lists the node types your deployment has registered, in
-groups that follow how a workflow reads - **Start and finish**, **Agents**,
-**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** - each group
-folding away, each row with an icon, a name and its description. **Search nodes**
-filters the list. You add a step three ways:
+A trackpad or a mouse wheel moves the canvas, and a
+pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner.
 
-- **Click** a node in the palette, or press Enter on it: it is added after the
-  selected step, or at the end of the flow in view, and wired to it when their
-  ports fit - so a straight flow is a run of clicks. A starting step such as
-  **Input** goes before the current start instead and becomes it.
-- **+** beside a step's output opens a search of the steps that can come next,
-  and adds the one you pick after that output.
-- **Drag** a node from the palette to put it exactly where you drop it, wired to
-  nothing.
+Steps are chosen in the **step picker**. It lists sections - **Start**, **AI**,
+**Flow**, **Data**, **Apps and the web** - with the groups under each. A group such
+as **Slack**, **Tables** or **Jev decisions** opens to its steps, and a group of one
+step is that step. **Search steps** finds any step by its name, what it does or its
+group. You add a step four ways:
 
-A new step never lands on top of another, is selected so its **Properties** open,
-and the canvas scrolls to it when it falls outside the view. Inside a loop's body
-every new step is wired into the body, so it stays there.
+- **+** at the canvas's top left - or **Add step** in the middle of an empty canvas
+  - opens the picker. The step goes after the selected step, or at the end of the
+  flow in view, wired to it when their ports fit. A starting step goes before the
+  current start instead and becomes it.
+- **+** beside a step's output opens the picker for the step that comes after that
+  output.
+- **Right-click** the canvas: **Add a step here** lists the same sections and groups,
+  and the step lands where you clicked.
+- **Drag** a step from the picker to put it where you drop it, wired to nothing.
 
-The palette shows what is valid where you are. **Loop item** and **Loop result**
-appear only inside a loop's body, since they mean nothing outside one, and a loop
-is offered until loops are nested as deep as publishing allows.
+A new step never lands on top of another, is selected, opens its settings when it
+has any, and the canvas scrolls to it when it falls outside the view. Inside a
+loop's body every new step is wired into the body, so it stays there. The picker
+shows what is valid where you are: **Loop item** and **Loop result** only inside a
+loop's body, and a loop until loops are nested as deep as publishing allows.
 
-!!! note "The node catalog grows over time"
+Right-clicking a step offers **Open settings**, **Duplicate** and **Delete step**;
+right-clicking the canvas also offers **Paste**, **Undo**, **Redo** and **Fit to
+view**. With several steps selected, a bar at the bottom deletes them together.
 
-    The palette is fed by the deployment's registered nodes, not a fixed list.
-    Early on the catalog is small; more node kinds — calling an agent, reading and
-    writing a table, branching and looping — arrive as later milestones register
-    them, and they appear in the palette the moment they do, with no change to a
+!!! note "The step catalog grows over time"
+
+    The picker is fed by the deployment's registered nodes, not a fixed list. A
+    node kind registered later appears in it the moment it is, with no change to a
     workflow you already built.
 
 ## Configuring a node { #configuring-a-node }
@@ -89,32 +90,32 @@ is offered until loops are nested as deep as publishing allows.
 What each node does, what it is configured with and what its failures mean is in
 the [node reference](reference/workflow-nodes.md).
 
-Select a node and the **Properties** panel opens on the right. Its fields fall
-into two sections. **Configuration** holds static settings — the fixed choices
-that do not change from one run to the next, including the resources a step is
-pinned to. **Inputs** holds the values a step reads when it runs.
+Click a step and its settings open in a dialog over the canvas: its name, what it
+does, and any problem that stops a publish, above its fields. Every edit is saved to
+the draft as you make it, so **Done** only closes the dialog, and **Delete step**
+removes the step. The fields fall into two sections. **Configuration** holds static
+settings — the fixed choices that do not change from one run to the next, including
+the resources a step is pinned to. **Inputs** holds the values a step reads when it
+runs.
 
-An input is filled one of two ways, and the **Bind** toggle beside the field
-switches between them:
+An input is filled one of two ways, and **Value** and **From a step** beside its
+label switch between them:
 
-- **A literal** — you type the value directly into the field, the same control
-  the field's type calls for.
-- **A binding** — you read the value from another step's output. **Bind** turns
-  the field into a **Source** picker whose options are the upstream outputs that
-  are actually reachable here and carry a compatible type — a step's whole output,
-  or one field inside it — each shown as *{node} · {port} ({type})*, or
+- **A value** — you type it directly into the field, the same control the field's
+  type calls for.
+- **From a step** — you read the value from another step's output. The field turns
+  into a **Source** picker whose options are the upstream outputs that are actually
+  reachable here and carry a compatible type — a step's whole output, or one field
+  inside it — each shown as *{node} · {port} ({type})*, or
   *{node} · {port} → {field} ({type})* for a field. A field with nothing compatible
   upstream says **No compatible upstream outputs** rather than offering an invalid
   pick.
 
 A required input with no value yet is a validation problem, flagged on the node
 rather than filled with a silent default. Some fields hold structured values: a
-list of rows you **Add row** to, reorder and remove, or a typed choice that
-swaps the sub-form beneath it. The panel recurses into those rather than sending
-you to a separate screen.
-
-Select more than one node and the panel reports how many are selected; select an
-edge and it shows the connection's **From** and **To**.
+list of rows you **Add row** to, reorder and remove, or a typed choice that swaps
+the sub-form beneath it. The dialog recurses into those rather than sending you to
+a separate screen.
 
 ### Resource pickers { #resource-pickers }
 
@@ -166,13 +167,11 @@ target's inputs to the field of the same name on the source. A field you had
 already bound is left alone.
 
 When the shapes differ, or a port carries no data,
-nothing is bound and you pick each source yourself with **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) takes
+nothing is bound and you pick each source yourself with **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) takes
 back the connection and its bindings together, and deleting an edge later leaves
-its bindings in place, so remove or rebind them in the panel.
+its bindings in place, so remove or rebind them in the step's settings.
 
-To delete a connection, select it: click the wire, and it is drawn heavier, the
-panel shows its **From** and **To**, and a **Delete connection** button appears on
-it. Press the button, or press `Backspace`, and the connection goes while the two
+To delete a connection, select it: click the wire, and it is drawn heavier and a **Delete connection** button appears on it. Press the button, or press `Backspace`, and the connection goes while the two
 steps stay. The connections of a published version cannot be selected, so they
 cannot be deleted.
 
@@ -184,19 +183,14 @@ are, from **Workflow** down to the loop you opened. Each crumb navigates back ou
 
 A body starts at **Loop item**, which the loop's **Each item** port connects to,
 and ends at **Loop result**; nothing in it connects back to the loop, which
-continues through **Done** once every item has been through the body. The palette
-and the binding sources follow the scope you are in, and a step in a body may read
+continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
 [node reference](reference/workflow-nodes.md#loops).
 
 ## Validation feedback { #validation-feedback }
 
 The editor checks the graph as you edit and shows what is wrong where it is
-wrong. A selected node with a problem carries a badge counting its problems in
-the panel header, a field with a problem shows its message inline, and a
-collapsible list at the foot of the panel collects the problems together, each
-under the name of its node and field. Choosing one selects that node and brings it
-into view, and every node with a problem is marked on the canvas too.
+wrong. Every step with a problem carries a red mark on the canvas and a count in its settings, and a field with a problem shows its message inline. The status at the canvas's top right reads **Ready to publish**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
 
 The messages name the specific fault: a required input with no value, an input
 set by more than one source, a connection whose ports carry different shapes, a
@@ -273,7 +267,7 @@ refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Fil
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the palette holds five: **Manual or API**, **Chat
+**Triggers** group at the top of the step picker holds five: **Manual or API**, **Chat
 message**, **Webhook**, **Schedule** and **New table record**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
@@ -387,8 +381,7 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 
-Every part of the editor has a path that needs no pointer. Clicking a palette
-node adds it without a drag, every icon-only control carries a spoken label, and
+Every part of the editor has a path that needs no pointer. The step picker is a list you move through with the arrow keys and pick from with Enter, every icon-only control carries a spoken label, and
 the canvas takes keyboard focus so you can tab across its steps and connections.
 A connection can be made from the keyboard: start one from a node, then complete
 it at a compatible target.
@@ -420,8 +413,7 @@ Copy and paste have three limits:
 - **A connection travels only with its two steps.** Selecting a connection alone and
   copying does nothing.
 - **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
-  clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus
-  in the **Properties** panel or the palette keeps the keys for those fields, so click
+  clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
 
 ## Recap
@@ -429,11 +421,11 @@ Copy and paste have three limits:
 - A workflow is a **draft you edit and a published, immutable version that
   runs** — start one from a trigger or a template, and **Duplicate** copies a draft
   into a fresh workflow.
-- The **palette** adds steps by drag or click; the **canvas** wires them, and it
+- The **step picker** adds steps - from **+**, a step's output or a right click; the **canvas** wires them, and it
   refuses a connection between incompatible ports.
 - An edge sets **order** and bindings carry **values**; connecting ports of the same
   shape creates the bindings for you.
-- A node's inputs are **a literal or a binding** — **Bind** reads a value from a
+- A node's inputs are **a value or a binding** — **From a step** reads a value from a
   reachable, type-compatible upstream output.
 - The draft **saves itself**, and an edit from two places raises a banner with
   **Overwrite** or **Reload**.

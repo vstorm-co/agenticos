@@ -1,12 +1,11 @@
 "use client";
 
-import { Command } from "cmdk";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
-import { nodeVisual } from "@/components/workflows/node-visuals";
 import { isAddableInScope } from "@/components/workflows/palette/scope";
+import { NodePicker } from "@/components/workflows/picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
@@ -25,7 +24,7 @@ interface QuickAddProps {
 }
 
 /**
- * The "+" beside a node's output: a searchable menu of the steps that can come
+ * The "+" beside a node's output: the step picker, for the step that comes
  * next, added after this output and wired to it in one click.
  *
  * Only steps with an input are offered - a starting step cannot follow another -
@@ -64,60 +63,20 @@ export function QuickAdd({ catalog, nodeName, portLabel, onPick, prominent }: Qu
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-0"
+        className="w-80 p-0"
         align="start"
         side="right"
         onClick={(event) => event.stopPropagation()}
         // Focus goes to the step just added, not back to a "+" that has done its job.
         onCloseAutoFocus={(event) => event.preventDefault()}
       >
-        {/* A plain substring match: cmdk's default scores scattered letters, so
-            "notif" would rank "Download a file" alongside "Notify members". */}
-        <Command
-          filter={(value, search) => (value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
-        >
-          <div className="border-border border-b px-3 py-2">
-            <Command.Input
-              placeholder={t("quickAddSearch")}
-              className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
-            />
-          </div>
-          <Command.List className="max-h-72 overflow-y-auto p-1">
-            <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
-              {t("paletteNoMatches")}
-            </Command.Empty>
-            {offered.map((definition) => {
-              const visual = nodeVisual(definition.id, definition.category);
-              const Icon = visual.icon;
-              return (
-                <Command.Item
-                  key={`${definition.id}@${definition.version}`}
-                  value={`${definition.name} ${definition.description} ${definition.category}`}
-                  onSelect={() => {
-                    onPick(definition);
-                    setOpen(false);
-                  }}
-                  className="aria-selected:bg-accent flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2"
-                >
-                  <span
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md",
-                      visual.tileClass,
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-3.5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{definition.name}</span>
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {definition.description}
-                    </span>
-                  </span>
-                </Command.Item>
-              );
-            })}
-          </Command.List>
-        </Command>
+        <NodePicker
+          offered={offered}
+          onPick={(definition) => {
+            onPick(definition);
+            setOpen(false);
+          }}
+        />
       </PopoverContent>
     </Popover>
   );

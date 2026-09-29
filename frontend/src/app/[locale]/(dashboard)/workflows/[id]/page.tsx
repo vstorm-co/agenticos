@@ -15,8 +15,7 @@ import {
   useRestoreVersion,
 } from "@/components/workflows/editor";
 import { TriggerPanel } from "@/components/workflows/triggers";
-import { NodePalette } from "@/components/workflows/palette";
-import { PropertyPanel } from "@/components/workflows/property-panel";
+import { NodeEditorDialog } from "@/components/workflows/node-editor";
 import {
   Button,
   ListCard,
@@ -48,8 +47,9 @@ const EMPTY_GRAPH: WorkflowGraph = {
 };
 
 /**
- * The workflow editor shell — palette, canvas, property panel, publish control,
- * conflict banner and version history.
+ * The workflow editor shell — the canvas across the page's whole width, a step's
+ * settings in a dialog over it, the publish control, conflict banner and version
+ * history.
  *
  * It loads the workflow (`WorkflowDetail`, carrying `draft_graph`/`draft_revision`)
  * and the node catalog into TanStack Query and hands the coordination facts
@@ -63,9 +63,9 @@ const EMPTY_GRAPH: WorkflowGraph = {
  * by autosave, not by the refetch.
  *
  * A caller who may not edit this workflow gets a read-only editor: the canvas
- * renders with `readOnly`, and the edit chrome — palette, autosave/publish
- * actions, property panel and conflict banner — is not rendered at all, so no
- * autosave fires to 404. Whether they may is the workflow's own `can_edit`,
+ * renders with `readOnly`, a step's dialog opens read-only, and the edit chrome —
+ * **Add step**, the autosave/publish actions and the conflict banner — is not
+ * rendered at all, so no autosave fires to 404. Whether they may is the workflow's own `can_edit`,
  * resolved server-side: a role's `workflows:edit` says nothing about *this*
  * workflow - a builder views every one and edits only their own and shared ones,
  * and a grant widens a role for one - and an archived workflow is read-only for
@@ -133,10 +133,13 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
-    <div key={workflow.id} className="flex min-h-[40rem] flex-1 flex-col gap-4 pb-6">
+    <div key={workflow.id} className="flex min-h-[40rem] flex-1 flex-col gap-3 pb-4">
       <PageHeader
+        // The canvas is the page: the header gives it the height a list page
+        // would keep for breathing room.
+        className="mb-0 md:mb-0"
         title={workflow.name}
-        description={t("draftRevision", { revision: workflow.draft_revision })}
+        description={workflow.description ?? undefined}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
@@ -168,22 +171,13 @@ export default function WorkflowEditorPage({ params }: PageProps) {
       {canEdit && <ConflictBanner workflowId={workflow.id} />}
       <div
         data-workflow-editor
-        className="border-border bg-card flex min-h-0 flex-1 overflow-hidden rounded-xl border"
+        className="border-border bg-card relative flex min-h-0 flex-1 overflow-hidden rounded-xl border"
       >
-        {canEdit && (
-          <aside className="border-border hidden w-64 shrink-0 flex-col border-r lg:flex">
-            <NodePalette nodes={nodes} />
-          </aside>
-        )}
         <div className="relative min-w-0 flex-1">
           <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
         </div>
-        {canEdit && (
-          <aside className="border-border hidden w-80 shrink-0 overflow-y-auto border-l lg:block">
-            <PropertyPanel />
-          </aside>
-        )}
       </div>
+      <NodeEditorDialog catalog={nodes} readOnly={!canEdit} />
       <Sheet open={triggersOpen} onOpenChange={setTriggersOpen}>
         <SheetContent side="right" className="w-full max-w-lg overflow-y-auto">
           <SheetHeader>

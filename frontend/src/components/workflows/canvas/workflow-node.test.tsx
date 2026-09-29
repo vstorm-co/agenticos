@@ -38,7 +38,13 @@ const CATALOG = [
     kind: "control",
     ports: [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
   }),
-  makeDefinition({ id: "data.map", name: "Map", description: "Maps fields", ports: IO }),
+  makeDefinition({
+    id: "data.map",
+    name: "Map",
+    category: "data",
+    description: "Maps fields",
+    ports: IO,
+  }),
 ];
 
 function instance(
@@ -110,7 +116,7 @@ describe("a node card", () => {
     expect(screen.getByText("2 fields")).toBeTruthy();
   });
 
-  it("falls back to the step's description, and says nothing more when it has none", () => {
+  it("falls back to the step's group, keeping its description for a hover", () => {
     seed([
       instance("m", "data.map"),
       instance("f", "control.foreach"),
@@ -122,7 +128,7 @@ describe("a node card", () => {
       instance("u", "unknown.kind"),
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
-    expect(screen.getByText("Maps fields")).toBeTruthy();
+    expect(screen.getByText("Data").getAttribute("title")).toBe("Maps fields");
     expect(screen.getByText("Stops at the first failed item")).toBeTruthy();
     expect(screen.getByText("Default branch only")).toBeTruthy();
   });
@@ -193,6 +199,7 @@ describe("a node card's +", () => {
     await userEvent.click(
       container.querySelector('button[aria-label="Add a step after If (false)"]') as HTMLElement,
     );
+    // Map is the only step of its group, so the picker offers it at the top.
     await userEvent.click(await screen.findByText("Map"));
 
     const graph = store.getState().graph;

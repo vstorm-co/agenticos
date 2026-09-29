@@ -1,9 +1,18 @@
 "use client";
 
 import { Background, type Connection, Controls, ReactFlow, useReactFlow } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type MouseEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
 import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
@@ -11,6 +20,8 @@ import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-context";
+import { CanvasContextMenu, type MenuTarget } from "./canvas-context-menu";
+import { CanvasToolbar } from "./canvas-toolbar";
 import {
   autoBindings,
   buildCatalogMap,
@@ -213,15 +224,44 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   );
   // Worked out once for the whole graph, not per card: each rule reads the graph
   // around a node, and a read-only version was checked when it was published.
+  const problems = useMemo(
+    () =>
+      readOnly || graph === null
+        ? []
+        : validateGraph(graph, { items: catalog, total: catalog.length }, t),
+    [readOnly, graph, catalog, t],
+  );
   const problemCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    if (readOnly || graph === null) return counts;
-    for (const problem of validateGraph(graph, { items: catalog, total: catalog.length }, t)) {
+    for (const problem of problems) {
       if (problem.nodeId !== null)
         counts.set(problem.nodeId, (counts.get(problem.nodeId) ?? 0) + 1);
     }
     return counts;
-  }, [readOnly, graph, catalog, t]);
+  }, [problems]);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const setSelection = useWorkflowEditorStore((state) => state.setSelection);
+
+  // What the last right click was on, and where - the menu acts on that step, or
+  // places a new one at that point.
+  const [menuTarget, setMenuTarget] = useState<MenuTarget>({ kind: "pane" });
+  const menuPoint = useRef({ x: 0, y: 0 });
+  const recordMenuTarget = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      menuPoint.current = { x: event.clientX, y: event.clientY };
+      const card = event.target instanceof Element ? event.target.closest("[data-node-id]") : null;
+      const nodeId = card?.getAttribute("data-node-id") ?? null;
+      if (nodeId === null) {
+        setMenuTarget({ kind: "pane" });
+        return;
+      }
+      setMenuTarget({ kind: "node", nodeId });
+      // The menu acts on what is selected, so a step right-clicked outside the
+      // selection becomes the selection.
+      if (!selectedNodeIds.has(nodeId)) setSelection({ nodeIds: [nodeId], edgeIds: [] });
+    },
+    [selectedNodeIds, setSelection],
+  );
   const interaction = useMemo(
     () => ({
       readOnly,
@@ -236,65 +276,85 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   );
 
   return (
-    // A graph editor is an application widget: role="application" tells assistive
-    // tech to pass keystrokes to the canvas shortcuts rather than read the region
-    // as document structure. The rule keys off the element name, so the handler it
-    // sanctions on an interactive role still needs the disable.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <section
-      ref={regionRef}
-      role="application"
-      // Focusable, though not a tab stop, so a click anywhere in the canvas puts focus
-      // on the region the shortcuts listen on. Otherwise a click on empty canvas, or on
-      // a button in Firefox and Safari on macOS (which do not focus a clicked button),
-      // leaves focus on the page and Cmd+C, Cmd+V and Cmd+Z do nothing.
-      tabIndex={-1}
-      aria-label={t("canvasTitle")}
-      data-workflow-region="canvas"
-      data-connecting={connectSource !== null}
-      onKeyDown={onKeyDown}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className="bg-muted/30 relative h-full min-h-[28rem] overflow-hidden outline-none"
-    >
-      {activeGraph.nodes.length === 0 && (
-        <p className="text-muted-foreground pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 text-center text-sm">
-          {t("canvasHint")}
-        </p>
-      )}
-      <CanvasInteractionProvider value={interaction}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodesChange={applyNodeChanges}
-          onEdgesChange={applyEdgeChanges}
-          onConnect={connect}
-          isValidConnection={isValid}
-          nodesDraggable={!readOnly}
-          nodesConnectable={!readOnly}
-          elementsSelectable={!readOnly}
-          deleteKeyCode={readOnly ? null : "Backspace"}
-          // The delete removed the focused element; hand focus back to the region.
-          onDelete={focusRegion}
-          colorMode={colorMode}
-          // A trackpad or a wheel moves the canvas; a pinch, or Ctrl/Cmd with the
-          // wheel, zooms it - the way a map or a design tool behaves.
-          panOnScroll
-          zoomOnScroll={false}
-          zoomOnPinch
-          zoomOnDoubleClick={false}
-          fitView
-          fitViewOptions={readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW}
-          minZoom={0.3}
-          proOptions={{ hideAttribution: true }}
-          aria-label={t("canvasGraphLabel")}
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={readOnly}>
+        {/* A graph editor is an application widget: role="application" tells
+            assistive tech to pass keystrokes to the canvas shortcuts rather than
+            read the region as document structure. The rule keys off the element
+            name, so the handler it sanctions on an interactive role still needs
+            the disable. */}
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+        <section
+          ref={regionRef}
+          role="application"
+          // Focusable, though not a tab stop, so a click anywhere in the canvas puts focus
+          // on the region the shortcuts listen on. Otherwise a click on empty canvas, or on
+          // a button in Firefox and Safari on macOS (which do not focus a clicked button),
+          // leaves focus on the page and Cmd+C, Cmd+V and Cmd+Z do nothing.
+          tabIndex={-1}
+          aria-label={t("canvasTitle")}
+          data-workflow-region="canvas"
+          data-connecting={connectSource !== null}
+          onKeyDown={onKeyDown}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onContextMenuCapture={recordMenuTarget}
+          className="bg-muted/30 relative h-full min-h-[28rem] overflow-hidden outline-none"
         >
-          <Background gap={20} size={1.5} />
-          <Controls showInteractive={false} position="bottom-right" />
-        </ReactFlow>
-      </CanvasInteractionProvider>
-    </section>
+          <CanvasToolbar
+            catalog={catalog}
+            problems={problems}
+            readOnly={readOnly}
+            empty={activeGraph.nodes.length === 0}
+            onAdd={(definition) => insert(definition)}
+          />
+          <CanvasInteractionProvider value={interaction}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={applyNodeChanges}
+              onEdgesChange={applyEdgeChanges}
+              onConnect={connect}
+              // A step's settings open over the canvas; a drag never counts as a click.
+              onNodeClick={(_event, node) => editNode(node.id)}
+              isValidConnection={isValid}
+              nodesDraggable={!readOnly}
+              nodesConnectable={!readOnly}
+              elementsSelectable={!readOnly}
+              deleteKeyCode={readOnly ? null : "Backspace"}
+              // The delete removed the focused element; hand focus back to the region.
+              onDelete={focusRegion}
+              colorMode={colorMode}
+              // A trackpad or a wheel moves the canvas; a pinch, or Ctrl/Cmd with the
+              // wheel, zooms it - the way a map or a design tool behaves.
+              panOnScroll
+              zoomOnScroll={false}
+              zoomOnPinch
+              zoomOnDoubleClick={false}
+              fitView
+              fitViewOptions={readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW}
+              minZoom={0.3}
+              proOptions={{ hideAttribution: true }}
+              aria-label={t("canvasGraphLabel")}
+            >
+              <Background gap={20} size={1.5} />
+              <Controls showInteractive={false} position="bottom-right" />
+            </ReactFlow>
+          </CanvasInteractionProvider>
+        </section>
+      </ContextMenuTrigger>
+      {!readOnly && (
+        <CanvasContextMenu
+          target={menuTarget}
+          catalog={catalog}
+          onAdd={(definition) =>
+            insert(definition, { dropAt: screenToFlowPosition(menuPoint.current) })
+          }
+          onFitView={() => void fitView({ ...FIT_VIEW, duration: 300 })}
+        />
+      )}
+    </ContextMenu>
   );
 }

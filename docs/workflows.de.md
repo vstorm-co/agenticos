@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8e70d5d607"
+source_sha: "230d798db3af"
 ---
 
 # Workflows { #workflows }
@@ -11,8 +11,7 @@ Zeichenfläche, verdrahten die Schritte miteinander und veröffentlichen ihn als
 unveränderliche Version — dieselbe Form, die ein [Agent](concepts.md) hat: ein
 Draft, den Sie bearbeiten, und eine veröffentlichte Version, die läuft.
 
-Diese Seite beschreibt den visuellen Editor: die Liste, die Zeichenfläche und die
-Palette, wie ein Knoten konfiguriert wird, Autosave und Veröffentlichen sowie die
+Diese Seite beschreibt den visuellen Editor: die Liste, die Zeichenfläche und die Schrittauswahl, wie ein Knoten konfiguriert wird, Autosave und Veröffentlichen sowie die
 Tastaturwege durch all das. Der Editor liegt unter **Workflows** in der Konsole.
 Die **Liste** unter Workflows hat ein **"?"**, das eine Führung durch diese Liste
 abspielt; der Editor selbst hat keine Führung.
@@ -46,91 +45,93 @@ Kopie einer veröffentlichten Version.
     Ein mit Ihnen geteilter Workflow erscheint in derselben Liste, sobald Sie
     `workflows:view` haben.
 
-## Die Zeichenfläche und die Palette { #the-canvas-and-the-palette }
+## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
-Workflows erscheinen, und der Editor gibt ihr das ganze Fenster unter der
-Kopfzeile: die Palette links, das **Properties**-Panel rechts. Ein **Knoten** ist ein
-Schritt; eine **Kante** ist eine Verbindung, die die Reihenfolge festlegt: Der
-Schritt, auf den sie zeigt, läuft nach dem, von dem sie ausgeht.
+Workflows erscheinen, und sie hat die ganze Breite des Editors unter dem Kopf. Ein
+**Knoten** ist ein Schritt; eine **Kante** ist eine Verbindung, die die Reihenfolge
+festlegt: Der Schritt, auf den sie zeigt, läuft nach dem, von dem sie ausgeht.
 
-Jeder Knoten ist
-eine Karte mit dem Icon des Schritts, seinem Namen und einer Zeile dazu, wofür er
-eingerichtet ist - eine Bedingung, eine URL, die Zahl gemappter Felder -, und ein
+Jeder Knoten ist eine Karte mit dem Symbol des Schritts, seinem Namen und einer Zeile
+darunter: was er tun soll - eine Bedingung, eine URL, die Zahl der zugeordneten
+Felder - oder sonst die Gruppe, zu der er gehört, etwa **Slack** oder **Tables**. Ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
-**false**, **Each item** und **Done** und einen roten **Error**-Port bei einem
-Schritt, der seine Fehler behandelt. Ein Trackpad oder das Mausrad verschiebt die
-Zeichenfläche, und ein Zusammenziehen der Finger - oder Strg bzw. Cmd mit dem Rad -
-zoomt sie; ihre Bedienelemente sitzen in der Ecke, eine Minimap gibt es nicht.
+**false**, **Each item** und **Done** und einen roten **Error**-Port an einem
+Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
+trägt eine rote Markierung. Ein Trackpad oder ein Mausrad bewegt die Zeichenfläche,
+und eine Pinch-Geste - oder Strg bzw. Cmd mit dem Rad - zoomt sie; ihre Steuerung
+sitzt in der Ecke.
 
-Die **Nodes**-Palette listet die Knotentypen, die Ihr Deployment registriert hat,
-in Gruppen, die der Lesart eines Workflows folgen - **Start and finish**, **Agents**,
-**Knowledge**, **Data**, **Tables**, **Branching**, **Loops**, **Errors** -, jede
-Gruppe lässt sich einklappen, jede Zeile hat Icon, Namen und Beschreibung. **Search
-nodes** filtert die Liste. Sie fügen einen Schritt auf drei Wegen hinzu:
+Schritte wählen Sie in der **Schrittauswahl**. Sie zeigt Abschnitte - **Start**,
+**AI**, **Flow**, **Data**, **Apps and the web** - mit den Gruppen darunter. Eine
+Gruppe wie **Slack**, **Tables** oder **Jev decisions** öffnet sich zu ihren
+Schritten, und eine Gruppe mit einem Schritt ist dieser Schritt. **Search steps**
+findet jeden Schritt nach Namen, nach dem, was er tut, oder nach seiner Gruppe. Sie
+fügen einen Schritt auf vier Wegen hinzu:
 
-- **Klicken** Sie einen Knoten in der Palette an oder drücken Sie darauf Enter: Er
-  wird nach dem ausgewählten Schritt oder am Ende des sichtbaren Ablaufs
-  hinzugefügt und mit ihm verbunden, wenn die Ports passen - ein gerader Ablauf ist
-  eine Folge von Klicks. Ein Startschritt wie **Input** kommt stattdessen vor den
-  aktuellen Start und wird selbst zum Start.
-- **+** neben dem Ausgang eines Schritts öffnet eine Suche der Schritte, die danach
-  kommen können, und fügt den gewählten nach diesem Ausgang hinzu.
-- **Ziehen** Sie einen Knoten aus der Palette, um ihn genau dort abzulegen, wo Sie
-  ihn fallen lassen, ohne Verbindung.
+- **+** oben links auf der Zeichenfläche - oder **Add step** in der Mitte einer leeren
+  Zeichenfläche - öffnet die Auswahl. Der Schritt kommt hinter den ausgewählten
+  Schritt oder ans Ende des sichtbaren Ablaufs und wird verbunden, wenn die Ports
+  passen. Ein Startschritt kommt stattdessen vor den aktuellen Start und wird zu ihm.
+- **+** neben dem Ausgang eines Schritts öffnet die Auswahl für den Schritt, der nach
+  diesem Ausgang kommt.
+- **Rechtsklick** auf die Zeichenfläche: **Add a step here** zeigt dieselben
+  Abschnitte und Gruppen, und der Schritt landet dort, wo Sie geklickt haben.
+- **Ziehen** Sie einen Schritt aus der Auswahl, um ihn dort abzulegen, wo Sie ihn
+  fallen lassen, ohne Verbindung.
 
-Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, sodass sich seine
-**Properties** öffnen, und die Zeichenfläche scrollt zu ihm, wenn er außerhalb der
-Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den Körper
-verbunden und bleibt so darin.
+Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
+Einstellungen, wenn er welche hat, und die Zeichenfläche scrollt zu ihm, wenn er
+außerhalb der Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den
+Körper verdrahtet, damit er dort bleibt. Die Auswahl zeigt, was an Ihrer Stelle
+gültig ist: **Loop item** und **Loop result** nur im Körper einer Schleife und eine
+Schleife, solange Schleifen nicht so tief verschachtelt sind, wie das Veröffentlichen
+erlaubt.
 
-Die Palette zeigt, was dort gültig ist, wo Sie gerade sind. **Loop item** und
-**Loop result** erscheinen nur im Körper einer Schleife, weil sie außerhalb davon
-nichts bedeuten, und eine Schleife wird angeboten, bis Schleifen so tief
-verschachtelt sind, wie das Veröffentlichen erlaubt.
+Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate** und
+**Delete step**; ein Rechtsklick auf die Zeichenfläche bietet außerdem **Paste**,
+**Undo**, **Redo** und **Fit to view**. Sind mehrere Schritte ausgewählt, löscht eine
+Leiste unten sie zusammen.
 
-!!! note "Der Knotenkatalog wächst mit der Zeit"
+!!! note "Der Schrittkatalog wächst mit der Zeit"
 
-    Die Palette wird von den registrierten Knoten des Deployments gespeist, nicht
-    von einer festen Liste. Anfangs ist der Katalog klein; mehr Knotenarten —
-    einen Agent aufrufen, eine Tabelle lesen und schreiben, verzweigen und in
-    Schleifen laufen — kommen hinzu, sobald spätere Milestones sie registrieren,
-    und sie erscheinen in genau dem Moment in der Palette, ohne Änderung an einem
-    Workflow, den Sie bereits gebaut haben.
+    Die Auswahl speist sich aus den registrierten Knoten der Bereitstellung, nicht
+    aus einer festen Liste. Eine später registrierte Knotenart erscheint darin, sobald
+    sie registriert ist, ohne Änderung an einem Workflow, den Sie schon gebaut haben.
 
 ## Einen Knoten konfigurieren { #configuring-a-node }
 
-Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten,
-steht in der [Knotenreferenz](reference/workflow-nodes.md).
+Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
+in der [Knotenreferenz](reference/workflow-nodes.md).
 
-Wählen Sie einen Knoten, und das Panel **Properties** öffnet sich rechts. Seine
-Felder fallen in zwei Abschnitte. **Configuration** hält statische Einstellungen —
-die festen Entscheidungen, die sich von einem Run zum nächsten nicht ändern,
-einschließlich der Ressourcen, an die ein Schritt gepinnt ist. **Inputs** hält die
-Werte, die ein Schritt beim Laufen liest.
+Klicken Sie auf einen Schritt, und seine Einstellungen öffnen sich in einem Dialog
+über der Zeichenfläche: sein Name, was er tut, und jedes Problem, das das
+Veröffentlichen blockiert, über seinen Feldern. Jede Änderung wird sofort im Draft
+gespeichert, daher schließt **Done** nur den Dialog, und **Delete step** entfernt den
+Schritt. Die Felder teilen sich in zwei Abschnitte. **Configuration** enthält
+statische Einstellungen — feste Entscheidungen, die sich von einem Lauf zum nächsten
+nicht ändern, einschließlich der Ressourcen, an die ein Schritt gebunden ist.
+**Inputs** enthält die Werte, die ein Schritt liest, wenn er läuft.
 
-Ein Input wird auf eine von zwei Arten gefüllt, und der Umschalter **Bind** neben
-dem Feld wechselt zwischen ihnen:
+Ein Input wird auf eine von zwei Arten gefüllt, und **Value** und **From a step** neben
+seiner Beschriftung schalten zwischen ihnen um:
 
-- **Ein Literal** — Sie tippen den Wert direkt in das Feld, mit genau dem
-  Bedienelement, das der Typ des Feldes verlangt.
-- **Ein Binding** — Sie lesen den Wert aus der Ausgabe eines anderen Schritts.
-  **Bind** verwandelt das Feld in eine **Source**-Auswahl, deren Optionen die
-  vorgelagerten Ausgaben sind, die hier tatsächlich erreichbar sind und einen
-  kompatiblen Typ tragen — die ganze Ausgabe eines Schritts oder ein Feld darin —,
-  jede angezeigt als *{node} · {port} ({type})*, ein Feld als
-  *{node} · {port} → {field} ({type})*. Ein Feld ohne etwas Kompatibles davor sagt
-  **No compatible upstream outputs**, statt eine ungültige Auswahl anzubieten.
+- **Ein Wert** — Sie geben ihn direkt ins Feld ein, mit dem Bedienelement, das der Typ
+  des Felds verlangt.
+- **From a step** — Sie lesen den Wert aus der Ausgabe eines anderen Schritts. Das Feld
+  wird zu einer **Source**-Auswahl, deren Optionen die vorgelagerten Ausgaben sind, die
+  hier tatsächlich erreichbar sind und einen kompatiblen Typ tragen — die ganze Ausgabe
+  eines Schritts oder ein Feld darin —, jeweils als *{node} · {port} ({type})* oder
+  *{node} · {port} → {field} ({type})* für ein Feld. Ein Feld ohne kompatible
+  vorgelagerte Ausgabe sagt **No compatible upstream outputs**, statt eine ungültige
+  Wahl anzubieten.
 
 Ein Pflicht-Input ohne Wert ist ein Validierungsproblem, das am Knoten markiert und
-nicht mit einem stillen Standardwert gefüllt wird. Einige Felder halten
-strukturierte Werte: eine Liste von Zeilen, zu der Sie mit **Add row** hinzufügen,
-die Sie umsortieren und entfernen, oder eine typisierte Auswahl, die das Sub-Formular
-darunter austauscht. Das Panel steigt rekursiv in diese hinein, statt Sie auf einen
-eigenen Bildschirm zu schicken.
-
-Wählen Sie mehr als einen Knoten, meldet das Panel, wie viele ausgewählt sind;
-wählen Sie eine Kante, zeigt es **From** und **To** der Verbindung.
+nicht mit einem stillen Standardwert gefüllt wird. Manche Felder enthalten
+strukturierte Werte: eine Liste von Zeilen, zu der **Add row** hinzufügt, die Sie
+umsortieren und aus der Sie entfernen, oder eine typisierte Wahl, die das Unterformular
+darunter austauscht. Der Dialog geht in diese hinein, statt Sie auf einen eigenen
+Bildschirm zu schicken.
 
 ### Ressourcen-Auswahlfelder { #resource-pickers }
 
@@ -186,14 +187,11 @@ binden müssen, bindet das Verbinden zweier Ports, die genau dieselbe Form trage
 die Ausgabe eines Echo mit der Eingabe eines Relay —, auch jeden Input des Ziels an das
 gleichnamige Feld der Quelle. Ein Feld, das Sie schon gebunden hatten, bleibt unberührt.
 
-Unterscheiden sich die Formen oder trägt ein Port keine Daten, wird nichts gebunden und
-Sie wählen jede Quelle selbst mit **Bind**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die Verbindung samt ihren
+Unterscheiden sich die Formen oder trägt ein Port keine Daten, wird nichts gebunden und Sie wählen jede Quelle selbst mit **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die Verbindung samt ihren
 Bindings zurück, und das spätere Löschen einer Kante lässt ihre Bindings bestehen —
-entfernen oder binden Sie sie im Panel neu.
+entfernen oder binden Sie sie in den Einstellungen des Schritts neu.
 
-Um eine Verbindung zu löschen, wählen Sie sie aus: Klicken Sie auf die Linie, dann
-wird sie dicker gezeichnet, das Panel zeigt ihr **From** und **To**, und auf ihr
-erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläche oder
+Um eine Verbindung zu löschen, wählen Sie sie aus: Klicken Sie auf die Linie, dann wird sie dicker gezeichnet, und auf ihr erscheint eine Schaltfläche **Delete connection**. Drücken Sie die Schaltfläche oder
 `Backspace`, dann verschwindet die Verbindung, und die beiden Schritte bleiben. Die
 Verbindungen einer veröffentlichten Version lassen sich nicht auswählen und daher
 nicht löschen.
@@ -208,7 +206,7 @@ Schleife. Jede Krume führt wieder hinaus.
 Ein Körper beginnt bei **Loop item**, mit
 dem der **Each item**-Port der Schleife verbunden ist, und endet bei **Loop result**;
 nichts darin führt zurück zur Schleife, die über **Done** weitergeht, sobald jedes
-Element den Körper durchlaufen hat. Palette und Binding-Quellen folgen dem Scope,
+Element den Körper durchlaufen hat. Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
 in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
 lief. Was die Schleife tut, steht in der
 [Knoten-Referenz](reference/workflow-nodes.md#loops).
@@ -216,12 +214,7 @@ lief. Was die Schleife tut, steht in der
 ## Validierungs-Rückmeldung { #validation-feedback }
 
 Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
-es falsch ist. Ein ausgewählter Knoten mit einem Problem trägt ein Badge, das seine
-Probleme zählt, im Panel-Kopf; ein Feld mit einem Problem zeigt seine Meldung
-inline; und eine ausklappbare Liste am Fuß des Panels sammelt die Probleme, jedes
-unter dem Namen seines Knotens und Felds. Ein Problem zu wählen, wählt diesen Knoten
-aus und holt ihn ins Bild, und jeder Knoten mit einem Problem ist auch auf der
-Leinwand markiert.
+es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und eine Zahl in seinen Einstellungen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **Ready to publish** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
 
 Die Meldungen benennen den konkreten Fehler: ein Pflicht-Input ohne Wert, ein Input,
 den mehr als eine Quelle setzt, eine Verbindung, deren Ports unterschiedliche Formen
@@ -309,7 +302,7 @@ gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Palette enthält fünf: **Manual or
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält fünf: **Manual or
 API**, **Chat message**, **Webhook**, **Schedule** und **New table record**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
@@ -437,8 +430,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 
-Jeder Teil des Editors hat einen Weg, der keinen Zeiger braucht. Ein Klick auf einen
-Palettenknoten fügt ihn ohne Ziehen hinzu, jedes reine Icon-Bedienelement trägt
+Jeder Teil des Editors hat einen Weg, der keinen Zeiger braucht. Die Schrittauswahl ist eine Liste, durch die Sie mit den Pfeiltasten gehen und mit Enter wählen, jedes reine Icon-Bedienelement trägt
 eine gesprochene Bezeichnung, und die Zeichenfläche nimmt den Tastaturfokus, sodass
 Sie über ihre Schritte und Verbindungen tabben können. Eine Verbindung lässt sich
 über die Tastatur herstellen: Starten Sie eine an einem Knoten und schließen Sie sie
@@ -474,8 +466,7 @@ Kopieren und Einfügen haben drei Grenzen:
   auszuwählen und zu kopieren bewirkt nichts.
 - **Die Kürzel gehören zur Zeichenfläche.** Sie wirken, solange der Fokus auf der
   Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
-  Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus im Panel **Properties** oder
-  in der Palette, bleiben die Tasten diesen Feldern, klicken Sie also die
+  Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus in den Einstellungen eines Schritts oder in der Schrittauswahl, bleiben die Tasten diesen Feldern, klicken Sie also die
   Zeichenfläche an, bevor Sie sie drücken.
 
 ## Zusammenfassung { #recap }
@@ -483,11 +474,10 @@ Kopieren und Einfügen haben drei Grenzen:
 - Ein Workflow ist **ein Draft, den Sie bearbeiten, und eine veröffentlichte,
   unveränderliche Version, die läuft** — starten Sie einen mit einem Trigger oder
   aus einer Vorlage, und **Duplicate** kopiert einen Draft in einen frischen Workflow.
-- Die **Palette** fügt Schritte per Ziehen oder Klick hinzu; die **Zeichenfläche**
-  verdrahtet sie und lehnt eine Verbindung zwischen inkompatiblen Ports ab.
+- Die **Schrittauswahl** fügt Schritte hinzu - über **+**, den Ausgang eines Schritts oder einen Rechtsklick; die **Zeichenfläche** verdrahtet sie und lehnt eine Verbindung zwischen inkompatiblen Ports ab.
 - Eine Kante legt die **Reihenfolge** fest, Bindings tragen die **Werte**; das Verbinden
   von Ports gleicher Form legt die Bindings für Sie an.
-- Die Inputs eines Knotens sind **ein Literal oder ein Binding** — **Bind** liest
+- Die Inputs eines Knotens sind **ein Wert oder ein Binding** — **From a step** liest
   einen Wert aus einer erreichbaren, typkompatiblen vorgelagerten Ausgabe.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
   ein Banner mit **Overwrite** oder **Reload**.

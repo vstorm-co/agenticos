@@ -1,5 +1,5 @@
 ---
-source_sha: "a92387168cdf"
+source_sha: "9c1a3f3e2325"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -145,7 +145,7 @@ Der Katalog der Automatisierungen, eine Karte pro Workflow: sein Status, wer ihn
 
 ### Der Workflow-Editor { #the-workflow-editor }
 
-Das ganze Fenster ist der Arbeitsbereich: die Palette in der Reihenfolge, in der sich ein Workflow liest, der Graph als Karten, die sagen, wofür jeder Schritt eingerichtet ist, und die Eigenschaften dessen, was ausgewählt ist. Eine Schleife zeigt, wie viele Schritte ihr Körper enthält.
+Die Zeichenfläche hat die ganze Breite: der Graph als Karten, die sagen, wofür jeder Schritt eingerichtet ist oder zu welcher Gruppe er gehört, die Einstellungen eines Schritts in einem Dialog darüber und jeder Schritt zum Hinzufügen einen Klick - oder einen Rechtsklick - entfernt. Eine Schleife zeigt, wie viele Schritte ihr Körper enthält.
 
 ![Der Workflow-Editor](assets/screens/light/workflow-editor.webp#only-light)
 ![Der Workflow-Editor](assets/screens/dark/workflow-editor.webp#only-dark)

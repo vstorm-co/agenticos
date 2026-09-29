@@ -1,5 +1,5 @@
 ---
-source_sha: "a92387168cdf"
+source_sha: "9c1a3f3e2325"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -145,7 +145,7 @@ El catálogo de automatizaciones, una tarjeta por cada una: su estado, quién pu
 
 ### El editor de workflows { #the-workflow-editor }
 
-Toda la ventana es el espacio de trabajo: la paleta en el orden en que se lee un workflow, el grafo como tarjetas que dicen para qué está configurado cada paso, y las propiedades de lo que esté seleccionado. Un bucle muestra cuántos pasos contiene su cuerpo.
+El lienzo tiene todo el ancho: el grafo como tarjetas que dicen para qué está configurado cada paso o a qué grupo pertenece, los ajustes de un paso en un diálogo sobre él, y cada paso por añadir a un clic - o un clic derecho - de distancia. Un bucle muestra cuántos pasos contiene su cuerpo.
 
 ![El editor de workflows](assets/screens/light/workflow-editor.webp#only-light)
 ![El editor de workflows](assets/screens/dark/workflow-editor.webp#only-dark)

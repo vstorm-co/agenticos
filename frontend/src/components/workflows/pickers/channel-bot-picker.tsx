@@ -20,6 +20,8 @@ import { Perm } from "@/types/permissions";
 export interface ChannelBotPickerProps {
   /** What the control is called: the field's own name, or the picker's when it has none. */
   label?: string;
+  /** Offer only this platform's bots - a Slack step's picker lists Slack bots. */
+  platform?: string;
   /** The chosen bot's id, or null while none is. */
   value: string | null;
   onChange: (botId: string | null) => void;
@@ -41,12 +43,14 @@ export function ChannelBotPicker({
   disabled,
   error,
   label,
+  platform,
 }: ChannelBotPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerBotLabel");
   const { can } = usePermissions();
   const mayManage = can(Perm.channelsManage);
-  const { bots, isLoading } = useChannelBots(mayManage);
+  const { bots: every, isLoading } = useChannelBots(mayManage);
+  const bots = platform === undefined ? every : every.filter((bot) => bot.platform === platform);
   const chosen = bots.find((bot) => bot.id === value);
   const orphaned = mayManage && value !== null && !isLoading && chosen === undefined;
 
@@ -67,7 +71,7 @@ export function ChannelBotPicker({
               <span className="flex items-center gap-2">
                 <Bot className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{bot.name}</span>
-                <Badge variant="outline">{bot.platform}</Badge>
+                {platform === undefined && <Badge variant="outline">{bot.platform}</Badge>}
                 {!bot.is_active && <Badge variant="secondary">{t("pickerBotOff")}</Badge>}
               </span>
             </SelectItem>

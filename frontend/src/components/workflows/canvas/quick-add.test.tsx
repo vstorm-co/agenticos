@@ -51,6 +51,8 @@ describe("QuickAdd", () => {
     // A starting step cannot follow another, and a loop's own item only lives in a body.
     expect(screen.queryByText("Input")).toBeNull();
     expect(screen.queryByText("Loop item")).toBeNull();
+    // The two steps that can follow share a group, which opens on a click.
+    await userEvent.click(screen.getByRole("option", { name: /^Data/ }));
     expect(screen.getByText("Download a file")).toBeTruthy();
 
     await userEvent.type(screen.getByPlaceholderText("Search steps"), "notif");

@@ -1,15 +1,17 @@
-# channel.find
+# <platform>.channels.find
 
-Finds channels whose name contains `query`. `channel_id` is a channel the bot
-is in: on Mattermost it names the team to search. Telegram has no channel search
-for a bot, and the step says so.
+`slack.channels.find` and `mattermost.channels.find`. Finds channels whose name
+contains `query`. `channel_id` is a channel the bot is in: on Mattermost it names
+the team to search. There is no Telegram step: Telegram has no channel search
+for a bot.
 
 ## The bot
 
-A bot speaks for the whole organization, so a step that acts as one needs
-`channels:manage`: the graph's author to publish, the run's principal on every
-run. A bot deleted or switched off, or a member who lost the permission, stops
-the step with `CHANNEL_NOT_USABLE`.
+Each platform's step takes a bot of that platform only, checked at publish and
+on every run. A bot speaks for the whole organization, so a step that acts as
+one needs `channels:manage`: the graph's author to publish, the run's principal
+on every run. A bot deleted or switched off, or a member who lost the
+permission, stops the step with `CHANNEL_NOT_USABLE`.
 
 ## Failures
 

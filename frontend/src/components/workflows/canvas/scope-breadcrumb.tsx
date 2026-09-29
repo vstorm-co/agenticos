@@ -58,7 +58,7 @@ export function ScopeBreadcrumb({ catalog }: ScopeBreadcrumbProps) {
   return (
     <nav
       aria-label={t("scopeBreadcrumbLabel")}
-      className="bg-background/90 border-border absolute top-3 left-3 z-10 rounded-lg border px-3 py-1.5 shadow-sm backdrop-blur"
+      className="bg-background/90 border-border rounded-lg border px-3 py-1.5 shadow-sm backdrop-blur"
     >
       <ol className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
         <li>

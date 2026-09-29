@@ -20,7 +20,6 @@ import {
   GitMerge,
   Gauge,
   Globe,
-  Hash,
   ImageIcon,
   ListChecks,
   Library,
@@ -46,117 +45,166 @@ import {
 } from "lucide-react";
 
 /**
- * How a node looks wherever the editor shows one - its palette row, its card on
- * the canvas, the property panel's header - so the three agree.
+ * How a node looks wherever the editor shows one - its card on the canvas, its
+ * row in the step picker, its settings dialog - so they agree.
  *
- * Tinted by what a step touches rather than by its catalog `kind`: an author
- * scans a graph for "where does it call the agent" or "where does it write the
- * table", not for which steps are control nodes. The tints stay low-chroma, the
- * way the rest of the console uses colour.
+ * Every tile is neutral, the way the rest of the console is: the icon says what
+ * a step is, and colour is kept for meaning - an error step's tile is red. A
+ * chat platform's steps carry the platform's own mark, since "which of these is
+ * the Slack one" is the first question asked of a graph.
  */
 
-export type NodeTone =
-  "neutral" | "agent" | "logic" | "data" | "network" | "danger" | "file" | "code";
+import type { ComponentType, SVGProps } from "react";
+
+import { brandMark } from "@/components/icons/brand-icon";
+
+/** An icon a tile draws: a lucide icon, or a brand's mark. */
+export type NodeIcon = LucideIcon | ComponentType<Omit<SVGProps<SVGSVGElement>, "name">>;
+
+export type NodeTone = "neutral" | "danger";
 
 const TONE_CLASS: Record<NodeTone, string> = {
   neutral: "bg-muted text-foreground",
-  agent: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
-  logic: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  data: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  network: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  danger: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-  file: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
-  code: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
+  danger: "bg-destructive/10 text-destructive",
 };
 
-const BY_ID: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
-  "core.input": { icon: Play, tone: "neutral" },
-  "trigger.chat": { icon: MessageSquare, tone: "neutral" },
-  "trigger.webhook": { icon: Webhook, tone: "neutral" },
-  "trigger.schedule": { icon: CalendarClock, tone: "neutral" },
-  "trigger.table_record": { icon: TableProperties, tone: "neutral" },
-  "core.output": { icon: Flag, tone: "neutral" },
-  "logic.if": { icon: GitBranch, tone: "logic" },
-  "logic.merge": { icon: GitMerge, tone: "logic" },
-  "control.foreach": { icon: Repeat, tone: "logic" },
-  "loop.item": { icon: ArrowRightToLine, tone: "logic" },
-  "loop.yield": { icon: ArrowLeftToLine, tone: "logic" },
-  "error.handle": { icon: ShieldAlert, tone: "danger" },
-  "error.raise": { icon: CircleX, tone: "danger" },
-  "http.download": { icon: Download, tone: "network" },
-  "http.upload": { icon: Upload, tone: "network" },
-  "file.read": { icon: FileText, tone: "file" },
-  "file.write": { icon: FilePen, tone: "file" },
-  "text.extract": { icon: ScanText, tone: "file" },
-  "convert.csv_to_json": { icon: ArrowLeftRight, tone: "file" },
-  "convert.json_to_csv": { icon: ArrowLeftRight, tone: "file" },
-  "convert.text_to_file": { icon: File, tone: "file" },
-  "convert.pdf_to_png": { icon: FileImage, tone: "file" },
-  "image.transform": { icon: ImageIcon, tone: "file" },
-  "code.python.simple": { icon: Code2, tone: "code" },
-  "code.python.sandbox": { icon: Terminal, tone: "code" },
-  "code.javascript.sandbox": { icon: FileCode2, tone: "code" },
-  "decide.yes_no": { icon: Scale, tone: "logic" },
-  "decide.choose": { icon: ListChecks, tone: "logic" },
-  "decide.score": { icon: Gauge, tone: "logic" },
-  "table.exists": { icon: TableProperties, tone: "data" },
-  "table.record.exists": { icon: SearchCheck, tone: "data" },
-  "channel.send": { icon: Send, tone: "network" },
-  "channel.read": { icon: MessageSquareText, tone: "network" },
-  "channel.members": { icon: Users, tone: "network" },
-  "channel.find": { icon: Search, tone: "network" },
+const BY_ID: Record<string, NodeIcon> = {
+  "core.input": Play,
+  "trigger.chat": MessageSquare,
+  "trigger.webhook": Webhook,
+  "trigger.schedule": CalendarClock,
+  "trigger.table_record": TableProperties,
+  "core.output": Flag,
+  "logic.if": GitBranch,
+  "logic.merge": GitMerge,
+  "control.foreach": Repeat,
+  "loop.item": ArrowRightToLine,
+  "loop.yield": ArrowLeftToLine,
+  "error.handle": ShieldAlert,
+  "error.raise": CircleX,
+  "http.download": Download,
+  "http.upload": Upload,
+  "file.read": FileText,
+  "file.write": FilePen,
+  "text.extract": ScanText,
+  "convert.csv_to_json": ArrowLeftRight,
+  "convert.json_to_csv": ArrowLeftRight,
+  "convert.text_to_file": File,
+  "convert.pdf_to_png": FileImage,
+  "image.transform": ImageIcon,
+  "code.python.simple": Code2,
+  "code.python.sandbox": Terminal,
+  "code.javascript.sandbox": FileCode2,
+  "decide.yes_no": Scale,
+  "decide.choose": ListChecks,
+  "decide.score": Gauge,
+  "table.exists": TableProperties,
+  "table.record.exists": SearchCheck,
 };
 
-const BY_CATEGORY: Record<string, { icon: LucideIcon; tone: NodeTone }> = {
-  agent: { icon: Bot, tone: "agent" },
-  knowledge: { icon: Library, tone: "agent" },
-  data: { icon: Braces, tone: "data" },
-  tables: { icon: Table2, tone: "data" },
-  files: { icon: File, tone: "file" },
-  code: { icon: Code2, tone: "code" },
-  http: { icon: Globe, tone: "network" },
-  notification: { icon: Bell, tone: "network" },
-  channels: { icon: Hash, tone: "network" },
-  people: { icon: UserCheck, tone: "neutral" },
-  debug: { icon: Bug, tone: "neutral" },
+const BY_CATEGORY: Record<string, NodeIcon> = {
+  triggers: Zap,
+  core: Flag,
+  agent: Bot,
+  decide: Scale,
+  knowledge: Library,
+  data: Braces,
+  tables: Table2,
+  files: File,
+  code: Code2,
+  logic: GitBranch,
+  control: Repeat,
+  error: ShieldAlert,
+  http: Globe,
+  notification: Bell,
+  people: UserCheck,
+  debug: Bug,
 };
 
-/** The order palette groups appear in: how a workflow reads, start to finish. */
-export const CATEGORY_ORDER = [
-  "triggers",
-  "core",
-  "agent",
-  "decide",
-  "people",
-  "knowledge",
-  "data",
-  "tables",
-  "files",
-  "code",
-  "logic",
-  "control",
-  "error",
-  "http",
-  "notification",
-  "channels",
+/** The chat platforms whose steps form a group of their own, drawn with the platform's mark. */
+const PLATFORM_MARKS: Record<string, NodeIcon> = {
+  slack: brandMark("slack"),
+  mattermost: brandMark("mattermost"),
+  telegram: brandMark("telegram"),
+};
+
+/**
+ * What a platform step does, by the operation its id ends with (`slack.message.send`),
+ * in the order a group lists them: acting first, then reading, then looking up.
+ */
+const OPERATION_ICONS: Record<string, NodeIcon> = {
+  "message.send": Send,
+  "messages.read": MessageSquareText,
+  "members.list": Users,
+  "channels.find": Search,
+};
+
+/** Where a step sorts within its group: a platform's operations in their own order. */
+export function operationRank(definitionId: string): number {
+  const operation = definitionId.split(".").slice(1).join(".");
+  const index = Object.keys(OPERATION_ICONS).indexOf(operation);
+  return index === -1 ? Object.keys(OPERATION_ICONS).length : index;
+}
+
+const DANGER_CATEGORIES: ReadonlySet<string> = new Set(["error"]);
+
+/**
+ * The picker's sections, in the order a workflow reads, and the groups under
+ * each. A group is a catalog `category`; a category no section names is shown
+ * last, under its own name.
+ */
+export const PICKER_SECTIONS = [
+  { id: "start", groups: ["triggers"] },
+  { id: "ai", groups: ["agent", "decide", "knowledge"] },
+  { id: "flow", groups: ["logic", "control", "error", "people", "core"] },
+  { id: "data", groups: ["tables", "data", "files", "code"] },
+  { id: "apps", groups: ["slack", "mattermost", "telegram", "http", "notification"] },
 ] as const;
 
-/** Categories a builder never needs in the palette. */
+/** Every group in picker order - what `categoryRank` sorts by. */
+export const CATEGORY_ORDER: readonly string[] = PICKER_SECTIONS.flatMap(
+  (section) => section.groups,
+);
+
+/** Categories a builder never needs in the picker. */
 export const HIDDEN_CATEGORIES: ReadonlySet<string> = new Set(["debug"]);
 
 export interface NodeVisual {
-  icon: LucideIcon;
+  icon: NodeIcon;
   /** Classes for the icon tile: its background and the icon's colour. */
   tileClass: string;
 }
 
-export function nodeVisual(definitionId: string, category: string): NodeVisual {
-  const entry = BY_ID[definitionId] ?? BY_CATEGORY[category] ?? { icon: Zap, tone: "neutral" };
-  return { icon: entry.icon, tileClass: TONE_CLASS[entry.tone] };
+function tile(category: string): string {
+  return TONE_CLASS[DANGER_CATEGORIES.has(category) ? "danger" : "neutral"];
 }
 
-/** Where `category` sorts in the palette; an unknown one goes last, alphabetically. */
+/** How one step is drawn: its own icon, its platform's mark, or its group's icon. */
+export function nodeVisual(definitionId: string, category: string): NodeVisual {
+  const icon = BY_ID[definitionId] ?? PLATFORM_MARKS[category] ?? BY_CATEGORY[category] ?? Zap;
+  return { icon, tileClass: tile(category) };
+}
+
+/**
+ * How one step is drawn among its group's steps in the picker: a platform
+ * step by what it does, since every row beside it carries the same mark.
+ */
+export function operationVisual(definitionId: string, category: string): NodeVisual {
+  if (PLATFORM_MARKS[category] === undefined) return nodeVisual(definitionId, category);
+  const operation = definitionId.split(".").slice(1).join(".");
+  return { icon: OPERATION_ICONS[operation] ?? Zap, tileClass: tile(category) };
+}
+
+/** How a group is drawn in the picker: its platform's mark, or its own icon. */
+export function groupVisual(category: string): NodeVisual {
+  return {
+    icon: PLATFORM_MARKS[category] ?? BY_CATEGORY[category] ?? Zap,
+    tileClass: tile(category),
+  };
+}
+
+/** Where `category` sorts in the picker; an unknown one goes last, alphabetically. */
 export function categoryRank(category: string): number {
-  const index = (CATEGORY_ORDER as readonly string[]).indexOf(category);
+  const index = CATEGORY_ORDER.indexOf(category);
   return index === -1 ? CATEGORY_ORDER.length : index;
 }

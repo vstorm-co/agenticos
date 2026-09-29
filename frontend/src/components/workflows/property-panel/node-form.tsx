@@ -255,6 +255,7 @@ function ResourcePin({
     return (
       <ChannelBotPicker
         label={label}
+        platform={typeof schema["x-platform"] === "string" ? schema["x-platform"] : undefined}
         value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}

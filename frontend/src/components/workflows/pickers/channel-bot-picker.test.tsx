@@ -41,6 +41,13 @@ describe("ChannelBotPicker", () => {
     expect(screen.getByRole("combobox", { name: "Alert bot" })).toBeTruthy();
   });
 
+  it("offers only its platform's bots when the step names one, without the platform badge", async () => {
+    render(<ChannelBotPicker value={null} onChange={vi.fn()} platform="slack" />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Bot" }));
+    expect(screen.getByRole("option", { name: "Ops bot" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /Old bot/ })).toBeNull();
+  });
+
   it("says where to add a bot when there is none, and names a bot that is gone", () => {
     bots.mockReturnValue({ bots: [], isLoading: false });
     const { rerender } = render(<ChannelBotPicker value={null} onChange={vi.fn()} />);
