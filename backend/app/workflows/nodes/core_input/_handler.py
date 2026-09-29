@@ -77,7 +77,7 @@ class InputField(BaseModel):
         return self
 
 
-class ManualTriggerConfig(BaseModel):
+class TriggerInputConfig(BaseModel):
     """The typed fields a run starts with, or none for any JSON object."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -85,7 +85,7 @@ class ManualTriggerConfig(BaseModel):
     fields: list[InputField] = Field(default_factory=list, max_length=MAX_FIELDS)
 
     @model_validator(mode="after")
-    def _names_are_unique(self) -> ManualTriggerConfig:
+    def _names_are_unique(self) -> TriggerInputConfig:
         names = [field.name for field in self.fields]
         if len(set(names)) != len(names):
             raise ValueError("Two fields have the same name")
@@ -141,7 +141,7 @@ def payload_model(fields: list[InputField]) -> type[BaseModel]:
 
 def ports_for(config: BaseModel | None) -> tuple[Port, ...]:
     """`out`, carrying a `payload` typed by the declared fields when there are any."""
-    if not isinstance(config, ManualTriggerConfig) or not config.fields:
+    if not isinstance(config, TriggerInputConfig) or not config.fields:
         return STATIC_PORTS
     typed = create_model(
         "WorkflowInputPayload",
@@ -152,7 +152,7 @@ def ports_for(config: BaseModel | None) -> tuple[Port, ...]:
     return (Port(id="out", label="Out", kind="output", schema=typed),)
 
 
-def input_problems(config: ManualTriggerConfig, run_input: dict[str, Any]) -> list[dict[str, str]]:
+def input_problems(config: TriggerInputConfig, run_input: dict[str, Any]) -> list[dict[str, str]]:
     """What is wrong with `run_input` against the declared fields, one entry a field.
 
     Empty when it fits, or when no fields are declared.

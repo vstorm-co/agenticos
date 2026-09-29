@@ -7,10 +7,11 @@ import { useTranslations } from "next-intl";
 
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { WorkflowCanvas } from "@/components/workflows/canvas";
+import { LiveRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
   ConflictBanner,
   EditorActions,
+  RunButton,
   VersionHistory,
   useRestoreVersion,
 } from "@/components/workflows/editor";
@@ -86,6 +87,8 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const seededId = useRef<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
+  // The test run started from Run, shown on the canvas until the next edit.
+  const [liveRunId, setLiveRunId] = useState<string | null>(null);
 
   useEffect(() => {
     if (workflow && seededId.current !== workflow.id) {
@@ -159,6 +162,9 @@ export default function WorkflowEditorPage({ params }: PageProps) {
               {t("history")}
             </Button>
             {canEdit && (
+              <RunButton workflowId={workflow.id} catalog={nodes} onStarted={setLiveRunId} />
+            )}
+            {canEdit && (
               <EditorActions
                 catalog={nodes}
                 saveDraft={saveDraft.mutateAsync}
@@ -174,7 +180,13 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         className="border-border bg-card relative flex min-h-0 flex-1 overflow-hidden rounded-xl border"
       >
         <div className="relative min-w-0 flex-1">
-          <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
+          {liveRunId === null ? (
+            <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
+          ) : (
+            <LiveRun workflowId={workflow.id} runId={liveRunId} onClose={() => setLiveRunId(null)}>
+              <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!canEdit} />
+            </LiveRun>
+          )}
         </div>
       </div>
       <NodeEditorDialog catalog={nodes} readOnly={!canEdit} />

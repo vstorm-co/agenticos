@@ -1,5 +1,5 @@
 ---
-source_sha: "52656b71f423"
+source_sha: "122bfbfc193a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -46,7 +46,7 @@ abgelehnt.
 
 ### core.input { #core-input }
 
-**Manual or API.** Von Hand, über die API oder über einen WebSocket gestartet. Er gibt
+**API request.** Über eine HTTP-Anfrage oder einen WebSocket gestartet. Seine ID bleibt `core.input`, sodass ein Graph, der geschrieben wurde, bevor Manual und API getrennt waren, weiter über die API startet. Er gibt
 dem Graphen die Eingabe des Runs als `payload`, was auch immer der Aufrufer gesendet
 hat, und nennt die Oberfläche in `triggered_by`.
 
@@ -61,6 +61,12 @@ falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
 Veröffentlichen auf seinen Typ geprüft.
 
 ::: app.workflows.nodes.core_input._handler.InputField
+
+### trigger.manual { #trigger-manual }
+
+**Manual.** Von einer Person gestartet - **Run** im Editor oder **Start a run** auf
+seiner Run-Seite. Er gibt dem Graphen dasselbe wie **API request** und nimmt
+dieselben Eingabefelder, nach denen der Editor vor dem Start fragt.
 
 ### trigger.chat { #trigger-chat }
 

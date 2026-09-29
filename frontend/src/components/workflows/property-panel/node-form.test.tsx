@@ -342,9 +342,12 @@ describe("NodeForm sections", () => {
     expect(screen.queryByText("Configuration")).toBeNull();
   });
 
-  it("gives Manual or API its typed input fields, under what starts it", () => {
-    renderForm({ definition: makeDefinition({ id: "core.input", category: "triggers" }) });
-    expect(screen.getByText(/Start it with Run/)).toBeVisible();
+  it.each([
+    ["trigger.manual", /Start it with Run/],
+    ["core.input", /POST \/api\/v1\/workflow-runs/],
+  ])("gives %s its typed input fields, under how it starts", (id, hint) => {
+    renderForm({ definition: makeDefinition({ id, category: "triggers" }) });
+    expect(screen.getByText(hint)).toBeVisible();
     expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
     expect(screen.queryByText("Configuration")).toBeNull();
   });

@@ -22,7 +22,8 @@ describe("WorkflowCreateDialog", () => {
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy={false} />),
     );
     for (const start of [
-      "Manual or API",
+      "Manual",
+      "API request",
       "Chat message",
       "Webhook",
       "Schedule",

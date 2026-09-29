@@ -1,5 +1,5 @@
 ---
-source_sha: "230d798db3af"
+source_sha: "7bf230937988"
 ---
 
 # Workflows { #workflows }
@@ -19,8 +19,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje pięć wyzwalaczy - **Manual or API**, **Chat
-message**, **Webhook**, **Schedule** i **New table record** - każdy jako poza nim
+**How does it start?** oferuje sześć wyzwalaczy - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **New table record** - każdy jako poza nim
 pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
 **Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
 jeden przyciskiem **Use**, a znajdziesz się w edytorze.
@@ -245,6 +244,13 @@ a zarchiwizowanego workflow nie da się przywrócić. Każde przywrócenie trafi
 
 ## Uruchamianie workflow { #running-a-workflow }
 
+**Run** w nagłówku edytora od razu testuje szkic - `Ctrl`/`Cmd` + `Enter` też -
+najpierw prosząc o pola, które deklaruje wyzwalacz Manual albo API. Run pokazuje się
+potem na kanwie na bieżąco: każdy krok dostaje swój status, próby i błąd, a pasek na
+dole mówi, jak run stoi, z **Open run** do jego strony. Następna edycja go ukrywa.
+**Run** czeka, dopóki zmiana się zapisuje, i mówi, czemu nie może ruszyć, gdy szkic
+ma problemy.
+
 **Runs** w nagłówku edytora i ikona runów na karcie workflow otwierają jego runy,
 od najnowszego, każdy z jego statusem, tym, czy uruchomił draft czy opublikowaną
 wersję, co go uruchomiło, kiedy, jak długo trwał i ile kosztował. **Start a run**
@@ -264,7 +270,7 @@ Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. J
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
 Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma ich pięć: **Manual or API**, **Chat message**,
+**Triggers** na górze wyboru kroków ma ich sześć: **Manual**, **API request**, **Chat message**,
 **Webhook**, **Schedule** i **New table record**. Dodanie jednego do workflow, który
 ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
 wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
@@ -276,7 +282,7 @@ publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
 wyzwalacza, wyłącza stary. **Trigger** w nagłówku edytora pokazuje żywy wyzwalacz i
 jego stan oraz mówi, kiedy szkic startuje inaczej.
 
-Wersję, która startuje od **Manual or API** albo w ogóle bez wyzwalacza, uruchamia
+Wersję, która startuje od **Manual** albo **API request** albo w ogóle bez wyzwalacza, uruchamia
 każdy, kto może ją uruchomić, jako on sam: **Start a run** w Runs,
 [HTTP API](api.md#running-a-workflow) albo WebSocket. Każdy run jest sprawdzany,
 rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiają
@@ -284,8 +290,7 @@ rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiaj�
 przyjmuje dowolny wyzwalacz, a **Start a run** otwiera go z wejściem w kształcie
 tego wyzwalacza.
 
-Daj **Manual or API** jego **pola wejścia**, a run poprosi o to, czego
-potrzebuje: **Start a run** pokazuje formularz z jednym polem na każde pole zamiast
+**Manual** to wyzwalacz, który osoba uruchamia przyciskiem **Run**; **API request** to ten, który wywołuje system, a **Trigger** pokazuje jego endpoint i przykładowe żądanie. Daj któremuś **pola wejścia**, a run poprosi o to, czego potrzebuje: **Run** i **Start a run** pokazują formularz z jednym polem na każde pole zamiast
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
 
@@ -436,7 +441,7 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu.
-- Workflow startuje od jednego węzła **wyzwalacza** - ręcznie lub przez API, od
+- Workflow startuje od jednego węzła **wyzwalacza** - **Manual**, **API request**, od
   wiadomości na czacie, podpisanego **webhooka**, **harmonogramu** albo nowego
   rekordu tabeli - a **publikacja** go włącza i działa jako członek, który publikował.
 - **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą

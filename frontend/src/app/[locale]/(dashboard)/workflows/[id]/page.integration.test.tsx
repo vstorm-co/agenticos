@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkflowDetail } from "@/lib/workflows/types";
@@ -66,6 +66,22 @@ vi.mock("@/components/workflows/canvas", () => ({
   WorkflowCanvas: ({ readOnly = false }: { readOnly?: boolean }) => (
     <div data-testid="canvas" data-readonly={String(readOnly)} />
   ),
+  LiveRun: ({
+    runId,
+    onClose,
+    children,
+  }: {
+    runId: string;
+    onClose: () => void;
+    children: ReactNode;
+  }) => (
+    <div data-testid="live-run" data-run={runId}>
+      <button type="button" onClick={onClose}>
+        hide
+      </button>
+      {children}
+    </div>
+  ),
 }));
 vi.mock("@/components/workflows/node-editor", () => ({
   NodeEditorDialog: ({ readOnly = false }: { readOnly?: boolean }) => (
@@ -75,6 +91,11 @@ vi.mock("@/components/workflows/node-editor", () => ({
 vi.mock("@/components/workflows/editor", () => ({
   ConflictBanner: () => <div data-testid="conflict-banner" />,
   EditorActions: () => <div data-testid="editor-actions" />,
+  RunButton: ({ onStarted }: { onStarted: (runId: string) => void }) => (
+    <button type="button" data-testid="run-button" onClick={() => onStarted("run-1")}>
+      run
+    </button>
+  ),
   VersionHistory: ({ onRestore }: { onRestore?: unknown }) => (
     <div data-testid="version-history" data-restorable={String(onRestore !== undefined)} />
   ),
@@ -115,10 +136,21 @@ describe("the workflow editor page permission gate", () => {
     const canvas = await screen.findByTestId("canvas");
     expect(canvas).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("editor-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("run-button")).toBeInTheDocument();
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("conflict-banner")).toBeInTheDocument();
     await openHistory();
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "true");
+  });
+
+  it("shows a run started from Run on the canvas until it is hidden", async () => {
+    state.canEdit = true;
+    await renderPage();
+    await userEvent.click(await screen.findByTestId("run-button"));
+    expect(screen.getByTestId("live-run")).toHaveAttribute("data-run", "run-1");
+    expect(screen.getByTestId("canvas")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "hide" }));
+    expect(screen.queryByTestId("live-run")).not.toBeInTheDocument();
   });
 
   it("gives a view-only caller a read-only editor with no edit chrome", async () => {

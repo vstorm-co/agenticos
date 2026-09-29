@@ -1,5 +1,5 @@
 ---
-source_sha: "230d798db3af"
+source_sha: "7bf230937988"
 ---
 
 # Workflows { #workflows }
@@ -19,7 +19,7 @@ sí no tiene recorrido.
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece los cinco triggers - **Manual or API**,
+plantilla. **How does it start?** ofrece seis triggers - **Manual**, **API request**,
 **Chat message**, **Webhook**, **Schedule** y **New table record** -, cada uno un
 lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
 listos — **Starter**, un único paso para
@@ -253,6 +253,13 @@ workflow archivado no se puede restaurar. Cada restauración queda en el
 
 ## Ejecutar un workflow { #running-a-workflow }
 
+**Run**, en la cabecera del editor, prueba el draft al momento - `Ctrl`/`Cmd` +
+`Enter` también -, pidiendo antes los campos que declara un trigger Manual o API. El
+run aparece luego en el lienzo mientras ocurre: cada paso toma su estado, sus
+intentos y su error, y una barra abajo dice cómo va el run, con **Open run** para su
+página. La siguiente edición lo oculta. **Run** espera mientras un cambio se sigue
+guardando, y dice por qué no puede ejecutarse mientras el draft tenga problemas.
+
 **Runs** en la cabecera del editor, y el icono de runs en la tarjeta de un
 workflow, abren sus runs, del más reciente al más antiguo, cada uno con su estado, si
 ejecutó el draft o la versión publicada, qué lo inició, cuándo, cuánto duró y cuánto
@@ -274,7 +281,7 @@ renderizada, la salida de un script -, cada uno descargable.
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
 Un workflow empieza por un **trigger**, el primer nodo de su lienzo. El grupo
-**Triggers**, arriba en el selector de pasos, tiene cinco: **Manual or API**, **Chat message**,
+**Triggers**, arriba en el selector de pasos, tiene seis: **Manual**, **API request**, **Chat message**,
 **Webhook**, **Schedule** y **New table record**. Añadir uno a un workflow que ya
 tiene trigger sustituye el anterior en su mismo sitio, y las conexiones y los
 bindings que salían del anterior salen del nuevo. **New workflow** empieza un
@@ -286,15 +293,14 @@ siguiente publicación los pasa a la nueva versión. Una publicación que empiez
 otro trigger apaga el anterior. **Trigger**, en la cabecera del editor, muestra el
 trigger en vivo y su estado, y avisa cuando el draft empieza de otra forma.
 
-Una versión que empieza por **Manual or API**, o sin ningún trigger, la inicia quien
+Una versión que empieza por **Manual** o **API request**, o sin ningún trigger, la inicia quien
 pueda ejecutarla, como sí mismo: **Start a run** en Runs, la
 [API HTTP](api.md#running-a-workflow) o un WebSocket. Cada run se comprueba, factura y
 audita como uno iniciado aquí. Esas vías no inician ningún otro trigger, y cada otro
 trigger tiene la suya. Un run de prueba del draft acepta cualquier trigger, y **Start
 a run** lo abre con una entrada con la forma de ese trigger.
 
-Dale a **Manual or API** sus **campos de entrada** y un run pide lo que
-necesita: **Start a run** muestra un formulario con una casilla por campo en lugar
+**Manual** es el trigger que una persona inicia con **Run**; **API request** es el que llama un sistema, y **Trigger** muestra su endpoint y una petición de ejemplo. Dale a cualquiera de los dos **campos de entrada** y un run pide lo que necesita: **Run** y **Start a run** muestran un formulario con una casilla por campo en lugar
 del JSON, con el tipo del campo, y una llamada a la API cuya entrada no encaja se
 rechaza con los campos que están mal. Consulta
 [core.input](reference/workflow-nodes.md#core-input).

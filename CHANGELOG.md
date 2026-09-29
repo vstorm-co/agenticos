@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Run a workflow from its editor, and watch it happen.** **Run** in the editor's
+  header, or `Ctrl`/`Cmd` + `Enter`, tests the draft at once - asking first for
+  the fields its trigger declares - and the run shows on the canvas as it goes:
+  each step's status, tries and error, with a bar that opens the run's page. The
+  trigger a person starts is now **Manual**, separate from **API request** (the
+  former Manual or API, whose graphs keep starting from the API); both take
+  typed input fields (#1932, #1933).
 - **A workflow step that asks a person.** **Ask for approval** stops a run
   until someone approves or rejects what it is about to do, then goes on by the
   answer. The request shows its title and the details bound to it in the

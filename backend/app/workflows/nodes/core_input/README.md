@@ -1,9 +1,11 @@
 # core.input
 
-The manual trigger: a run started by hand, from the HTTP API or over the
-workflow-run WebSocket. Named **Manual or API** in the editor; the other ways in
-are triggers of their own (`trigger.chat`, `trigger.webhook`, `trigger.schedule`,
-`trigger.table_record`). It hands the graph what the run was started with:
+The API trigger: a run started by an HTTP request (`POST /workflow-runs`) or over
+the workflow-run WebSocket. Named **API request** in the editor; a run started by
+a person clicking Run is `trigger.manual`, and the other ways in are triggers of
+their own (`trigger.chat`, `trigger.webhook`, `trigger.schedule`,
+`trigger.table_record`). The id stays `core.input`, so every graph written
+before the two were split keeps starting from the API. It hands the graph what the run was started with:
 `payload` (whatever the invoking surface supplied) and `triggered_by` (which
 surface that was: `api`, `chat`, `webhook`, `schedule`, `table_created`, ...).
 
@@ -21,7 +23,7 @@ that binding is checked against the target field when the node is dispatched. A
 value that does not fit fails the run with `INVALID_BINDING` instead of reaching
 the handler as the wrong type.
 
-Declared `fields` (`ManualTriggerConfig`) make the payload a contract. Each has
+Declared `fields` (`TriggerInputConfig`) make the payload a contract. Each has
 a `name`, a `type` - `text`, `number`, `integer`, `boolean`, `date` (ISO
 `YYYY-MM-DD`) or `choice` among its `options` - and whether it is `required`.
 `input_problems` checks a run's input against them strictly before the run is

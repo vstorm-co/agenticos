@@ -39,6 +39,7 @@ import {
 
 import {
   CHAT_TRIGGER,
+  BY_HAND_TRIGGERS,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   WEBHOOK_TRIGGER,
@@ -711,10 +712,12 @@ export function NodeForm({
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
     );
   }
-  if (definition.id === MANUAL_TRIGGER) {
+  if (BY_HAND_TRIGGERS.has(definition.id)) {
     return (
       <div className="space-y-4">
-        <p className="text-muted-foreground text-xs">{t("triggerHintManual")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t(definition.id === MANUAL_TRIGGER ? "triggerHintManual" : "triggerHintApi")}
+        </p>
         <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
       </div>
     );

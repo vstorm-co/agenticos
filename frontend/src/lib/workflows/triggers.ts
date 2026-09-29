@@ -11,11 +11,16 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
 
 export const TRIGGER_CATEGORY = "triggers";
 
-export const MANUAL_TRIGGER = "core.input";
+export const MANUAL_TRIGGER = "trigger.manual";
+/** Started by an HTTP request or a WebSocket - the id every graph before the split used. */
+export const API_TRIGGER = "core.input";
 export const CHAT_TRIGGER = "trigger.chat";
 export const WEBHOOK_TRIGGER = "trigger.webhook";
 export const SCHEDULE_TRIGGER = "trigger.schedule";
 export const TABLE_RECORD_TRIGGER = "trigger.table_record";
+
+/** The triggers a person or a caller starts, and the ones that may declare input fields. */
+export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
 
 /** Whether a catalog entry is a trigger - a way a run of the workflow begins. */
 export function isTrigger(definition: Pick<NodeDefinition, "category"> | null): boolean {
@@ -32,11 +37,11 @@ export function triggerNodeOf(
 
 /**
  * Whether a live version starting from `liveTrigger` is started by a member
- * pressing Run or calling the API: `core.input`, or a graph whose entry is no
+ * pressing Run or calling the API: Manual, API, or a graph whose entry is no
  * trigger. Every other trigger has its own surface.
  */
 export function startsByHand(liveTrigger: string | null): boolean {
-  return liveTrigger === null || liveTrigger === MANUAL_TRIGGER;
+  return liveTrigger === null || BY_HAND_TRIGGERS.has(liveTrigger);
 }
 
 /** A stand-in id for a sample's conversation or record: a test run has none to name. */
@@ -71,10 +76,12 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
 }
 
 /**
- * The typed fields a run of `graph` starts with: those its "Manual or API"
- * entry declares, or none - for any other entry, or a graph not loaded yet.
+ * The typed fields a run of `graph` starts with: those its Manual or API entry
+ * declares, or none - for any other entry, or a graph not loaded yet.
  */
 export function declaredFields(graph: WorkflowGraph | null | undefined): InputField[] {
   const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
-  return entry?.definition_id === MANUAL_TRIGGER ? inputFieldsOf(entry.config) : [];
+  return entry !== undefined && BY_HAND_TRIGGERS.has(entry.definition_id)
+    ? inputFieldsOf(entry.config)
+    : [];
 }

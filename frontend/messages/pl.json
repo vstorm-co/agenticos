@@ -882,8 +882,8 @@
       "startHeading": "Jak ma się zaczynać?",
       "start": {
         "manual": {
-          "name": "Ręcznie lub przez API",
-          "description": "Uruchamiasz go z konsoli, przez API lub WebSocket, z danymi, które podasz."
+          "name": "Manual",
+          "description": "Uruchamiasz go sam przyciskiem Run, w edytorze albo na stronie runów."
         },
         "chat": {
           "name": "Wiadomość na czacie",
@@ -900,6 +900,10 @@
         "tableRecord": {
           "name": "Nowy rekord w tabeli",
           "description": "Rekord dodany do tabeli uruchamia run z tym rekordem."
+        },
+        "api": {
+          "name": "API request",
+          "description": "Uruchamiany żądaniem HTTP albo przez WebSocket, z wejściem, które zadeklarujesz."
         }
       },
       "startRunOptional": "opcjonalne",
@@ -910,7 +914,16 @@
         "integer": "To musi być liczba całkowita.",
         "date": "To musi być data.",
         "choice": "Wybierz jedną z opcji."
-      }
+      },
+      "exposureManualDescription": "Uruchamia go osoba przyciskiem Run w edytorze albo Start a run na stronie runów.",
+      "runDraft": "Run",
+      "runHint": "Przetestuj draft teraz (Ctrl lub Cmd + Enter)",
+      "runNeedsSteps": "Najpierw dodaj krok",
+      "runBlockedByProblems": "{count, plural, one {Najpierw popraw # problem} few {Najpierw popraw # problemy} many {Najpierw popraw # problemów} other {Najpierw popraw # problemu}}",
+      "liveRunTitle": "Test run",
+      "liveRunSteps": "{count, plural, one {# krok gotowy} few {# kroki gotowe} many {# kroków gotowych} other {# kroku gotowego}}",
+      "liveRunOpen": "Otwórz run",
+      "liveRunClose": "Ukryj run"
     }
   },
   "rag": {
@@ -3625,7 +3638,7 @@
     "duplicated": "Zduplikowano workflow",
     "publishedVersion": "Opublikowana wersja {version}",
     "validationTriggerNotEntry": "Workflow startuje od jednego wyzwalacza. Usuń ten albo dodaj go z palety, żeby zastąpił obecny.",
-    "triggerHintManual": "Uruchamiasz go przyciskiem Uruchom, przez API lub WebSocket. Kolejne kroki czytają dane startowe runa jako payload.",
+    "triggerHintManual": "Uruchom go przyciskiem Run w prawym górnym rogu edytora albo ze strony runów. Zadeklaruj pola, żeby prosił o nie przy starcie.",
     "triggerHintChat": "Członkowie wybierają ten workflow w czacie. Kolejne kroki czytają wiadomość jako prompt, razem z rozmową i nadawcą.",
     "triggerHintWebhook": "Publikacja daje temu workflow własny adres i sekret do podpisu, które zostają takie same przy kolejnych publikacjach. Kolejne kroki czytają JSON dostawy jako body.",
     "publishTrigger": "Startuje od: {trigger}. Webhook, harmonogram lub wyzwalacz tabeli po publikacji działa jako Ty.",
@@ -3717,7 +3730,8 @@
     "menuFitView": "Dopasuj do widoku",
     "cardTrigger": "Wyzwalacz",
     "bindingModeValue": "Wartość",
-    "bindingModeStep": "Z kroku"
+    "bindingModeStep": "Z kroku",
+    "triggerHintApi": "Uruchom go przez POST /api/v1/workflow-runs albo przez WebSocket runów. Pełne żądanie pokazuje Trigger. Kolejne kroki czytają wejście jako payload."
   },
   "artifacts": {
     "title": "Artefakty",

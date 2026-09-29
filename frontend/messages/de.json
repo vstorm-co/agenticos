@@ -4620,8 +4620,8 @@
       "startHeading": "Wie startet er?",
       "start": {
         "manual": {
-          "name": "Manuell oder per API",
-          "description": "Starten Sie ihn in der Konsole, per API oder WebSocket, mit der Eingabe, die Sie mitgeben."
+          "name": "Manual",
+          "description": "Sie starten ihn selbst mit Run, im Editor oder auf seiner Run-Seite."
         },
         "chat": {
           "name": "Chatnachricht",
@@ -4638,6 +4638,10 @@
         "tableRecord": {
           "name": "Neuer Tabellendatensatz",
           "description": "Ein zu einer Tabelle hinzugefügter Datensatz startet einen Run mit diesem Datensatz."
+        },
+        "api": {
+          "name": "API request",
+          "description": "Gestartet über eine HTTP-Anfrage oder einen WebSocket, mit der Eingabe, die Sie deklarieren."
         }
       },
       "startRunOptional": "optional",
@@ -4648,7 +4652,16 @@
         "integer": "Das muss eine ganze Zahl sein.",
         "date": "Das muss ein Datum sein.",
         "choice": "Wähle eine der Optionen."
-      }
+      },
+      "exposureManualDescription": "Eine Person startet ihn mit Run im Editor oder mit Start a run auf seiner Run-Seite.",
+      "runDraft": "Run",
+      "runHint": "Den Draft jetzt testen (Strg oder Cmd + Enter)",
+      "runNeedsSteps": "Zuerst einen Schritt hinzufügen",
+      "runBlockedByProblems": "{count, plural, one {Zuerst # Problem beheben} other {Zuerst # Probleme beheben}}",
+      "liveRunTitle": "Testlauf",
+      "liveRunSteps": "{count, plural, one {# Schritt fertig} other {# Schritte fertig}}",
+      "liveRunOpen": "Run öffnen",
+      "liveRunClose": "Run ausblenden"
     }
   },
   "profile": {
@@ -5832,7 +5845,7 @@
     "duplicated": "Workflow dupliziert",
     "publishedVersion": "Veröffentlichte Version {version}",
     "validationTriggerNotEntry": "Ein Workflow startet mit einem Auslöser. Löschen Sie diesen, oder fügen Sie ihn aus der Palette hinzu, um den aktuellen zu ersetzen.",
-    "triggerHintManual": "Starten Sie ihn mit Ausführen, per API oder über einen WebSocket. Die folgenden Schritte lesen die Starteingabe des Runs als payload.",
+    "triggerHintManual": "Starten Sie ihn mit Run oben rechts im Editor oder auf seiner Run-Seite. Deklarieren Sie Felder, um beim Start nach ihnen gefragt zu werden.",
     "triggerHintChat": "Mitglieder wählen diesen Workflow im Chat. Die folgenden Schritte lesen die Nachricht als prompt, mit der Unterhaltung und dem Absender.",
     "triggerHintWebhook": "Die Veröffentlichung gibt diesem Workflow eine eigene Adresse und ein Signatur-Secret, die bei weiteren Veröffentlichungen gleich bleiben. Die folgenden Schritte lesen das JSON der Zustellung als body.",
     "publishTrigger": "Er startet mit {trigger}. Ein Webhook, Zeitplan oder Tabellenauslöser läuft nach der Veröffentlichung als Sie.",
@@ -5924,7 +5937,8 @@
     "menuFitView": "An Ansicht anpassen",
     "cardTrigger": "Auslöser",
     "bindingModeValue": "Wert",
-    "bindingModeStep": "Aus einem Schritt"
+    "bindingModeStep": "Aus einem Schritt",
+    "triggerHintApi": "Starten Sie ihn mit POST /api/v1/workflow-runs oder über den Run-WebSocket. Trigger zeigt die ganze Anfrage. Die folgenden Schritte lesen die Eingabe als payload."
   },
   "artifacts": {
     "title": "Artefakte",

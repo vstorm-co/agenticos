@@ -3598,8 +3598,8 @@
       "startHeading": "How does it start?",
       "start": {
         "manual": {
-          "name": "Manual or API",
-          "description": "Run it from the console, the API or a WebSocket, with the input you give."
+          "name": "Manual",
+          "description": "Start it yourself with Run, from the editor or its runs page."
         },
         "chat": {
           "name": "Chat message",
@@ -3616,6 +3616,10 @@
         "tableRecord": {
           "name": "New table record",
           "description": "A record added to a table starts a run with that record."
+        },
+        "api": {
+          "name": "API request",
+          "description": "Start it from an HTTP request or over a WebSocket, with the input you declare."
         }
       },
       "startRunOptional": "optional",
@@ -3626,7 +3630,16 @@
         "integer": "This has to be a whole number.",
         "date": "This has to be a date.",
         "choice": "Choose one of the options."
-      }
+      },
+      "exposureManualDescription": "A person starts it with Run in the editor or Start a run on its runs page.",
+      "runDraft": "Run",
+      "runHint": "Test the draft now (Ctrl or Cmd + Enter)",
+      "runNeedsSteps": "Add a step first",
+      "runBlockedByProblems": "{count, plural, one {Fix # problem first} other {Fix # problems first}}",
+      "liveRunTitle": "Test run",
+      "liveRunSteps": "{count, plural, one {# step done} other {# steps done}}",
+      "liveRunOpen": "Open run",
+      "liveRunClose": "Hide the run"
     },
     "retention": {
       "title": "Data retention",
@@ -5973,7 +5986,7 @@
     "bindingPathPlaceholder": "for example record_id or fields.Email",
     "bindingJsonInvalid": "This is not valid JSON, so it was not saved.",
     "validationTriggerNotEntry": "A workflow starts from one trigger. Delete this one, or add it from the palette to replace the current one.",
-    "triggerHintManual": "Start it with Run, from the API or over a WebSocket. The steps after it read what the run was started with as payload.",
+    "triggerHintManual": "Start it with Run - at the editor's top right - or from its runs page. Declare fields to be asked for them when it starts.",
     "triggerHintChat": "Members pick this workflow in the chat. The steps after it read the message as prompt, with the conversation and who sent it.",
     "triggerHintWebhook": "Publishing gives this workflow its own address and signing secret, which stay the same when you publish again. The steps after it read the delivery's JSON as body.",
     "publishTrigger": "It starts from {trigger}. A webhook, schedule or table trigger runs as you once it is published.",
@@ -6065,7 +6078,8 @@
     "menuFitView": "Fit to view",
     "cardTrigger": "Trigger",
     "bindingModeValue": "Value",
-    "bindingModeStep": "From a step"
+    "bindingModeStep": "From a step",
+    "triggerHintApi": "Start it with POST /api/v1/workflow-runs, or over the run WebSocket. Trigger shows the full request. The steps after it read the input as payload."
   },
   "artifacts": {
     "title": "Artifacts",

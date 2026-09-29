@@ -1,5 +1,5 @@
 ---
-source_sha: "52656b71f423"
+source_sha: "122bfbfc193a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -44,7 +44,7 @@ grafo, se rechaza al publicar.
 
 ### core.input { #core-input }
 
-**Manual or API.** Se inicia a mano, desde la API o por un WebSocket. Entrega al grafo
+**API request.** Se inicia con una petición HTTP o por un WebSocket. Su id sigue siendo `core.input`, así que un grafo escrito antes de que Manual y API se separaran sigue empezando desde la API. Entrega al grafo
 la entrada del run como `payload`, lo que haya enviado quien llama, y nombra la
 superficie en `triggered_by`.
 
@@ -59,6 +59,12 @@ equivocado o uno no declarado se rechaza antes de empezar con
 al publicar.
 
 ::: app.workflows.nodes.core_input._handler.InputField
+
+### trigger.manual { #trigger-manual }
+
+**Manual.** Lo inicia una persona - **Run** en el editor, o **Start a run** en su
+página de runs. Entrega al grafo lo mismo que **API request** y acepta los mismos
+campos de entrada, que el editor pide antes de empezar el run.
 
 ### trigger.chat { #trigger-chat }
 

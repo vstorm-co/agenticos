@@ -148,6 +148,7 @@ def load_builtins() -> None:
         table_record_upsert,
         text_extract,
         trigger_chat,
+        trigger_manual,
         trigger_schedule,
         trigger_table_record,
         trigger_webhook,

@@ -64,8 +64,8 @@ from app.services.workflow_execution.exceptions import (
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
-from app.workflows.nodes.core_input._handler import ManualTriggerConfig, input_problems
-from app.workflows.triggers import CHAT, MANUAL
+from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
+from app.workflows.triggers import BY_HAND, CHAT
 
 logger = logging.getLogger(__name__)
 
@@ -101,18 +101,18 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
-    """Refuse `payload` when the graph's "Manual or API" entry declares fields it does not fit.
+    """Refuse `payload` when the graph's Manual or API entry declares fields it does not fit.
 
     Raises:
         WorkflowRunInputInvalidError: A declared field is missing or of the
             wrong type, or the payload has one that is not declared.
     """
     entry = graph.node_by_id[graph.entry_node_id]
-    if entry.definition_id != MANUAL:
+    if entry.definition_id not in BY_HAND:
         return
     # The graph passed `validate_graph` - at publish, or just now for a draft -
     # so its config fits.
-    problems = input_problems(ManualTriggerConfig.model_validate(entry.config), payload)
+    problems = input_problems(TriggerInputConfig.model_validate(entry.config), payload)
     if problems:
         raise WorkflowRunInputInvalidError(problems=problems)
 
@@ -143,11 +143,11 @@ def _read(run: WorkflowRun) -> WorkflowRunRead:
 
 
 # The triggers each door a member stands at starts in `real` mode. A version
-# whose entry is no trigger starts by hand, as `core.input` does. The unattended
+# whose entry is no trigger starts by hand, as Manual and API do. The unattended
 # doors - webhook, schedule, table - run only the version that switched them on.
 _DOOR_TRIGGERS: dict[WorkflowRunTrigger, frozenset[str | None]] = {
-    WorkflowRunTrigger.API: frozenset({None, MANUAL}),
-    WorkflowRunTrigger.WEBSOCKET: frozenset({None, MANUAL}),
+    WorkflowRunTrigger.API: frozenset({None, *BY_HAND}),
+    WorkflowRunTrigger.WEBSOCKET: frozenset({None, *BY_HAND}),
     WorkflowRunTrigger.CHAT: frozenset({CHAT}),
 }
 
@@ -196,12 +196,12 @@ class WorkflowExecutionService:
                 or `test` mode with no valid, structurally sound draft graph.
             WorkflowTriggerMismatchError: `real` mode through a door the live
                 version's trigger is not - the API or a WebSocket for a workflow
-                that starts from anything but "Manual or API", the chat for one
+                that starts from anything but Manual or API, the chat for one
                 that does not start from a chat message.
             WorkflowRunInputTooLargeError: `run_input` is over
                 `WORKFLOW_RUN_MAX_INPUT_BYTES`.
             WorkflowRunInputInvalidError: The version being run starts from
-                "Manual or API" with declared fields, and `run_input` does not
+                Manual or API with declared fields, and `run_input` does not
                 fit them.
             WorkflowAdmissionQuotaError: Admitting this run would push the
                 organization's or the caller's outstanding node work past its

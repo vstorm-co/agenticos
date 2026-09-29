@@ -1,5 +1,5 @@
 ---
-source_sha: "52656b71f423"
+source_sha: "122bfbfc193a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -43,7 +43,7 @@ zaczyna, jest odrzucany przy publikacji.
 
 ### core.input { #core-input }
 
-**Manual or API.** Uruchamiany ręcznie, przez API albo przez WebSocket. Przekazuje
+**API request.** Uruchamiany żądaniem HTTP albo przez WebSocket. Jego id pozostaje `core.input`, więc graf zapisany, zanim Manual i API się rozdzieliły, dalej startuje z API. Przekazuje
 grafowi wejście runa jako `payload`, cokolwiek wysłał wywołujący, i nazywa
 powierzchnię w `triggered_by`.
 
@@ -57,6 +57,12 @@ jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
 `payload.<pole>` jest sprawdzany pod kątem typu przy publikacji.
 
 ::: app.workflows.nodes.core_input._handler.InputField
+
+### trigger.manual { #trigger-manual }
+
+**Manual.** Uruchamia go osoba - **Run** w edytorze albo **Start a run** na stronie
+runów. Przekazuje grafowi to samo, co **API request**, i przyjmuje te same pola
+wejścia, o które edytor prosi przed startem runa.
 
 ### trigger.chat { #trigger-chat }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "230d798db3af"
+source_sha: "7bf230937988"
 ---
 
 # Workflows { #workflows }
@@ -19,8 +19,7 @@ abspielt; der Editor selbst hat keine Führung.
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
 **New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet die fünf Trigger an - **Manual or
-API**, **Chat message**, **Webhook**, **Schedule** und **New table record** -, jeder
+beginnen lässt. **How does it start?** bietet sechs Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **New table record** -, jeder
 eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
 Ausgangspunkte — **Starter**, ein
 einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
@@ -280,6 +279,14 @@ festgehalten.
 
 ## Einen Workflow ausführen { #running-a-workflow }
 
+**Run** in der Kopfzeile des Editors testet den Draft sofort - `Strg`/`Cmd` +
+`Enter` ebenso - und fragt zuerst nach den Feldern, die ein Manual- oder API-Trigger
+deklariert. Der Run erscheint dann live auf der Zeichenfläche: Jeder Schritt zeigt
+Status, Versuche und Fehler, und eine Leiste unten sagt, wie der Run steht, mit **Open
+run** für seine Seite. Die nächste Bearbeitung blendet ihn aus. **Run** wartet,
+solange eine Änderung noch gespeichert wird, und sagt, warum er nicht laufen kann,
+solange der Draft Probleme hat.
+
 **Runs** in der Kopfzeile des Editors und das Runs-Icon auf der Karte eines
 Workflows öffnen seine Runs, die neuesten zuerst, jeder mit seinem Status, ob er den
 Draft oder die veröffentlichte Version ausgeführt hat, was ihn gestartet hat, wann,
@@ -302,8 +309,7 @@ gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
 Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält fünf: **Manual or
-API**, **Chat message**, **Webhook**, **Schedule** und **New table record**. Einen
+Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sechs: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **New table record**. Einen
 davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
 seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
 den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
@@ -316,7 +322,7 @@ Version. Eine Veröffentlichung, die mit einem anderen Trigger startet, schaltet
 alten ab. **Trigger** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
 Zustand und sagt, wann der Draft anders startet.
 
-Eine Version, die mit **Manual or API** oder ganz ohne Trigger startet, startet jeder,
+Eine Version, die mit **Manual** oder **API request** oder ganz ohne Trigger startet, startet jeder,
 der sie ausführen darf, als er selbst: **Start a run** unter Runs, die
 [HTTP-API](api.md#running-a-workflow) oder ein WebSocket. Jeder Run wird geprüft,
 abgerechnet und auditiert wie ein hier gestarteter. Diese Wege starten keinen anderen
@@ -324,8 +330,7 @@ Trigger, und jeder andere Trigger hat einen eigenen. Ein Test-Run des Drafts nim
 jeden Trigger, und **Start a run** öffnet ihn mit einer Eingabe in der Form dieses
 Triggers.
 
-Gib **Manual or API** seine **Eingabefelder**, und ein Run fragt nach dem,
-was er braucht: **Start a run** zeigt statt des JSON ein Formular mit einem Feld je
+**Manual** ist der Trigger, den eine Person mit **Run** startet; **API request** ist der, den ein System aufruft, und **Trigger** zeigt seinen Endpunkt und eine Beispielanfrage. Gib einem von beiden **Eingabefelder**, und ein Run fragt nach dem, was er braucht: **Run** und **Start a run** zeigen statt des JSON ein Formular mit einem Feld je
 Eingabefeld, so typisiert wie dieses, und ein API-Aufruf, dessen Eingabe nicht passt,
 wird mit den falschen Feldern abgelehnt. Siehe
 [core.input](reference/workflow-nodes.md#core-input).

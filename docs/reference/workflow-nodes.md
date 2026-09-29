@@ -38,9 +38,7 @@ starts, is refused at publish.
 
 ### core.input { #core-input }
 
-**Manual or API.** Started by hand, from the API or over a WebSocket. It hands the
-graph the run's input as `payload`, whatever the caller sent, and names the surface
-in `triggered_by`.
+**API request.** Started from an HTTP request or over a WebSocket. It hands the graph the run's input as `payload`, whatever the caller sent, and names the surface in `triggered_by`. Its id stays `core.input`, so a graph written before Manual and API were separate still starts from the API.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
@@ -52,6 +50,12 @@ is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
 
 ::: app.workflows.nodes.core_input._handler.InputField
+
+### trigger.manual { #trigger-manual }
+
+**Manual.** Started by a person - **Run** in the editor, or **Start a run** on its
+runs page. It hands the graph what **API request** does and takes the same input
+fields, which the editor asks for before the run starts.
 
 ### trigger.chat { #trigger-chat }
 

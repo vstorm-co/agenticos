@@ -313,16 +313,20 @@ class TestStart:
         create_run.assert_not_awaited()
 
     @pytest.mark.security
-    async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(self):
+    @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(
+        self, trigger_id
+    ):
         entry = NodeInstance(
             id=uuid.uuid4(),
-            definition_id="core.input",
+            definition_id=trigger_id,
             definition_version=1,
             config={"fields": [{"name": "seats", "type": "integer"}]},
             layout=NodePosition(x=0, y=0),
         )
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
-        workflow = _workflow()
+        # A Manual workflow is started through the API's door too - by the console.
+        workflow = _workflow(live_trigger=trigger_id)
         version = _version(graph=graph.model_dump(mode="json"))
 
         service = WorkflowExecutionService(MagicMock())

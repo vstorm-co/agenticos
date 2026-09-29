@@ -20,7 +20,7 @@ from app.workflows.graph.model import Edge, NodeInstance, NodePosition, Workflow
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.core_input._handler import (
     STATIC_PORTS,
-    ManualTriggerConfig,
+    TriggerInputConfig,
     input_problems,
     ports_for,
 )
@@ -39,13 +39,13 @@ FIELDS: list[dict[str, Any]] = [
 FITS = {"email": "ada@example.com", "seats": 3, "urgent": False, "plan": "pro"}
 
 
-def _config(fields: list[dict[str, Any]] = FIELDS) -> ManualTriggerConfig:
-    return ManualTriggerConfig.model_validate({"fields": fields})
+def _config(fields: list[dict[str, Any]] = FIELDS) -> TriggerInputConfig:
+    return TriggerInputConfig.model_validate({"fields": fields})
 
 
 class TestTheConfig:
     def test_no_fields_is_the_default_every_existing_graph_has(self):
-        assert ManualTriggerConfig.model_validate({}).fields == []
+        assert TriggerInputConfig.model_validate({}).fields == []
 
     @pytest.mark.parametrize(
         ("fields", "says"),
@@ -69,7 +69,7 @@ class TestTheRunsInput:
     def test_an_input_that_fits_has_no_problems_and_no_fields_takes_anything(self):
         assert input_problems(_config(), FITS) == []
         assert input_problems(_config(), {**FITS, "price": 9, "due": "2026-10-01"}) == []
-        assert input_problems(ManualTriggerConfig(), {"anything": [1]}) == []
+        assert input_problems(TriggerInputConfig(), {"anything": [1]}) == []
 
     @pytest.mark.parametrize(
         ("change", "field"),
@@ -111,7 +111,7 @@ class TestTheRunsInput:
 
 class TestThePort:
     def test_with_no_fields_the_payload_stays_open(self):
-        assert ports_for(ManualTriggerConfig()) is STATIC_PORTS
+        assert ports_for(TriggerInputConfig()) is STATIC_PORTS
         assert ports_for(None) is STATIC_PORTS
 
     def test_with_fields_the_payload_is_typed_by_them(self):
@@ -126,9 +126,11 @@ def _pos() -> NodePosition:
     return NodePosition(x=0, y=0)
 
 
-def _graph(config: dict[str, Any], field_path: tuple[str, ...]) -> WorkflowGraph:
+def _graph(
+    config: dict[str, Any], field_path: tuple[str, ...], trigger_id: str = "core.input"
+) -> WorkflowGraph:
     trigger = NodeInstance(
-        id=uuid4(), definition_id="core.input", definition_version=1, config=config, layout=_pos()
+        id=uuid4(), definition_id=trigger_id, definition_version=1, config=config, layout=_pos()
     )
     output = NodeInstance(
         id=uuid4(), definition_id="core.output", definition_version=1, config={}, layout=_pos()
@@ -159,8 +161,9 @@ class TestPublish:
     def _ctx(self) -> AuthContext:
         return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
 
-    async def test_a_declared_field_binds_where_its_type_fits(self, mock_db_session):
-        graph = _graph({"fields": FIELDS}, ("payload", "email"))
+    @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    async def test_a_declared_field_binds_where_its_type_fits(self, mock_db_session, trigger_id):
+        graph = _graph({"fields": FIELDS}, ("payload", "email"), trigger_id)
         assert await validate_graph(mock_db_session, self._ctx(), graph)
 
     async def test_an_undeclared_payload_path_binds_only_to_an_open_payload(self, mock_db_session):
@@ -171,9 +174,14 @@ class TestPublish:
             )
         assert "does not exist" in str(refused.value.details)
 
-    async def test_a_declared_field_of_another_type_is_refused_at_publish(self, mock_db_session):
+    @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    async def test_a_declared_field_of_another_type_is_refused_at_publish(
+        self, mock_db_session, trigger_id
+    ):
         with pytest.raises(GraphValidationError) as refused:
             await validate_graph(
-                mock_db_session, self._ctx(), _graph({"fields": FIELDS}, ("payload", "seats"))
+                mock_db_session,
+                self._ctx(),
+                _graph({"fields": FIELDS}, ("payload", "seats"), trigger_id),
             )
         assert "not compatible" in str(refused.value.details)

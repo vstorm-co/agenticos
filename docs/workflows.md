@@ -14,8 +14,7 @@ no walkthrough.
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
 **New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers the five triggers - **Manual or API**, **Chat
-message**, **Webhook**, **Schedule** and **New table record** - each an otherwise
+**How does it start?** offers six triggers - **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **New table record** - each an otherwise
 empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
 and wire up, and **Two-step sequence**, two steps already connected for a linear
 flow. Pick one with **Use** and you land in the editor.
@@ -248,6 +247,13 @@ cannot be restored. Each restore is recorded in the [audit log](governance.md) a
 
 ## Running a workflow { #running-a-workflow }
 
+**Run** in the editor's header tests the draft at once - `Ctrl`/`Cmd` + `Enter` does
+too - first asking for the fields a Manual or API trigger declares. The run then
+shows on the canvas as it happens: every step takes its status, tries and error, and
+a bar at the bottom says how the run stands, with **Open run** for its page. The next
+edit hides it. **Run** waits while an edit is still saving, and says why it cannot
+run while the draft has problems.
+
 **Runs** in the editor's header, and the runs icon on a workflow's card, open its
 runs, newest first, each with its status, whether it ran the draft or the published
 version, what started it, when, for how long and at what cost. **Start a run**
@@ -267,8 +273,7 @@ refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Fil
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
 A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds five: **Manual or API**, **Chat
-message**, **Webhook**, **Schedule** and **New table record**. Adding one to a
+**Triggers** group at the top of the step picker holds six: **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **New table record**. Adding one to a
 workflow that already has a trigger replaces it in place, and the wires and
 bindings that leave the old one leave the new one. **New workflow** starts a
 workflow from the trigger you pick there.
@@ -279,15 +284,13 @@ publish moves them to the new version. A publish that starts from a different
 trigger switches the old one off. **Trigger** in the editor's header shows the live
 trigger and its state, and says when the draft starts differently.
 
-A version that starts from **Manual or API**, or from no trigger at all, is started
-by whoever may run it, as themselves: **Start a run** under Runs, the
+A version that starts from **Manual** or **API request**, or from no trigger at all, is started by whoever may run it, as themselves: **Start a run** under Runs, the
 [HTTP API](api.md#running-a-workflow) or a WebSocket. Each run is checked, billed
 and audited like one started here. Those doors start no other trigger, and each
 other trigger has a door of its own. A test run of the draft takes any trigger, and
 **Start a run** opens it on an input in that trigger's shape.
 
-Give **Manual or API** its **Input fields** and a run asks for what it needs:
-**Start a run** shows a form with one box per field instead of the JSON, typed as the
+**Manual** is the trigger a person starts with **Run**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Run** and **Start a run** show a form with one box per field instead of the JSON, typed as the
 field is, and an API call whose input does not fit is refused with the fields that
 are wrong. See [core.input](reference/workflow-nodes.md#core-input).
 
@@ -434,7 +437,7 @@ Copy and paste have three limits:
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version.
-- A workflow starts from one **trigger** node - by hand or the API, a chat
+- A workflow starts from one **trigger** node - **Manual**, an **API request**, a chat
   message, a signed **webhook**, a **schedule** or a new table record - and
   **publishing** switches it on, running as the member who published.
 - A step's **policy** sets its tries, its time limit and whether its failures

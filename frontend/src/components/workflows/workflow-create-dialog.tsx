@@ -16,6 +16,7 @@ import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import {
+  API_TRIGGER,
   CHAT_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
@@ -28,6 +29,7 @@ import type { WorkflowGraph } from "@/lib/workflows/types";
 /** The ways a new workflow can start, in the order a builder reaches for them. */
 const STARTS = [
   { id: MANUAL_TRIGGER, key: "manual" },
+  { id: API_TRIGGER, key: "api" },
   { id: CHAT_TRIGGER, key: "chat" },
   { id: WEBHOOK_TRIGGER, key: "webhook" },
   { id: SCHEDULE_TRIGGER, key: "schedule" },

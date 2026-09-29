@@ -1,26 +1,23 @@
-"""`core.input` - registration and nothing else. See `_handler.py` and `README.md`."""
+"""`trigger.manual` - registration and nothing else. See `_handler.py` and `README.md`."""
 
 from app.workflows._registry import register
 from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition
 from app.workflows.contracts.io import WorkflowInputPayload
-from app.workflows.nodes.core_input._handler import (
+from app.workflows.nodes.trigger_manual._handler import (
     STATIC_PORTS,
-    InputField,
     TriggerInputConfig,
     handle,
     ports_for,
 )
-from app.workflows.triggers import API
-
-__all__ = ["InputField", "TriggerInputConfig"]
+from app.workflows.triggers import MANUAL
 
 register(
     NodeDefinition(
-        id=API,
+        id=MANUAL,
         version=1,
-        name="API request",
+        name="Manual",
         category=TRIGGER_CATEGORY,
-        description="Start from an HTTP request or over a WebSocket, with the input you declare.",
+        description="Start by clicking Run in the editor or on the workflow's runs page.",
         kind="action",
         config_schema=TriggerInputConfig,
         input_schema=None,

@@ -15,6 +15,7 @@ import { scheduleText } from "@/lib/trigger-format";
 import { cn, formatDateTime } from "@/lib/utils";
 import {
   CHAT_TRIGGER,
+  API_TRIGGER,
   MANUAL_TRIGGER,
   SCHEDULE_TRIGGER,
   TABLE_RECORD_TRIGGER,
@@ -103,7 +104,7 @@ function LiveTrigger({
 }: LiveTriggerProps) {
   const t = useTranslations("pages.workflows");
   const { apiUrl } = usePublicConfig();
-  const visual = nodeVisual(trigger ?? MANUAL_TRIGGER, definition?.category ?? "");
+  const visual = nodeVisual(trigger ?? API_TRIGGER, definition?.category ?? "");
   const Icon = visual.icon;
   const table = draftConfig?.["table"];
   const tableId =
@@ -127,7 +128,10 @@ function LiveTrigger({
           <h3 className="text-sm font-medium">{name}</h3>
         </div>
       </div>
-      {(trigger === null || trigger === MANUAL_TRIGGER) && (
+      {trigger === MANUAL_TRIGGER && (
+        <p className="text-muted-foreground text-xs">{t("exposureManualDescription")}</p>
+      )}
+      {(trigger === null || trigger === API_TRIGGER) && (
         <div className="space-y-3">
           <p className="text-muted-foreground text-xs">{t("exposureCallDescription")}</p>
           <CopyableValue

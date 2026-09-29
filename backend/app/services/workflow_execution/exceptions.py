@@ -159,7 +159,7 @@ class PrincipalRevokedError(WorkflowDispatchRefusedError):
 
 
 class WorkflowRunInputInvalidError(AppException):
-    """The run's input does not fit the fields its "Manual or API" trigger declares (422).
+    """The run's input does not fit the fields its Manual or API trigger declares (422).
 
     `details["problems"]` names each field that is missing, of the wrong type,
     not one of a choice's options, or not declared at all.

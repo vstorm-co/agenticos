@@ -30,6 +30,7 @@ import {
   Scale,
   Search,
   SearchCheck,
+  Server,
   Send,
   ScanText,
   ShieldAlert,
@@ -69,7 +70,8 @@ const TONE_CLASS: Record<NodeTone, string> = {
 };
 
 const BY_ID: Record<string, NodeIcon> = {
-  "core.input": Play,
+  "trigger.manual": Play,
+  "core.input": Server,
   "trigger.chat": MessageSquare,
   "trigger.webhook": Webhook,
   "trigger.schedule": CalendarClock,
