@@ -348,22 +348,55 @@ class RecordOperations(Operations):
             RevisionConflictError: Someone changed the record since it was read.
             NotFoundError: There is no such record.
         """
+        return await self._update(
+            ctx, table_id, record_id, data.values, data.expected_revision, operation_key
+        )
+
+    async def update_record_cells(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        record_id: UUID,
+        values: dict[str, CellValue],
+        *,
+        operation_key: str | None = None,
+    ) -> RecordWrite:
+        """Change the named cells of a record at whatever revision it is at now.
+
+        For a caller with no revision to send - a workflow step that never read the
+        record. The revision is read under the record's lock, so nothing lands in
+        between, and the request the operation key is tied to names no revision: a
+        retry after the first write committed replays it, where one carrying the
+        revision it read would be a different request.
+
+        Raises:
+            NotFoundError: There is no such record.
+        """
+        return await self._update(ctx, table_id, record_id, values, None, operation_key)
+
+    async def _update(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        record_id: UUID,
+        values: dict[str, CellValue],
+        expected_revision: int | None,
+        operation_key: str | None,
+    ) -> RecordWrite:
         operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
             record = await self._lock_record(ctx, table, record_id)
-            await self._apply(ctx, table, record, data.values, data.expected_revision)
+            revision = record.revision if expected_revision is None else expected_revision
+            await self._apply(ctx, table, record, values, revision)
             return self._outcome(record, created=False)
 
-        return await self._write(
-            ctx,
-            "record.update",
-            operation_key,
-            {"table_id": table.id, "record_id": record_id, **data.model_dump(mode="json")},
-            action,
-        )
+        request: dict[str, Any] = {"table_id": table.id, "record_id": record_id, "values": values}
+        if expected_revision is not None:
+            request["expected_revision"] = expected_revision
+        return await self._write(ctx, "record.update", operation_key, request, action)
 
     async def upsert_record(
         self,
@@ -388,6 +421,52 @@ class RecordOperations(Operations):
             RevisionRequiredError: The record exists and no revision was sent.
             RevisionConflictError: The record exists at a different revision.
         """
+        return await self._upsert(
+            ctx,
+            table_id,
+            external_id,
+            data.values,
+            operation_key,
+            expected_revision=data.expected_revision,
+            at_current_revision=False,
+        )
+
+    async def upsert_record_cells(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        external_id: str,
+        values: dict[str, CellValue],
+        *,
+        operation_key: str | None = None,
+    ) -> RecordWrite:
+        """Create the record with this external id, or change its cells at whatever
+        revision it is at now - `update_record_cells` for a record found by its key.
+
+        The request the operation key is tied to names no revision, so a retry
+        replays the first write whether that one created the record or updated it.
+        """
+        return await self._upsert(
+            ctx,
+            table_id,
+            external_id,
+            values,
+            operation_key,
+            expected_revision=None,
+            at_current_revision=True,
+        )
+
+    async def _upsert(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        external_id: str,
+        values: dict[str, CellValue],
+        operation_key: str | None,
+        *,
+        expected_revision: int | None,
+        at_current_revision: bool,
+    ) -> RecordWrite:
         external_id = _external_id(external_id)
         operation_key = _operation_key(operation_key)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
@@ -403,7 +482,7 @@ class RecordOperations(Operations):
                 await quotas.lock_record_count(self.db, table)
                 existing = await self._lookup(ctx, table, external_id)
             if existing is None:
-                created = await self._insert(ctx, table, external_id, data.values)
+                created = await self._insert(ctx, table, external_id, values)
                 if created is not None:
                     return self._outcome(created, created=True)
                 # Another transaction took the external id between the lookup and
@@ -411,20 +490,22 @@ class RecordOperations(Operations):
                 existing = await self._lookup(ctx, table, external_id)
                 if existing is None:
                     raise ConcurrentChangeError()
-            if data.expected_revision is None:
+            revision = existing.revision if at_current_revision else expected_revision
+            if revision is None:
                 raise RevisionRequiredError(
                     record_id=existing.id, current_revision=existing.revision
                 )
-            await self._apply(ctx, table, existing, data.values, data.expected_revision)
+            await self._apply(ctx, table, existing, values, revision)
             return self._outcome(existing, created=False)
 
-        return await self._write(
-            ctx,
-            "record.upsert",
-            operation_key,
-            {"table_id": table.id, "external_id": external_id, **data.model_dump(mode="json")},
-            action,
-        )
+        request: dict[str, Any] = {
+            "table_id": table.id,
+            "external_id": external_id,
+            "values": values,
+        }
+        if not at_current_revision:
+            request["expected_revision"] = expected_revision
+        return await self._write(ctx, "record.upsert", operation_key, request, action)
 
     async def delete_record(
         self,
@@ -432,10 +513,14 @@ class RecordOperations(Operations):
         table_id: UUID,
         record_id: UUID,
         *,
-        expected_revision: int,
+        expected_revision: int | None,
         operation_key: str | None = None,
     ) -> None:
         """Delete a record, if it is still at `expected_revision`. Its history stays.
+
+        `None` deletes it at whatever revision it is at now, read under its lock - for a
+        caller with no revision to send, such as a workflow step that never read the
+        record. The request the operation key is tied to then names no revision.
 
         The delete always succeeds, whatever the record's size. The history row keeps the whole
         record unless it is over the size limit (one that predates the limit, or written before
@@ -451,7 +536,8 @@ class RecordOperations(Operations):
         async def action() -> DeleteOutcome:
             self._ensure_live(table)
             record = await self._lock_record(ctx, table, record_id)
-            self._check_revision(record, expected_revision)
+            if expected_revision is not None:
+                self._check_revision(record, expected_revision)
             await virtual_table_repo.add_history(
                 self.db,
                 organization_id=ctx.organization_id,
@@ -474,7 +560,7 @@ class RecordOperations(Operations):
             payload={
                 "table_id": table.id,
                 "record_id": record_id,
-                "expected_revision": expected_revision,
+                **({} if expected_revision is None else {"expected_revision": expected_revision}),
             },
             outcome_type=DeleteOutcome,
             action=action,

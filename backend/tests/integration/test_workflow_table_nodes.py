@@ -23,7 +23,7 @@ from app.core.permissions import AuthContext
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.db.models.virtual_table import VirtualTableRecord
+from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRunStatus
 from app.schemas.virtual_table import (
@@ -42,6 +42,12 @@ from app.workflows.graph.model import Edge, NodeInstance, NodePosition, Workflow
 from app.workflows.graph.validate import validate_graph
 from app.workflows.nodes.table_record_create import TableRecordCreateConfig, TableRecordCreateInput
 from app.workflows.nodes.table_record_create._handler import handle as create_handle
+from app.workflows.nodes.table_record_delete import TableRecordDeleteConfig, TableRecordDeleteInput
+from app.workflows.nodes.table_record_delete._handler import handle as delete_handle
+from app.workflows.nodes.table_record_update import TableRecordUpdateConfig, TableRecordUpdateInput
+from app.workflows.nodes.table_record_update._handler import handle as update_handle
+from app.workflows.nodes.table_record_upsert import TableRecordUpsertConfig, TableRecordUpsertInput
+from app.workflows.nodes.table_record_upsert._handler import handle as upsert_handle
 from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
 
 pytestmark = pytest.mark.anyio
@@ -175,6 +181,105 @@ async def test_a_retried_step_replays_its_write_rather_than_adding_a_second(engi
             await create_handle(config, TableRecordCreateInput(values={"Email": "a@x"}))
 
     assert len(await _records(engine)) == 1
+
+
+def _dispatch(member: tuple[User, Organization]) -> context.DispatchContext:
+    ctx = AuthContext(user_id=member[0].id, organization_id=member[1].id, role="owner")
+    return context.DispatchContext(
+        organization_id=member[1].id,
+        workflow_run_id=uuid.uuid4(),
+        node_run_id=uuid.uuid4(),
+        node_instance_id=uuid.uuid4(),
+        attempt_no=1,
+        auth=ctx,
+        resumed_agent_run_id=None,
+        idempotency_key=f"{member[1].id}:run:node:[]",
+    )
+
+
+async def _history(engine: AsyncEngine, operation: str) -> int:
+    async with async_sessionmaker(engine)() as db:
+        rows = await db.execute(
+            select(VirtualTableRecordHistory).where(
+                VirtualTableRecordHistory.operation == operation
+            )
+        )
+        return len(rows.scalars().all())
+
+
+async def test_a_retried_update_after_its_write_committed_replays_it(engine: AsyncEngine):
+    """The first attempt moved the record to revision 2 and its worker died before
+    the result was saved. Its retry must replay that write, not send revision 2 as
+    a new request under the same key and be refused as a different one."""
+    member, table = await _world(engine)
+    dispatch = _dispatch(member)
+    with context.dispatching_as(dispatch):
+        await create_handle(
+            TableRecordCreateConfig.model_validate(_pin(table)),
+            TableRecordCreateInput(values={"Email": "a@x"}),
+        )
+    (record,) = await _records(engine)
+    config = TableRecordUpdateConfig.model_validate(_pin(table))
+    change = TableRecordUpdateInput(record_id=record.id, values={"Score": 91})
+    step = replace(dispatch, node_instance_id=uuid.uuid4(), idempotency_key="update-step")
+
+    results = []
+    for attempt in (1, 2):
+        with context.dispatching_as(replace(step, attempt_no=attempt)):
+            results.append(await update_handle(config, change))
+
+    assert all(result.status == "completed" for result in results)
+    (row,) = await _records(engine)
+    assert row.revision == 2
+    assert await _history(engine, "update") == 1
+
+
+async def test_a_retried_upsert_that_updated_an_existing_record_replays_it(engine: AsyncEngine):
+    member, table = await _world(engine)
+    dispatch = _dispatch(member)
+    config = TableRecordUpsertConfig.model_validate(_pin(table))
+    with context.dispatching_as(replace(dispatch, idempotency_key="first-step")):
+        await upsert_handle(
+            config, TableRecordUpsertInput(external_id="ada", values={"Email": "a@x"})
+        )
+    step = replace(dispatch, idempotency_key="second-step")
+
+    results = []
+    for attempt in (1, 2):
+        with context.dispatching_as(replace(step, attempt_no=attempt)):
+            results.append(
+                await upsert_handle(
+                    config, TableRecordUpsertInput(external_id="ada", values={"Score": 7})
+                )
+            )
+
+    assert all(result.status == "completed" for result in results)
+    (row,) = await _records(engine)
+    assert row.revision == 2
+    assert await _history(engine, "update") == 1
+
+
+async def test_a_retried_delete_after_its_delete_committed_succeeds_again(engine: AsyncEngine):
+    """Reading the revision first would find no record on the retry and fail the step."""
+    member, table = await _world(engine)
+    dispatch = _dispatch(member)
+    with context.dispatching_as(dispatch):
+        await create_handle(
+            TableRecordCreateConfig.model_validate(_pin(table)),
+            TableRecordCreateInput(values={"Email": "a@x"}),
+        )
+    (record,) = await _records(engine)
+    config = TableRecordDeleteConfig.model_validate(_pin(table))
+    step = replace(dispatch, idempotency_key="delete-step")
+
+    results = []
+    for attempt in (1, 2):
+        with context.dispatching_as(replace(step, attempt_no=attempt)):
+            results.append(await delete_handle(config, TableRecordDeleteInput(record_id=record.id)))
+
+    assert all(result.status == "completed" for result in results)
+    assert await _records(engine) == []
+    assert await _history(engine, "delete") == 1
 
 
 async def test_an_upsert_creates_then_updates_the_same_record(engine: AsyncEngine):

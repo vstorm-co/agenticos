@@ -1,5 +1,5 @@
 ---
-source_sha: "24ea92fd5761"
+source_sha: "04a80ddc4ae9"
 ---
 
 # Workflows { #workflows }
@@ -327,6 +327,32 @@ el valor de una columna, el autor del registro o el id del propio registro. Un r
 triggers por la que pasó, así que un workflow que vuelve a escribir en la tabla cuyo
 trigger lo inició se bloquea en lugar de entrar en bucle. Consulta
 [Virtual Tables](virtual-tables.md#triggers).
+
+## Cuando algo sale mal { #when-something-goes-wrong }
+
+**Lo que promete un run.** El resultado de un paso y el envío de los pasos siguientes se
+guardan juntos, así que un worker que se detiene entre pasos no pierde nada: otro retoma
+el run donde estaba. Un worker que se detiene dentro de un paso deja un intento cuyo
+final nadie vio. Un paso que se puede repetir sin riesgo se vuelve a intentar. Una
+escritura en una tabla repite su primera escritura a través de su recibo en lugar de
+escribir dos veces, y una notificación se envía una vez. Un paso que puede haber
+actuado ya en otro sitio y no promete nada más - ejecutar un agent es uno - nunca se
+repite por sí solo: el run se detiene como **Needs attention**, para no pagar un modelo
+dos veces ni enviar un mensaje dos veces sin que nadie lo decida.
+
+Nada más ocurre exactamente una vez. Una llamada HTTP, una subida o una escritura de
+archivo pueden repetirse tras una detención así, de modo que un sistema receptor que no
+debe ver una petición dos veces necesita su propia clave de idempotencia. La promesa de
+reintento de cada paso está en la [referencia de nodos](reference/workflow-nodes.md).
+
+| Lo que ves | Por qué | Qué hacer |
+|---|---|---|
+| **Needs attention** | Se interrumpió un paso que pudo haber actuado | Comprueba si su efecto ocurrió y, si no, cancela el run e inicia uno nuevo. Reanudarlo desde la consola aún no está construido |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow cambie el webhook, la programación o el trigger, para que se ejecute como él |
+| `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
+| `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |
+| El historial de un trigger de tabla dice **Blocked** | El run se habría iniciado a sí mismo de nuevo, o su cadena llegó demasiado hondo | Consulta [Triggers](virtual-tables.md#triggers) |
+| Un webhook responde `403` | La firma no coincide con el cuerpo, o el miembro con el que se ejecuta ya no puede ejecutar el workflow | Firma exactamente los bytes enviados con el secreto actual, o que un miembro que pueda ejecutarlo cambie el webhook |
 
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 

@@ -3,7 +3,8 @@
 `expected_revision` is optional here, unlike on the API: a step that read the
 record earlier binds the revision it read, and a conflict then means someone
 else changed it in between. A step that has no revision to send writes against
-the record's current one, read in the same call.
+the record's current one, read under the record's lock - and a retry after that
+write committed replays it rather than being refused as a different request.
 """
 
 from __future__ import annotations
@@ -64,16 +65,19 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
 
     async def work(service: VirtualTableService, auth: AuthContext) -> NodeResult:
         table = await service.describe_table(auth, config.table.table_id)
-        revision = node_input.expected_revision
-        if revision is None:
-            revision = (await service.get_record(auth, table.id, node_input.record_id)).revision
-        written = await service.update_record(
-            auth,
-            table.id,
-            node_input.record_id,
-            RecordUpdate(expected_revision=revision, values=column_keyed(table, node_input.values)),
-            operation_key=operation_key(),
-        )
+        values = column_keyed(table, node_input.values)
+        if node_input.expected_revision is None:
+            written = await service.update_record_cells(
+                auth, table.id, node_input.record_id, values, operation_key=operation_key()
+            )
+        else:
+            written = await service.update_record(
+                auth,
+                table.id,
+                node_input.record_id,
+                RecordUpdate(expected_revision=node_input.expected_revision, values=values),
+                operation_key=operation_key(),
+            )
         return Completed[TableRecordOutput](output=record_output(table, written.record))
 
     return await with_service(work)

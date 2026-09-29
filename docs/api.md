@@ -155,6 +155,41 @@ admitted, never waiting for the run itself. A delivery id already admitted answe
 `403`, a delivery with no id or with a body that is not a JSON object a `400`, and
 a paused or unknown webhook a `404`.
 
+## Working with tables { #working-with-tables }
+
+A record's `values` are keyed by column id; `GET /api/v1/tables/{id}` lists the
+columns. Every write takes an `Idempotency-Key`: a retry with the same key and body
+answers with the first write's result and `Idempotent-Replayed: true` instead of
+writing again, and the same key with a different body is `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` changes some cells and needs the
+`expected_revision` you last read; a stale one is `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` creates the record or updates it, with
+`expected_revision` required once it exists. `POST .../records/query` filters and
+sorts one page at a time.
+
+`POST .../triggers` runs a published workflow for every record added from then on,
+as you. `input_mapping` names what the run starts with: a column id, `@author` or
+`@record_id`. `GET .../triggers/{trigger_id}/admissions` lists what it decided about
+each record. See [Triggers](virtual-tables.md#triggers).
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
+```
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no

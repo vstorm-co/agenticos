@@ -1,5 +1,5 @@
 ---
-source_sha: "24ea92fd5761"
+source_sha: "04a80ddc4ae9"
 ---
 
 # Workflows { #workflows }
@@ -360,6 +360,35 @@ Wert einer Spalte, dem Autor des Datensatzes oder seiner eigenen id. Ein so gest
 Kette der Trigger, die er durchlief, sodass ein Workflow, der in die Tabelle
 zurückschreibt, deren Trigger ihn startete, blockiert wird statt im Kreis zu laufen.
 Siehe [Virtual Tables](virtual-tables.md#triggers).
+
+## Wenn etwas schiefgeht { #when-something-goes-wrong }
+
+**Was ein Run verspricht.** Das Ergebnis eines Schritts und das Versenden der Schritte
+danach werden zusammen gespeichert, sodass ein Worker, der zwischen Schritten stoppt,
+nichts verliert: Ein anderer übernimmt den Run, wo er war. Ein Worker, der mitten in
+einem Schritt stoppt, hinterlässt einen Versuch, dessen Ende niemand gesehen hat. Ein
+Schritt, der sich gefahrlos wiederholen lässt, wird erneut versucht. Ein
+Tabellen-Schreibzugriff spielt seinen ersten Schreibzugriff über seine Quittung erneut
+ab, statt zweimal zu schreiben, und eine Benachrichtigung geht einmal hinaus. Ein
+Schritt, der anderswo schon gewirkt haben kann und nichts weiter verspricht - einen
+Agent auszuführen ist so einer -, wird nie von selbst wiederholt: Der Run hält als
+**Braucht Aufmerksamkeit** an, damit niemand ein Modell zweimal bezahlt oder eine
+Nachricht zweimal sendet, ohne dass jemand entscheidet.
+
+Nichts anderes geschieht genau einmal. Ein HTTP-Aufruf, ein Upload oder ein
+Dateischreiben kann nach einem solchen Halt erneut erfolgen, also braucht ein
+empfangendes System, das eine Anfrage nicht zweimal sehen darf, einen eigenen
+Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
+[Knotenreferenz](reference/workflow-nodes.md).
+
+| Was Sie sehen | Warum | Was tun |
+|---|---|---|
+| **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen | Prüfen Sie, ob seine Wirkung eingetreten ist, brechen Sie dann den Run ab und starten Sie einen neuen, falls nicht. Ihn in der Konsole fortzusetzen ist noch nicht gebaut |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, ändert den Webhook, den Zeitplan oder den Trigger, damit er als es läuft |
+| `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
+| `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |
+| Der Verlauf eines Tabellen-Triggers zeigt **Blockiert** | Der Run hätte sich selbst erneut gestartet, oder seine Kette ging zu tief | Siehe [Trigger](virtual-tables.md#triggers) |
+| Ein Webhook antwortet `403` | Die Signatur passt nicht zum Body, oder das Mitglied, als das er läuft, darf den Workflow nicht mehr ausführen | Signieren Sie genau die gesendeten Bytes mit dem aktuellen Secret, oder ein Mitglied, das ihn ausführen darf, ändert den Webhook |
 
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 

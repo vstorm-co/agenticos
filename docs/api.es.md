@@ -1,5 +1,5 @@
 ---
-source_sha: "1b01d58d3031"
+source_sha: "1635944fd28a"
 ---
 
 # La API HTTP { #the-http-api }
@@ -167,6 +167,42 @@ admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
 `"duplicate": true` con el id del primer run. Una firma que no se verifica es un
 `403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
 webhook pausado o desconocido un `404`.
+
+## Trabajar con tablas { #working-with-tables }
+
+Los `values` de un registro van por id de columna; `GET /api/v1/tables/{id}` lista las
+columnas. Toda escritura acepta un `Idempotency-Key`: un reintento con la misma clave y
+el mismo cuerpo responde con el resultado de la primera escritura e
+`Idempotent-Replayed: true` en lugar de escribir otra vez, y la misma clave con otro
+cuerpo es `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` cambia algunas celdas y necesita la `expected_revision`
+que leíste por última vez; una desfasada es `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` crea el registro o lo actualiza, con
+`expected_revision` obligatoria cuando ya existe. `POST .../records/query` filtra y
+ordena página a página.
+
+`POST .../triggers` ejecuta un workflow publicado por cada registro añadido desde ese
+momento, como tú. `input_mapping` dice con qué empieza el run: un id de columna,
+`@author` o `@record_id`. `GET .../triggers/{trigger_id}/admissions` lista lo que
+decidió sobre cada registro. Consulta [Triggers](virtual-tables.md#triggers).
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
+```
 
 ## Los servicios de ML { #the-ml-services }
 

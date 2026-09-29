@@ -1,5 +1,5 @@
 ---
-source_sha: "e205a3cd594a"
+source_sha: "c4a29877375a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -261,7 +261,8 @@ do czytania. Klucz, który nie wskazuje żywej kolumny, kończy się błędem
 
 Zapis niesie klucz operacji kroku, więc ponowiony krok odtwarza swój pierwszy zapis.
 Update, upsert albo delete bez zbindowanej rewizji zapisuje przy bieżącej rewizji
-rekordu. Rewizja, która się przesunęła, to `REVISION_CONFLICT`, który nie jest ponawiany: ta sama rewizja
+rekordu, odczytanej pod blokadą rekordu, a odtworzenie działa nawet wtedy, gdy pierwszy
+zapis już przesunął tę rewizję. Rewizja, która się przesunęła, to `REVISION_CONFLICT`, który nie jest ponawiany: ta sama rewizja
 skonfliktowałaby się znowu, więc skieruj go przez `error.handle` do świeżego odczytu.
 Brakujący rekord to `found: false` z `table.record.get`, a nie błąd.
 `table.record.query` czyta najwyżej 100 rekordów na stronę i podaje `has_more`.
@@ -369,5 +370,20 @@ istnieje. `load_builtins` importuje paczkę.
 `tests/test_workflow_node_layout.py` pilnuje tego układu. Handler zwraca
 `Completed`, `Waiting`, `Failed` albo `Uncertain` i nigdy nie rzuca wyjątku. Run,
 dla którego działa, czyta z `app.services.workflow_execution.context.current()`.
+
+Typowany węzeł deklaruje trzy modele Pydantic: konfigurację, ustawianą w edytorze i
+zamrażaną przy publikacji; wejście, którego pola wypełniają bindingi; oraz wyjście, do
+którego bindują się późniejsze kroki. `extra="forbid"` na każdym z nich trzyma literówkę
+z dala od opublikowanego grafu. `retry_guarantee` wybierz według tego, co zrobiłoby
+powtórzenie wywołania: `idempotent`, gdy handler sam czyni powtórzenie nieszkodliwym -
+zapis do tabeli przekazuje `operation_key()` - `at_least_once`, gdy powtórzenie jest
+dopuszczalne, i `none`, gdy nie jest. Węzeł, który czyta albo zapisuje zasób, deklaruje
+`check_resources`, które publikacja uruchamia względem autora, a każdy run względem
+swojego principala.
+
+Konsola rysuje węzeł z jego definicji, z ikoną i odcieniem w
+`frontend/src/components/workflows/node-visuals.ts`. Przetestuj handler bezpośrednio pod
+kątem odmów i przeprowadź go raz przez `tests/integration/workflow_run_support.py`, żeby
+jego konfiguracja, bindingi i wyjście zostały dowiedzione w prawdziwym runie.
 
 ::: app.workflows.contracts.definition.NodeDefinition

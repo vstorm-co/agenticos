@@ -1,5 +1,5 @@
 ---
-source_sha: "865fa2992294"
+source_sha: "78c9367c5b34"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -419,6 +419,24 @@ La organización siempre viene de `ctx`, nunca de un argumento. El servicio nunc
 commit: lo hace la sesión de la solicitud, y un worker es dueño de su propio ámbito de
 sesión.
 
+## Añadir un tipo de columna { #adding-a-column-type }
+
+Un tipo de columna es una entrada de `COLUMN_TYPES` en
+`backend/app/services/virtual_tables/types.py`, con su nombre en `ColumnTypeName` en
+`backend/app/schemas/virtual_table.py`. La entrada dice cómo se lee la celda del
+registro para comparar y ordenar (un `SqlKind`), qué operadores de filtro admite, si se
+ordena y qué validador atraviesa cada escritura y cada operando de filtro. El validador
+devuelve el valor tal como se guarda o lanza `CellProblem` con un mensaje para quien lo
+escribió. Todas las superficies llaman al mismo servicio, así que la consola, la API,
+los agents y los workflows aceptan el tipo nuevo a la vez, y un [trigger](#triggers)
+filtra por él con las mismas reglas.
+
+La consola necesita el tipo en `ColumnTypeName` en `frontend/src/types/tables.ts`, un
+editor en `record-cell-editor.tsx`, una opción en los diálogos de esquema y de crear
+tabla, y su etiqueta en los tres catálogos de mensajes. Las pruebas van en
+`backend/tests/test_virtual_table_types.py` para el validador, y en una prueba de
+integración que escribe, filtra y ordena un registro del tipo nuevo.
+
 ## Aún no construido { #not-built-yet }
 
 - **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
@@ -429,3 +447,5 @@ sesión.
   los [nodos de tablas](reference/workflow-nodes.md#virtual-tables).
 - Un trigger al actualizar o borrar un registro. Los [triggers](#triggers) solo se
   inician al crear.
+- Reanudar desde la consola un run que se detuvo como **Needs attention**. Se puede
+  cancelar e iniciar un run nuevo.

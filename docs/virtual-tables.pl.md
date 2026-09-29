@@ -1,5 +1,5 @@
 ---
-source_sha: "865fa2992294"
+source_sha: "78c9367c5b34"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -415,6 +415,24 @@ await service.upsert_record(
 Organizacja zawsze pochodzi z `ctx`, nigdy z argumentu. Serwis nigdy nie robi commit:
 robi go sesja żądania, a worker ma własny zakres sesji.
 
+## Dodawanie typu kolumny { #adding-a-column-type }
+
+Typ kolumny to jeden wpis w `COLUMN_TYPES` w
+`backend/app/services/virtual_tables/types.py`, z nazwą w `ColumnTypeName` w
+`backend/app/schemas/virtual_table.py`. Wpis mówi, jak komórka jest odczytywana z
+rekordu do porównań i sortowania (`SqlKind`), które operatory filtrów przyjmuje, czy
+się sortuje, i jaki walidator przechodzi każdy zapis i każdy operand filtra. Walidator
+zwraca wartość tak, jak zostanie zapisana, albo rzuca `CellProblem` z komunikatem dla
+tego, kto ją zapisał. Każda powierzchnia woła ten sam serwis, więc konsola, API,
+agenci i workflow przyjmują nowy typ od razu, a [wyzwalacz](#triggers) filtruje po nim
+według tych samych reguł.
+
+Konsola potrzebuje typu w `ColumnTypeName` w `frontend/src/types/tables.ts`, edytora w
+`record-cell-editor.tsx`, wyboru w dialogach schematu i tworzenia tabeli oraz etykiety
+w trzech katalogach komunikatów. Testy należą do
+`backend/tests/test_virtual_table_types.py` dla walidatora oraz do testu
+integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
+
 ## Jeszcze nie zbudowane { #not-built-yet }
 
 - **Podmiot dla kluczy API.** Dostęp, potwierdzenia i historia wskazują zalogowanego
@@ -425,3 +443,5 @@ robi go sesja żądania, a worker ma własny zakres sesji.
   [węzły tabel](reference/workflow-nodes.md#virtual-tables).
 - Wyzwalacz na aktualizację albo usunięcie rekordu. [Wyzwalacze](#triggers) startują
   tylko przy utworzeniu.
+- Wznowienie z konsoli runu, który zatrzymał się jako **Wymaga uwagi**. Można go
+  anulować i uruchomić nowy run.

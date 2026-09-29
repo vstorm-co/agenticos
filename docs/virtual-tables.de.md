@@ -1,5 +1,5 @@
 ---
-source_sha: "865fa2992294"
+source_sha: "78c9367c5b34"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -440,6 +440,25 @@ Die Organisation kommt immer aus `ctx`, nie aus einem Argument. Der Service comm
 nie: Das tut die Session der Anfrage, und ein Worker besitzt seinen eigenen
 Session-Scope.
 
+## Einen Spaltentyp hinzufügen { #adding-a-column-type }
+
+Ein Spaltentyp ist ein Eintrag in `COLUMN_TYPES` in
+`backend/app/services/virtual_tables/types.py`, mit seinem Namen in `ColumnTypeName` in
+`backend/app/schemas/virtual_table.py`. Der Eintrag legt fest, wie die Zelle zum
+Vergleichen und Sortieren aus dem Datensatz gelesen wird (ein `SqlKind`), welche
+Filteroperatoren sie nimmt, ob sie sortierbar ist, und welchen Validator jeder
+Schreibzugriff und jeder Filteroperand durchläuft. Der Validator gibt den Wert so
+zurück, wie er gespeichert wird, oder wirft `CellProblem` mit einer Meldung für den, der
+ihn geschrieben hat. Jede Oberfläche ruft denselben Service, also nehmen Konsole, API,
+Agents und Workflows den neuen Typ sofort an, und ein [Trigger](#triggers) filtert mit
+denselben Regeln darauf.
+
+Die Konsole braucht den Typ in `ColumnTypeName` in `frontend/src/types/tables.ts`,
+einen Editor in `record-cell-editor.tsx`, eine Auswahl in den Dialogen für Schema und
+neue Tabelle und seine Beschriftung in den drei Meldungskatalogen. Tests gehören für den
+Validator in `backend/tests/test_virtual_table_types.py` und in einen
+Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sortiert.
+
 ## Noch nicht gebaut { #not-built-yet }
 
 - **Ein Principal für API-Keys.** Zugriff, Quittungen und Historie nennen einen
@@ -450,3 +469,5 @@ Session-Scope.
   [Tabellen-Knoten](reference/workflow-nodes.md#virtual-tables).
 - Ein Trigger auf das Ändern oder Löschen eines Datensatzes. [Trigger](#triggers)
   starten nur beim Anlegen.
+- Einen Run, der als **Braucht Aufmerksamkeit** angehalten hat, in der Konsole
+  fortsetzen. Er lässt sich abbrechen und ein neuer Run starten.

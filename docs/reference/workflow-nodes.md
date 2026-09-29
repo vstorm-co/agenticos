@@ -251,7 +251,8 @@ that names no live column fails with `UNKNOWN_COLUMN`.
 
 A write carries the step's operation key, so a retried step replays its first write.
 An update, upsert or delete with no revision bound writes at the record's current
-revision. A revision that moved is `REVISION_CONFLICT`, which is not retried: the same revision would
+revision, read under the record's lock, and the replay holds even when the first
+write already moved that revision on. A revision that moved is `REVISION_CONFLICT`, which is not retried: the same revision would
 conflict again, so route it to a fresh read with `error.handle`. A missing
 record is `found: false` from `table.record.get`, not a failure. `table.record.query`
 reads at most 100 records a page and says `has_more`. It never reads a whole large
@@ -358,5 +359,19 @@ explains why it exists. `load_builtins` imports the package.
 `tests/test_workflow_node_layout.py` enforces the layout. A handler returns
 `Completed`, `Waiting`, `Failed` or `Uncertain` and never raises. It reads the
 run it executes for from `app.services.workflow_execution.context.current()`.
+
+A typed node declares three Pydantic models: its config, set in the editor and
+frozen at publish; its input, whose fields are what bindings fill; and its
+output, which later steps bind to. `extra="forbid"` on each keeps a typo out of a
+published graph. Choose `retry_guarantee` for what a repeat of the call would do:
+`idempotent` when the handler makes a repeat harmless itself - a table write passes
+`operation_key()` - `at_least_once` when a repeat is acceptable, and `none` when it
+is not. A node that reads or writes a resource declares `check_resources`, which
+publishing runs against the author and every run against its principal.
+
+The console draws a node from its definition, with its icon and tint in
+`frontend/src/components/workflows/node-visuals.ts`. Test the handler directly for
+its refusals, and drive it once through `tests/integration/workflow_run_support.py`
+so its config, bindings and output are proved in a real run.
 
 ::: app.workflows.contracts.definition.NodeDefinition

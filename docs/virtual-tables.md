@@ -394,6 +394,24 @@ await service.upsert_record(
 The organization always comes from `ctx`, never from an argument. The service never
 commits: the request's session does, and a worker owns its own session scope.
 
+## Adding a column type { #adding-a-column-type }
+
+A column type is one entry in `COLUMN_TYPES` in
+`backend/app/services/virtual_tables/types.py`, with its name in `ColumnTypeName` in
+`backend/app/schemas/virtual_table.py`. The entry names how the cell is read out of
+the record for comparing and sorting (a `SqlKind`), which filter operators it takes,
+whether it sorts, and the validator every write and every filter operand goes
+through. The validator returns the value as it is stored or raises `CellProblem`
+with a message for whoever wrote it. Every surface calls the same service, so the
+console, the API, agents and workflows all accept the new type at once, and a
+[trigger](#triggers) filters on it with the same rules.
+
+The console needs the type in `ColumnTypeName` in `frontend/src/types/tables.ts`,
+an editor in `record-cell-editor.tsx`, a choice in the schema and create-table
+dialogs, and its label in the three message catalogs. Tests belong in
+`backend/tests/test_virtual_table_types.py` for the validator, and in an integration
+test that writes, filters and sorts a record of the new type.
+
 ## Not built yet { #not-built-yet }
 
 - **A principal for API keys.** Access, receipts and history all name a signed-in
@@ -402,3 +420,5 @@ commits: the request's session does, and a worker owns its own session scope.
   [Tables capability](reference/capabilities.md#tables), and workflows through the
   [table nodes](reference/workflow-nodes.md#virtual-tables).
 - A trigger on a record's update or delete. [Triggers](#triggers) start on a create only.
+- Resuming a run that stopped as **Needs attention** from the console. It can be
+  cancelled, and a new run started.

@@ -166,6 +166,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A table step retried after its write committed replays it instead of
+  failing.** An update, upsert or delete with no revision bound read the record's
+  revision before writing, so a retry after the first write had moved it on sent a
+  different request under the same key and was refused as `IDEMPOTENCY_KEY_REUSED`
+  (or, for a delete, found no record). The revision is now read under the record's
+  lock and left out of the request the key is tied to, so the retry replays the
+  first write (#1793).
 - **A list binds to a tuple and back.** Publishing refused binding a
   `table.record.query`'s `records` into a loop's `items`, because one is a tuple
   and the other a list; both are one JSON array, so only their element types are

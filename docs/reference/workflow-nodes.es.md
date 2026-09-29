@@ -1,5 +1,5 @@
 ---
-source_sha: "e205a3cd594a"
+source_sha: "c4a29877375a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -266,7 +266,8 @@ columna viva falla con `UNKNOWN_COLUMN`.
 
 Una escritura lleva la clave de operación del paso, así que un paso reintentado
 repite su primera escritura. Un update, upsert o delete sin revisión enlazada escribe
-en la revisión actual del registro. Una revisión que se movió es
+en la revisión actual del registro, leída bajo el bloqueo del registro, y la repetición
+se mantiene aunque la primera escritura ya haya movido esa revisión. Una revisión que se movió es
 `REVISION_CONFLICT`, que no se reintenta: la misma revisión volvería a
 chocar, así que encamínalo con `error.handle` hacia una lectura nueva. Un registro que falta es `found: false` de
 `table.record.get`, no un fallo. `table.record.query` lee como mucho 100 registros
@@ -375,5 +376,20 @@ existe. `load_builtins` importa el paquete. `tests/test_workflow_node_layout.py`
 hace cumplir esa estructura. Un handler devuelve `Completed`, `Waiting`, `Failed`
 o `Uncertain` y nunca lanza una excepción. Lee el run para el que se ejecuta
 desde `app.services.workflow_execution.context.current()`.
+
+Un nodo tipado declara tres modelos de Pydantic: su configuración, que se fija en el
+editor y se congela al publicar; su entrada, cuyos campos rellenan los enlaces; y su
+salida, a la que se enlazan los pasos posteriores. `extra="forbid"` en cada uno mantiene
+una errata fuera de un grafo publicado. Elige `retry_guarantee` según lo que haría una
+repetición de la llamada: `idempotent` cuando el propio handler hace inofensiva una
+repetición - una escritura en una tabla pasa `operation_key()` -, `at_least_once` cuando
+una repetición es aceptable, y `none` cuando no lo es. Un nodo que lee o escribe un
+recurso declara `check_resources`, que la publicación ejecuta contra el autor y cada run
+contra su principal.
+
+La consola dibuja un nodo a partir de su definición, con su icono y su tono en
+`frontend/src/components/workflows/node-visuals.ts`. Prueba el handler directamente en
+sus rechazos, y llévalo una vez por `tests/integration/workflow_run_support.py` para que
+su configuración, sus enlaces y su salida queden demostrados en un run real.
 
 ::: app.workflows.contracts.definition.NodeDefinition

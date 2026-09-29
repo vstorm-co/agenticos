@@ -321,6 +321,32 @@ of triggers it came through, so a workflow that writes back into a table whose
 trigger started it is blocked rather than looping. See
 [Virtual Tables](virtual-tables.md#triggers).
 
+## When something goes wrong { #when-something-goes-wrong }
+
+**What a run promises.** A step's result and the dispatch of the steps after it
+are saved together, so a worker that stops between steps loses nothing: another
+picks the run up where it was. A worker that stops inside a step leaves an attempt
+nobody saw end. A step that is safe to repeat is tried again. A table write replays
+its first write through its receipt rather than writing twice, and a notification is
+sent once. A step that may already have acted elsewhere and promises nothing more -
+running an agent is one - is never repeated on its own: the run stops as **Needs
+attention**, so a model is not paid twice or a message sent twice without anyone
+deciding it.
+
+Nothing else is exactly once. An HTTP call, an upload or a file write may be made
+again after such a stop, so a receiving system that must not see a request twice
+needs an idempotency key of its own. Each step's retry promise is listed in the
+[node reference](reference/workflow-nodes.md).
+
+| What you see | Why | What to do |
+|---|---|---|
+| **Needs attention** | A step that may have acted was interrupted | Check whether its effect happened, then cancel the run and start a new one if it did not. Resuming it from the console is not built yet |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow change the webhook, schedule or trigger, so it runs as them |
+| `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
+| `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |
+| A table trigger's history says **Blocked** | The run would have started itself again, or its chain went too deep | See [Triggers](virtual-tables.md#triggers) |
+| A webhook answers `403` | The signature does not match the body, or the member it runs as can no longer run the workflow | Sign the exact bytes sent with the current secret, or have a member who may run it change the webhook |
+
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 
 Every part of the editor has a path that needs no pointer. Clicking a palette

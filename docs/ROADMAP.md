@@ -4,7 +4,7 @@ The state of the platform and what is left, written so someone picking this up
 cold knows both what exists and *why it was built that way*. Sections match the
 board in the working plan (`VstormOS — MVP`).
 
-Updated: 2026-08-27.
+Updated: 2026-09-29.
 
 ## Where the platform stands
 
@@ -131,6 +131,30 @@ binding resolves at run time. See
 kind of embed, served at `/e/{publicKey}`, with variables from the address bar and
 a thread a visitor can come back to. It reuses the run path, so budgets and
 history apply identically.
+
+## Workflows and Virtual Tables (#56)
+
+Delivered in one pull request (#1925), the milestone's issues #1781-#1793 with
+#1823, #1907 and #1915. **A workflow is a versioned graph**, edited on a canvas,
+validated at publish and run durably: Postgres holds each run's position, an outbox
+row per step is dispatched by Prefect, and a step's result commits with the dispatch
+of the steps after it. **A Virtual Table is typed records** with revisions,
+receipts and history, reached through one service by the console, the API, agents,
+workflow steps and table triggers.
+
+What a run promises is stated per step rather than globally: a step safe to repeat
+is retried, a table write replays through its receipt, and a step that may have
+acted and promises nothing more stops the run for a person. The four journeys in
+`tests/integration/test_workflow_journeys.py` - a chat answered from a knowledge
+base, two agents in turn, an API-created lead scored through a table trigger and
+written back, and a multi-file batch report - run end to end, with a worker killed
+after a table write, one killed inside a model call, and a member revoked halfway.
+
+**Deferred, on purpose:** triggers on a record's update or delete; creating and
+deleting records from the console; resuming a run that needs attention; an API-key
+principal for tables; per-workflow budgets, which publishing leaves unset today.
+None of these has a current estimate: they are listed so the next plan starts from
+them rather than rediscovering them.
 
 ## Remaining work
 

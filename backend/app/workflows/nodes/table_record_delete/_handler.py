@@ -57,16 +57,11 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         return not_configured("This step needs a table and a bound record id")
 
     async def work(service: VirtualTableService, auth: AuthContext) -> NodeResult:
-        revision = node_input.expected_revision
-        if revision is None:
-            revision = (
-                await service.get_record(auth, config.table.table_id, node_input.record_id)
-            ).revision
         await service.delete_record(
             auth,
             config.table.table_id,
             node_input.record_id,
-            expected_revision=revision,
+            expected_revision=node_input.expected_revision,
             operation_key=operation_key(),
         )
         return Completed[TableRecordDeleteOutput](

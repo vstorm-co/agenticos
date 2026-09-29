@@ -1,5 +1,5 @@
 ---
-source_sha: "1b01d58d3031"
+source_sha: "1635944fd28a"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -170,6 +170,43 @@ Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs. Ein
 Signatur, die sich nicht verifizieren lässt, ist ein `403`, eine Zustellung ohne ID
 oder mit einem Body, der kein JSON-Objekt ist, ein `400`, und ein pausierter oder
 unbekannter Webhook ein `404`.
+
+## Mit Tabellen arbeiten { #working-with-tables }
+
+Die `values` eines Datensatzes sind nach Spalten-id geschlüsselt; `GET
+/api/v1/tables/{id}` listet die Spalten. Jeder Schreibzugriff nimmt einen
+`Idempotency-Key`: Eine Wiederholung mit demselben Schlüssel und Body antwortet mit dem
+Ergebnis des ersten Schreibzugriffs und `Idempotent-Replayed: true`, statt erneut zu
+schreiben, und derselbe Schlüssel mit anderem Body ist `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` ändert einige Zellen und braucht die
+`expected_revision`, die Sie zuletzt gelesen haben; eine veraltete ist `409
+REVISION_CONFLICT`. `PUT .../records/by-external-id/{external_id}` legt den Datensatz
+an oder aktualisiert ihn, mit `expected_revision`, sobald er existiert. `POST
+.../records/query` filtert und sortiert seitenweise.
+
+`POST .../triggers` führt einen veröffentlichten Workflow für jeden ab dann
+hinzugefügten Datensatz aus, als Sie. `input_mapping` legt fest, womit der Run beginnt:
+eine Spalten-id, `@author` oder `@record_id`. `GET .../triggers/{trigger_id}/admissions`
+listet, was er über jeden Datensatz entschieden hat. Siehe
+[Trigger](virtual-tables.md#triggers).
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
+```
 
 ## Die ML-Dienste { #the-ml-services }
 

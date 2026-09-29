@@ -1,11 +1,10 @@
 """`table.record.upsert`: write the record with an external id, whether or not it exists.
 
 A workflow step is the writer of record for what it upserts, so an update does
-not ask for a revision the step never read: when the record exists, the step
-reads its current revision from the refusal and writes against it. A record that
-changes between that read and the write is a `REVISION_CONFLICT` marked
-retryable, and the retry reads again. Nothing is overwritten that the step did
-not see.
+not ask for a revision the step never read: when the record exists, its bound
+cells change at the revision it is at now, read under the record's lock, so no
+other write lands in between. A retry after the write committed replays it,
+whether the first attempt created the record or updated it.
 """
 
 from __future__ import annotations
@@ -16,8 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext
-from app.schemas.virtual_table import RecordUpsert
-from app.services.virtual_tables.exceptions import RevisionRequiredError
 from app.services.virtual_tables.facade import VirtualTableService
 from app.services.virtual_tables.presentation import column_keyed
 from app.workflows.contracts.io import TableIORef
@@ -68,23 +65,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
     async def work(service: VirtualTableService, auth: AuthContext) -> NodeResult:
         table = await service.describe_table(auth, config.table.table_id)
         values = column_keyed(table, node_input.values)
-        key = operation_key()
-        try:
-            written = await service.upsert_record(
-                auth,
-                table.id,
-                node_input.external_id,
-                RecordUpsert(values=values),
-                operation_key=key,
-            )
-        except RevisionRequiredError as existing:
-            written = await service.upsert_record(
-                auth,
-                table.id,
-                node_input.external_id,
-                RecordUpsert(values=values, expected_revision=existing.current_revision),
-                operation_key=key,
-            )
+        written = await service.upsert_record_cells(
+            auth, table.id, node_input.external_id, values, operation_key=operation_key()
+        )
         return Completed[TableRecordOutput](
             output=record_output(table, written.record, created=written.created)
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "e205a3cd594a"
+source_sha: "c4a29877375a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -273,7 +273,9 @@ lebende Spalte nennt, schlägt mit `UNKNOWN_COLUMN` fehl.
 
 Ein Schreibzugriff trägt den Operationsschlüssel des Schritts, daher spielt ein
 wiederholter Schritt seinen ersten Schreibzugriff erneut ab. Ein Update, Upsert oder
-Delete ohne gebundene Revision schreibt bei der aktuellen Revision des Datensatzes.
+Delete ohne gebundene Revision schreibt bei der aktuellen Revision des Datensatzes,
+unter der Sperre des Datensatzes gelesen, und das erneute Abspielen hält auch dann, wenn
+der erste Schreibzugriff diese Revision schon weitergesetzt hat.
 Eine verschobene Revision ist `REVISION_CONFLICT`, der nicht wiederholt wird: Dieselbe Revision
 würde erneut kollidieren, also leite ihn mit `error.handle` zu einem frischen Lesen um. Ein fehlender
 Datensatz ist `found: false` aus `table.record.get`, kein Fehler.
@@ -388,5 +390,21 @@ registriert eine `NodeDefinition`, `_handler.py` implementiert sie, und
 `tests/test_workflow_node_layout.py` erzwingt diesen Aufbau. Ein Handler gibt
 `Completed`, `Waiting`, `Failed` oder `Uncertain` zurück und wirft nie. Den Run,
 für den er läuft, liest er aus `app.services.workflow_execution.context.current()`.
+
+Ein typisierter Knoten deklariert drei Pydantic-Modelle: seine Konfiguration, im
+Editor gesetzt und bei der Veröffentlichung eingefroren; seine Eingabe, deren Felder die
+Bindungen füllen; und seine Ausgabe, an die sich spätere Schritte binden.
+`extra="forbid"` auf jedem hält einen Tippfehler aus einem veröffentlichten Graphen.
+Wählen Sie `retry_guarantee` danach, was eine Wiederholung des Aufrufs täte:
+`idempotent`, wenn der Handler eine Wiederholung selbst harmlos macht - ein
+Tabellen-Schreibzugriff übergibt `operation_key()` -, `at_least_once`, wenn eine
+Wiederholung vertretbar ist, und `none`, wenn nicht. Ein Knoten, der eine Ressource
+liest oder schreibt, deklariert `check_resources`, das die Veröffentlichung gegen den
+Autor und jeder Run gegen seinen Principal ausführt.
+
+Die Konsole zeichnet einen Knoten aus seiner Definition, mit Icon und Tönung in
+`frontend/src/components/workflows/node-visuals.ts`. Testen Sie den Handler direkt auf
+seine Ablehnungen, und führen Sie ihn einmal über `tests/integration/workflow_run_support.py`
+aus, sodass Konfiguration, Bindungen und Ausgabe in einem echten Run belegt sind.
 
 ::: app.workflows.contracts.definition.NodeDefinition

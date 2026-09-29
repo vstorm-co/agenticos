@@ -1,5 +1,5 @@
 ---
-source_sha: "1b01d58d3031"
+source_sha: "1635944fd28a"
 ---
 
 # API HTTP { #the-http-api }
@@ -159,6 +159,41 @@ przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęt
 odpowiada `"duplicate": true` z id pierwszego runa. Podpis, który się nie weryfikuje,
 to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
 a wstrzymany albo nieznany webhook to `404`.
+
+## Praca z tabelami { #working-with-tables }
+
+`values` rekordu są kluczowane id kolumn; `GET /api/v1/tables/{id}` wymienia kolumny.
+Każdy zapis przyjmuje `Idempotency-Key`: ponowienie z tym samym kluczem i treścią
+odpowiada wynikiem pierwszego zapisu i `Idempotent-Replayed: true` zamiast zapisywać
+znowu, a ten sam klucz z inną treścią to `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` zmienia część komórek i wymaga `expected_revision`,
+którą ostatnio odczytałeś; nieaktualna to `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` tworzy rekord albo go aktualizuje, a gdy już
+istnieje, wymaga `expected_revision`. `POST .../records/query` filtruje i sortuje po
+jednej stronie naraz.
+
+`POST .../triggers` uruchamia opublikowany workflow dla każdego rekordu dodanego od tej
+chwili, jako ty. `input_mapping` określa, od czego startuje run: id kolumny, `@author`
+albo `@record_id`. `GET .../triggers/{trigger_id}/admissions` wymienia, co zdecydował o
+każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/triggers" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input_mapping": {"email": "'"$EMAIL_COLUMN"'", "record_id": "@record_id"}}'
+```
 
 ## Usługi ML { #the-ml-services }
 

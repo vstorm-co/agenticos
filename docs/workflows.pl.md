@@ -1,5 +1,5 @@
 ---
-source_sha: "24ea92fd5761"
+source_sha: "04a80ddc4ae9"
 ---
 
 # Workflows { #workflows }
@@ -322,6 +322,32 @@ skonfigurował. Filtry wybierają, które rekordy go uruchamiają, a mapowanie w
 łańcuch wyzwalaczy, przez które przeszedł, więc workflow zapisujący z powrotem do
 tabeli, której wyzwalacz go uruchomił, jest blokowany zamiast się zapętlić. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
+
+## Gdy coś pójdzie nie tak { #when-something-goes-wrong }
+
+**Co obiecuje run.** Wynik kroku i wysłanie kroków po nim zapisują się razem, więc
+worker, który zatrzyma się między krokami, niczego nie gubi: inny podejmuje run tam,
+gdzie był. Worker, który zatrzyma się w środku kroku, zostawia próbę, której końca
+nikt nie widział. Krok bezpieczny do powtórzenia jest ponawiany. Zapis do tabeli
+odtwarza swój pierwszy zapis przez potwierdzenie zamiast zapisywać drugi raz, a
+powiadomienie idzie raz. Krok, który mógł już zadziałać gdzie indziej i niczego więcej
+nie obiecuje - jak uruchomienie agenta - nigdy nie jest powtarzany sam: run zatrzymuje
+się jako **Wymaga uwagi**, żeby nikt nie zapłacił za model dwa razy ani nie wysłał
+wiadomości dwa razy, zanim ktoś o tym zdecyduje.
+
+Nic innego nie dzieje się dokładnie raz. Wywołanie HTTP, upload albo zapis pliku mogą
+zostać wykonane ponownie po takim zatrzymaniu, więc system odbierający, który nie może
+zobaczyć żądania dwa razy, potrzebuje własnego klucza idempotencji. Obietnica ponowień
+każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
+
+| Co widzisz | Dlaczego | Co zrobić |
+|---|---|---|
+| **Wymaga uwagi** | Przerwano krok, który mógł zadziałać | Sprawdź, czy jego efekt nastąpił, a potem anuluj run i uruchom nowy, jeśli nie. Wznowienie go z konsoli nie jest jeszcze zbudowane |
+| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, zmieni webhook, harmonogram albo wyzwalacz, żeby działał jako on |
+| `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |
+| `REVISION_CONFLICT` | Ktoś zmienił rekord po tym, jak krok go odczytał | Skieruj błąd kroku przez `error.handle` do świeżego odczytu |
+| Historia wyzwalacza tabeli mówi **Zablokowany** | Run uruchomiłby sam siebie ponownie albo jego łańcuch sięgnął za głęboko | Zobacz [Wyzwalacze](virtual-tables.md#triggers) |
+| Webhook odpowiada `403` | Podpis nie pasuje do treści albo członek, jako który działa, nie może już uruchamiać workflow | Podpisz dokładnie wysłane bajty bieżącym sekretem albo niech członek, który może go uruchamiać, zmieni webhook |
 
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 
