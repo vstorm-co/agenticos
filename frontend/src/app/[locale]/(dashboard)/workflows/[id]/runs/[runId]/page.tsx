@@ -23,6 +23,7 @@ import {
   summarizeNodeRuns,
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
+import { RunFiles } from "@/components/workflows/runs/run-files";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import { useNodeCatalog, usePermissions, useWorkflow, useWorkflowRun } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -50,7 +51,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const locale = useLocale();
   const { workflow } = useWorkflow(id);
   const { nodes: catalog } = useNodeCatalog();
-  const { run, isLoading, nodes, graph, cancel } = useWorkflowRun(runId);
+  const { run, isLoading, nodes, files, graph, cancel } = useWorkflowRun(runId);
   const { can } = usePermissions();
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
@@ -175,6 +176,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
               )}
             </CardContent>
           </Card>
+          <RunFiles runId={run.id} files={files} />
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">{t("runStepList")}</CardTitle>

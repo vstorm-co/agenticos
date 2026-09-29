@@ -1,5 +1,5 @@
 ---
-source_sha: "5e8a58bfee0e"
+source_sha: "776a2161e7e5"
 ---
 
 # Workflows { #workflows }
@@ -288,7 +288,8 @@ blass. **Open loop body** zeigt die Iterationen einer Schleife auf dieselbe Weis
 
 Die Ausgabe des Runs und jeder Schritt, den er gemacht hat, Iteration für Iteration,
 stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
-run** stoppt ihn.
+run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
+gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 

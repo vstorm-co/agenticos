@@ -62,6 +62,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
+from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_db_context
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
@@ -80,6 +81,7 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
     DeploymentSettings.logo_path,
     DeploymentSettings.favicon_path,
     ArtifactVersion.storage_path,
+    WorkflowFile.storage_path,
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design:

@@ -417,6 +417,20 @@ export interface WorkflowNodeRunList {
   total: number;
 }
 
+/** A file one of the run's steps stored. Mirrors `WorkflowFileRead`. */
+export interface WorkflowRunFile {
+  id: Uuid;
+  filename: string | null;
+  content_type: string;
+  byte_size: number;
+  producing_node_run_id: Uuid | null;
+  created_at: string;
+}
+
+export interface WorkflowRunFileList {
+  items: WorkflowRunFile[];
+}
+
 /** What starting a run sends. Mirrors `WorkflowRunStart`. */
 export interface WorkflowRunStart {
   workflow_id: Uuid;

@@ -257,7 +257,7 @@ faded. **Open loop body** shows a loop's iterations the same way.
 
 The run's output
 and every step it took, iteration by iteration, sit alongside. A run still going
-refreshes itself every couple of seconds, and **Cancel run** stops it.
+refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 

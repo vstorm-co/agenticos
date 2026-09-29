@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflows can fetch, read, convert and hand on files, and run Python.** A
+  file a step makes is stored as a file of its run and passed on as a `FileRef`,
+  and a step reads one only if its own run made it or was started with it, so an
+  id alone grants nothing. `http.download` and `http.upload` stream files over
+  HTTP under the same SSRF and credential rules as `http.request`, with the type
+  read from the bytes. `file.read`, `file.write`, `text.extract` (which names the
+  pages of a scan rather than returning them empty) and four `convert.*` steps
+  handle text, JSON, CSV, PDF and DOCX. `image.transform` crops, resizes and
+  converts images within the pixel limit, with their metadata removed.
+  `code.python.simple` runs a script in the Monty sandbox, and
+  `code.python.sandbox` runs full Python with files as a durable job on the
+  organization's sandbox host, reconnecting instead of restarting. `agent.run`
+  shows bound images to the agent as pictures, and a run's page lists its files
+  for download (#1791).
 - **A workflow can be started from outside the console, and answer in the
   chat.** The editor's **Triggers** sheet shows how to start it from the HTTP API
   and adds the two ways in that nobody stands at: a **webhook**, whose sender

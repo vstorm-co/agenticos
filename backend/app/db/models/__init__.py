@@ -88,6 +88,7 @@ from app.db.models.workflow_exposure import (
     WorkflowExposure,
     WorkflowWebhookDelivery,
 )
+from app.db.models.workflow_file import WorkflowFile
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
@@ -199,4 +200,5 @@ __all__ = [
     "ExposureScheduleKind",
     "WorkflowExposure",
     "WorkflowWebhookDelivery",
+    "WorkflowFile",
 ]

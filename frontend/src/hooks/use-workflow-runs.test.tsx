@@ -14,6 +14,7 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   getWorkflowRun: vi.fn(),
   listWorkflowRunNodes: vi.fn(),
   getWorkflowRunGraph: vi.fn(),
+  listWorkflowRunFiles: vi.fn(),
   startWorkflowRun: vi.fn(),
   cancelWorkflowRun: vi.fn(),
 }));
@@ -64,8 +65,12 @@ describe("useWorkflowRun", () => {
       scopes: [],
     });
     vi.mocked(api.cancelWorkflowRun).mockResolvedValue(run("cancelled"));
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({
+      items: [{ id: "f1" } as never],
+    });
     const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
     await waitFor(() => expect(result.current.graph).not.toBeNull());
+    await waitFor(() => expect(result.current.files).toHaveLength(1));
     expect(result.current.run?.status).toBe("running");
     await act(() => result.current.cancel.mutateAsync());
     await waitFor(() => expect(result.current.run?.status).toBe("cancelled"));
@@ -77,6 +82,7 @@ describe("useWorkflowRun", () => {
     vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
     vi.mocked(api.cancelWorkflowRun).mockRejectedValue(new Error("no"));
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
     const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     await act(async () => {

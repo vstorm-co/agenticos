@@ -86,3 +86,17 @@ async def test_a_chat_run_with_a_text_answer_says_it_in_the_message():
     assert "workflow_name" not in card
     assert card["error"] == "The last step failed"
     assert words == {"type": "text", "text": "Three leads are ready."}
+
+
+async def test_a_runs_files_are_listed_from_what_the_query_answers():
+    """The listing's own return, which the end-to-end suites reach only after an await
+    the coverage tracer loses."""
+    from app.repositories import workflow_file as workflow_file_repo
+
+    row = MagicMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [row]
+    db = MagicMock(execute=AsyncMock(return_value=result))
+    assert await workflow_file_repo.list_for_run(
+        db, workflow_run_id=uuid.uuid4(), organization_id=uuid.uuid4()
+    ) == [row]

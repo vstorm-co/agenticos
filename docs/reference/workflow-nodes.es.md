@@ -1,5 +1,5 @@
 ---
-source_sha: "754fb0b1c66f"
+source_sha: "e205a3cd594a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -113,6 +113,12 @@ el esquema antes de que se ejecute nada después. Si no, el paso falla con
 | Presupuesto superado | `AGENT_BUDGET_EXCEEDED` |
 | Bloqueado por un guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | En otro caso | `AGENT_RUN_FAILED` |
+
+Los `attachments` vinculados son imágenes de los archivos del run - una descarga,
+una página de PDF renderizada, una foto transformada - que se muestran al agent como
+imágenes y no como un enlace que no puede abrir. Solo se muestran PNG, JPEG, WebP y
+GIF. Cualquier otro archivo falla con `UNSUPPORTED_ATTACHMENT_TYPE`, así que lee
+primero el texto de un documento con `text.extract`.
 
 Nunca se reintenta automáticamente, porque un agent puede haber llamado a
 herramientas con efectos secundarios.
@@ -281,6 +287,85 @@ actual de ese workflow la use.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Archivos { #files }
+
+Un archivo que crea un paso se guarda como archivo de su run y se pasa como `FileRef`:
+un id, el tipo que resultaron ser sus bytes y un tamaño. Un paso lee un archivo solo si
+lo creó su propio run o el run se inició con él - un `FileRef` vinculado en el grafo,
+comprobado al publicar contra un run que el autor puede ver. Cualquier otro archivo,
+de otra organización o de otro run, es `FILE_NOT_FOUND`, así que conocer un id no
+concede nada. Los archivos de un run se listan y se descargan desde su página.
+
+| Nodo | Hace | Efecto |
+|---|---|---|
+| `http.download` | Descarga un archivo por HTTP, en streaming, y lo guarda | write |
+| `http.upload` | Envía un archivo a un endpoint HTTP, en streaming desde el almacenamiento | write |
+| `file.read` | Lee un archivo como texto, un valor JSON o filas CSV | read |
+| `file.write` | Guarda texto, un valor JSON o filas como archivo | write |
+| `text.extract` | El texto de un archivo TXT, JSON, CSV, PDF con texto o DOCX | read |
+| `convert.csv_to_json` | Un archivo CSV como archivo JSON de filas | write |
+| `convert.json_to_csv` | Una lista JSON de objetos planos como archivo CSV | write |
+| `convert.text_to_file` | Texto como archivo TXT | write |
+| `convert.pdf_to_png` | Páginas elegidas de un PDF como imágenes PNG | write |
+| `image.transform` | Recorta, redimensiona, gira o convierte una imagen | write |
+
+Una descarga sigue las mismas reglas de SSRF y credenciales que `http.request`, hasta
+cinco redirecciones. Su cuerpo se cuenta a medida que llega y se rechaza por encima de
+`max_bytes`, y su tipo se detecta por los bytes, así que una cabecera no puede engañar
+a `expected_content_types`. `text.extract` no hace OCR: una página escaneada hace
+fallar el paso con `TEXT_EXTRACTION_NEEDS_OCR` y nombra las páginas. Un documento
+dañado es `DOCUMENT_CORRUPT` y un PDF protegido con contraseña `DOCUMENT_ENCRYPTED`.
+
+Una imagen se mide antes de decodificarse. Su ancho por alto, una zona de recorte y un
+tamaño solicitado se comprueban cada uno contra `CHAT_IMAGE_MAX_PIXELS`, y el
+resultado no lleva ningún metadato del origen. Todo paso que guarda un archivo guarda
+uno nuevo en cada intento, así que es `at_least_once`.
+
+::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
+
+::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
+
+::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+::: app.workflows.nodes.text_extract._handler.TextExtractOutput
+
+::: app.workflows.nodes.convert_pdf_to_png._handler.ConvertPdfToPngConfig
+
+::: app.workflows.nodes.image_transform._handler.ImageTransformConfig
+
+## Python { #python }
+
+Dos nodos ejecutan Python, para dos tipos de trabajo.
+
+`code.python.simple` ejecuta un script corto en el sandbox de Monty, que no tiene
+sistema de archivos, ni red, y tiene una biblioteca estándar pequeña. El script lee los
+valores vinculados como `args`, y su última expresión es el `result` del paso, que debe
+ser un valor JSON. Solo calcula, así que es `pure` y requiere `code:execute`.
+
+`code.python.sandbox` ejecuta Python completo con paquetes y los archivos del run en
+la conexión `sandboxd` de la organización, y requiere `sandbox:execute`. El script
+encuentra sus archivos de entrada en `inputs`, escribe archivos en `outputs` y fija
+`result`. Es un trabajo duradero: el primer despacho lo inicia en segundo plano, y
+cada uno posterior lo comprueba en la misma sesión, así que un worker reiniciado se
+reconecta en lugar de volver a iniciarlo. Ninguna credencial de la plataforma llega
+nunca al sandbox, y lo que el script alcanza más allá de sus archivos es la propia
+configuración del runtime del host - elige un runtime sin red para trabajo que no es
+de confianza.
+
+| Qué pasó | Resultado |
+|---|---|
+| El resultado no es JSON | `PYTHON_OUTPUT_NOT_JSON` |
+| El script lanzó una excepción o superó un límite | `PYTHON_ERROR` |
+| El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
+| No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
+| No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
+
+::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
 
 ## Añadir un nodo { #adding-a-node }
 

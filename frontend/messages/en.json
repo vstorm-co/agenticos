@@ -3602,7 +3602,11 @@
       "webhookSigningTitle": "How to sign a delivery",
       "webhookSigningSignature": "X-Signature-256: sha256= followed by the hex HMAC-SHA256 of the exact request body, keyed with the secret.",
       "webhookSigningDelivery": "X-Delivery-Id: an id for the delivery. A retry sends the same id, and the workflow runs once.",
-      "webhookReadyDone": "Done"
+      "webhookReadyDone": "Done",
+      "runFiles": "Files",
+      "runFilesCaption": "What this run's steps stored",
+      "runFilesNone": "This run has stored no files.",
+      "runFileDownload": "Download {name}"
     },
     "retention": {
       "title": "Data retention",
@@ -5882,6 +5886,8 @@
       "knowledge": "Knowledge",
       "data": "Data",
       "tables": "Tables",
+      "files": "Files",
+      "code": "Code",
       "logic": "Branching",
       "control": "Loops",
       "error": "Errors",

@@ -10,6 +10,7 @@ import {
   cancelWorkflowRun,
   getWorkflowRun,
   getWorkflowRunGraph,
+  listWorkflowRunFiles,
   listWorkflowRunNodes,
   listWorkflowRuns,
   startWorkflowRun,
@@ -59,6 +60,11 @@ export function useWorkflowRun(runId: string) {
     queryFn: () => listWorkflowRunNodes(runId),
     refetchInterval: live(run.data) ? LIVE_POLL_MS : false,
   });
+  const files = useQuery({
+    queryKey: qk.workflows.runFiles(runId),
+    queryFn: () => listWorkflowRunFiles(runId),
+    refetchInterval: live(run.data) ? LIVE_POLL_MS : false,
+  });
   const graph = useQuery({
     queryKey: qk.workflows.runGraph(runId),
     queryFn: () => getWorkflowRunGraph(runId),
@@ -77,6 +83,7 @@ export function useWorkflowRun(runId: string) {
     run: run.data ?? null,
     isLoading: run.isLoading,
     nodes: nodes.data?.items ?? [],
+    files: files.data?.items ?? [],
     graph: graph.data ?? null,
     cancel,
   };

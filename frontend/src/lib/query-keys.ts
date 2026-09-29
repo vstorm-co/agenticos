@@ -97,6 +97,7 @@ export const qk = {
     run: (runId: string) => ["workflows", "run", runId] as const,
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
+    runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
     // The webhooks and schedules that run a workflow unattended.
     exposures: (id: string) => ["workflows", id, "exposures"] as const,
   },

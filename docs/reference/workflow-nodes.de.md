@@ -1,5 +1,5 @@
 ---
-source_sha: "754fb0b1c66f"
+source_sha: "e205a3cd594a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -117,6 +117,12 @@ Schema erfüllt, bevor irgendetwas danach läuft. Sonst schlägt der Schritt mit
 | Budget überschritten | `AGENT_BUDGET_EXCEEDED` |
 | Von einem Guardrail blockiert | `AGENT_GUARDRAIL_BLOCKED` |
 | Sonst | `AGENT_RUN_FAILED` |
+
+Gebundene `attachments` sind Bilder aus den Dateien des Runs - ein Download, eine
+gerenderte PDF-Seite, ein umgewandeltes Foto -, die dem Agenten als Bilder gezeigt
+werden statt als Link, den er nicht öffnen kann. Nur PNG, JPEG, WebP und GIF werden
+gezeigt. Jede andere Datei scheitert mit `UNSUPPORTED_ATTACHMENT_TYPE`, also lies den
+Text eines Dokuments zuerst mit `text.extract`.
 
 Er wird nie automatisch wiederholt, weil ein Agent Tools mit Nebenwirkungen
 aufgerufen haben kann.
@@ -289,6 +295,90 @@ archiviert werden, solange die aktuelle Version dieses Workflows sie nutzt.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Dateien { #files }
+
+Eine Datei, die ein Schritt erzeugt, wird als Datei seines Runs gespeichert und als
+`FileRef` weitergegeben: eine ID, der Typ, als der sich ihre Bytes erwiesen haben, und
+eine Größe. Ein Schritt liest eine Datei nur, wenn sein eigener Run sie erzeugt hat
+oder der Run mit ihr gestartet wurde - ein im Graphen gebundener `FileRef`, beim
+Veröffentlichen gegen einen Run geprüft, den der Autor sehen kann. Jede andere Datei,
+die einer anderen Organisation oder eines anderen Runs, ist `FILE_NOT_FOUND`, sodass
+eine bekannte ID nichts gewährt. Die Dateien eines Runs stehen auf seiner Seite zum
+Herunterladen bereit.
+
+| Knoten | Macht | Effekt |
+|---|---|---|
+| `http.download` | Holt eine Datei per HTTP, gestreamt, und speichert sie | write |
+| `http.upload` | Sendet eine Datei an einen HTTP-Endpunkt, gestreamt aus dem Speicher | write |
+| `file.read` | Liest eine Datei als Text, JSON-Wert oder CSV-Zeilen | read |
+| `file.write` | Speichert Text, einen JSON-Wert oder Zeilen als Datei | write |
+| `text.extract` | Der Text einer TXT-, JSON-, CSV-, Text-PDF- oder DOCX-Datei | read |
+| `convert.csv_to_json` | Eine CSV-Datei als JSON-Datei mit Zeilen | write |
+| `convert.json_to_csv` | Eine JSON-Liste flacher Objekte als CSV-Datei | write |
+| `convert.text_to_file` | Text als TXT-Datei | write |
+| `convert.pdf_to_png` | Ausgewählte PDF-Seiten als PNG-Bilder | write |
+| `image.transform` | Schneidet ein Bild zu, skaliert, dreht oder konvertiert es | write |
+
+Ein Download folgt denselben SSRF- und Credential-Regeln wie `http.request`, bis zu
+fünf Weiterleitungen. Sein Body wird beim Eintreffen gezählt und über `max_bytes`
+abgelehnt, und sein Typ wird an den Bytes erkannt, sodass ein Header
+`expected_content_types` nicht täuschen kann. `text.extract` macht kein OCR: Eine
+gescannte Seite lässt den Schritt mit `TEXT_EXTRACTION_NEEDS_OCR` scheitern und nennt
+die Seiten. Ein beschädigtes Dokument ist `DOCUMENT_CORRUPT`, ein passwortgeschütztes
+PDF `DOCUMENT_ENCRYPTED`.
+
+Ein Bild wird vermessen, bevor es dekodiert wird. Seine Breite mal Höhe, ein
+Zuschnittsbereich und eine angeforderte Größe werden jeweils gegen
+`CHAT_IMAGE_MAX_PIXELS` geprüft, und das Ergebnis trägt keine Metadaten der Quelle.
+Jeder Schritt, der eine Datei speichert, speichert bei jedem Versuch eine neue, also
+ist er `at_least_once`.
+
+::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
+
+::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
+
+::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+::: app.workflows.nodes.text_extract._handler.TextExtractOutput
+
+::: app.workflows.nodes.convert_pdf_to_png._handler.ConvertPdfToPngConfig
+
+::: app.workflows.nodes.image_transform._handler.ImageTransformConfig
+
+## Python { #python }
+
+Zwei Knoten führen Python aus, für zwei Arten von Arbeit.
+
+`code.python.simple` führt ein kurzes Skript in der Monty-Sandbox aus, die kein
+Dateisystem, kein Netzwerk und nur eine kleine Standardbibliothek hat. Das Skript liest
+die gebundenen Werte als `args`, und sein letzter Ausdruck ist das `result` des
+Schritts, das ein JSON-Wert sein muss. Es rechnet und tut sonst nichts, also ist es
+`pure` und braucht `code:execute`.
+
+`code.python.sandbox` führt vollständiges Python mit Paketen und den Dateien des Runs
+auf der `sandboxd`-Verbindung der Organisation aus und braucht `sandbox:execute`. Das
+Skript findet seine Eingabedateien in `inputs`, schreibt Dateien nach `outputs` und
+setzt `result`. Es ist ein dauerhafter Job: Der erste Dispatch startet ihn im
+Hintergrund, und jeder weitere prüft ihn in derselben Sitzung, sodass ein neu
+gestarteter Worker sich wieder verbindet, statt ihn erneut zu starten. Kein Credential
+der Plattform gelangt je in die Sandbox, und was das Skript über seine Dateien hinaus
+erreicht, ist die eigene Konfiguration der Runtime des Hosts - wähle für nicht
+vertrauenswürdige Arbeit eine Runtime ohne Netzwerk.
+
+| Was passiert ist | Ergebnis |
+|---|---|
+| Das Ergebnis ist kein JSON | `PYTHON_OUTPUT_NOT_JSON` |
+| Das Skript hat eine Ausnahme ausgelöst oder ein Limit überschritten | `PYTHON_ERROR` |
+| Der Job lief länger als `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, Sitzung gelöscht |
+| Keine nutzbare `sandboxd`-Verbindung | `SANDBOX_UNAVAILABLE` |
+| Der Host war nicht erreichbar | `SANDBOX_UNREACHABLE`, wiederholt |
+
+::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
 
 ## Einen Knoten hinzufügen { #adding-a-node }
 

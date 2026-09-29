@@ -1,5 +1,5 @@
 ---
-source_sha: "754fb0b1c66f"
+source_sha: "e205a3cd594a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -111,6 +111,12 @@ błędem `STRUCTURED_OUTPUT_MISMATCH`.
 | Przekroczony budżet | `AGENT_BUDGET_EXCEEDED` |
 | Zablokowany przez guardrail | `AGENT_GUARDRAIL_BLOCKED` |
 | Inaczej | `AGENT_RUN_FAILED` |
+
+Powiązane `attachments` to obrazy z plików runa - pobrany plik, wyrenderowana strona
+PDF, przekształcone zdjęcie - pokazywane agentowi jako obrazy, a nie jako link,
+którego nie może otworzyć. Pokazywane są tylko PNG, JPEG, WebP i GIF. Każdy inny plik
+kończy się `UNSUPPORTED_ATTACHMENT_TYPE`, więc tekst dokumentu najpierw odczytaj
+przez `text.extract`.
 
 Nigdy nie jest ponawiany automatycznie, bo agent mógł wywołać narzędzia z
 efektami ubocznymi.
@@ -276,6 +282,84 @@ tego workflow.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Pliki { #files }
+
+Plik, który tworzy krok, jest zapisywany jako plik jego runa i przekazywany dalej
+jako `FileRef`: id, typ, jakim okazały się jego bajty, i rozmiar. Krok czyta plik
+tylko wtedy, gdy utworzył go jego własny run albo run został z nim uruchomiony -
+`FileRef` powiązany w grafie, sprawdzany przy publikacji wobec runa, który autor
+widzi. Każdy inny plik, innej organizacji albo innego runa, to `FILE_NOT_FOUND`, więc
+znajomość id niczego nie daje. Pliki runa są wymienione i do pobrania na jego stronie.
+
+| Węzeł | Robi | Efekt |
+|---|---|---|
+| `http.download` | Pobiera plik przez HTTP, strumieniowo, i go zapisuje | write |
+| `http.upload` | Wysyła plik do endpointu HTTP, strumieniowo z magazynu | write |
+| `file.read` | Czyta plik jako tekst, wartość JSON albo wiersze CSV | read |
+| `file.write` | Zapisuje tekst, wartość JSON albo wiersze jako plik | write |
+| `text.extract` | Tekst pliku TXT, JSON, CSV, tekstowego PDF albo DOCX | read |
+| `convert.csv_to_json` | Plik CSV jako plik JSON z wierszami | write |
+| `convert.json_to_csv` | Lista płaskich obiektów JSON jako plik CSV | write |
+| `convert.text_to_file` | Tekst jako plik TXT | write |
+| `convert.pdf_to_png` | Wybrane strony PDF jako obrazy PNG | write |
+| `image.transform` | Przycina, skaluje, obraca albo konwertuje obraz | write |
+
+Pobieranie stosuje te same reguły SSRF i poświadczeń co `http.request`, do pięciu
+przekierowań. Jego treść jest liczona w trakcie napływu i odrzucana powyżej
+`max_bytes`, a typ jest rozpoznawany po bajtach, więc nagłówek nie oszuka
+`expected_content_types`. `text.extract` nie robi OCR: zeskanowana strona kończy
+krok błędem `TEXT_EXTRACTION_NEEDS_OCR` i wymienia strony. Uszkodzony dokument to
+`DOCUMENT_CORRUPT`, a PDF chroniony hasłem `DOCUMENT_ENCRYPTED`.
+
+Obraz jest mierzony, zanim zostanie zdekodowany. Jego szerokość razy wysokość, obszar
+przycięcia i żądany rozmiar są każdy sprawdzane wobec `CHAT_IMAGE_MAX_PIXELS`, a
+wynik nie niesie żadnych metadanych źródła. Każdy krok, który zapisuje plik, zapisuje
+nowy przy każdej próbie, więc jest `at_least_once`.
+
+::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
+
+::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
+
+::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+::: app.workflows.nodes.text_extract._handler.TextExtractOutput
+
+::: app.workflows.nodes.convert_pdf_to_png._handler.ConvertPdfToPngConfig
+
+::: app.workflows.nodes.image_transform._handler.ImageTransformConfig
+
+## Python { #python }
+
+Dwa węzły uruchamiają Pythona, do dwóch rodzajów pracy.
+
+`code.python.simple` uruchamia krótki skrypt w sandboxie Monty, który nie ma systemu
+plików, sieci i ma małą bibliotekę standardową. Skrypt czyta powiązane wartości jako
+`args`, a jego ostatnie wyrażenie jest `result` kroku, które musi być wartością JSON.
+Tylko liczy, więc jest `pure` i wymaga `code:execute`.
+
+`code.python.sandbox` uruchamia pełnego Pythona z pakietami i plikami runa na
+połączeniu `sandboxd` organizacji i wymaga `sandbox:execute`. Skrypt znajduje pliki
+wejściowe w `inputs`, zapisuje pliki do `outputs` i ustawia `result`. To trwałe
+zadanie: pierwsze wysłanie uruchamia je w tle, a każde kolejne sprawdza je w tej samej
+sesji, więc zrestartowany worker łączy się ponownie, zamiast uruchamiać je od nowa. Do
+sandboxa nigdy nie trafia żadne poświadczenie platformy, a to, do czego skrypt sięga
+poza swoimi plikami, zależy od konfiguracji runtime'u hosta - do niezaufanej pracy
+wybierz runtime bez sieci.
+
+| Co się stało | Wynik |
+|---|---|
+| Wynik nie jest JSON-em | `PYTHON_OUTPUT_NOT_JSON` |
+| Skrypt rzucił wyjątek albo przekroczył limit | `PYTHON_ERROR` |
+| Zadanie przekroczyło `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, sesja wyczyszczona |
+| Brak używalnego połączenia `sandboxd` | `SANDBOX_UNAVAILABLE` |
+| Nie udało się połączyć z hostem | `SANDBOX_UNREACHABLE`, ponawiane |
+
+::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
 
 ## Dodawanie węzła { #adding-a-node }
 

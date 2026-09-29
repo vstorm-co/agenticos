@@ -942,6 +942,10 @@ include = [
     "app/services/workflow_run_socket.py",
     "app/api/routes/v1/workflow_exposures.py",
     "app/api/routes/v1/workflow_run_socket.py",
+    # A run's files (#1791): what a `FileRef` resolves to, and the one lookup
+    # every file step reads through.
+    "app/db/models/workflow_file.py",
+    "app/repositories/workflow_file.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another
@@ -1377,6 +1381,10 @@ include = [
     "app/services/workflow_run_socket.py",
     "app/api/routes/v1/workflow_exposures.py",
     "app/api/routes/v1/workflow_run_socket.py",
+    # A run's files (#1791): what a `FileRef` resolves to, and the one lookup
+    # every file step reads through.
+    "app/db/models/workflow_file.py",
+    "app/repositories/workflow_file.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another

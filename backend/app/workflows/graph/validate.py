@@ -7,7 +7,8 @@ avoid):
 
 - **Pass 0 - resource resolution**, no topology: every `(definition_id,
   definition_version)` must resolve, every scope a node needs must be
-  granted, every `TableIORef` must still resolve and stay live, and every
+  granted, every `TableIORef` must still resolve and stay live, every
+  `FileRef` must name a file from a run the author can see, and every
   node's `config` must validate against its `config_schema`.
 - **Pass 1 - the nine structural rules**, pure functions over the graph.
 
@@ -75,14 +76,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.repositories import virtual_table_repo
+from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_file as workflow_file_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.virtual_table import ColumnDef
-from app.services.access import TABLE, resolve_access
+from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition, Port
-from app.workflows.contracts.io import LiteralValue, NodeOutputRef, TableIORef
+from app.workflows.contracts.io import FileRef, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
@@ -152,6 +156,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
     problems += await _table_binding_problems(db, ctx, graph)
+    problems += await _file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
 
     node_scope = node_scope_map(graph)
@@ -518,6 +523,42 @@ async def _table_binding_problems(
         if not isinstance(binding.source, TableIORef):
             continue
         problems += await table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
+    return problems
+
+
+async def _file_binding_problems(
+    db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
+) -> Problems:
+    """Whether each `FileRef` a binding names is a file its author may hand a run.
+
+    A file is always some run's output - there is no organization-wide one - so
+    the author has to be able to see the workflow whose run made it. The same
+    organization is not enough: an id learned from another workflow's run would
+    otherwise be laundered into this one's imports, which a step then trusts.
+    """
+    problems: Problems = []
+    for index, binding in enumerate(graph.bindings):
+        if not isinstance(binding.source, FileRef):
+            continue
+        row = await workflow_file_repo.get(
+            db, binding.source.file_id, organization_id=ctx.organization_id
+        )
+        run = (
+            await workflow_run_repo.get_run(
+                db, row.workflow_run_id, organization_id=ctx.organization_id
+            )
+            if row is not None
+            else None
+        )
+        workflow = (
+            await workflow_repo.get(db, run.workflow_id, organization_id=ctx.organization_id)
+            if run is not None
+            else None
+        )
+        if workflow is None or not await resolve_access(
+            db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+        ):
+            problems.append((f"bindings.{index}", "This file does not exist or is not accessible"))
     return problems
 
 

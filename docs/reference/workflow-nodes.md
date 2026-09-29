@@ -107,6 +107,11 @@ with `STRUCTURED_OUTPUT_MISMATCH`.
 | Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
 | Otherwise | `AGENT_RUN_FAILED` |
 
+Bound `attachments` are images from the run's files - a download, a rendered PDF
+page, a transformed photo - shown to the agent as pictures rather than as a link it
+cannot open. Only PNG, JPEG, WebP and GIF are shown. Any other file fails with
+`UNSUPPORTED_ATTACHMENT_TYPE`, so read a document's text with `text.extract` first.
+
 It is never retried automatically, because an agent may have called tools with
 side effects.
 
@@ -266,6 +271,84 @@ cannot be archived while that workflow's current version uses it.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
+
+## Files { #files }
+
+A file a step makes is stored as a file of its run and handed on as a `FileRef`: an
+id, the type its bytes turned out to be, and a size. A step reads a file only if
+its own run made it or the run was started with it - a `FileRef` bound in the
+graph, checked at publish against a run the author can see. Any other file,
+another organization's or another run's, is `FILE_NOT_FOUND`, so knowing an id
+grants nothing. A run's files are listed and downloaded from its page.
+
+| Node | Does | Effect |
+|---|---|---|
+| `http.download` | Fetches a file over HTTP, streamed, and stores it | write |
+| `http.upload` | Sends a file to an HTTP endpoint, streamed from storage | write |
+| `file.read` | Reads a file as text, a JSON value or CSV rows | read |
+| `file.write` | Stores text, a JSON value or rows as a file | write |
+| `text.extract` | The text of a TXT, JSON, CSV, text PDF or DOCX file | read |
+| `convert.csv_to_json` | A CSV file as a JSON file of rows | write |
+| `convert.json_to_csv` | A JSON list of flat objects as a CSV file | write |
+| `convert.text_to_file` | Text as a TXT file | write |
+| `convert.pdf_to_png` | Chosen PDF pages as PNG images | write |
+| `image.transform` | Crops, resizes, rotates or converts an image | write |
+
+A download follows the same SSRF and credential rules as `http.request`, up to five
+redirects. Its body is counted as it arrives and refused past `max_bytes`, and its
+type is sniffed from the bytes, so `expected_content_types` cannot be fooled by a
+header. `text.extract` does no OCR: a scanned page fails the step with
+`TEXT_EXTRACTION_NEEDS_OCR` and names the pages. A corrupt document is
+`DOCUMENT_CORRUPT` and a password-protected PDF `DOCUMENT_ENCRYPTED`.
+
+An image is measured before it is decoded. Its width times height, a crop box and
+a requested size are each checked against `CHAT_IMAGE_MAX_PIXELS`, and the result
+carries none of the source's metadata. Every step that stores a file stores a new
+one on each attempt, so it is `at_least_once`.
+
+::: app.workflows.nodes.http_download._handler.HttpDownloadConfig
+
+::: app.workflows.nodes.http_upload._handler.HttpUploadConfig
+
+::: app.workflows.nodes.file_read._handler.FileReadConfig
+
+::: app.workflows.nodes.text_extract._handler.TextExtractOutput
+
+::: app.workflows.nodes.convert_pdf_to_png._handler.ConvertPdfToPngConfig
+
+::: app.workflows.nodes.image_transform._handler.ImageTransformConfig
+
+## Python { #python }
+
+Two nodes run Python, for two kinds of work.
+
+`code.python.simple` runs a short script in the Monty sandbox, which has no
+filesystem, no network and a small standard library. The script reads the bound
+values as `args`, and its last expression is the step's `result`, which must be a
+JSON value. It computes and nothing else, so it is `pure` and needs `code:execute`.
+
+`code.python.sandbox` runs full Python with packages and the run's files on the
+organization's `sandboxd` connection, and needs `sandbox:execute`. The script finds
+its input files in `inputs`, writes files to `outputs` and sets `result`. It is a
+durable job: the first dispatch starts it in the background, and every later one
+checks on it in the same session, so a restarted worker reconnects instead of
+starting it again. No platform credential is ever staged into the sandbox, and
+what the script can reach beyond its files is the host runtime's own
+configuration - choose a runtime without network for untrusted work.
+
+| What happened | Result |
+|---|---|
+| The result is not JSON | `PYTHON_OUTPUT_NOT_JSON` |
+| The script raised or ran past a limit | `PYTHON_ERROR` |
+| The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
+| No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
+| The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
+
+::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
+
+::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
 
 ## Adding a node { #adding-a-node }
 

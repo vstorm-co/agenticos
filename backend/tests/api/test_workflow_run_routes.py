@@ -16,6 +16,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import Response
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
@@ -416,3 +417,79 @@ class TestEventsRoute:
                     _url(f"/{run.id}/events"), params={"after": "not-a-number"}
                 )
         assert response.status_code == 400
+
+
+class TestFileRoute:
+    """A run's file, served - the route over a mocked repository, both ways."""
+
+    async def test_a_run_s_file_downloads_as_an_attachment(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        row = MagicMock(
+            id=uuid.uuid4(), storage_path="p", content_type="application/pdf", filename="a.pdf"
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_file_repo.get_for_run", new=AsyncMock(return_value=row)),
+            patch(
+                "app.api.routes.v1.workflow_runs.stored_file_response",
+                new=AsyncMock(return_value=Response(content=b"%PDF", media_type="application/pdf")),
+            ) as respond,
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/files/{row.id}"))
+        assert response.status_code == 200 and response.content == b"%PDF"
+        assert respond.await_args.kwargs["attachment_name"] == "a.pdf"
+        assert respond.await_args.kwargs["headers"]["X-Content-Type-Options"] == "nosniff"
+
+    @pytest.mark.parametrize("missing", ["row", "bytes"])
+    async def test_a_file_the_run_does_not_have_is_404(
+        self, owner_client: OpenClient, missing: str
+    ):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        row = MagicMock(id=uuid.uuid4(), storage_path="p", content_type="text/plain", filename=None)
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_file_repo.get_for_run",
+                new=AsyncMock(return_value=None if missing == "row" else row),
+            ),
+            patch(
+                "app.api.routes.v1.workflow_runs.stored_file_response",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/files/{row.id}"))
+        assert response.status_code == 404
+
+
+class TestFileListRoute:
+    async def test_a_run_s_files_are_listed(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        row = MagicMock(
+            id=uuid.uuid4(),
+            filename="report.csv",
+            content_type="text/csv",
+            byte_size=12,
+            producing_node_run_id=None,
+            created_at=datetime.now(UTC),
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_file_repo.list_for_run", new=AsyncMock(return_value=[row])
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/files"))
+        assert response.status_code == 200
+        assert response.json()["items"][0]["filename"] == "report.csv"

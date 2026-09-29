@@ -6,9 +6,12 @@
  */
 
 import { apiClient } from "@/lib/api-client";
+import { saveBlob } from "@/lib/file-access";
 import type {
   WorkflowGraph,
   WorkflowNodeRunList,
+  WorkflowRunFile,
+  WorkflowRunFileList,
   WorkflowRunList,
   WorkflowRunRead,
   WorkflowRunStart,
@@ -46,4 +49,21 @@ export async function startWorkflowRun(start: WorkflowRunStart): Promise<Workflo
 
 export async function cancelWorkflowRun(runId: string): Promise<WorkflowRunRead> {
   return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/cancel`);
+}
+
+/** The files the run's steps stored, oldest first. */
+export async function listWorkflowRunFiles(runId: string): Promise<WorkflowRunFileList> {
+  return apiClient.get<WorkflowRunFileList>(`${ROOT}/${runId}/files`);
+}
+
+/**
+ * Save one of the run's files to disk.
+ *
+ * Fetched with `raw` and saved from a blob rather than followed as a link: the
+ * route is organization-scoped, and a bare link would arrive without the header
+ * and be answered for the caller's personal organization.
+ */
+export async function downloadWorkflowRunFile(runId: string, file: WorkflowRunFile): Promise<void> {
+  const response = await apiClient.raw(`${ROOT}/${runId}/files/${file.id}`);
+  saveBlob(await response.blob(), file.filename ?? file.id);
 }

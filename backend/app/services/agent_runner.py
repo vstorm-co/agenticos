@@ -3565,6 +3565,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         version_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
+        content: Sequence[UserContent] = (),
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
@@ -3587,6 +3588,10 @@ class AgentRunnerService:
         before. They are also linked to the turn they arrived with, so a file
         posted in a channel is a file in the transcript rather than a sentence
         about one.
+
+        `content` is what the model sees beside the prompt that is not a chat
+        file - a workflow step's images, already loaded from the run's files and
+        checked there. Appended after the prompt and any attachments.
 
         `said` is what the person actually wrote, when `prompt` is something this
         caller assembled around it - a widget's placement note, a channel's
@@ -3630,6 +3635,11 @@ class AgentRunnerService:
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             ).build_prompt(prompt, attachments)
+        if content:
+            assembled = [
+                *(assembled if isinstance(assembled, list) else [assembled]),
+                *content,
+            ]
         segment = await self._run(
             prepared,
             user_prompt=assembled,

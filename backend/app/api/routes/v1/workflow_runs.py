@@ -15,9 +15,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, WorkflowExecutionSvc, limit_workflow_run, require
+from app.api.routes.v1._stored_bytes import stored_file_response
+from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.workflow_run import (
     WorkflowEventList,
+    WorkflowFileList,
     WorkflowNodeRunList,
     WorkflowRunGraph,
     WorkflowRunList,
@@ -95,6 +98,32 @@ async def list_workflow_run_nodes(
     """Every step of this run, loop iterations included: its status, tries, cost
     and the error it last failed with."""
     return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
+
+
+@router.get("/{run_id}/files", response_model=WorkflowFileList)
+async def list_workflow_run_files(run_id: UUID, service: WorkflowExecutionSvc, ctx: Auth) -> Any:
+    """Every file the run made, oldest first."""
+    return await service.run_files(ctx, run_id)
+
+
+@router.get("/{run_id}/files/{file_id}", response_model=None)
+async def download_workflow_run_file(
+    run_id: UUID, file_id: UUID, service: WorkflowExecutionSvc, ctx: Auth
+) -> Any:
+    """A file the run made or was started with, as a download.
+
+    Always an attachment, never rendered inline: a file a workflow fetched is
+    whatever a far side sent, so it is not served as a page of this origin."""
+    row = await service.run_file(ctx, run_id, file_id)
+    response = await stored_file_response(
+        row.storage_path,
+        media_type=row.content_type,
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+        attachment_name=row.filename or f"{row.id}",
+    )
+    if response is None:
+        raise NotFoundError(message="File not found", details={"file_id": str(file_id)})
+    return response
 
 
 @router.get("/{run_id}/events", response_model=WorkflowEventList)

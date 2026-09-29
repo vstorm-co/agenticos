@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from unittest.mock import patch
 
 import pytest
-from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart
+from pydantic_ai.messages import BinaryContent, ModelMessage, ModelRequest, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -27,7 +28,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.db.models.workflow_run import WorkflowRunStatus
+from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus
 from app.services.agent_registry import AgentRegistryService
 from app.services.rag.models import SearchResult
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
@@ -53,6 +54,7 @@ class _Model:
         self.answer = answer
         self.instructions: list[str] = []
         self.prompts: list[str] = []
+        self.pictures: list[str] = []
 
     def function_model(self) -> FunctionModel:
         async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -62,6 +64,14 @@ class _Model:
                         self.instructions.append(message.instructions)
                     for part in message.parts:
                         content = getattr(part, "content", None)
+                        if isinstance(content, list):
+                            self.prompts += [item for item in content if isinstance(item, str)]
+                            self.pictures += [
+                                item.media_type
+                                for item in content
+                                if isinstance(item, BinaryContent)
+                            ]
+                            continue
                         if not isinstance(content, str):
                             continue
                         if part.part_kind == "user-prompt":
@@ -476,3 +486,130 @@ async def test_a_version_of_an_archived_agent_cannot_be_pinned(engine: AsyncEngi
             await validate_graph(db, seeded.ctx, graph)
 
     assert any("archived" in problem["message"] for problem in refused.value.details["fields"])
+
+
+async def _picture(
+    engine: AsyncEngine, seeded: SeededRun, tmp_path, data: bytes, content_type: str
+):
+    """An image an earlier run of the same member made, handed to this run."""
+    from app.db.models.workflow_file import WorkflowFile
+    from app.db.models.workflow_run import ResourceRef
+    from app.services.file_storage import LocalFileStorage
+    from app.workflows.contracts.io import FileRef
+
+    storage = LocalFileStorage(tmp_path)
+    earlier = await seed_run(
+        engine,
+        WorkflowGraph(entry_node_id=uuid.uuid4(), nodes=(_node("core.input"),)),
+        member=(seeded.principal, seeded.org),
+    )
+    file_id = uuid.uuid4()
+    path = f"workflow-files/{seeded.org.id}/{earlier.run.id}/{file_id}"
+    await storage.save_at(path, data)
+    ref = FileRef(file_id=file_id, content_type=content_type, byte_size=len(data))
+    async with seeded.factory() as db:
+        db.add(
+            WorkflowFile(
+                id=file_id,
+                organization_id=seeded.org.id,
+                workflow_run_id=earlier.run.id,
+                storage_path=path,
+                content_type=content_type,
+                byte_size=len(data),
+            )
+        )
+        db.add(
+            ResourceRef(
+                organization_id=seeded.org.id,
+                workflow_run_id=seeded.run.id,
+                kind="file",
+                ref=ref.model_dump(mode="json"),
+            )
+        )
+        await db.commit()
+    return storage, ref
+
+
+def _with_attachments(ref_holder: list[Any]):
+    def graph_for(agent_id: uuid.UUID, version_id: uuid.UUID) -> WorkflowGraph:
+        graph = _graph(agent_id, version_id)
+        ask = graph.nodes[1]
+        ref_holder.append(ask)
+        return graph
+
+    return graph_for
+
+
+async def _bind_attachment(seeded: SeededRun, ask: NodeInstance, ref: Any) -> SeededRun:
+    """Rebuild the run's graph with `ref` bound as the step's one attachment."""
+    graph = seeded.graph.model_copy(
+        update={
+            "bindings": (
+                *seeded.graph.bindings,
+                Binding(
+                    target_node_id=ask.id,
+                    target_field="attachments",
+                    source=LiteralValue(value=[ref.model_dump(mode="json")]),
+                ),
+            )
+        }
+    )
+    async with seeded.factory() as db:
+        run = await db.get(WorkflowRun, seeded.run.id)
+        assert run is not None
+        run.draft_graph_snapshot = graph.model_dump(mode="json")
+        await db.commit()
+    return SeededRun(
+        run=seeded.run,
+        graph=graph,
+        principal=seeded.principal,
+        org=seeded.org,
+        factory=seeded.factory,
+    )
+
+
+async def test_an_image_reaches_the_agent_as_a_picture(engine: AsyncEngine, model, tmp_path):
+    recorder = model("A bar chart.")
+    held: list[Any] = []
+    seeded = await _setup(engine, _with_attachments(held))
+    storage, ref = await _picture(engine, seeded, tmp_path, b"\x89PNG\r\n\x1a\n", "image/png")
+    seeded = await _bind_attachment(seeded, held[0], ref)
+
+    with patch("app.workflows.files.get_file_storage", return_value=storage):
+        run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert recorder.pictures == ["image/png"]
+    assert recorder.prompts == ["Score this lead"]
+
+
+async def test_a_document_is_not_an_attachment_an_agent_is_shown(
+    engine: AsyncEngine, model, tmp_path
+):
+    model("unused")
+    held: list[Any] = []
+    seeded = await _setup(engine, _with_attachments(held))
+    storage, ref = await _picture(engine, seeded, tmp_path, b"%PDF-1.7", "application/pdf")
+    seeded = await _bind_attachment(seeded, held[0], ref)
+
+    with patch("app.workflows.files.get_file_storage", return_value=storage):
+        run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "UNSUPPORTED_ATTACHMENT_TYPE"
+
+
+@pytest.mark.security
+async def test_an_image_the_run_was_not_given_is_not_shown(engine: AsyncEngine, model):
+    from app.workflows.contracts.io import FileRef
+
+    model("unused")
+    held: list[Any] = []
+    seeded = await _setup(engine, _with_attachments(held))
+    stranger = FileRef(file_id=uuid.uuid4(), content_type="image/png", byte_size=8)
+    seeded = await _bind_attachment(seeded, held[0], stranger)
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "FILE_NOT_FOUND"

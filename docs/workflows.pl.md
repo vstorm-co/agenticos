@@ -1,5 +1,5 @@
 ---
-source_sha: "5e8a58bfee0e"
+source_sha: "776a2161e7e5"
 ---
 
 # Workflows { #workflows }
@@ -256,7 +256,7 @@ krokami, do których nigdy nie dotarł. **Open loop body** pokazuje w ten sam sp
 iteracje pętli.
 
 Wyjście runa i każdy wykonany krok, iteracja po iteracji, są obok.
-Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje.
+Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 

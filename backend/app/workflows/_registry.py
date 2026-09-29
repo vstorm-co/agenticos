@@ -100,7 +100,13 @@ def load_builtins() -> None:
 
     from app.workflows.nodes import (  # noqa: F401 - imported for side effects
         agent_run,
+        code_python_sandbox,
+        code_python_simple,
         control_foreach,
+        convert_csv_to_json,
+        convert_json_to_csv,
+        convert_pdf_to_png,
+        convert_text_to_file,
         core_input,
         core_output,
         data_map,
@@ -108,7 +114,12 @@ def load_builtins() -> None:
         debug_relay,
         error_handle,
         error_raise,
+        file_read,
+        file_write,
+        http_download,
         http_request,
+        http_upload,
+        image_transform,
         knowledge_search,
         logic_if,
         logic_merge,
@@ -122,6 +133,7 @@ def load_builtins() -> None:
         table_record_query,
         table_record_update,
         table_record_upsert,
+        text_extract,
     )
 
     _builtins_loaded = True

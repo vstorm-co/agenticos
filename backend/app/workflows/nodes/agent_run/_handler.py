@@ -34,6 +34,7 @@ from uuid import UUID
 from jsonschema import exceptions as jsonschema_errors
 from jsonschema import validators
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_ai.messages import BinaryContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
@@ -45,6 +46,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_execution import context
 from app.services.workflow_execution.errors import workflow_error
+from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
 from app.workflows.contracts.results import (
     Completed,
@@ -58,6 +60,14 @@ logger = logging.getLogger(__name__)
 
 MAX_SOURCES = 50
 """The most passages one step hands an agent as context."""
+
+MAX_ATTACHMENTS = 10
+"""The most images one step shows an agent."""
+
+MAX_ATTACHMENT_BYTES = 20_000_000
+"""The largest image one step shows an agent - the size vision APIs take inline."""
+
+_IMAGE_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
 
 
 class AgentVersionPin(BaseModel):
@@ -102,6 +112,11 @@ class AgentRunInput(BaseModel):
 
     prompt: str = Field(min_length=1, max_length=32_000)
     sources: tuple[SourceRef, ...] = Field(default=(), max_length=MAX_SOURCES)
+    attachments: tuple[FileRef, ...] = Field(
+        default=(),
+        max_length=MAX_ATTACHMENTS,
+        description="Images from the run's files, shown to the agent as pictures.",
+    )
 
 
 class AgentRunOutput(BaseModel):
@@ -231,6 +246,28 @@ def _settled(
     )
 
 
+async def _images(refs: tuple[FileRef, ...]) -> list[BinaryContent] | Failed:
+    """The run's image files as content a model can look at, never a URL it cannot open.
+
+    Only images: a document is read with `text.extract` first, and a type the
+    step cannot show fails here rather than being dropped without a word.
+    """
+    images: list[BinaryContent] = []
+    for ref in refs:
+        stored = await files.load(ref, max_bytes=MAX_ATTACHMENT_BYTES)
+        if isinstance(stored, Failed):
+            return stored
+        if stored.content_type not in _IMAGE_TYPES:
+            return files.failed(
+                "UNSUPPORTED_ATTACHMENT_TYPE",
+                f"An agent is shown PNG, JPEG, WebP or GIF images, not {stored.content_type} - "
+                "extract a document's text with an Extract text step first",
+                content_type=stored.content_type,
+            )
+        images.append(BinaryContent(data=stored.data, media_type=stored.content_type))
+    return images
+
+
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Run the pinned agent version, or continue the run it parked on."""
     if not isinstance(config, AgentRunConfig) or not isinstance(node_input, AgentRunInput):
@@ -251,6 +288,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 text, run = segment.output, segment.run
             else:
                 before = Decimal(0)
+                images = await _images(node_input.attachments)
+                if isinstance(images, Failed):
+                    return images
                 text, run = await runner.execute(
                     current.auth,
                     config.agent.agent_id,
@@ -258,6 +298,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     said=node_input.prompt,
                     surface=RunSurface.WORKFLOW,
                     version_id=config.agent.version_id,
+                    content=images,
                 )
     except AppException as exc:
         return Failed(error=workflow_error(exc))

@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     NodeAttempt,
     NodeAttemptStatus,
@@ -34,10 +35,13 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import (
     WorkflowEventList,
     WorkflowEventRead,
+    WorkflowFileList,
+    WorkflowFileRead,
     WorkflowNodeRunList,
     WorkflowNodeRunRead,
     WorkflowRunGraph,
@@ -454,6 +458,30 @@ class WorkflowExecutionService:
         return WorkflowNodeRunList(
             items=[_node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
         )
+
+    async def run_files(self, ctx: AuthContext, run_id: UUID) -> WorkflowFileList:
+        """Every file this run made, for a caller who may view the run."""
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        rows = await workflow_file_repo.list_for_run(
+            self.db, workflow_run_id=run.id, organization_id=ctx.organization_id
+        )
+        return WorkflowFileList(items=[WorkflowFileRead.model_validate(row) for row in rows])
+
+    async def run_file(self, ctx: AuthContext, run_id: UUID, file_id: UUID) -> WorkflowFile:
+        """A file this run made or was started with, for a caller who may view the run.
+
+        Raises:
+            WorkflowRunNotFoundError: The run is missing or out of reach.
+            NotFoundError: The run has no such file - a file of another run, of
+                another organization, or none at all, answered alike.
+        """
+        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        row = await workflow_file_repo.get_for_run(
+            self.db, file_id, organization_id=ctx.organization_id, workflow_run_id=run.id
+        )
+        if row is None:
+            raise NotFoundError(message="File not found", details={"file_id": str(file_id)})
+        return row
 
     async def events_since(
         self, ctx: AuthContext, run_id: UUID, *, after: str | None, limit: int = 100

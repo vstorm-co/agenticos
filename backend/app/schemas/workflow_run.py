@@ -126,3 +126,18 @@ class WorkflowEventList(BaseSchema):
             "for a run with no events at all when no `after` was given."
         ),
     )
+
+
+class WorkflowFileRead(BaseSchema):
+    """A file a run made, as its run's page lists it."""
+
+    id: UUID
+    filename: str | None
+    content_type: str
+    byte_size: int
+    producing_node_run_id: UUID | None
+    created_at: datetime
+
+
+class WorkflowFileList(BaseSchema):
+    items: list[WorkflowFileRead]

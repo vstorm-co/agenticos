@@ -20,6 +20,7 @@ from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, HttpCredentialSecret, seal_secret, unseal_kind
 from app.core.vault import VaultScope
 from app.workflows.contracts.results import Failed
+from app.workflows.nodes._http import is_http_url
 from app.workflows.nodes.agent_run import AgentRunConfig
 from app.workflows.nodes.agent_run import _handler as agent_node
 from app.workflows.nodes.http_request import HttpAuth, HttpRequestConfig
@@ -92,7 +93,7 @@ class TestHttpConfig:
             HttpRequestConfig(url="https://a.example", headers=headers)
 
     def test_a_url_the_parser_cannot_read_is_not_an_http_url(self):
-        assert http_node._is_http_url("http://[::1") is False
+        assert is_http_url("http://[::1") is False
 
 
 class TestNotificationRecipients:

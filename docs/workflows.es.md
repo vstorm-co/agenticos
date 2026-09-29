@@ -1,5 +1,5 @@
 ---
-source_sha: "5e8a58bfee0e"
+source_sha: "776a2161e7e5"
 ---
 
 # Workflows { #workflows }
@@ -260,7 +260,8 @@ la misma manera.
 
 La salida del run y cada paso que dio, iteración a iteración, están
 al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
-detiene.
+detiene. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
+renderizada, la salida de un script -, cada uno descargable.
 
 ## Iniciar un workflow desde fuera de la consola { #starting-a-workflow-from-outside-the-console }
 
