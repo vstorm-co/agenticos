@@ -44,6 +44,15 @@ in `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
+Its **Input fields** make the input a contract. A field has a name, a type - text,
+number, whole number, yes or no, date or choice - and whether it is required. With
+none, a run takes any JSON object. With some, **Start a run** asks for each by name,
+a run whose input misses one, sends one of the wrong type or sends one not declared
+is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
+`payload.<field>` is type-checked at publish.
+
+::: app.workflows.nodes.core_input._handler.InputField
+
 ### trigger.chat { #trigger-chat }
 
 **Chat message.** Started by a message in the chat, with this workflow picked to

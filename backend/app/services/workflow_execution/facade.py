@@ -55,6 +55,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
+    WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
     WorkflowTriggerMismatchError,
@@ -62,6 +63,7 @@ from app.services.workflow_execution.exceptions import (
 from app.workflows.contracts.io import FileRef, TableIORef
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
+from app.workflows.nodes.core_input._handler import ManualTriggerConfig, input_problems
 from app.workflows.triggers import CHAT, MANUAL
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,23 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:
         raise WorkflowRunInputTooLargeError(limit=settings.WORKFLOW_RUN_MAX_INPUT_BYTES, size=size)
     return payload
+
+
+def _check_declared_input(graph: WorkflowGraph, payload: dict[str, Any]) -> None:
+    """Refuse `payload` when the graph's "Manual or API" entry declares fields it does not fit.
+
+    Raises:
+        WorkflowRunInputInvalidError: A declared field is missing or of the
+            wrong type, or the payload has one that is not declared.
+    """
+    entry = graph.node_by_id[graph.entry_node_id]
+    if entry.definition_id != MANUAL:
+        return
+    # The graph passed `validate_graph` - at publish, or just now for a draft -
+    # so its config fits.
+    problems = input_problems(ManualTriggerConfig.model_validate(entry.config), payload)
+    if problems:
+        raise WorkflowRunInputInvalidError(problems=problems)
 
 
 def _read(run: WorkflowRun) -> WorkflowRunRead:
@@ -180,6 +199,9 @@ class WorkflowExecutionService:
                 that does not start from a chat message.
             WorkflowRunInputTooLargeError: `run_input` is over
                 `WORKFLOW_RUN_MAX_INPUT_BYTES`.
+            WorkflowRunInputInvalidError: The version being run starts from
+                "Manual or API" with declared fields, and `run_input` does not
+                fit them.
             WorkflowAdmissionQuotaError: Admitting this run would push the
                 organization's or the caller's outstanding node work past its
                 ceiling; retried once running work drains.
@@ -212,6 +234,7 @@ class WorkflowExecutionService:
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
             ctx, workflow, mode=mode
         )
+        _check_declared_input(graph, payload)
         run, entry_node_run_id = await self._admit(
             ctx,
             workflow,

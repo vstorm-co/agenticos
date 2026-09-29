@@ -63,6 +63,27 @@ describe("instancePorts", () => {
   });
 });
 
+describe("the Manual or API trigger's ports", () => {
+  const MANUAL = makeDefinition({
+    id: "core.input",
+    ports: [port("out", "output", { type: "object", properties: { payload: { type: "object" } } })],
+  });
+
+  it("types its payload by the fields it declares, and leaves it open with none", () => {
+    expect(instancePorts(instance({ definition_id: "core.input" }), MANUAL)).toBe(MANUAL.ports);
+    const typed = instancePorts(
+      instance({
+        definition_id: "core.input",
+        config: { fields: [{ name: "email", type: "text" }] },
+      }),
+      MANUAL,
+    );
+    expect(typed[0]?.schema).toMatchObject({
+      properties: { payload: { properties: { email: { type: "string" } }, required: ["email"] } },
+    });
+  });
+});
+
 describe("effectiveDefinition", () => {
   it("is the definition itself when the instance adds no port", () => {
     expect(effectiveDefinition(instance({}), ACTION)).toBe(ACTION);

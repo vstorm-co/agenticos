@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
+  declaredFields,
   isTrigger,
   sampleRunInput,
   startsByHand,
@@ -37,6 +38,18 @@ describe("triggers", () => {
     const g = graph("trigger.webhook");
     expect(triggerNodeOf(g, new Map([["n1", trigger]]))?.id).toBe("n1");
     expect(triggerNodeOf(g, new Map([["n1", null]]))).toBeNull();
+  });
+
+  it("reads the fields a run starts with from a Manual or API entry only", () => {
+    expect(declaredFields(null)).toEqual([]);
+    expect(
+      declaredFields(graph("trigger.webhook", { fields: [{ name: "a", type: "text" }] })),
+    ).toEqual([]);
+    expect(
+      declaredFields(graph("core.input", { fields: [{ name: "a", type: "text" }] })).map(
+        (field) => field.name,
+      ),
+    ).toEqual(["a"]);
   });
 
   it("starts by hand only a version from Manual or API, or from no trigger", () => {

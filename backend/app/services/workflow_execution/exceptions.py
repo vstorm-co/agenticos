@@ -158,6 +158,21 @@ class PrincipalRevokedError(WorkflowDispatchRefusedError):
         super().__init__(details={})
 
 
+class WorkflowRunInputInvalidError(AppException):
+    """The run's input does not fit the fields its "Manual or API" trigger declares (422).
+
+    `details["problems"]` names each field that is missing, of the wrong type,
+    not one of a choice's options, or not declared at all.
+    """
+
+    message = "The run's input does not fit the fields this workflow asks for"
+    code = "WORKFLOW_RUN_INPUT_INVALID"
+    status_code = 422
+
+    def __init__(self, *, problems: list[dict[str, str]]) -> None:
+        super().__init__(details={"problems": problems})
+
+
 class WorkflowRunInputTooLargeError(AppException):
     """The payload a run was started with is larger than the deployment allows (413)."""
 

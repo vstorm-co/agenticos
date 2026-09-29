@@ -287,6 +287,13 @@ describe("NodeForm sections", () => {
     expect(screen.getByLabelText("Every")).toBeVisible();
     expect(screen.queryByText("Configuration")).toBeNull();
   });
+
+  it("gives Manual or API its typed input fields, under what starts it", () => {
+    renderForm({ definition: makeDefinition({ id: "core.input", category: "triggers" }) });
+    expect(screen.getByText(/Start it with Run/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add field" })).toBeVisible();
+    expect(screen.queryByText("Configuration")).toBeNull();
+  });
 });
 
 describe("config leaves", () => {

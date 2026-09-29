@@ -1,5 +1,5 @@
 ---
-source_sha: "414894e5a034"
+source_sha: "2888701f07a0"
 ---
 
 # Workflows { #workflows }
@@ -297,6 +297,12 @@ pueda ejecutarla, como sí mismo: **Start a run** en Runs, la
 audita como uno iniciado aquí. Esas vías no inician ningún otro trigger, y cada otro
 trigger tiene la suya. Un run de prueba del draft acepta cualquier trigger, y **Start
 a run** lo abre con una entrada con la forma de ese trigger.
+
+Dale a **Manual or API** sus **campos de entrada** y un run pide lo que
+necesita: **Start a run** muestra un formulario con una casilla por campo en lugar
+del JSON, con el tipo del campo, y una llamada a la API cuya entrada no encaja se
+rechaza con los campos que están mal. Consulta
+[core.input](reference/workflow-nodes.md#core-input).
 
 ### Desde el chat { #from-the-chat }
 

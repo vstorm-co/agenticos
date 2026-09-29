@@ -1,12 +1,15 @@
+import { inputFieldsOf, typedPayloadPort } from "./input-fields";
+import { MANUAL_TRIGGER } from "./triggers";
 import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
 
 /**
  * The ports one node instance actually has, which its config and policy decide
  * as well as its definition - the client mirror of the backend's `instance_ports`.
  *
- * `error.handle` has one output per configured branch beside `default`, and any
- * node whose policy routes its errors has an `error` output carrying the
- * `WorkflowError`. Everything that reads ports - the node's handles, the edge
+ * `error.handle` has one output per configured branch beside `default`, the
+ * "Manual or API" trigger's `out` carries a `payload` typed by the fields it
+ * declares, and any node whose policy routes its errors has an `error` output
+ * carrying the `WorkflowError`. Everything that reads ports - the node's handles, the edge
  * variant, the connection rule, the validation mirror, the binding pickers -
  * reads them through {@link effectiveDefinition}, so none of them can disagree.
  */
@@ -59,6 +62,10 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
         schema: defaultPort?.schema ?? null,
       }));
     ports = [...ports, ...branches];
+  }
+  if (definition.id === MANUAL_TRIGGER) {
+    const fields = inputFieldsOf(instance.config);
+    if (fields.length > 0) ports = ports.map((port) => typedPayloadPort(port, fields));
   }
   if (routesErrors(instance) && !ports.some((port) => port.id === ERROR_PORT)) {
     ports = [

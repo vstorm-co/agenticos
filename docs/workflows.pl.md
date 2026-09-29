@@ -1,5 +1,5 @@
 ---
-source_sha: "414894e5a034"
+source_sha: "2888701f07a0"
 ---
 
 # Workflows { #workflows }
@@ -291,6 +291,11 @@ rozliczany i audytowany tak samo jak uruchomiony tutaj. Te drogi nie uruchamiaj�
 żadnego innego wyzwalacza, a każdy inny wyzwalacz ma własną. Run testowy szkicu
 przyjmuje dowolny wyzwalacz, a **Start a run** otwiera go z wejściem w kształcie
 tego wyzwalacza.
+
+Daj **Manual or API** jego **pola wejścia**, a run poprosi o to, czego
+potrzebuje: **Start a run** pokazuje formularz z jednym polem na każde pole zamiast
+JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
+listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
 
 ### Z czatu { #from-the-chat }
 

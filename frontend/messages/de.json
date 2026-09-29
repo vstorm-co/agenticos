@@ -4642,6 +4642,15 @@
           "name": "Neuer Tabellendatensatz",
           "description": "Ein zu einer Tabelle hinzugefügter Datensatz startet einen Run mit diesem Datensatz."
         }
+      },
+      "startRunOptional": "optional",
+      "startRunChoose": "Auswählen…",
+      "startRunFieldProblem": {
+        "required": "Bitte ausfüllen.",
+        "number": "Das muss eine Zahl sein.",
+        "integer": "Das muss eine ganze Zahl sein.",
+        "date": "Das muss ein Datum sein.",
+        "choice": "Wähle eine der Optionen."
       }
     }
   },
@@ -5848,7 +5857,35 @@
     "pickerBotsEmpty": "Noch keine Channel-Bots.",
     "pickerBotsAdd": "Unter Kanäle hinzufügen",
     "pickerBotOrphaned": "Der Bot dieses Schritts ist weg - wählen Sie einen anderen.",
-    "pickerBotNeedsPermission": "Als Channel-Bot zu handeln erfordert channels:manage, das Sie nicht haben."
+    "pickerBotNeedsPermission": "Als Channel-Bot zu handeln erfordert channels:manage, das Sie nicht haben.",
+    "inputFields": {
+      "title": "Eingabefelder",
+      "noneHint": "Noch keine: Ein Run nimmt jedes JSON-Objekt. Füge Felder hinzu, um jeden Wert beim Namen abzufragen und seinen Typ vor dem Start zu prüfen.",
+      "someHint": "Run fragt jedes Feld beim Namen ab, und ein Run, dessen Eingabe nicht passt, wird vor dem Start abgelehnt. Die folgenden Schritte lesen jedes unter payload, wie seine Zeile zeigt.",
+      "name": "Name",
+      "type": "Typ",
+      "remove": "{name} entfernen",
+      "label": "Beschriftung von {name}",
+      "labelPlaceholder": "Beschriftung (optional)",
+      "description": "Beschreibung von {name}",
+      "descriptionPlaceholder": "Hilfetext (optional)",
+      "options": "Optionen von {name}",
+      "optionsPlaceholder": "Eine Option pro Zeile",
+      "optionsNone": "Eine Auswahl braucht mindestens eine Option.",
+      "optionsTooMany": "Eine Auswahl bietet höchstens {max} Optionen.",
+      "required": "Pflichtfeld",
+      "nameInvalid": "Kleinbuchstaben, Ziffern und Unterstriche, beginnend mit einem Buchstaben.",
+      "nameTaken": "Ein anderes Feld hat diesen Namen schon.",
+      "add": "Feld hinzufügen",
+      "types": {
+        "text": "Text",
+        "number": "Zahl",
+        "integer": "Ganzzahl",
+        "boolean": "Ja oder nein",
+        "date": "Datum",
+        "choice": "Auswahl"
+      }
+    }
   },
   "artifacts": {
     "title": "Artefakte",

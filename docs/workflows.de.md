@@ -1,5 +1,5 @@
 ---
-source_sha: "414894e5a034"
+source_sha: "2888701f07a0"
 ---
 
 # Workflows { #workflows }
@@ -328,6 +328,12 @@ abgerechnet und auditiert wie ein hier gestarteter. Diese Wege starten keinen an
 Trigger, und jeder andere Trigger hat einen eigenen. Ein Test-Run des Drafts nimmt
 jeden Trigger, und **Start a run** öffnet ihn mit einer Eingabe in der Form dieses
 Triggers.
+
+Gib **Manual or API** seine **Eingabefelder**, und ein Run fragt nach dem,
+was er braucht: **Start a run** zeigt statt des JSON ein Formular mit einem Feld je
+Eingabefeld, so typisiert wie dieses, und ein API-Aufruf, dessen Eingabe nicht passt,
+wird mit den falschen Feldern abgelehnt. Siehe
+[core.input](reference/workflow-nodes.md#core-input).
 
 ### Aus dem Chat { #from-the-chat }
 

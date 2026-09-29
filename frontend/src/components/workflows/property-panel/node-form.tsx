@@ -44,6 +44,7 @@ import {
 } from "@/lib/workflows/triggers";
 
 import { BindingField } from "./binding-field";
+import { InputFieldsForm } from "./input-fields-form";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
 import {
@@ -67,7 +68,6 @@ import {
  * run begins through it, and what it hands the steps after it.
  */
 const TRIGGER_HINTS: Record<string, string> = {
-  [MANUAL_TRIGGER]: "triggerHintManual",
   [CHAT_TRIGGER]: "triggerHintChat",
   [WEBHOOK_TRIGGER]: "triggerHintWebhook",
 };
@@ -687,6 +687,14 @@ export function NodeForm({
   if (definition.id === SCHEDULE_TRIGGER) {
     return (
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+    );
+  }
+  if (definition.id === MANUAL_TRIGGER) {
+    return (
+      <div className="space-y-4">
+        <p className="text-muted-foreground text-xs">{t("triggerHintManual")}</p>
+        <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+      </div>
     );
   }
 

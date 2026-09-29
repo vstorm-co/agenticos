@@ -291,6 +291,11 @@ and audited like one started here. Those doors start no other trigger, and each
 other trigger has a door of its own. A test run of the draft takes any trigger, and
 **Start a run** opens it on an input in that trigger's shape.
 
+Give **Manual or API** its **Input fields** and a run asks for what it needs:
+**Start a run** shows a form with one box per field instead of the JSON, typed as the
+field is, and an API call whose input does not fit is refused with the fields that
+are wrong. See [core.input](reference/workflow-nodes.md#core-input).
+
 ### From the chat { #from-the-chat }
 
 The chat's picker of who answers lists, below the agents, the published workflows

@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Typed input for a workflow started by hand.** The **Manual or API** trigger
+  can declare **Input fields** - text, number, whole number, yes or no, date or
+  choice, each required or not. **Start a run** then asks for each by name in a
+  form, a run whose input does not fit is refused before it starts with the
+  fields that are wrong, and a binding to one is type-checked at publish.
 - **Workflow steps that read what a table is.** **List tables**, **Describe a
   table**, **Table exists?** and **Record exists?** let a workflow find a table,
   read its columns, create one only the first time it runs, or branch on whether

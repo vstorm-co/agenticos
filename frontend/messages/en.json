@@ -3613,6 +3613,15 @@
           "name": "New table record",
           "description": "A record added to a table starts a run with that record."
         }
+      },
+      "startRunOptional": "optional",
+      "startRunChoose": "Choose…",
+      "startRunFieldProblem": {
+        "required": "Fill this in.",
+        "number": "This has to be a number.",
+        "integer": "This has to be a whole number.",
+        "date": "This has to be a date.",
+        "choice": "Choose one of the options."
       }
     },
     "retention": {
@@ -5982,7 +5991,35 @@
     "pickerBotsEmpty": "No channel bots yet.",
     "pickerBotsAdd": "Add one under Channels",
     "pickerBotOrphaned": "The bot this step names is gone - choose another.",
-    "pickerBotNeedsPermission": "Acting as a channel bot needs channels:manage, which you do not hold."
+    "pickerBotNeedsPermission": "Acting as a channel bot needs channels:manage, which you do not hold.",
+    "inputFields": {
+      "title": "Input fields",
+      "noneHint": "None yet: a run takes any JSON object. Add fields to ask for each value by name and have its type checked before the run starts.",
+      "someHint": "Run asks for each field by name, and a run whose input does not fit is refused before it starts. Steps after this one read each under payload, as its row shows.",
+      "name": "Name",
+      "type": "Type",
+      "remove": "Remove {name}",
+      "label": "Label of {name}",
+      "labelPlaceholder": "Label (optional)",
+      "description": "Description of {name}",
+      "descriptionPlaceholder": "Help text (optional)",
+      "options": "Options of {name}",
+      "optionsPlaceholder": "One option per line",
+      "optionsNone": "A choice needs at least one option.",
+      "optionsTooMany": "A choice offers at most {max} options.",
+      "required": "Required",
+      "nameInvalid": "Lower-case letters, digits and underscores, starting with a letter.",
+      "nameTaken": "Another field already has this name.",
+      "add": "Add field",
+      "types": {
+        "text": "Text",
+        "number": "Number",
+        "integer": "Integer",
+        "boolean": "Yes or no",
+        "date": "Date",
+        "choice": "Choice"
+      }
+    }
   },
   "artifacts": {
     "title": "Artifacts",

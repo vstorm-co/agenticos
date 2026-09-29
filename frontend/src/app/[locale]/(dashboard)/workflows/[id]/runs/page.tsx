@@ -10,9 +10,9 @@ import { EmptyState } from "@/components/states";
 import { Button, Column, DataTable, ListCard } from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
-import { usePermissions, useWorkflow, useWorkflowRuns } from "@/hooks";
+import { usePermissions, useWorkflow, useWorkflowRuns, useWorkflowVersion } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { sampleRunInput, startsByHand } from "@/lib/workflows/triggers";
+import { declaredFields, sampleRunInput, startsByHand } from "@/lib/workflows/triggers";
 import { formatDateTime, formatRunDuration } from "@/lib/utils";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
@@ -36,6 +36,12 @@ export default function WorkflowRunsPage({ params }: PageProps) {
   const { runs, total, isLoading, start } = useWorkflowRuns(id);
   const { can } = usePermissions();
   const [startOpen, setStartOpen] = useState(false);
+  // The live version's graph, only once the dialog is open: its trigger's fields
+  // are what a real run is asked for.
+  const { version: live } = useWorkflowVersion(
+    id,
+    startOpen ? (workflow?.current_version_id ?? null) : null,
+  );
   const canTest = can(Perm.workflowsEdit) && workflow?.status !== "archived";
   // Only a version that starts by hand is started from here: every other
   // trigger has its own surface, and the server refuses this door for it.
@@ -121,6 +127,8 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           canTest={canTest}
           busy={start.isPending}
           sampleInput={sampleRunInput(workflow?.draft_graph ?? null)}
+          testFields={declaredFields(workflow?.draft_graph)}
+          liveFields={declaredFields(live?.graph)}
           onStart={({ mode, input }) =>
             start.mutate(
               { workflow_id: id, mode, input },

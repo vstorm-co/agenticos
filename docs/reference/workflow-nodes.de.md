@@ -1,5 +1,5 @@
 ---
-source_sha: "c9ad7448f523"
+source_sha: "1752735bd087"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -51,6 +51,16 @@ dem Graphen die Eingabe des Runs als `payload`, was auch immer der Aufrufer gese
 hat, und nennt die Oberfläche in `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+Seine **Eingabefelder** machen die Eingabe zu einem Vertrag. Ein Feld hat einen
+Namen, einen Typ - Text, Zahl, ganze Zahl, ja oder nein, Datum oder Auswahl - und ob
+es Pflicht ist. Ohne Felder nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
+**Start a run** jedes beim Namen ab, ein Run, dessen Eingabe eines fehlt, eines vom
+falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
+`WORKFLOW_RUN_INPUT_INVALID` abgelehnt, und ein Binding an `payload.<feld>` wird beim
+Veröffentlichen auf seinen Typ geprüft.
+
+::: app.workflows.nodes.core_input._handler.InputField
 
 ### trigger.chat { #trigger-chat }
 

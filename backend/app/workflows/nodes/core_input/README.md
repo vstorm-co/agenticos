@@ -13,14 +13,22 @@ surface that was: `api`, `chat`, `webhook`, `schedule`, `table_created`, ...).
 |---|---|---|---|
 | `out` | output | `WorkflowInputPayload` | `payload: dict`, `triggered_by: str` |
 
-## Why the payload is untyped
+## Declared fields
 
-The shape belongs to the caller, not to the node: an API body, a chat message
-and a table record's snapshot look nothing alike. A downstream node binds to a
-field by path (`payload.question`), and that binding is checked against the
-target field when the node is dispatched. A value that does not fit fails the
-run with `INVALID_BINDING` instead of reaching the handler as the wrong type.
-To coerce or rename fields first, put a `data.map` after this node.
+With no `fields` configured the payload is untyped: its shape belongs to the
+caller. A downstream node binds to a field by path (`payload.question`), and
+that binding is checked against the target field when the node is dispatched. A
+value that does not fit fails the run with `INVALID_BINDING` instead of reaching
+the handler as the wrong type.
+
+Declared `fields` (`ManualTriggerConfig`) make the payload a contract. Each has
+a `name`, a `type` - `text`, `number`, `integer`, `boolean`, `date` (ISO
+`YYYY-MM-DD`) or `choice` among its `options` - and whether it is `required`.
+`input_problems` checks a run's input against them strictly before the run is
+admitted, and `WorkflowExecutionService.start` refuses one that misses a field,
+sends one of the wrong type or sends one not declared, with
+`WORKFLOW_RUN_INPUT_INVALID` naming each. `ports_for` types `out`'s `payload` by
+them, so a binding to `payload.seats` is checked against its target at publish.
 
 ## Effect kind and retries
 

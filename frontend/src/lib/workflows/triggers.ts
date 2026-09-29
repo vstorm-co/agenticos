@@ -1,3 +1,4 @@
+import { type InputField, inputFieldsOf } from "@/lib/workflows/input-fields";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
 /**
@@ -67,4 +68,13 @@ export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unkn
     default:
       return {};
   }
+}
+
+/**
+ * The typed fields a run of `graph` starts with: those its "Manual or API"
+ * entry declares, or none - for any other entry, or a graph not loaded yet.
+ */
+export function declaredFields(graph: WorkflowGraph | null | undefined): InputField[] {
+  const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
+  return entry?.definition_id === MANUAL_TRIGGER ? inputFieldsOf(entry.config) : [];
 }

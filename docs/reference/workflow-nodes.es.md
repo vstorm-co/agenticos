@@ -1,5 +1,5 @@
 ---
-source_sha: "c9ad7448f523"
+source_sha: "1752735bd087"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -49,6 +49,16 @@ la entrada del run como `payload`, lo que haya enviado quien llama, y nombra la
 superficie en `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
+nombre, un tipo - texto, número, número entero, sí o no, fecha u opción - y si es
+obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
+run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
+equivocado o uno no declarado se rechaza antes de empezar con
+`WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
+al publicar.
+
+::: app.workflows.nodes.core_input._handler.InputField
 
 ### trigger.chat { #trigger-chat }
 

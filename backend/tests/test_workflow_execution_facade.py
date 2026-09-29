@@ -26,6 +26,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
+    WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
 )
@@ -309,6 +310,32 @@ class TestStart:
             await service.start(_ctx(), workflow.id)
         assert refused.value.status_code == 429
         assert refused.value.details["scope"] == "organization"
+        create_run.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(self):
+        entry = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="core.input",
+            definition_version=1,
+            config={"fields": [{"name": "seats", "type": "integer"}]},
+            layout=NodePosition(x=0, y=0),
+        )
+        graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
+        workflow = _workflow()
+        version = _version(graph=graph.model_dump(mode="json"))
+
+        service = WorkflowExecutionService(MagicMock())
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
+            pytest.raises(WorkflowRunInputInvalidError) as refused,
+        ):
+            await service.start(_ctx(), workflow.id, run_input={"seats": "three"})
+        assert refused.value.status_code == 422
+        assert [problem["field"] for problem in refused.value.details["problems"]] == ["seats"]
         create_run.assert_not_awaited()
 
     @pytest.mark.parametrize(

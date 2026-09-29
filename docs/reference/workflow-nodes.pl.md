@@ -1,5 +1,5 @@
 ---
-source_sha: "c9ad7448f523"
+source_sha: "1752735bd087"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -48,6 +48,15 @@ grafowi wejście runa jako `payload`, cokolwiek wysłał wywołujący, i nazywa
 powierzchnię w `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
+
+Jego **pola wejścia** robią z wejścia kontrakt. Pole ma nazwę, typ - tekst, liczba,
+liczba całkowita, tak lub nie, data albo wybór - i to, czy jest wymagane. Bez pól run
+przyjmuje dowolny obiekt JSON. Z polami **Start a run** prosi o każde po nazwie, run,
+którego wejściu brakuje pola, który wysyła pole złego typu albo niezadeklarowane,
+jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
+`payload.<pole>` jest sprawdzany pod kątem typu przy publikacji.
+
+::: app.workflows.nodes.core_input._handler.InputField
 
 ### trigger.chat { #trigger-chat }
 

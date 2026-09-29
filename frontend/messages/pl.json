@@ -897,6 +897,15 @@
           "name": "Nowy rekord w tabeli",
           "description": "Rekord dodany do tabeli uruchamia run z tym rekordem."
         }
+      },
+      "startRunOptional": "opcjonalne",
+      "startRunChoose": "Wybierz…",
+      "startRunFieldProblem": {
+        "required": "Uzupełnij to pole.",
+        "number": "To musi być liczba.",
+        "integer": "To musi być liczba całkowita.",
+        "date": "To musi być data.",
+        "choice": "Wybierz jedną z opcji."
       }
     }
   },
@@ -3634,7 +3643,35 @@
     "pickerBotsEmpty": "Nie ma jeszcze botów kanałów.",
     "pickerBotsAdd": "Dodaj go w Kanałach",
     "pickerBotOrphaned": "Bota, którego wskazuje ten krok, już nie ma - wybierz innego.",
-    "pickerBotNeedsPermission": "Działanie jako bot kanału wymaga channels:manage, którego nie masz."
+    "pickerBotNeedsPermission": "Działanie jako bot kanału wymaga channels:manage, którego nie masz.",
+    "inputFields": {
+      "title": "Pola wejścia",
+      "noneHint": "Brak pól: run przyjmuje dowolny obiekt JSON. Dodaj pola, żeby prosić o każdą wartość po nazwie i sprawdzać jej typ przed startem runa.",
+      "someHint": "Run prosi o każde pole po nazwie, a run, którego wejście nie pasuje, jest odrzucany przed startem. Kolejne kroki czytają każde z nich pod payload, jak pokazuje jego wiersz.",
+      "name": "Nazwa",
+      "type": "Typ",
+      "remove": "Usuń {name}",
+      "label": "Etykieta pola {name}",
+      "labelPlaceholder": "Etykieta (opcjonalnie)",
+      "description": "Opis pola {name}",
+      "descriptionPlaceholder": "Podpowiedź (opcjonalnie)",
+      "options": "Opcje pola {name}",
+      "optionsPlaceholder": "Jedna opcja w wierszu",
+      "optionsNone": "Wybór potrzebuje co najmniej jednej opcji.",
+      "optionsTooMany": "Wybór może mieć najwyżej {max} opcji.",
+      "required": "Wymagane",
+      "nameInvalid": "Małe litery, cyfry i podkreślenia, zaczynając od litery.",
+      "nameTaken": "Inne pole ma już tę nazwę.",
+      "add": "Dodaj pole",
+      "types": {
+        "text": "Tekst",
+        "number": "Liczba",
+        "integer": "Całkowita",
+        "boolean": "Tak lub nie",
+        "date": "Data",
+        "choice": "Wybór"
+      }
+    }
   },
   "artifacts": {
     "title": "Artefakty",
