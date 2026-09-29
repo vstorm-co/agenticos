@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A JavaScript step.** **JavaScript in a sandbox** runs a script on Node as
+  the same durable job the Python sandbox step runs, on the organization's
+  sandbox host: it reads the bound values as `args`, reads and writes the run's
+  files, may `await`, and what it returns is the step's result.
 - **Typed input for a workflow started by hand.** The **Manual or API** trigger
   can declare **Input fields** - text, number, whole number, yes or no, date or
   choice, each required or not. **Start a run** then asks for each by name in a

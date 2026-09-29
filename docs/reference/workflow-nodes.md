@@ -489,6 +489,24 @@ configuration - choose a runtime without network for untrusted work.
 
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
 
+## JavaScript { #javascript }
+
+`code.javascript.sandbox` runs JavaScript on Node as the same durable job, on the
+same `sandboxd` connection, and needs `sandbox:execute`. The script is the body of
+an async function: it reads the bound values as `args`, its input files in
+`inputs`, writes files to `outputs`, may `await`, and what it `return`s is the
+step's `result` - `null` when it returns nothing. `require` loads Node's own
+modules and whatever the runtime has installed. Choose a runtime with Node.
+
+Its failures are the Python sandbox's, named for JavaScript: a thrown error is
+`JAVASCRIPT_ERROR`, a result that is no JSON value - a function, a `BigInt` -
+is `JAVASCRIPT_OUTPUT_NOT_JSON`, and the timeout and the output bounds are
+`JAVASCRIPT_SANDBOX_TIMEOUT` and `JAVASCRIPT_OUTPUT_TOO_LARGE`.
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
+
 ## Adding a node { #adding-a-node }
 
 A node is a package under `backend/app/workflows/nodes/`: `__init__.py`

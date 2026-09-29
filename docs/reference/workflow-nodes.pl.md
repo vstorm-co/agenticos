@@ -1,5 +1,5 @@
 ---
-source_sha: "1752735bd087"
+source_sha: "bde58ee5ee6a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -503,6 +503,25 @@ wybierz runtime bez sieci.
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
 
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
+
+## JavaScript { #javascript }
+
+`code.javascript.sandbox` uruchamia JavaScript na Node jako to samo trwałe
+zadanie, na tym samym połączeniu `sandboxd`, i wymaga `sandbox:execute`. Skrypt
+jest ciałem funkcji asynchronicznej: czyta powiązane wartości jako `args`, swoje
+pliki wejściowe w `inputs`, zapisuje pliki do `outputs`, może używać `await`, a
+to, co zwróci przez `return`, jest `result` kroku - `null`, gdy nie zwraca
+niczego. `require` ładuje moduły samego Node i to, co runtime ma zainstalowane.
+Wybierz runtime z Node.
+
+Jego błędy są błędami sandboxa Pythona, nazwanymi dla JavaScriptu: rzucony błąd
+to `JAVASCRIPT_ERROR`, wynik, który nie jest wartością JSON - funkcja, `BigInt` -
+to `JAVASCRIPT_OUTPUT_NOT_JSON`, a limit czasu i limity wyjścia to
+`JAVASCRIPT_SANDBOX_TIMEOUT` i `JAVASCRIPT_OUTPUT_TOO_LARGE`.
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
 
 ## Dodawanie węzła { #adding-a-node }
 

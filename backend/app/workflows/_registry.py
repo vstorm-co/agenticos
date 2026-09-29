@@ -104,6 +104,7 @@ def load_builtins() -> None:
         channel_members,
         channel_read,
         channel_send,
+        code_javascript_sandbox,
         code_python_sandbox,
         code_python_simple,
         control_foreach,

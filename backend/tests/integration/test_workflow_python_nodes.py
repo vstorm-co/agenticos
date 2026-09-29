@@ -29,6 +29,8 @@ from app.db.models.workflow_run import DispatchOutbox, ResourceRef, WorkflowRun,
 from app.services.file_storage import LocalFileStorage
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.nodes import _sandbox_job as job
+from app.workflows.nodes.code_javascript_sandbox import _handler as js_node
 from app.workflows.nodes.code_python_sandbox import _handler as sandbox_node
 from tests.integration.workflow_run_support import SeededRun, drive, seed_member, seed_run
 
@@ -141,6 +143,7 @@ class _Session:
         # than they are - a file still growing after it was measured.
         self.measured_as: str | None = None
         self.reads: list[str] = []
+        self.commands: list[str] = []
 
     # The `RemoteSandbox` surface the step uses.
     def exists(self, path: str) -> bool:
@@ -153,13 +156,14 @@ class _Session:
         return SimpleNamespace(path=path, error=None)
 
     def execute(self, command: str) -> SimpleNamespace:
+        self.commands.append(command)
         if self.exec_exit:
             return SimpleNamespace(output="boom", exit_code=self.exec_exit, truncated=False)
         if "wc -c" in command:
             return SimpleNamespace(output=self._measured(), exit_code=0, truncated=False)
-        if f"{sandbox_node.ROOT}/job.pid" not in self.files:
+        if f"{job.ROOT}/job.pid" not in self.files:
             self.launches += 1
-            self.files[f"{sandbox_node.ROOT}/job.pid"] = b"42"
+            self.files[f"{job.ROOT}/job.pid"] = b"42"
         return SimpleNamespace(output="", exit_code=0, truncated=False)
 
     def read_bytes(self, path: str) -> bytes:
@@ -169,7 +173,7 @@ class _Session:
     def _measured(self) -> str:
         if self.measured_as is not None:
             return self.measured_as
-        root = sandbox_node.ROOT
+        root = job.ROOT
         outputs = [data for path, data in self.files.items() if path.startswith(f"{root}/outputs/")]
         size = {
             name: len(self.files.get(f"{root}/{name}", b"")) for name in ("result.json", "log.txt")
@@ -195,7 +199,7 @@ class _Session:
         outputs: dict[str, bytes] | None = None,
     ) -> None:
         """What the runner leaves behind when the script ends."""
-        root = sandbox_node.ROOT
+        root = job.ROOT
         self.files[f"{root}/result.json"] = json.dumps(answer).encode()
         self.files[f"{root}/log.txt"] = log
         for name, data in (outputs or {}).items():
@@ -213,8 +217,8 @@ def host() -> Iterator[dict[str, _Session]]:
 
     resolved = SimpleNamespace(kind="sandboxd")
     with (
-        patch.object(sandbox_node, "_open", side_effect=open_session),
-        patch.object(sandbox_node, "_connection", new=AsyncMock(return_value=resolved)),
+        patch.object(job, "_open", side_effect=open_session),
+        patch.object(job, "_connection", new=AsyncMock(return_value=resolved)),
     ):
         yield sessions
 
@@ -243,7 +247,7 @@ class TestTheSandboxJob:
         assert run.status == WorkflowRunStatus.WAITING_RETRY.value
         (session,) = host.values()
         assert session.launches == 1
-        assert json.loads(session.files[f"{sandbox_node.ROOT}/args.json"]) == {"n": 2}
+        assert json.loads(session.files[f"{job.ROOT}/args.json"]) == {"n": 2}
 
         await _due_now(seeded)
         assert (await drive(seeded)).status == WorkflowRunStatus.WAITING_RETRY.value
@@ -269,12 +273,10 @@ class TestTheSandboxJob:
         self, engine, host
     ):
         seeded = await seed_run(engine, _chain(_sandbox_step()))
-        key = sandbox_node.session_key(
-            f"{seeded.org.id}:{seeded.run.id}:{seeded.graph.nodes[1].id}:[]"
-        )
+        key = job.session_key(f"{seeded.org.id}:{seeded.run.id}:{seeded.graph.nodes[1].id}:[]")
         # A worker that staged the script and died before starting it.
         half = host.setdefault(key, _Session())
-        half.files[f"{sandbox_node.ROOT}/main.py"] = b"result = 1"
+        half.files[f"{job.ROOT}/main.py"] = b"result = 1"
 
         await drive(seeded)
 
@@ -284,7 +286,7 @@ class TestTheSandboxJob:
         seeded = await seed_run(engine, _chain(_sandbox_step(timeout_seconds=60)))
         await drive(seeded)
         (session,) = host.values()
-        session.files[f"{sandbox_node.ROOT}/started_at"] = (
+        session.files[f"{job.ROOT}/started_at"] = (
             (datetime.now(UTC) - timedelta(minutes=5)).isoformat().encode()
         )
         await _due_now(seeded)
@@ -313,7 +315,7 @@ class TestTheSandboxJob:
         assert log.filename == "log.txt"
 
     async def test_a_job_that_wrote_too_much_imports_nothing(self, engine, host, monkeypatch):
-        monkeypatch.setattr(sandbox_node, "MAX_OUTPUT_FILES", 1)
+        monkeypatch.setattr(job, "MAX_OUTPUT_FILES", 1)
         seeded = await seed_run(engine, _chain(_sandbox_step()))
         await drive(seeded)
         (session,) = host.values()
@@ -326,7 +328,7 @@ class TestTheSandboxJob:
     async def test_leftovers_over_the_bounds_are_refused_before_any_is_fetched(
         self, engine, host, monkeypatch
     ):
-        monkeypatch.setattr(sandbox_node, "MAX_LOG_BYTES", 4)
+        monkeypatch.setattr(job, "MAX_LOG_BYTES", 4)
         seeded = await seed_run(engine, _chain(_sandbox_step()))
         await drive(seeded)
         (session,) = host.values()
@@ -339,7 +341,7 @@ class TestTheSandboxJob:
     async def test_a_file_that_grew_after_it_was_measured_is_still_refused(
         self, engine, host, monkeypatch
     ):
-        monkeypatch.setattr(sandbox_node, "MAX_OUTPUT_BYTES", 8)
+        monkeypatch.setattr(job, "MAX_OUTPUT_BYTES", 8)
         seeded = await seed_run(engine, _chain(_sandbox_step()))
         await drive(seeded)
         (session,) = host.values()
@@ -368,7 +370,7 @@ class TestTheSandboxJob:
         await drive(seeded)
         (session,) = host.values()
         session.finish({"ok": True, "result": 7})
-        del session.files[f"{sandbox_node.ROOT}/log.txt"]
+        del session.files[f"{job.ROOT}/log.txt"]
         await _due_now(seeded)
         run = await drive(seeded)
         assert run.output["structured"]["stdout_tail"] == ""
@@ -378,9 +380,7 @@ class TestTheSandboxJob:
             host.clear()
             seeded = await seed_run(engine, _chain(_sandbox_step()))
             session = host.setdefault(
-                sandbox_node.session_key(
-                    f"{seeded.org.id}:{seeded.run.id}:{seeded.graph.nodes[1].id}:[]"
-                ),
+                job.session_key(f"{seeded.org.id}:{seeded.run.id}:{seeded.graph.nodes[1].id}:[]"),
                 _Session(),
             )
             session.fail_write = failure == "write"
@@ -409,7 +409,7 @@ class TestTheSandboxJob:
         await _import(seeded, ref)
         await drive(seeded)
         (session,) = host.values()
-        assert session.files[f"{sandbox_node.ROOT}/inputs/00-leads.csv"] == b"a,b\n"
+        assert session.files[f"{job.ROOT}/inputs/00-leads.csv"] == b"a,b\n"
 
     @pytest.mark.security
     async def test_a_file_the_run_was_not_given_is_never_staged(self, engine, host, storage):
@@ -432,7 +432,7 @@ class TestTheSandboxJob:
         assert session.launches == 0
 
     async def test_inputs_over_the_limit_are_refused(self, engine, host, storage, monkeypatch):
-        monkeypatch.setattr(sandbox_node, "MAX_INPUT_BYTES", 5)
+        monkeypatch.setattr(job, "MAX_INPUT_BYTES", 5)
         member = await _member(engine)
         earlier = await seed_run(engine, _chain(_node("debug.echo")), member=member)
         refs = [
@@ -466,8 +466,8 @@ class TestTheSandboxHost:
             raise RuntimeError("Could not reach the sandbox service")
 
         with (
-            patch.object(sandbox_node, "_connection", new=AsyncMock(return_value=resolved)),
-            patch.object(sandbox_node, "_open", side_effect=unreachable),
+            patch.object(job, "_connection", new=AsyncMock(return_value=resolved)),
+            patch.object(job, "_open", side_effect=unreachable),
         ):
             run = await drive(seeded)
         assert run.status == WorkflowRunStatus.WAITING_RETRY.value
@@ -481,7 +481,7 @@ class TestTheSandboxHost:
             (AsyncMock(return_value=SimpleNamespace(kind="daytona")), "SANDBOX_UNAVAILABLE"),
         ]:
             seeded = await seed_run(engine, _chain(_sandbox_step()))
-            with patch.object(sandbox_node, "_connection", new=connection):
+            with patch.object(job, "_connection", new=connection):
                 assert await _failed_code(seeded) == code
 
     async def test_the_real_connection_is_resolved_for_the_run_s_member(self, engine):
@@ -497,14 +497,14 @@ class TestTheSandboxHost:
             assert problem[0] == "connection_id"
             assert await sandbox_node.check_resources(db, seeded.ctx, MagicMock()) == []
             with patch.object(
-                sandbox_node.SandboxConnectionService,
+                job.SandboxConnectionService,
                 "resolve",
                 new=AsyncMock(return_value=SimpleNamespace(kind="daytona")),
             ):
                 (wrong,) = await sandbox_node.check_resources(db, seeded.ctx, config)
                 assert "sandboxd" in wrong[1]
             with patch.object(
-                sandbox_node.SandboxConnectionService,
+                job.SandboxConnectionService,
                 "resolve",
                 new=AsyncMock(return_value=SimpleNamespace(kind="sandboxd")),
             ):
@@ -515,13 +515,87 @@ class TestTheSandboxHost:
             token="t", row=SimpleNamespace(base_url="http://sandboxd:8080", default_runtime="py")
         )
         with patch("pydantic_ai_backends.remote.RemoteSandbox") as remote:
-            sandbox_node._open(resolved, "wf-key", None, "org")
+            job._open(resolved, "wf-key", None, "org")
         assert remote.call_args.kwargs["session_id"] == "wf-key"
         assert remote.call_args.kwargs["runtime"] == "py"
 
     async def test_a_step_with_no_script_says_so(self):
         result = await sandbox_node.handle(None, None)
         assert result.error.code == "PYTHON_NOT_CONFIGURED"
+
+
+def _js_step(**config: Any) -> NodeInstance:
+    return _node("code.javascript.sandbox", {"code": "return args.n * 2;", **config})
+
+
+class TestTheJavaScriptJob:
+    """The same job protocol, run by Node: what differs is what is staged and started."""
+
+    async def test_it_stages_a_node_runner_and_answers_with_what_the_script_returned(
+        self, engine, host
+    ):
+        step = _js_step()
+        seeded = await seed_run(engine, _chain(step, _literal(step, "args", {"n": 2})))
+
+        assert (await drive(seeded)).status == WorkflowRunStatus.WAITING_RETRY.value
+        (session,) = host.values()
+        assert session.files[f"{job.ROOT}/main.js"] == b"return args.n * 2;"
+        assert session.files[f"{job.ROOT}/run.js"] == js_node.RUNNER.encode()
+        assert any("nohup node run.js" in command for command in session.commands)
+
+        session.finish({"ok": True, "result": 4}, log=b"logged\n")
+        await _due_now(seeded)
+        run = await drive(seeded)
+
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        answer = run.output["structured"]
+        assert answer["result"] == 4 and answer["stdout_tail"] == "logged\n"
+
+    @pytest.mark.parametrize(
+        ("answer", "code"),
+        [
+            ({"ok": False, "error": "TypeError: bad"}, "JAVASCRIPT_ERROR"),
+            ({"ok": False, "not_json": True, "error": "bigint"}, "JAVASCRIPT_OUTPUT_NOT_JSON"),
+        ],
+        ids=["a-throw", "not-json"],
+    )
+    async def test_a_script_that_failed_fails_with_its_own_code(self, engine, host, answer, code):
+        seeded = await seed_run(engine, _chain(_js_step()))
+        await drive(seeded)
+        (session,) = host.values()
+        session.finish(answer)
+        await _due_now(seeded)
+        assert await _failed_code(seeded) == code
+
+    async def test_a_job_past_its_time_says_it_was_javascript(self, engine, host):
+        seeded = await seed_run(engine, _chain(_js_step(timeout_seconds=60)))
+        await drive(seeded)
+        (session,) = host.values()
+        session.files[f"{job.ROOT}/started_at"] = (
+            (datetime.now(UTC) - timedelta(minutes=5)).isoformat().encode()
+        )
+        await _due_now(seeded)
+        assert await _failed_code(seeded) == "JAVASCRIPT_SANDBOX_TIMEOUT"
+
+    async def test_a_job_over_its_bounds_says_it_was_javascript(self, engine, host, monkeypatch):
+        monkeypatch.setattr(job, "MAX_OUTPUT_FILES", 0)
+        seeded = await seed_run(engine, _chain(_js_step()))
+        await drive(seeded)
+        (session,) = host.values()
+        session.finish({"ok": True, "result": 1}, outputs={"a.txt": b"a"})
+        await _due_now(seeded)
+        assert await _failed_code(seeded) == "JAVASCRIPT_OUTPUT_TOO_LARGE"
+
+    async def test_publishing_checks_the_author_s_connection_and_needs_a_script(self, engine):
+        member = await _member(engine)
+        seeded = await seed_run(engine, _chain(_node("debug.echo")), member=member)
+        config = js_node.JavaScriptSandboxConfig(code="return 1;")
+        async with async_sessionmaker(engine)() as db:
+            (problem,) = await js_node.check_resources(db, seeded.ctx, config)
+            assert problem[0] == "connection_id"
+            assert await js_node.check_resources(db, seeded.ctx, MagicMock()) == []
+        result = await js_node.handle(None, None)
+        assert result.error.code == "JAVASCRIPT_NOT_CONFIGURED"
 
 
 async def _member(engine: AsyncEngine):

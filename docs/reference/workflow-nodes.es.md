@@ -1,5 +1,5 @@
 ---
-source_sha: "1752735bd087"
+source_sha: "bde58ee5ee6a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -509,6 +509,26 @@ de confianza.
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
 
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
+
+## JavaScript { #javascript }
+
+`code.javascript.sandbox` ejecuta JavaScript en Node como el mismo trabajo
+duradero, en la misma conexión `sandboxd`, y necesita `sandbox:execute`. El
+script es el cuerpo de una función asíncrona: lee los valores vinculados como
+`args`, sus archivos de entrada en `inputs`, escribe archivos en `outputs`, puede
+usar `await`, y lo que devuelve con `return` es el `result` del paso - `null`
+cuando no devuelve nada. `require` carga los módulos propios de Node y lo que el
+runtime tenga instalado. Elige un runtime con Node.
+
+Sus fallos son los del sandbox de Python, con nombre de JavaScript: un error
+lanzado es `JAVASCRIPT_ERROR`, un resultado que no es un valor JSON - una
+función, un `BigInt` - es `JAVASCRIPT_OUTPUT_NOT_JSON`, y el límite de tiempo y
+los límites de salida son `JAVASCRIPT_SANDBOX_TIMEOUT` y
+`JAVASCRIPT_OUTPUT_TOO_LARGE`.
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
 
 ## Añadir un nodo { #adding-a-node }
 

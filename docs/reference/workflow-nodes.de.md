@@ -1,5 +1,5 @@
 ---
-source_sha: "1752735bd087"
+source_sha: "bde58ee5ee6a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -530,6 +530,25 @@ vertrauenswürdige Arbeit eine Runtime ohne Netzwerk.
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxConfig
 
 ::: app.workflows.nodes.code_python_sandbox._handler.PythonSandboxOutput
+
+## JavaScript { #javascript }
+
+`code.javascript.sandbox` führt JavaScript auf Node als denselben dauerhaften Job
+aus, über dieselbe `sandboxd`-Verbindung, und braucht `sandbox:execute`. Das
+Skript ist der Rumpf einer async-Funktion: Es liest die gebundenen Werte als
+`args`, seine Eingabedateien in `inputs`, schreibt Dateien nach `outputs`, darf
+`await` verwenden, und was es per `return` zurückgibt, ist das `result` des
+Schritts - `null`, wenn es nichts zurückgibt. `require` lädt Nodes eigene Module
+und was die Runtime installiert hat. Wähle eine Runtime mit Node.
+
+Seine Fehler sind die der Python-Sandbox, für JavaScript benannt: ein geworfener
+Fehler ist `JAVASCRIPT_ERROR`, ein Ergebnis, das kein JSON-Wert ist - eine
+Funktion, ein `BigInt` - ist `JAVASCRIPT_OUTPUT_NOT_JSON`, und Zeitlimit und
+Ausgabegrenzen sind `JAVASCRIPT_SANDBOX_TIMEOUT` und `JAVASCRIPT_OUTPUT_TOO_LARGE`.
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxConfig
+
+::: app.workflows.nodes.code_javascript_sandbox._handler.JavaScriptSandboxOutput
 
 ## Einen Knoten hinzufügen { #adding-a-node }
 
