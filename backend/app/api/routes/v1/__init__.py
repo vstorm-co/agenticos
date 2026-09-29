@@ -96,6 +96,7 @@ v1_router.include_router(
 v1_router.include_router(
     artifacts.content_router, prefix="/artifact-content", tags=["artifacts:content"]
 )
+v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(

@@ -1188,6 +1188,8 @@
       "browsePage": "Work Through a Page",
       "publishingArtifact": "Publishing a page",
       "publishArtifact": "Published page",
+      "readingArtifact": "Reading a published page",
+      "readArtifact": "Read a Published Page",
       "artifactVersion": "Version {version} · open the page",
       "artifactUnchanged": "Unchanged, still version {version} · open the page"
     },

@@ -20,8 +20,9 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
     description=(
         "Let the agent publish a finished page - a report, a small dashboard, a one-page "
         "summary - under a link people open in a browser. Publishing again under the same "
-        "name updates the page behind the same link and keeps the earlier versions. A new "
-        "page is private to the person the run was for until they share it."
+        "name updates the page behind the same link and keeps the earlier versions, and the "
+        "agent can read a page back to change part of it. A new page is private to the "
+        "person the run was for until they share it."
     ),
     tools=(
         CapabilityToolInfo(
@@ -29,6 +30,12 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
             description=(
                 "Publish a finished page - a report, a small dashboard, a summary - under a "
                 "stable link."
+            ),
+        ),
+        CapabilityToolInfo(
+            id="read_artifact",
+            description=(
+                "Read the current version of a page this agent published, as it was written."
             ),
         ),
     ),

@@ -114,6 +114,26 @@ status = "accepted"
 obligations = "Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher."
 fulfilled_by = "app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL."
 
+[[component]]
+name = "Chart.js, vendored into backend/app/core/catalog/artifact_lib/"
+version = "4.5.1 (dist/chart.umd.min.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts"
+license = "MIT"
+source = "https://github.com/chartjs/Chart.js"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with the copies or substantial portions of the software."
+fulfilled_by = "The file is copied byte for byte and keeps its own header naming Chart.js and the MIT licence; backend/app/core/catalog/artifact_lib/README.md carries the full MIT text with the copyright line, and NOTICE names it. Copied rather than installed because a published page has no network: the deployment serves the file to its pages itself (#1971)."
+
+[[component]]
+name = "d3, vendored into backend/app/core/catalog/artifact_lib/"
+version = "7.9.0 (dist/d3.min.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts"
+license = "ISC"
+source = "https://github.com/d3/d3"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with the copies."
+fulfilled_by = "The file is copied byte for byte and keeps its own header naming d3 and its copyright; backend/app/core/catalog/artifact_lib/README.md carries the full ISC text, and NOTICE names it. Copied for the same reason as Chart.js (#1971)."
+
 # Images a deployment runs beside the two published ones. These are pulled by the
 # operator's compose file and are not redistributed by this project, so what the
 # review owes is the licence a deployment is agreeing to when it starts them.

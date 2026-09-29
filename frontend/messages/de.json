@@ -1184,6 +1184,8 @@
       "browsePage": "Eine Seite durcharbeiten",
       "publishingArtifact": "Seite wird veröffentlicht",
       "publishArtifact": "Veröffentlichte Seite",
+      "readingArtifact": "Veröffentlichte Seite wird gelesen",
+      "readArtifact": "Veröffentlichte Seite lesen",
       "artifactVersion": "Version {version} · Seite öffnen",
       "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen"
     },

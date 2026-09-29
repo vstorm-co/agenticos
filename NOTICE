@@ -23,6 +23,22 @@ endorsement by them.
 
 --------------------------------------------------------------------------------
 
+Libraries served to published artifacts
+
+backend/app/core/catalog/artifact_lib/ holds two libraries the deployment serves
+to the pages its agents publish, copied byte for byte from their npm packages:
+
+  Chart.js 4.5.1   https://www.chartjs.org      MIT
+                   Copyright (c) 2014-2024 Chart.js Contributors
+  d3 7.9.0         https://d3js.org             ISC
+                   Copyright 2010-2023 Mike Bostock
+
+Copied rather than installed because a published page has no network and loads
+them from the deployment itself. The README beside them carries both licence
+texts in full.
+
+--------------------------------------------------------------------------------
+
 Vendored UI components
 
 frontend/src/components/ui/animated-counter.tsx and

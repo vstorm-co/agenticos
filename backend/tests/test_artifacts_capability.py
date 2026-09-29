@@ -22,14 +22,17 @@ from pydantic_ai.usage import RunUsage
 from app.agents.capabilities import _registry as registry
 from app.agents.capabilities.artifacts import Artifacts
 from app.agents.capabilities.artifacts._toolset import (
+    READ_LIMIT,
+    ArtifactEdit,
+    apply_edits,
     build_artifacts_toolset,
     parse_published_artifact,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.deps import AgentDeps
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
 from app.db.models.artifact import ArtifactMediaType
-from app.services.artifact import PublishedArtifact
+from app.services.artifact import ArtifactSource, PublishedArtifact
 
 pytestmark = pytest.mark.anyio
 
@@ -130,10 +133,19 @@ class TestPublishing:
             await _tool()(_ctx(_deps()), name="r", title="R", content="# x", format="markdown")
         assert publish.await_args.kwargs["media_type"] is ArtifactMediaType.MARKDOWN
 
-    async def test_a_blank_title_falls_back_to_the_name(self) -> None:
+    @pytest.mark.parametrize("title", ["   ", None])
+    async def test_a_blank_or_missing_title_leaves_it_to_the_service(
+        self, title: str | None
+    ) -> None:
+        """The service titles a new page with its name and keeps an existing page's."""
         with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
-            await _tool()(_ctx(_deps()), name="r", title="   ", content="<p>x</p>")
-        assert publish.await_args.kwargs["title"] == "r"
+            await _tool()(_ctx(_deps()), name="r", title=title, content="<p>x</p>")
+        assert publish.await_args.kwargs["title"] is None
+
+    async def test_a_title_is_trimmed_and_capped(self) -> None:
+        with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
+            await _tool()(_ctx(_deps()), name="r", title=f"  {'t' * 300} ", content="<p>x</p>")
+        assert publish.await_args.kwargs["title"] == "t" * 200
 
     async def test_a_run_for_nobody_publishes_with_no_owner(self) -> None:
         with patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish:
@@ -218,4 +230,168 @@ class TestRegistration:
         assert built.workspace_backend is workspace
         toolset = built.get_toolset()
         assert toolset is built.get_toolset()
-        assert "publish_artifact" in toolset.tools
+        assert set(toolset.tools) == {"publish_artifact", "read_artifact"}
+
+
+READ_SOURCE = "app.agents.capabilities.artifacts._toolset.artifacts.read_source"
+
+
+def _source(text: str = "<h1>Old</h1><p>body</p>", **overrides: Any) -> ArtifactSource:
+    values: dict[str, Any] = {
+        "name": "weekly-report",
+        "title": "Weekly report",
+        "version_number": 3,
+        "media_type": ArtifactMediaType.HTML,
+        "text": text,
+    }
+    values.update(overrides)
+    return ArtifactSource(**values)
+
+
+def _reader(workspace: Any = None) -> Any:
+    return build_artifacts_toolset(workspace_backend=workspace).tools["read_artifact"].function
+
+
+class TestEditing:
+    async def test_edits_change_the_current_version_and_carry_the_version_they_read(
+        self,
+    ) -> None:
+        deps = _deps()
+        with (
+            patch(READ_SOURCE, new=AsyncMock(return_value=_source())) as read,
+            patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish,
+        ):
+            await _tool()(
+                _ctx(deps),
+                name="weekly-report",
+                edits=[ArtifactEdit(old="Old", new="New"), ArtifactEdit(old="body", new="")],
+            )
+        assert read.await_args.kwargs == {
+            "organization_id": deps.organization_id,
+            "agent_id": deps.agent_id,
+            "reader_user_id": uuid.UUID(deps.user_id),
+            "run_id": deps.run_id,
+            "name": "weekly-report",
+        }
+        kwargs = publish.await_args.kwargs
+        assert kwargs["data"] == b"<h1>New</h1><p></p>"
+        assert kwargs["expected_version"] == 3
+        assert kwargs["media_type"] is ArtifactMediaType.HTML
+        assert kwargs["title"] is None
+
+    async def test_a_markdown_page_stays_markdown(self) -> None:
+        source = _source("# Old", media_type=ArtifactMediaType.MARKDOWN)
+        with (
+            patch(READ_SOURCE, new=AsyncMock(return_value=source)),
+            patch(PUBLISH, new=AsyncMock(return_value=_published())) as publish,
+        ):
+            await _tool()(
+                _ctx(_deps()),
+                name="r",
+                edits=[ArtifactEdit(old="Old", new="New")],
+                format="markdown",
+            )
+        assert publish.await_args.kwargs["media_type"] is ArtifactMediaType.MARKDOWN
+
+    @pytest.mark.parametrize(
+        ("text", "old", "says"),
+        [
+            ("<p>a</p>", "missing", "is not in the page"),
+            ("<p>a</p><p>a</p>", "<p>a</p>", "appears 2 times"),
+        ],
+    )
+    async def test_an_edit_that_does_not_name_one_place_is_steered(
+        self, text: str, old: str, says: str
+    ) -> None:
+        with (
+            patch(READ_SOURCE, new=AsyncMock(return_value=_source(text))),
+            patch(PUBLISH, new=AsyncMock()) as publish,
+            pytest.raises(ModelRetry, match=says),
+        ):
+            await _tool()(_ctx(_deps()), name="r", edits=[ArtifactEdit(old=old, new="x")])
+        publish.assert_not_awaited()
+
+    async def test_no_edits_at_all_is_steered(self) -> None:
+        with pytest.raises(ModelRetry, match="at least one"):
+            await _tool()(_ctx(_deps()), name="r", edits=[])
+
+    async def test_changing_the_format_with_an_edit_is_steered(self) -> None:
+        with (
+            patch(READ_SOURCE, new=AsyncMock(return_value=_source())),
+            pytest.raises(ModelRetry, match="keeps the page's format"),
+        ):
+            await _tool()(
+                _ctx(_deps()),
+                name="r",
+                edits=[ArtifactEdit(old="Old", new="x")],
+                format="markdown",
+            )
+
+    @pytest.mark.security
+    async def test_a_page_the_run_may_not_open_is_a_refusal_not_a_retry(self) -> None:
+        missing = NotFoundError(message="There is no artifact named 'r' that this run may open.")
+        with patch(READ_SOURCE, new=AsyncMock(side_effect=missing)):
+            result = await _tool()(_ctx(_deps()), name="r", edits=[ArtifactEdit(old="a", new="b")])
+        assert result.startswith("There is no artifact named 'r'")
+        assert "`content` or `path`" in result
+
+    async def test_a_page_that_moved_on_meanwhile_is_steered_to_read_again(self) -> None:
+        moved = ConcurrentChangeError(message="Read it again with `read_artifact`.")
+        with (
+            patch(READ_SOURCE, new=AsyncMock(return_value=_source())),
+            patch(PUBLISH, new=AsyncMock(side_effect=moved)),
+            pytest.raises(ModelRetry, match="Read it again"),
+        ):
+            await _tool()(_ctx(_deps()), name="r", edits=[ArtifactEdit(old="Old", new="x")])
+
+    async def test_edits_beside_content_is_one_source_too_many(self) -> None:
+        with pytest.raises(ModelRetry, match="exactly one of"):
+            await _tool()(
+                _ctx(_deps()),
+                name="r",
+                content="<p>x</p>",
+                edits=[ArtifactEdit(old="a", new="b")],
+            )
+
+
+class TestApplyEdits:
+    def test_edits_apply_in_order_each_to_what_the_last_left(self) -> None:
+        edits = [ArtifactEdit(old="a", new="bb"), ArtifactEdit(old="bbc", new="d")]
+        assert apply_edits("ac", edits) == "d"
+
+    def test_the_failing_edit_is_named_by_its_position(self) -> None:
+        with pytest.raises(ValueError, match="Edit 2"):
+            apply_edits("abc", [ArtifactEdit(old="a", new="x"), ArtifactEdit(old="a", new="y")])
+
+
+class TestReadingBack:
+    async def test_the_page_comes_back_with_a_header_naming_its_version(self) -> None:
+        deps = _deps()
+        with patch(READ_SOURCE, new=AsyncMock(return_value=_source("<p>hi</p>"))) as read:
+            result = await _reader()(_ctx(deps), name="weekly-report")
+        assert read.await_args.kwargs["reader_user_id"] == uuid.UUID(deps.user_id)
+        header, body = result.split("\n\n", 1)
+        assert header == "`weekly-report` - 'Weekly report', version 3, HTML, 9 characters."
+        assert body == "<p>hi</p>"
+
+    async def test_a_long_page_is_cut_and_says_so(self) -> None:
+        text = "x" * (READ_LIMIT + 5)
+        source = _source(text, media_type=ArtifactMediaType.MARKDOWN)
+        with patch(READ_SOURCE, new=AsyncMock(return_value=source)):
+            result = await _reader()(_ctx(_deps(user_id=None)), name="r")
+        header, body = result.split("\n\n", 1)
+        assert "Markdown" in header
+        assert f"Showing the first {READ_LIMIT:,} of {READ_LIMIT + 5:,} characters." in header
+        assert len(body) == READ_LIMIT
+
+    @pytest.mark.security
+    async def test_a_page_the_run_may_not_open_is_answered_like_a_missing_one(self) -> None:
+        missing = NotFoundError(message="There is no artifact named 'r' that this run may open.")
+        with patch(READ_SOURCE, new=AsyncMock(side_effect=missing)):
+            result = await _reader()(_ctx(_deps()), name="r")
+        assert result == "There is no artifact named 'r' that this run may open."
+
+    @pytest.mark.parametrize("missing", ["organization_id", "agent_id"])
+    async def test_a_run_with_no_agent_has_nothing_to_read(self, missing: str) -> None:
+        result = await _reader()(_ctx(_deps(**{missing: None})), name="r")
+        assert "no saved agent" in result

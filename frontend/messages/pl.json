@@ -254,6 +254,8 @@
       "browsePage": "Przejdź przez stronę",
       "publishingArtifact": "Publikowanie strony",
       "publishArtifact": "Opublikowana strona",
+      "readingArtifact": "Czytanie opublikowanej strony",
+      "readArtifact": "Odczyt opublikowanej strony",
       "artifactVersion": "Wersja {version} · otwórz stronę",
       "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę"
     },

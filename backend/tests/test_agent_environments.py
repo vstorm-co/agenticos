@@ -470,13 +470,22 @@ class TestDelete:
         environment = _environment(agent_id=agent.id, name="dev")
         service = _service(agent)
 
+        order: list[str] = []
         with (
             patch(_REPO) as environments,
             patch(_AUDIT, new=AsyncMock()) as audit,
+            patch(
+                "app.services.agent_environment.artifact_repo.detach_environment",
+                new=AsyncMock(side_effect=lambda *_a, **_k: order.append("detach")),
+            ) as detach,
         ):
             environments.get = AsyncMock(return_value=environment)
-            environments.delete = AsyncMock()
+            environments.delete = AsyncMock(side_effect=lambda *_a, **_k: order.append("delete"))
             await service.delete(_ctx(), agent.id, environment.id)
 
         environments.delete.assert_awaited_once()
+        # Its artifacts are detached first, or the foreign key would drop them into
+        # the default environment's slot of the same name.
+        assert detach.await_args.kwargs == {"environment_id": environment.id}
+        assert order == ["detach", "delete"]
         assert audit.call_args.kwargs["details"]["name"] == "dev"

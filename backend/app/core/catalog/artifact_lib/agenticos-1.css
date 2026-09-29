@@ -1,0 +1,191 @@
+/*
+ * AgenticOS page styles, version 1 - served to published artifacts.
+ *
+ * The console's own tokens, so a report an agent publishes reads as part of the
+ * product: neutral graphite, no accent hue, green and red only where they mean
+ * something. Light and dark follow the viewer's system setting.
+ *
+ * The file name carries the version and is cached for a year. A change that
+ * would alter an existing page is a new file (agenticos-2.css), never an edit:
+ * pages published against version 1 keep rendering as they did.
+ */
+
+:root {
+  color-scheme: light dark;
+  --ao-bg: oklch(97.8% 0.002 265);
+  --ao-fg: oklch(17.5% 0.004 265);
+  --ao-card: oklch(100% 0 0);
+  --ao-muted: oklch(95.5% 0.002 265);
+  --ao-muted-fg: oklch(47.8% 0.006 265);
+  --ao-border: oklch(88.5% 0.003 265);
+  --ao-primary: oklch(21% 0.01 250);
+  --ao-primary-fg: oklch(98.5% 0 0);
+  --ao-success: oklch(58% 0.1 155);
+  --ao-warning: oklch(64% 0.1 72);
+  --ao-danger: oklch(56% 0.17 25);
+  /* Series colours for charts: graphite steps first, so a single series never
+     looks like a status. */
+  --ao-series-1: oklch(35% 0.01 265);
+  --ao-series-2: oklch(55% 0.01 265);
+  --ao-series-3: oklch(72% 0.01 265);
+  --ao-series-4: oklch(58% 0.1 155);
+  --ao-series-5: oklch(64% 0.1 72);
+  --ao-series-6: oklch(56% 0.17 25);
+  --ao-radius: 0.5rem;
+  --ao-shadow: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
+  --ao-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ao-font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ao-bg: oklch(23.5% 0.0025 265);
+    --ao-fg: oklch(94.5% 0.003 265);
+    --ao-card: oklch(26.2% 0.0025 265);
+    --ao-muted: oklch(30% 0.0025 265);
+    --ao-muted-fg: oklch(71.2% 0.006 265);
+    --ao-border: oklch(35% 0.003 265);
+    --ao-primary: oklch(96% 0.003 250);
+    --ao-primary-fg: oklch(16% 0.01 250);
+    --ao-success: oklch(74% 0.11 155);
+    --ao-warning: oklch(78% 0.1 78);
+    --ao-danger: oklch(70% 0.15 25);
+    --ao-series-1: oklch(90% 0.005 265);
+    --ao-series-2: oklch(72% 0.008 265);
+    --ao-series-3: oklch(55% 0.01 265);
+    --ao-series-4: oklch(74% 0.11 155);
+    --ao-series-5: oklch(78% 0.1 78);
+    --ao-series-6: oklch(70% 0.15 25);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ao-bg);
+  color: var(--ao-fg);
+  font: 15px/1.55 var(--ao-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 0.5em;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+
+code,
+pre {
+  font-family: var(--ao-font-mono);
+  font-size: 0.9em;
+}
+
+.ao-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.ao-subtitle {
+  color: var(--ao-muted-fg);
+  margin-top: -0.25rem;
+}
+
+.ao-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.ao-card {
+  background: var(--ao-card);
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  box-shadow: var(--ao-shadow);
+  padding: 1rem 1.25rem;
+}
+
+.ao-kpi-label {
+  color: var(--ao-muted-fg);
+  font-size: 0.8rem;
+}
+
+.ao-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-up {
+  color: var(--ao-success);
+}
+
+.ao-down {
+  color: var(--ao-danger);
+}
+
+.ao-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+}
+
+.ao-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-table th,
+.ao-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-table th {
+  color: var(--ao-muted-fg);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.ao-table td.ao-num,
+.ao-table th.ao-num {
+  text-align: right;
+}
+
+.ao-chart {
+  position: relative;
+  height: 18rem;
+}

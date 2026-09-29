@@ -145,6 +145,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
     opensOnSight: true,
   },
+  read_artifact: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingArtifact",
+    displayNameKey: "readArtifact",
+  },
 
   // browser_choice - a whole browse. The step card stays generic because the live
   // view is its own panel beside the transcript: a frame per step folded into the

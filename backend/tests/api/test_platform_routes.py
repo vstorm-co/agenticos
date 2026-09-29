@@ -1343,7 +1343,12 @@ class TestStatsScopeIsDecidedInTheService:
 # route that demands nothing by design would pass by accident. This one proves
 # somebody wrote down that it is open, and where its refusals are tested.
 PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
-    {("GET", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}")}
+    {
+        ("GET", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}"),
+        # The same link behind a password (#1972): the password in the body, the
+        # link's own bucket bounding a guessing loop.
+        ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
+    }
 )
 
 _AUTHENTICATED_CALLER_DEPS = (
@@ -1495,6 +1500,17 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # carries a `sandbox` policy with no `allow-same-origin`, and a bucket per
         # address bounds one replayed on a loop.
         ("GET", f"{V1}/artifact-content/{{token}}"),
+        # The same link with its password (#1972). Refusals: a wrong password is a
+        # 403 that names nothing, and the link's bucket counts every attempt.
+        ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
+        # The library set a published page may load (#1971): three static files
+        # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
+        # opaque origin fetches with no credentials by construction.
+        ("GET", f"{V1}/artifact-content/lib/{{name}}"),
+        # The document another site frames for a public link (#1973). The key is
+        # the capability, as for the link itself, and its policy lets only the
+        # origins the artifact names frame it.
+        ("GET", f"{V1}/artifact-embed/{{public_key}}"),
         # Avatars, rendered by `<img src>` in contexts that have no session -
         # an invitation email, a public share. An id, and a picture the owner
         # uploaded to be seen.

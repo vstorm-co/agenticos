@@ -29,7 +29,12 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.updates import cleared, writable
-from app.repositories import agent_environment_repo, agent_repo, organization_secret_repo
+from app.repositories import (
+    agent_environment_repo,
+    agent_repo,
+    artifact_repo,
+    organization_secret_repo,
+)
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
 from app.services.agent_registry import AgentRegistryService
 
@@ -232,7 +237,10 @@ class AgentEnvironmentService:
 
         Exposures pointing at it fall back to the default (`environment_id`
         becomes NULL on delete), which is the least surprising failure: the
-        bot keeps answering, with what everyone else gets.
+        bot keeps answering, with what everyone else gets. Its artifacts do not
+        fall back: they stay readable and lose their publisher, the way an
+        agent's do when the agent is deleted, so the default environment's page
+        of the same name is never the one they collide with.
 
         Raises:
             NotFoundError: If the environment is not this agent's.
@@ -247,6 +255,7 @@ class AgentEnvironmentService:
                 details={"environment_id": str(environment.id)},
             )
         name = environment.name
+        await artifact_repo.detach_environment(self.db, environment_id=environment.id)
         await agent_environment_repo.delete(self.db, environment=environment)
         await record_audit(
             self.db,
