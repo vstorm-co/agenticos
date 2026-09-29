@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A table can run a workflow for every record added to it.** A table's
+  **Triggers** sheet sets one up: a published workflow, pinned to the version
+  live at the time and run as the member who set it up, filters judged on the
+  record as it was created, and a mapping of columns, the record's author or its
+  id into the run's input. It starts for records added in the console, over the API, by
+  an agent or by another workflow, and only for those added while it is on. Each
+  record is decided once per trigger, and a trigger's history shows each
+  decision without the record's values. A chain of runs writing into each
+  other's tables stops at the first trigger it already passed, and a column a
+  trigger uses cannot be archived out from under it (#1785).
 - **Workflows can fetch, read, convert and hand on files, and run Python.** A
   file a step makes is stored as a file of its run and passed on as a `FileRef`,
   and a step reads one only if its own run made it or was started with it, so an

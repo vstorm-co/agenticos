@@ -265,8 +265,8 @@ refreshes itself every couple of seconds, and **Cancel run** stops it. Its **Fil
 nothing set up. Anyone who may run the workflow can start it as themselves from
 the [HTTP API](api.md#running-a-workflow), over a WebSocket or in the chat, and
 each of these runs the live version and is checked, billed and audited like a run
-started here. Others are set up once and then fire on their own: a signed webhook
-and a schedule.
+started here. Others are set up once and then fire on their own: a signed webhook,
+a schedule, and a trigger on a table, which is set up on the table itself.
 
 ### From the chat { #from-the-chat }
 
@@ -309,6 +309,17 @@ A schedule runs every so often, daily at a set time or on a cron expression, all
 in UTC and at most once a minute. Its **Input** is what every run starts with. A
 tick that finds the last run still going is skipped rather than stacking a second
 run behind it, and a tick the admission quota refuses waits for the next one.
+
+### When a table record is added { #when-a-table-record-is-added }
+
+A table's **Triggers** runs a published workflow for every record added to it,
+from the console, the API, an agent or another workflow's table step. Like a
+webhook, a trigger is pinned to a version and runs as the member who set it up.
+Its filters pick which records start it, and its mapping fills `payload` with a
+column's value, the record's author or the record's own id. A run started this way carries the chain
+of triggers it came through, so a workflow that writes back into a table whose
+trigger started it is blocked rather than looping. See
+[Virtual Tables](virtual-tables.md#triggers).
 
 ## Keyboard and accessibility { #keyboard-and-accessibility }
 

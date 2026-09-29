@@ -61,6 +61,7 @@ from app.worker.tasks.workflow_tasks import (
     workflow_dispatch_poll_flow,
     workflow_reconcile_flow,
     workflow_schedules_check_flow,
+    workflow_table_triggers_flow,
 )
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,14 @@ async def main() -> None:
         await workflow_schedules_check_flow.ato_deployment(
             name="workflow-schedules-check",
             schedules=[_every(60)],
+        )
+    )
+    # A record's trigger should start soon after it is added, and a tick with no
+    # new records costs one indexed query on the outbox's pending rows.
+    deployments.append(
+        await workflow_table_triggers_flow.ato_deployment(
+            name="workflow-table-triggers",
+            schedules=[_every(10)],
         )
     )
     logger.info(

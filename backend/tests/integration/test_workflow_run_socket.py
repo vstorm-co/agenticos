@@ -143,7 +143,9 @@ def _signed_in(user: User):
 
 
 async def _until(socket: _Socket, kind: str, count: int = 1) -> None:
-    async with asyncio.timeout(5):
+    # Only a guard against a hang: under a loaded parallel suite one poll of a
+    # real run's events has taken longer than five seconds.
+    async with asyncio.timeout(30):
         while len(socket.of(kind)) < count:
             socket.arrived.clear()
             await socket.arrived.wait()

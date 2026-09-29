@@ -39,6 +39,7 @@ from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import virtual_tables
 from app.api.routes.v1 import workflow_exposures, workflow_run_socket, workflow_runs, workflows
 from app.api.routes.v1 import table_views
+from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
@@ -102,6 +103,7 @@ v1_router.include_router(
     workflow_exposures.webhook_router, prefix="/workflow-webhooks", tags=["workflows:webhooks"]
 )
 v1_router.include_router(table_views.router, prefix="/tables", tags=["tables:views"])
+v1_router.include_router(virtual_table_triggers.router, prefix="/tables", tags=["tables:triggers"])
 v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
 v1_router.include_router(
     artifacts.public_router, prefix="/public/artifacts", tags=["artifacts:public"]

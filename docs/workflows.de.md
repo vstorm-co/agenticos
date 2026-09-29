@@ -1,5 +1,5 @@
 ---
-source_sha: "776a2161e7e5"
+source_sha: "24ea92fd5761"
 ---
 
 # Workflows { #workflows }
@@ -298,7 +298,8 @@ brauchen keine Einrichtung. Wer den Workflow ausführen darf, kann ihn als er se
 über die [HTTP-API](api.md#running-a-workflow), über einen WebSocket oder im Chat
 starten, und jeder dieser Wege führt die Live-Version aus und wird geprüft,
 abgerechnet und auditiert wie ein hier gestarteter Run. Andere werden einmal
-eingerichtet und lösen dann von selbst aus: ein signierter Webhook und ein Zeitplan.
+eingerichtet und lösen dann von selbst aus: ein signierter Webhook, ein Zeitplan und
+ein Trigger auf einer Tabelle, der an der Tabelle selbst eingerichtet wird.
 
 ### Aus dem Chat { #from-the-chat }
 
@@ -347,6 +348,18 @@ einem Cron-Ausdruck, alles in UTC und höchstens einmal pro Minute. Sein **Input
 das, womit jeder Run beginnt. Ein Takt, der den letzten Run noch laufend vorfindet,
 wird übersprungen, statt einen zweiten Run dahinter zu stapeln, und ein Takt, den die
 Zulassungsquote ablehnt, wartet auf den nächsten.
+
+### Wenn ein Tabellen-Datensatz hinzukommt { #when-a-table-record-is-added }
+
+**Trigger** einer Tabelle führt einen veröffentlichten Workflow für jeden Datensatz
+aus, der ihr hinzugefügt wird - in der Konsole, über die API, durch einen Agent oder
+den Tabellenschritt eines anderen Workflows. Wie ein Webhook ist ein Trigger an eine
+Version gebunden und läuft als das Mitglied, das ihn eingerichtet hat. Seine Filter
+wählen, welche Datensätze ihn starten, und seine Zuordnung füllt `payload` mit dem
+Wert einer Spalte, dem Autor des Datensatzes oder seiner eigenen id. Ein so gestarteter Run trägt die
+Kette der Trigger, die er durchlief, sodass ein Workflow, der in die Tabelle
+zurückschreibt, deren Trigger ihn startete, blockiert wird statt im Kreis zu laufen.
+Siehe [Virtual Tables](virtual-tables.md#triggers).
 
 ## Tastatur und Barrierefreiheit { #keyboard-and-accessibility }
 

@@ -206,6 +206,48 @@ view is read: a filter on it goes, a sort by it falls back to `created_at`, a
 grouping by it is cleared, and it leaves `visible_columns` - a view left showing none
 of its chosen columns shows every live one. The stored config is not rewritten.
 
+## Triggers { #triggers }
+
+**Triggers** on a table's page runs a published [workflow](workflows.md) for every
+record added to the table, however it was added: in the console, over the API, by an
+agent's table tool or by another workflow's table step. An upsert that creates a
+record starts it; one that updates a record does not. Setting one up takes
+`tables:edit` on the table and permission to run the workflow, because the trigger
+runs as the member who set it up or last changed it, never as the record's author.
+That member's access is checked again on every record.
+
+A trigger is pinned to the version that was live when it was made. Publishing the
+workflow again changes nothing until **Use the live version** moves it. Its filters
+use the operators of [Listing and filtering](#listing-and-filtering) and are judged on
+the record as it was created, so a later edit neither starts nor stops it. Its input
+mapping names what the run starts with: each key becomes a key of `payload`, holding
+a column's value, `@author` (the id of whoever added the record) or `@record_id`, the
+record's own id, so the run can change the record back with `table.record.update`.
+
+A trigger starts only for records added while it is on. Switching it on, or back on,
+takes the table's schema lock, the one every record write waits on, so no record
+committed before that moment ever starts it, and nothing added while it was off is
+replayed. A worker heartbeat reads each new record's outbox event within about ten
+seconds. It decides once per trigger and records the decision; a second pass, or a
+second worker, finds that decision and starts nothing.
+
+**History** lists each decision, newest first, without the record's values:
+
+| Shown as | Why |
+|---|---|
+| Started a run | Every filter held; the run is linked |
+| Skipped | The record did not match, or was added before the trigger was on |
+| Blocked | It would have started itself again, the chain went more than five triggers deep or past 50 runs, or the run was refused by the admission quota |
+| Could not start | The member it runs as can no longer read the table or run the workflow, or the record's creation could not be read |
+
+A workflow that writes into a table can start that table's triggers, and so on
+through other tables. Each run carries the chain it belongs to, and a trigger the
+chain has already passed through is blocked rather than started again, which is what
+stops two workflows adding records to each other's tables from looping. A column a
+trigger filters or maps on cannot be archived until the trigger is changed or removed,
+even while it is switched off. Archiving the whole table is allowed, and its triggers then
+never start again.
+
 ## What commits together { #what-commits-together }
 
 A record write, its history row, its idempotency receipt and, for a create, a
@@ -221,11 +263,12 @@ ids. Treat all three as personal data if the cells are; see
 [data protection](data-protection.md#the-database) and
 [limits and retention](#limits-and-retention).
 
-The outbox row is the hand-off to whatever reacts to a new record. Nothing consumes
-it yet, so nothing ever marks one delivered - a future consumer claims undelivered rows in
-its own session and marks them dispatched. Until then, an undispatched row is removed only
-by its own much longer retention window (below), a dead-letter cutoff rather than a claim
-that the event was ever collected.
+The outbox row is the hand-off to whatever reacts to a new record: today, the
+[triggers](#triggers). Their heartbeat claims undelivered rows in its own session, judges
+each against the table's triggers and marks it dispatched in the same transaction. An
+undispatched row is removed only by its own much longer retention window (below), a
+dead-letter cutoff for a worker that has been down that long rather than a claim the
+event was ever collected.
 
 ## Limits and retention { #limits-and-retention }
 
@@ -262,7 +305,7 @@ data, hard-deleting in batches, for every organization:
 |---|---|---|
 | Receipts | Older than 24 hours | `TABLES_RECEIPT_TTL_HOURS` |
 | Outbox rows | Dispatched more than 3 days ago | `TABLES_OUTBOX_RETENTION_DAYS` |
-| Undispatched outbox rows | Never dispatched and 30 days old. Nothing consumes this outbox yet, so every row reaches this window eventually - see below | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Undispatched outbox rows | Never dispatched and 30 days old: the trigger heartbeat has not run for that long, and no trigger will start for those records | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | History | Older than 365 days, for a deleted record as much as a live one | `TABLES_HISTORY_RETENTION_DAYS` |
 
 The sweep writes one audit entry per organization, naming the class (`table_receipts`,
@@ -355,13 +398,7 @@ commits: the request's session does, and a worker owns its own session scope.
 
 - **A principal for API keys.** Access, receipts and history all name a signed-in
   user. How an API key acts on a table for the external API is still to be agreed.
-- Triggers on record creation, and creating or deleting a record from the
-  console. Agents reach tables through the
+- Creating or deleting a record from the console. Agents reach tables through the
   [Tables capability](reference/capabilities.md#tables), and workflows through the
   [table nodes](reference/workflow-nodes.md#virtual-tables).
-- A consumer of the outbox. Until one exists, every created-record event reaches
-  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` and is discarded rather than delivered - a
-  disclosed dead letter, not a queue anything can drain today.
-- A dependency checker for triggers. Saved views register one (see
-  [Saved views](#saved-views)), and so do workflows: a table or pinned column that a
-  live workflow's current version uses cannot be archived.
+- A trigger on a record's update or delete. [Triggers](#triggers) start on a create only.

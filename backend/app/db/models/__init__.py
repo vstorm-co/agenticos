@@ -89,6 +89,13 @@ from app.db.models.workflow_exposure import (
     WorkflowWebhookDelivery,
 )
 from app.db.models.workflow_file import WorkflowFile
+from app.db.models.virtual_table_trigger import (
+    AdmissionReason,
+    AdmissionStatus,
+    TableTriggerAdmission,
+    VirtualTableTrigger,
+    VirtualTableTriggerRevision,
+)
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 
 __all__ = [
@@ -201,4 +208,9 @@ __all__ = [
     "WorkflowExposure",
     "WorkflowWebhookDelivery",
     "WorkflowFile",
+    "AdmissionReason",
+    "AdmissionStatus",
+    "TableTriggerAdmission",
+    "VirtualTableTrigger",
+    "VirtualTableTriggerRevision",
 ]

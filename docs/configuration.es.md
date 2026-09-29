@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f139953b89"
+source_sha: "5b94f3d29c5f"
 ---
 
 # Configuración { #configuration }
@@ -1273,7 +1273,7 @@ límite, nunca el contenido.
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Tamaño serializado de los valores de un registro, en bytes. Mínimo `1`. También acota lo que guardan la fila de history de un create y de un delete y un receipt; un registro ya por encima del límite igualmente se borra, conservando solo una marca con el tamaño en vez de los valores |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Cuánto tiempo responde un receipt de idempotencia a un reintento. Después, la misma clave es una escritura nueva |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Cuánto tiempo se conserva una fila de outbox despachada |
-| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Cuánto tiempo se conserva una fila de outbox sin despachar. Aún no existe un consumidor (#1785), así que es un corte de carta muerta, no una afirmación de que el evento se entregó - pasado ese tiempo, la fila y el evento que llevaba desaparecen |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Cuánto tiempo se conserva una fila de outbox sin despachar. El heartbeat de los [triggers de tabla](virtual-tables.md#triggers) marca cada fila que evalúa, así que una fila tan antigua significa que el worker lleva ese tiempo caído. Es un corte de carta muerta, no una afirmación de que el evento se entregó - pasado ese tiempo, la fila desaparece y ningún trigger se inicia para ese registro |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Cuánto tiempo se conserva el history de un registro, contado desde el cambio, también para un registro borrado |
 | `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Cuántas entradas de auditoría de rechazo por cuota escribe este proceso a la vez, para que una ráfaga de rechazos no abra un número ilimitado de conexiones a la base de datos. El resto de la ráfaga espera a este límite |
 

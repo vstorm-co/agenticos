@@ -61,6 +61,7 @@ from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.virtual_table import VirtualTable
+from app.db.models.virtual_table_trigger import VirtualTableTrigger
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.updates import cleared, writable
 from app.schemas.agent import AgentDraftUpdate
@@ -91,6 +92,7 @@ from app.schemas.table_view import TableViewUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
 from app.schemas.virtual_table import RecordUpdate, SchemaUpdate, TableUpdate
+from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowDraftUpdate
 from app.schemas.workflow_exposure import WorkflowExposureUpdate
 
@@ -136,6 +138,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
     TableUpdate: VirtualTable,
+    TableTriggerUpdate: VirtualTableTrigger,
     TableViewUpdate: TableView,
     TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,

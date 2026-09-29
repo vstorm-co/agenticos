@@ -3352,6 +3352,10 @@
         "title": "Its columns",
         "body": "Add a column, rename one, choose its type and whether it is optional, or archive one you no longer use. Each save is a new schema version, and records keep their values."
       },
+      "table-triggers": {
+        "title": "When a record is added",
+        "body": "Run a published workflow for every record added to this table, however it was added. Filter which records start it and choose what its run starts with."
+      },
       "table-view-tabs": {
         "title": "Three ways to look",
         "body": "The same records as a table, as a kanban board grouped by a single-select column, or as a list. Save a view to keep its filters, sort and grouping."
@@ -4736,7 +4740,85 @@
       "noDescription": "No description yet.",
       "schemaVersion": "Schema v{version}",
       "readOnly": "Read only",
-      "editedWhen": "edited {when}"
+      "editedWhen": "edited {when}",
+      "triggers": {
+        "button": "Triggers",
+        "sheetTitle": "When a record is added",
+        "panelDescription": "Run a workflow for every record added to this table - from the console, the API, an agent or another workflow. Each runs the version that was live when it was set up, as the member who set it up.",
+        "empty": "No workflow runs when a record is added to this table.",
+        "new": "New trigger",
+        "newTitle": "New trigger",
+        "editTitle": "Edit trigger",
+        "dialogDescription": "Choose the workflow, which records start it, and what its run starts with. Records added before it is on never start it.",
+        "workflow": "Workflow",
+        "workflowPlaceholder": "Choose a published workflow",
+        "noPublishedWorkflows": "Publish a workflow first: a trigger runs a published version.",
+        "name": "Name",
+        "filtersTitle": "Which records",
+        "filtersHint": "Every condition must hold on the record as it was added. With none, every record starts it.",
+        "column": "Column",
+        "filterColumn": "Column of filter {index}",
+        "filterOp": "Operator of filter {index}",
+        "filterValue": "Value of filter {index}",
+        "removeFilter": "Remove filter {index}",
+        "addFilter": "Add a filter",
+        "ops": {
+          "eq": "is",
+          "ne": "is not",
+          "contains": "contains",
+          "starts_with": "starts with",
+          "gt": "is greater than",
+          "gte": "is at least",
+          "lt": "is less than",
+          "lte": "is at most",
+          "is_null": "is empty"
+        },
+        "mappingTitle": "What the run starts with",
+        "mappingHint": "Each key becomes a key of the run's payload, with a column's value, the record's author or the record's own id.",
+        "mappingKey": "Key of value {index}",
+        "mappingSource": "Source of value {index}",
+        "removeMapping": "Remove value {index}",
+        "addMapping": "Add a value",
+        "recordId": "The record's id",
+        "author": "The record's author",
+        "principalNote": "It runs as you. Whoever changes it later becomes the member it runs as.",
+        "cancel": "Cancel",
+        "save": "Save",
+        "create": "Create",
+        "created": "Trigger added",
+        "deleted": "Trigger removed",
+        "runs": "Runs {workflow} v{version}",
+        "everyRecord": "For every record added",
+        "whenFiltered": "When {columns} matches",
+        "active": "{name} is on",
+        "off": "Off",
+        "historyOf": "History of {name}",
+        "editNamed": "Edit {name}",
+        "deleteNamed": "Delete {name}",
+        "behind": "A newer version of the workflow is live. This keeps running the one it was set up with.",
+        "repin": "Use the live version",
+        "deleteTitle": "Delete this trigger?",
+        "deleteConfirm": "New records stop starting it. Runs it already started keep going and stay in the history.",
+        "delete": "Delete",
+        "historyTitle": "What {name} did",
+        "historyEmpty": "No record has been added since it was switched on.",
+        "openRun": "Open the run",
+        "status": {
+          "queued": "Started a run",
+          "filtered": "Skipped",
+          "blocked": "Blocked",
+          "failed": "Could not start"
+        },
+        "reason": {
+          "filter_mismatch": "The record did not match its filters",
+          "pre_activation": "Added before it was on",
+          "cycle": "It would have started itself again through its own run",
+          "depth_limit": "Too many triggers deep",
+          "quota": "Too many runs at once",
+          "permission_denied": "The member it runs as can no longer run it",
+          "unavailable": "The record's creation could not be read"
+        }
+      }
     }
   },
   "profile": {

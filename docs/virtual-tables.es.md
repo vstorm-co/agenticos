@@ -1,5 +1,5 @@
 ---
-source_sha: "23726d155d3b"
+source_sha: "865fa2992294"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -226,6 +226,49 @@ agrupación por ella se vacía, y sale de `visible_columns` - una vista que ya n
 muestra ninguna de sus columnas elegidas muestra todas las vivas. La configuración
 guardada no se reescribe.
 
+## Triggers { #triggers }
+
+**Triggers**, en la página de una tabla, ejecuta un [workflow](workflows.md) publicado por
+cada registro que se añade a la tabla, llegue por donde llegue: en la consola, por la API,
+con la herramienta de tablas de un agent o con el paso de tabla de otro workflow. Un
+upsert que crea un registro lo inicia; uno que lo actualiza, no. Configurarlo requiere
+`tables:edit` sobre la tabla y permiso para ejecutar el workflow, porque el trigger se
+ejecuta como el miembro que lo configuró o lo cambió por última vez, nunca como el autor
+del registro. El acceso de ese miembro se vuelve a comprobar con cada registro.
+
+Un trigger queda fijado a la versión que estaba en vivo al crearlo. Publicar de nuevo el
+workflow no cambia nada hasta que **Use the live version** lo mueve. Sus filtros usan los
+operadores de [Listar y filtrar](#listing-and-filtering) y se evalúan sobre el registro tal
+como se creó, así que una edición posterior ni lo inicia ni lo detiene. Su mapeo de
+entrada dice con qué empieza el run: cada clave pasa a ser una clave de `payload`, con el
+valor de una columna, `@author` (el id de quien añadió el registro) o `@record_id`, el id
+del propio registro, para que el run pueda cambiarlo de vuelta con `table.record.update`.
+
+Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo, o
+reactivarlo, toma el bloqueo de esquema de la tabla, el que espera toda escritura de
+registros, así que ningún registro confirmado antes de ese momento lo inicia y nada de lo
+añadido mientras estuvo apagado se reproduce. Un heartbeat del worker lee el evento de
+outbox de cada registro nuevo en unos diez segundos. Decide una vez por trigger y registra
+la decisión; una segunda pasada, o un segundo worker, la encuentra y no inicia nada.
+
+**History** lista cada decisión, de la más reciente a la más antigua, sin los valores del
+registro:
+
+| Se muestra como | Por qué |
+|---|---|
+| Started a run | Se cumplió cada filtro; el run está enlazado |
+| Skipped | El registro no coincidió, o se añadió antes de activar el trigger |
+| Blocked | Se habría iniciado a sí mismo de nuevo, la cadena superó cinco triggers de profundidad o 50 runs, o la cuota de admisión rechazó el run |
+| Could not start | El miembro con el que se ejecuta ya no puede leer la tabla ni ejecutar el workflow, o no se pudo leer la creación del registro |
+
+Un workflow que escribe en una tabla puede iniciar los triggers de esa tabla, y así
+sucesivamente a través de otras tablas. Cada run lleva la cadena a la que pertenece, y un
+trigger por el que la cadena ya pasó se bloquea en lugar de iniciarse otra vez: eso impide
+que dos workflows que añaden registros a las tablas del otro entren en bucle. Una columna
+que un trigger filtra o mapea no se puede archivar hasta cambiar o quitar el trigger,
+aunque esté apagado. Archivar la tabla entera está permitido, y sus triggers ya no se
+inician nunca.
+
 ## Qué se confirma junto { #what-commits-together }
 
 Una escritura de registro, su fila de historial, su recibo de idempotencia y, en un
@@ -241,11 +284,12 @@ de outbox guardan ids. Trátalos a los tres como datos personales si lo son las 
 consulta [protección de datos](data-protection.md#the-database) y
 [límites y retención](#limits-and-retention).
 
-La fila de outbox es el traspaso a lo que reaccione a un registro nuevo. Por ahora nada
-la consume, así que nada la marca nunca como entregada - un futuro consumidor reclamará las
-filas sin despachar en su propia sesión y las marcará como despachadas. Hasta entonces, una
-fila sin despachar solo se elimina por su propia ventana de retención, mucho más larga (más
-abajo) - un corte de carta muerta, no una afirmación de que el evento llegó a recogerse.
+La fila de outbox es el traspaso a lo que reaccione a un registro nuevo: hoy, los
+[triggers](#triggers). Su heartbeat reclama las filas sin despachar en su propia sesión,
+evalúa cada una frente a los triggers de la tabla y la marca como despachada en la misma
+transacción. Una fila sin despachar solo se elimina por su propia ventana de retención,
+mucho más larga (más abajo) - un corte de carta muerta para un worker caído todo ese
+tiempo, no una afirmación de que el evento llegó a recogerse.
 
 ## Límites y retención { #limits-and-retention }
 
@@ -283,7 +327,7 @@ datos de las tablas, de verdad y por lotes, para cada organización:
 |---|---|---|
 | Receipts | Más antiguos de 24 horas | `TABLES_RECEIPT_TTL_HOURS` |
 | Filas de outbox | Despachadas hace más de 3 días | `TABLES_OUTBOX_RETENTION_DAYS` |
-| Filas de outbox sin despachar | Nunca despachadas y con 30 días. Nada consume aún este outbox, así que toda fila llega tarde o temprano a esta ventana - ver más abajo | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Filas de outbox sin despachar | Nunca despachadas y con 30 días: el heartbeat de los triggers lleva ese tiempo sin ejecutarse, y ningún trigger se iniciará para esos registros | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | Historial | Más antiguo de 365 días, para un registro borrado igual que para uno vivo | `TABLES_HISTORY_RETENTION_DAYS` |
 
 El barrido escribe una entrada de auditoría por organización, que nombra la clase
@@ -380,13 +424,8 @@ sesión.
 - **Un principal para las claves de API.** El acceso, los recibos y el historial nombran
   a un usuario autenticado. Cómo actúa una clave de API sobre una tabla en la API externa
   está aún por acordar.
-- Los triggers al crear un registro, y crear o borrar registros desde la consola.
-  Los agents llegan a las tablas a través de la
-  [capability Tables](reference/capabilities.md#tables), y los workflows a través de
+- Crear o borrar registros desde la consola. Los agents llegan a las tablas a través de
+  la [capability Tables](reference/capabilities.md#tables), y los workflows a través de
   los [nodos de tablas](reference/workflow-nodes.md#virtual-tables).
-- Un consumidor del outbox. Hasta que exista uno, cada evento de registro creado llega a
-  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` y se descarta en vez de entregarse - una
-  carta muerta declarada, no una cola que algo vacíe hoy.
-- Un comprobador de dependencias para los triggers. Las vistas guardadas registran
-  uno (ver [Vistas guardadas](#saved-views)), y también los workflows: una tabla o una
-  columna fijada que usa la versión actual de un workflow vivo no se puede archivar.
+- Un trigger al actualizar o borrar un registro. Los [triggers](#triggers) solo se
+  inician al crear.

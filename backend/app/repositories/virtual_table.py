@@ -581,6 +581,9 @@ async def add_outbox(
         record_id=record_id,
         event_type=event_type,
         payload=payload,
+        # When the row is written, not when its transaction began (`now()`): a
+        # write that waited on a trigger's activation lock has to land after it.
+        created_at=func.clock_timestamp(),
     )
     db.add(row)
     await db.flush()

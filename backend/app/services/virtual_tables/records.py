@@ -57,6 +57,7 @@ from app.services.virtual_tables.types import (
     validate_cell,
     validate_filter,
 )
+from app.services.workflow_execution import context as workflow_context
 
 CREATED_EVENT = "table.record.created"
 
@@ -175,6 +176,13 @@ def _changed_cells(
         "before": {key: before[key] for key in changed if key in before},
         "after": {key: after[key] for key in changed if key in after},
     }
+
+
+def _causation() -> dict[str, str]:
+    """The workflow run whose step is writing, when one is - the chain a table
+    trigger's run joins, so a trigger that would start itself again is refused."""
+    dispatching = workflow_context.active()
+    return {} if dispatching is None else {"causation_run_id": str(dispatching.workflow_run_id)}
 
 
 def _clauses(columns: list[ColumnDef], query: RecordQuery) -> tuple[list[FilterClause], SortClause]:
@@ -562,6 +570,7 @@ class RecordOperations(Operations):
                 "external_id": external_id,
                 "schema_version": table.schema_version,
                 "revision": record.revision,
+                **_causation(),
             },
         )
         return record

@@ -234,3 +234,21 @@ class TestWorkflowSchedulesCheck:
             assert await workflow_tasks.workflow_schedules_check_flow() == 0
 
         submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))
+
+
+class TestWorkflowTableTriggers:
+    async def test_it_consumes_added_records_then_submits_each_admitted_run(self):
+        pair = (uuid.uuid4(), uuid.uuid4())
+        consumer = MagicMock(consume=AsyncMock(return_value=[pair]))
+        with (
+            patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
+            patch(
+                "app.services.virtual_tables.triggers.TableTriggerConsumer", return_value=consumer
+            ),
+            patch(f"{TASKS_PATH}._submit_dispatch", new=AsyncMock()) as submit,
+        ):
+            assert await workflow_tasks.workflow_table_triggers_flow() == 1
+            consumer.consume.return_value = []
+            assert await workflow_tasks.workflow_table_triggers_flow() == 0
+
+        submit.assert_awaited_once_with(workflow_run_id=str(pair[0]), node_run_id=str(pair[1]))

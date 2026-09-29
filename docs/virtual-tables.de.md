@@ -1,5 +1,5 @@
 ---
-source_sha: "23726d155d3b"
+source_sha: "865fa2992294"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -241,6 +241,51 @@ der Ansicht weggelassen: ein Filter darauf entfällt, eine Sortierung danach fä
 `visible_columns` - eine Ansicht, die keine ihrer gewählten Spalten mehr zeigt, zeigt
 alle lebenden. Die gespeicherte Konfiguration wird nicht umgeschrieben.
 
+## Trigger { #triggers }
+
+**Trigger** auf der Seite einer Tabelle führt einen veröffentlichten
+[Workflow](workflows.md) für jeden Datensatz aus, der der Tabelle hinzugefügt wird, egal
+auf welchem Weg: in der Konsole, über die API, durch das Tabellen-Tool eines Agents oder
+den Tabellenschritt eines anderen Workflows. Ein Upsert, der einen Datensatz anlegt,
+startet ihn; einer, der ihn aktualisiert, nicht. Einrichten braucht `tables:edit` auf der
+Tabelle und das Recht, den Workflow auszuführen, denn der Trigger läuft als das Mitglied,
+das ihn eingerichtet oder zuletzt geändert hat, nie als der Autor des Datensatzes. Dessen
+Zugriff wird bei jedem Datensatz erneut geprüft.
+
+Ein Trigger ist an die Version gebunden, die beim Anlegen live war. Erneutes
+Veröffentlichen ändert nichts, bis **Live-Version verwenden** ihn verschiebt. Seine Filter
+nutzen die Operatoren aus [Auflisten und Filtern](#listing-and-filtering) und werden am
+Datensatz geprüft, wie er angelegt wurde, sodass eine spätere Änderung ihn weder startet
+noch stoppt. Seine Eingabezuordnung legt fest, womit der Run beginnt: Jeder Schlüssel wird
+ein Schlüssel von `payload`, mit dem Wert einer Spalte, `@author` (der id dessen, der den
+Datensatz hinzugefügt hat) oder `@record_id`, der id des Datensatzes selbst, damit der Run
+ihn mit `table.record.update` zurück ändern kann.
+
+Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
+Das Einschalten, auch erneut, nimmt die Schema-Sperre der Tabelle, auf die jeder
+Schreibzugriff wartet, sodass kein vorher committeter Datensatz ihn je startet und nichts
+nachgeholt wird, was hinzukam, während er aus war. Ein Worker-Heartbeat liest das
+Outbox-Ereignis jedes neuen Datensatzes innerhalb von etwa zehn Sekunden. Er entscheidet
+einmal pro Trigger und hält die Entscheidung fest; ein zweiter Durchlauf oder ein zweiter
+Worker findet sie und startet nichts.
+
+**Verlauf** listet jede Entscheidung, die neueste zuerst, ohne die Werte des Datensatzes:
+
+| Angezeigt als | Warum |
+|---|---|
+| Lauf gestartet | Jeder Filter galt; der Run ist verlinkt |
+| Übersprungen | Der Datensatz passte nicht oder kam hinzu, bevor der Trigger eingeschaltet war |
+| Blockiert | Er hätte sich erneut gestartet, die Kette ging mehr als fünf Trigger tief oder über 50 Runs, oder die Zulassungsquote lehnte den Run ab |
+| Konnte nicht starten | Das Mitglied, als das er läuft, darf die Tabelle nicht mehr lesen oder den Workflow nicht mehr ausführen, oder das Anlegen des Datensatzes war nicht lesbar |
+
+Ein Workflow, der in eine Tabelle schreibt, kann deren Trigger starten, und so weiter
+über weitere Tabellen. Jeder Run trägt die Kette, zu der er gehört, und ein Trigger, den
+die Kette schon durchlaufen hat, wird blockiert statt erneut gestartet - so laufen zwei
+Workflows, die Datensätze in die Tabellen des jeweils anderen schreiben, nicht im Kreis.
+Eine Spalte, auf die ein Trigger filtert oder abbildet, kann nicht archiviert werden, bis
+der Trigger geändert oder entfernt ist, auch wenn er ausgeschaltet ist. Die ganze Tabelle
+zu archivieren ist erlaubt, und ihre Trigger starten dann nie wieder.
+
 ## Was gemeinsam committet { #what-commits-together }
 
 Ein Schreibzugriff auf einen Datensatz, seine Historienzeile, seine
@@ -258,12 +303,12 @@ drei als personenbezogene Daten, wenn es die Zellen sind; siehe
 [Datenschutz](data-protection.md#the-database) und
 [Limits und Aufbewahrung](#limits-and-retention).
 
-Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert.
-Bisher konsumiert sie nichts, also markiert auch nichts eine Zeile als zugestellt - ein
-künftiger Konsument holt sich nicht zugestellte Zeilen in einer eigenen Session und
-markiert sie als versendet. Bis dahin wird eine nicht zugestellte Zeile nur durch ihr
-eigenes, viel längeres Aufbewahrungsfenster entfernt (unten) - eine Dead-Letter-Frist, keine
-Behauptung, das Ereignis sei je abgeholt worden.
+Die Outbox-Zeile ist die Übergabe an alles, was auf einen neuen Datensatz reagiert:
+heute die [Trigger](#triggers). Ihr Heartbeat holt sich nicht zugestellte Zeilen in einer
+eigenen Session, prüft jede gegen die Trigger der Tabelle und markiert sie in derselben
+Transaktion als versendet. Eine nicht zugestellte Zeile wird nur durch ihr eigenes, viel
+längeres Aufbewahrungsfenster entfernt (unten) - eine Dead-Letter-Frist für einen Worker,
+der so lange ausgefallen ist, keine Behauptung, das Ereignis sei je abgeholt worden.
 
 ## Limits und Aufbewahrung { #limits-and-retention }
 
@@ -302,7 +347,7 @@ Tabellendaten, hart und in Batches, für jede Organisation:
 |---|---|---|
 | Receipts | Älter als 24 Stunden | `TABLES_RECEIPT_TTL_HOURS` |
 | Outbox-Zeilen | Vor mehr als 3 Tagen zugestellt | `TABLES_OUTBOX_RETENTION_DAYS` |
-| Nicht zugestellte Outbox-Zeilen | Nie zugestellt und 30 Tage alt. Bisher konsumiert nichts diese Outbox, also erreicht jede Zeile irgendwann dieses Fenster - siehe unten | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Nicht zugestellte Outbox-Zeilen | Nie zugestellt und 30 Tage alt: Der Trigger-Heartbeat lief so lange nicht, und für diese Datensätze startet kein Trigger mehr | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | Historie | Älter als 365 Tage, für einen gelöschten Datensatz ebenso wie für einen lebenden | `TABLES_HISTORY_RETENTION_DAYS` |
 
 Der Sweep schreibt einen Audit-Eintrag je Organisation, der die Klasse (`table_receipts`,
@@ -400,14 +445,8 @@ Session-Scope.
 - **Ein Principal für API-Keys.** Zugriff, Quittungen und Historie nennen einen
   angemeldeten Benutzer. Wie ein API-Key für die externe API auf eine Tabelle wirkt,
   muss noch abgestimmt werden.
-- Trigger beim Erstellen eines Datensatzes sowie das Erstellen und Löschen von
-  Datensätzen in der Konsole. Agents erreichen Tabellen über die
-  [Tables-Capability](reference/capabilities.md#tables), Workflows über die
+- Das Erstellen und Löschen von Datensätzen in der Konsole. Agents erreichen Tabellen
+  über die [Tables-Capability](reference/capabilities.md#tables), Workflows über die
   [Tabellen-Knoten](reference/workflow-nodes.md#virtual-tables).
-- Ein Konsument der Outbox. Bis es einen gibt, erreicht jedes Created-Record-Ereignis
-  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` und wird verworfen statt zugestellt - ein
-  offengelegter Dead Letter, keine Warteschlange, die heute irgendetwas leert.
-- Ein Dependency-Checker für Trigger. Gespeicherte Ansichten registrieren einen
-  (siehe [Gespeicherte Ansichten](#saved-views)), Workflows ebenso: Eine Tabelle oder
-  festgelegte Spalte, die die aktuelle Version eines lebenden Workflows nutzt, kann
-  nicht archiviert werden.
+- Ein Trigger auf das Ändern oder Löschen eines Datensatzes. [Trigger](#triggers)
+  starten nur beim Anlegen.

@@ -556,6 +556,10 @@ export const qk = {
     lists: () => ["tables", "list"] as const,
     detail: (id: string) => ["tables", id] as const,
     schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
+    // The workflows a table runs when a record is added, and what each record led to.
+    triggers: (id: string) => ["tables", id, "triggers"] as const,
+    triggerAdmissions: (id: string, triggerId: string) =>
+      ["tables", id, "triggers", triggerId, "admissions"] as const,
     // A table's records under one query - the active view's filters/sort/page,
     // or a kanban lane's own narrowed one. Keyed on the whole query object so a
     // lane's filtered fetch and the grid's unfiltered one never collide.

@@ -276,3 +276,21 @@ async def workflow_schedules_check_flow() -> int:
     if pairs:
         logger.info("workflow_schedules_check: fired %d schedule(s)", len(pairs))
     return submitted
+
+
+@flow(name="workflow-table-triggers", log_prints=True)
+async def workflow_table_triggers_flow() -> int:
+    """Heartbeat: judge every added record against its table's triggers (#1785).
+
+    Each claimed event's admissions and its delivered stamp commit together, so
+    an event is judged in full or not at all; the admitted runs' first
+    dispatches are submitted only after that commit.
+    """
+    from app.services.virtual_tables.triggers import TableTriggerConsumer
+
+    async with get_worker_db_context() as db:
+        pairs = await TableTriggerConsumer(db).consume()
+    submitted = await _submit_each(pairs)
+    if pairs:
+        logger.info("workflow_table_triggers: admitted %d run(s)", len(pairs))
+    return submitted

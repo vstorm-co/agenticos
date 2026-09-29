@@ -105,6 +105,24 @@ vi.mock("@/components/tables/record-detail-sheet", () => ({
     ) : null;
   },
 }));
+vi.mock("@/components/tables/triggers/table-triggers-panel", () => ({
+  TableTriggersPanel: ({
+    tableId,
+    columns,
+    canEdit,
+  }: {
+    tableId: string;
+    columns: unknown[];
+    canEdit: boolean;
+  }) => (
+    <div
+      data-testid="triggers-panel"
+      data-table={tableId}
+      data-columns={columns.length}
+      data-can-edit={String(canEdit)}
+    />
+  ),
+}));
 vi.mock("@/components/sharing/sharing-panel", () => ({
   SharingPanel: ({
     resourceType,
@@ -384,6 +402,22 @@ describe("the table detail page", () => {
     const panel = screen.getByTestId("sharing-panel");
     expect(panel).toHaveAttribute("data-resource", "table:t1");
     expect(panel).toHaveAttribute("data-can-manage", "true");
+  });
+
+  it("opens the table's triggers in a sheet, with every column and can_edit, and closes it", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
+
+    await user.click(screen.getByRole("button", { name: /triggers/i }));
+
+    const panel = screen.getByTestId("triggers-panel");
+    expect(panel).toHaveAttribute("data-table", "t1");
+    expect(panel).toHaveAttribute("data-can-edit", "true");
+    expect(screen.getByRole("heading", { name: "When a record is added" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /close/i }));
+    expect(screen.queryByTestId("triggers-panel")).not.toBeInTheDocument();
   });
 
   it("switches to the list view and writes the tab to the URL", async () => {

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -62,6 +63,22 @@ from app.workflows.graph.model import WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Causation:
+    """Where a run sits in a chain of runs one started another through.
+
+    A table trigger's run is caused by the run whose step wrote the record, or by
+    nothing when a person did. `visited_trigger_ids` is every trigger the chain
+    has passed through, this one included, which is what lets a trigger that
+    would start itself again - directly or round a loop - be refused.
+    """
+
+    root_run_id: UUID | None
+    causation_run_id: UUID | None
+    visited_trigger_ids: list[str]
+    depth: int
 
 
 def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
@@ -195,8 +212,10 @@ class WorkflowExecutionService:
         *,
         triggered_by: WorkflowRunTrigger,
         run_input: dict[str, Any],
+        causation: Causation | None = None,
     ) -> tuple[WorkflowRun, UUID]:
-        """Admit a run of one pinned version as `ctx` - a webhook's or a schedule's fire.
+        """Admit a run of one pinned version as `ctx` - a webhook's, a schedule's or
+        a table trigger's fire. `causation` places it in a chain of runs.
 
         The exposure layer has already decided `ctx` may run `workflow` and that
         it is not archived; this is the rest of `start`, on the version the
@@ -223,6 +242,7 @@ class WorkflowExecutionService:
             payload=_checked_input(run_input),
             deadline_seconds=None,
             reply_conversation_id=None,
+            causation=causation,
         )
 
     async def _admit(
@@ -239,6 +259,7 @@ class WorkflowExecutionService:
         payload: dict[str, Any],
         deadline_seconds: int | None,
         reply_conversation_id: UUID | None,
+        causation: Causation | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -273,10 +294,10 @@ class WorkflowExecutionService:
             budget_limit=budget_limit,
             node_count=len(graph.nodes),
             deadline_at=deadline_at,
-            root_run_id=None,
-            causation_run_id=None,
-            visited_trigger_ids=[],
-            depth=0,
+            root_run_id=causation.root_run_id if causation else None,
+            causation_run_id=causation.causation_run_id if causation else None,
+            visited_trigger_ids=causation.visited_trigger_ids if causation else [],
+            depth=causation.depth if causation else 0,
             started_at=now,
             run_input=payload,
             reply_conversation_id=reply_conversation_id,
@@ -620,7 +641,7 @@ class WorkflowExecutionService:
         trigger_dispatch(self.db, workflow_run_id=workflow_run_id, node_run_id=node_run_id)
 
 
-__all__ = ["WorkflowExecutionService"]
+__all__ = ["Causation", "WorkflowExecutionService"]
 
 
 def _node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunRead:

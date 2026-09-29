@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f139953b89"
+source_sha: "5b94f3d29c5f"
 ---
 
 # Konfiguration { #configuration }
@@ -1341,7 +1341,7 @@ einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten; ein bereits über dem Limit liegender Datensatz wird trotzdem gelöscht und behält nur eine Größenmarkierung statt der Werte |
 | `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
 | `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird |
-| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Wie lange eine nicht zugestellte Outbox-Zeile aufbewahrt wird. Es gibt noch keinen Konsumenten (#1785), also ist dies eine Dead-Letter-Frist, keine Behauptung, das Ereignis sei zugestellt worden - danach sind die Zeile und das Ereignis, das sie trug, weg |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Wie lange eine nicht zugestellte Outbox-Zeile aufbewahrt wird. Der Heartbeat der [Tabellen-Trigger](virtual-tables.md#triggers) markiert jede Zeile, die er prüft, also heißt eine so alte Zeile, dass der Worker so lange ausgefallen war. Dies ist eine Dead-Letter-Frist, keine Behauptung, das Ereignis sei zugestellt worden - danach ist die Zeile weg und für diesen Datensatz startet kein Trigger |
 | `TABLES_HISTORY_RETENTION_DAYS` | `365` | Wie lange die History eines Datensatzes aufbewahrt wird, ab der Änderung gezählt, auch für einen gelöschten Datensatz |
 | `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Wie viele Quota-Ablehnungs-Audit-Einträge dieser Prozess gleichzeitig schreibt, damit ein Schub an Ablehnungen keine unbegrenzte Zahl an Datenbankverbindungen öffnet. Der Rest eines Schubs wartet stattdessen auf diese Grenze |
 

@@ -647,6 +647,16 @@ def get_table_view_service(db: DBSession) -> TableViewService:
 
 TableViewSvc = Annotated[TableViewService, Depends(get_table_view_service)]
 
+from app.services.virtual_tables.triggers import TableTriggerService
+
+
+def get_table_trigger_service(db: DBSession) -> TableTriggerService:
+    """Create TableTriggerService instance with database session."""
+    return TableTriggerService(db)
+
+
+TableTriggerSvc = Annotated[TableTriggerService, Depends(get_table_trigger_service)]
+
 from app.services.artifact import ArtifactService
 
 

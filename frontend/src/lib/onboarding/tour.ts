@@ -479,6 +479,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "table-columns",
     optional: true,
   },
+  // Ungated: any member who can open the table can read its triggers, and the
+  // sheet itself hides the controls from one who cannot edit them.
+  { id: "table-triggers", page: TABLE_DETAIL, target: "table-triggers" },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },

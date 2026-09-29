@@ -946,6 +946,13 @@ include = [
     # every file step reads through.
     "app/db/models/workflow_file.py",
     "app/repositories/workflow_file.py",
+    # A table's triggers (#1785): the workflows a record added to it starts,
+    # and every refusal between the two - before activation, a filter miss, a
+    # cycle, a revoked principal - is a run that must not start.
+    "app/db/models/virtual_table_trigger.py",
+    "app/repositories/virtual_table_trigger.py",
+    "app/schemas/virtual_table_trigger.py",
+    "app/api/routes/v1/virtual_table_triggers.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another
@@ -1385,6 +1392,13 @@ include = [
     # every file step reads through.
     "app/db/models/workflow_file.py",
     "app/repositories/workflow_file.py",
+    # A table's triggers (#1785): the workflows a record added to it starts,
+    # and every refusal between the two - before activation, a filter miss, a
+    # cycle, a revoked principal - is a run that must not start.
+    "app/db/models/virtual_table_trigger.py",
+    "app/repositories/virtual_table_trigger.py",
+    "app/schemas/virtual_table_trigger.py",
+    "app/api/routes/v1/virtual_table_triggers.py",
     # A saved table/kanban/list view (#1783): a console-only sub-resource of a
     # table, sharing its service package but with its own model, repo, schema and
     # route file. Every branch here is also a refusal - a private view another

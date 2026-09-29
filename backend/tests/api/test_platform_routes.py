@@ -919,6 +919,10 @@ RESOURCE_AWARE_SERVICES = (
     # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
     # the service rather than at a route gate.
     deps.get_table_view_service,
+    # A table's triggers are a sub-resource of one table too: every route
+    # resolves `tables:view`/`edit` against the table in the path, and making or
+    # changing one also resolves `workflows:run` on its workflow (#1785).
+    deps.get_table_trigger_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

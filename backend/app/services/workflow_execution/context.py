@@ -147,6 +147,16 @@ def dispatching_as(context: DispatchContext) -> DispatchScope:
     return DispatchScope(context)
 
 
+def active() -> DispatchContext | None:
+    """The context of the node handler running now, or None outside one.
+
+    For code a node handler reaches that also runs elsewhere - a record write
+    made by a workflow step, by the console or by an agent - and records which
+    workflow run caused it only when there is one.
+    """
+    return _current.get()
+
+
 def current() -> DispatchContext:
     """The context of the node handler currently running.
 

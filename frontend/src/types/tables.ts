@@ -14,7 +14,7 @@ export type ColumnTypeName =
   | "single_select"
   | "multi_select";
 
-type FilterOp =
+export type FilterOp =
   "eq" | "ne" | "lt" | "lte" | "gt" | "gte" | "contains" | "starts_with" | "in" | "is_null";
 
 type SortDirection = "asc" | "desc";
@@ -206,4 +206,70 @@ export function emptyViewConfig(): TableViewConfig {
     visible_columns: null,
     group_by: null,
   };
+}
+
+/** Where one payload key's value comes from: a column's id, the record's author or its id. */
+export type TriggerMappingSource = string;
+
+/** The token a mapping names the record's author with - not a column. */
+export const AUTHOR_SOURCE = "@author";
+
+/** The token a mapping names the record's own id with, for a run that changes it back. */
+export const RECORD_ID_SOURCE = "@record_id";
+
+/**
+ * A workflow a table runs when a record is added. Mirrors `TableTriggerRead`.
+ * Pinned to one published version and run as the member who set it up.
+ */
+export interface TableTriggerRead {
+  id: string;
+  table_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  workflow_version_id: string;
+  version_number: number;
+  name: string | null;
+  revision: number;
+  filters: RecordFilter[];
+  input_mapping: Record<string, TriggerMappingSource>;
+  execution_principal_user_id: string | null;
+  is_active: boolean;
+  activated_at: string | null;
+  created_at: string | null;
+}
+
+export interface TableTriggerList {
+  items: TableTriggerRead[];
+}
+
+export interface TableTriggerCreate {
+  workflow_id: string;
+  name?: string | null;
+  filters?: RecordFilter[];
+  input_mapping?: Record<string, TriggerMappingSource>;
+}
+
+export interface TableTriggerUpdate {
+  name?: string | null;
+  is_active?: boolean;
+  filters?: RecordFilter[];
+  input_mapping?: Record<string, TriggerMappingSource>;
+  pin_current_version?: boolean;
+}
+
+export type AdmissionStatus = "queued" | "filtered" | "blocked" | "failed";
+
+/** What one added record led to, for one trigger. Mirrors `TableTriggerAdmissionRead`. */
+export interface TableTriggerAdmission {
+  id: string;
+  trigger_revision: number;
+  status: AdmissionStatus;
+  reason: string | null;
+  workflow_run_id: string | null;
+  created_at: string;
+}
+
+export interface TableTriggerAdmissionList {
+  items: TableTriggerAdmission[];
+  total: number;
 }

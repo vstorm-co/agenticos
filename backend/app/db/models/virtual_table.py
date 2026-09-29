@@ -334,9 +334,9 @@ class VirtualTableOutbox(Base):
             postgresql_where=text("dispatched_at IS NULL"),
         ),
         # The retention sweep reaches undispatched rows per organization (a
-        # dead-letter cutoff, #1785), and until a consumer exists every row is
-        # undispatched - so without the organization in the key each tenant's
-        # sweep scans every other tenant's pending rows through the index above.
+        # dead-letter cutoff, #1785), and a worker outage leaves every tenant's
+        # rows undispatched - so without the organization in the key each
+        # tenant's sweep scans every other tenant's pending rows through the index above.
         Index(
             "virtual_table_outbox_org_pending_idx",
             "organization_id",

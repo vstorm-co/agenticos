@@ -1,5 +1,5 @@
 ---
-source_sha: "776a2161e7e5"
+source_sha: "24ea92fd5761"
 ---
 
 # Workflows { #workflows }
@@ -265,7 +265,8 @@ wymagają żadnej konfiguracji. Każdy, kto może uruchomić workflow, może go 
 jako on sam z [HTTP API](api.md#running-a-workflow), przez WebSocket albo na czacie,
 i każda z tych dróg uruchamia żywą wersję oraz jest sprawdzana, rozliczana i
 audytowana tak samo jak run uruchomiony tutaj. Inne konfiguruje się raz, a potem
-odpalają same: podpisany webhook i harmonogram.
+odpalają same: podpisany webhook, harmonogram i wyzwalacz na tabeli, konfigurowany
+na samej tabeli.
 
 ### Z czatu { #from-the-chat }
 
@@ -310,6 +311,17 @@ wyrażenia cron, wszystko w UTC i najczęściej raz na minutę. Jego **Input** t
 czego zaczyna każdy run. Tyknięcie, które zastaje poprzedni run wciąż trwający, jest
 pomijane, zamiast ustawiać za nim drugi run, a tyknięcie odrzucone przez limit
 przyjęć czeka na następne.
+
+### Gdy przybędzie rekord tabeli { #when-a-table-record-is-added }
+
+**Wyzwalacze** tabeli uruchamiają opublikowany workflow dla każdego dodanego do niej
+rekordu - z konsoli, przez API, przez agenta albo krok tabeli innego workflow. Jak
+webhook, wyzwalacz jest przypięty do wersji i działa jako członek, który go
+skonfigurował. Filtry wybierają, które rekordy go uruchamiają, a mapowanie wypełnia
+`payload` wartością kolumny, autorem rekordu albo id samego rekordu. Run uruchomiony w ten sposób niesie
+łańcuch wyzwalaczy, przez które przeszedł, więc workflow zapisujący z powrotem do
+tabeli, której wyzwalacz go uruchomił, jest blokowany zamiast się zapętlić. Zobacz
+[Virtual Tables](virtual-tables.md#triggers).
 
 ## Klawiatura i dostępność { #keyboard-and-accessibility }
 

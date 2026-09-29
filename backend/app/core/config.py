@@ -589,17 +589,15 @@ class Settings(BaseSettings):
     # a new write. Also the bound on how long a receipt's full copy of a record
     # is kept.
     TABLES_RECEIPT_TTL_HOURS: int = Field(default=24, gt=0)
-    # How long a dispatched outbox row is kept. Undispatched rows are never
-    # removed: they are events nobody has consumed yet.
+    # How long a dispatched outbox row is kept. Undispatched rows are events the
+    # table-trigger consumer has not judged yet, and wait for the setting below.
     TABLES_OUTBOX_RETENTION_DAYS: int = Field(default=3, gt=0)
     # How long an *undispatched* outbox row is kept before it is dropped anyway.
-    # No consumer of this outbox exists yet (#1785), so nothing will ever set
-    # `dispatched_at` on these rows, and TABLES_OUTBOX_RETENTION_DAYS alone would
-    # never remove a single one of them - a lifetime accumulation of one row per
-    # created record. This is a dead-letter cutoff, not a claim the event was
-    # delivered: past it, the row is gone and nothing can replay it. Long and
-    # deliberately disclosed rather than short, so a consumer built later has a
-    # generous window to catch up on a backlog before this starts discarding it.
+    # The table-trigger heartbeat (#1785) marks every row it judges, so a row
+    # this old means the worker has not run for that long. This is a dead-letter
+    # cutoff, not a claim the event was delivered: past it, the row is gone and
+    # no trigger will ever start for that record. Long, so a worker brought back
+    # after an outage has a generous window to catch up on its backlog first.
     TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS: int = Field(default=30, gt=0)
     # How long a record's history is kept, counted from the change, for a deleted
     # record as much as a live one.

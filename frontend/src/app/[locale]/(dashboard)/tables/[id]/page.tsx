@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Settings2, Share2 } from "lucide-react";
+import { Settings2, Share2, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ROUTES } from "@/lib/constants";
@@ -13,6 +13,7 @@ import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
 import { TableGridView } from "@/components/tables/table-grid-view";
 import { TableKanbanView } from "@/components/tables/table-kanban-view";
 import { TableListView } from "@/components/tables/table-list-view";
+import { TableTriggersPanel } from "@/components/tables/triggers/table-triggers-panel";
 import { ViewSelect } from "@/components/tables/view-select";
 import {
   Badge,
@@ -22,6 +23,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -42,6 +48,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const t = useTranslations("pages.tables.detail");
   const tp = useTranslations("pages.tables");
+  const tTriggers = useTranslations("pages.tables.triggers");
 
   const [tabParam, setTabParam] = useUrlState("view");
   const tab = parseTab(tabParam);
@@ -58,6 +65,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
 
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [triggersOpen, setTriggersOpen] = useState(false);
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
   const [page, setPage] = useState(0);
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
@@ -141,6 +149,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 <Settings2 className="h-4 w-4" /> {t("columns")}
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              data-tour="table-triggers"
+              onClick={() => setTriggersOpen(true)}
+            >
+              <Zap className="h-4 w-4" /> {tTriggers("button")}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
               <Share2 className="h-4 w-4" /> {t("share")}
             </Button>
@@ -274,6 +290,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           error={changeSchema.error}
         />
       )}
+
+      <Sheet open={triggersOpen} onOpenChange={setTriggersOpen}>
+        <SheetContent side="right" className="w-full sm:w-[28rem]">
+          <SheetHeader>
+            <SheetTitle>{tTriggers("sheetTitle")}</SheetTitle>
+            <SheetClose onClick={() => setTriggersOpen(false)} />
+          </SheetHeader>
+          <div className="overflow-y-auto p-4">
+            <TableTriggersPanel tableId={id} columns={table.columns} canEdit={canEdit} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog
         open={shareOpen}

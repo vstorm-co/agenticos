@@ -92,6 +92,14 @@ async def create_run(
     return run
 
 
+async def count_runs_in_chain(db: AsyncSession, *, root_run_id: UUID) -> int:
+    """How many runs share one root - a chain's size, whatever its shape."""
+    total = await db.scalar(
+        select(func.count()).select_from(WorkflowRun).where(WorkflowRun.root_run_id == root_run_id)
+    )
+    return int(total or 0)
+
+
 async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> WorkflowRun | None:
     result = await db.execute(
         select(WorkflowRun).where(

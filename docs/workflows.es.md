@@ -1,5 +1,5 @@
 ---
-source_sha: "776a2161e7e5"
+source_sha: "24ea92fd5761"
 ---
 
 # Workflows { #workflows }
@@ -270,7 +270,8 @@ workflow. Algunas no necesitan configuración. Quien pueda ejecutar el workflow 
 iniciarlo como sí mismo desde la [API HTTP](api.md#running-a-workflow), por un
 WebSocket o en el chat, y cada una de estas vías ejecuta la versión en vivo y se
 comprueba, factura y audita como un run iniciado aquí. Otras se configuran una vez y
-luego se disparan solas: un webhook firmado y una programación.
+luego se disparan solas: un webhook firmado, una programación y un trigger sobre una
+tabla, que se configura en la propia tabla.
 
 ### Desde el chat { #from-the-chat }
 
@@ -315,6 +316,17 @@ expresión cron, todo en UTC y como mucho una vez por minuto. Su **Input** es aq
 con lo que empieza cada run. Un tic que encuentra el último run aún en marcha se
 omite en lugar de apilar un segundo run detrás, y un tic que la cuota de admisión
 rechaza espera al siguiente.
+
+### Cuando se añade un registro a una tabla { #when-a-table-record-is-added }
+
+**Triggers**, en una tabla, ejecuta un workflow publicado por cada registro que se le
+añade: desde la consola, la API, un agent o el paso de tabla de otro workflow. Como un
+webhook, un trigger queda fijado a una versión y se ejecuta como el miembro que lo
+configuró. Sus filtros eligen qué registros lo inician, y su mapeo llena `payload` con
+el valor de una columna, el autor del registro o el id del propio registro. Un run iniciado así lleva la cadena de
+triggers por la que pasó, así que un workflow que vuelve a escribir en la tabla cuyo
+trigger lo inició se bloquea en lugar de entrar en bucle. Consulta
+[Virtual Tables](virtual-tables.md#triggers).
 
 ## Teclado y accesibilidad { #keyboard-and-accessibility }
 

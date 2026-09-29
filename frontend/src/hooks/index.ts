@@ -131,3 +131,4 @@ export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
 export { useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowExposures } from "./use-workflow-exposures";
 export { useWorkflowChat } from "./use-workflow-chat";
+export { useTableTriggerAdmissions, useTableTriggers } from "./use-table-triggers";

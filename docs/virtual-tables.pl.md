@@ -1,5 +1,5 @@
 ---
-source_sha: "23726d155d3b"
+source_sha: "865fa2992294"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -224,6 +224,49 @@ grupowanie po niej jest czyszczone, a ona sama wypada z `visible_columns` - wido
 który nie pokazuje już żadnej z wybranych kolumn, pokazuje wszystkie żywe. Zapisana
 konfiguracja nie jest przepisywana.
 
+## Wyzwalacze { #triggers }
+
+**Wyzwalacze** na stronie tabeli uruchamiają opublikowany [workflow](workflows.md) dla
+każdego rekordu dodanego do tabeli, niezależnie od drogi: w konsoli, przez API, przez
+narzędzie tabel agenta albo krok tabeli innego workflow. Upsert, który tworzy rekord,
+go uruchamia; taki, który rekord aktualizuje, nie. Konfiguracja wymaga `tables:edit` na
+tabeli i prawa do uruchamiania workflow, bo wyzwalacz działa jako członek, który go
+skonfigurował albo ostatnio zmienił, nigdy jako autor rekordu. Dostęp tego członka jest
+sprawdzany ponownie przy każdym rekordzie.
+
+Wyzwalacz jest przypięty do wersji, która była żywa w chwili jego utworzenia. Ponowna
+publikacja workflow niczego nie zmienia, dopóki **Użyj aktywnej wersji** go nie
+przesunie. Jego filtry używają operatorów z [Listowania i filtrowania](#listing-and-filtering)
+i są oceniane na rekordzie w chwili utworzenia, więc późniejsza edycja ani go nie
+uruchamia, ani nie zatrzymuje. Mapowanie wejścia określa, od czego startuje run: każdy
+klucz staje się kluczem `payload` z wartością kolumny, `@author` (id tego, kto dodał
+rekord) albo `@record_id`, czyli id samego rekordu, żeby run mógł go zmienić z powrotem
+przez `table.record.update`.
+
+Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie, także
+ponowne, bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
+rekord zatwierdzony przed tą chwilą go nie uruchomi, a nic dodanego, gdy był wyłączony,
+nie zostanie odtworzone. Heartbeat workera odczytuje zdarzenie outbox każdego nowego
+rekordu w ciągu około dziesięciu sekund. Decyduje raz na wyzwalacz i zapisuje decyzję;
+drugi przebieg albo drugi worker znajduje tę decyzję i niczego nie uruchamia.
+
+**Historia** wymienia każdą decyzję, od najnowszej, bez wartości rekordu:
+
+| Widoczne jako | Dlaczego |
+|---|---|
+| Rozpoczął uruchomienie | Każdy filtr był spełniony; run jest podlinkowany |
+| Pominięty | Rekord nie pasował albo dodano go, zanim wyzwalacz włączono |
+| Zablokowany | Uruchomiłby sam siebie ponownie, łańcuch przekroczył pięć wyzwalaczy w głąb albo 50 runów, albo run odrzucił limit przyjęć |
+| Nie udało się uruchomić | Członek, jako który działa, nie może już czytać tabeli ani uruchamiać workflow, albo nie udało się odczytać utworzenia rekordu |
+
+Workflow, który zapisuje do tabeli, może uruchomić jej wyzwalacze, i tak dalej przez
+kolejne tabele. Każdy run niesie łańcuch, do którego należy, a wyzwalacz, przez który
+łańcuch już przeszedł, jest blokowany zamiast uruchamiany ponownie - to powstrzymuje
+dwa workflow dodające rekordy do swoich tabel przed zapętleniem. Kolumny, którą
+wyzwalacz filtruje albo mapuje, nie da się zarchiwizować, dopóki wyzwalacz nie zostanie
+zmieniony albo usunięty, nawet gdy jest wyłączony. Archiwizacja całej tabeli jest
+dozwolona, a jej wyzwalacze już nigdy nie wystartują.
+
 ## Co zatwierdza się razem { #what-commits-together }
 
 Zapis rekordu, jego wiersz historii, jego potwierdzenie idempotencji i, dla create,
@@ -239,11 +282,12 @@ Traktuj wszystkie trzy jako dane osobowe, jeśli takie są komórki; zobacz
 [ochronę danych](data-protection.md#the-database) oraz
 [limity i retencję](#limits-and-retention).
 
-Wiersz outbox to przekazanie temu, co reaguje na nowy rekord. Na razie nic go nie
-konsumuje, więc nic go nigdy nie oznacza jako dostarczonego - przyszły konsument będzie
-pobierał niedostarczone wiersze we własnej sesji i oznaczał je jako wysłane. Do tego czasu
-niewysłany wiersz jest usuwany tylko przez własne, znacznie dłuższe okno retencji (poniżej)
-- to dead-letter cutoff, a nie deklaracja, że zdarzenie zostało kiedykolwiek odebrane.
+Wiersz outbox to przekazanie temu, co reaguje na nowy rekord: dziś są to
+[wyzwalacze](#triggers). Ich heartbeat pobiera niedostarczone wiersze we własnej sesji,
+ocenia każdy względem wyzwalaczy tabeli i oznacza go jako wysłany w tej samej transakcji.
+Niewysłany wiersz jest usuwany tylko przez własne, znacznie dłuższe okno retencji (poniżej)
+- to dead-letter cutoff dla workera, który tak długo nie działał, a nie deklaracja, że
+zdarzenie zostało kiedykolwiek odebrane.
 
 ## Limity i retencja { #limits-and-retention }
 
@@ -281,7 +325,7 @@ twardo i partiami, dla każdej organizacji:
 |---|---|---|
 | Receipts | Starsze niż 24 godziny | `TABLES_RECEIPT_TTL_HOURS` |
 | Wiersze outbox | Wysłane ponad 3 dni temu | `TABLES_OUTBOX_RETENTION_DAYS` |
-| Niewysłane wiersze outbox | Nigdy niewysłane i mające 30 dni. Nic jeszcze nie konsumuje tego outbox, więc każdy wiersz w końcu dociera do tego okna - zobacz niżej | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
+| Niewysłane wiersze outbox | Nigdy niewysłane i mające 30 dni: heartbeat wyzwalaczy nie działał tak długo i dla tych rekordów żaden wyzwalacz nie wystartuje | `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` |
 | History | Starsza niż 365 dni, dla usuniętego rekordu tak samo jak dla żywego | `TABLES_HISTORY_RETENTION_DAYS` |
 
 Sweep zapisuje jeden wpis audytu na organizację, nazywający klasę (`table_receipts`,
@@ -376,13 +420,8 @@ robi go sesja żądania, a worker ma własny zakres sesji.
 - **Podmiot dla kluczy API.** Dostęp, potwierdzenia i historia wskazują zalogowanego
   użytkownika. Jak klucz API działa na tabeli w zewnętrznym API, ma dopiero zostać
   uzgodnione.
-- Triggery przy tworzeniu rekordu oraz tworzenie i usuwanie rekordów z konsoli.
-  Agenci sięgają do tabel przez
+- Tworzenie i usuwanie rekordów z konsoli. Agenci sięgają do tabel przez
   [capability Tables](reference/capabilities.md#tables), a workflow przez
   [węzły tabel](reference/workflow-nodes.md#virtual-tables).
-- Konsument outbox. Dopóki nie powstanie, każde zdarzenie utworzenia rekordu dociera do
-  `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` i jest odrzucane zamiast dostarczone - jawny
-  dead letter, a nie kolejka, którą coś dziś opróżnia.
-- Checker zależności dla triggerów. Zapisane widoki rejestrują swój (zobacz
-  [Zapisane widoki](#saved-views)), tak samo workflow: tabeli albo przypiętej
-  kolumny, której używa bieżąca wersja żywego workflow, nie da się zarchiwizować.
+- Wyzwalacz na aktualizację albo usunięcie rekordu. [Wyzwalacze](#triggers) startują
+  tylko przy utworzeniu.
