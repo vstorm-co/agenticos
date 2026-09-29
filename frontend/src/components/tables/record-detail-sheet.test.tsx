@@ -12,7 +12,7 @@ import type { ColumnDef, RecordRead } from "@/types/tables";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn() } };
+  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), delete: vi.fn() } };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -403,6 +403,65 @@ describe("RecordDetailSheet", () => {
     expect(nameInput).toHaveValue("Grace");
   });
 
+  describe("deleting", () => {
+    const confirm = () =>
+      screen.getAllByRole("button", { name: "Delete record" }).at(-1) as HTMLElement;
+
+    it("deletes the record against its revision and closes the sheet", async () => {
+      vi.mocked(apiClient.delete).mockResolvedValueOnce(undefined);
+      const onOpenChange = vi.fn();
+      renderSheet({ onOpenChange });
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      expect(screen.getByText("Delete this record?")).toBeInTheDocument();
+      // Escape belongs to the confirmation now: it closes that, not the sheet.
+      fireEvent.keyDown(document, { key: "Escape" });
+      await waitFor(() =>
+        expect(screen.queryByText("Delete this record?")).not.toBeInTheDocument(),
+      );
+      expect(onOpenChange).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      fireEvent.click(confirm());
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+      expect(apiClient.delete).toHaveBeenCalledWith("/tables/t1/records/r1?expected_revision=1");
+      expect(toast.success).toHaveBeenCalledWith("Record deleted.");
+    });
+
+    it("keeps a record someone changed meanwhile, and says so", async () => {
+      vi.mocked(apiClient.delete).mockRejectedValueOnce(conflict409());
+      const onOpenChange = vi.fn();
+      renderSheet({ onOpenChange });
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      fireEvent.click(confirm());
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Someone changed this record since you opened it, so it was kept. Check it and try again.",
+        ),
+      );
+      expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it("leaves any other refusal to the hook's toast", async () => {
+      vi.mocked(apiClient.delete).mockRejectedValueOnce(new ApiError(500, "boom", null));
+      renderSheet();
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      fireEvent.click(confirm());
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it("offers no delete to a reader", () => {
+      renderSheet({ canEdit: false });
+      expect(screen.queryByRole("button", { name: "Delete record" })).not.toBeInTheDocument();
+    });
+  });
+
   describe("closing", () => {
     it("moves focus into the sheet, onto its close button", () => {
       renderSheet();
@@ -531,14 +590,14 @@ describe("RecordDetailSheet", () => {
       it("wraps from the last control to the first, and back", () => {
         renderSheet();
         const close = screen.getByRole("button", { name: "Close" });
-        const input = screen.getByRole("textbox");
+        const remove = screen.getByRole("button", { name: "Delete record" });
 
-        input.focus();
+        remove.focus();
         expect(tab().defaultPrevented).toBe(true);
         expect(close).toHaveFocus();
 
         expect(tab(true).defaultPrevented).toBe(true);
-        expect(input).toHaveFocus();
+        expect(remove).toHaveFocus();
       });
 
       it("skips a disabled field, so a read-only sheet cycles on its close button", () => {

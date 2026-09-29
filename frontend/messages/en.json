@@ -4745,8 +4745,10 @@
         },
         "emptyRecords": {
           "title": "No records yet",
-          "description": "Records created here, by an agent or through the API all show up in every matching view."
-        }
+          "description": "Records created here, by an agent or through the API all show up in every matching view.",
+          "add": "Add record"
+        },
+        "addRecord": "Add record"
       },
       "views": {
         "created": "View saved",
@@ -4801,6 +4803,14 @@
         "resumed": "Trigger resumed",
         "paused": "Trigger paused",
         "howToAdd": "To run a workflow when a record is added here, start it from a “New table record” trigger on this table and publish it."
+      },
+      "newRecord": {
+        "title": "New record",
+        "description": "Fill in what you know. An empty field takes its column's default; the ones marked * need a value.",
+        "required": "This column needs a value.",
+        "cancel": "Cancel",
+        "create": "Add record",
+        "created": "Record added."
       }
     }
   },
@@ -6199,7 +6209,12 @@
       "conflict": "Someone else changed this field.",
       "reloadAndReapply": "Reload and reapply",
       "discard": "Discard",
-      "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it."
+      "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it.",
+      "delete": "Delete record",
+      "deleteTitle": "Delete this record?",
+      "deleteDescription": "It leaves every view, and a table trigger watching deletions fires for it. This cannot be undone.",
+      "deleted": "Record deleted.",
+      "deleteConflict": "Someone changed this record since you opened it, so it was kept. Check it and try again."
     },
     "kanban": {
       "moveTo": "Move to",
@@ -6212,6 +6227,19 @@
       "needsGroupingColumn": "This view needs a single-select grouping column to show a board.",
       "noValue": "No value",
       "archivedLane": "Archived"
+    },
+    "grid": {
+      "selectAll": "Select every row on this page",
+      "selectRow": "Select row",
+      "openRecord": "Open record",
+      "editCell": "Edit {column}",
+      "selected": "{count, plural, one {# selected} other {# selected}}",
+      "clearSelection": "Clear",
+      "delete": "Delete",
+      "deleteTitle": "{count, plural, one {Delete # record?} other {Delete # records?}}",
+      "deleteDescription": "Deleted records leave every view, and a table trigger watching deletions fires for each. This cannot be undone.",
+      "deleted": "{count, plural, one {# record deleted.} other {# records deleted.}}",
+      "deleteConflict": "{count, plural, one {# record changed since you loaded it and was kept. Check it and try again.} other {# records changed since you loaded them and were kept. Check them and try again.}}"
     }
   },
   "groups": {

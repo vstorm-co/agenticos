@@ -2,12 +2,13 @@
 
 import { use, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Settings2, Share2, Zap } from "lucide-react";
+import { Plus, Settings2, Share2, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { HasMorePager } from "@/components/tables/has-more-pager";
+import { NewRecordDialog } from "@/components/tables/new-record-dialog";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
 import { TableGridView } from "@/components/tables/table-grid-view";
@@ -66,6 +67,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
+  const [addingRecord, setAddingRecord] = useState(false);
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
   const [page, setPage] = useState(0);
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
@@ -160,6 +162,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
               <Share2 className="h-4 w-4" /> {t("share")}
             </Button>
+            {canEdit && (
+              <Button size="sm" onClick={() => setAddingRecord(true)}>
+                <Plus className="h-4 w-4" /> {t("addRecord")}
+              </Button>
+            )}
           </div>
         }
       />
@@ -204,6 +211,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       {tab === "table" && (
         <>
           <TableGridView
+            tableId={id}
+            canEdit={canEdit}
+            onAddRecord={canEdit ? () => setAddingRecord(true) : undefined}
             columns={columns}
             records={records}
             isLoading={recordsLoading}
@@ -274,6 +284,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           )
         }
       />
+
+      {canEdit && (
+        <NewRecordDialog
+          tableId={id}
+          columns={table.columns}
+          open={addingRecord}
+          onOpenChange={setAddingRecord}
+        />
+      )}
 
       {canEdit && (
         <SchemaEditorDialog

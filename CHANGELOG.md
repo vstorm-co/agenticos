@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Add, edit and delete table records in the console.** **Add record** asks for
+  each live column in its own type and marks the ones that need a value; a cell
+  edits in place on a click, saving on Enter and leaving on Escape; ticked rows
+  delete together, each against its own revision, and the record panel deletes one.
+  A refused edit opens the record with the value kept beside a retry (#1958, #1959,
+  #1960).
 - **Run a workflow from its editor, and watch it happen.** **Run** in the editor's
   header, or `Ctrl`/`Cmd` + `Enter`, tests the draft at once - asking first for
   the fields its trigger declares - and the run shows on the canvas as it goes:

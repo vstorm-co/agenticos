@@ -41,21 +41,41 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     sort,
     onSort,
     onOpenRecord,
+    canEdit,
+    onAddRecord,
   }: {
     columns: { id: string }[];
     sort: { by: string; direction: string };
     onSort: (sort: { by: string; direction: string }) => void;
     onOpenRecord: (r: RecordRead) => void;
+    canEdit: boolean;
+    onAddRecord?: () => void;
   }) => (
     <div
       data-testid="grid-view"
       data-column-ids={columns.map((c) => c.id).join(",")}
       data-sort={`${sort.by}:${sort.direction}`}
+      data-can-edit={String(canEdit)}
     >
       <button onClick={() => onOpenRecord({ ...RECORD })}>open-record-from-grid</button>
       <button onClick={() => onSort({ by: "name", direction: "desc" })}>resort-by-name</button>
+      {onAddRecord && <button onClick={onAddRecord}>add-from-empty-grid</button>}
     </div>
   ),
+}));
+vi.mock("@/components/tables/new-record-dialog", () => ({
+  NewRecordDialog: ({
+    open,
+    onOpenChange,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="new-record-dialog">
+        <button onClick={() => onOpenChange(false)}>close-new-record</button>
+      </div>
+    ) : null,
 }));
 vi.mock("@/components/tables/table-list-view", () => ({
   TableListView: () => <div data-testid="list-view" />,
@@ -389,6 +409,32 @@ describe("the table detail page", () => {
     expect(screen.queryByRole("button", { name: /columns/i })).not.toBeInTheDocument();
     // Absent, not merely unopened - there is no dialog to open at all.
     expect(screen.queryByRole("dialog", { name: "schema-dialog" })).not.toBeInTheDocument();
+  });
+
+  it("lets an editor add a record from the header or the empty grid", async () => {
+    serve();
+    const user = userEvent.setup();
+    renderPage();
+    const grid = await screen.findByTestId("grid-view");
+    expect(grid).toHaveAttribute("data-can-edit", "true");
+
+    await user.click(screen.getByRole("button", { name: /add record/i }));
+    expect(screen.getByRole("dialog", { name: "new-record-dialog" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-new-record" }));
+    expect(screen.queryByRole("dialog", { name: "new-record-dialog" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "add-from-empty-grid" }));
+    expect(screen.getByRole("dialog", { name: "new-record-dialog" })).toBeInTheDocument();
+  });
+
+  it("offers a viewer without can_edit no way to add a record", async () => {
+    serve({ tableFixture: table({ can_edit: false }) });
+    renderPage();
+    const grid = await screen.findByTestId("grid-view");
+
+    expect(grid).toHaveAttribute("data-can-edit", "false");
+    expect(screen.queryByRole("button", { name: /add record/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "add-from-empty-grid" })).not.toBeInTheDocument();
   });
 
   it("opens the sharing panel scoped to this table, with can_edit as can_manage", async () => {

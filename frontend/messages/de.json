@@ -4378,8 +4378,10 @@
         },
         "emptyRecords": {
           "title": "Noch keine Datensätze",
-          "description": "Hier, von einem Agent oder über die API erstellte Datensätze erscheinen in jeder passenden Ansicht."
-        }
+          "description": "Hier, von einem Agent oder über die API erstellte Datensätze erscheinen in jeder passenden Ansicht.",
+          "add": "Datensatz hinzufügen"
+        },
+        "addRecord": "Datensatz hinzufügen"
       },
       "views": {
         "created": "Ansicht gespeichert",
@@ -4434,6 +4436,14 @@
         "resumed": "Auslöser fortgesetzt",
         "paused": "Auslöser pausiert",
         "howToAdd": "Um einen Workflow zu starten, wenn hier ein Datensatz hinzugefügt wird, lassen Sie ihn mit einem Auslöser „Neuer Tabellendatensatz“ auf dieser Tabelle beginnen und veröffentlichen Sie ihn."
+      },
+      "newRecord": {
+        "title": "Neuer Datensatz",
+        "description": "Füllen Sie aus, was Sie wissen. Ein leeres Feld übernimmt den Standardwert der Spalte; mit * markierte Felder brauchen einen Wert.",
+        "required": "Diese Spalte braucht einen Wert.",
+        "cancel": "Abbrechen",
+        "create": "Datensatz hinzufügen",
+        "created": "Datensatz hinzugefügt."
       }
     },
     "workflows": {
@@ -6058,7 +6068,12 @@
       "conflict": "Jemand anderes hat dieses Feld geändert.",
       "reloadAndReapply": "Neu laden und erneut anwenden",
       "discard": "Verwerfen",
-      "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen."
+      "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen.",
+      "delete": "Datensatz löschen",
+      "deleteTitle": "Diesen Datensatz löschen?",
+      "deleteDescription": "Er verschwindet aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für ihn ausgelöst. Das lässt sich nicht rückgängig machen.",
+      "deleted": "Datensatz gelöscht.",
+      "deleteConflict": "Jemand hat diesen Datensatz seit dem Öffnen geändert, daher wurde er behalten. Prüfen Sie ihn und versuchen Sie es erneut."
     },
     "kanban": {
       "moveTo": "Verschieben nach",
@@ -6071,6 +6086,19 @@
       "needsGroupingColumn": "Diese Ansicht benötigt eine Einzelauswahl-Gruppierungsspalte, um ein Board anzuzeigen.",
       "noValue": "Kein Wert",
       "archivedLane": "Archiviert"
+    },
+    "grid": {
+      "selectAll": "Alle Zeilen dieser Seite auswählen",
+      "selectRow": "Zeile auswählen",
+      "openRecord": "Datensatz öffnen",
+      "editCell": "{column} bearbeiten",
+      "selected": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
+      "clearSelection": "Aufheben",
+      "delete": "Löschen",
+      "deleteTitle": "{count, plural, one {# Datensatz löschen?} other {# Datensätze löschen?}}",
+      "deleteDescription": "Gelöschte Datensätze verschwinden aus jeder Ansicht, und ein Tabellen-Trigger für Löschungen wird für jeden ausgelöst. Das lässt sich nicht rückgängig machen.",
+      "deleted": "{count, plural, one {# Datensatz gelöscht.} other {# Datensätze gelöscht.}}",
+      "deleteConflict": "{count, plural, one {# Datensatz wurde seit dem Laden geändert und behalten. Prüfen Sie ihn und versuchen Sie es erneut.} other {# Datensätze wurden seit dem Laden geändert und behalten. Prüfen Sie sie und versuchen Sie es erneut.}}"
     }
   },
   "groups": {

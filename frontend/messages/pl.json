@@ -640,8 +640,10 @@
         },
         "emptyRecords": {
           "title": "Brak rekordów",
-          "description": "Rekordy utworzone tutaj, przez agenta lub przez API, pojawiają się w każdym pasującym widoku."
-        }
+          "description": "Rekordy utworzone tutaj, przez agenta lub przez API, pojawiają się w każdym pasującym widoku.",
+          "add": "Dodaj rekord"
+        },
+        "addRecord": "Dodaj rekord"
       },
       "views": {
         "created": "Zapisano widok",
@@ -696,6 +698,14 @@
         "resumed": "Wyzwalacz wznowiony",
         "paused": "Wyzwalacz wstrzymany",
         "howToAdd": "Żeby uruchamiać workflow po dodaniu tu rekordu, zacznij go od wyzwalacza „Nowy rekord w tabeli” dla tej tabeli i opublikuj."
+      },
+      "newRecord": {
+        "title": "Nowy rekord",
+        "description": "Wypełnij to, co znasz. Puste pole przyjmie wartość domyślną kolumny; pola oznaczone * wymagają wartości.",
+        "required": "Ta kolumna wymaga wartości.",
+        "cancel": "Anuluj",
+        "create": "Dodaj rekord",
+        "created": "Dodano rekord."
       }
     },
     "workflows": {
@@ -3851,7 +3861,12 @@
       "conflict": "Ktoś inny zmienił to pole.",
       "reloadAndReapply": "Odśwież i zastosuj ponownie",
       "discard": "Odrzuć",
-      "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić."
+      "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić.",
+      "delete": "Usuń rekord",
+      "deleteTitle": "Usunąć ten rekord?",
+      "deleteDescription": "Zniknie ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla niego. Tego nie można cofnąć.",
+      "deleted": "Usunięto rekord.",
+      "deleteConflict": "Ktoś zmienił ten rekord od jego otwarcia, więc został zachowany. Sprawdź go i spróbuj ponownie."
     },
     "kanban": {
       "moveTo": "Przenieś do",
@@ -3864,6 +3879,19 @@
       "needsGroupingColumn": "Ten widok potrzebuje kolumny grupującej typu wybór pojedynczy, aby pokazać tablicę.",
       "noValue": "Brak wartości",
       "archivedLane": "Zarchiwizowane"
+    },
+    "grid": {
+      "selectAll": "Zaznacz wszystkie wiersze na tej stronie",
+      "selectRow": "Zaznacz wiersz",
+      "openRecord": "Otwórz rekord",
+      "editCell": "Edytuj {column}",
+      "selected": "{count, plural, one {# zaznaczony} few {# zaznaczone} many {# zaznaczonych} other {# zaznaczonego}}",
+      "clearSelection": "Wyczyść",
+      "delete": "Usuń",
+      "deleteTitle": "{count, plural, one {Usunąć # rekord?} few {Usunąć # rekordy?} many {Usunąć # rekordów?} other {Usunąć # rekordu?}}",
+      "deleteDescription": "Usunięte rekordy znikają ze wszystkich widoków, a wyzwalacz tabeli obserwujący usunięcia uruchomi się dla każdego z nich. Tego nie można cofnąć.",
+      "deleted": "{count, plural, one {Usunięto # rekord.} few {Usunięto # rekordy.} many {Usunięto # rekordów.} other {Usunięto # rekordu.}}",
+      "deleteConflict": "{count, plural, one {# rekord zmienił się od wczytania i został zachowany. Sprawdź go i spróbuj ponownie.} few {# rekordy zmieniły się od wczytania i zostały zachowane. Sprawdź je i spróbuj ponownie.} many {# rekordów zmieniło się od wczytania i zostało zachowanych. Sprawdź je i spróbuj ponownie.} other {# rekordu zmieniło się od wczytania i zostało zachowane. Sprawdź je i spróbuj ponownie.}}"
     }
   },
   "groups": {

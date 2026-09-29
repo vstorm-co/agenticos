@@ -1,5 +1,5 @@
 ---
-source_sha: "35f32898440e"
+source_sha: "0cf6760a5d9e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -130,6 +130,25 @@ no se escribe fila de historial ni receipt, y se devuelve el registro actual. Un
 upsert que encuentra el registro sigue la misma regla.
 
 Un borrado es un borrado definitivo. El historial del registro se conserva hasta que su retención lo elimina.
+
+## Editar registros en la consola { #editing-in-the-console }
+
+Un miembro que puede editar la tabla añade, cambia y elimina registros desde su página.
+**Add record** pide un valor por cada columna activa, con el tipo de la columna. Una
+columna obligatoria sin valor predeterminado lleva la marca `*` y hay que rellenarla
+antes de escribir el registro; cualquier otra columna vacía toma su valor
+predeterminado. Al hacer clic en una celda se edita en su sitio: Enter o hacer clic
+fuera la guarda, Escape la deja sin cambios, y un sí/no que no puede quedar vacío
+cambia con un clic. El botón de expandir al final de una fila abre el registro entero.
+
+Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
+edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
+encima. El registro se abre entonces con el valor rechazado junto a **Reload and
+reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
+cuántos. El panel del registro elimina uno solo de la misma forma. Un miembro que solo
+puede ver la tabla ve la misma cuadrícula en modo lectura, y hacer clic en una fila abre
+el registro.
 
 ## Reintentos seguros { #safe-retries }
 

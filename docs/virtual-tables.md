@@ -120,6 +120,24 @@ the record follows the same rule.
 
 A delete is a hard delete. The record's history stays until its retention removes it.
 
+## Editing records in the console { #editing-in-the-console }
+
+A member who can edit the table adds, changes and deletes records from its page.
+**Add record** asks for a value per live column, typed as the column is. A column that
+is required and has no default is marked `*` and must be filled before the record is
+written; any other column left empty takes its default. Clicking a cell edits it in
+place: Enter or clicking away saves it, Escape leaves it unchanged, and a yes/no that
+cannot be empty flips with one click. The expand button at the end of a row opens the
+whole record.
+
+Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
+newer change is refused rather than written over it. The record then opens with the
+refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
+all of them, each against its own revision: a record someone changed meanwhile is
+kept, and the console says how many were. The record panel deletes one record the same
+way. A member who can only view the table sees the same grid read-only, and clicking a
+row opens the record.
+
 ## Safe retries { #safe-retries }
 
 Every record write accepts an `Idempotency-Key` header (at most 128 characters). A

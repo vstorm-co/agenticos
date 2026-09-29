@@ -1,5 +1,5 @@
 ---
-source_sha: "35f32898440e"
+source_sha: "0cf6760a5d9e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -127,6 +127,24 @@ Nieaktualne `expected_revision` to nadal konflikt, bo jest sprawdzane najpierw. 
 który znajdzie rekord, podlega tej samej regule.
 
 Usunięcie jest twarde. Historia rekordu zostaje, dopóki nie usunie jej retencja.
+
+## Edycja rekordów w konsoli { #editing-in-the-console }
+
+Członek, który może edytować tabelę, dodaje, zmienia i usuwa rekordy z jej strony.
+**Add record** prosi o wartość dla każdej aktywnej kolumny, w typie tej kolumny.
+Kolumna wymagana i bez wartości domyślnej jest oznaczona `*` i trzeba ją wypełnić,
+zanim rekord zostanie zapisany; każda inna pusta kolumna przyjmuje wartość domyślną.
+Kliknięcie komórki edytuje ją w miejscu: Enter lub kliknięcie obok zapisuje, Escape
+zostawia ją bez zmian, a pole tak/nie, które nie może być puste, przełącza się jednym
+kliknięciem. Przycisk rozwinięcia na końcu wiersza otwiera cały rekord.
+
+Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
+przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
+który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
+rekordu usuwa pojedynczy rekord w ten sam sposób. Członek, który może tylko oglądać
+tabelę, widzi tę samą siatkę tylko do odczytu, a kliknięcie wiersza otwiera rekord.
 
 ## Bezpieczne ponawianie { #safe-retries }
 

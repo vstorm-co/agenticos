@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Button,
+  ConfirmDialog,
   Label,
   Sheet,
   SheetClose,
@@ -81,7 +82,8 @@ export function RecordDetailSheet({
 }) {
   const t = useTranslations("tables.sheet");
   const tErrors = useTranslations("errors");
-  const { commit, fetchRecord } = useRecordMutation(tableId);
+  const { commit, fetchRecord, remove } = useRecordMutation(tableId);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const conflicts = useTableViewStore((state) => state.conflicts);
   const setConflict = useTableViewStore((state) => state.setConflict);
   const clearConflict = useTableViewStore((state) => state.clearConflict);
@@ -117,7 +119,9 @@ export function RecordDetailSheet({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    // The delete confirmation is a dialog of its own, with its own Escape and
+    // focus trap; the sheet's would close the sheet under it and pull focus out.
+    if (!open || confirmingDelete) return;
     function onKeyDown(event: KeyboardEvent) {
       // A select or popover inside the sheet handles its own Escape and Tab and
       // marks the event handled; that key is its own, not the sheet's.
@@ -127,7 +131,7 @@ export function RecordDetailSheet({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, close]);
+  }, [open, close, confirmingDelete]);
 
   function commitField(targetRecord: RecordRead, columnId: string, value: CellValue) {
     commit(targetRecord, { [columnId]: value }).then(
@@ -193,17 +197,38 @@ export function RecordDetailSheet({
     await refetch(targetRecord, columnId);
   }
 
+  /**
+   * Delete the open record against the revision on screen, so a record someone
+   * changed meanwhile is refused rather than deleted unseen.
+   */
+  async function deleteRecord(targetRecord: RecordRead) {
+    try {
+      await remove.mutateAsync({
+        recordId: targetRecord.id,
+        expectedRevision: targetRecord.revision,
+      });
+    } catch (error) {
+      // Anything but a conflict was already toasted by `useRecordMutation`.
+      if (isRevisionConflict(error)) toast.error(t("deleteConflict"));
+      return;
+    } finally {
+      setConfirmingDelete(false);
+    }
+    toast.success(t("deleted"));
+    onOpenChange(false);
+  }
+
   // `Sheet` calls `onOpenChange` only from an overlay click, always to close.
   return (
     <Sheet open={open} onOpenChange={close}>
-      <SheetContent>
+      <SheetContent side="right" className="w-full sm:w-[28rem]">
         <div ref={panelRef} className="contents">
           <SheetHeader>
             <SheetTitle>{t("title")}</SheetTitle>
             <SheetClose onClick={close} />
           </SheetHeader>
           {record && (
-            <div className="space-y-4 overflow-y-auto px-1 py-2">
+            <div className="space-y-4 overflow-y-auto p-4">
               {columns
                 .filter((column) => !column.archived)
                 .map((column) => {
@@ -258,6 +283,28 @@ export function RecordDetailSheet({
                     </div>
                   );
                 })}
+            </div>
+          )}
+          {record && canEdit && (
+            <div className="border-border mt-auto border-t px-4 py-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 className="size-3.5" /> {t("delete")}
+              </Button>
+              <ConfirmDialog
+                open={confirmingDelete}
+                onOpenChange={setConfirmingDelete}
+                title={t("deleteTitle")}
+                description={t("deleteDescription")}
+                confirmLabel={t("delete")}
+                destructive
+                loading={remove.isPending}
+                onConfirm={() => deleteRecord(record)}
+              />
             </div>
           )}
         </div>

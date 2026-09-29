@@ -1,63 +1,252 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { Maximize2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { InlineCell } from "./inline-cell";
 import { selectChips } from "./option-chip";
-import { Column, DataTable, type TableSort } from "@/components/ui";
+import {
+  Button,
+  Checkbox,
+  Column,
+  ConfirmDialog,
+  DataTable,
+  type TableSort,
+} from "@/components/ui";
 import { EmptyState } from "@/components/states";
+import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { formatCellValue } from "@/lib/format-cell-value";
-import type { ColumnDef, RecordRead, RecordSort } from "@/types/tables";
+import { useTableViewStore } from "@/stores";
+import type { CellValue, ColumnDef, RecordRead, RecordSort } from "@/types/tables";
+
+interface EditingCell {
+  recordId: string;
+  columnId: string;
+}
 
 /**
  * The table view: `DataTable` over the active view's live, visible columns.
  *
  * Sorting is server-side (`onSort`, not `defaultSort`): a `multi_select`
  * column is not sortable per the service, so its `Column` simply omits
- * `sortable`. A row click opens `record-detail-sheet.tsx` - the one editing
- * surface every view type shares - rather than editing in place, which would
- * collide with the sortable headers and keyboard row navigation `DataTable`
- * already gives this view for free.
+ * `sortable`.
+ *
+ * Read-only, a row click opens `record-detail-sheet.tsx`. Editable, a cell
+ * click edits that cell in place and the row's expand button opens the sheet;
+ * a checkbox column selects rows for deleting together. A cell write that
+ * loses to a newer revision opens the sheet on that record, where the refused
+ * value waits beside a retry - the same banner a sheet field raises - rather
+ * than being dropped with the closed cell.
  */
 export function TableGridView({
+  tableId,
   columns,
   records,
   isLoading,
   sort,
   onSort,
   onOpenRecord,
+  canEdit,
+  onAddRecord,
 }: {
+  tableId: string;
   columns: ColumnDef[];
   records: RecordRead[];
   isLoading: boolean;
   sort: RecordSort;
   onSort: (sort: RecordSort) => void;
   onOpenRecord: (record: RecordRead) => void;
+  canEdit: boolean;
+  /** Offered from the empty state when records may be added. */
+  onAddRecord?: () => void;
 }) {
   const t = useTranslations("tables.cells");
+  const tGrid = useTranslations("tables.grid");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
+  const { commit, remove } = useRecordMutation(tableId);
+  const setConflict = useTableViewStore((state) => state.setConflict);
+
+  const [editing, setEditing] = useState<EditingCell | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Only the rows in view count: a selection made on another page, or of a
+  // record since deleted, is not what the bar offers to delete.
+  const chosen = records.filter((record) => selected.has(record.id));
+  const allChosen = records.length > 0 && chosen.length === records.length;
+
+  const toggle = (recordId: string, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(recordId);
+    else next.delete(recordId);
+    setSelected(next);
+  };
+
+  const writeCell = (record: RecordRead, columnId: string, value: CellValue) => {
+    commit(record, { [columnId]: value }).catch((error: unknown) => {
+      // Anything but a conflict was already toasted by `useRecordMutation`.
+      if (!isRevisionConflict(error)) return;
+      setConflict({ recordId: record.id, pendingValues: { [columnId]: value }, fieldId: columnId });
+      onOpenRecord(record);
+    });
+  };
+
+  const deleteChosen = async () => {
+    setDeleting(true);
+    const results = await Promise.allSettled(
+      chosen.map((record) =>
+        remove.mutateAsync({ recordId: record.id, expectedRevision: record.revision }),
+      ),
+    );
+    setDeleting(false);
+    setConfirming(false);
+    const deleted = chosen.filter((_, index) => results[index]?.status === "fulfilled");
+    const conflicts = results.filter(
+      (result) => result.status === "rejected" && isRevisionConflict(result.reason),
+    ).length;
+    const next = new Set(selected);
+    for (const record of deleted) next.delete(record.id);
+    setSelected(next);
+    if (deleted.length > 0) toast.success(tGrid("deleted", { count: deleted.length }));
+    if (conflicts > 0) toast.error(tGrid("deleteConflict", { count: conflicts }));
+  };
+
+  const display = (column: ColumnDef, record: RecordRead) => {
+    const value = record.values[column.id] ?? null;
+    return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel) || "—");
+  };
+
+  const renderCell = (column: ColumnDef, record: RecordRead) => {
+    if (!canEdit) return display(column, record);
+    const value = record.values[column.id] ?? null;
+    if (editing?.recordId === record.id && editing.columnId === column.id) {
+      return (
+        <InlineCell
+          column={column}
+          value={value}
+          onCommit={(next) => writeCell(record, column.id, next)}
+          onDone={() => setEditing(null)}
+        />
+      );
+    }
+    return (
+      <button
+        type="button"
+        aria-label={tGrid("editCell", { column: column.label })}
+        className="hover:bg-accent/60 focus-visible:ring-ring -mx-4 -my-3 block min-h-11 w-[calc(100%+2rem)] px-4 py-3 text-left focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset"
+        onClick={(event) => {
+          event.stopPropagation();
+          // A yes/no that cannot be empty has one edit to make: the other one.
+          if (column.type === "boolean" && !column.nullable) {
+            writeCell(record, column.id, value !== true);
+            return;
+          }
+          setEditing({ recordId: record.id, columnId: column.id });
+        }}
+      >
+        {display(column, record)}
+      </button>
+    );
+  };
 
   const tableColumns: Column<RecordRead>[] = columns.map((column) => ({
     key: column.id,
     header: column.label,
-    cell: (record) => {
-      const value = record.values[column.id] ?? null;
-      return selectChips(column, value) ?? (formatCellValue(column, value, boolLabel) || "—");
-    },
+    cell: (record) => renderCell(column, record),
     sortable: column.type !== "multi_select",
   }));
 
+  if (canEdit) {
+    tableColumns.unshift({
+      key: "__select",
+      className: "w-10 pr-0",
+      header: (
+        <Checkbox
+          aria-label={tGrid("selectAll")}
+          checked={allChosen ? true : chosen.length > 0 ? "indeterminate" : false}
+          disabled={records.length === 0}
+          onCheckedChange={(on) =>
+            setSelected(on === true ? new Set(records.map((record) => record.id)) : new Set())
+          }
+        />
+      ),
+      cell: (record) => (
+        <Checkbox
+          aria-label={tGrid("selectRow")}
+          checked={selected.has(record.id)}
+          onCheckedChange={(on) => toggle(record.id, on === true)}
+        />
+      ),
+    });
+    tableColumns.push({
+      key: "__open",
+      className: "w-12 px-2",
+      header: <span className="sr-only">{tGrid("openRecord")}</span>,
+      cell: (record) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground size-7"
+          aria-label={tGrid("openRecord")}
+          title={tGrid("openRecord")}
+          onClick={() => onOpenRecord(record)}
+        >
+          <Maximize2 className="size-3.5" />
+        </Button>
+      ),
+    });
+  }
+
   return (
-    <DataTable
-      columns={tableColumns}
-      rows={records}
-      getRowKey={(record) => record.id}
-      loading={isLoading}
-      onRowClick={onOpenRecord}
-      fillHeight
-      sort={{ by: sort.by, dir: sort.direction }}
-      onSort={(next: TableSort) => onSort({ by: next.by, direction: next.dir })}
-      empty={<EmptyState title={tEmpty("title")} description={tEmpty("description")} />}
-    />
+    <>
+      {chosen.length > 0 && (
+        <div className="border-border bg-card mb-2 flex items-center gap-3 rounded-lg border px-3 py-1.5 text-sm">
+          <span className="tabular-nums">{tGrid("selected", { count: chosen.length })}</span>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+            {tGrid("clearSelection")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive ml-auto"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 className="size-3.5" /> {tGrid("delete")}
+          </Button>
+        </div>
+      )}
+      <DataTable
+        columns={tableColumns}
+        rows={records}
+        getRowKey={(record) => record.id}
+        loading={isLoading}
+        onRowClick={canEdit ? undefined : onOpenRecord}
+        isRowActive={canEdit ? (record) => selected.has(record.id) : undefined}
+        fillHeight
+        sort={{ by: sort.by, dir: sort.direction }}
+        onSort={(next: TableSort) => onSort({ by: next.by, direction: next.dir })}
+        empty={
+          <EmptyState
+            title={tEmpty("title")}
+            description={tEmpty("description")}
+            cta={onAddRecord ? { label: tEmpty("add"), onClick: onAddRecord } : undefined}
+          />
+        }
+      />
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={tGrid("deleteTitle", { count: chosen.length })}
+        description={tGrid("deleteDescription")}
+        confirmLabel={tGrid("delete")}
+        destructive
+        loading={deleting}
+        onConfirm={deleteChosen}
+      />
+    </>
   );
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "35f32898440e"
+source_sha: "0cf6760a5d9e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -138,6 +138,26 @@ zurückgegeben. Eine veraltete `expected_revision` ist weiterhin ein Konflikt, w
 zuerst geprüft wird. Ein Upsert, der den Datensatz findet, folgt derselben Regel.
 
 Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt, bis ihre Aufbewahrung sie entfernt.
+
+## Datensätze in der Konsole bearbeiten { #editing-in-the-console }
+
+Ein Mitglied, das die Tabelle bearbeiten darf, fügt Datensätze auf ihrer Seite hinzu,
+ändert und löscht sie. **Add record** fragt nach einem Wert je aktiver Spalte, im Typ
+der Spalte. Eine Pflichtspalte ohne Standardwert ist mit `*` markiert und muss
+ausgefüllt sein, bevor der Datensatz geschrieben wird; jede andere leere Spalte
+übernimmt ihren Standardwert. Ein Klick auf eine Zelle bearbeitet sie direkt: Enter
+oder ein Klick daneben speichert, Escape lässt sie unverändert, und ein Ja/Nein, das
+nicht leer sein darf, wechselt mit einem Klick. Die Schaltfläche zum Aufklappen am
+Zeilenende öffnet den ganzen Datensatz.
+
+Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
+Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber
+geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Reload and
+reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
+Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
+sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
+dieselbe Weise. Wer die Tabelle nur ansehen darf, sieht dasselbe Raster schreibgeschützt,
+und ein Klick auf eine Zeile öffnet den Datensatz.
 
 ## Sichere Wiederholungen { #safe-retries }
 
