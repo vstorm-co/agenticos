@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.exceptions import BadRequestError
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import DispatchOutbox, ResourceRef, WorkflowRun, WorkflowRunStatus
+from app.schemas.sandbox_connection import SandboxConnectionCreate
 from app.services.file_storage import LocalFileStorage
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
@@ -215,7 +216,7 @@ def host() -> Iterator[dict[str, _Session]]:
     def open_session(_resolved: Any, key: str, _runtime: Any, _tenant: str) -> _Session:
         return sessions.setdefault(key, _Session())
 
-    resolved = SimpleNamespace(kind="sandboxd")
+    resolved = SimpleNamespace(kind="docker")
     with (
         patch.object(job, "_open", side_effect=open_session),
         patch.object(job, "_connection", new=AsyncMock(return_value=resolved)),
@@ -460,7 +461,7 @@ class TestTheSandboxJob:
 class TestTheSandboxHost:
     async def test_a_host_that_is_not_there_is_retried(self, engine):
         seeded = await seed_run(engine, _chain(_sandbox_step()))
-        resolved = SimpleNamespace(kind="sandboxd")
+        resolved = SimpleNamespace(kind="docker")
 
         def unreachable(*_args: Any) -> Any:
             raise RuntimeError("Could not reach the sandbox service")
@@ -506,7 +507,7 @@ class TestTheSandboxHost:
             with patch.object(
                 job.SandboxConnectionService,
                 "resolve",
-                new=AsyncMock(return_value=SimpleNamespace(kind="sandboxd")),
+                new=AsyncMock(return_value=SimpleNamespace(kind="docker")),
             ):
                 assert await sandbox_node.check_resources(db, seeded.ctx, config) == []
 
@@ -596,6 +597,14 @@ class TestTheJavaScriptJob:
             assert await js_node.check_resources(db, seeded.ctx, MagicMock()) == []
         result = await js_node.handle(None, None)
         assert result.error.code == "JAVASCRIPT_NOT_CONFIGURED"
+
+
+def test_a_script_runs_on_the_kind_a_sandboxd_connection_is_registered_as():
+    # Regression: the steps once asked for a kind "sandboxd" that no connection
+    # can be registered as, so every real host was refused as unavailable.
+    kinds = get_args(SandboxConnectionCreate.model_fields["kind"].annotation)
+    assert job.SANDBOXD_KIND in kinds
+    assert "daytona" in kinds and job.SANDBOXD_KIND != "daytona"
 
 
 async def _member(engine: AsyncEngine):

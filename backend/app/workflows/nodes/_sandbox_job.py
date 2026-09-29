@@ -56,6 +56,10 @@ MAX_OUTPUT_BYTES = 100_000_000
 MAX_LOG_BYTES = 10_000_000
 LOG_TAIL_CHARS = 4000
 
+# The connection kind a `sandboxd` service is registered as - the one that runs
+# a job; a Daytona connection cannot.
+SANDBOXD_KIND = "docker"
+
 # What the job left, measured inside the sandbox before a byte of it is fetched:
 # the output count, their total size, the answer's size and the log's, one per
 # line. Only counts, never names - a script chooses its files' names.
@@ -112,7 +116,7 @@ async def check_connection(
         resolved = await SandboxConnectionService(db).resolve(ctx, connection_id)
     except AppException as exc:
         return [("connection_id", exc.message)]
-    if resolved.kind != "sandboxd":
+    if resolved.kind != SANDBOXD_KIND:
         return [("connection_id", "Workflow scripts run on a sandboxd connection")]
     return []
 
@@ -246,7 +250,7 @@ async def run_job(
         resolved = await _connection(current.auth, connection_id)
     except AppException as exc:
         return files.failed("SANDBOX_UNAVAILABLE", exc.message)
-    if resolved.kind != "sandboxd":
+    if resolved.kind != SANDBOXD_KIND:
         return files.failed("SANDBOX_UNAVAILABLE", "Workflow scripts run on a sandboxd connection")
     key = session_key(current.idempotency_key)
     waiting = Waiting(reason="retry_backoff", resume_token=str(current.node_run_id))

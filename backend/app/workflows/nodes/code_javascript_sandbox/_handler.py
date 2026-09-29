@@ -88,14 +88,17 @@ class JavaScriptSandboxConfig(BaseModel):
             "from the `inputs` folder, write files to `outputs`, and `return` the answer."
         ),
     )
-    timeout_seconds: float = Field(default=300.0, gt=0, le=1800)
+    timeout_seconds: float = Field(default=300.0, gt=0, le=1800, title="Time limit (seconds)")
     connection_id: UUID | None = Field(
         default=None,
+        title="Sandbox host",
         description="The sandbox host to run on. The organization's default when empty.",
+        json_schema_extra={"x-resource": "sandbox_connection"},
     )
     runtime: str | None = Field(
         default=None,
         max_length=64,
+        title="Runtime",
         description="The host's runtime to run in, one with Node. The connection's default when empty.",
     )
 
