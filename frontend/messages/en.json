@@ -6139,7 +6139,11 @@
     "stepIsSwitchedOff": "Switched off: skipped when the run reaches it",
     "stepHasNote": "Has a note",
     "menuSwitchOff": "Switch off",
-    "menuSwitchOn": "Switch on"
+    "menuSwitchOn": "Switch on",
+    "nodeFormMoreOptions": "{count, plural, one {# more option} other {# more options}}",
+    "nodeFormFewerOptions": "Fewer options",
+    "stepAddNote": "+ Add a note",
+    "nodeEditorShowPolicy": "When it is slow or fails…"
   },
   "artifacts": {
     "title": "Artifacts",

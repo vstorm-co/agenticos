@@ -159,6 +159,11 @@ export interface WorkflowEditorState {
   revealNodeId: Uuid | null;
   /** The step whose settings are open in the editor's dialog; null when none is. */
   editingNodeId: Uuid | null;
+  /**
+   * Whether a missing required value is said yet: only once a run or a publish
+   * was tried, so a step just added is not covered in red before anything is set.
+   */
+  problemsRevealed: boolean;
   clipboard: WorkflowClipboard | null;
   history: HistoryFlags;
   conflict: ConflictState | null;
@@ -192,6 +197,8 @@ export interface WorkflowEditorState {
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
   /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
   updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
+  /** A run or a publish was tried: say every problem from now on. */
+  revealProblems: () => void;
   /** Rename a step, note it, or switch it off - one undoable edit. */
   updateNodeDetails: (
     nodeId: Uuid,
@@ -272,6 +279,7 @@ const CLEARED = {
   selection: EMPTY_SELECTION,
   revealNodeId: null,
   editingNodeId: null,
+  problemsRevealed: false,
   clipboard: null,
   history: NO_HISTORY,
   conflict: null,
@@ -505,6 +513,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, policy } : node));
       commit({ ...graph, nodes });
     },
+
+    revealProblems: () => set({ problemsRevealed: true }),
 
     updateNodeDetails: (nodeId, details) => {
       const { graph } = get();

@@ -3791,7 +3791,11 @@
     "stepIsSwitchedOff": "Wyłączony: pomijany, gdy przebieg do niego dotrze",
     "stepHasNote": "Ma notatkę",
     "menuSwitchOff": "Wyłącz",
-    "menuSwitchOn": "Włącz"
+    "menuSwitchOn": "Włącz",
+    "nodeFormMoreOptions": "{count, plural, one {# dodatkowa opcja} few {# dodatkowe opcje} many {# dodatkowych opcji} other {# dodatkowej opcji}}",
+    "nodeFormFewerOptions": "Mniej opcji",
+    "stepAddNote": "+ Dodaj notatkę",
+    "nodeEditorShowPolicy": "Gdy działa wolno lub zawodzi…"
   },
   "artifacts": {
     "title": "Artefakty",

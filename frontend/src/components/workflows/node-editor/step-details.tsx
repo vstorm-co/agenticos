@@ -34,6 +34,7 @@ export function StepDetails({
   const t = useTranslations("workflows");
   const [label, setLabel] = useState(node.label ?? "");
   const [notes, setNotes] = useState(node.notes ?? "");
+  const [noting, setNoting] = useState(false);
   const [seen, setSeen] = useState(node);
   if (node !== seen) {
     setSeen(node);
@@ -77,19 +78,31 @@ export function StepDetails({
           </Label>
         </div>
       )}
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label htmlFor="step-notes">{t("stepNotes")}</Label>
-        <Textarea
-          id="step-notes"
-          value={notes}
-          rows={2}
-          maxLength={2000}
-          placeholder={t("stepNotesPlaceholder")}
-          disabled={disabled}
-          onChange={(event) => setNotes(event.target.value)}
-          onBlur={commitNotes}
-        />
-      </div>
+      {!noting && !node.notes ? (
+        !disabled && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground justify-self-start text-sm sm:col-span-2"
+            onClick={() => setNoting(true)}
+          >
+            {t("stepAddNote")}
+          </button>
+        )
+      ) : (
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="step-notes">{t("stepNotes")}</Label>
+          <Textarea
+            id="step-notes"
+            value={notes}
+            rows={2}
+            maxLength={2000}
+            placeholder={t("stepNotesPlaceholder")}
+            disabled={disabled}
+            onChange={(event) => setNotes(event.target.value)}
+            onBlur={commitNotes}
+          />
+        </div>
+      )}
     </div>
   );
 }

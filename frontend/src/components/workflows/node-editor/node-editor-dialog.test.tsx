@@ -1,8 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DEBUG_ECHO } from "@/components/workflows/validation/fixtures";
+import {
+  DEBUG_ECHO,
+  REQUIRED_INPUT,
+  makeDefinition,
+} from "@/components/workflows/validation/fixtures";
 import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -65,5 +69,38 @@ describe("NodeEditorDialog", () => {
     expect(screen.getByText("This node's type is not in the catalog.")).toBeTruthy();
     // Its problem - a type nobody can publish - is said above everything else.
     expect(screen.getByLabelText(/problem/)).toBeTruthy();
+  });
+});
+
+describe("a step's missing values", () => {
+  const NEEDS = makeDefinition({ id: "test.needs", name: "Needs", input_schema: REQUIRED_INPUT });
+
+  it("says nothing of a value not given yet until a run or a publish is tried", () => {
+    seed(node("a", "test.needs"));
+    store.getState().editNode("a");
+    render(<NodeEditorDialog catalog={[NEEDS]} />);
+    expect(screen.queryByText(/has no value yet/)).toBeNull();
+
+    act(() => store.getState().revealProblems());
+
+    expect(screen.getByText(/has no value yet/)).toBeInTheDocument();
+  });
+});
+
+describe("a step's run policy", () => {
+  it("waits behind a link until asked for, and opens at once on a step that has one", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    const { unmount } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    expect(screen.queryByText("Handle errors")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "When it is slow or fails…" }));
+    expect(screen.getByText("Handle errors")).toBeInTheDocument();
+    unmount();
+
+    seed(node("a"), { ...node("b"), policy: { timeout_seconds: 5 } });
+    store.getState().editNode("b");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    expect(screen.getByText("Handle errors")).toBeInTheDocument();
   });
 });

@@ -77,6 +77,7 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
+  const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -151,7 +152,14 @@ export function PublishDialog({ catalog, publish }: PublishDialogProps) {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Trying to publish is when every missing value is worth saying.
+          if (next) revealProblems();
+          setOpen(next);
+        }}
+      >
         <DialogTrigger asChild>
           <Button size="sm" disabled={isDirty}>
             <UploadCloud className="h-4 w-4" aria-hidden />

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/components/workflows/pickers";
 import { useKnowledgeBases, useMembers } from "@/hooks";
 import { useOrgStore } from "@/stores";
+import { cn } from "@/lib/utils";
 import {
   bindingFieldPath,
   type Binding,
@@ -695,6 +697,7 @@ export function NodeForm({
   removeBinding,
 }: NodeFormProps) {
   const t = useTranslations("workflows");
+  const [allShown, setAllShown] = useState(false);
   const ctx: FieldCtx = {
     node,
     graph,
@@ -740,14 +743,30 @@ export function NodeForm({
     );
   }
 
+  // What a step needs, and what the builder already set, show at once; a setting
+  // that is optional and still at its default waits under "More options". Once
+  // shown, every field stays in its place, so setting one does not move it.
+  const bound = (name: string) =>
+    bindings.some(
+      (binding) =>
+        binding.target_node_id === node.id &&
+        (binding.target_field === name || binding.target_field.startsWith(`${name}.`)),
+    );
+  const configShown = configFields.filter(
+    (entry) =>
+      allShown || entry.required || node.config[entry.name] !== undefined || bound(entry.name),
+  );
+  const inputShown = inputFields.filter((entry) => allShown || entry.required || bound(entry.name));
+  const folded = configFields.length + inputFields.length - configShown.length - inputShown.length;
+
   return (
     <div className="space-y-6">
-      {configFields.length > 0 && (
+      {configShown.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xs font-semibold tracking-wide uppercase">
             {t("nodeFormConfigSection")}
           </h3>
-          {configFields.map((entry) =>
+          {configShown.map((entry) =>
             definition.id === AGENT_RUN && entry.name === STRUCTURED_OUTPUT ? (
               <AnswerFormatForm
                 key={entry.name}
@@ -776,12 +795,12 @@ export function NodeForm({
           )}
         </section>
       )}
-      {inputFields.length > 0 && (
+      {inputShown.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xs font-semibold tracking-wide uppercase">
             {t("nodeFormInputSection")}
           </h3>
-          {inputFields.map((entry) => (
+          {inputShown.map((entry) => (
             <InputNode
               key={entry.name}
               schema={entry.schema}
@@ -793,6 +812,20 @@ export function NodeForm({
             />
           ))}
         </section>
+      )}
+      {(folded > 0 || allShown) && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+          aria-expanded={allShown}
+          onClick={() => setAllShown(!allShown)}
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn("size-4 transition-transform", allShown && "rotate-180")}
+          />
+          {allShown ? t("nodeFormFewerOptions") : t("nodeFormMoreOptions", { count: folded })}
+        </button>
       )}
     </div>
   );

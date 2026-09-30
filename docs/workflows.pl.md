@@ -1,5 +1,5 @@
 ---
-source_sha: "7a0f4dcfd476"
+source_sha: "1b8783482019"
 ---
 
 # Workflows { #workflows }
@@ -216,6 +216,13 @@ działało przed pętlą. Co robi pętla, opisuje
 ## Informacja zwrotna walidacji { #validation-feedback }
 
 Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i licznik w swoich ustawieniach, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **Ready to publish** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
+
+Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już ustawiłeś,
+widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają pod **More
+options**, a **When it is slow or fails** i notatka otwierają się na żądanie albo gdy są
+ustawione. Wymagana wartość, której jeszcze nie podano, nie jest oznaczana przy polu,
+dopóki nie spróbujesz uruchomić ani opublikować: znacznik kroku na kanwie i licznik
+powyżej mówią o niej od początku, a pole od tego momentu.
 
 Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
 przez więcej niż jedno źródło, połączenie, którego porty niosą różne kształty, krok,

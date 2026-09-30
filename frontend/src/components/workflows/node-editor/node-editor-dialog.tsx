@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -51,7 +51,11 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
     [graph, catalogIndex, t],
   );
 
-  const close = () => store.editNode(null);
+  const [policyShown, setPolicyShown] = useState(false);
+  const close = () => {
+    setPolicyShown(false);
+    store.editNode(null);
+  };
   const definition =
     node === null
       ? null
@@ -113,7 +117,14 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
                 graph={graph}
                 catalog={catalogIndex}
                 bindings={graph.bindings}
-                errors={fieldErrors(problems, node.id)}
+                errors={fieldErrors(
+                  // A value not given yet is said once a run or a publish was
+                  // tried; the canvas already marks the step.
+                  store.problemsRevealed
+                    ? problems
+                    : problems.filter((problem) => problem.code !== "input-not-bound"),
+                  node.id,
+                )}
                 disabled={readOnly}
                 updateNodeConfig={store.updateNodeConfig}
                 upsertBinding={store.upsertBinding}
@@ -121,12 +132,24 @@ export function NodeEditorDialog({ catalog, readOnly = false }: NodeEditorDialog
               />
               {node.definition_id !== "loop.item" && !isTrigger(definition) && (
                 <div className="border-border border-t pt-5">
-                  <PolicySection
-                    definition={definition}
-                    node={node}
-                    disabled={readOnly}
-                    updateNodePolicy={store.updateNodePolicy}
-                  />
+                  {/* Retries, a time limit and error routing are for later: shown
+                      once asked for, or once the step has any of them. */}
+                  {policyShown || node.policy ? (
+                    <PolicySection
+                      definition={definition}
+                      node={node}
+                      disabled={readOnly}
+                      updateNodePolicy={store.updateNodePolicy}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground text-sm"
+                      onClick={() => setPolicyShown(true)}
+                    >
+                      {t("nodeEditorShowPolicy")}
+                    </button>
+                  )}
                 </div>
               )}
             </>

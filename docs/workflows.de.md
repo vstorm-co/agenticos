@@ -1,5 +1,5 @@
 ---
-source_sha: "7a0f4dcfd476"
+source_sha: "1b8783482019"
 ---
 
 # Workflows { #workflows }
@@ -245,6 +245,14 @@ lief. Was die Schleife tut, steht in der
 
 Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
 es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und eine Zahl in seinen Einstellungen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **Ready to publish** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
+
+Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was Sie
+bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten
+warten unter **More options**, und **When it is slow or fails** sowie eine Notiz öffnen
+sich auf Wunsch oder sobald sie gesetzt sind. Ein erforderlicher Wert, den Sie noch
+nicht angegeben haben, wird neben seinem Feld erst markiert, wenn Sie ausführen oder
+veröffentlichen wollen: Die Markierung des Schritts auf der Zeichenfläche und die Zahl
+darüber sagen es von Anfang an, das Feld ab dann.
 
 Die Meldungen benennen den konkreten Fehler: ein Pflicht-Input ohne Wert, ein Input,
 den mehr als eine Quelle setzt, eine Verbindung, deren Ports unterschiedliche Formen

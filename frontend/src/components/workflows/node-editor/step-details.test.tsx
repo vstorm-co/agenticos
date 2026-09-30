@@ -39,6 +39,7 @@ describe("StepDetails", () => {
     expect(onChange).toHaveBeenCalledWith("n1", { label: "Tell sales" });
 
     fireEvent.blur(name);
+    fireEvent.click(screen.getByRole("button", { name: "+ Add a note" }));
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: "For the EU team" } });
     fireEvent.blur(screen.getByLabelText("Note"));
     expect(onChange).toHaveBeenLastCalledWith("n1", { notes: "For the EU team" });
@@ -66,6 +67,7 @@ describe("StepDetails", () => {
   it("writes nothing for a field left as it was", () => {
     const { onChange } = renderDetails();
     fireEvent.blur(screen.getByLabelText("Step name"));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add a note" }));
     fireEvent.blur(screen.getByLabelText("Note"));
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -78,5 +80,15 @@ describe("StepDetails", () => {
 
     renderDetails({ canSwitchOff: false });
     expect(screen.queryByRole("switch")).toBeNull();
+  });
+});
+
+describe("StepDetails on a read-only step", () => {
+  it("offers no note to add, and shows one already there", () => {
+    const { unmount } = renderDetails({ disabled: true });
+    expect(screen.queryByRole("button", { name: "+ Add a note" })).toBeNull();
+    unmount();
+    renderDetails({ disabled: true, node: { ...step, notes: "Kept" } });
+    expect(screen.getByLabelText("Note")).toHaveValue("Kept");
   });
 });

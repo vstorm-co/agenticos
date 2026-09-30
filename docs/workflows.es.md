@@ -1,5 +1,5 @@
 ---
-source_sha: "7a0f4dcfd476"
+source_sha: "1b8783482019"
 ---
 
 # Workflows { #workflows }
@@ -226,6 +226,14 @@ cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 ## Retroalimentación de validación { #validation-feedback }
 
 El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y un recuento en sus ajustes, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **Ready to publish** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
+
+Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
+estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores
+predeterminados esperan bajo **More options**, y **When it is slow or fails** y una nota
+se abren cuando los pides o cuando ya están puestos. Un valor obligatorio que aún no has
+dado no se señala junto a su campo hasta que intentas ejecutar o publicar: la marca del
+paso en el lienzo y el recuento de arriba lo dicen desde el principio, y el campo a
+partir de entonces.
 
 Los mensajes nombran el fallo concreto: un input obligatorio sin valor, un input
 puesto por más de una fuente, una conexión cuyos puertos llevan formas distintas, un

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -203,6 +203,8 @@ function renderForm(
     errors?: Map<string, string>;
     definition?: NodeDefinition;
     disabled?: boolean;
+    /** Leave the optional settings folded, as a step first opens. */
+    folded?: boolean;
   } = {},
 ) {
   const def = options.definition ?? definition;
@@ -226,6 +228,9 @@ function renderForm(
       removeBinding={removeBinding}
     />,
   );
+  // Every field these tests read: the optional ones wait under "More options".
+  const more = screen.queryByRole("button", { name: /more option/ });
+  if (!options.folded && more !== null) fireEvent.click(more);
   return { updateNodeConfig, upsertBinding, removeBinding };
 }
 
@@ -585,5 +590,54 @@ describe("input fields", () => {
       target_field: "in_group/g",
       source: { kind: "literal", value: "h" },
     });
+  });
+});
+
+describe("a step's optional settings", () => {
+  const needs = makeDefinition({
+    id: "test.short",
+    name: "Short",
+    config_schema: {
+      type: "object",
+      required: ["message"],
+      properties: {
+        message: { type: "string", title: "Message" },
+        tone: { type: "string", title: "Tone" },
+        signature: { type: "string", title: "Signature" },
+      },
+    },
+    input_schema: {
+      type: "object",
+      properties: { extra: { type: "string", title: "Extra" } },
+    },
+  });
+
+  it("shows what the step needs and what is set, folding the rest under More options", () => {
+    renderForm({ definition: needs, config: { signature: "Ada" }, folded: true });
+
+    expect(screen.getByLabelText(/Message/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Signature/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Tone/)).toBeNull();
+    expect(screen.queryByText("Extra")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "2 more options" }));
+    expect(screen.getByLabelText(/Tone/)).toBeInTheDocument();
+    expect(screen.getByText("Extra")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fewer options" }));
+    expect(screen.queryByLabelText(/Tone/)).toBeNull();
+  });
+
+  it("keeps a bound optional input in view", () => {
+    renderForm({
+      definition: needs,
+      folded: true,
+      bindings: [
+        { target_node_id: "N", target_field: "extra", source: { kind: "literal", value: "x" } },
+      ],
+    });
+
+    expect(screen.getByText("Extra")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2 more options" })).toBeInTheDocument();
   });
 });

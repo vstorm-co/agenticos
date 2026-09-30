@@ -74,6 +74,8 @@ describe("PublishDialog", () => {
     expect(screen.getByText("Fix the problems below before publishing.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Publish version" })).toBeDisabled();
     expect(publish).not.toHaveBeenCalled();
+    // Trying to publish is when a missing value is said beside its field too.
+    expect(useWorkflowEditorStore.getState().problemsRevealed).toBe(true);
   });
 
   it("publishes a valid draft with the note against the current revision", async () => {

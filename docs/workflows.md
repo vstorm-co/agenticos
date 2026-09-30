@@ -218,6 +218,13 @@ anything that ran before the loop. What the loop does is in the
 The editor checks the graph as you edit and shows what is wrong where it is
 wrong. Every step with a problem carries a red mark on the canvas and a count in its settings, and a field with a problem shows its message inline. The status at the canvas's top right reads **Ready to publish**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
 
+A step's settings stay short. What the step needs, and whatever you already set, show
+at once; optional settings still at their defaults wait under **More options**, and
+**When it is slow or fails** and a note open when you ask for them or once they are set.
+A required value you have not given yet is not flagged beside its field until you try
+to run or publish: the step's mark on the canvas and the count above say it from the
+start, and the field says it from then on.
+
 The messages name the specific fault: a required input with no value, an input
 set by more than one source, a connection whose ports carry different shapes, a
 step that cannot be reached from the start, a loop back to an earlier step, a

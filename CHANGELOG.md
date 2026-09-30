@@ -361,6 +361,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow step's settings stay short, and quiet until you act.** Optional
+  settings at their defaults fold under **More options**; the failure policy and the
+  note open on request or once set; a missing required value is flagged beside its
+  field only after a run or publish is tried - the canvas mark still shows it (#1957).
 - **The workflow editor gives the canvas the whole width.** The node palette and
   the properties panel are gone: steps are added from a picker - a quiet **+** at
   the canvas's corner, **Add step** on an empty canvas, the **+** beside an output,

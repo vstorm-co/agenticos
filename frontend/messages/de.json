@@ -5998,7 +5998,11 @@
     "stepIsSwitchedOff": "Ausgeschaltet: wird übersprungen, wenn der Lauf ihn erreicht",
     "stepHasNote": "Hat eine Notiz",
     "menuSwitchOff": "Ausschalten",
-    "menuSwitchOn": "Einschalten"
+    "menuSwitchOn": "Einschalten",
+    "nodeFormMoreOptions": "{count, plural, one {# weitere Option} other {# weitere Optionen}}",
+    "nodeFormFewerOptions": "Weniger Optionen",
+    "stepAddNote": "+ Notiz hinzufügen",
+    "nodeEditorShowPolicy": "Wenn er langsam ist oder fehlschlägt…"
   },
   "artifacts": {
     "title": "Artefakte",

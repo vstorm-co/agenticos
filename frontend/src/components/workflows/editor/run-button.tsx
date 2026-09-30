@@ -33,6 +33,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const tw = useTranslations("workflows");
   const graph = useWorkflowEditorStore((state) => state.graph);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
+  const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
   const { start } = useWorkflowRuns(workflowId);
   const [asking, setAsking] = useState(false);
 
@@ -56,6 +57,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
       },
     );
   const run = () => {
+    revealProblems();
     if (blocked) return;
     if (fields.length > 0) setAsking(true);
     else begin(sampleRunInput(graph));

@@ -91,5 +91,6 @@ describe("RunButton", () => {
     expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
     fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
     expect(mutate).not.toHaveBeenCalled();
+    expect(store.getState().problemsRevealed).toBe(true);
   });
 });
