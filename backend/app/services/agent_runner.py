@@ -3404,7 +3404,10 @@ class AgentRunnerService:
         # Before the run row is written, so a workspace flush that fails cannot
         # leave the run un-finished, and after the run has certainly stopped
         # using it. `close` never raises; it logs.
-        await self.workspaces.close(prepared.workspace)
+        # A parked run keeps its spills: the history it resumes from names them.
+        await self.workspaces.close(
+            prepared.workspace, keep_spills=status is RunStatus.AWAITING_APPROVAL
+        )
 
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
@@ -3926,7 +3929,18 @@ class AgentRunnerService:
             # `CancelledError` is a `BaseException` and not caught: over HTTP it
             # means the request itself went away, so there is nobody to hand a
             # status to, and catching it would break the cancellation it signals.
-            raise RunExecutionError(details={"run_id": str(run.id), "status": run.status}) from exc
+            # The reason too, where the run recorded one: it is our own sentence
+            # (`run_failure_summary`), and without it the chat said the run had
+            # failed and nothing about why - a provider out of credit read the
+            # same as a crash.
+            raise RunExecutionError(
+                message=(
+                    f"{RunExecutionError.message}: {run.error}"
+                    if run.error
+                    else RunExecutionError.message
+                ),
+                details={"run_id": str(run.id), "status": run.status},
+            ) from exc
 
     async def _decisions(
         self, ctx: AuthContext, *, run: AgentRun, state: PausedRunState

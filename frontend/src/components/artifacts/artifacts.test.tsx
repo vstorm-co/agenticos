@@ -322,14 +322,33 @@ describe("the version picker", () => {
     const { rerender } = render(
       <VersionPicker versions={[version(2), version(1)]} value={null} onChange={onChange} />,
     );
-    await userEvent.click(screen.getByRole("combobox", { name: "Version" }));
-    await userEvent.click(screen.getByRole("option", { name: /Version 1/ }));
+    expect(screen.getByRole("button", { name: "Version" })).toHaveTextContent("v2Latest");
+    await userEvent.click(screen.getByRole("button", { name: "Version" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /^v1/ }));
     expect(onChange).toHaveBeenLastCalledWith("v1");
 
     rerender(<VersionPicker versions={[version(2), version(1)]} value="v1" onChange={onChange} />);
-    await userEvent.click(screen.getByRole("combobox", { name: "Version" }));
-    await userEvent.click(screen.getByRole("option", { name: "Latest version" }));
+    expect(screen.getByRole("button", { name: "Version" })).toHaveTextContent("v1");
+    await userEvent.click(screen.getByRole("button", { name: "Version" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Latest version/ }));
     expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("says which version is current and how large the others are", async () => {
+    render(<VersionPicker versions={[version(2), version(1)]} value={null} onChange={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Version" }));
+
+    expect(screen.getByRole("menuitemradio", { name: /^v2/ })).toHaveTextContent("Current");
+    expect(screen.getByRole("menuitemradio", { name: /^v1/ })).toHaveTextContent(
+      /\d+(\.\d+)? (B|KB)/,
+    );
+  });
+
+  it("names nothing on the button for a pinned version that was pruned", () => {
+    render(<VersionPicker versions={[version(2), version(1)]} value="gone" onChange={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Version" })).not.toHaveTextContent(/v\d/);
   });
 });
 

@@ -93,12 +93,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         onShare={() => setSharing(true)}
         onDelete={() => setConfirming(true)}
       >
-        <VersionPicker
-          versions={versions}
-          value={versionId}
-          onChange={setVersionId}
-          className="w-32 sm:w-56"
-        />
+        <VersionPicker versions={versions} value={versionId} onChange={setVersionId} />
         {artifact.can_edit && versionId !== null && versionId !== artifact.current_version?.id && (
           <Button
             size="sm"

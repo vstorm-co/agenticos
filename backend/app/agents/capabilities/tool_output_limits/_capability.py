@@ -42,6 +42,7 @@ run degrades to a cheaper one rather than to a silent drop.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -60,7 +61,9 @@ from pydantic_ai_harness.tool_output_limits import (
     ToolOutputLimits,
     Truncate,
     TruncationStrategy,
+    indented_json,
 )
+from pydantic_core import to_json
 
 from app.agents.capabilities._tool_text import ToolText
 from app.agents.capabilities.budget import (
@@ -281,6 +284,30 @@ def build_limits(
         store=_build_store(backend, spill_log),
         strip_ansi=config.strip_ansi,
         summary_prompt=config.summary_prompt,
+        serializer=readable_return,
+    )
+
+
+def readable_return(value: object) -> str:
+    """A structured return as text that pages by line once it is spilled.
+
+    `read_tool_result` slices by line, and compact JSON is one line - so a page
+    an MCP server returned as `{"title": ..., "text": "..."}` read back as "1
+    matching line, output capped" whatever offset the model asked for, and it
+    went looking for the file with a shell instead. A text field is the part
+    worth paging, so a mapping holding one is written out with that text as it
+    is, one field after another; anything else is indented JSON, one field per
+    line, which is the harness's own preset.
+    """
+    if not isinstance(value, Mapping) or not any(
+        isinstance(field, str) and "\n" in field for field in value.values()
+    ):
+        return indented_json(value)
+    return "\n".join(
+        f"{key}:\n{field}"
+        if isinstance(field, str) and "\n" in field
+        else f"{key}: {to_json(field, fallback=repr).decode()}"
+        for key, field in value.items()
     )
 
 

@@ -56,6 +56,13 @@ Per profile, and overridable per agent through the spec's `model_settings`:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. See
 [the spec reference](reference/spec.md#model-settings).
 
+**Prompt caching is on by default** for Anthropic and OpenRouter profiles. Every
+request of a run re-sends the instructions, the tool schemas and the whole
+history, so each request marks the instructions, the tools and its last message
+as cache breakpoints and reads the one before it from cache. A profile turns any
+of them off by setting it to `false` - `anthropic_cache_messages`,
+`openrouter_cache_instructions` and so on.
+
 Reasoning effort is **not** here. It is the
 [`thinking` capability](reference/capabilities.md#thinking), because "reason
 harder" is a decision about what the agent is *for* rather than a knob on a
@@ -343,6 +350,10 @@ home for them, which means two things worth knowing:
 - A model too new for the snapshot is **unpriced**, and a run containing one is
   recorded as *partially priced* rather than as costing nothing. A budget that
   silently treated an unknown model as free would be a budget with a hole in it.
+- An aggregator's `vendor/model` the snapshot does not list is priced as the
+  vendor's own model, with a dotted version also tried with dashes:
+  OpenRouter's `anthropic/claude-sonnet-5.5` costs what Anthropic's
+  `claude-sonnet-5-5` does.
 - Updating prices is a dependency bump.
 
 !!! warning "A keyless provider records no spend"

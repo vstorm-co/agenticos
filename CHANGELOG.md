@@ -36,6 +36,36 @@ Two things are versioned separately from this file and worth knowing about:
   15,000. A truncation left unset never keeps more than the threshold, so a
   binding that lowers only the threshold still shortens what crosses it. An
   agent that set its own values keeps them.
+- **Prompt caching is on by default for Anthropic and OpenRouter.** Each
+  request marks the instructions, the tool schemas and its last message as
+  cache breakpoints, so a long conversation reads its history from cache
+  instead of paying for it again on every request. A profile can switch any of
+  them off.
+- **Files open on their preview.** The file viewer and the workspace browser
+  open a page, a Markdown file or a table rendered; the source is one tab away,
+  and viewing one file's source no longer opens the next as source too.
+
+### Fixed
+
+- **A run resumed after an approval can read its own spilled tool results.**
+  Parking closed the workspace and deleted the spills its history named, so the
+  resumed run was handed handles to files that no longer existed.
+- **A spilled page pages by line.** A structured result such as a Notion page
+  was spilled as one line of JSON, so `read_tool_result` answered "1 matching
+  line" at every offset; its text field is now written out as text.
+- **Runs through OpenRouter are priced.** `anthropic/claude-sonnet-5.5` was not
+  in the price snapshot, so its requests were booked at $0 and no budget could
+  stop a run; an unlisted aggregator model is now priced as the vendor's own.
+- **An MCP tool error no longer ends the run.** The server's refusal reaches
+  the model as the call's result instead of spending the tool's only retry,
+  which ended the run with `UnexpectedModelBehavior` on the second refusal.
+- **Failures say what to do.** A provider out of credit (HTTP 402) and a run at
+  its step limit get their own advice instead of "retry it", and a run that
+  fails while resuming after an approval says why in the chat.
+- **The account menu's theme and language lists open.** The submenus were cut
+  off at the edge of the menu.
+- **A workspace no longer shows an empty `skills` folder.** The platform's
+  skill files were hidden and their folder was not.
 
 ## [0.0.515] - 2026-09-30
 

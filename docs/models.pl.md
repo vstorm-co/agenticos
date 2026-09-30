@@ -1,5 +1,5 @@
 ---
-source_sha: "d4f249f20433"
+source_sha: "9db676be5f54"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -61,6 +61,13 @@ skonfigurowanego drugiego providera.
 Per profil, nadpisywalne per agent przez `model_settings` w specu:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Zobacz
 [referencję speca](reference/spec.md#model-settings).
+
+**Cache'owanie promptu jest domyślnie włączone** dla profili Anthropic i
+OpenRouter. Każde żądanie runu wysyła ponownie instrukcje, schematy narzędzi i całą
+historię, więc każde żądanie oznacza instrukcje, narzędzia i swoją ostatnią
+wiadomość jako punkty cache i czyta poprzednie żądanie z cache. Profil wyłącza
+dowolny z nich, ustawiając go na `false` - `anthropic_cache_messages`,
+`openrouter_cache_instructions` i tak dalej.
 
 Nakładu rozumowania **nie** ma tutaj. Jest nim
 [capability `thinking`](reference/capabilities.md#thinking), bo „myśl mocniej” to
@@ -358,6 +365,10 @@ do domu, co oznacza dwie rzeczy warte wiedzenia:
 - Model zbyt nowy dla migawki jest **niewyceniony**, a run, który go zawiera,
   zapisywany jest jako *częściowo wyceniony*, a nie jako kosztujący zero. Budżet,
   który po cichu traktowałby nieznany model jako darmowy, byłby budżetem z dziurą.
+- `vendor/model` agregatora, którego migawka nie zna, jest wyceniany jak własny
+  model dostawcy, a wersja z kropką jest sprawdzana także z myślnikami:
+  `anthropic/claude-sonnet-5.5` z OpenRouter kosztuje tyle, co `claude-sonnet-5-5`
+  z Anthropic.
 - Aktualizacja cen to podbicie zależności.
 
 !!! warning "Provider bez klucza nie zapisuje żadnego wydatku"

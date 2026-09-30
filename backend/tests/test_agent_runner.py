@@ -1573,6 +1573,26 @@ class TestWhatAFailedRunIsAllowedToSay:
             "model profile if it keeps failing. The server log has the full error."
         )
 
+    def test_a_run_at_its_step_limit_is_told_where_the_limit_is(self):
+        from pydantic_ai.exceptions import UsageLimitExceeded
+
+        summary = run_failure_summary(UsageLimitExceeded("The next request would exceed 50"))
+
+        assert "max_steps" in summary
+        assert "retry it" not in summary
+
+    def test_a_provider_out_of_credit_is_not_told_to_retry(self):
+        """A 402 is refused again until somebody adds credit; the body, which
+        names the account, stays in the log."""
+        summary = run_failure_summary(
+            ModelHTTPError(402, "anthropic/claude-sonnet-5.5", body={"user_id": "org_31x"})
+        )
+
+        assert "HTTP 402" in summary
+        assert "Add credit to the provider account" in summary
+        assert "retry it" not in summary
+        assert "org_31x" not in summary
+
     def test_a_provider_status_survives_because_it_is_what_a_person_acts_on(self):
         """404 is a model the profile names and the provider does not have, 401 a
         credential, 429 a rate limit - all four are `ModelHTTPError`, so a bare
@@ -2143,6 +2163,29 @@ class TestParking:
             await service.execute(_ctx(), uuid.uuid4(), "email the customer")
 
         assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("status", "kept"),
+        [(RunStatus.AWAITING_APPROVAL, True), (RunStatus.COMPLETED, False)],
+    )
+    async def test_only_a_parked_run_keeps_its_spills(self, status: RunStatus, kept: bool):
+        """The history a parked run resumes from names its spilled returns, so
+        they stay for it; a run that ended has nobody left to read them."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+
+        with (
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.workspaces, "close", new=AsyncMock()) as close,
+        ):
+            await service.finish(
+                prepared,
+                status=status,
+                paused_state=PausedRunState(messages=[], tool_call_ids={}) if kept else None,
+            )
+
+        close.assert_awaited_once_with(prepared.workspace, keep_spills=kept)
 
     @pytest.mark.anyio
     async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
@@ -3081,6 +3124,7 @@ class TestResume:
         # makes `run.status` the recorded truth by the time `resume` reads it.
         async def record_terminal_status(*args: Any, **kwargs: Any) -> Any:
             run.status = kwargs["status"]
+            run.error = kwargs["error"]
             return run
 
         with (
@@ -3113,6 +3157,12 @@ class TestResume:
         # The run was recorded terminal, and the caller is told which status.
         assert run.status == RunStatus.FAILED.value
         assert raised.value.details == {"run_id": str(run.id), "status": RunStatus.FAILED.value}
+        # And why, in the sentence the run recorded - never the exception's own text.
+        assert raised.value.message == (
+            "The run failed while continuing after approval: The run did not finish "
+            "(RuntimeError) - retry it, and check the agent's model profile if it keeps "
+            "failing. The server log has the full error."
+        )
         # The failure is conveyed, not hidden: the original exception is chained.
         assert raised.value.__cause__ is blew_up
 

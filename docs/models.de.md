@@ -1,5 +1,5 @@
 ---
-source_sha: "d4f249f20433"
+source_sha: "9db676be5f54"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -65,6 +65,13 @@ wenn sie einen zweiten Key oder einen zweiten Provider konfiguriert hat.
 Pro Profile, und pro Agent über die `model_settings` des Specs überschreibbar:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Siehe
 [die Spec-Referenz](reference/spec.md#model-settings).
+
+**Prompt-Caching ist standardmäßig an** für Anthropic- und OpenRouter-Profile.
+Jeder Request eines Runs schickt die Anweisungen, die Tool-Schemas und den ganzen
+Verlauf erneut, also markiert jeder Request die Anweisungen, die Tools und seine
+letzte Nachricht als Cache-Breakpoints und liest den vorigen Request aus dem Cache.
+Ein Profile schaltet jeden davon ab, indem es ihn auf `false` setzt -
+`anthropic_cache_messages`, `openrouter_cache_instructions` und so weiter.
 
 Der Reasoning-Aufwand steht **nicht** hier. Er ist die
 [`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
@@ -375,6 +382,10 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
   der eines enthält, wird als *teilweise bepreist* erfasst und nicht als
   kostenlos. Ein Budget, das ein unbekanntes Modell stillschweigend als gratis
   behandelte, wäre ein Budget mit einem Loch darin.
+- Ein `vendor/model` eines Aggregators, das der Snapshot nicht kennt, wird wie das
+  eigene Modell des Anbieters bepreist, eine Version mit Punkt wird auch mit
+  Bindestrichen versucht: OpenRouters `anthropic/claude-sonnet-5.5` kostet, was
+  Anthropics `claude-sonnet-5-5` kostet.
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
 !!! warning "Ein Provider ohne Key erfasst keine Ausgaben"

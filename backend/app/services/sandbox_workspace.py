@@ -153,12 +153,18 @@ written to. A listing of what an agent is keeping is not the place either belong
 
 
 def browsable(entries: list[FileInfo]) -> list[FileInfo]:
-    """The entries a person is shown, without what the platform put there itself."""
-    return [
-        entry
-        for entry in entries
-        if not str(entry.get("path", "")).lstrip("/").startswith(NOT_BROWSABLE)
-    ]
+    """The entries a person is shown, without what the platform put there itself.
+
+    The directories too, not only what is in them: a container lists `skills`
+    itself beside its files, and with the files dropped it read as an empty
+    folder the agent had made for nothing.
+    """
+
+    def platform_owned(path: str) -> bool:
+        relative = path.lstrip("/").rstrip("/")
+        return f"{relative}/".startswith(NOT_BROWSABLE)
+
+    return [entry for entry in entries if not platform_owned(str(entry.get("path", "")))]
 
 
 @dataclass(frozen=True)
@@ -576,26 +582,36 @@ class SandboxWorkspaceService:
             connection_id=connection_id,
         )
 
-    async def close(self, workspace: OpenWorkspace | None) -> None:
+    async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
         """Persist or release what the run was using.
 
         Never raises. This is called from the same `finally` that records the
         run's cost, and an exception here would replace whatever actually
         happened to the run with a storage error.
+
+        Args:
+            keep_spills: Leave this run's spilled tool returns where they are -
+                for a run parked on an approval, whose history still names them.
+                Deleted at the park, the resumed run was handed handles to files
+                that no longer existed, and a shell sent to read one found no
+                directory. The run that resumes it spills into the same
+                workspace, and the next close that is not a park strips a
+                `state` workspace of all of them; on a container they stay until
+                the session is reaped.
         """
         if workspace is None:
             return
         try:
             if workspace.kind == "state":
-                await self._flush_state(workspace)
+                await self._flush_state(workspace, keep_spills=keep_spills)
             elif workspace.scope == "run":
                 await self._release(workspace)
-            else:
+            elif not keep_spills:
                 await self._prune_spills(workspace)
         except Exception:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
 
-    async def _flush_state(self, workspace: OpenWorkspace) -> None:
+    async def _flush_state(self, workspace: OpenWorkspace, *, keep_spills: bool) -> None:
         # `populate_existing`, so this is a read of what is *committed* rather than
         # of what this session loaded at `open`. Without it the identity map answers
         # with the row as it was, and a flush by another run - another person under
@@ -611,7 +627,8 @@ class SandboxWorkspaceService:
             # belonged to it, so there is nothing to keep.
             return
         self._warn_if_overtaken(workspace, row)
-        files = _without_legacy_skills(_without_spills(workspace.backend.files))
+        kept = workspace.backend.files if keep_spills else _without_spills(workspace.backend.files)
+        files = _without_legacy_skills(kept)
         await workspace_repo.save_files(
             self.db, workspace=row, files=files, bytes_total=document_size(files)
         )

@@ -61,7 +61,7 @@ from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, Re
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
-from app.agents.model_resolver import ModelRequestSpec
+from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
@@ -349,14 +349,21 @@ def build_agent(
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
-    # specific statement of intent.
+    # specific statement of intent. Under both, the provider's prompt caching,
+    # which a profile can still turn off by setting it false.
     #
     # A setting the author never chose is absent from the dump rather than
     # present as `None`, which is what keeps this merge honest in both
     # directions: it cannot blank out a value the model profile set, and it
     # cannot send `temperature: null` to a reasoning model, which rejects the
     # parameter however it is spelled. See `ModelSettingsSpec`.
-    model_settings = ModelSettings(**{**model_spec.params, **spec.model_settings.model_dump()})
+    model_settings = ModelSettings(
+        **{
+            **PROMPT_CACHE_DEFAULTS.get(model_spec.provider, {}),
+            **model_spec.params,
+            **spec.model_settings.model_dump(),
+        }
+    )
 
     # Wrapped, so what the provider is handed is written down as it is handed
     # over. Reconstructing the prompt and the tool schemas from the spec

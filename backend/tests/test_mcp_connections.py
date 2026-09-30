@@ -280,6 +280,15 @@ class TestMakeToolset:
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
 
+    def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
+        """A retry spends the tool's single attempt, and the error after it ends
+        the run with `UnexpectedModelBehavior` - how most failed runs ended: a
+        Notion query the server refused twice. `failed` hands the model the
+        refusal as the call's result instead."""
+        spec = McpServerSpec(name="notion", url="https://example.com/mcp")
+
+        assert _make_toolset(spec).wrapped.tool_error_behavior == "failed"
+
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
 

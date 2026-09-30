@@ -7,6 +7,7 @@ it never carries a secret.
 """
 
 import uuid
+from dataclasses import replace
 from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
@@ -272,6 +273,37 @@ class TestFactory:
         assert settings is not None
         assert settings["temperature"] == 0.9
         assert settings["max_tokens"] == 100
+
+    @pytest.mark.parametrize(
+        ("provider", "setting"),
+        [("anthropic", "anthropic_cache_messages"), ("openrouter", "openrouter_cache_messages")],
+    )
+    def test_a_provider_that_caches_prompts_is_asked_to_by_default(
+        self, provider: str, setting: str
+    ):
+        """A long history re-sent uncached on every request is what drained an
+        OpenRouter account mid-run; a profile can still switch it off."""
+        on = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec(), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+        off = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec({setting: False}), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert on.agent.model_settings is not None
+        assert on.agent.model_settings.get(setting) is True
+        assert off.agent.model_settings is not None
+        assert off.agent.model_settings.get(setting) is False
+
+    def test_a_provider_without_prompt_caching_is_sent_none_of_it(self):
+        built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
+
+        assert built.agent.model_settings is not None
+        assert not [key for key in built.agent.model_settings if "cache" in key]
 
     def test_ungranted_scope_stops_the_build(self):
         spec = AgentSpec(name="x", capabilities=[{"id": "knowledge"}])

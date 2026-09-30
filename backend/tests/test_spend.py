@@ -107,6 +107,22 @@ class TestPricing:
     def test_an_unknown_model_has_no_price(self):
         assert price_request(_usage(input_tokens=1000), "some-experimental-model", "openai") is None
 
+    def test_an_aggregator_spelling_the_snapshot_lacks_is_priced_as_its_vendor(self):
+        """OpenRouter's `anthropic/claude-sonnet-5.5` was not in the snapshot, so
+        every request through it was booked at $0 and no budget could stop the
+        run; the vendor's own entry spells the version with a dash."""
+        through_openrouter = price_request(
+            _usage(input_tokens=MILLION), "anthropic/claude-sonnet-5.5", "openrouter"
+        )
+
+        assert through_openrouter is not None
+        assert through_openrouter == price_request(
+            _usage(input_tokens=MILLION), "claude-sonnet-5-5", "anthropic"
+        )
+
+    def test_a_vendor_that_does_not_list_the_model_leaves_it_unpriced(self):
+        assert price_request(_usage(input_tokens=1000), "acme/unknown-9.9", "openrouter") is None
+
     def test_counts_the_package_refuses_are_reported_as_unpriced_not_raised(self):
         """More cached tokens than input tokens is a provider bug, not ours -
         and it must not kill the run the guard is metering."""

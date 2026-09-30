@@ -276,6 +276,31 @@ def _google_cloud_provider(secret: GcpServiceAccountSecret) -> Provider[Any]:
     )
 
 
+PROMPT_CACHE_DEFAULTS: dict[str, dict[str, bool]] = {
+    "anthropic": {
+        "anthropic_cache_instructions": True,
+        "anthropic_cache_tool_definitions": True,
+        "anthropic_cache_messages": True,
+    },
+    "openrouter": {
+        "openrouter_cache_instructions": True,
+        "openrouter_cache_tool_definitions": True,
+        "openrouter_cache_messages": True,
+    },
+}
+"""Prompt caching every request to these providers asks for unless its profile says not.
+
+An agent re-sends its instructions, its tool schemas and its whole history on
+every request of a run, and on these two nothing was cached unless a profile
+named the settings by hand: a long conversation through OpenRouter sent 300,000
+tokens per request with no cache reads, and the account's in-flight credit ran
+out mid-run. The breakpoints are the stable prefix - instructions, tools - and
+the last message, so each request reads the one before it from cache. OpenRouter
+drops the markers for a downstream model that cannot cache explicitly, and the
+settings are prefixed per provider, so a fallback on another provider ignores
+them."""
+
+
 def build_model(credential: ResolvedCredential, model: str) -> Model:
     """Build a provider client for one model.
 

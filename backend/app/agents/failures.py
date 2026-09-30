@@ -6,7 +6,7 @@ there, from the handle the subagents library settles. It lives here so both
 layers write the same sentence for the same failure (#699).
 """
 
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
 from app.core.exceptions import AppException
 
@@ -39,7 +39,8 @@ def run_failure_summary(exc: BaseException) -> str:
     the failures a person can act on themselves actionable - 401 a credential,
     404 a model the profile names and the provider does not have, 429 a rate
     limit, 400 a request the model refused - where a bare class name would make
-    all four `ModelHTTPError`. An `int` has never carried a URL.
+    all four `ModelHTTPError`. An `int` has never carried a URL. A 402 has a
+    sentence of its own, because the generic advice to retry is wrong for it.
 
     A group is unwrapped to its first leaf first, the same unwrapping
     `failure_summary` and `probe_error_message` do. MCP toolsets and delegated
@@ -53,7 +54,22 @@ def run_failure_summary(exc: BaseException) -> str:
     if isinstance(cause, AppException):
         return str(cause)
     diagnosis = type(cause).__name__
+    if isinstance(cause, UsageLimitExceeded):
+        # Not a fault to retry: the same task stops at the same limit again.
+        return (
+            "The run stopped at its step limit (UsageLimitExceeded). Raise `max_steps` "
+            "in the agent's spec, or split the task into smaller requests."
+        )
     if isinstance(cause, ModelHTTPError):
+        if cause.status_code == 402:
+            # "Retry it" is the wrong advice here: the account behind the model
+            # profile cannot pay for the request, and a retry of the same
+            # request is refused the same way until somebody adds credit.
+            return (
+                "The model provider refused the request for want of credit (HTTP 402). "
+                "Add credit to the provider account behind the agent's model profile, "
+                "or start a new conversation so each request carries less history."
+            )
         diagnosis = f"{diagnosis}, HTTP {cause.status_code}"
     return (
         f"The run did not finish ({diagnosis}) - retry it, and check the agent's model "

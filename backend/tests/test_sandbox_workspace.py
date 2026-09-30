@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic_ai_backends import StateBackend
+from pydantic_ai_backends import FileInfo, StateBackend
 
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as get_capability
@@ -43,6 +43,7 @@ from app.services.sandbox_connection import ResolvedConnection, SandboxConnectio
 from app.services.sandbox_workspace import (
     SandboxWorkspaceService,
     WorkspaceContents,
+    browsable,
     sandbox_config,
 )
 
@@ -594,6 +595,29 @@ class TestOpeningAndClosing:
         assert not [
             path for path in persisted if path.lstrip("/").startswith(f"{OVERFLOW_PREFIX}/")
         ]
+
+    async def test_a_parked_run_keeps_its_spills_for_the_run_that_resumes_it(
+        self, monkeypatch, mock_db_session
+    ):
+        """A run parked on an approval resumes from a history that names its
+        spills; stripped at the park, the resumed run read handles to nothing."""
+        row = _row()
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(workspace_repo, "create", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="user"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        handle = await BackendOverflowStore(workspace.backend).write("run-1/call-1.0", b"y" * 50)
+
+        await service.close(workspace, keep_spills=True)
+
+        assert handle in saved.await_args.kwargs["files"]
 
     async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
         self, monkeypatch, mock_db_session, caplog
@@ -2086,6 +2110,36 @@ class TestContainerBackedWorkspaces:
         assert command.index("/workspace/tool_output/run-1 ") < command.index(
             "/workspace/tool_output "
         )
+
+    async def test_a_parked_run_leaves_its_spills_on_the_container(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        commands: list[str] = []
+
+        class _Sandbox:
+            def __init__(self, url, **kwargs):
+                pass
+
+            def execute(self, command, timeout=None):
+                commands.append(command)
+                return SimpleNamespace(exit_code=0, output="")
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", _Sandbox)
+        _serve(monkeypatch, _resolved())
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+        assert workspace is not None
+        workspace.spills.append("/workspace/tool_output/run-1/call-1.0")
+        await service.close(workspace, keep_spills=True)
+
+        assert commands == []
 
     async def test_a_path_outside_the_reserved_prefix_is_never_deleted(
         self, monkeypatch, mock_db_session
@@ -3854,6 +3908,18 @@ class TestWhatTheBrowserDoesNotShow:
         assert found is not None
         _, contents = found
         assert [str(entry.get("path")) for entry in contents.entries] == ["/report.csv"]
+
+    @pytest.mark.parametrize("spelled", ["skills", "/workspace/skills", "tool_output", "skills/"])
+    def test_the_folder_itself_is_left_out_not_only_what_is_in_it(self, spelled: str):
+        """A container lists the directory beside its files; with the files gone
+        it read as an empty `skills` folder the agent had made for nothing."""
+        entries: list[FileInfo] = [
+            {"name": "skills", "path": spelled, "is_dir": True},
+            {"name": "skillset.md", "path": "/skillset.md", "is_dir": False},
+            {"name": "w", "path": "/workspace/w", "is_dir": True},
+        ]
+
+        assert [entry["path"] for entry in browsable(entries)] == ["/skillset.md", "/workspace/w"]
 
     async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo

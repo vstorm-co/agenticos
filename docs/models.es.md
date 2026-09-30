@@ -1,5 +1,5 @@
 ---
-source_sha: "d4f249f20433"
+source_sha: "9db676be5f54"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -61,6 +61,13 @@ segunda clave o un segundo provider configurados.
 Por perfil, y sobrescribibles por agent a través de `model_settings` del spec:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Ver
 [la referencia del spec](reference/spec.md#model-settings).
+
+**El caché de prompts está activado por defecto** en los perfiles de Anthropic y
+OpenRouter. Cada petición de un run vuelve a enviar las instrucciones, los esquemas
+de herramientas y todo el historial, así que cada petición marca las instrucciones,
+las herramientas y su último mensaje como puntos de caché y lee la anterior desde
+la caché. Un perfil desactiva cualquiera de ellos poniéndolo a `false` -
+`anthropic_cache_messages`, `openrouter_cache_instructions`, etcétera.
 
 El esfuerzo de razonamiento **no** está aquí. Es
 [la capability `thinking`](reference/capabilities.md#thinking), porque «razona
@@ -370,6 +377,10 @@ conviene saber:
   contenga uno se registra como *parcialmente tarifado* y no como si no costara
   nada. Un budget que tratara en silencio un modelo desconocido como gratis sería
   un budget con un agujero.
+- Un `vendor/model` de un agregador que el snapshot no conoce se tarifa como el
+  modelo propio del proveedor, y una versión con punto se prueba también con
+  guiones: el `anthropic/claude-sonnet-5.5` de OpenRouter cuesta lo que el
+  `claude-sonnet-5-5` de Anthropic.
 - Actualizar los precios es subir una dependencia.
 
 !!! warning "Un provider sin clave no registra gasto"

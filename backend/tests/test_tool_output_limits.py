@@ -42,7 +42,11 @@ from app.agents.capabilities.tool_output_limits import (
     ToolOutputLimitsConfig,
     build_limits,
 )
-from app.agents.capabilities.tool_output_limits._capability import _action, _build_store
+from app.agents.capabilities.tool_output_limits._capability import (
+    _action,
+    _build_store,
+    readable_return,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -257,6 +261,36 @@ class TestReduction:
     def test_a_truncation_the_binding_names_is_kept(self):
         config = ToolOutputLimitsConfig(threshold=10_000, max_chars=15_000, over_tokens=True)
         assert (config.threshold, config.max_chars) == (10_000, 15_000)
+
+    async def test_a_spilled_page_pages_by_line_not_as_one_json_line(self):
+        """An MCP page arrives as `{"title": ..., "text": "..."}`. Spilled as
+        compact JSON it was one line, and every `read_tool_result` answered "1
+        matching line, output capped"; its text is now what is paged."""
+        limits = build_limits(ToolOutputLimitsConfig(threshold=500), backend=StateBackend())
+        page = {
+            "metadata": {"type": "block"},
+            "title": "VstormPedia",
+            "text": "\n".join(f"line {n}" for n in range(200)),
+        }
+        out = await limits.after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result=page
+        )
+        assert isinstance(out, ToolReturn)
+        stored = (await limits.store.read(out.metadata["overflow_handle"])).decode()
+        lines = stored.splitlines()
+        assert lines[:4] == [
+            'metadata: {"type":"block"}',
+            'title: "VstormPedia"',
+            "text:",
+            "line 0",
+        ]
+        assert lines[-1] == "line 199"
+
+    def test_a_return_with_no_text_to_page_is_indented_json(self):
+        assert readable_return({"rows": [1, 2], "title": "t"}) == (
+            '{\n  "rows": [\n    1,\n    2\n  ],\n  "title": "t"\n}'
+        )
+        assert readable_return([{"a": 1}]) == '[\n  {\n    "a": 1\n  }\n]'
 
     async def test_an_oversized_return_is_spilled_and_reads_back_in_full(self):
         limits = build_limits(
