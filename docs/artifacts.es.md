@@ -1,5 +1,5 @@
 ---
-source_sha: "17ac3da4c7bb"
+source_sha: "8c8da72b2c36"
 ---
 
 # Artefactos { #artifacts }
@@ -130,7 +130,10 @@ contenido a otro origen:
 |---|---|
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, como `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, como `window.d3` |
-| `lib/agenticos-1.css` | El aspecto de la consola para páginas, claro y oscuro, con clases `ao-` |
+| `lib/lucide-1.46.0.min.js` | Iconos de Lucide 1.46.0, como `window.lucide` - el mismo conjunto que usa la consola |
+| `lib/agenticos-2.css` | El aspecto de la consola para páginas, claro y oscuro, y los componentes `ao-` con los que se construye una página |
+| `lib/agenticos-2.js` | `window.AO`: Chart.js con el estilo de la consola, formato de números en el idioma de la página, iconos, pestañas |
+| `lib/agenticos-1.css` | La primera versión del aspecto, conservada para las páginas publicadas con ella |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
@@ -139,7 +142,8 @@ acceso a internet funciona igual. Los archivos están en
 `backend/app/core/catalog/artifact_lib/`.
 
 El [skill](skills.md) incluido **`artifact-pages`** enseña a un agent a usarlos: dos
-plantillas (un dashboard y un informe), el estilo de la casa y cómo cambiar una
+plantillas (un dashboard y un informe), el estilo de la casa con sus componentes,
+iconos en lugar de emoji y cómo cambiar una
 página con `read_artifact`. Una organización nueva lo recibe con los demás skills
 incluidos, una existente con `seed-skills`, y la pestaña **Page style** de la
 capability Artifacts en el Builder lo ofrece. Edita el skill para describir tu

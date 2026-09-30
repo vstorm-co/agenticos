@@ -115,7 +115,10 @@ keeps working if the deployment later moves its content to another origin:
 |---|---|
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, as `window.d3` |
-| `lib/agenticos-1.css` | The console's look for pages, light and dark, with `ao-` classes |
+| `lib/lucide-1.46.0.min.js` | Lucide 1.46.0 icons, as `window.lucide` - the console's own icon set |
+| `lib/agenticos-2.css` | The console's look for pages, light and dark, and the `ao-` components a page is built from |
+| `lib/agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting in the page's language, icons, tabs |
+| `lib/agenticos-1.css` | The first version of the look, kept for the pages published against it |
 
 Every name carries its version and is cached for a year. An upgrade adds a new
 file beside the old one, so a page published against a version keeps getting it.
@@ -123,7 +126,8 @@ Nothing is fetched from outside the deployment, so an air-gapped one works the
 same way. The files are listed in `backend/app/core/catalog/artifact_lib/`.
 
 The bundled **`artifact-pages`** [skill](skills.md) teaches an agent to use them: two
-templates (a dashboard and a report), the house style, and how to change a page
+templates (a dashboard and a report), the house style and its components, icons
+instead of emoji, and how to change a page
 with `read_artifact`. A new organization gets it with the other bundled skills, an
 existing one through `seed-skills`, and the Artifacts capability's **Page style**
 tab in the Builder offers it. Edit the skill to describe your own brand, and the

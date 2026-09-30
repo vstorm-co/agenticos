@@ -134,6 +134,16 @@ status = "accepted"
 obligations = "Keep the copyright notice and the permission notice with the copies."
 fulfilled_by = "The file is copied byte for byte and keeps its own header naming d3 and its copyright; backend/app/core/catalog/artifact_lib/README.md carries the full ISC text, and NOTICE names it. Copied for the same reason as Chart.js (#1971)."
 
+[[component]]
+name = "Lucide, vendored into backend/app/core/catalog/artifact_lib/"
+version = "1.46.0 (dist/umd/lucide.min.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts"
+license = "ISC AND MIT"
+source = "https://github.com/lucide-icons/lucide"
+status = "accepted"
+obligations = "Keep the copyright notices and the permission notices with the copies: ISC for Lucide, MIT for the icons it derives from Feather."
+fulfilled_by = "The file is copied byte for byte and keeps its own header naming Lucide and the ISC licence; backend/app/core/catalog/artifact_lib/README.md carries the ISC text and the Feather MIT text with both copyright lines, and NOTICE names it. The same version the console draws its icons from (lucide-react), so a page's icons match the product's. Copied for the same reason as Chart.js."
+
 # Images a deployment runs beside the two published ones. These are pulled by the
 # operator's compose file and are not redistributed by this project, so what the
 # review owes is the licence a deployment is agreeing to when it starts them.

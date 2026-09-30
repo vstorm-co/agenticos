@@ -1,5 +1,5 @@
 ---
-source_sha: "17ac3da4c7bb"
+source_sha: "8c8da72b2c36"
 ---
 
 # Artefakte { #artifacts }
@@ -136,7 +136,10 @@ später auf einen anderen Origin verlegt:
 |---|---|
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, als `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, als `window.d3` |
-| `lib/agenticos-1.css` | Das Aussehen der Konsole für Seiten, hell und dunkel, mit `ao-`-Klassen |
+| `lib/lucide-1.46.0.min.js` | Lucide-1.46.0-Icons, als `window.lucide` - derselbe Satz, den die Konsole verwendet |
+| `lib/agenticos-2.css` | Das Aussehen der Konsole für Seiten, hell und dunkel, und die `ao-`-Komponenten, aus denen eine Seite gebaut wird |
+| `lib/agenticos-2.js` | `window.AO`: Chart.js im Stil der Konsole, Zahlenformate in der Sprache der Seite, Icons, Tabs |
+| `lib/agenticos-1.css` | Die erste Version des Aussehens, behalten für die Seiten, die gegen sie veröffentlicht wurden |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
 eine neue Datei neben der alten hinzu, sodass eine Seite, die gegen eine Version
@@ -145,7 +148,8 @@ Deployments geholt, also funktioniert ein Deployment ohne Internetzugang genauso
 Die Dateien sind in `backend/app/core/catalog/artifact_lib/` aufgeführt.
 
 Der mitgelieferte [Skill](skills.md) **`artifact-pages`** bringt einem Agent bei, sie
-zu nutzen: zwei Vorlagen (ein Dashboard und ein Bericht), den Hausstil und wie man
+zu nutzen: zwei Vorlagen (ein Dashboard und ein Bericht), den Hausstil mit seinen
+Komponenten, Icons statt Emoji und wie man
 eine Seite mit `read_artifact` ändert. Eine neue Organisation bekommt ihn mit den
 anderen mitgelieferten Skills, eine bestehende über `seed-skills`, und der Tab
 **Page style** der Capability Artifacts im Builder bietet ihn an. Bearbeiten Sie

@@ -1,5 +1,5 @@
 ---
-source_sha: "17ac3da4c7bb"
+source_sha: "8c8da72b2c36"
 ---
 
 # Artefakty { #artifacts }
@@ -124,7 +124,10 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 |---|---|
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4.5.1, jako `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7.9.0, jako `window.d3` |
-| `lib/agenticos-1.css` | Wygląd konsoli dla stron, jasny i ciemny, z klasami `ao-` |
+| `lib/lucide-1.46.0.min.js` | Ikony Lucide 1.46.0, jako `window.lucide` - ten sam zestaw, którego używa konsola |
+| `lib/agenticos-2.css` | Wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
+| `lib/agenticos-2.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki |
+| `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
@@ -132,7 +135,8 @@ Nic nie jest pobierane spoza wdrożenia, więc wdrożenie bez dostępu do intern
 działa tak samo. Pliki są wymienione w `backend/app/core/catalog/artifact_lib/`.
 
 Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać: dwa
-szablony (dashboard i raport), styl domu i sposób zmiany strony przez
+szablony (dashboard i raport), styl domu z jego komponentami, ikony zamiast
+emoji i sposób zmiany strony przez
 `read_artifact`. Nowa organizacja dostaje go razem z innymi dołączonymi skillami,
 istniejąca przez `seed-skills`, a zakładka **Page style** capability Artifacts w
 Builderze go proponuje. Edytuj skill, żeby opisać własny branding, a agent będzie

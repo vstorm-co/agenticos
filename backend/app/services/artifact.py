@@ -173,7 +173,10 @@ _LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "a
 ARTIFACT_LIBRARY: dict[str, str] = {
     "chart-4.5.1.umd.min.js": "text/javascript; charset=utf-8",
     "d3-7.9.0.min.js": "text/javascript; charset=utf-8",
+    "lucide-1.46.0.min.js": "text/javascript; charset=utf-8",
     "agenticos-1.css": "text/css; charset=utf-8",
+    "agenticos-2.css": "text/css; charset=utf-8",
+    "agenticos-2.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 

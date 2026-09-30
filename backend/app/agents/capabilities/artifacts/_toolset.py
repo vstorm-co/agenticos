@@ -168,11 +168,17 @@ def build_artifacts_toolset(*, workspace_backend: Any | None) -> FunctionToolset
         do not rely on a CDN or an API call - anything fetched from elsewhere will not
         load. The deployment serves a small library set the page may load by a relative
         address, which costs nothing to include:
-        `<script src="lib/chart-4.5.1.umd.min.js"></script>` (Chart.js, `window.Chart`),
-        `<script src="lib/d3-7.9.0.min.js"></script>` (d3, `window.d3`) and
-        `<link rel="stylesheet" href="lib/agenticos-1.css">` (the product's look, light
-        and dark, with `ao-` classes). If the `artifact-pages` skill is available, load it
-        for templates. Links to other sites work: the person is asked before one opens.
+        `<link rel="stylesheet" href="lib/agenticos-2.css">` (the product's look, light
+        and dark, with `ao-` components), `lib/chart-4.5.1.umd.min.js` (Chart.js,
+        `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
+        `lib/lucide-1.46.0.min.js` (icons: write `<i data-lucide="calendar"></i>`) and,
+        after those, `lib/agenticos-2.js` (`window.AO`: chart defaults in the product's
+        style, number formatting, icons, tabs); `lib/agenticos-1.css` stays served for
+        pages published against it. Keep to the product's look: graphite,
+        no accent colour, green and red only for better and worse, icons rather than
+        emoji unless the person asked for emoji. Before building a page, load the
+        `artifact-pages` skill if it is available - it has the components and two
+        templates. Links to other sites work: the person is asked before one opens.
         For tabular numbers you only want shown in the chat, use `create_chart` instead.
 
         Pass exactly one of `path`, `content` or `edits`.

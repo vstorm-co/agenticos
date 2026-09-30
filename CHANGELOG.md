@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Published pages look like the console.** The library set gains
+  `agenticos-2.css` - the console's proportions and the components a report is
+  made of (a header, stats with a delta, sections, tabs, callouts, key-value
+  lists) - `agenticos-2.js`, which gives Chart.js the console's fonts, grid,
+  tooltip and graphite palette, formats numbers in the page's language and wires
+  tabs, and Lucide 1.46.0, so a page draws the console's icons instead of emoji.
+  The `artifact-pages` skill and its two templates are rewritten on them, and
+  `publish_artifact` itself tells a model without the skill to keep to the look.
+  `agenticos-1.css` stays served for the pages published against it.
 - **An agent can change part of a page it published.** `read_artifact` returns
   the current version's source, and `publish_artifact` takes `edits` - exact
   replacements applied to that version - beside `path` and `content`. An edit

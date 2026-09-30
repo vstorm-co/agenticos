@@ -4,119 +4,165 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Weekly sales - 22 Sep 2026</title>
-  <link rel="stylesheet" href="lib/agenticos-1.css">
+  <link rel="stylesheet" href="lib/agenticos-2.css">
   <script src="lib/chart-4.5.1.umd.min.js"></script>
+  <script src="lib/lucide-1.46.0.min.js"></script>
+  <script src="lib/agenticos-2.js"></script>
 </head>
 <body>
   <main class="ao-page">
-    <h1 id="title"></h1>
-    <p class="ao-subtitle" id="subtitle"></p>
+    <header class="ao-header">
+      <div>
+        <div class="ao-eyebrow"><i data-lucide="chart-no-axes-column"></i><span id="eyebrow"></span></div>
+        <h1 id="title"></h1>
+        <p class="ao-subtitle" id="subtitle"></p>
+        <div class="ao-meta">
+          <span><i data-lucide="calendar"></i><span id="period"></span></span>
+          <span><i data-lucide="database"></i><span id="source"></span></span>
+        </div>
+      </div>
+    </header>
 
-    <section class="ao-grid" id="kpis" aria-label="Key numbers"></section>
+    <section class="ao-grid-4" id="stats" aria-label="Key numbers"></section>
 
-    <section class="ao-card" style="margin-top: 1rem">
-      <h2 id="chart-title"></h2>
-      <div class="ao-chart"><canvas id="chart" role="img"></canvas></div>
+    <section class="ao-section" data-ao-tabs-scope>
+      <div class="ao-section-header">
+        <div>
+          <h2 class="ao-section-title"><i data-lucide="trending-up"></i><span id="chart-title"></span></h2>
+          <p class="ao-section-desc" id="chart-desc"></p>
+        </div>
+        <div class="ao-tabs" data-ao-tabs>
+          <button class="ao-tab" data-ao-tab="revenue" aria-selected="true">Revenue</button>
+          <button class="ao-tab" data-ao-tab="orders">Orders</button>
+        </div>
+      </div>
+      <div class="ao-card">
+        <div class="ao-chart" data-ao-panel="revenue"><canvas id="revenue-chart" role="img"></canvas></div>
+        <div class="ao-chart" data-ao-panel="orders" hidden><canvas id="orders-chart" role="img"></canvas></div>
+      </div>
     </section>
 
-    <section class="ao-card" style="margin-top: 1rem">
-      <h2 id="table-title"></h2>
-      <table class="ao-table" id="table"></table>
+    <section class="ao-section">
+      <div class="ao-section-header">
+        <h2 class="ao-section-title"><i data-lucide="building-2"></i><span id="table-title"></span></h2>
+      </div>
+      <div class="ao-table-wrap">
+        <table class="ao-table" id="table"></table>
+      </div>
     </section>
+
+    <footer class="ao-footer">
+      <span><i data-lucide="info"></i><span id="note"></span></span>
+    </footer>
   </main>
 
   <script>
-    // Replace this object; nothing below it needs to change.
+    // Replace this object; nothing below it needs to change. Numbers stay numbers
+    // here - the page formats them for the reader's language.
     const data = {
+      eyebrow: "Sales",
       title: "Weekly sales - 22 Sep 2026",
-      subtitle: "Orders closed Monday to Sunday. Source: the CRM export of 22 Sep, 06:00 UTC.",
-      kpis: [
-        { label: "Revenue", value: "€48,200", change: "+6.1%", better: true },
-        { label: "Orders", value: "312", change: "+14", better: true },
-        { label: "Refunds", value: "9", change: "+3", better: false },
+      subtitle: "Revenue is up for the third week running; refunds rose with it.",
+      period: "15-21 Sep 2026",
+      source: "CRM export, 22 Sep 06:00 UTC",
+      currency: "EUR",
+      stats: [
+        // `better` says which direction is good, so a rise in refunds is red.
+        { icon: "wallet", label: "Revenue", value: 48200, money: true, change: 0.061, percent: true, better: "up", foot: "vs the week before" },
+        { icon: "shopping-cart", label: "Orders", value: 312, change: 14, better: "up", foot: "vs the week before" },
+        { icon: "users", label: "New customers", value: 58, change: 0, better: "up", foot: "flat" },
+        { icon: "undo-2", label: "Refunds", value: 9, change: 3, better: "down", foot: "vs the week before" },
       ],
       chart: {
-        title: "Revenue by day",
+        title: "By day",
+        desc: "This week against the week before.",
         labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        series: [{ name: "This week", values: [6100, 7200, 6900, 8100, 9400, 5800, 4700] }],
+        revenue: { now: [6100, 7200, 6900, 8100, 9400, 5800, 4700], before: [5900, 6400, 6800, 7300, 8800, 5600, 4600] },
+        orders: { now: [38, 45, 41, 52, 61, 42, 33], before: [36, 40, 43, 47, 55, 40, 37] },
       },
       table: {
         title: "Top accounts",
-        columns: ["Account", "Orders", "Revenue"],
-        numeric: [false, true, true],
+        columns: [
+          { label: "Account" },
+          { label: "Orders", numeric: true },
+          { label: "Revenue", numeric: true, money: true },
+          { label: "Status" },
+        ],
         rows: [
-          ["Northwind", "41", "€7,900"],
-          ["Contoso", "33", "€6,450"],
-          ["Fabrikam", "27", "€5,120"],
+          ["Northwind", 41, 7900, { badge: "Renewed", tone: "success" }],
+          ["Contoso", 33, 6450, { badge: "Open" }],
+          ["Fabrikam", 27, 5120, { badge: "At risk", tone: "danger" }],
         ],
       },
+      note: "Refunds are counted on the day they were issued, not the day of the order.",
     };
 
-    const css = (name) =>
-      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const { format } = AO;
+    const text = (id, value) => (document.getElementById(id).textContent = value);
+    const money = (value) => format.currency(value, data.currency);
 
     document.title = data.title;
-    document.getElementById("title").textContent = data.title;
-    document.getElementById("subtitle").textContent = data.subtitle;
+    for (const key of ["eyebrow", "title", "subtitle", "period", "source", "note"]) text(key, data[key]);
+    text("chart-title", data.chart.title);
+    text("chart-desc", data.chart.desc);
+    text("table-title", data.table.title);
 
-    const kpis = document.getElementById("kpis");
-    for (const kpi of data.kpis) {
-      const card = document.createElement("div");
-      card.className = "ao-card";
-      const label = document.createElement("div");
-      label.className = "ao-kpi-label";
-      label.textContent = kpi.label;
-      const value = document.createElement("div");
-      value.className = "ao-kpi-value";
-      value.textContent = kpi.value;
-      const change = document.createElement("div");
-      change.className = kpi.better ? "ao-up" : "ao-down";
-      change.textContent = kpi.change;
-      card.append(label, value, change);
-      kpis.append(card);
+    const stats = document.getElementById("stats");
+    for (const stat of data.stats) {
+      const good = stat.change === 0 ? "" : (stat.change > 0) === (stat.better === "up") ? "ao-up" : "ao-down";
+      const arrow = stat.change > 0 ? "arrow-up-right" : stat.change < 0 ? "arrow-down-right" : "minus";
+      const card = document.createElement("article");
+      card.className = "ao-card ao-stat";
+      card.innerHTML = `
+        <div class="ao-stat-label"><i data-lucide="${stat.icon}"></i><span></span></div>
+        <div class="ao-stat-value"></div>
+        <div class="ao-stat-foot"><span class="ao-delta ${good}"><i data-lucide="${arrow}"></i><span></span></span><span></span></div>`;
+      card.querySelector(".ao-stat-label span").textContent = stat.label;
+      card.querySelector(".ao-stat-value").textContent = stat.money ? money(stat.value) : format.number(stat.value);
+      card.querySelector(".ao-delta span").textContent = format.delta(stat.change, { percent: stat.percent });
+      card.querySelector(".ao-stat-foot > span:last-child").textContent = stat.foot;
+      stats.append(card);
     }
 
-    document.getElementById("chart-title").textContent = data.chart.title;
-    const canvas = document.getElementById("chart");
-    canvas.setAttribute("aria-label", data.chart.title);
-    new Chart(canvas, {
-      type: "line",
+    const comparison = (series) => () => ({
+      type: "bar",
       data: {
         labels: data.chart.labels,
-        datasets: data.chart.series.map((series, index) => ({
-          label: series.name,
-          data: series.values,
-          borderColor: css(`--ao-series-${index + 1}`),
-          backgroundColor: css(`--ao-series-${index + 1}`),
-          tension: 0.3,
-        })),
-      },
-      options: {
-        maintainAspectRatio: false,
-        plugins: { legend: { display: data.chart.series.length > 1 } },
-        scales: {
-          x: { ticks: { color: css("--ao-muted-fg") }, grid: { color: css("--ao-border") } },
-          y: { ticks: { color: css("--ao-muted-fg") }, grid: { color: css("--ao-border") } },
-        },
+        datasets: [
+          { label: "This week", data: series.now },
+          { label: "Week before", data: series.before, backgroundColor: AO.color("--ao-series-3") },
+        ],
       },
     });
+    AO.chart("#revenue-chart", comparison(data.chart.revenue));
+    AO.chart("#orders-chart", comparison(data.chart.orders));
 
-    document.getElementById("table-title").textContent = data.table.title;
     const table = document.getElementById("table");
     const head = table.createTHead().insertRow();
-    data.table.columns.forEach((column, index) => {
-      const cell = document.createElement("th");
-      cell.textContent = column;
-      if (data.table.numeric[index]) cell.className = "ao-num";
-      head.append(cell);
-    });
+    for (const column of data.table.columns) {
+      const th = document.createElement("th");
+      th.textContent = column.label;
+      if (column.numeric) th.className = "ao-num";
+      head.append(th);
+    }
     const body = table.createTBody();
     for (const row of data.table.rows) {
-      const line = body.insertRow();
-      row.forEach((value, index) => {
-        const cell = line.insertCell();
-        cell.textContent = value;
-        if (data.table.numeric[index]) cell.className = "ao-num";
+      const tr = body.insertRow();
+      row.forEach((value, i) => {
+        const column = data.table.columns[i];
+        const td = tr.insertCell();
+        if (value && typeof value === "object") {
+          const badge = document.createElement("span");
+          badge.className = value.tone ? `ao-badge ao-badge-${value.tone}` : "ao-badge";
+          badge.textContent = value.badge;
+          td.append(badge);
+        } else if (column.numeric) {
+          td.className = "ao-num";
+          td.textContent = column.money ? money(value) : format.number(value);
+        } else {
+          td.className = i === 0 ? "ao-strong" : "";
+          td.textContent = value;
+        }
       });
     }
   </script>
