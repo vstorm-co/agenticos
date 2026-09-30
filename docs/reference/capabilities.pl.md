@@ -1,5 +1,5 @@
 ---
-source_sha: "6093b312c6d2"
+source_sha: "8adfcce13538"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1627,9 +1627,9 @@ redukcja to `ToolOutputLimits` z
 | Konfiguracja | Domyślnie | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | rozmiar, od którego zwrot jest redukowany |
+| `threshold` | 50000 | rozmiar, od którego zwrot jest redukowany |
 | `over_tokens` | `false` | mierz próg w szacowanych tokenach, nie w znakach |
-| `max_chars` | 4000 | znaki zachowane przy przycięciu zwrotu albo gdy zrzut cofa się do przycięcia |
+| `max_chars` | 20000 | znaki zachowane przy przycięciu zwrotu albo gdy zrzut cofa się do przycięcia |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — który koniec (lub końce) zachować |
 | `strip_ansi` | `false` | usuń kody kolorów terminala przed mierzeniem i redukcją |
 | `summary_prompt` | własny biblioteki | co dostaje model streszczający; musi zawierać `{tool_name}` i `{output}` |

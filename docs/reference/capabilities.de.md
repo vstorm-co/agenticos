@@ -1,5 +1,5 @@
 ---
-source_sha: "6093b312c6d2"
+source_sha: "8adfcce13538"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1753,9 +1753,9 @@ bestehen. Die Verkleinerung selbst ist `ToolOutputLimits` aus
 | Konfiguration | Standard | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | Größe, ab der eine Rückgabe verkleinert wird |
+| `threshold` | 50000 | Größe, ab der eine Rückgabe verkleinert wird |
 | `over_tokens` | `false` | die Schwelle in geschätzten Tokens messen, nicht in Zeichen |
-| `max_chars` | 4000 | Zeichen, die beim Abschneiden einer Rückgabe erhalten bleiben, oder wenn ein Spill darauf zurückfällt |
+| `max_chars` | 20000 | Zeichen, die beim Abschneiden einer Rückgabe erhalten bleiben, oder wenn ein Spill darauf zurückfällt |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — welches Ende bzw. welche Enden behalten werden |
 | `strip_ansi` | `false` | Terminal-Farbcodes vor dem Messen und Verkleinern entfernen |
 | `summary_prompt` | der bibliothekseigene | was dem zusammenfassenden Modell gesagt wird; muss `{tool_name}` und `{output}` enthalten |

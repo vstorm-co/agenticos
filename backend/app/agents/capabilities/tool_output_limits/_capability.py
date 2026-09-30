@@ -71,12 +71,21 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
 
-DEFAULT_THRESHOLD = 10_000
+DEFAULT_THRESHOLD = 50_000
 """Size at or above which a return is reduced - characters, or estimated tokens
-when `over_tokens` is set. Matches the harness's own default."""
+when `over_tokens` is set.
 
-DEFAULT_MAX_CHARS = 4_000
-"""Characters kept when a return is truncated, or when a spill falls back to one."""
+Above the harness's own 10,000 on purpose. A fetched page or a file of 30,000 to
+40,000 characters is an ordinary return an agent is expected to read whole, and
+at 10,000 it arrived as a preview the model had to page through - which read as
+the tool being broken. 50,000 matches what `web_fetch` returns at most, so a full
+fetch passes untouched; about 12,500 tokens, a small share of a current window."""
+
+DEFAULT_MAX_CHARS = 20_000
+"""Characters kept when a return is truncated, or when a spill falls back to one.
+
+Large enough that a truncated return still carries the bulk of an ordinary one;
+4,000 left too little of a page to act on."""
 
 DEFAULT_SUMMARY_PROMPT: str = ToolOutputLimits().summary_prompt
 """The prompt a `summarize` reduction is written with, unless a binding replaces it.

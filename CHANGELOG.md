@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Tool output limits let an ordinary page through.** The default threshold
+  is 50,000 characters, up from 10,000, and a truncation keeps 20,000, up from
+  4,000: a fetched page or a file of 30,000 to 40,000 characters arrived as a
+  preview to page through, which read as the tool failing. An agent that set
+  its own values keeps them.
+
 ## [0.0.515] - 2026-09-30
 
 ### Added

@@ -212,6 +212,17 @@ class TestReduction:
         )
         assert out == "small"
 
+    async def test_a_page_of_forty_thousand_characters_arrives_whole_by_default(self):
+        """At the old 10,000 a fetched page arrived as a preview to page through,
+        which read as the tool being broken; an ordinary page now passes as it is."""
+        limits = build_limits(ToolOutputLimitsConfig(), backend=StateBackend())
+        page = "x" * 40_000
+        out = await limits.after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result=page
+        )
+        assert out == page
+        assert ToolOutputLimitsConfig().max_chars == 20_000
+
     async def test_an_oversized_return_is_spilled_and_reads_back_in_full(self):
         limits = build_limits(
             ToolOutputLimitsConfig(action="spill", threshold=500), backend=StateBackend()
