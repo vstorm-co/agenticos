@@ -14,7 +14,10 @@ import {
 
 import { BindingField } from "./binding-field";
 
-/** A field dragged from the step dialog's Input pane binds the setting it is dropped on. */
+/**
+ * A field dragged from the step dialog's Input pane binds the parameter it is
+ * dropped on - one that is not text, which takes it as a placeholder instead.
+ */
 
 const ITEM = {
   type: "object",
@@ -50,7 +53,7 @@ function mount(disabled = false) {
       targetNodeId="B"
       targetField="message"
       name="message"
-      schema={{ type: "string", title: "Message" }}
+      schema={{ type: "integer", title: "Count" }}
       required={false}
       bindings={[]}
       graph={chain}
@@ -60,27 +63,27 @@ function mount(disabled = false) {
       onRemove={vi.fn()}
     />,
   );
-  const target = screen.getByText("Message").closest(".relative") as HTMLElement;
+  const target = screen.getByText("Count").closest(".relative") as HTMLElement;
   return { onUpsert, target };
 }
 
-describe("dropping a step's field on a setting", () => {
+describe("dropping a step's field on a parameter", () => {
   it("binds the setting to it, through a value with no declared shape", () => {
     const { onUpsert, target } = mount();
-    fireEvent.drop(target, carrying({ nodeId: "A", path: ["item", "name"], type: "string" }));
+    fireEvent.drop(target, carrying({ nodeId: "A", path: ["item", "age"], type: "number" }));
     expect(onUpsert).toHaveBeenCalledWith({
       target_node_id: "B",
       target_field: "message",
-      source: { kind: "node_output", node_id: "A", port: "out", field_path: ["item", "name"] },
+      source: { kind: "node_output", node_id: "A", port: "out", field_path: ["item", "age"] },
     });
   });
 
   it("refuses a field of the wrong type, declared or seen in the run, and says why", () => {
     const { onUpsert, target } = mount();
-    fireEvent.drop(target, carrying({ nodeId: "A", path: ["item", "count"], type: "number" }));
-    expect(screen.getByText("“item.count” is not a value Message can take.")).toBeTruthy();
-    fireEvent.drop(target, carrying({ nodeId: "A", path: ["index"], type: "number" }));
-    expect(screen.getByText("“index” is not a value Message can take.")).toBeTruthy();
+    fireEvent.drop(target, carrying({ nodeId: "A", path: ["item", "name"], type: "string" }));
+    expect(screen.getByText("“item.name” is not a value Count can take.")).toBeTruthy();
+    fireEvent.drop(target, carrying({ nodeId: "B", path: ["echoed"], type: "string" }));
+    expect(screen.getByText(/does not always run before it/)).toBeTruthy();
     expect(onUpsert).not.toHaveBeenCalled();
   });
 

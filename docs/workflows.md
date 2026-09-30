@@ -107,8 +107,8 @@ group. You add a step four ways:
   current start instead and becomes it.
 - **+** beside a step's output opens the picker for the step that comes after that
   output.
-- **Right-click** the canvas: **Add a step here** lists the same sections and groups,
-  and the step lands where you clicked.
+- **Right-click** the canvas: the same picker opens where you clicked, and the step
+  lands there. Beneath it, **Add a note** and, once something is copied, **Paste**.
 - **Drag** a step from the picker to put it where you drop it, wired to nothing.
 
 A new step never lands on top of another, is selected, opens its settings when it
@@ -117,9 +117,8 @@ loop's body every new step is wired into the body, so it stays there. The picker
 shows what is valid where you are: **Loop item** and **Loop result** only inside a
 loop's body, and a loop until loops are nested as deep as publishing allows.
 
-Right-clicking a step offers **Open settings**, **Duplicate** and **Delete step**;
-right-clicking the canvas also offers **Paste**, **Undo**, **Redo** and **Fit to
-view**. With several steps selected, a bar at the bottom deletes them together.
+Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
+**Delete step**. With several steps selected, a bar at the bottom deletes them together.
 
 !!! note "The step catalog grows over time"
 
@@ -129,7 +128,7 @@ view**. With several steps selected, a bar at the bottom deletes them together.
 
 ### Notes, tidying and shortcuts { #notes-tidying-and-shortcuts }
 
-**Add a note here** in the canvas's right-click menu puts a note beside the steps:
+**Add a note** under the picker a right click opens puts a note beside the steps:
 markdown, written on a double-click or with its pencil, moved by dragging and resized
 from its corners. A note is kept in the graph, so versions, restores and copies of the
 workflow keep it, but nothing runs or checks it. Selecting a connection offers a **+**
@@ -143,89 +142,103 @@ shortcut; **Tab** opens the step picker. None of them fires while you type in a 
 What each node does, what it is configured with and what its failures mean is in
 the [node reference](reference/workflow-nodes.md).
 
-Click a step and its settings open in a dialog over the canvas: its name, what it
-does, and any problem that stops a publish, above its fields. Every edit is saved to
-the draft as you make it, so **Done** only closes the dialog, and **Delete step**
-removes the step. The fields fall into two sections. **Settings** holds static
-settings — the fixed choices that do not change from one run to the next, including
-the resources a step is pinned to. **What it works on** holds the values a step reads when it
-runs.
+Click a step and it opens in a dialog over the canvas: its name and what it does at
+the top, and under them, in plain words, any problem that stops a publish - **Not
+connected yet**, for a step nothing leads to. **Parameters** is what the step works
+on and is set to do, in one list, with the list a step works on first: Filter's
+**Items** before its **Condition**. **Settings** is how it runs. Every edit is saved
+to the draft as you make it, so **Done** only closes the dialog, and **Delete step**
+removes the step.
 
-An input is filled one of two ways, and **Value** and **From a step** beside its
-label switch between them:
+A parameter that takes text is one box for typed text and values from earlier steps
+together, such as `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+**Data** beside it inserts a value at the cursor, and so does a field dragged from
+**Input**. A placeholder names a step and a path into its output, is checked at
+publish like any value read from a step, and follows the step when it is renamed.
+With a test run's data, the result is previewed beneath. Nothing is evaluated: when
+the step runs, each placeholder becomes its value's text, JSON for a list or an
+object, and one with nothing behind it fails the step with `INVALID_BINDING`,
+naming it.
 
-- **A value** — you type it directly into the field, the same control the field's
-  type calls for.
-- **From a step** — you read the value from another step's output. The field turns
-  into a **Source** picker whose options are the upstream outputs that are actually
-  reachable here and carry a compatible type — a step's whole output, or one field
-  inside it — each shown as *{node} · {port} ({type})*, or
-  *{node} · {port} → {field} ({type})* for a field. A field with nothing compatible
-  upstream says **No compatible upstream outputs** rather than offering an invalid
-  pick.
+Any other parameter - a number, a choice, a switch, a list typed as JSON - is its
+own control, and **Data** beside it takes the value from an earlier step instead.
+**Data** lists only the values reachable here that carry a compatible type, grouped
+by step, each with the kind of value it holds, and says **No compatible upstream
+outputs** when there are none. The parameter then shows what it reads - *Run an
+agent › text* - and **×** goes back to a typed value.
 
-A text field has a third way, **Template**: text with values from earlier steps in
-it, such as `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. A
-placeholder names a step and a path into its output, is checked at publish like a
-binding, and follows the step when it is renamed. **Insert a value…** adds one at
-the cursor, and so does a field dragged from **Input**. With a test run's data, the
-result is previewed beneath. Nothing is evaluated: when the step runs, each
-placeholder becomes its value's text, JSON for a list or an object, and one with
-nothing behind it fails the step with `INVALID_BINDING`, naming it.
+A required parameter with no value yet is a validation problem, flagged on the step
+rather than filled with a silent default. Some parameters hold structured values: a
+list of rows you **Add row** to, reorder and remove, or a typed choice that swaps the
+sub-form beneath it. The dialog recurses into those rather than sending you to a
+separate screen.
 
-A required input with no value yet is a validation problem, flagged on the node
-rather than filled with a silent default. Some fields hold structured values: a
-list of rows you **Add row** to, reorder and remove, or a typed choice that swaps
-the sub-form beneath it. The dialog recurses into those rather than sending you to
-a separate screen.
+### Conditions { #conditions }
+
+**Filter a list**, **If** and **Switch** decide with a condition built from rows: a
+field of the item or the value, a check - **is equal to**, **is at least**,
+**contains**, **is not empty** and the rest - and what it is compared with. A number,
+`true` and `false` are compared as such, anything else as text. With several rows,
+**Match all of these** or **any** says how they combine, and the fields the last run
+or the test data showed are suggested. The condition is stored as the JMESPath
+expression the step evaluates. **Write it as an expression** edits it as that, and
+one the rows cannot show stays an expression.
 
 ### Naming a step, noting it and switching it off { #naming-noting-and-switching-off-a-step }
 
-Clicking the step's name in the top of its settings gives it a name of its own, shown on its card and wherever a later step
-picks what to read - two **Send a message** steps become *Tell sales* and *Tell
-support*. No two steps may share a name, ignoring case.
+Clicking the step's name at the top of its dialog gives it a name of its own, shown
+on its card and wherever a later step picks what to read - two **Send a message**
+steps become *Tell sales* and *Tell support*. No two steps may share a name,
+ignoring case.
 
-**Note** keeps a line for
-whoever edits the workflow next, marked on the card. Turning off **Run this step**
-at the bottom of its settings, or **Switch off** in its right-click menu, keeps a step on the canvas, dimmed, and skips it
-when a run reaches it: it does nothing and hands on what came into it. Publishing
-refuses the trigger or a step that decides the way switched off, and a step that
-reads one that is off, unless what comes into it - along its one incoming connection,
-from a step that is on - has the field read, which it then hands on. All three are saved in the graph, so versions keep them.
+Under **Settings**, **Note** keeps a line for whoever edits the workflow next, marked
+on the card, and the tab carries a dot once anything there is changed.
 
-### A step's data, pinning and testing one step { #a-steps-data-pinning-and-testing-one-step }
+Turning off
+**Run this step** there, or **Switch off** in its right-click menu, keeps a step on
+the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
+what came into it. Publishing refuses the trigger or a step that decides the way
+switched off, and a step that reads one that is off, unless what comes into it -
+along its one incoming connection, from a step that is on - has the field read,
+which it then hands on. All three are saved in the graph, so versions keep them.
 
-Editing a workflow, the dialog puts a step's settings between two panes. **Input** shows
-what each step it reads from handed on, and **Output** what the step itself handed on,
-both from the last test run started in the editor, or the latest one when it opens.
-**Table** lays the data out as rows, a list of records as one row each. **JSON** shows
-it as it is, and **Fields** lists every field by path with its type: the paths a later
-step reads.
+### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
-Before any run, both panes list the fields the step declares, by path and
-type, and those can be dragged too. A table shows its first 50 rows until **Show
-more** lays out the rest, and a cell cut to its column shows the whole value on hover.
+Editing a workflow, the dialog puts a step's parameters between two panes. **Input**
+shows what each step it reads from handed on, under that step's name and icon, and
+**Output** what the step itself handed on, both from the last test run started in
+the editor, or the latest one when it opens. **Table** lays the data out as rows, a
+list of records as one row each. **JSON** shows it as it is, and **Fields** lists
+every field by path with a plain word for what it holds - text, number, list, ID:
+the paths a later step reads.
 
-A column or a field of **Input** can be dragged onto a setting, which then reads
-it from that step, as if it were picked from **From a step**. A field that does not
-fit is refused with the reason: a type the setting does not take, or a step that
-does not always run before this one. Inside a free-form value, such as a mapping's
-`values` or a trigger's `payload`, the type is the one the run showed. The picker
-offers free-form values to any setting too, with **Field inside it** for the path.
+Before any run, both panes list the fields a step hands on the same way, and those
+can be dragged too; a step that nothing leads to says **Not connected yet**. A table
+shows its first 50 rows until **Show more** lays out the rest, and a cell cut to its
+column shows the whole value on hover.
 
-**Pin this data** keeps the output on the step, and **Write data to pin** types one in
-as a JSON object of at most 64,000 bytes. A test run hands pinned data on instead of
+A column or a field of **Input** can be dragged onto a parameter, which then reads
+it from that step, as if it were picked from **Data** - into text, as a placeholder.
+A field that does not fit is refused with the reason: a type the parameter does not
+take, or a step that does not always run before this one. Inside a free-form value,
+such as a mapping's `values` or a trigger's `payload`, the type is the one the run
+showed. **Data** offers free-form values to any parameter too, with **Field inside
+it** for the path.
+
+**Keep as test data** keeps the output on the step, and **Set test data** types some
+in as a JSON object of at most 64,000 bytes. A test run hands test data on instead of
 running the step, so a slow model call or a write to a live system is made once and
-reused. A step that decides the route is never pinned, and publishing strips every
-pin: a published version always runs its steps. A pin icon marks the card, and
-**Unpin** takes it away.
+reused. A step that decides the route never keeps test data, and publishing strips
+it all: a published version always runs its steps. A pin icon marks the card, and
+**Remove test data** takes it away.
 
-**Test step** runs the step alone. The run keeps only the step and the steps leading
-to it, and each of those with known output, pinned or from the last test run, hands
-that on instead of running. The rest run, and nothing after the step does. A step
-that writes asks first, since the test really writes. A step inside a loop cannot be
-tested alone, because it runs once per item, so test the loop. Over the API, `step`
-on `POST /api/v1/workflow-runs` does the same.
+**Test step** runs the step alone, and is the pane's main button while there is no
+data yet. The run keeps only the step and the steps leading to it, and each of those
+with known output, test data or from the last test run, hands that on instead of
+running. The rest run, and nothing after the step does. A step that writes asks
+first, since the test really writes. A step inside a loop cannot be tested alone,
+because it runs once per item, so test the loop. Over the API, `step` on
+`POST /api/v1/workflow-runs` does the same.
 
 ### Resource pickers { #resource-pickers }
 
@@ -247,7 +260,7 @@ rather than a silent break.
 
 ### When a step is slow or fails { #when-a-step-is-slow-or-fails }
 
-Below a step's fields, **When it is slow or fails** sets its policy. **Handle
+Under a step's **Settings**, **When it is slow or fails** sets its policy. **Handle
 errors** gives the step an **Error** port: a failure its retries did not settle
 leaves through it, to a **Handle error** step or anything else you connect, instead
 of failing the run. **Tries** is how often the step is attempted in all, and **Wait
@@ -276,8 +289,10 @@ shape — an Echo's output to a Relay's input, say — also binds each of the
 target's inputs to the field of the same name on the source. A field you had
 already bound is left alone.
 
-When the shapes differ, or a port carries no data,
-nothing is bound and you pick each source yourself with **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) takes
+When the shapes differ, or a port carries no data, one choice is still made for you:
+a step that works on one list, connected after a step that hands on exactly one -
+**Filter a list** after **List records** - reads that list. Nothing else is bound,
+and you pick each source yourself with **Data**. Undo (`Ctrl`/`Cmd` + `Z`) takes
 back the connection and its bindings together, and deleting an edge later leaves
 its bindings in place, so remove or rebind them in the step's settings.
 
@@ -300,14 +315,14 @@ anything that ran before the loop. What the loop does is in the
 ## Validation feedback { #validation-feedback }
 
 The editor checks the graph as you edit and shows what is wrong where it is
-wrong. Every step with a problem carries a red mark on the canvas and a count in its settings, and a field with a problem shows its message inline. The status at the canvas's top right reads **No problems**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
+wrong. Every step with a problem carries a red mark on the canvas and says it under its name when opened, and a field with a problem shows its message inline. The status at the canvas's top right reads **No problems**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
 
 A step's settings stay short. What the step needs, and whatever you already set, show
 at once; optional settings still at their defaults wait under **More options**, and
-**When it is slow or fails** and a note open when you ask for them or once they are set.
+how the step runs waits under **Settings**.
 A required value you have not given yet is not flagged beside its field until you
-leave that field or try to run or publish: the step's mark on the canvas and the
-count above say it from the start. A description that only repeats its field's
+leave that field or try to run or publish: the step's mark on the canvas says it
+from the start. A description that only repeats its field's
 name is a hint on the name instead of a line under the field.
 
 The messages name the specific fault: a required input with no value, an input
@@ -630,8 +645,8 @@ Copy and paste have three limits:
   refuses a connection between incompatible ports.
 - An edge sets **order** and bindings carry **values**; connecting ports of the same
   shape creates the bindings for you.
-- A node's inputs are **a value or a binding** — **From a step** reads a value from a
-  reachable, type-compatible upstream output.
+- A parameter is **a value or data from a step** — **Data** reads one from a
+  reachable, type-compatible upstream output, or puts it into text.
 - The draft **saves itself**, and an edit from two places raises a banner with
   **Overwrite** or **Reload**.
 - **Publish** is blocked while a problem stands and re-validates on the server;

@@ -86,22 +86,23 @@ export function StepName({
 export function StepSwitch({ node, onChange }: { node: NodeInstance; onChange: OnChange }) {
   const t = useTranslations("workflows");
   return (
-    <div className="flex items-center gap-2" title={t("stepRunsHint")}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="space-y-0.5">
+        <Label htmlFor="step-runs">{t("stepRuns")}</Label>
+        <p className="text-muted-foreground text-xs">{t("stepRunsHint")}</p>
+      </div>
       <Switch
         id="step-runs"
         checked={node.disabled !== true}
         onCheckedChange={(on) => onChange(node.id, { disabled: !on })}
       />
-      <Label htmlFor="step-runs" className="font-normal">
-        {t("stepRuns")}
-      </Label>
     </div>
   );
 }
 
 /**
- * A line for whoever edits the workflow next, shown on the step's card. Offered
- * as a link until there is one, and written when the field is left.
+ * A line for whoever edits the workflow next, shown on the step's card, written
+ * when the field is left. Read-only, it shows only when there is one.
  */
 export function StepNote({
   node,
@@ -114,7 +115,6 @@ export function StepNote({
 }) {
   const t = useTranslations("workflows");
   const [notes, setNotes] = useState(node.notes ?? "");
-  const [noting, setNoting] = useState(false);
   const [seen, setSeen] = useState(node);
   if (node !== seen) {
     setSeen(node);
@@ -126,24 +126,14 @@ export function StepNote({
     if (next !== (node.notes ?? null)) onChange(node.id, { notes: next });
   };
 
-  if (!noting && !node.notes) {
-    return disabled ? null : (
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground text-sm"
-        onClick={() => setNoting(true)}
-      >
-        {t("stepAddNote")}
-      </button>
-    );
-  }
+  if (disabled && !node.notes) return null;
   return (
     <div className="space-y-1.5">
       <Label htmlFor="step-notes">{t("stepNotes")}</Label>
       <Textarea
         id="step-notes"
         value={notes}
-        rows={2}
+        rows={3}
         maxLength={2000}
         placeholder={t("stepNotesPlaceholder")}
         disabled={disabled}

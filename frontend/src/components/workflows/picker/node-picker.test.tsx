@@ -78,6 +78,15 @@ describe("NodePicker", () => {
     expect(screen.queryByText("AI")).toBeNull();
   });
 
+  it("puts a step whose name matches before one whose description does", async () => {
+    mount();
+    // "Read Slack" mentions it; only "Send a message" is named for it.
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "message");
+    const rows = screen.getAllByRole("option").map((row) => row.textContent);
+    expect(rows[0]).toMatch(/^Send a message/);
+    expect(rows[1]).toMatch(/^Read messages/);
+  });
+
   it("lets a row be dragged onto the canvas when the picker allows it", () => {
     mount(true);
     const row = screen.getByRole("option", { name: /Run an agent/ });

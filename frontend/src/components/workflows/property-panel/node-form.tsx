@@ -56,6 +56,7 @@ import {
 } from "@/lib/workflows/triggers";
 
 import { BindingField } from "./binding-field";
+import { type ConditionRoot, ConditionField, useConditionFields } from "./condition-field";
 import { InputFieldsForm } from "./input-fields-form";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
@@ -75,6 +76,7 @@ import {
   repeatsLabel,
   type Schema,
   type UnionShape,
+  unwrapOptional,
 } from "./schema-model";
 
 /**
@@ -355,6 +357,22 @@ function ConfigLeaf({
     );
   }
 
+  const condition = schema["x-condition"];
+  if (condition === "item" || condition === "value") {
+    return (
+      <ConfigCondition
+        root={condition}
+        schema={schema}
+        name={name}
+        required={required}
+        ctx={ctx}
+        value={value}
+        error={error}
+        onChange={onChange}
+      />
+    );
+  }
+
   const code = schema["x-code"];
   if (code === "python" || code === "javascript") {
     return (
@@ -397,6 +415,42 @@ function ConfigLeaf({
       disabled={ctx.disabled}
       errors={error === undefined ? undefined : { [name]: error }}
       onChange={(next) => onChange(next[name])}
+    />
+  );
+}
+
+/** A condition: built from rows over what the step reads (`ConditionField`). */
+function ConfigCondition({
+  root,
+  schema,
+  name,
+  required,
+  ctx,
+  value,
+  error,
+  onChange,
+}: {
+  root: ConditionRoot;
+  schema: Schema;
+  name: string;
+  required: boolean;
+  ctx: FieldCtx;
+  value: unknown;
+  error: string | undefined;
+  onChange: (value: unknown) => void;
+}) {
+  const fields = useConditionFields(root, ctx.node.id, ctx.graph, ctx.catalog, ctx.bindings);
+  return (
+    <ConditionField
+      root={root}
+      label={labelOf(schema, name)}
+      required={required}
+      hint={typeof schema["description"] === "string" ? schema["description"] : undefined}
+      value={typeof value === "string" ? value : undefined}
+      error={error}
+      disabled={ctx.disabled}
+      fields={fields}
+      onChange={onChange}
     />
   );
 }
@@ -848,8 +902,8 @@ export interface NodeFormProps {
 }
 
 /**
- * The form for one node — its static `config_schema` settings, then its
- * `input_schema` bindings — extending `schema-form.tsx` with `$ref`, nested
+ * The form for one node — its static `config_schema` settings and its
+ * `input_schema` bindings in one list — extending `schema-form.tsx` with `$ref`, nested
  * objects, repeatable arrays, discriminated unions and binding-aware leaves.
  */
 export function NodeForm({
@@ -932,6 +986,12 @@ export function NodeForm({
   );
   const inputShown = inputFields.filter((entry) => allShown || entry.required || bound(entry.name));
   const folded = configFields.length + inputFields.length - configShown.length - inputShown.length;
+  // One list, as a builder reads it: the list a step works on first - Filter's
+  // items before its condition - then what it is set to do, then what else it reads.
+  const inputs = inputShown.map((entry) => ({ entry, input: true }));
+  const isList = (schema: Schema) => unwrapOptional(schema)["type"] === "array";
+  const listsFirst = inputs.filter(({ entry }) => isList(entry.schema));
+  const rest = inputs.filter(({ entry }) => !isList(entry.schema));
 
   return (
     <div className="space-y-6">
@@ -943,48 +1003,11 @@ export function NodeForm({
           upsertBinding={upsertBinding}
         />
       )}
-      {configShown.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold tracking-wide uppercase">
-            {t("nodeFormConfigSection")}
-          </h3>
-          {configShown.map((entry) =>
-            definition.id === AGENT_RUN && entry.name === STRUCTURED_OUTPUT ? (
-              <AnswerFormatForm
-                key={entry.name}
-                value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
-                onChange={(next) =>
-                  updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
-                }
-                disabled={disabled}
-                keepsOwn
-              />
-            ) : (
-              <ConfigNode
-                key={entry.name}
-                schema={entry.schema}
-                name={entry.name}
-                required={entry.required}
-                path={[entry.name]}
-                defs={configDefs}
-                ctx={ctx}
-                value={node.config[entry.name]}
-                onChange={(next) =>
-                  updateNodeConfig(node.id, setKey(node.config, entry.name, next))
-                }
-              />
-            ),
-          )}
-        </section>
-      )}
-      {inputShown.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold tracking-wide uppercase">
-            {t("nodeFormInputSection")}
-          </h3>
-          {inputShown.map((entry) => (
+      {[...listsFirst, ...configShown.map((entry) => ({ entry, input: false })), ...rest].map(
+        ({ entry, input }) =>
+          input ? (
             <InputNode
-              key={entry.name}
+              key={`input:${entry.name}`}
               schema={entry.schema}
               name={entry.name}
               required={entry.required}
@@ -992,8 +1015,34 @@ export function NodeForm({
               defs={inputDefs}
               ctx={ctx}
             />
-          ))}
-        </section>
+          ) : (
+            // Named for the dialog, which says a missing value once its field was left.
+            <div key={`config:${entry.name}`} data-field={entry.name}>
+              {definition.id === AGENT_RUN && entry.name === STRUCTURED_OUTPUT ? (
+                <AnswerFormatForm
+                  value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
+                  onChange={(next) =>
+                    updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
+                  }
+                  disabled={disabled}
+                  keepsOwn
+                />
+              ) : (
+                <ConfigNode
+                  schema={entry.schema}
+                  name={entry.name}
+                  required={entry.required}
+                  path={[entry.name]}
+                  defs={configDefs}
+                  ctx={ctx}
+                  value={node.config[entry.name]}
+                  onChange={(next) =>
+                    updateNodeConfig(node.id, setKey(node.config, entry.name, next))
+                  }
+                />
+              )}
+            </div>
+          ),
       )}
       {(folded > 0 || allShown) && (
         <button

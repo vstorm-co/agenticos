@@ -24,6 +24,8 @@ class DataFilterConfig(BaseModel):
         min_length=1,
         max_length=_expr.MAX_EXPRESSION_LENGTH,
         description="A JMESPath expression over each item, such as item.score > `50`",
+        # The console builds it from rows over each `item` (conditions.ts).
+        json_schema_extra={"x-condition": "item"},
     )
 
     @field_validator("condition")

@@ -30,6 +30,8 @@ class SwitchRule(BaseModel):
         min_length=1,
         max_length=_expr.MAX_EXPRESSION_LENGTH,
         description="A JMESPath expression over the input, such as value.country == 'PL'",
+        # The console builds it from rows over the `value` (conditions.ts).
+        json_schema_extra={"x-condition": "value"},
     )
 
     @field_validator("condition")

@@ -69,8 +69,8 @@ describe("NodeEditorDialog", () => {
     render(<NodeEditorDialog catalog={[DEBUG_ECHO]} readOnly />);
     expect(screen.queryByRole("button", { name: "Delete step" })).toBeNull();
     expect(screen.getByText("This node's type is not in the catalog.")).toBeTruthy();
-    // Its problem - a type nobody can publish - is said above everything else.
-    expect(screen.getByLabelText(/problem/)).toBeTruthy();
+    // Its problem - a type nobody can publish - is said under its name.
+    expect(screen.getByText(/uses an unknown node: gone\.step/)).toBeTruthy();
   });
 });
 
@@ -89,17 +89,23 @@ describe("a step's own name and whether it runs", () => {
     expect(screen.getByText(`Echo · ${DEBUG_ECHO.description}`)).toBeTruthy();
   });
 
-  it("switches a step off from the footer, but not the step the workflow starts from", async () => {
+  it("switches a step off in its Settings, but not the step the workflow starts from", async () => {
     seed(node("a"), node("b"));
     store.getState().editNode("b");
     const { unmount } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    expect(screen.queryByRole("switch", { name: "Run this step" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
     await userEvent.click(screen.getByRole("switch", { name: "Run this step" }));
     expect(store.getState().graph?.nodes[1]?.disabled).toBe(true);
+    // The tab says a setting is not at its default.
+    expect(screen.getByLabelText("Some settings are changed")).toBeTruthy();
     unmount();
 
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
     expect(screen.queryByRole("switch", { name: "Run this step" })).toBeNull();
+    expect(screen.getByLabelText("Note")).toBeTruthy();
   });
 });
 
@@ -148,11 +154,11 @@ describe("a step's missing values", () => {
     seed(node("a", "test.needs"));
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[NEEDS]} />);
-    expect(screen.queryByText(/has no value yet/)).toBeNull();
+    expect(screen.queryByText(/Required: type a value/)).toBeNull();
 
     act(() => store.getState().revealProblems());
 
-    expect(screen.getByText(/has no value yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Required: type a value/)).toBeInTheDocument();
   });
 
   it("says it once its field was left, and forgets that when the dialog closes", () => {
@@ -170,35 +176,39 @@ describe("a step's missing values", () => {
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[NOTED]} />);
 
-    // A field that is not a bound input is left without saying anything.
+    // Each field says it is missing once it was left, and not before.
+    expect(screen.queryByText(/Required: the step cannot run/)).toBeNull();
     fireEvent.focusOut(screen.getByLabelText(/^Subject/));
-    expect(screen.queryByText(/has no value yet/)).toBeNull();
+    expect(screen.getByText(/Required: the step cannot run/)).toBeInTheDocument();
+    expect(screen.queryByText(/Required: type a value/)).toBeNull();
 
     const input = document.querySelector("[data-field='value'] input") as HTMLElement;
     fireEvent.focusOut(input);
     fireEvent.focusOut(input);
-    expect(screen.getByText(/has no value yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Required: type a value/)).toBeInTheDocument();
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     act(() => store.getState().editNode("a"));
-    expect(screen.queryByText(/has no value yet/)).toBeNull();
+    expect(screen.queryByText(/Required: type a value/)).toBeNull();
   });
 });
 
 describe("a step's run policy", () => {
-  it("waits behind a link until asked for, and opens at once on a step that has one", async () => {
+  it("sits in the step's Settings, apart from what the step does", async () => {
     seed(node("a"), node("b"));
     store.getState().editNode("b");
     const { unmount } = render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
     expect(screen.queryByText("Handle errors")).toBeNull();
+    expect(screen.queryByLabelText("Some settings are changed")).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "When it is slow or fails…" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
     expect(screen.getByText("Handle errors")).toBeInTheDocument();
     unmount();
 
+    // A step with a policy says so on the tab, before it is opened.
     seed(node("a"), { ...node("b"), policy: { timeout_seconds: 5 } });
     store.getState().editNode("b");
     render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
-    expect(screen.getByText("Handle errors")).toBeInTheDocument();
+    expect(screen.getByLabelText("Some settings are changed")).toBeTruthy();
   });
 });

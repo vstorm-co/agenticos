@@ -54,39 +54,34 @@ function mount(
   return { onUpsert, onRemove };
 }
 
-describe("BindingField literal mode", () => {
-  it("stores a typed value as a literal binding", async () => {
-    const { onUpsert } = mount();
-    await userEvent.type(screen.getByLabelText("Message"), "h");
+describe("a parameter that is not text", () => {
+  it("stores a typed value, and removes it when cleared", async () => {
+    const { onUpsert } = mount({ schema: { ...INTEGER, title: "Count" } });
+    await userEvent.type(screen.getByLabelText("Count"), "3");
     expect(onUpsert).toHaveBeenLastCalledWith({
       target_node_id: "B",
       target_field: "message",
-      source: { kind: "literal", value: "h" },
+      source: { kind: "literal", value: 3 },
     });
   });
 
-  it("removes the binding when the value is cleared", async () => {
+  it("removes a typed value when it is cleared", async () => {
     const { onRemove } = mount({
+      schema: { ...INTEGER, title: "Count" },
       bindings: [
-        { target_node_id: "B", target_field: "message", source: { kind: "literal", value: "x" } },
+        { target_node_id: "B", target_field: "message", source: { kind: "literal", value: 3 } },
       ],
     });
-    await userEvent.clear(screen.getByLabelText("Message"));
+    await userEvent.clear(screen.getByLabelText("Count"));
     expect(onRemove).toHaveBeenCalledWith("B", "message");
   });
 
-  it("shows a field error in the wrapped control", () => {
-    mount({ error: "Required" });
-    expect(screen.getByText("Required")).toBeVisible();
-  });
-});
-
-describe("BindingField binding mode", () => {
-  it("toggles to a source picker and stores the chosen output", async () => {
+  it("takes its value from an earlier step through Data", async () => {
     const { onUpsert } = mount({ schema: DEBUG_ECHO_OUTPUT });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Source for DebugEchoOutput" }));
-    await userEvent.click(screen.getByRole("option", { name: /out/ }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Take DebugEchoOutput from an earlier step" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: /everything it hands on/ }));
     expect(onUpsert).toHaveBeenCalledWith({
       target_node_id: "B",
       target_field: "message",
@@ -94,86 +89,72 @@ describe("BindingField binding mode", () => {
     });
   });
 
-  it("drops an existing literal when switched to binding mode", async () => {
-    const { onRemove } = mount({
-      schema: DEBUG_ECHO_OUTPUT,
-      bindings: [
-        {
-          target_node_id: "B",
-          target_field: "message",
-          source: { kind: "literal", value: "old" },
-        },
-      ],
-    });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
-    expect(onRemove).toHaveBeenCalledWith("B", "message");
-  });
-
-  it("shows the current source and clears it when switched back to literal", async () => {
-    const { onRemove } = mount({
-      schema: DEBUG_ECHO_OUTPUT,
-      bindings: [
-        {
-          target_node_id: "B",
-          target_field: "message",
-          source: { kind: "node_output", node_id: "A", port: "out", field_path: [] },
-        },
-      ],
-    });
-    // Starts in binding mode because a node-output binding exists.
-    expect(screen.getByRole("radio", { name: "From a step" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    await userEvent.click(screen.getByRole("radio", { name: "Value" }));
-    expect(onRemove).toHaveBeenCalledWith("B", "message");
-  });
-
-  it("says so when no upstream output is compatible", async () => {
+  it("says so when no earlier step hands on anything it can take", async () => {
     mount({ schema: INTEGER });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
+    await userEvent.click(screen.getByRole("button", { name: /from an earlier step/ }));
     expect(screen.getByText("No compatible upstream outputs")).toBeVisible();
   });
 
-  it("offers a field of an upstream output for a scalar input and stores it with its path", async () => {
-    // Echo's `out` carries an object; a string input can only take one of its fields.
-    const { onUpsert } = mount({ schema: { type: "string", title: "Message" } });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Source for Message" }));
-    await userEvent.click(screen.getByRole("option", { name: "Echo · A · out → echoed (string)" }));
-    expect(onUpsert).toHaveBeenCalledWith({
-      target_node_id: "B",
-      target_field: "message",
-      source: { kind: "node_output", node_id: "A", port: "out", field_path: ["echoed"] },
+  it("offers no Data when it cannot be edited", () => {
+    mount({ schema: INTEGER, disabled: true });
+    expect(screen.queryByRole("button", { name: /from an earlier step/ })).toBeNull();
+  });
+});
+
+describe("a parameter read from an earlier step", () => {
+  const readFrom = (nodeId: string, path: string[] = ["echoed"]): Binding => ({
+    target_node_id: "B",
+    target_field: "message",
+    source: { kind: "node_output", node_id: nodeId, port: "out", field_path: path },
+  });
+  const bound = readFrom("A");
+
+  it("shows the step and field it reads, and what kind of value it is", () => {
+    mount({ schema: { type: "string", title: "Message" }, bindings: [bound] });
+    // Two Echo steps: the name tells this one apart the way the canvas does.
+    expect(screen.getByText(/^Echo · \w+ › echoed$/)).toBeTruthy();
+    expect(screen.getByText("text")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+  });
+
+  it("goes back to a typed value with the x", async () => {
+    const { onRemove } = mount({ schema: { type: "string", title: "Message" }, bindings: [bound] });
+    await userEvent.click(screen.getByRole("button", { name: "Type Message instead" }));
+    expect(onRemove).toHaveBeenCalledWith("B", "message");
+  });
+
+  it("changes the field it reads through Data", async () => {
+    const { onUpsert } = mount({ schema: DEBUG_ECHO_OUTPUT, bindings: [bound] });
+    await userEvent.click(screen.getByRole("button", { name: /from an earlier step/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /everything it hands on/ }));
+    expect(onUpsert).toHaveBeenLastCalledWith({
+      ...bound,
+      source: { ...bound.source, field_path: [] },
     });
   });
 
-  it("shows a bound field as the selected source, not as an empty picker", () => {
+  it("says when the step it read from is no longer before this one", () => {
     mount({
       schema: { type: "string", title: "Message" },
-      bindings: [
-        {
-          target_node_id: "B",
-          target_field: "message",
-          source: { kind: "node_output", node_id: "A", port: "out", field_path: ["echoed"] },
-        },
-      ],
+      bindings: [readFrom("gone")],
     });
-    expect(screen.getByRole("combobox", { name: "Source for Message" })).toHaveTextContent(
-      "Echo · A · out → echoed (string)",
-    );
-    expect(screen.queryByText("No compatible upstream outputs")).toBeNull();
+    expect(screen.getByText("A step that no longer comes before this one")).toBeTruthy();
   });
 
-  it("shows a field error under the source picker", async () => {
-    mount({ schema: DEBUG_ECHO_OUTPUT, error: "Unfilled" });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
+  it("marks a required field and shows its error", () => {
+    mount({
+      schema: { type: "string", title: "Message" },
+      bindings: [bound],
+      required: true,
+      error: "Unfilled",
+    });
+    expect(screen.getByText("*")).toBeVisible();
     expect(screen.getByText("Unfilled")).toBeVisible();
   });
 
-  it("marks a required field in binding mode", async () => {
-    mount({ schema: DEBUG_ECHO_OUTPUT, required: true });
-    await userEvent.click(screen.getByRole("radio", { name: "From a step" }));
-    expect(screen.getByText("*")).toBeVisible();
+  it("reads nothing but shows its source when it cannot be edited", () => {
+    mount({ schema: { type: "string", title: "Message" }, bindings: [bound], disabled: true });
+    expect(screen.getByText(/› echoed$/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Type Message instead" })).toBeNull();
   });
 });

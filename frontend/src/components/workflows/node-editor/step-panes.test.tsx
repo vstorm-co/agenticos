@@ -87,7 +87,8 @@ describe("InputPane", () => {
         names={new Map()}
       />,
     );
-    expect(screen.getByText(/Nothing comes into this step/)).toBeTruthy();
+    expect(screen.getByText("Not connected yet")).toBeTruthy();
+    expect(screen.getByText(/Connect a step before this one/)).toBeTruthy();
   });
 
   it("shows each step it reads from: pinned, from the last run, or not yet run", () => {
@@ -111,7 +112,7 @@ describe("InputPane", () => {
     );
 
     expect(screen.getByText("First")).toBeTruthy();
-    expect(screen.getByText("Pinned")).toBeTruthy();
+    expect(screen.getByText("Test data")).toBeTruthy();
     expect(screen.getByRole("cell", { name: "pinned" })).toBeTruthy();
     expect(screen.getByText("x")).toBeTruthy();
     expect(screen.getByText(/No data yet/)).toBeTruthy();
@@ -147,10 +148,10 @@ describe("the Input pane's hint", () => {
         />,
       );
     const { unmount } = pane(false);
-    expect(screen.getByText(/Drag a field onto a setting/)).toBeTruthy();
+    expect(screen.getByText(/Drag a field onto a parameter/)).toBeTruthy();
     unmount();
     pane(true);
-    expect(screen.queryByText(/Drag a field onto a setting/)).toBeNull();
+    expect(screen.queryByText(/Drag a field onto a parameter/)).toBeNull();
   });
 });
 
@@ -167,10 +168,10 @@ describe("the fields a step declares, before any run", () => {
       />,
     );
 
-    expect(screen.getByText("No run yet. It declares:")).toBeTruthy();
+    expect(screen.getByText("Not run yet. It hands on:")).toBeTruthy();
     const email = screen.getByText("email").closest("li") as HTMLElement;
     expect(email).toHaveAttribute("draggable", "true");
-    expect(within(email).getByText("string")).toBeTruthy();
+    expect(within(email).getByText("text")).toBeTruthy();
     const setData = vi.fn();
     fireEvent.dragStart(email, { dataTransfer: { setData, effectAllowed: "" } });
     expect(JSON.parse(setData.mock.calls[0]?.[1] as string)).toEqual({
@@ -178,7 +179,7 @@ describe("the fields a step declares, before any run", () => {
       path: ["email"],
       type: "string",
     });
-    expect(screen.getByText("integer")).toBeTruthy();
+    expect(screen.getByText("number")).toBeTruthy();
   });
 
   it("lists a step's own declared output, naming the port when it has several", () => {
@@ -220,11 +221,11 @@ describe("OutputPane", () => {
     renderOutput();
     expect(screen.getByText(/No output yet/)).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Write data to pin" }));
-    const editor = screen.getByLabelText("Pinned data as JSON");
+    await userEvent.click(screen.getByRole("button", { name: "Set test data" }));
+    const editor = screen.getByLabelText("Test data as JSON");
     expect(editor).toHaveValue("{}");
     fireEvent.change(editor, { target: { value: '{"echoed": "typed"}' } });
-    await userEvent.click(screen.getByRole("button", { name: "Pin" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(store.getState().graph?.nodes[1]?.pinned_output).toEqual({ echoed: "typed" });
   });
@@ -232,22 +233,22 @@ describe("OutputPane", () => {
   it("refuses pinned data that is not a JSON object, or too large, and cancels", async () => {
     seed(line());
     renderOutput();
-    await userEvent.click(screen.getByRole("button", { name: "Write data to pin" }));
-    const editor = screen.getByLabelText("Pinned data as JSON");
-    const save = screen.getByRole("button", { name: "Pin" });
+    await userEvent.click(screen.getByRole("button", { name: "Set test data" }));
+    const editor = screen.getByLabelText("Test data as JSON");
+    const save = screen.getByRole("button", { name: "Save" });
 
     fireEvent.change(editor, { target: { value: "{" } });
     await userEvent.click(save);
     expect(screen.getByText("This is not valid JSON.")).toBeTruthy();
     fireEvent.change(editor, { target: { value: "[1]" } });
     await userEvent.click(save);
-    expect(screen.getByText(/Pinned data is a JSON object/)).toBeTruthy();
+    expect(screen.getByText(/Test data is a JSON object/)).toBeTruthy();
     fireEvent.change(editor, { target: { value: JSON.stringify({ x: "y".repeat(64_000) }) } });
     await userEvent.click(save);
-    expect(screen.getByText("Pinned data may take at most 64000 bytes.")).toBeTruthy();
+    expect(screen.getByText("Test data may take at most 64000 bytes.")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByLabelText("Pinned data as JSON")).toBeNull();
+    expect(screen.queryByLabelText("Test data as JSON")).toBeNull();
     expect(store.getState().graph?.nodes[1]?.pinned_output).toBeUndefined();
   });
 
@@ -257,7 +258,7 @@ describe("OutputPane", () => {
     const { rerender } = renderOutput();
     expect(screen.getByRole("cell", { name: "hi" })).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Pin this data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep as test data" }));
     const pinned = store.getState().graph as WorkflowGraph;
     expect(pinned.nodes[1]?.pinned_output).toEqual({ echoed: "hi" });
     rerender(
@@ -269,14 +270,14 @@ describe("OutputPane", () => {
         definition={STEP}
       />,
     );
-    expect(screen.getByText(/Pinned: test runs hand this on/)).toBeTruthy();
+    expect(screen.getByText(/Test data: test runs hand this on/)).toBeTruthy();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect((screen.getByLabelText("Pinned data as JSON") as HTMLTextAreaElement).value).toContain(
+    await userEvent.click(screen.getByRole("button", { name: "Edit test data" }));
+    expect((screen.getByLabelText("Test data as JSON") as HTMLTextAreaElement).value).toContain(
       '"echoed": "hi"',
     );
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await userEvent.click(screen.getByRole("button", { name: "Unpin" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove test data" }));
     expect(store.getState().graph?.nodes[1]?.pinned_output).toBeNull();
   });
 
@@ -293,7 +294,7 @@ describe("OutputPane", () => {
   it("offers no pinning on a step that decides the route", () => {
     seed(line({ definition_id: "logic.if" }));
     renderOutput(DECIDE, [STEP, DECIDE]);
-    expect(screen.queryByRole("button", { name: "Write data to pin" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Set test data" })).toBeNull();
   });
 
   it("tests the step on what the steps before it handed on, and follows its run", async () => {

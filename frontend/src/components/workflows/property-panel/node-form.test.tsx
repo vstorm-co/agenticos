@@ -251,10 +251,50 @@ function renderForm(
 }
 
 describe("NodeForm sections", () => {
-  it("renders a config section and an input section", () => {
-    renderForm();
-    expect(screen.getByText("Settings")).toBeVisible();
-    expect(screen.getByText("What it works on")).toBeVisible();
+  it("lists the list a step works on first, then its settings, then what else it reads", () => {
+    const filter = makeDefinition({
+      id: "data.filter",
+      config_schema: {
+        type: "object",
+        properties: { match_mode: { type: "string", title: "Match Mode" } },
+        required: ["match_mode"],
+      } as Schema,
+      input_schema: {
+        type: "object",
+        properties: { label: { type: "string" }, items: { type: "array", items: {} } },
+        required: ["label", "items"],
+      } as Schema,
+    });
+    renderForm({ definition: filter });
+
+    const labels = Array.from(document.querySelectorAll("label")).map((label) =>
+      label.textContent?.replace("*", "").trim(),
+    );
+    expect(labels.filter((text) => ["Items", "Match mode", "Label"].includes(text ?? ""))).toEqual([
+      "Items",
+      "Match mode",
+      "Label",
+    ]);
+    expect(screen.queryByText("Settings")).toBeNull();
+  });
+
+  it("builds a condition from rows where the step evaluates one", async () => {
+    const filter = makeDefinition({
+      id: "data.filter",
+      config_schema: {
+        type: "object",
+        properties: {
+          condition: { type: "string", title: "Condition", "x-condition": "item" },
+        },
+        required: ["condition"],
+      } as Schema,
+    });
+    const { updateNodeConfig } = renderForm({ definition: filter });
+    expect(screen.getByRole("button", { name: "Add a condition" })).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Field of condition 1"), "ok");
+    await userEvent.click(screen.getByRole("combobox", { name: "Check of condition 1" }));
+    await userEvent.click(screen.getByRole("option", { name: "is not empty" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { condition: "item.ok" });
   });
 
   it("shows an empty message when a node has no fields", () => {

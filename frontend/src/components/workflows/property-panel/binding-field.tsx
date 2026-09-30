@@ -1,30 +1,22 @@
 "use client";
 
 import { type DragEvent, useMemo, useState } from "react";
+import { Braces, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 
-import {
-  Input,
-  Label,
-  Textarea,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
+import { Input, Label, Textarea } from "@/components/ui";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { availableSourceNodes, isDynamic } from "@/components/workflows/validation";
 import { carriesField, droppedField, observedFits } from "@/lib/workflows/field-drag";
+import { plainType } from "@/lib/workflows/plain-types";
 import type { Binding, NodeCatalog, Uuid, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   bindingFor,
-  candidateByKey,
-  candidateForField,
   candidateForBinding,
+  candidateForField,
   isNodeOutput,
   literalBinding,
   literalValueOf,
@@ -32,22 +24,17 @@ import {
   sourceCandidates,
 } from "./bindings";
 import type { SourceCandidate } from "./bindings";
-import { TemplateField } from "./template-field";
-import { labelOf, singleFieldSchema, takesJson, unwrapOptional, type Schema } from "./schema-model";
-
-/** A value typed here, one an earlier step hands on, or text with such values in it. */
-type Mode = "value" | "step" | "template";
-
-const MODE_LABELS: Record<Mode, string> = {
-  value: "bindingModeValue",
-  step: "bindingModeStep",
-  template: "bindingModeTemplate",
-};
-
-function modeOf(binding: Binding | undefined): Mode {
-  if (binding?.source.kind === "template") return "template";
-  return isNodeOutput(binding) ? "step" : "value";
-}
+import { DataSourceMenu, sourceText } from "./data-source";
+import { nodeNames } from "./problems";
+import {
+  labelOf,
+  singleFieldSchema,
+  takesJson,
+  takesText,
+  unwrapOptional,
+  type Schema,
+} from "./schema-model";
+import { TextValueField } from "./text-value-field";
 
 export interface BindingFieldProps {
   /** The node this field belongs to. */
@@ -72,21 +59,19 @@ export interface BindingFieldProps {
 }
 
 /**
- * One binding-aware leaf: a value typed in place (a `LiteralValue`), or read from
- * an upstream node's output (a `NodeOutputRef`), chosen by a toggle.
+ * One binding-aware parameter: a value typed in place, or one an earlier step
+ * hands on - with no mode to choose between them, the way n8n's parameters work.
  *
- * It reads and writes only the flat `bindings` list, never `config`. Literal mode
- * wraps `schema-form.tsx`'s existing scalar control — so masking, `x-multiline`,
- * enums and suggestions all come for free — and stores what it produces as a
- * literal binding. Binding mode offers a `Select` of every reachable,
- * type-compatible upstream output (rule 4 ∩ rule 3) and stores the chosen one as a
- * node-output binding. Toggling replaces the source wholesale rather than merging a
- * stale shape.
+ * Free text (`takesText`) is one box that takes typed text and values from
+ * earlier steps together (`TextValueField`). Any other field is its own control
+ * - a number, a choice, a switch, JSON - with **Data** beside it, which reads the
+ * value from an earlier step instead; the field then shows which step and field
+ * it reads, with an x to type a value again. A field dragged from the step
+ * dialog's Input pane does the same, and is refused with the reason when it is
+ * none of the values the menu would offer.
  *
- * A field dragged from the step dialog's Input pane binds it the same way, and is
- * refused with the reason when it is none of the sources the picker would offer.
- * A text field has a third mode, **Template**: text with values from earlier
- * steps in it (`TemplateField`).
+ * It reads and writes only the flat `bindings` list, never `config`. The values
+ * offered are every reachable, type-compatible upstream output (rule 4 ∩ rule 3).
  */
 export function BindingField({
   targetNodeId,
@@ -104,26 +89,14 @@ export function BindingField({
 }: BindingFieldProps) {
   const t = useTranslations("workflows");
   const binding = bindingFor(bindings, targetNodeId, targetField);
-  // A mode with nothing written yet - no source picked, no template typed - has no
-  // binding to derive from, so it is held locally until one is.
-  const [pendingMode, setPendingMode] = useState<Mode | null>(null);
-  const mode = pendingMode ?? modeOf(binding);
-  const bindingMode = mode === "step";
   const label = labelOf(schema, name);
-  const modes: Mode[] =
-    unwrapOptional(schema)["type"] === "string" ? ["value", "step", "template"] : ["value", "step"];
-
+  const own = unwrapOptional(schema);
+  const names = useMemo(() => nodeNames(graph, catalog), [graph, catalog]);
   const candidates = useMemo(
     () => sourceCandidates(graph, catalog, targetNodeId, schema),
     [graph, catalog, targetNodeId, schema],
   );
-
   const idPrefix = `bind-${targetField.replace(/[^a-zA-Z0-9]+/g, "-")}`;
-
-  const switchTo = (next: Mode) => {
-    setPendingMode(next);
-    if (binding !== undefined && modeOf(binding) !== next) onRemove(targetNodeId, targetField);
-  };
 
   const current = candidateForBinding(candidates, binding);
   const bindTo = (candidate: SourceCandidate, extraPath: readonly string[]) =>
@@ -134,29 +107,15 @@ export function BindingField({
       ]),
     );
 
-  const chooseSource = (key: string) => {
-    const candidate = candidateByKey(candidates, key);
-    // The `Select` only emits a candidate's own key, so a lookup always resolves.
-    if (candidate !== undefined) bindTo(candidate, []);
-  };
-
-  const currentKey = current?.candidate.key ?? "";
-
-  const changeLiteral = (next: Record<string, unknown>) => {
-    const value = next[name];
-    if (value === undefined) onRemove(targetNodeId, targetField);
-    else onUpsert(literalBinding(targetNodeId, targetField, value));
-  };
-
-  const literalValue = literalValueOf(binding);
-
   const [dropping, setDropping] = useState(false);
   const [dropProblem, setDropProblem] = useState<string | null>(null);
+  const reads = isNodeOutput(binding);
+  const textual = !reads && (takesText(schema) || binding?.source.kind === "template");
   const drop = (event: DragEvent) => {
     event.preventDefault();
     setDropping(false);
-    // A template takes a dropped field as a placeholder instead (`TemplateField`).
-    if (mode === "template") return;
+    // Text takes a dropped field as a placeholder instead (`TextValueField`).
+    if (textual) return;
     const field = droppedField(event);
     if (field === null) return;
     const found = candidateForField(candidates, field.nodeId, field.path);
@@ -164,10 +123,9 @@ export function BindingField({
     // says what it holds.
     const fits =
       found !== undefined &&
-      (found.extraPath.length === 0 || observedFits(unwrapOptional(schema)["type"], field.type));
+      (found.extraPath.length === 0 || observedFits(own["type"], field.type));
     if (found !== undefined && fits) {
       setDropProblem(null);
-      setPendingMode(null);
       bindTo(found.candidate, found.extraPath);
       return;
     }
@@ -185,10 +143,148 @@ export function BindingField({
     setDropping(true);
   };
 
+  const menu = (
+    <DataSourceMenu
+      candidates={candidates}
+      names={names}
+      label={t("dataSourceRead", { field: label })}
+      pressed={reads}
+      onPick={(candidate) => bindTo(candidate, [])}
+    />
+  );
+  const description = typeof own["description"] === "string" ? own["description"] : undefined;
+
+  let control: React.ReactNode;
+  if (reads) {
+    control = (
+      <div className="space-y-1.5">
+        <div className="flex min-h-6 items-center justify-between gap-2">
+          <Label>
+            {label}
+            {required && <span className="text-muted-foreground"> *</span>}
+          </Label>
+          {!disabled && (
+            <div className="flex items-center gap-0.5">
+              {menu}
+              <button
+                type="button"
+                aria-label={t("dataSourceClear", { field: label })}
+                title={t("dataSourceClear", { field: label })}
+                onClick={() => onRemove(targetNodeId, targetField)}
+                className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex size-6 items-center justify-center rounded-md outline-none focus-visible:ring-2"
+              >
+                <X aria-hidden="true" className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="border-border bg-muted/40 flex min-h-9 items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+          <Braces aria-hidden="true" className="text-muted-foreground size-3.5 shrink-0" />
+          <span className="truncate">
+            {current === undefined
+              ? t("dataSourceGone")
+              : sourceText(current.candidate, names, candidates)}
+            {current !== undefined && current.extraPath.length > 0 && (
+              <span className="text-muted-foreground"> › {current.extraPath.join(".")}</span>
+            )}
+          </span>
+          {current !== undefined && (
+            <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+              {t(`dataType.${plainType(current.candidate.typeToken)}`)}
+            </span>
+          )}
+        </div>
+        {current?.candidate.dynamic && (
+          <div className="space-y-1">
+            <Label htmlFor={`${idPrefix}-path`} className="text-muted-foreground text-xs">
+              {t("bindingPathLabel")}
+            </Label>
+            <Input
+              // Uncontrolled, so a half-typed path is not written on every key;
+              // keyed so another node's or another source's path starts fresh.
+              key={`${targetNodeId}:${current.candidate.key}`}
+              id={`${idPrefix}-path`}
+              className="font-mono text-xs"
+              placeholder={t("bindingPathPlaceholder")}
+              disabled={disabled}
+              defaultValue={current.extraPath.join(".")}
+              onBlur={(event) =>
+                bindTo(
+                  current.candidate,
+                  event.target.value
+                    .split(".")
+                    .map((part) => part.trim())
+                    .filter((part) => part.length > 0),
+                )
+              }
+            />
+          </div>
+        )}
+        {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+      </div>
+    );
+  } else if (textual) {
+    control = (
+      <TextValueField
+        targetNodeId={targetNodeId}
+        targetField={targetField}
+        label={label}
+        required={required}
+        hint={description}
+        placeholder={typeof own["x-placeholder"] === "string" ? own["x-placeholder"] : undefined}
+        multiline={own["x-multiline"] === true || own["x-textarea"] === true}
+        binding={binding}
+        graph={graph}
+        catalog={catalog}
+        idPrefix={idPrefix}
+        error={error}
+        disabled={disabled}
+        onUpsert={onUpsert}
+        onRemove={onRemove}
+      />
+    );
+  } else {
+    const literalValue = literalValueOf(binding);
+    control = (
+      <>
+        {!disabled && <div className="absolute top-0 right-0 z-10">{menu}</div>}
+        {isDynamic(own) || takesJson(schema) ? (
+          <JsonLiteral
+            key={`${targetNodeId}:${targetField}`}
+            id={`${idPrefix}-json`}
+            label={label}
+            required={required}
+            list={own["type"] === "array"}
+            value={literalValue}
+            error={error}
+            disabled={disabled}
+            onChange={(value) =>
+              value === undefined
+                ? onRemove(targetNodeId, targetField)
+                : onUpsert(literalBinding(targetNodeId, targetField, value))
+            }
+          />
+        ) : (
+          <SchemaForm
+            schema={singleFieldSchema(name, schema, required)}
+            value={literalValue === undefined ? {} : { [name]: literalValue }}
+            idPrefix={idPrefix}
+            disabled={disabled}
+            errors={error === undefined ? undefined : { [name]: error }}
+            onChange={(next) => {
+              const value = next[name];
+              if (value === undefined) onRemove(targetNodeId, targetField);
+              else onUpsert(literalBinding(targetNodeId, targetField, value));
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
-    // The mode sits in the label's row, at its right: whether the field holds a
-    // value typed here or one an earlier step hands on. Dropping a dragged field
-    // is the pointer's shortcut; the source picker is the way a keyboard gets there.
+    // Dropping a dragged field is the pointer's shortcut; **Data** is the way a
+    // keyboard gets there.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       className={cn(
@@ -199,131 +295,7 @@ export function BindingField({
       onDragLeave={() => setDropping(false)}
       onDrop={drop}
     >
-      <div
-        role="radiogroup"
-        aria-label={t("bindingToggleLabel", { field: label })}
-        className="bg-muted absolute top-0 right-0 z-10 flex rounded-md p-0.5 text-[11px]"
-      >
-        {modes.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={mode === option}
-            disabled={disabled}
-            onClick={() => mode !== option && switchTo(option)}
-            className={cn(
-              "rounded px-2 py-0.5 font-medium transition-colors disabled:opacity-50",
-              mode === option
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(MODE_LABELS[option])}
-          </button>
-        ))}
-      </div>
-
-      {mode === "template" ? (
-        <TemplateField
-          targetNodeId={targetNodeId}
-          targetField={targetField}
-          label={label}
-          template={binding?.source.kind === "template" ? binding.source : undefined}
-          graph={graph}
-          catalog={catalog}
-          idPrefix={idPrefix}
-          error={error}
-          disabled={disabled}
-          onUpsert={onUpsert}
-          onRemove={onRemove}
-        />
-      ) : bindingMode ? (
-        <div className="space-y-1.5">
-          <Label>
-            {label}
-            {required && <span className="text-muted-foreground"> *</span>}
-          </Label>
-          {candidates.length === 0 ? (
-            <p className="text-muted-foreground text-xs">{t("bindingNoSources")}</p>
-          ) : (
-            <Select value={currentKey} onValueChange={chooseSource} disabled={disabled}>
-              <SelectTrigger aria-label={t("bindingSourceLabel", { field: label })}>
-                <SelectValue placeholder={t("bindingSourcePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((candidate) => (
-                  <SelectItem key={candidate.key} value={candidate.key}>
-                    {candidate.fieldPath.length === 0
-                      ? t("bindingSourceOption", {
-                          node: candidate.nodeLabel,
-                          port: candidate.portLabel,
-                          type: candidate.typeToken,
-                        })
-                      : t("bindingSourceFieldOption", {
-                          node: candidate.nodeLabel,
-                          port: candidate.portLabel,
-                          field: candidate.fieldPath.join("."),
-                          type: candidate.typeToken,
-                        })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {current?.candidate.dynamic && (
-            <div className="space-y-1">
-              <Label htmlFor={`${idPrefix}-path`} className="text-muted-foreground text-xs">
-                {t("bindingPathLabel")}
-              </Label>
-              <Input
-                // Uncontrolled, so a half-typed path is not written on every key;
-                // keyed so another node's or another source's path starts fresh.
-                key={`${targetNodeId}:${current.candidate.key}`}
-                id={`${idPrefix}-path`}
-                className="font-mono text-xs"
-                placeholder={t("bindingPathPlaceholder")}
-                disabled={disabled}
-                defaultValue={current.extraPath.join(".")}
-                onBlur={(event) =>
-                  bindTo(
-                    current.candidate,
-                    event.target.value
-                      .split(".")
-                      .map((part) => part.trim())
-                      .filter((part) => part.length > 0),
-                  )
-                }
-              />
-            </div>
-          )}
-          {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
-        </div>
-      ) : isDynamic(unwrapOptional(schema)) || takesJson(schema) ? (
-        <JsonLiteral
-          key={`${targetNodeId}:${targetField}`}
-          id={`${idPrefix}-json`}
-          label={label}
-          list={unwrapOptional(schema)["type"] === "array"}
-          value={literalValue}
-          error={error}
-          disabled={disabled}
-          onChange={(value) =>
-            value === undefined
-              ? onRemove(targetNodeId, targetField)
-              : onUpsert(literalBinding(targetNodeId, targetField, value))
-          }
-        />
-      ) : (
-        <SchemaForm
-          schema={singleFieldSchema(name, schema, required)}
-          value={literalValue === undefined ? {} : { [name]: literalValue }}
-          idPrefix={idPrefix}
-          disabled={disabled}
-          errors={error === undefined ? undefined : { [name]: error }}
-          onChange={changeLiteral}
-        />
-      )}
+      {control}
       {dropProblem !== null && <p className="text-destructive text-xs">{dropProblem}</p>}
     </div>
   );
@@ -338,6 +310,7 @@ export function BindingField({
 function JsonLiteral({
   id,
   label,
+  required,
   list,
   value,
   error,
@@ -346,6 +319,7 @@ function JsonLiteral({
 }: {
   id: string;
   label: string;
+  required: boolean;
   /** A list is asked for, so the example is one. */
   list: boolean;
   value: unknown;
@@ -357,7 +331,10 @@ function JsonLiteral({
   const [invalid, setInvalid] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>
+        {label}
+        {required && <span className="text-muted-foreground"> *</span>}
+      </Label>
       <Textarea
         id={id}
         className="font-mono text-xs"

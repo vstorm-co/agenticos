@@ -189,6 +189,21 @@ function propertyNames(schema: unknown): string[] {
   return typeof properties === "object" && properties !== null ? Object.keys(properties) : [];
 }
 
+/** The fields of a JSON-Schema object that hold a list, `list[X]` or `list[X] | None`. */
+function listFields(schema: unknown): string[] {
+  if (typeof schema !== "object" || schema === null) return [];
+  const properties = (schema as { properties?: unknown }).properties;
+  if (typeof properties !== "object" || properties === null) return [];
+  const holdsList = (field: unknown): boolean => {
+    if (typeof field !== "object" || field === null) return false;
+    const { type, anyOf } = field as { type?: unknown; anyOf?: unknown };
+    return type === "array" || (Array.isArray(anyOf) && anyOf.some(holdsList));
+  };
+  return Object.entries(properties)
+    .filter(([, field]) => holdsList(field))
+    .map(([name]) => name);
+}
+
 /**
  * The bindings a new edge implies: one per input field, each reading the field of
  * the same name from the source's output.
@@ -199,10 +214,11 @@ function propertyNames(schema: unknown): string[] {
  * the source - so drawing the edge can also wire the data, and the reader is not
  * left to bind each field by hand before the graph will publish.
  *
- * Nothing is implied when either end is a control port (it carries no fields) or
- * the shapes differ (which field feeds which is then a choice). A field that is
- * already bound is left alone, and only fields of the target's `input_schema` are
- * bound - the fields a binding may name.
+ * Nothing is implied when either end is a control port (it carries no fields), or
+ * when the shapes differ and which field feeds which is a choice - except a list:
+ * a target taking one list, after a source handing on one, reads that one. A
+ * field that is already bound is left alone, and only fields of the target's
+ * `input_schema` are bound - the fields a binding may name.
  */
 export function autoBindings(
   connection: Connection | Edge,
@@ -219,15 +235,35 @@ export function autoBindings(
   const sourceSchema = portSchema(sourceDefinition, sourceHandle, "output");
   const targetSchema = portSchema(targetDefinition, targetHandle, "input");
   if (sourceSchema === UNKNOWN || targetSchema === UNKNOWN) return [];
-  if (sourceSchema === null || targetSchema === null) return [];
-  if (!portShapesCompatible(sourceSchema, targetSchema)) return [];
+  if (sourceSchema === null) return [];
 
-  const inputFields = new Set(propertyNames(targetDefinition.input_schema));
   const bound = new Set(
     graph.bindings
       .filter((binding) => binding.target_node_id === connection.target)
       .map((binding) => binding.target_field),
   );
+  if (targetSchema === null || !portShapesCompatible(sourceSchema, targetSchema)) {
+    // Shapes that differ, or a step that reads its inputs by binding alone, still
+    // leave one choice nobody has to make: a step that works on a list, after a
+    // step that hands on exactly one - Filter after List records - works on that.
+    const lists = listFields(sourceSchema);
+    const takes = listFields(targetDefinition.input_schema).filter((field) => !bound.has(field));
+    if (lists.length !== 1 || takes.length !== 1) return [];
+    return [
+      {
+        target_node_id: connection.target,
+        target_field: takes[0] as string,
+        source: {
+          kind: "node_output",
+          node_id: connection.source,
+          port: sourceHandle,
+          field_path: [lists[0] as string],
+        },
+      },
+    ];
+  }
+
+  const inputFields = new Set(propertyNames(targetDefinition.input_schema));
   return propertyNames(targetSchema)
     .filter((field) => inputFields.has(field) && !bound.has(field))
     .map((field) => ({

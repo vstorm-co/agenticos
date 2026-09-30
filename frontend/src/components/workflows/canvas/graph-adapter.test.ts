@@ -271,6 +271,101 @@ describe("graph-adapter", () => {
       expect(autoBindings(link("r", "out", "r", "in"), graph, definitions)).toEqual([]);
     });
 
+    it("reads the one list a source hands on into the one list a target works on", () => {
+      const listing = def({
+        id: "list",
+        ports: [
+          {
+            id: "out",
+            label: "Out",
+            kind: "output",
+            schema: {
+              type: "object",
+              properties: {
+                records: { type: "array", items: {} },
+                total: { type: "integer" },
+              },
+            },
+          },
+        ],
+      });
+      const takes = {
+        type: "object",
+        properties: {
+          items: { anyOf: [{ type: "array", items: {} }, { type: "null" }] },
+          note: { type: "string" },
+        },
+      };
+      const filtering = def({
+        id: "filter",
+        input_schema: takes,
+        // As the catalog serves it: an input that carries nothing, read by binding.
+        ports: [{ id: "in", label: "In", kind: "input", schema: null }],
+      });
+      const twoLists = def({
+        id: "two",
+        ports: [
+          {
+            id: "out",
+            label: "Out",
+            kind: "output",
+            schema: {
+              type: "object",
+              properties: { a: { type: "array" }, b: { type: "array" } },
+            },
+          },
+        ],
+      });
+      const lists = graphOf([
+        instance("l", "list", 1),
+        instance("f", "filter", 1),
+        instance("t", "two", 1),
+      ]);
+      const known = definitionsByNode(lists, buildCatalogMap([listing, filtering, twoLists]));
+      expect(autoBindings(link("l", "out", "f", "in"), lists, known)).toEqual([
+        {
+          target_node_id: "f",
+          target_field: "items",
+          source: { kind: "node_output", node_id: "l", port: "out", field_path: ["records"] },
+        },
+      ]);
+      // Two lists to choose from, or the list already given, is left to the builder.
+      expect(autoBindings(link("t", "out", "f", "in"), lists, known)).toEqual([]);
+      // A source declaring no fields, or one whose field is a bare `true`, hands on no list.
+      const bare = def({
+        id: "bare-out",
+        ports: [
+          { id: "out", label: "Out", kind: "output", schema: { type: "object", title: "Any" } },
+        ],
+      });
+      const loose = def({
+        id: "loose-out",
+        ports: [
+          {
+            id: "out",
+            label: "Out",
+            kind: "output",
+            schema: { type: "object", properties: { extra: true } },
+          },
+        ],
+      });
+      const odd = graphOf([
+        instance("b", "bare-out", 1),
+        instance("o", "loose-out", 1),
+        instance("f", "filter", 1),
+      ]);
+      const oddKnown = definitionsByNode(odd, buildCatalogMap([bare, loose, filtering]));
+      expect(autoBindings(link("b", "out", "f", "in"), odd, oddKnown)).toEqual([]);
+      expect(autoBindings(link("o", "out", "f", "in"), odd, oddKnown)).toEqual([]);
+      const given: WorkflowGraph = {
+        ...lists,
+        bindings: [
+          { target_node_id: "f", target_field: "items", source: { kind: "literal", value: [] } },
+        ],
+      };
+      expect(autoBindings(link("l", "out", "f", "in"), given, known)).toEqual([]);
+    });
+
     it("binds only fields of the target's input schema", () => {
       // `act` declares the shape on its ports but takes no input schema.
       expect(autoBindings(link("a", "out", "a", "in"), graph, definitions)).toEqual([]);

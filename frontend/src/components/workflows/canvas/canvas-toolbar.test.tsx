@@ -128,8 +128,9 @@ describe("the canvas menu", () => {
     fireEvent.contextMenu(
       container.querySelector('[data-workflow-region="canvas"]') as HTMLElement,
     );
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Paste/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Paste" }));
     expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
   });
 
   it("acts on the step that was right-clicked", async () => {
@@ -172,29 +173,40 @@ describe("the canvas menu", () => {
     expect(screen.queryByRole("menuitem", { name: /Switch off/ })).toBeNull();
   });
 
-  it("adds a step where the canvas was right-clicked, and undoes it", async () => {
+  it("opens the step picker where the canvas was right-clicked, and adds the step there", async () => {
     seed(node("a"));
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
     const pane = container.querySelector('[data-workflow-region="canvas"]') as HTMLElement;
 
     fireEvent.contextMenu(pane, { clientX: 200, clientY: 120 });
-    expect(await screen.findByText("Add a step here")).toBeTruthy();
-    const data = screen.getByRole("menuitem", { name: "Data" });
-    fireEvent.keyDown(data, { key: "ArrowRight" });
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Act/ }));
-    expect(store.getState().graph?.nodes).toHaveLength(2);
+    expect(await screen.findByPlaceholderText("Search steps")).toBeTruthy();
+    // Nothing copied, so nothing to paste; no step menu either.
+    expect(screen.queryByRole("button", { name: "Paste" })).toBeNull();
+    expect(screen.queryByRole("menuitem")).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /Act/ }));
 
-    fireEvent.contextMenu(pane);
-    expect(screen.getByRole("menuitem", { name: /Paste/ })).toHaveAttribute("data-disabled");
-    await userEvent.click(screen.getByRole("menuitem", { name: /Undo/ }));
+    expect(store.getState().graph?.nodes).toHaveLength(2);
+    await waitFor(() => expect(screen.queryByPlaceholderText("Search steps")).toBeNull());
+  });
+
+  it("closes the picker on Escape without adding anything", async () => {
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+    fireEvent.contextMenu(
+      container.querySelector('[data-workflow-region="canvas"]') as HTMLElement,
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByPlaceholderText("Search steps")).toBeNull());
     expect(store.getState().graph?.nodes).toHaveLength(1);
+  });
 
-    fireEvent.contextMenu(pane);
-    await userEvent.click(screen.getByRole("menuitem", { name: /Redo/ }));
-    expect(store.getState().graph?.nodes).toHaveLength(2);
-
-    fireEvent.contextMenu(pane);
-    await userEvent.click(screen.getByRole("menuitem", { name: /Fit to view/ }));
+  it("opens no picker on a canvas that cannot be edited", () => {
+    seed(node("a"));
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} readOnly />);
+    fireEvent.contextMenu(
+      container.querySelector('[data-workflow-region="canvas"]') as HTMLElement,
+    );
+    expect(screen.queryByPlaceholderText("Search steps")).toBeNull();
   });
 });
 

@@ -27,8 +27,9 @@ import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-context";
-import { CanvasContextMenu, type MenuTarget } from "./canvas-context-menu";
+import { CanvasContextMenu } from "./canvas-context-menu";
 import { CanvasToolbar } from "./canvas-toolbar";
+import { PanePicker, type PanePoint } from "./pane-picker";
 import {
   autoBindings,
   buildCatalogMap,
@@ -274,25 +275,30 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
-  // What the last right click was on, and where - the menu acts on that step, or
-  // places a new one at that point.
-  const [menuTarget, setMenuTarget] = useState<MenuTarget>({ kind: "pane" });
+  // A right click on a step opens that step's menu; on the empty canvas, the step
+  // picker, where the click was - and a step picked there is placed at that point.
+  const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
+  const [pickerAt, setPickerAt] = useState<PanePoint | null>(null);
   const menuPoint = useRef({ x: 0, y: 0 });
-  const recordMenuTarget = useCallback(
+  const onRightClick = useCallback(
     (event: MouseEvent<HTMLElement>) => {
       menuPoint.current = { x: event.clientX, y: event.clientY };
       const card = event.target instanceof Element ? event.target.closest("[data-node-id]") : null;
       const nodeId = card?.getAttribute("data-node-id") ?? null;
       if (nodeId === null) {
-        setMenuTarget({ kind: "pane" });
+        // Handled here, so the step menu's trigger leaves it alone.
+        event.preventDefault();
+        if (readOnly) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        setPickerAt({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
         return;
       }
-      setMenuTarget({ kind: "node", nodeId });
+      setMenuNodeId(nodeId);
       // The menu acts on what is selected, so a step right-clicked outside the
       // selection becomes the selection.
       if (!selectedNodeIds.has(nodeId)) setSelection({ nodeIds: [nodeId], edgeIds: [] });
     },
-    [selectedNodeIds, setSelection],
+    [readOnly, selectedNodeIds, setSelection],
   );
   const interaction = useMemo(
     () => ({
@@ -330,7 +336,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           onKeyDown={onKeyDown}
           onDragOver={onDragOver}
           onDrop={onDrop}
-          onContextMenuCapture={recordMenuTarget}
+          onContextMenuCapture={onRightClick}
           className="bg-muted/30 relative h-full min-h-[28rem] overflow-hidden outline-none"
         >
           <CanvasToolbar
@@ -347,6 +353,19 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
             onTidy={() => moveNodes(tidyLayout(activeGraph))}
           />
           <ShortcutSheet />
+          <PanePicker
+            at={pickerAt}
+            catalog={catalog}
+            onClose={() => setPickerAt(null)}
+            onPick={(definition) =>
+              insert(definition, { dropAt: screenToFlowPosition(menuPoint.current) })
+            }
+            onAddNote={
+              scopePath.length === 0
+                ? () => addNote(screenToFlowPosition(menuPoint.current))
+                : undefined
+            }
+          />
           <CanvasInteractionProvider value={interaction}>
             <ReactFlow
               nodes={nodes}
@@ -396,20 +415,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           </CanvasInteractionProvider>
         </section>
       </ContextMenuTrigger>
-      {!readOnly && (
-        <CanvasContextMenu
-          target={menuTarget}
-          catalog={catalog}
-          onAdd={(definition) =>
-            insert(definition, { dropAt: screenToFlowPosition(menuPoint.current) })
-          }
-          onAddNote={
-            scopePath.length === 0
-              ? () => addNote(screenToFlowPosition(menuPoint.current))
-              : undefined
-          }
-          onFitView={() => void fitView({ ...FIT_VIEW, duration: 300 })}
-        />
+      {!readOnly && menuNodeId !== null && (
+        <CanvasContextMenu nodeId={menuNodeId} catalog={catalog} />
       )}
     </ContextMenu>
   );

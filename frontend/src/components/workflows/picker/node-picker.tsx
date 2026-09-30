@@ -71,6 +71,10 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
         ),
       )
     : [];
+  // A step whose name says it comes before one that only mentions it.
+  const named = (item: NodeDefinition) =>
+    item.name.toLowerCase().includes(query.trim().toLowerCase());
+  found.sort((a, b) => Number(named(b.item)) - Number(named(a.item)));
 
   const stepRow = (item: NodeDefinition, visual: NodeVisual, groupLabel?: string) => (
     <Command.Item

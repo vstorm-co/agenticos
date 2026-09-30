@@ -96,7 +96,6 @@ describe("StepNote", () => {
     const onChange = vi.fn();
     const { rerender } = render(<StepNote node={step} disabled={false} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Add a note" }));
     fireEvent.blur(screen.getByLabelText("Note"));
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: "For the EU team" } });
@@ -116,9 +115,9 @@ describe("StepNote", () => {
     expect(onChange).toHaveBeenLastCalledWith("n1", { notes: null });
   });
 
-  it("offers no note to add on a read-only step, and shows one already there", () => {
+  it("shows nothing on a read-only step without a note, and the note on one with it", () => {
     const { unmount } = render(<StepNote node={step} disabled onChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "+ Add a note" })).toBeNull();
+    expect(screen.queryByLabelText("Note")).toBeNull();
     unmount();
     render(<StepNote node={{ ...step, notes: "Kept" }} disabled onChange={vi.fn()} />);
     expect(screen.getByLabelText("Note")).toHaveValue("Kept");

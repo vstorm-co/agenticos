@@ -106,7 +106,7 @@ describe("a note on the canvas", () => {
     fireEvent.contextMenu(
       container.querySelector('[data-workflow-region="canvas"]') as HTMLElement,
     );
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Add a note here" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add a note" }));
 
     expect(store.getState().graph?.notes).toHaveLength(1);
   });

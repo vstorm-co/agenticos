@@ -17,7 +17,7 @@ describe("DataView", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Fields" }));
     expect(screen.getByText("values.name")).toBeTruthy();
-    expect(screen.getByText("string")).toBeTruthy();
+    expect(screen.getByText("text")).toBeTruthy();
   });
 
   it("shows the first rows, and every row once asked", async () => {

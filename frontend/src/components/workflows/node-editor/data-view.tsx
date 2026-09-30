@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { type DragEvent, useState } from "react";
+import {
+  Asterisk,
+  Braces,
+  Calendar,
+  Circle,
+  Fingerprint,
+  Hash,
+  List,
+  type LucideIcon,
+  ToggleLeft,
+  Type,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { JsonView } from "@/components/ui/json-view";
 import { outputFieldPaths } from "@/components/workflows/property-panel/bindings";
 import { resolveFieldType, schemaTypeToken } from "@/components/workflows/validation/schema";
-import { startFieldDrag } from "@/lib/workflows/field-drag";
+import { type DraggedField, startFieldDrag } from "@/lib/workflows/field-drag";
+import { type PlainType, plainType } from "@/lib/workflows/plain-types";
 import { SHOWN_ROWS, cellText, schemaOf, tableOf, typeOf } from "@/lib/workflows/step-data";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
@@ -133,29 +146,73 @@ function SchemaView({ value, source }: { value: Record<string, unknown>; source?
   const fields = schemaOf(value);
   if (fields.length === 0) return <p className="text-muted-foreground text-xs">{t("dataEmpty")}</p>;
   return (
-    <ul className="space-y-0.5 font-mono text-[11.5px]">
-      {fields.map((field) => {
-        const dragged =
-          source !== undefined && field.segments !== null
-            ? { nodeId: source, path: field.segments, type: field.type }
-            : null;
-        return (
-          // Dragging is the pointer's shortcut; the setting's source picker offers
-          // the same fields to a keyboard.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-          <li
-            key={field.path}
-            draggable={dragged !== null}
-            title={dragged === null ? undefined : t("dataDragHint")}
-            onDragStart={dragged === null ? undefined : (event) => startFieldDrag(event, dragged)}
-            className={cn("flex justify-between gap-3", dragged !== null && DRAGGABLE)}
-          >
-            <span className="truncate">{field.path}</span>
-            <span className="text-muted-foreground shrink-0">{field.type}</span>
-          </li>
-        );
-      })}
+    <ul className="space-y-px">
+      {fields.map((field) => (
+        <FieldRow
+          key={field.path}
+          name={field.path}
+          token={field.type}
+          dragged={
+            source !== undefined && field.segments !== null
+              ? { nodeId: source, path: field.segments, type: field.type }
+              : null
+          }
+        />
+      ))}
     </ul>
+  );
+}
+
+const TYPE_ICON: Record<PlainType, LucideIcon> = {
+  text: Type,
+  number: Hash,
+  yesNo: ToggleLeft,
+  date: Calendar,
+  id: Fingerprint,
+  list: List,
+  object: Braces,
+  empty: Circle,
+  any: Asterisk,
+};
+
+/**
+ * One field a step hands on: an icon and a word for what it holds, and - where
+ * it can be read from - a handle to drag it onto a parameter by.
+ */
+function FieldRow({
+  name,
+  token,
+  dragged,
+}: {
+  name: string;
+  /** The field's type token, or an observed value's type. */
+  token: string;
+  dragged: DraggedField | null;
+}) {
+  const t = useTranslations("workflows");
+  const kind = plainType(token);
+  const Icon = TYPE_ICON[kind];
+  return (
+    // Dragging is the pointer's shortcut; the parameter's source picker offers
+    // the same fields to a keyboard.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <li
+      draggable={dragged !== null}
+      title={dragged === null ? undefined : t("dataDragHint")}
+      onDragStart={
+        dragged === null ? undefined : (event: DragEvent) => startFieldDrag(event, dragged)
+      }
+      className={cn(
+        "flex items-center gap-2 rounded-md px-1.5 py-1",
+        dragged !== null && "hover:bg-accent cursor-grab active:cursor-grabbing",
+      )}
+    >
+      <Icon aria-hidden="true" className="text-muted-foreground size-3.5 shrink-0" />
+      <span className="truncate font-mono text-[11.5px]">{name}</span>
+      <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+        {t(`dataType.${kind}`)}
+      </span>
+    </li>
   );
 }
 
@@ -167,13 +224,15 @@ function SchemaView({ value, source }: { value: Record<string, unknown>; source?
 export function DeclaredOutput({
   definition,
   source,
+  intro,
   fallback,
 }: {
   definition: NodeDefinition | null;
   source?: Uuid;
+  /** What the list is, above it: a step not run yet, or one not tested yet. */
+  intro: string;
   fallback: React.ReactNode;
 }) {
-  const t = useTranslations("workflows");
   const ports = (definition?.ports ?? [])
     .filter((port) => port.kind === "output")
     .map((port) => ({
@@ -184,31 +243,19 @@ export function DeclaredOutput({
   if (definition === null || ports.length === 0) return fallback;
   return (
     <div className="space-y-1.5">
-      <p className="text-muted-foreground text-xs">{t("dataDeclared")}</p>
-      <ul className="space-y-0.5 font-mono text-[11.5px]">
+      <p className="text-muted-foreground text-xs">{intro}</p>
+      <ul className="space-y-px">
         {ports.flatMap(({ port, paths }) =>
           paths.map((path) => {
             const type = schemaTypeToken(resolveFieldType(definition, port.id, path));
-            const dragged = source === undefined ? null : { nodeId: source, path, type };
             const name = path.join(".");
             return (
-              // Dragging is the pointer's shortcut; the setting's source picker
-              // offers the same fields to a keyboard.
-              // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-              <li
+              <FieldRow
                 key={`${port.id}:${name}`}
-                draggable={dragged !== null}
-                title={dragged === null ? undefined : t("dataDragHint")}
-                onDragStart={
-                  dragged === null ? undefined : (event) => startFieldDrag(event, dragged)
-                }
-                className={cn("flex justify-between gap-3", dragged !== null && DRAGGABLE)}
-              >
-                <span className="truncate">
-                  {ports.length > 1 ? `${port.label} · ${name}` : name}
-                </span>
-                <span className="text-muted-foreground shrink-0">{type}</span>
-              </li>
+                name={ports.length > 1 ? `${port.label} · ${name}` : name}
+                token={type}
+                dragged={source === undefined ? null : { nodeId: source, path, type }}
+              />
             );
           }),
         )}

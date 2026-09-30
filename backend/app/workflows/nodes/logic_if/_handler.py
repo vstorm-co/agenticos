@@ -32,6 +32,8 @@ class LogicIfConfig(BaseModel):
             "A JMESPath expression over the input, read for truthiness - for example "
             "value.status == 'approved'."
         ),
+        # The console builds it from rows over the `value` (conditions.ts).
+        json_schema_extra={"x-condition": "value"},
     )
 
     @field_validator("condition")

@@ -1,5 +1,5 @@
 ---
-source_sha: "eb55690f9368"
+source_sha: "19d5d1158c4e"
 ---
 
 # Workflows { #workflows }
@@ -111,8 +111,8 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
   start i staje się nim.
 - **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
-- **Prawy przycisk** na kanwie: **Add a step here** pokazuje te same sekcje i grupy, a
-  krok trafia tam, gdzie kliknąłeś.
+- **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
+  i tam trafia krok. Pod nim **Add a note** oraz, gdy coś skopiowano, **Paste**.
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
 
 Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
@@ -121,8 +121,8 @@ każdy nowy krok zostaje wpięty w ciało, więc tam zostaje. Wybór pokazuje to
 poprawne tam, gdzie jesteś: **Loop item** i **Loop result** tylko w ciele pętli, a
 pętlę, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
 
-Prawy przycisk na kroku daje **Open settings**, **Duplicate** i **Delete step**;
-prawy przycisk na kanwie daje też **Paste**, **Undo**, **Redo** i **Fit to view**. Gdy
+Prawy przycisk na kroku daje **Open settings**, **Duplicate**, **Switch off** i
+**Delete step**. Gdy
 zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
 
 !!! note "Katalog kroków rośnie z czasem"
@@ -133,7 +133,7 @@ zaznaczonych jest kilka kroków, pasek na dole usuwa je razem.
 
 ### Notatki, porządkowanie i skróty { #notes-tidying-and-shortcuts }
 
-**Add a note here** w menu kontekstowym kanwy stawia notatkę obok kroków: markdown,
+**Add a note** pod wyborem kroków otwieranym prawym przyciskiem stawia notatkę obok kroków: markdown,
 pisany po dwukrotnym kliknięciu lub ołówkiem, przesuwany przeciąganiem i zmieniający
 rozmiar od rogów. Notatka jest zapisana w grafie, więc wersje, przywrócenia i kopie
 workflow ją zachowują, ale nic jej nie uruchamia ani nie sprawdza. Zaznaczone połączenie
@@ -145,95 +145,106 @@ gdy piszesz w polu.
 
 ## Konfigurowanie węzła { #configuring-a-node }
 
-Co robi każdy węzeł, z czym się go konfiguruje i co znaczą jego błędy, opisuje
+Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
 [referencja węzłów](reference/workflow-nodes.md).
 
-Kliknij krok, a jego ustawienia otworzą się w oknie nad kanwą: nazwa, co robi i każdy
-problem blokujący publikację, nad polami. Każda zmiana zapisuje się w drafcie od razu,
-więc **Done** tylko zamyka okno, a **Delete step** usuwa krok. Pola dzielą się na dwie
-sekcje. **Settings** trzyma ustawienia statyczne — stałe wybory, które nie
-zmieniają się między runami, w tym zasoby przypięte do kroku. **What it works on** trzyma
-wartości, które krok czyta w trakcie działania.
+Kliknięty krok otwiera się w oknie nad kanwą: u góry jego nazwa i to, co robi, a pod
+nimi, zwykłymi słowami, każdy problem blokujący publikację - **Not connected yet** dla
+kroku, do którego nic nie prowadzi. **Parameters** to to, na czym krok pracuje i co ma
+zrobić, w jednej liście, z listą, na której krok pracuje, na początku: **Items** w
+Filter przed jego **Condition**. **Settings** to to, jak krok działa. Każda zmiana
+zapisuje się w drafcie od razu, więc **Done** tylko zamyka okno, a **Delete step**
+usuwa krok.
 
-Input wypełnia się na jeden z dwóch sposobów, a **Value** i **From a step** obok jego
-etykiety przełączają między nimi:
+Parametr przyjmujący tekst to jedno pole na wpisany tekst i wartości z wcześniejszych
+kroków naraz, na przykład `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+**Data** obok wstawia wartość w miejscu kursora, podobnie jak pole przeciągnięte z
+**Input**. Placeholder wskazuje krok i ścieżkę w jego wyjściu, jest sprawdzany przy
+publikacji jak każda wartość czytana z kroku i podąża za krokiem po zmianie jego nazwy.
+Z danymi przebiegu testowego wynik jest podglądany pod spodem. Nic nie jest wykonywane:
+gdy krok działa, każdy placeholder staje się tekstem swojej wartości, JSON-em dla listy
+albo obiektu, a taki, za którym nic nie stoi, kończy krok błędem `INVALID_BINDING` i go
+nazywa.
 
-- **Wartość** — wpisujesz ją wprost w pole, tą samą kontrolką, jakiej wymaga typ pola.
-- **From a step** — czytasz wartość z wyjścia innego kroku. Pole zmienia się w wybór
-  **Source**, którego opcje to wyjścia wcześniejszych kroków faktycznie osiągalne w
-  tym miejscu i o zgodnym typie — całe wyjście kroku albo jedno pole w nim — każde
-  pokazane jako *{node} · {port} ({type})* albo *{node} · {port} → {field} ({type})*
-  dla pola. Pole, dla którego nic wcześniej nie pasuje, mówi **No compatible upstream
-  outputs** zamiast proponować błędny wybór.
+Każdy inny parametr - liczba, wybór, przełącznik, lista wpisana jako JSON - ma własną
+kontrolkę, a **Data** obok bierze wartość z wcześniejszego kroku zamiast niej. **Data**
+pokazuje tylko wartości osiągalne w tym miejscu i o zgodnym typie, pogrupowane według
+kroków, każdą z rodzajem wartości, a gdy takich nie ma, mówi **No compatible upstream
+outputs**. Parametr pokazuje wtedy, co czyta - *Run an agent › text* - a **×** wraca do
+wpisanej wartości.
 
-Pole tekstowe ma trzeci sposób, **Template**: tekst z wartościami z wcześniejszych
-kroków, na przykład `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
-Placeholder wskazuje krok i ścieżkę w jego wyjściu, jest sprawdzany przy publikacji
-tak jak binding i podąża za krokiem, gdy ten zmieni nazwę. **Insert a value…** wstawia
-go w miejscu kursora, podobnie jak pole przeciągnięte z **Input**. Gdy są dane z
-przebiegu testowego, pod polem widać podgląd wyniku. Nic nie jest wykonywane: gdy krok
-działa, każdy placeholder staje się tekstem swojej wartości, JSON-em dla listy albo
-obiektu, a taki, za którym nic nie stoi, kończy krok błędem `INVALID_BINDING`, który
-go wskazuje.
+Wymagany parametr bez wartości to problem walidacji, oznaczany na kroku, a nie
+wypełniany po cichu wartością domyślną. Niektóre parametry mają wartości
+strukturalne: listę wierszy, do której robisz **Add row**, zmieniasz kolejność i
+usuwasz, albo typowany wybór, który podmienia formularz pod spodem. Okno wchodzi w nie
+rekurencyjnie, zamiast odsyłać na osobny ekran.
 
-Wymagany input bez wartości to problem walidacji, oznaczony na węźle, a nie
-uzupełniony cichą wartością domyślną. Niektóre pola trzymają wartości złożone: listę
-wierszy, do której **Add row** dodaje, którą przestawiasz i z której usuwasz, albo
-typowany wybór, który podmienia formularz pod nim. Okno wchodzi w nie rekurencyjnie,
-zamiast odsyłać do osobnego ekranu.
+### Warunki { #conditions }
+
+**Filter a list**, **If** i **Switch** decydują warunkiem zbudowanym z wierszy: pole
+elementu albo wartości, sprawdzenie - **is equal to**, **is at least**, **contains**,
+**is not empty** i pozostałe - oraz to, z czym jest porównywane. Liczba, `true` i
+`false` są porównywane jako takie, cała reszta jako tekst. Przy kilku wierszach
+**Match all of these** albo **any** mówi, jak się łączą, a pola, które pokazał ostatni
+przebieg albo dane testowe, są podpowiadane. Warunek jest zapisywany jako wyrażenie
+JMESPath, które krok wylicza. **Write it as an expression** edytuje go jako to
+wyrażenie, a takie, którego wiersze nie pokażą, zostaje wyrażeniem.
 
 ### Nazywanie kroku, notatka i wyłączanie { #naming-noting-and-switching-off-a-step }
 
-Kliknięcie nazwy kroku u góry jego ustawień nadaje mu własną nazwę, pokazywaną na jego karcie i wszędzie, gdzie
-późniejszy krok wybiera, co czytać - dwa kroki **Send a message** stają się *Tell sales*
-i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez względu na wielkość
-liter.
+Kliknięcie nazwy kroku u góry jego okna nadaje mu własną nazwę, widoczną na karcie i
+wszędzie tam, gdzie późniejszy krok wybiera, co czytać - dwa kroki **Send a message**
+stają się *Tell sales* i *Tell support*. Dwa kroki nie mogą mieć tej samej nazwy, bez
+względu na wielkość liter.
 
-**Note** zachowuje zdanie dla tego, kto edytuje workflow następny, oznaczone na
-karcie. Wyłączenie **Run this step** na dole jego ustawień albo **Switch off** w menu kontekstowym
-kroku zostawia krok na
-kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie robi i przekazuje
-dalej to, co do niego dotarło. Publikacja odrzuca wyłączony wyzwalacz lub krok
-decydujący o drodze oraz krok, który czyta wyłączony, chyba że to, co do niego
-dociera - jedynym połączeniem wejściowym, z kroku, który jest włączony - ma czytane
-pole, które wtedy przekazuje dalej. Wszystkie trzy są zapisane w grafie, więc
-wersje je zachowują.
+W **Settings** **Note** zostawia linijkę dla tego, kto będzie edytował workflow jako
+następny, oznaczoną na karcie, a zakładka ma kropkę, gdy cokolwiek tam zmieniono.
 
-### Dane kroku, przypinanie i test jednego kroku { #a-steps-data-pinning-and-testing-one-step }
+Wyłączenie tam **Run this step** albo **Switch off** w menu pod prawym przyciskiem
+zostawia krok na kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie
+robi i przekazuje dalej to, co do niego dotarło. Publikacja odrzuca wyłączony trigger
+albo krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
+niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma czytane pole,
+które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
+zachowują.
 
-Podczas edycji workflow okno umieszcza ustawienia kroku między dwoma panelami. **Input**
-pokazuje, co przekazał każdy krok, z którego ten krok czyta, a **Output** – co przekazał
-sam krok. Oba pochodzą z ostatniego przebiegu testowego uruchomionego w edytorze albo, po
-otwarciu, z najnowszego. **Table** układa dane w wiersze, listę rekordów po jednym wierszu
-na rekord. **JSON** pokazuje je takimi, jakie są, a **Fields** wymienia każde pole po ścieżce
-z jego typem: ścieżki, które czyta późniejszy krok.
+### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 
-Przed pierwszym przebiegiem oba panele wymieniają pola, które krok deklaruje, po ścieżce
-i typie, i je też można przeciągać. Tabela pokazuje pierwsze 50 wierszy, dopóki **Show
-more** nie rozłoży reszty, a komórka ucięta do szerokości kolumny pokazuje całą wartość
-po najechaniu.
+W trakcie edycji okno umieszcza parametry kroku między dwoma panelami. **Input**
+pokazuje, co przekazał każdy krok, z którego ten czyta, pod nazwą i ikoną tamtego kroku,
+a **Output** to, co przekazał sam krok, oba z ostatniego przebiegu testowego
+uruchomionego w edytorze albo z najnowszego przy otwarciu. **Table** układa dane w
+wiersze, listę rekordów po jednym wierszu na rekord. **JSON** pokazuje je takimi, jakie
+są, a **Fields** wymienia każde pole po ścieżce ze zwykłym słowem na to, co zawiera -
+text, number, list, ID: ścieżki, które czyta późniejszy krok.
 
-Kolumnę albo pole z **Input** można przeciągnąć na ustawienie, które wtedy czyta
-je z tamtego kroku, tak jakby wybrano je w **From a step**. Pole, które nie pasuje,
-zostaje odrzucone z podaniem powodu: typ, którego ustawienie nie przyjmuje, albo
-krok, który nie zawsze działa przed tym. Wewnątrz wartości o dowolnym kształcie,
-takiej jak `values` mapowania czy `payload` wyzwalacza, typem jest ten, który
-pokazał przebieg. Lista wyboru też oferuje takie wartości każdemu ustawieniu, a
-ścieżkę wpisuje się w **Field inside it**.
+Przed pierwszym przebiegiem oba panele pokazują w ten sam sposób pola, które krok
+przekazuje, i je także można przeciągać; krok, do którego nic nie prowadzi, mówi **Not
+connected yet**. Tabela pokazuje pierwsze 50 wierszy, dopóki **Show more** nie rozłoży
+reszty, a komórka przycięta do szerokości kolumny pokazuje całą wartość po najechaniu.
 
-**Pin this data** zachowuje wynik na kroku, a **Write data to pin** pozwala
-wpisać własny jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy
-przekazuje przypięte dane zamiast uruchamiać krok, więc wolne wywołanie modelu albo zapis
-do działającego systemu wykonuje się raz i jest używany ponownie. Krok, który decyduje o
-drodze, nigdy nie jest przypinany, a publikacja usuwa każde przypięcie: opublikowana wersja
-zawsze uruchamia swoje kroki. Ikona pinezki oznacza kartę, a **Unpin** ją usuwa.
+Kolumnę albo pole z **Input** można przeciągnąć na parametr, który wtedy czyta je z
+tamtego kroku, tak jakby wybrano je w **Data** - do tekstu jako placeholder. Pole, które
+nie pasuje, zostaje odrzucone z powodem: typ, którego parametr nie przyjmuje, albo krok,
+który nie zawsze działa przed tym. Wewnątrz wartości bez określonego kształtu, takiej jak
+`values` mapowania albo `payload` triggera, typ jest taki, jaki pokazał przebieg.
+**Data** oferuje wartości bez kształtu każdemu parametrowi, z **Field inside it** na
+ścieżkę.
 
-**Test step** uruchamia sam krok. Przebieg zachowuje tylko ten krok i kroki, które do
-niego prowadzą, a każdy z nich o znanym wyniku, przypiętym albo z ostatniego przebiegu
-testowego, przekazuje go zamiast się uruchamiać. Pozostałe działają, a nic po kroku nie
-rusza. Krok, który zapisuje, najpierw pyta, bo test naprawdę zapisuje. Kroku w pętli nie da
-się przetestować osobno, bo działa raz na element, więc przetestuj pętlę. Przez API to samo
-robi `step` w `POST /api/v1/workflow-runs`.
+**Keep as test data** zostawia wyjście na kroku, a **Set test data** pozwala wpisać je
+jako obiekt JSON o rozmiarze najwyżej 64 000 bajtów. Przebieg testowy przekazuje dane
+testowe dalej zamiast uruchamiać krok, więc wolne wywołanie modelu albo zapis do żywego
+systemu robi się raz i używa ponownie. Krok decydujący o drodze nigdy nie trzyma danych
+testowych, a publikacja usuwa je wszystkie: opublikowana wersja zawsze uruchamia swoje
+kroki. Ikona pinezki oznacza kartę, a **Remove test data** je usuwa.
+
+**Test step** uruchamia sam krok i jest głównym przyciskiem panelu, dopóki nie ma
+danych. Przebieg zachowuje tylko ten krok i kroki do niego prowadzące, a każdy z nich o
+znanym wyjściu, z danych testowych albo z ostatniego przebiegu testowego, przekazuje je
+zamiast działać. Reszta działa, a nic po tym kroku już nie. Krok, który zapisuje, najpierw
+pyta, bo test naprawdę zapisuje. Kroku w pętli nie da się przetestować osobno, bo działa
+raz na element, więc testuj pętlę. Przez API to samo robi `step` w
+`POST /api/v1/workflow-runs`.
 
 ### Wybór zasobów { #resource-pickers }
 
@@ -255,7 +266,7 @@ zachętą, a nie cichym pęknięciem.
 
 ### Gdy krok jest wolny albo zawodzi { #when-a-step-is-slow-or-fails }
 
-Pod polami kroku sekcja **When it is slow or fails** ustala jego politykę. **Handle
+W **Settings** kroku sekcja **When it is slow or fails** ustala jego politykę. **Handle
 errors** daje krokowi port **Error**: błąd, którego ponowienia nie rozwiązały, wychodzi
 nim do kroku **Handle error** albo czegokolwiek innego, co podłączysz, zamiast
 kończyć run błędem. **Tries** to łączna liczba prób kroku, a **Wait between tries** i
@@ -284,8 +295,10 @@ ręcznie, połączenie dwóch portów, które niosą dokładnie ten sam kształt
 wyjścia Echo z wejściem Relay — wiąże też każdy input celu z polem o tej samej nazwie
 na źródle. Pole, które już związałeś, zostaje nietknięte.
 
-Gdy kształty się różnią albo
-port nie niesie danych, nic nie jest wiązane i każde źródło wybierasz sam przez **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
+Gdy kształty się różnią albo port nie niesie danych, jeden wybór i tak zapada za Ciebie:
+krok pracujący na jednej liście, podłączony za krokiem, który przekazuje dokładnie jedną
+- **Filter a list** za **List records** - czyta tę listę. Nic więcej nie jest wiązane i
+każde źródło wybierasz sam przez **Data**. Undo (`Ctrl`/`Cmd` + `Z`) cofa połączenie razem z jego bindingami, a późniejsze usunięcie
 krawędzi zostawia jej bindingi na miejscu, więc usuń je lub zwiąż ponownie w ustawieniach kroku.
 
 Aby usunąć połączenie, zaznacz je: kliknij linię, a zostanie narysowana grubiej i pojawi się na niej przycisk **Delete connection**.
@@ -307,14 +320,13 @@ działało przed pętlą. Co robi pętla, opisuje
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
-Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i licznik w swoich ustawieniach, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **No problems** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
+Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i mówi o nim pod swoją nazwą po otwarciu, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **No problems** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
 
 Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już ustawiłeś,
 widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają pod **More
-options**, a **When it is slow or fails** i notatka otwierają się na żądanie albo gdy są
-ustawione. Wymagana wartość, której jeszcze nie podano, nie jest oznaczana przy polu,
+options**, a to, jak krok działa, czeka w **Settings**. Wymagana wartość, której jeszcze nie podano, nie jest oznaczana przy polu,
 dopóki nie opuścisz tego pola albo nie spróbujesz uruchomić lub opublikować: znacznik
-kroku na kanwie i licznik powyżej mówią o niej od początku. Opis, który tylko powtarza
+kroku na kanwie mówi o niej od początku. Opis, który tylko powtarza
 nazwę pola, jest podpowiedzią przy nazwie zamiast wiersza pod polem.
 
 Komunikaty nazywają konkretną usterkę: wymagany input bez wartości, input ustawiany
@@ -650,8 +662,8 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
   odrzuca połączenie między niezgodnymi portami.
 - Krawędź ustala **kolejność**, a bindingi niosą **wartości**; połączenie portów o tym
   samym kształcie tworzy bindingi za Ciebie.
-- Inputy węzła to **wartość albo binding** — **From a step** czyta wartość z osiągalnego,
-  zgodnego typem wyjścia wcześniejszego kroku.
+- Parametr to **wartość albo dane z kroku** — **Data** czyta je z osiągalnego, zgodnego
+  typem wyjścia wcześniejszego kroku albo wstawia je do tekstu.
 - Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
   lub **Reload**.
 - **Publish** jest zablokowany, dopóki problem istnieje, i waliduje ponownie na

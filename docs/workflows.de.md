@@ -1,5 +1,5 @@
 ---
-source_sha: "eb55690f9368"
+source_sha: "19d5d1158c4e"
 ---
 
 # Workflows { #workflows }
@@ -122,8 +122,9 @@ fügen einen Schritt auf vier Wegen hinzu:
   passen. Ein Startschritt kommt stattdessen vor den aktuellen Start und wird zu ihm.
 - **+** neben dem Ausgang eines Schritts öffnet die Auswahl für den Schritt, der nach
   diesem Ausgang kommt.
-- **Rechtsklick** auf die Zeichenfläche: **Add a step here** zeigt dieselben
-  Abschnitte und Gruppen, und der Schritt landet dort, wo Sie geklickt haben.
+- **Rechtsklick** auf die Zeichenfläche: dieselbe Auswahl öffnet sich dort, wo Sie
+  geklickt haben, und der Schritt landet dort. Darunter **Add a note** und, sobald
+  etwas kopiert ist, **Paste**.
 - **Ziehen** Sie einen Schritt aus der Auswahl, um ihn dort abzulegen, wo Sie ihn
   fallen lassen, ohne Verbindung.
 
@@ -135,9 +136,8 @@ gültig ist: **Loop item** und **Loop result** nur im Körper einer Schleife und
 Schleife, solange Schleifen nicht so tief verschachtelt sind, wie das Veröffentlichen
 erlaubt.
 
-Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate** und
-**Delete step**; ein Rechtsklick auf die Zeichenfläche bietet außerdem **Paste**,
-**Undo**, **Redo** und **Fit to view**. Sind mehrere Schritte ausgewählt, löscht eine
+Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate**, **Switch
+off** und **Delete step**. Sind mehrere Schritte ausgewählt, löscht eine
 Leiste unten sie zusammen.
 
 !!! note "Der Schrittkatalog wächst mit der Zeit"
@@ -148,7 +148,7 @@ Leiste unten sie zusammen.
 
 ### Notizen, Aufräumen und Tastenkürzel { #notes-tidying-and-shortcuts }
 
-**Add a note here** im Kontextmenü der Zeichenfläche setzt eine Notiz neben die
+**Add a note** unter der Auswahl, die ein Rechtsklick öffnet, setzt eine Notiz neben die
 Schritte: Markdown, per Doppelklick oder Stift geschrieben, durch Ziehen verschoben und
 an den Ecken in der Größe geändert. Eine Notiz wird im Graphen gespeichert, sodass
 Versionen, Wiederherstellungen und Kopien des Workflows sie behalten, aber nichts führt
@@ -164,98 +164,112 @@ Schrittauswahl. Keines davon greift, während Sie in einem Feld schreiben.
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
 in der [Knotenreferenz](reference/workflow-nodes.md).
 
-Klicken Sie auf einen Schritt, und seine Einstellungen öffnen sich in einem Dialog
-über der Zeichenfläche: sein Name, was er tut, und jedes Problem, das das
-Veröffentlichen blockiert, über seinen Feldern. Jede Änderung wird sofort im Draft
+Ein angeklickter Schritt öffnet sich in einem Dialog über der Zeichenfläche: oben sein
+Name und was er tut, darunter in einfachen Worten jedes Problem, das eine
+Veröffentlichung verhindert - **Not connected yet** für einen Schritt, zu dem nichts
+führt. **Parameters** ist, womit der Schritt arbeitet und was er tun soll, in einer
+Liste, die Liste, mit der ein Schritt arbeitet, zuerst: **Items** von Filter vor seiner
+**Condition**. **Settings** ist, wie er läuft. Jede Änderung wird sofort im Draft
 gespeichert, daher schließt **Done** nur den Dialog, und **Delete step** entfernt den
-Schritt. Die Felder teilen sich in zwei Abschnitte. **Settings** enthält
-statische Einstellungen — feste Entscheidungen, die sich von einem Lauf zum nächsten
-nicht ändern, einschließlich der Ressourcen, an die ein Schritt gebunden ist.
-**What it works on** enthält die Werte, die ein Schritt liest, wenn er läuft.
+Schritt.
 
-Ein Input wird auf eine von zwei Arten gefüllt, und **Value** und **From a step** neben
-seiner Beschriftung schalten zwischen ihnen um:
+Ein Parameter, der Text nimmt, ist ein Feld für eingegebenen Text und Werte aus früheren
+Schritten zugleich, etwa `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+**Data** daneben fügt einen Wert an der Cursorposition ein, ebenso ein aus **Input**
+gezogenes Feld. Ein Platzhalter nennt einen Schritt und einen Pfad in dessen Ausgabe,
+wird bei der Veröffentlichung wie jeder aus einem Schritt gelesene Wert geprüft und folgt
+dem Schritt, wenn er umbenannt wird. Mit den Daten eines Testlaufs erscheint das
+Ergebnis als Vorschau darunter. Nichts wird ausgewertet: Läuft der Schritt, wird jeder
+Platzhalter zum Text seines Werts, zu JSON für eine Liste oder ein Objekt, und einer ohne
+etwas dahinter lässt den Schritt mit `INVALID_BINDING` fehlschlagen und nennt ihn.
 
-- **Ein Wert** — Sie geben ihn direkt ins Feld ein, mit dem Bedienelement, das der Typ
-  des Felds verlangt.
-- **From a step** — Sie lesen den Wert aus der Ausgabe eines anderen Schritts. Das Feld
-  wird zu einer **Source**-Auswahl, deren Optionen die vorgelagerten Ausgaben sind, die
-  hier tatsächlich erreichbar sind und einen kompatiblen Typ tragen — die ganze Ausgabe
-  eines Schritts oder ein Feld darin —, jeweils als *{node} · {port} ({type})* oder
-  *{node} · {port} → {field} ({type})* für ein Feld. Ein Feld ohne kompatible
-  vorgelagerte Ausgabe sagt **No compatible upstream outputs**, statt eine ungültige
-  Wahl anzubieten.
+Jeder andere Parameter - eine Zahl, eine Auswahl, ein Schalter, eine als JSON eingegebene
+Liste - hat sein eigenes Steuerelement, und **Data** daneben übernimmt den Wert
+stattdessen aus einem früheren Schritt. **Data** listet nur die hier erreichbaren Werte
+mit kompatiblem Typ, nach Schritt gruppiert, jeden mit der Art seines Werts, und sagt
+**No compatible upstream outputs**, wenn es keine gibt. Der Parameter zeigt dann, was er
+liest - *Run an agent › text* - und **×** kehrt zu einem eingegebenen Wert zurück.
 
-Ein Textfeld hat eine dritte Art, **Template**: Text mit Werten aus früheren Schritten,
-etwa `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. Ein Platzhalter
-nennt einen Schritt und einen Pfad in dessen Ausgabe, wird beim Veröffentlichen wie ein
-Binding geprüft und folgt dem Schritt, wenn er umbenannt wird. **Insert a value…** fügt
-einen an der Cursorposition ein, ebenso ein aus **Input** gezogenes Feld. Mit den Daten
-eines Testlaufs erscheint darunter eine Vorschau des Ergebnisses. Nichts wird
-ausgewertet: Wenn der Schritt läuft, wird jeder Platzhalter zum Text seines Werts, zu
-JSON für eine Liste oder ein Objekt, und einer ohne Wert dahinter lässt den Schritt mit
-`INVALID_BINDING` scheitern und nennt ihn.
-
-Ein Pflicht-Input ohne Wert ist ein Validierungsproblem, das am Knoten markiert und
-nicht mit einem stillen Standardwert gefüllt wird. Manche Felder enthalten
-strukturierte Werte: eine Liste von Zeilen, zu der **Add row** hinzufügt, die Sie
-umsortieren und aus der Sie entfernen, oder eine typisierte Wahl, die das Unterformular
-darunter austauscht. Der Dialog geht in diese hinein, statt Sie auf einen eigenen
+Ein erforderlicher Parameter ohne Wert ist ein Validierungsproblem, am Schritt
+markiert statt still mit einem Standardwert gefüllt. Manche Parameter halten
+strukturierte Werte: eine Liste von Zeilen, der Sie mit **Add row** Zeilen hinzufügen,
+die Sie umordnen und entfernen, oder eine typisierte Auswahl, die das Unterformular
+darunter austauscht. Der Dialog steigt in diese hinein, statt Sie auf einen eigenen
 Bildschirm zu schicken.
 
-### Einen Schritt benennen, notieren und ausschalten { #naming-noting-and-switching-off-a-step }
+### Bedingungen { #conditions }
 
-Ein Klick auf den Namen des Schritts oben in seinen Einstellungen gibt ihm einen eigenen Namen, der auf seiner Karte steht und
-überall dort, wo ein späterer Schritt wählt, was er liest - zwei Schritte **Send a
-message** werden zu *Tell sales* und *Tell support*. Zwei Schritte dürfen nicht
-denselben Namen tragen, ohne Beachtung der Groß- und Kleinschreibung.
+**Filter a list**, **If** und **Switch** entscheiden mit einer Bedingung aus Zeilen: ein
+Feld des Elements oder des Werts, eine Prüfung - **is equal to**, **is at least**,
+**contains**, **is not empty** und die übrigen - und womit verglichen wird. Eine Zahl,
+`true` und `false` werden als solche verglichen, alles andere als Text. Bei mehreren
+Zeilen sagt **Match all of these** oder **any**, wie sie verknüpft sind, und die Felder,
+die der letzte Lauf oder die Testdaten zeigten, werden vorgeschlagen. Die Bedingung wird
+als JMESPath-Ausdruck gespeichert, den der Schritt auswertet. **Write it as an
+expression** bearbeitet sie als diesen, und einer, den die Zeilen nicht zeigen können,
+bleibt ein Ausdruck.
 
-**Note** hält eine
-Zeile für den nächsten Bearbeiter fest, auf der Karte markiert. **Run this step** unten in
-seinen Einstellungen auszuschalten, oder **Switch off** im Kontextmenü des Schritts, lässt einen Schritt gedimmt auf der
-Zeichenfläche und überspringt ihn, wenn ein Lauf ihn erreicht: Er tut nichts und gibt
-weiter, was bei ihm ankam. Das Veröffentlichen lehnt einen ausgeschalteten Trigger
-oder entscheidenden Schritt ab, ebenso einen Schritt, der einen ausgeschalteten liest,
-außer das, was bei diesem ankommt - über seine eine eingehende Verbindung, von einem
-eingeschalteten Schritt - hat das gelesene Feld, das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie behalten.
+### Einen Schritt benennen, notieren und abschalten { #naming-noting-and-switching-off-a-step }
 
-### Die Daten eines Schritts, Anheften und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
+Ein Klick auf den Namen des Schritts oben in seinem Dialog gibt ihm einen eigenen Namen,
+der auf seiner Karte steht und überall dort, wo ein späterer Schritt wählt, was er liest -
+zwei **Send a message**-Schritte werden zu *Tell sales* und *Tell support*. Zwei Schritte
+dürfen, ohne Rücksicht auf Groß- und Kleinschreibung, nicht denselben Namen tragen.
 
-Beim Bearbeiten eines Workflows stellt der Dialog die Einstellungen eines Schritts zwischen
-zwei Bereiche. **Input** zeigt, was jeder Schritt weitergegeben hat, aus dem er liest, und
-**Output**, was der Schritt selbst weitergegeben hat, beides aus dem letzten im Editor
-gestarteten Testlauf oder beim Öffnen aus dem neuesten. **Table** legt die Daten als
-Zeilen an, eine Liste von Datensätzen mit einer Zeile je Datensatz. **JSON** zeigt sie, wie
-sie sind, und **Fields** listet jedes Feld mit Pfad und Typ auf: die Pfade, die ein späterer
-Schritt liest.
+Unter **Settings** hält **Note** eine Zeile für den, der den Workflow als Nächstes
+bearbeitet, auf der Karte markiert, und der Reiter trägt einen Punkt, sobald dort etwas
+geändert ist.
 
-Vor dem ersten Lauf listen beide Bereiche die Felder, die der Schritt deklariert, mit Pfad
-und Typ, und auch sie lassen sich ziehen. Eine Tabelle zeigt ihre ersten 50 Zeilen, bis
-**Show more** den Rest anzeigt, und eine auf die Spaltenbreite gekürzte Zelle zeigt beim
-Überfahren den ganzen Wert.
+**Run this step** dort auszuschalten, oder **Switch off** in seinem Kontextmenü, lässt
+einen Schritt gedimmt auf der Zeichenfläche und überspringt ihn, wenn ein Lauf ihn
+erreicht: Er tut nichts und gibt weiter, was bei ihm ankam. Die Veröffentlichung lehnt
+einen abgeschalteten Trigger oder einen Schritt, der den Weg entscheidet, ab, und einen
+Schritt, der einen abgeschalteten liest, außer das, was bei ihm ankommt - über seine
+eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene Feld,
+das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
+behalten.
 
-Eine Spalte oder ein Feld aus **Input** lässt sich auf eine Einstellung ziehen,
-die es dann aus jenem Schritt liest, als wäre es unter **From a step**
-gewählt. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den die
-Einstellung nicht annimmt, oder ein Schritt, der nicht immer davor läuft. Innerhalb
-eines frei geformten Werts wie `values` einer Zuordnung oder `payload` eines
-Auslösers gilt der Typ, den der Lauf gezeigt hat. Die Auswahl bietet solche Werte
-ebenfalls jeder Einstellung an, mit **Field inside it** für den Pfad.
+### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
-**Pin this data** behält die Ausgabe am Schritt, und **Write data to pin**
-tippt eine als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt angeheftete
-Daten weiter, statt den Schritt auszuführen, sodass ein langsamer Modellaufruf oder ein
-Schreibzugriff auf ein Live-System einmal erfolgt und wiederverwendet wird. Ein Schritt, der
-den Weg entscheidet, wird nie angeheftet, und das Veröffentlichen entfernt jede Anheftung:
-Eine veröffentlichte Version führt ihre Schritte immer aus. Ein Stecknadelsymbol markiert
-die Karte, und **Unpin** entfernt sie.
+Beim Bearbeiten legt der Dialog die Parameter eines Schritts zwischen zwei Bereiche.
+**Input** zeigt, was jeder Schritt, aus dem er liest, weitergegeben hat, unter Name und
+Symbol dieses Schritts, und **Output**, was der Schritt selbst weitergegeben hat, beide
+aus dem letzten im Editor gestarteten Testlauf oder beim Öffnen aus dem neuesten.
+**Table** legt die Daten als Zeilen aus, eine Liste von Datensätzen mit einer Zeile je
+Datensatz. **JSON** zeigt sie, wie sie sind, und **Fields** listet jedes Feld nach Pfad
+mit einem einfachen Wort dafür, was es hält - text, number, list, ID: die Pfade, die ein
+späterer Schritt liest.
 
-**Test step** führt den Schritt allein aus. Der Lauf behält nur den Schritt und die
-Schritte, die zu ihm führen, und jeder davon mit bekannter Ausgabe, angeheftet oder aus dem
-letzten Testlauf, gibt sie weiter, statt zu laufen. Die übrigen laufen, und nichts nach dem
-Schritt läuft. Ein schreibender Schritt fragt zuerst, denn der Test schreibt wirklich. Ein
-Schritt in einer Schleife lässt sich nicht allein testen, da er einmal pro Element läuft;
-testen Sie die Schleife. Über die API tut `step` bei `POST /api/v1/workflow-runs` dasselbe.
+Vor jedem Lauf listen beide Bereiche die Felder, die ein Schritt weitergibt, auf dieselbe
+Weise, und auch diese lassen sich ziehen; ein Schritt, zu dem nichts führt, sagt **Not
+connected yet**. Eine Tabelle zeigt ihre ersten 50 Zeilen, bis **Show more** den Rest
+auslegt, und eine auf ihre Spaltenbreite gekürzte Zelle zeigt beim Überfahren den ganzen
+Wert.
+
+Eine Spalte oder ein Feld aus **Input** lässt sich auf einen Parameter ziehen, der es
+dann aus jenem Schritt liest, als wäre es unter **Data** gewählt - in Text als
+Platzhalter. Ein Feld, das nicht passt, wird mit Grund abgelehnt: ein Typ, den der
+Parameter nicht nimmt, oder ein Schritt, der nicht immer vor diesem läuft. Innerhalb
+eines Werts ohne festgelegte Form, etwa den `values` einer Zuordnung oder dem `payload`
+eines Triggers, gilt der Typ, den der Lauf zeigte. **Data** bietet solche Werte jedem
+Parameter an, mit **Field inside it** für den Pfad.
+
+**Keep as test data** behält die Ausgabe am Schritt, und **Set test data** gibt welche
+als JSON-Objekt von höchstens 64.000 Bytes ein. Ein Testlauf gibt Testdaten weiter,
+statt den Schritt auszuführen, sodass ein langsamer Modellaufruf oder ein Schreiben in
+ein Livesystem einmal erfolgt und wiederverwendet wird. Ein Schritt, der den Weg
+entscheidet, behält nie Testdaten, und die Veröffentlichung entfernt sie alle: Eine
+veröffentlichte Version führt ihre Schritte immer aus. Ein Stecknadelsymbol markiert die
+Karte, und **Remove test data** entfernt sie.
+
+**Test step** führt den Schritt allein aus und ist der Hauptknopf des Bereichs, solange
+es noch keine Daten gibt. Der Lauf behält nur den Schritt und die Schritte, die zu ihm
+führen, und jeder davon mit bekannter Ausgabe, aus Testdaten oder dem letzten Testlauf,
+gibt diese weiter, statt zu laufen. Der Rest läuft, und nichts nach dem Schritt. Ein
+Schritt, der schreibt, fragt zuerst, denn der Test schreibt wirklich. Ein Schritt in
+einer Schleife lässt sich nicht allein testen, weil er einmal je Element läuft, also
+testen Sie die Schleife. Über die API tut `step` auf `POST /api/v1/workflow-runs`
+dasselbe.
 
 ### Ressourcen-Auswahlfelder { #resource-pickers }
 
@@ -278,7 +292,7 @@ Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
 
 ### Wenn ein Schritt langsam ist oder fehlschlägt { #when-a-step-is-slow-or-fails }
 
-Unter den Feldern eines Schritts legt **When it is slow or fails** seine Policy
+Unter den **Settings** eines Schritts legt **When it is slow or fails** seine Policy
 fest. **Handle errors** gibt dem Schritt einen **Error**-Port: Ein Fehler, den seine
 Wiederholungen nicht erledigt haben, verlässt ihn darüber, zu einem **Handle
 error**-Schritt oder was immer Sie anschließen, statt den Run fehlschlagen zu lassen.
@@ -311,7 +325,10 @@ binden müssen, bindet das Verbinden zweier Ports, die genau dieselbe Form trage
 die Ausgabe eines Echo mit der Eingabe eines Relay —, auch jeden Input des Ziels an das
 gleichnamige Feld der Quelle. Ein Feld, das Sie schon gebunden hatten, bleibt unberührt.
 
-Unterscheiden sich die Formen oder trägt ein Port keine Daten, wird nichts gebunden und Sie wählen jede Quelle selbst mit **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die Verbindung samt ihren
+Unterscheiden sich die Formen oder trägt ein Port keine Daten, wird eine Wahl dennoch für
+Sie getroffen: Ein Schritt, der mit einer Liste arbeitet, hinter einem Schritt verbunden,
+der genau eine weitergibt - **Filter a list** hinter **List records** -, liest diese
+Liste. Sonst wird nichts gebunden, und Sie wählen jede Quelle selbst mit **Data**. Undo (`Ctrl`/`Cmd` + `Z`) nimmt die Verbindung samt ihren
 Bindings zurück, und das spätere Löschen einer Kante lässt ihre Bindings bestehen —
 entfernen oder binden Sie sie in den Einstellungen des Schritts neu.
 
@@ -338,15 +355,14 @@ lief. Was die Schleife tut, steht in der
 ## Validierungs-Rückmeldung { #validation-feedback }
 
 Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
-es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und eine Zahl in seinen Einstellungen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **No problems** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
+es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und nennt es geöffnet unter seinem Namen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **No problems** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
 
 Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was Sie
 bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten
-warten unter **More options**, und **When it is slow or fails** sowie eine Notiz öffnen
-sich auf Wunsch oder sobald sie gesetzt sind. Ein erforderlicher Wert, den Sie noch
+warten unter **More options**, und wie der Schritt läuft, wartet unter **Settings**. Ein erforderlicher Wert, den Sie noch
 nicht angegeben haben, wird neben seinem Feld erst markiert, wenn Sie das Feld verlassen
 oder ausführen oder veröffentlichen wollen: Die Markierung des Schritts auf der
-Zeichenfläche und die Zahl darüber sagen es von Anfang an. Eine Beschreibung, die nur den
+Zeichenfläche sagt es von Anfang an. Eine Beschreibung, die nur den
 Namen des Felds wiederholt, ist ein Hinweis am Namen statt einer Zeile unter dem Feld.
 
 Die Meldungen benennen den konkreten Fehler: ein Pflicht-Input ohne Wert, ein Input,
@@ -711,8 +727,8 @@ Kopieren und Einfügen haben drei Grenzen:
 - Die **Schrittauswahl** fügt Schritte hinzu - über **+**, den Ausgang eines Schritts oder einen Rechtsklick; die **Zeichenfläche** verdrahtet sie und lehnt eine Verbindung zwischen inkompatiblen Ports ab.
 - Eine Kante legt die **Reihenfolge** fest, Bindings tragen die **Werte**; das Verbinden
   von Ports gleicher Form legt die Bindings für Sie an.
-- Die Inputs eines Knotens sind **ein Wert oder ein Binding** — **From a step** liest
-  einen Wert aus einer erreichbaren, typkompatiblen vorgelagerten Ausgabe.
+- Ein Parameter ist **ein Wert oder Daten aus einem Schritt** — **Data** liest sie aus
+  einer erreichbaren, typkompatiblen vorgelagerten Ausgabe oder fügt sie in Text ein.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
   ein Banner mit **Overwrite** oder **Reload**.
 - **Publish** wird blockiert, solange ein Problem besteht, und validiert erneut auf

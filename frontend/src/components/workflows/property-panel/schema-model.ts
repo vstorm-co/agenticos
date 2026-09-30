@@ -298,14 +298,59 @@ export function isBindable(schema: Schema): boolean {
 }
 
 /** `default_top_k` → `Default top k`, for a schema that omits a `title`. */
+/**
+ * Whether a field takes free text - a string with no set of choices, no format
+ * and nothing to mask - which is typed with values from earlier steps in it
+ * (`TextValueField`) rather than chosen or read whole.
+ */
+export function takesText(schema: Schema): boolean {
+  const own = unwrapOptional(schema);
+  return (
+    own["type"] === "string" &&
+    own["enum"] === undefined &&
+    own["format"] === undefined &&
+    own["x-suggestions"] === undefined &&
+    own["writeOnly"] !== true
+  );
+}
+
+/** Words a field name spells in lower case that a label spells as they are said. */
+const SPELLED: Record<string, string> = {
+  api: "API",
+  csv: "CSV",
+  html: "HTML",
+  http: "HTTP",
+  id: "ID",
+  ids: "IDs",
+  ip: "IP",
+  jmespath: "JMESPath",
+  json: "JSON",
+  pdf: "PDF",
+  png: "PNG",
+  sql: "SQL",
+  url: "URL",
+  urls: "URLs",
+  uuid: "UUID",
+};
+
+/** A field name as a label: `header_name` is "Header name", `url` is "URL". */
 export function humanise(name: string): string {
-  const words = name.replace(/_/g, " ").trim();
+  const words = name
+    .replace(/_/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((word) => SPELLED[word.toLowerCase()] ?? word)
+    .join(" ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** A leaf's label: its schema `title`, else its humanised field name. */
+/**
+ * A leaf's label: the `title` it was given on purpose, else its humanised name -
+ * never the title Pydantic makes of the name, which is Title Case ("Header
+ * Name", "Url") where the console writes sentence case.
+ */
 export function labelOf(schema: Schema, name: string): string {
-  return typeof schema["title"] === "string" ? (schema["title"] as string) : humanise(name);
+  return ownTitle(schema, name) ?? humanise(name);
 }
 
 /**
@@ -340,10 +385,13 @@ export function asFormProperty(schema: Schema): FormProperty {
  */
 export function singleFieldSchema(name: string, schema: Schema, required: boolean): FormSchema {
   const description = schema["description"];
+  const label = labelOf(schema, name);
+  // The generated form labels a field with its title: the label this module says.
+  const titled = { ...schema, title: label };
   const hinted =
-    typeof description === "string" && repeatsLabel(labelOf(schema, name), description)
-      ? { ...schema, description: undefined, "x-hint": description }
-      : schema;
+    typeof description === "string" && repeatsLabel(label, description)
+      ? { ...titled, description: undefined, "x-hint": description }
+      : titled;
   return {
     type: "object",
     properties: { [name]: asFormProperty(hinted) },

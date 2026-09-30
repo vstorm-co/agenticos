@@ -1,21 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { nodeVisual } from "@/components/workflows/node-visuals";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
 import {
-  WarningBadge,
   fieldErrors,
   nodeLevelProblems,
   nodeNames,
-  nodeProblemCount,
 } from "@/components/workflows/property-panel/problems";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
@@ -68,12 +76,12 @@ export function NodeEditorDialog({
     [graph, catalogIndex, t],
   );
 
-  const [policyShown, setPolicyShown] = useState(false);
+  const [tab, setTab] = useState("parameters");
   // The fields left since the dialog opened: a value still missing from one of
   // them is said at once, not only once a run or a publish was tried.
   const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const close = () => {
-    setPolicyShown(false);
+    setTab("parameters");
     setLeft(new Set());
     store.editNode(null);
   };
@@ -92,69 +100,66 @@ export function NodeEditorDialog({
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
   const withInput = withData && node.id !== graph.entry_node_id;
 
-  const settings = definition !== null && (
-    <>
-      <StepNote node={node} disabled={readOnly} onChange={store.updateNodeDetails} />
-      {/* Listens for focus leaving a field inside it; the fields are the
-          controls, this is only where their blur is heard. */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div
-        onBlur={(event) => {
-          const field = (event.target as HTMLElement)
-            .closest("[data-field]")
-            ?.getAttribute("data-field");
-          if (field != null && !left.has(field)) setLeft(new Set([...left, field]));
-        }}
-      >
-        <NodeForm
+  const form = definition !== null && (
+    // Listens for focus leaving a field inside it; the fields are the controls,
+    // this is only where their blur is heard.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    <div
+      onBlur={(event) => {
+        // Focus moving into a field's own list - a picker opening - has not left it.
+        const into = event.relatedTarget as HTMLElement | null;
+        if (into?.closest("[data-radix-popper-content-wrapper]")) return;
+        const field = (event.target as HTMLElement)
+          .closest("[data-field]")
+          ?.getAttribute("data-field");
+        if (field != null && !left.has(field)) setLeft(new Set([...left, field]));
+      }}
+    >
+      <NodeForm
+        definition={definition}
+        node={node}
+        graph={graph}
+        catalog={catalogIndex}
+        bindings={graph.bindings}
+        errors={fieldErrors(
+          // A value not given yet is said once its field was left, or a run or
+          // a publish was tried; the canvas already marks the step.
+          store.problemsRevealed
+            ? problems
+            : problems.filter(
+                (problem) =>
+                  (problem.code !== "input-not-bound" && problem.code !== "config-not-set") ||
+                  (problem.field !== null && left.has(problem.field)),
+              ),
+          node.id,
+        )}
+        disabled={readOnly}
+        updateNodeConfig={store.updateNodeConfig}
+        upsertBinding={store.upsertBinding}
+        removeBinding={store.removeBinding}
+      />
+    </div>
+  );
+  // How the step runs rather than what it does - n8n's Settings tab: whether it
+  // runs at all, what happens when it is slow or fails, and a note.
+  const switchable =
+    definition !== null && node.id !== graph.entry_node_id && definition.kind !== "control";
+  const withPolicy =
+    definition !== null && node.definition_id !== "loop.item" && !isTrigger(definition);
+  const customised = node.disabled === true || node.policy != null || Boolean(node.notes);
+  const stepSettings = definition !== null && (
+    <div className="space-y-6">
+      {switchable && !readOnly && <StepSwitch node={node} onChange={store.updateNodeDetails} />}
+      {withPolicy && (!readOnly || node.policy) && (
+        <PolicySection
           definition={definition}
           node={node}
-          graph={graph}
-          catalog={catalogIndex}
-          bindings={graph.bindings}
-          errors={fieldErrors(
-            // A value not given yet is said once its field was left, or a
-            // run or a publish was tried; the canvas already marks the step.
-            store.problemsRevealed
-              ? problems
-              : problems.filter(
-                  (problem) =>
-                    problem.code !== "input-not-bound" ||
-                    (problem.field !== null && left.has(problem.field)),
-                ),
-            node.id,
-          )}
           disabled={readOnly}
-          updateNodeConfig={store.updateNodeConfig}
-          upsertBinding={store.upsertBinding}
-          removeBinding={store.removeBinding}
+          updateNodePolicy={store.updateNodePolicy}
         />
-      </div>
-      {node.definition_id !== "loop.item" &&
-        !isTrigger(definition) &&
-        (!readOnly || node.policy) && (
-          <div className="border-border border-t pt-5">
-            {/* Retries, a time limit and error routing are for later: shown
-                once asked for, or once the step has any of them. */}
-            {policyShown || node.policy ? (
-              <PolicySection
-                definition={definition}
-                node={node}
-                disabled={readOnly}
-                updateNodePolicy={store.updateNodePolicy}
-              />
-            ) : (
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground text-sm"
-                onClick={() => setPolicyShown(true)}
-              >
-                {t("nodeEditorShowPolicy")}
-              </button>
-            )}
-          </div>
-        )}
-    </>
+      )}
+      <StepNote node={node} disabled={readOnly} onChange={store.updateNodeDetails} />
+    </div>
   );
 
   return (
@@ -189,7 +194,6 @@ export function NodeEditorDialog({
                   />
                 )}
               </DialogTitle>
-              <WarningBadge count={nodeProblemCount(problems, node.id)} />
             </div>
             <DialogDescription className="text-sm">
               {definition === null
@@ -199,6 +203,12 @@ export function NodeEditorDialog({
                   ? `${definition.name} · ${definition.description}`
                   : definition.description}
             </DialogDescription>
+            {nodeProblems.map((problem, index) => (
+              <p key={index} className="text-destructive flex items-center gap-1.5 text-xs">
+                <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+                {problem.message}
+              </p>
+            ))}
           </div>
         </header>
         <div
@@ -232,31 +242,38 @@ export function NodeEditorDialog({
               runData && "border-border lg:order-last lg:col-span-2 lg:border-t",
             )}
           >
-            {nodeProblems.length > 0 && (
-              <ul className="bg-destructive/5 border-destructive/20 space-y-1 rounded-lg border px-3 py-2">
-                {nodeProblems.map((problem, index) => (
-                  <li key={index} className="text-destructive text-sm">
-                    {problem.message}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {definition !== null && (
-              <>
-                {runData ? (
-                  // A run's step is looked at for what it did: its settings are
-                  // there to check, not the first thing in the way.
-                  <details className="group">
-                    <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm select-none">
-                      {t("nodeEditorRanWith")}
-                    </summary>
-                    <div className="mt-4 space-y-5">{settings}</div>
-                  </details>
-                ) : (
-                  settings
-                )}
-              </>
-            )}
+            {definition !== null &&
+              (runData ? (
+                // A run's step is looked at for what it did: its settings are
+                // there to check, not the first thing in the way.
+                <details className="group">
+                  <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm select-none">
+                    {t("nodeEditorRanWith")}
+                  </summary>
+                  <div className="mt-4">{form}</div>
+                </details>
+              ) : (
+                <Tabs value={tab} onValueChange={setTab}>
+                  <TabsList>
+                    <TabsTrigger value="parameters">{t("stepTabParameters")}</TabsTrigger>
+                    <TabsTrigger value="settings">
+                      {t("stepTabSettings")}
+                      {customised && (
+                        <span
+                          aria-label={t("stepTabSettingsSet")}
+                          className="bg-foreground/60 size-1.5 rounded-full"
+                        />
+                      )}
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="parameters" className="mt-5">
+                    {form}
+                  </TabsContent>
+                  <TabsContent value="settings" className="mt-5">
+                    {stepSettings}
+                  </TabsContent>
+                </Tabs>
+              ))}
           </div>
           {withData && (
             <div className="bg-muted/30 border-border lg:border-l">
@@ -275,24 +292,17 @@ export function NodeEditorDialog({
           {readOnly ? (
             <span />
           ) : (
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => {
-                  store.applyNodeChanges([{ type: "remove", id: node.id }]);
-                  close();
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("nodeEditorDelete")}
-              </Button>
-              {definition !== null &&
-                node.id !== graph.entry_node_id &&
-                definition.kind !== "control" && (
-                  <StepSwitch node={node} onChange={store.updateNodeDetails} />
-                )}
-            </div>
+            <Button
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                store.applyNodeChanges([{ type: "remove", id: node.id }]);
+                close();
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("nodeEditorDelete")}
+            </Button>
           )}
           <Button onClick={close}>{t("nodeEditorDone")}</Button>
         </footer>

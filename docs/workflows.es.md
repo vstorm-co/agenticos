@@ -1,5 +1,5 @@
 ---
-source_sha: "eb55690f9368"
+source_sha: "19d5d1158c4e"
 ---
 
 # Workflows { #workflows }
@@ -118,8 +118,8 @@ hace o por su grupo. Añades un paso de cuatro maneras:
   cambio antes del inicio actual y pasa a serlo.
 - **+** junto a la salida de un paso abre el selector para el paso que va tras esa
   salida.
-- **Clic derecho** en el lienzo: **Add a step here** muestra las mismas secciones y
-  grupos, y el paso aparece donde hiciste clic.
+- **Clic derecho** en el lienzo: el mismo selector se abre donde hiciste clic, y el
+  paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
 
 Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
@@ -129,9 +129,8 @@ selector muestra lo que es válido donde estás: **Loop item** y **Loop result**
 dentro del cuerpo de un bucle, y un bucle mientras los bucles no estén anidados tan
 hondo como permite la publicación.
 
-Un clic derecho en un paso ofrece **Open settings**, **Duplicate** y **Delete step**; un
-clic derecho en el lienzo ofrece además **Paste**, **Undo**, **Redo** y **Fit to
-view**. Con varios pasos seleccionados, una barra abajo los borra juntos.
+Un clic derecho en un paso ofrece **Open settings**, **Duplicate**, **Switch off** y
+**Delete step**. Con varios pasos seleccionados, una barra abajo los borra juntos.
 
 !!! note "El catálogo de pasos crece con el tiempo"
 
@@ -141,7 +140,7 @@ view**. Con varios pasos seleccionados, una barra abajo los borra juntos.
 
 ### Notas, orden y atajos { #notes-tidying-and-shortcuts }
 
-**Add a note here** en el menú contextual del lienzo pone una nota junto a los pasos:
+**Add a note** bajo el selector que abre un clic derecho pone una nota junto a los pasos:
 markdown, escrita con doble clic o con su lápiz, movida arrastrando y redimensionada
 desde sus esquinas. Una nota se guarda en el grafo, así que las versiones, las
 restauraciones y las copias del workflow la conservan, pero nada la ejecuta ni la
@@ -157,92 +156,104 @@ Ninguno actúa mientras escribes en un campo.
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
 [referencia de nodos](reference/workflow-nodes.md).
 
-Haz clic en un paso y sus ajustes se abren en un diálogo sobre el lienzo: su nombre,
-qué hace y cualquier problema que bloquee la publicación, encima de sus campos. Cada
-cambio se guarda en el draft al hacerlo, así que **Done** solo cierra el diálogo y
-**Delete step** quita el paso. Los campos se dividen en dos secciones.
-**Settings** guarda los ajustes estáticos — las elecciones fijas que no cambian de
-una ejecución a otra, incluidos los recursos a los que está fijado un paso. **What it works on**
-guarda los valores que un paso lee al ejecutarse.
+Un paso en el que haces clic se abre en un diálogo sobre el lienzo: arriba su nombre y
+lo que hace, y debajo, con palabras sencillas, cualquier problema que impida publicar -
+**Not connected yet** para un paso al que nada lleva. **Parameters** es aquello con lo
+que trabaja el paso y lo que debe hacer, en una sola lista, con la lista sobre la que
+trabaja primero: los **Items** de Filter antes de su **Condition**. **Settings** es cómo
+se ejecuta. Cada cambio se guarda en el draft al hacerlo, así que **Done** solo cierra
+el diálogo, y **Delete step** elimina el paso.
 
-Un input se rellena de una de dos maneras, y **Value** y **From a step** junto a su
-etiqueta alternan entre ellas:
+Un parámetro que toma texto es una sola caja para texto escrito y valores de pasos
+anteriores a la vez, como `New lead: {{Form.payload.name}} from {{Form.payload.company}}`.
+**Data**, a su lado, inserta un valor en el cursor, y lo mismo hace un campo arrastrado
+desde **Input**. Un marcador nombra un paso y una ruta en su salida, se comprueba al
+publicar como cualquier valor leído de un paso y sigue al paso cuando se renombra. Con
+los datos de una ejecución de prueba, el resultado se previsualiza debajo.
 
-- **Un valor** — lo escribes directamente en el campo, con el mismo control que pide el
-  tipo del campo.
-- **From a step** — lees el valor de la salida de otro paso. El campo se convierte en
-  un selector **Source** cuyas opciones son las salidas previas realmente alcanzables
-  aquí y de tipo compatible — la salida entera de un paso o un campo dentro de ella —,
-  cada una mostrada como *{node} · {port} ({type})*, o *{node} · {port} → {field}
-  ({type})* para un campo. Un campo sin nada compatible antes dice **No compatible
-  upstream outputs** en lugar de ofrecer una elección inválida.
+No se evalúa nada: cuando el paso se ejecuta, cada marcador se convierte en el texto de su valor, en
+JSON para una lista o un objeto, y uno sin nada detrás hace fallar el paso con
+`INVALID_BINDING`, nombrándolo.
 
-Un campo de texto tiene una tercera forma, **Template**: texto con valores de pasos
-anteriores, como `New lead: {{Form.payload.name}} from {{Form.payload.company}}`. Un
-marcador nombra un paso y una ruta dentro de su salida, se comprueba al publicar como un
-binding y sigue al paso cuando se renombra. **Insert a value…** añade uno en el cursor,
-igual que un campo arrastrado desde **Input**. Con los datos de una ejecución de prueba,
-el resultado se previsualiza debajo. Nada se evalúa: cuando el paso se ejecuta, cada
-marcador pasa a ser el texto de su valor, JSON para una lista o un objeto, y uno sin
-nada detrás hace fallar el paso con `INVALID_BINDING`, nombrándolo.
+Cualquier otro parámetro - un número, una elección, un interruptor, una lista escrita
+como JSON - tiene su propio control, y **Data**, a su lado, toma el valor de un paso
+anterior en su lugar. **Data** muestra solo los valores alcanzables aquí con un tipo
+compatible, agrupados por paso, cada uno con el tipo de valor que contiene, y dice **No
+compatible upstream outputs** cuando no hay ninguno. El parámetro muestra entonces lo que
+lee - *Run an agent › text* - y **×** vuelve a un valor escrito.
 
-Un input obligatorio sin valor es un problema de validación, señalado en el nodo y no
-rellenado con un valor por defecto silencioso. Algunos campos guardan valores
-estructurados: una lista de filas a la que **Add row** añade, que reordenas y de la
-que quitas, o una elección tipada que cambia el subformulario de debajo. El diálogo
-entra en ellos en lugar de mandarte a otra pantalla.
+Un parámetro obligatorio sin valor aún es un problema de validación, señalado en el paso
+en lugar de rellenarse en silencio con un valor predeterminado. Algunos parámetros
+contienen valores estructurados: una lista de filas a la que haces **Add row**, que
+reordenas y eliminas, o una elección tipada que cambia el subformulario de debajo. El
+diálogo entra en ellos en lugar de mandarte a otra pantalla.
+
+### Condiciones { #conditions }
+
+**Filter a list**, **If** y **Switch** deciden con una condición hecha de filas: un campo
+del elemento o del valor, una comprobación - **is equal to**, **is at least**,
+**contains**, **is not empty** y las demás - y aquello con lo que se compara. Un número,
+`true` y `false` se comparan como tales, todo lo demás como texto. Con varias filas,
+**Match all of these** o **any** dice cómo se combinan, y se sugieren los campos que
+mostraron la última ejecución o los datos de prueba. La condición se guarda como la
+expresión JMESPath que evalúa el paso. **Write it as an expression** la edita como tal, y
+una que las filas no pueden mostrar sigue siendo una expresión.
 
 ### Nombrar un paso, anotarlo y apagarlo { #naming-noting-and-switching-off-a-step }
 
-Hacer clic en el nombre del paso arriba de sus ajustes le da un nombre propio, que se muestra en su tarjeta y allí donde un
-paso posterior elige qué leer - dos pasos **Send a message** pasan a ser *Tell sales* y
-*Tell support*. Dos pasos no pueden compartir nombre, sin distinguir mayúsculas.
+Hacer clic en el nombre del paso arriba en su diálogo le da un nombre propio, que se ve en
+su tarjeta y donde un paso posterior elige qué leer - dos pasos **Send a message** pasan
+a ser *Tell sales* y *Tell support*. Dos pasos no pueden compartir nombre, sin distinguir
+mayúsculas.
 
-**Note** guarda una línea para quien edite el workflow después, marcada en la tarjeta.
-Apagar **Run this step** abajo de sus ajustes, o **Switch off** en el menú contextual del
-paso, deja el paso en el
-lienzo, atenuado, y lo omite cuando una ejecución llega a él: no hace nada y entrega
-lo que le llegó. Publicar rechaza el disparador o un paso que decide el camino
-apagados, y un paso que lea uno apagado, salvo que lo que le llega - por su única
-conexión de entrada, desde un paso encendido - tenga el campo leído, que entonces
-entrega. Los tres se guardan en el
-grafo, así que las versiones los conservan.
+En **Settings**, **Note** guarda una línea para quien edite el workflow después, marcada
+en la tarjeta, y la pestaña lleva un punto en cuanto algo allí cambia.
 
-### Los datos de un paso, fijarlos y probar un solo paso { #a-steps-data-pinning-and-testing-one-step }
+Apagar allí **Run this step**, o **Switch off** en su menú contextual, deja el paso en el
+lienzo, atenuado, y lo salta cuando una ejecución llega a él: no hace nada y entrega lo
+que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagados, y un
+paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
+desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
+en el grafo, así que las versiones los conservan.
 
-Al editar un workflow, el diálogo coloca los ajustes de un paso entre dos paneles.
-**Input** muestra lo que entregó cada paso del que lee, y **Output** lo que entregó el
-propio paso, ambos de la última ejecución de prueba iniciada en el editor o, al abrirlo, de
-la más reciente. **Table** dispone los datos en filas, una lista de registros con una fila
-por registro. **JSON** los muestra tal cual, y **Fields** lista cada campo por ruta con su
-tipo: las rutas que lee un paso posterior.
+### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
-Antes de ninguna ejecución, ambos paneles listan los campos que el paso declara, por
-ruta y tipo, y también se pueden arrastrar. Una tabla muestra sus primeras 50 filas hasta
-que **Show more** despliega el resto, y una celda recortada a su columna muestra el valor
-completo al pasar el ratón.
+Al editar, el diálogo pone los parámetros de un paso entre dos paneles. **Input** muestra
+lo que entregó cada paso del que lee, bajo el nombre y el icono de ese paso, y
+**Output** lo que entregó el propio paso, ambos de la última ejecución de prueba
+iniciada en el editor, o de la más reciente al abrirlo. **Table** dispone los datos en
+filas, una lista de registros con una fila por registro. **JSON** los muestra tal cual,
+y **Fields** lista cada campo por su ruta con una palabra sencilla para lo que contiene -
+text, number, list, ID: las rutas que lee un paso posterior.
 
-Una columna o un campo de **Input** se puede arrastrar sobre un ajuste, que
-entonces lo lee de ese paso, como si se eligiera en **From a step**. Un campo que no
-encaja se rechaza con el motivo: un tipo que el ajuste no admite, o un paso que no
-siempre se ejecuta antes que este. Dentro de un valor de forma libre, como `values`
-de un mapeo o `payload` de un disparador, el tipo es el que mostró la ejecución. El
-selector también ofrece esos valores a cualquier ajuste, con **Field inside it** para
-la ruta.
+Antes de cualquier ejecución, ambos paneles listan igual los campos que entrega un paso,
+y también se pueden arrastrar; un paso al que nada lleva dice **Not connected yet**. Una
+tabla muestra sus primeras 50 filas hasta que **Show more** despliega el resto, y una
+celda recortada a su columna muestra el valor entero al pasar el ratón.
 
-**Pin this data** conserva la salida en el paso, y **Write data to pin** permite
-teclear una como objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega
-los datos fijados en lugar de ejecutar el paso, así que una llamada lenta a un modelo o una
-escritura en un sistema real se hace una vez y se reutiliza. Un paso que decide el camino
-nunca se fija, y publicar elimina todo lo fijado: una versión publicada siempre ejecuta sus
-pasos. Un icono de chincheta marca la tarjeta, y **Unpin** lo quita.
+Una columna o un campo de **Input** se puede arrastrar sobre un parámetro, que entonces
+lo lee de ese paso, como si se hubiera elegido en **Data** - en un texto, como marcador.
+Un campo que no encaja se rechaza con el motivo: un tipo que el parámetro no acepta, o
+un paso que no siempre se ejecuta antes que este. Dentro de un valor sin forma
+declarada, como los `values` de un mapeo o el `payload` de un trigger, el tipo es el que
+mostró la ejecución. **Data** ofrece esos valores a cualquier parámetro, con **Field
+inside it** para la ruta.
 
-**Test step** ejecuta el paso solo. La ejecución conserva únicamente el paso y los pasos
-que llevan a él, y cada uno de ellos con salida conocida, fijada o de la última ejecución de
-prueba, la entrega en lugar de ejecutarse. Los demás se ejecutan, y nada después del paso lo
-hace. Un paso que escribe pregunta antes, porque la prueba escribe de verdad. Un paso dentro
-de un bucle no se puede probar solo, porque se ejecuta una vez por elemento, así que prueba
-el bucle. Por la API, `step` en `POST /api/v1/workflow-runs` hace lo mismo.
+**Keep as test data** conserva la salida en el paso, y **Set test data** escribe una como
+objeto JSON de 64.000 bytes como máximo. Una ejecución de prueba entrega los datos de
+prueba en lugar de ejecutar el paso, así que una llamada lenta a un modelo o una
+escritura en un sistema real se hace una vez y se reutiliza. Un paso que decide el
+camino nunca guarda datos de prueba, y publicar los quita todos: una versión publicada
+siempre ejecuta sus pasos. Un icono de chincheta marca la tarjeta, y **Remove test data**
+los quita.
+
+**Test step** ejecuta el paso solo, y es el botón principal del panel mientras aún no hay
+datos. La ejecución conserva solo el paso y los pasos que llevan a él, y cada uno con
+salida conocida, de datos de prueba o de la última ejecución de prueba, la entrega en
+lugar de ejecutarse. El resto se ejecuta, y nada después del paso. Un paso que escribe
+pregunta primero, porque la prueba escribe de verdad. Un paso dentro de un bucle no se
+puede probar solo, porque se ejecuta una vez por elemento, así que prueba el bucle. Por
+la API, `step` en `POST /api/v1/workflow-runs` hace lo mismo.
 
 ### Selectores de recursos { #resource-pickers }
 
@@ -264,7 +275,7 @@ un aviso visible y no una ruptura silenciosa.
 
 ### Cuando un paso es lento o falla { #when-a-step-is-slow-or-fails }
 
-Bajo los campos de un paso, **When it is slow or fails** fija su política. **Handle
+En los **Settings** de un paso, **When it is slow or fails** fija su política. **Handle
 errors** da al paso un puerto **Error**: un fallo que sus reintentos no resolvieron
 sale por él, hacia un paso **Handle error** o lo que conectes, en lugar de hacer
 fallar el run. **Tries** es cuántas veces se intenta el paso en total, y **Wait
@@ -293,8 +304,10 @@ exactamente la misma forma — la salida de un Echo con la entrada de un Relay, 
 también enlaza cada input del destino con el campo del mismo nombre de la fuente. Un campo
 que ya habías enlazado se deja como está.
 
-Cuando las formas difieren, o un puerto no lleva
-datos, no se enlaza nada y eliges cada fuente tú mismo con **From a step**. Undo (`Ctrl`/`Cmd` + `Z`) deshace la
+Cuando las formas difieren, o un puerto no lleva datos, una elección se hace igualmente
+por ti: un paso que trabaja sobre una lista, conectado tras un paso que entrega
+exactamente una - **Filter a list** tras **List records** -, lee esa lista. No se enlaza
+nada más, y eliges cada fuente tú mismo con **Data**. Undo (`Ctrl`/`Cmd` + `Z`) deshace la
 conexión junto con sus bindings, y borrar una arista más tarde deja sus bindings donde
 estaban, así que quítalos o vuelve a enlazarlos en los ajustes del paso.
 
@@ -317,16 +330,16 @@ cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 
 ## Retroalimentación de validación { #validation-feedback }
 
-El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y un recuento en sus ajustes, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **No problems** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
+El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y lo dice bajo su nombre al abrirlo, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **No problems** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
 
 Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
 estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores
-predeterminados esperan bajo **More options**, y **When it is slow or fails** y una nota
-se abren cuando los pides o cuando ya están puestos.
+predeterminados esperan bajo **More options**, y cómo se ejecuta el paso espera bajo
+**Settings**.
 
 Un valor obligatorio que aún no has
 dado no se señala junto a su campo hasta que dejas ese campo o intentas ejecutar o
-publicar: la marca del paso en el lienzo y el recuento de arriba lo dicen desde el
+publicar: la marca del paso en el lienzo lo dice desde el
 principio. Una descripción que solo repite el nombre del campo es una pista sobre el
 nombre en lugar de una línea bajo el campo.
 
@@ -666,8 +679,8 @@ Copiar y pegar tienen tres límites:
   una conexión entre puertos incompatibles.
 - Una arista fija el **orden** y los bindings llevan los **valores**; conectar puertos
   de la misma forma crea los bindings por ti.
-- Los inputs de un nodo son **un valor o un binding** — **From a step** lee un valor de una
-  salida previa alcanzable y de tipo compatible.
+- Un parámetro es **un valor o datos de un paso** — **Data** los lee de una salida previa
+  alcanzable y de tipo compatible, o los mete en un texto.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
   **Overwrite** o **Reload**.
 - **Publish** se bloquea mientras un problema persiste y vuelve a validar en el

@@ -69,9 +69,7 @@ function mount(bindings: Binding[]) {
 describe("a binding through a value with no declared shape", () => {
   it("shows the value it reaches through and the path typed past it", () => {
     mount([bound(["item", "record_id"])]);
-    expect(screen.getByRole("combobox", { name: "Source for Message" })).toHaveTextContent(
-      "Item · A · out → item",
-    );
+    expect(screen.getByText(/^Item › item/)).toHaveTextContent("Item › item › record_id");
     expect(screen.getByLabelText("Field inside it")).toHaveValue("record_id");
   });
 
@@ -184,7 +182,7 @@ describe("a list of records typed in as a value", () => {
       />,
     );
 
-    const box = screen.getByLabelText("Items");
+    const box = screen.getByLabelText(/^Items/);
     expect(box).toHaveValue(JSON.stringify([{ name: "Ada" }], null, 2));
     expect(box).toHaveAttribute("placeholder", '[{"name": "Ada", "score": 90}]');
     fireEvent.change(box, { target: { value: '[{"name": "Grace"}]' } });

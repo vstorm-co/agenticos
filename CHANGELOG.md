@@ -513,6 +513,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow step's dialog works the way n8n's does.** **Parameters** holds
+  what the step works on and is set to do in one list, the list it works on
+  first, and **Settings** how it runs: **Run this step**, what it does when it
+  is slow or fails, and a note. A text parameter takes typed text and values
+  from earlier steps in one box, with **Data** to insert one; any other
+  parameter has **Data** beside it to read its value from a step, shown as
+  *Run an agent › text* with an x to type one again - no more **Value / From a
+  step / Template** switch. **Filter a list**, **If** and **Switch** build their
+  condition from rows - field, check, value, all or any - still stored as the
+  JMESPath expression, which stays editable as one. **Input** says **Not
+  connected yet** for a step nothing leads to, names each step it reads with its
+  icon, and fields read "text", "number", "list" rather than type tokens;
+  pinned data is **test data**, and **Test step** is the main button until
+  there is some. A problem shows under the step's name, a missing value only
+  once its field was left, and labels read "URL", "Header name". Connecting a
+  step that works on a list after one that hands on exactly one binds that
+  list.
+- **A right click on the workflow canvas opens the step picker.** The same
+  searchable list the "+" opens, where the click was, with **Add a note** and
+  **Paste** beneath it, instead of a menu three levels deep; a step's own
+  right-click menu is unchanged. Searching puts a step whose name matches
+  before one whose description only mentions it.
 - **A workflow run's page shows its answer, not the envelope around it.** The
   Output card reads the run's text, its structured result, the passages it drew
   on and how many files it made, with the JSON folded under **Raw output**; the

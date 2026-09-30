@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FlaskConical, Pencil, Pin, PinOff } from "lucide-react";
+import { FlaskConical, Pencil, Pin, PinOff, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Badge, Button, ConfirmDialog, Spinner, Textarea } from "@/components/ui";
+import { nodeVisual } from "@/components/workflows/node-visuals";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
@@ -20,6 +21,7 @@ import {
 import { effectiveDefinition } from "@/lib/workflows/ports";
 import { WEBHOOK_TRIGGER, declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
+import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { DataView, DeclaredOutput } from "./data-view";
@@ -87,28 +89,51 @@ export function InputPane({
     return instance && definition ? effectiveDefinition(instance, definition) : null;
   };
 
+  const known = sources.some(
+    (source) =>
+      stepData[source]?.output != null ||
+      (declared(source)?.ports ?? []).some((port) => port.kind === "output"),
+  );
+
   return (
     <Pane title={t("stepInput")}>
-      {sources.length === 0 && <Empty>{t("stepInputNone")}</Empty>}
-      {/* A run's view has no settings to drag onto. */}
-      {!readOnly && sources.some((source) => stepData[source]?.output != null) && (
-        <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>
+      {sources.length === 0 && (
+        <div className="border-border flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center">
+          <Unplug aria-hidden="true" className="text-muted-foreground size-5" />
+          <p className="text-sm font-medium">{t("stepInputUnconnected")}</p>
+          <p className="text-muted-foreground text-xs">{t("stepInputUnconnectedHint")}</p>
+        </div>
       )}
+      {/* A run's view has no parameters to drag onto. */}
+      {!readOnly && known && <p className="text-muted-foreground text-xs">{t("dataDragHint")}</p>}
       {sources.map((source) => {
         const pinned = readOnly
           ? null
           : graph.nodes.find((candidate) => candidate.id === source)?.pinned_output;
         const output = pinned ?? stepData[source]?.output ?? null;
+        const definition = declared(source);
+        const instance = graph.nodes.find((candidate) => candidate.id === source);
+        const visual = nodeVisual(instance?.definition_id ?? "", definition?.category ?? "");
+        const Icon = visual.icon;
         return (
-          <div key={source} className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-sm font-medium">
-              {names.get(source) ?? source}
+          <div key={source} className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-md",
+                  visual.tileClass,
+                )}
+              >
+                <Icon aria-hidden="true" className="size-3.5" />
+              </span>
+              <span className="truncate">{names.get(source) ?? source}</span>
               {pinned != null && <Badge variant="outline">{t("stepPinned")}</Badge>}
             </div>
             {output === null ? (
               <DeclaredOutput
-                definition={declared(source)}
+                definition={definition}
                 source={source}
+                intro={t("dataDeclared")}
                 fallback={<Empty>{t("stepNoDataYet")}</Empty>}
               />
             ) : (
@@ -229,7 +254,8 @@ export function OutputPane({
         readOnly ? undefined : (
           <Button
             size="sm"
-            variant="outline"
+            // The one thing to do while nothing has been seen yet.
+            variant={shown === null && failed == null ? "default" : "outline"}
             disabled={blocked !== null || testing}
             title={blocked ?? t("stepTestHint")}
             onClick={ask}
@@ -283,6 +309,7 @@ export function OutputPane({
             failed == null && (
               <DeclaredOutput
                 definition={effectiveDefinition(node, definition)}
+                intro={t("stepOutputDeclared")}
                 fallback={<Empty>{t("stepOutputNone")}</Empty>}
               />
             )

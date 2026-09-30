@@ -262,10 +262,19 @@ describe("humanise / labelOf", () => {
 });
 
 describe("singleFieldSchema / asFormProperty", () => {
+  it("labels a field in sentence case, spelling what is said as letters", () => {
+    expect(humanise("header_name")).toBe("Header name");
+    expect(humanise("url")).toBe("URL");
+    expect(humanise("agent_run_ids")).toBe("Agent run IDs");
+    // Pydantic's own title for a name says no more than the name does.
+    expect(labelOf({ title: "Source Path" }, "source_path")).toBe("Source path");
+    expect(labelOf({ title: "Deliver to" }, "channel")).toBe("Deliver to");
+  });
+
   it("wraps a leaf as a one-field object schema, honouring required", () => {
     expect(singleFieldSchema("value", { type: "string" }, true)).toEqual({
       type: "object",
-      properties: { value: { type: "string" } },
+      properties: { value: { type: "string", title: "Value" } },
       required: ["value"],
     });
     expect(singleFieldSchema("value", { type: "string" }, false).required).toEqual([]);
